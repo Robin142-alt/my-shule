@@ -1,0 +1,75 @@
+{
+  "started_at": "2026-04-27T01:53:32.749Z",
+  "ended_at": "2026-04-27T01:55:15.539Z",
+  "status": "passed",
+  "tenant_ids": [
+    "financial-truth-load-1-f780bcb70eec",
+    "financial-truth-load-2-d536072f203e"
+  ],
+  "config": {
+    "duration_ms": 1800000,
+    "max_cycles": 2,
+    "tenant_count": 2,
+    "direct_posts_per_cycle": 1,
+    "mpesa_payments_per_cycle": 1,
+    "duplicate_callbacks_per_payment": 2,
+    "inject_ledger_failure_every": 0,
+    "inject_audit_failure_every": 0,
+    "inject_mpesa_failure_every": 0,
+    "report_path": "artifacts/financial-truth-load-report.json",
+    "checkpoint_path": "artifacts/financial-truth-load-checkpoint.json",
+    "checkpoint_every_cycles": 1
+  },
+  "summary": {
+    "completed_cycles": 2,
+    "direct_successful_post_count": 2,
+    "direct_failed_post_count": 0,
+    "mpesa_successful_payment_count": 2,
+    "mpesa_expected_processor_errors": 0,
+    "mpesa_amount_minor": "19900",
+    "final_reconciliation_discrepancy_count": 0
+  },
+  "cycles": [
+    {
+      "cycle_index": 1,
+      "tenant_id": "financial-truth-load-1-f780bcb70eec",
+      "started_at": "2026-04-27T01:53:35.020Z",
+      "ended_at": "2026-04-27T01:54:25.184Z",
+      "direct_successful_post_count": 1,
+      "direct_failed_post_count": 0,
+      "mpesa_successful_payment_count": 1,
+      "mpesa_expected_processor_errors": 0,
+      "mpesa_amount_minor": "9200",
+      "reconciliation": {
+        "report_date": "2026-04-27",
+        "discrepancy_count": 0,
+        "successful_mpesa_transaction_count": 1,
+        "successful_mpesa_amount_minor": "9200",
+        "linked_ledger_amount_minor": "9200",
+        "matched_amount_minor": "9200",
+        "is_balanced": true
+      }
+    },
+    {
+      "cycle_index": 2,
+      "tenant_id": "financial-truth-load-2-d536072f203e",
+      "started_at": "2026-04-27T01:54:25.187Z",
+      "ended_at": "2026-04-27T01:55:15.539Z",
+      "direct_successful_post_count": 1,
+      "direct_failed_post_count": 0,
+      "mpesa_successful_payment_count": 1,
+      "mpesa_expected_processor_errors": 0,
+      "mpesa_amount_minor": "10700",
+      "reconciliation": {
+        "report_date": "2026-04-27",
+        "discrepancy_count": 0,
+        "successful_mpesa_transaction_count": 1,
+        "successful_mpesa_amount_minor": "10700",
+        "linked_ledger_amount_minor": "10700",
+        "matched_amount_minor": "10700",
+        "is_balanced": true
+      }
+    }
+  ],
+  "failure": null
+}

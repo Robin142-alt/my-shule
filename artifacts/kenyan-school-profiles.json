@@ -1,0 +1,175 @@
+{
+  "generated_at": "2026-04-26T22:07:39.304Z",
+  "seed": "kenyan-school-load-2026",
+  "school_year": 2026,
+  "summary": {
+    "tenant_count": 1,
+    "total_students": 723,
+    "total_teachers": 42,
+    "total_classes": 10,
+    "total_streams": 10,
+    "min_students": 723,
+    "max_students": 723,
+    "median_students": 723,
+    "plan_mix": {
+      "starter": 0,
+      "growth": 1,
+      "enterprise": 0
+    },
+    "county_mix": {
+      "Laikipia": 1
+    }
+  },
+  "profiles": [
+    {
+      "tenant_id": "victory-laikipia-junior-preparatory-school-0001",
+      "subdomain": "victory-laikipia-junior-preparatory-school-0001",
+      "school_name": "Victory Laikipia Junior Preparatory School",
+      "county": "Laikipia",
+      "locale": "peri_urban",
+      "level": "primary",
+      "boarding_model": "day",
+      "plan_code": "growth",
+      "timezone": "Africa/Nairobi",
+      "student_count": 723,
+      "teacher_count": 42,
+      "class_count": 10,
+      "stream_count": 10,
+      "devices_count": 37,
+      "attendance_adoption_ratio": 0.95,
+      "offline_attendance_ratio": 0.32,
+      "mpesa_adoption_ratio": 0.75,
+      "sms_opt_in_ratio": 0.81,
+      "report_generation_ratio": 0.85,
+      "classes": [
+        {
+          "class_name": "PP1 North",
+          "level_code": "PP1",
+          "stream_name": "North",
+          "homeroom_size_estimate": 67,
+          "monthly_fee_amount_minor": "2143100"
+        },
+        {
+          "class_name": "PP2 North",
+          "level_code": "PP2",
+          "stream_name": "North",
+          "homeroom_size_estimate": 77,
+          "monthly_fee_amount_minor": "2393100"
+        },
+        {
+          "class_name": "Grade 1 North",
+          "level_code": "Grade 1",
+          "stream_name": "North",
+          "homeroom_size_estimate": 70,
+          "monthly_fee_amount_minor": "2643100"
+        },
+        {
+          "class_name": "Grade 2 North",
+          "level_code": "Grade 2",
+          "stream_name": "North",
+          "homeroom_size_estimate": 65,
+          "monthly_fee_amount_minor": "2893100"
+        },
+        {
+          "class_name": "Grade 3 North",
+          "level_code": "Grade 3",
+          "stream_name": "North",
+          "homeroom_size_estimate": 82,
+          "monthly_fee_amount_minor": "3143100"
+        },
+        {
+          "class_name": "Grade 4 North",
+          "level_code": "Grade 4",
+          "stream_name": "North",
+          "homeroom_size_estimate": 81,
+          "monthly_fee_amount_minor": "3393100"
+        },
+        {
+          "class_name": "Grade 5 North",
+          "level_code": "Grade 5",
+          "stream_name": "North",
+          "homeroom_size_estimate": 82,
+          "monthly_fee_amount_minor": "3643100"
+        },
+        {
+          "class_name": "Grade 6 North",
+          "level_code": "Grade 6",
+          "stream_name": "North",
+          "homeroom_size_estimate": 64,
+          "monthly_fee_amount_minor": "3893100"
+        },
+        {
+          "class_name": "Grade 7 North",
+          "level_code": "Grade 7",
+          "stream_name": "North",
+          "homeroom_size_estimate": 78,
+          "monthly_fee_amount_minor": "4143100"
+        },
+        {
+          "class_name": "Grade 8 North",
+          "level_code": "Grade 8",
+          "stream_name": "North",
+          "homeroom_size_estimate": 73,
+          "monthly_fee_amount_minor": "4393100"
+        }
+      ],
+      "terms": [
+        {
+          "term": 1,
+          "opens_on": "2026-01-06",
+          "closes_on": "2026-04-04",
+          "fee_deadline_on": "2026-01-20",
+          "report_window_starts_on": "2026-03-25"
+        },
+        {
+          "term": 2,
+          "opens_on": "2026-05-06",
+          "closes_on": "2026-08-01",
+          "fee_deadline_on": "2026-05-20",
+          "report_window_starts_on": "2026-07-22"
+        },
+        {
+          "term": 3,
+          "opens_on": "2026-09-01",
+          "closes_on": "2026-11-21",
+          "fee_deadline_on": "2026-09-15",
+          "report_window_starts_on": "2026-11-10"
+        }
+      ],
+      "messaging": {
+        "guardian_burst_ratio": 0.29,
+        "teacher_burst_ratio": 0.1,
+        "channels": [
+          "sms"
+        ]
+      },
+      "load_shape": {
+        "morning_peak_multiplier": 2.8,
+        "evening_peak_multiplier": 2.2,
+        "term_opening_multiplier": 2.5,
+        "fee_deadline_multiplier": 3.2,
+        "term_closing_multiplier": 1.9
+      },
+      "metadata": {
+        "generated_by": "kenyan-school-profiles",
+        "county_cluster": "Laikipia",
+        "seeded_ordinal": 1,
+        "class_levels": [
+          "PP1",
+          "PP2",
+          "Grade 1",
+          "Grade 2",
+          "Grade 3",
+          "Grade 4",
+          "Grade 5",
+          "Grade 6",
+          "Grade 7",
+          "Grade 8"
+        ],
+        "stream_names": [
+          "North"
+        ]
+      }
+    }
+  ]
+}

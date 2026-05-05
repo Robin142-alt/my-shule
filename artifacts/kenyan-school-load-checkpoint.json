@@ -1,0 +1,174 @@
+{
+  "kind": "kenyan_school_load_checkpoint",
+  "started_at": "2026-04-26T22:08:52.717Z",
+  "captured_at": "2026-04-26T22:09:20.879Z",
+  "elapsed_ms": 28162,
+  "progress_ratio": 1,
+  "status": "running",
+  "config": {
+    "duration_ms": 4800,
+    "concurrency": 4,
+    "tenant_count": 1,
+    "sample_interval_ms": 1000,
+    "checkpoint_interval_ms": 1000,
+    "force_workload_after_ms": 250,
+    "fail_workload_starvation_ms": 5000
+  },
+  "seeded": {
+    "tenant_count": 1,
+    "student_count": 2,
+    "device_count": 7
+  },
+  "preflight": {
+    "tenant_samples": 1,
+    "duration_ms": 45476.25,
+    "checks": [
+      {
+        "tenant_id": "victory-laikipia-junior-preparatory-school-0001-eb5fa50001",
+        "workload": "attendance_online",
+        "duration_ms": 5048.17,
+        "status": "passed"
+      },
+      {
+        "tenant_id": "victory-laikipia-junior-preparatory-school-0001-eb5fa50001",
+        "workload": "attendance_offline",
+        "duration_ms": 8472.4,
+        "status": "passed"
+      },
+      {
+        "tenant_id": "victory-laikipia-junior-preparatory-school-0001-eb5fa50001",
+        "workload": "report_generation",
+        "duration_ms": 4815.58,
+        "status": "passed"
+      },
+      {
+        "tenant_id": "victory-laikipia-junior-preparatory-school-0001-eb5fa50001",
+        "workload": "sms_burst",
+        "duration_ms": 1.09,
+        "status": "passed"
+      },
+      {
+        "tenant_id": "victory-laikipia-junior-preparatory-school-0001-eb5fa50001",
+        "workload": "mpesa_payment",
+        "duration_ms": 27136.66,
+        "status": "passed"
+      }
+    ]
+  },
+  "checkpoints": {
+    "path": "C:\\Users\\user\\Desktop\\PROJECTS\\Shule hub\\artifacts\\kenyan-school-load-checkpoint.json",
+    "interval_ms": 1000,
+    "writes": 3,
+    "last_written_at": "2026-04-26T22:08:56.728Z"
+  },
+  "coverage": {
+    "force_after_ms": 250,
+    "fail_starvation_ms": 5000,
+    "workloads": {
+      "attendance_online": {
+        "attempts": 2,
+        "successes": 2,
+        "forced_selections": 2,
+        "last_seen_elapsed_ms": 2572,
+        "max_gap_ms": 25590
+      },
+      "attendance_offline": {
+        "attempts": 1,
+        "successes": 1,
+        "forced_selections": 1,
+        "last_seen_elapsed_ms": 2,
+        "max_gap_ms": 28160
+      },
+      "mpesa_payment": {
+        "attempts": 1,
+        "successes": 1,
+        "forced_selections": 1,
+        "last_seen_elapsed_ms": 2,
+        "max_gap_ms": 28160
+      },
+      "report_generation": {
+        "attempts": 1,
+        "successes": 1,
+        "forced_selections": 1,
+        "last_seen_elapsed_ms": 3,
+        "max_gap_ms": 28159
+      },
+      "sms_burst": {
+        "attempts": 1,
+        "successes": 1,
+        "forced_selections": 1,
+        "last_seen_elapsed_ms": 2555,
+        "max_gap_ms": 25607
+      }
+    }
+  },
+  "latest_sample": {
+    "captured_at": "2026-04-26T22:09:20.879Z",
+    "elapsed_ms": 28162,
+    "virtual_now": "2026-12-02T04:00:00.000Z",
+    "memory_mb": {
+      "rss": 105.07,
+      "heap_used": 47.3,
+      "heap_total": 49.32
+    },
+    "event_loop_ms": {
+      "mean": 27.04,
+      "max": 49.18,
+      "p95": 34.14
+    },
+    "database_connections": {
+      "total_connections": 1,
+      "idle_connections": 1,
+      "active_connections": 0,
+      "waiting_requests": 0
+    },
+    "sms_queue": {
+      "mode": "simulated",
+      "produced": 281,
+      "processed": 281,
+      "failed": 0,
+      "waiting": 0,
+      "active": 0,
+      "delayed": 0,
+      "completed": 281,
+      "pending_backlog": 0
+    },
+    "workload": {
+      "operation_count": 4,
+      "success_count": 4,
+      "error_count": 0,
+      "error_rate": 0,
+      "throughput_ops_per_minute": 240,
+      "latency_ms": {
+        "min": 4664.67,
+        "avg": 11106.95,
+        "p50": 5437.79,
+        "p95": 28142.7,
+        "max": 28142.7
+      },
+      "per_operation": {
+        "attendance_online": {
+          "count": 1,
+          "errors": 0
+        },
+        "attendance_offline": {
+          "count": 1,
+          "errors": 0
+        },
+        "mpesa_payment": {
+          "count": 1,
+          "errors": 0
+        },
+        "report_generation": {
+          "count": 1,
+          "errors": 0
+        },
+        "sms_burst": {
+          "count": 0,
+          "errors": 0
+        }
+      }
+    }
+  },
+  "sample_count": 5
+}

@@ -1,0 +1,11 @@
+[31m[Nest] 10304  - [39m04/27/2026, 8:49:31 PM [31m  ERROR[39m [38;5;3m[ExceptionHandler] [39mError: Missing required queue environment variables: REDIS_URL
+    at Object.validatePaymentsQueueEnv [as validate] [90m(C:\Users\user\Desktop\PROJECTS\Shule hub\[39mapps\api\src\modules\payments\queue\payments-queue.env.ts:13:11[90m)[39m
+    at Function.forRoot [90m(C:\Users\user\Desktop\PROJECTS\Shule hub\[39mnode_modules\[4m@nestjs\config[24m\dist\config.module.js:88:45[90m)[39m
+    at Object.<anonymous> [90m(C:\Users\user\Desktop\PROJECTS\Shule hub\[39mapps\api\src\modules\payments\queue\payments-queue.runtime.module.ts:12:18[90m)[39m
+[90m    at Module._compile (node:internal/modules/cjs/loader:1706:14)[39m
+    at Module.m._compile [90m(C:\Users\user\Desktop\PROJECTS\Shule hub\[39mnode_modules\[4mts-node[24m\src\index.ts:1618:23[90m)[39m
+[90m    at node:internal/modules/cjs/loader:1839:10[39m
+    at Object.require.extensions.<computed> [as .ts] [90m(C:\Users\user\Desktop\PROJECTS\Shule hub\[39mnode_modules\[4mts-node[24m\src\index.ts:1621:12[90m)[39m
+[90m    at Module.load (node:internal/modules/cjs/loader:1441:32)[39m
+[90m    at Function._load (node:internal/modules/cjs/loader:1263:12)[39m
+[90m    at TracingChannel.traceSync (node:diagnostics_channel:322:14)[39m
