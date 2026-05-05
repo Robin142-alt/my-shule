@@ -10,8 +10,9 @@ export class AuthTokensDto {
 
 export class AuthenticatedUserDto {
   user_id!: string;
-  tenant_id!: string;
+  tenant_id!: string | null;
   role!: string;
+  audience!: 'superadmin' | 'school' | 'portal';
   email!: string;
   display_name!: string;
   permissions!: string[];
@@ -22,4 +23,3 @@ export class AuthResponseDto {
   tokens!: AuthTokensDto;
   user!: AuthenticatedUserDto;
 }
-

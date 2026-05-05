@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { UnauthorizedException } from '@nestjs/common';
 
 import { RequestContextService } from '../common/request-context/request-context.service';
 import { AuthService } from './auth.service';
@@ -133,4 +134,149 @@ test('AuthService register creates missing global users through the registration
   assert.equal(createUserCallCount, 0);
   assert.equal(response.user.email, 'owner@example.test');
   assert.equal(response.user.tenant_id, 'tenant-a');
+});
+
+test('AuthService authenticateAccessToken rejects access tokens when the audience does not match the session audience', async () => {
+  const requestContext = new RequestContextService();
+
+  const service = new AuthService(
+    requestContext,
+    {
+      findByEmail: async () => null,
+      ensureGlobalUserForRegistration: async () => {
+        throw new Error('not used');
+      },
+      findById: async () => null,
+    } as never,
+    {} as never,
+    {} as never,
+    {} as never,
+    {
+      verifyAccessToken: async () => ({
+        sub: 'user-1',
+        user_id: 'user-1',
+        tenant_id: 'tenant-a',
+        role: 'principal',
+        audience: 'school',
+        session_id: 'session-1',
+        token_id: 'token-1',
+        type: 'access' as const,
+      }),
+      issueTokenPair: async () => {
+        throw new Error('not used');
+      },
+      verifyRefreshToken: async () => {
+        throw new Error('not used');
+      },
+    } as never,
+    {
+      getSession: async () => ({
+        user_id: 'user-1',
+        tenant_id: 'tenant-a',
+        role: 'principal',
+        audience: 'school',
+        permissions: ['students:read'],
+        session_id: 'session-1',
+        is_authenticated: true,
+        refresh_token_id: 'refresh-1',
+        created_at: '2026-05-05T00:00:00.000Z',
+        updated_at: '2026-05-05T00:00:00.000Z',
+        refresh_expires_at: '2026-06-05T00:00:00.000Z',
+        ip_address: '127.0.0.1',
+        user_agent: 'test-suite',
+      }),
+      createSession: async () => undefined,
+      invalidateSession: async () => undefined,
+      rotateRefreshToken: async () => {
+        throw new Error('not used');
+      },
+      toPrincipal: () => {
+        throw new Error('not used');
+      },
+    } as never,
+  );
+
+  await assert.rejects(
+    () => service.authenticateAccessToken('access-token', 'tenant-a', 'superadmin'),
+    (error: unknown) =>
+      error instanceof UnauthorizedException
+      && error.message === 'Access token does not belong to this audience',
+  );
+});
+
+test('AuthService authenticateAccessToken allows platform sessions without a tenant id', async () => {
+  const requestContext = new RequestContextService();
+  const sessionRecord = {
+    user_id: 'user-platform',
+    tenant_id: null,
+    role: 'platform_owner',
+    audience: 'superadmin',
+    permissions: ['*:*'],
+    session_id: 'session-platform',
+    is_authenticated: true,
+    refresh_token_id: 'refresh-platform',
+    created_at: '2026-05-05T00:00:00.000Z',
+    updated_at: '2026-05-05T00:00:00.000Z',
+    refresh_expires_at: '2026-06-05T00:00:00.000Z',
+    ip_address: '127.0.0.1',
+    user_agent: 'test-suite',
+  };
+
+  const service = new AuthService(
+    requestContext,
+    {
+      findByEmail: async () => null,
+      ensureGlobalUserForRegistration: async () => {
+        throw new Error('not used');
+      },
+      findById: async () => null,
+    } as never,
+    {} as never,
+    {} as never,
+    {} as never,
+    {
+      verifyAccessToken: async () => ({
+        sub: 'user-platform',
+        user_id: 'user-platform',
+        tenant_id: null,
+        role: 'platform_owner',
+        audience: 'superadmin',
+        session_id: 'session-platform',
+        token_id: 'token-platform',
+        type: 'access' as const,
+      }),
+      issueTokenPair: async () => {
+        throw new Error('not used');
+      },
+      verifyRefreshToken: async () => {
+        throw new Error('not used');
+      },
+    } as never,
+    {
+      getSession: async () => sessionRecord,
+      createSession: async () => undefined,
+      invalidateSession: async () => undefined,
+      rotateRefreshToken: async () => {
+        throw new Error('not used');
+      },
+      toPrincipal: (session: typeof sessionRecord) => ({
+        user_id: session.user_id,
+        tenant_id: session.tenant_id,
+        role: session.role,
+        permissions: session.permissions,
+        session_id: session.session_id,
+        is_authenticated: session.is_authenticated,
+      }),
+    } as never,
+  );
+
+  const principal = await service.authenticateAccessToken(
+    'access-token',
+    null,
+    'superadmin',
+  );
+
+  assert.equal(principal.user_id, 'user-platform');
+  assert.equal(principal.tenant_id, null);
+  assert.equal(principal.role, 'platform_owner');
 });

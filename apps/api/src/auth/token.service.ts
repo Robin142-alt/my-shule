@@ -4,12 +4,13 @@ import { JwtService } from '@nestjs/jwt';
 import { randomUUID } from 'node:crypto';
 
 import { ACCESS_TOKEN_TYPE, REFRESH_TOKEN_TYPE } from './auth.constants';
-import { IssuedTokenPair, JwtTokenPayload } from './auth.interfaces';
+import { AuthAudience, IssuedTokenPair, JwtTokenPayload } from './auth.interfaces';
 
 interface TokenSubject {
   user_id: string;
-  tenant_id: string;
+  tenant_id: string | null;
   role: string;
+  audience: AuthAudience;
   session_id: string;
 }
 
@@ -31,6 +32,7 @@ export class TokenService {
       user_id: subject.user_id,
       tenant_id: subject.tenant_id,
       role: subject.role,
+      audience: subject.audience,
       session_id: subject.session_id,
       token_id: accessTokenId,
       type: ACCESS_TOKEN_TYPE,

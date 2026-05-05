@@ -4,6 +4,7 @@ import type { NextFunction, Request, Response } from 'express';
 import { RequestContextService } from '../common/request-context/request-context.service';
 import { DatabaseService } from '../database/database.service';
 import { AuthService } from '../auth/auth.service';
+import type { AuthAudience } from '../auth/auth.interfaces';
 
 @Injectable()
 export class AuthContextMiddleware implements NestMiddleware {
@@ -28,7 +29,12 @@ export class AuthContextMiddleware implements NestMiddleware {
         throw new UnauthorizedException('Tenant context is required before authentication');
       }
 
-      const principal = await this.authService.authenticateAccessToken(accessToken, requestContext.tenant_id);
+      const audience = this.resolveAudience(request);
+      const principal = await this.authService.authenticateAccessToken(
+        accessToken,
+        requestContext.tenant_id,
+        audience,
+      );
 
       this.requestContext.setUserId(principal.user_id);
       this.requestContext.setRole(principal.role);
@@ -42,5 +48,18 @@ export class AuthContextMiddleware implements NestMiddleware {
     } catch (error) {
       next(error as Error);
     }
+  }
+
+  private resolveAudience(request: Request): AuthAudience {
+    const audienceHeader = request.headers['x-auth-audience'];
+    const audience = Array.isArray(audienceHeader)
+      ? audienceHeader[0]
+      : audienceHeader;
+
+    if (audience === 'superadmin' || audience === 'portal' || audience === 'school') {
+      return audience;
+    }
+
+    return 'school';
   }
 }

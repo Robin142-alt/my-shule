@@ -1,10 +1,13 @@
 import type { Request } from 'express';
 
+export type AuthAudience = 'superadmin' | 'school' | 'portal';
+
 export interface JwtTokenPayload {
   sub: string;
   user_id: string;
-  tenant_id: string;
+  tenant_id: string | null;
   role: string;
+  audience: AuthAudience;
   session_id: string;
   token_id: string;
   type: 'access' | 'refresh';
@@ -12,8 +15,9 @@ export interface JwtTokenPayload {
 
 export interface AuthenticatedPrincipal {
   user_id: string;
-  tenant_id: string;
+  tenant_id: string | null;
   role: string;
+  audience: AuthAudience;
   permissions: string[];
   session_id: string;
   is_authenticated: boolean;
@@ -59,4 +63,3 @@ export interface PolicyMetadata {
   action: string;
   contextFactory?: (request: Request) => PolicyContext;
 }
-

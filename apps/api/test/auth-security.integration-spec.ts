@@ -260,6 +260,7 @@ const signAccessToken = async (
     user_id: input.user_id,
     tenant_id: input.tenant_id,
     role: input.role,
+    audience: 'school',
     session_id: input.session_id,
     token_id: input.token_id,
     type: ACCESS_TOKEN_TYPE,

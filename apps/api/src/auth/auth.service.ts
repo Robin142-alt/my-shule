@@ -13,6 +13,7 @@ import {
   DEFAULT_ROLE_OWNER,
 } from './auth.constants';
 import {
+  AuthAudience,
   AuthRequestMetadata,
   AuthenticatedPrincipal,
   IssuedTokenPair,
@@ -67,8 +68,16 @@ export class AuthService {
     return token.length > 0 ? token : null;
   }
 
-  async authenticateAccessToken(accessToken: string, expectedTenantId: string): Promise<AuthenticatedPrincipal> {
+  async authenticateAccessToken(
+    accessToken: string,
+    expectedTenantId: string | null,
+    expectedAudience: AuthAudience,
+  ): Promise<AuthenticatedPrincipal> {
     const payload = await this.tokenService.verifyAccessToken(accessToken);
+
+    if (payload.audience !== expectedAudience) {
+      throw new UnauthorizedException('Access token does not belong to this audience');
+    }
 
     if (payload.tenant_id !== expectedTenantId) {
       throw new UnauthorizedException('Access token does not belong to this tenant');
@@ -83,7 +92,8 @@ export class AuthService {
     if (
       session.user_id !== payload.user_id ||
       session.tenant_id !== payload.tenant_id ||
-      session.role !== payload.role
+      session.role !== payload.role ||
+      session.audience !== payload.audience
     ) {
       throw new UnauthorizedException('Access token is out of sync with the active session');
     }
@@ -132,11 +142,12 @@ export class AuthService {
     });
     const permissions = await this.authorizationRepository.getPermissionsByRoleId(tenantId, membership.role_id);
 
-    return this.createAuthResponse(user, membership, permissions, metadata);
+    return this.createAuthResponse(user, membership, permissions, 'school', metadata);
   }
 
   async login(dto: LoginDto, metadata: AuthRequestMetadata): Promise<AuthResponseDto> {
     const tenantId = this.requireTenantId();
+    const audience = dto.audience ?? 'school';
 
     await this.authorizationRepository.ensureTenantAuthorizationBaseline(tenantId);
 
@@ -160,7 +171,7 @@ export class AuthService {
 
     const permissions = await this.authorizationRepository.getPermissionsByRoleId(tenantId, membership.role_id);
 
-    return this.createAuthResponse(user, membership, permissions, metadata);
+    return this.createAuthResponse(user, membership, permissions, audience, metadata);
   }
 
   async refresh(dto: RefreshTokenDto, metadata: AuthRequestMetadata): Promise<AuthResponseDto> {
@@ -205,6 +216,7 @@ export class AuthService {
       user_id: user.id,
       tenant_id: tenantId,
       role: membership.role_code,
+      audience: payload.audience,
       session_id: payload.session_id,
     });
 
@@ -217,7 +229,7 @@ export class AuthService {
       refresh_expires_at: tokenPair.refresh_expires_at,
     });
 
-    return this.buildAuthResponse(user, membership, permissions, tokenPair);
+    return this.buildAuthResponse(user, membership, permissions, tokenPair, payload.audience);
   }
 
   async logout(): Promise<LogoutResponseDto> {
@@ -255,7 +267,7 @@ export class AuthService {
     const permissions = await this.authorizationRepository.getPermissionsByRoleId(tenantId, membership.role_id);
 
     return {
-      user: this.buildUserDto(user, membership, permissions, requestContext.session_id),
+      user: this.buildUserDto(user, membership, permissions, requestContext.session_id, 'school'),
     };
   }
 
@@ -263,12 +275,14 @@ export class AuthService {
     user: UserEntity,
     membership: TenantMembershipEntity,
     permissions: string[],
+    audience: AuthAudience,
     metadata: AuthRequestMetadata,
   ): Promise<AuthResponseDto> {
     const tokenPair = await this.tokenService.issueTokenPair({
       user_id: user.id,
       tenant_id: membership.tenant_id,
       role: membership.role_code,
+      audience,
       session_id: randomUUID(),
     });
 
@@ -276,6 +290,7 @@ export class AuthService {
       user_id: user.id,
       tenant_id: membership.tenant_id,
       role: membership.role_code,
+      audience,
       permissions,
       session_id: tokenPair.session_id,
       is_authenticated: true,
@@ -285,7 +300,7 @@ export class AuthService {
       user_agent: metadata.user_agent,
     });
 
-    return this.buildAuthResponse(user, membership, permissions, tokenPair);
+    return this.buildAuthResponse(user, membership, permissions, tokenPair, audience);
   }
 
   private buildAuthResponse(
@@ -293,6 +308,7 @@ export class AuthService {
     membership: TenantMembershipEntity,
     permissions: string[],
     tokenPair: IssuedTokenPair,
+    audience: AuthAudience,
   ): AuthResponseDto {
     const tokens: AuthTokensDto = {
       access_token: tokenPair.access_token,
@@ -306,7 +322,7 @@ export class AuthService {
 
     return {
       tokens,
-      user: this.buildUserDto(user, membership, permissions, tokenPair.session_id),
+      user: this.buildUserDto(user, membership, permissions, tokenPair.session_id, audience),
     };
   }
 
@@ -315,11 +331,13 @@ export class AuthService {
     membership: TenantMembershipEntity,
     permissions: string[],
     sessionId: string,
+    audience: AuthAudience,
   ): AuthenticatedUserDto {
     return {
       user_id: user.id,
       tenant_id: membership.tenant_id,
       role: membership.role_code,
+      audience,
       email: user.email,
       display_name: user.display_name,
       permissions,

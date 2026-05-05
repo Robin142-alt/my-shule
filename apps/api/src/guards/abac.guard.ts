@@ -49,6 +49,7 @@ export class AbacGuard implements CanActivate {
         user_id: requestContext.user_id,
         tenant_id: requestContext.tenant_id,
         role: requestContext.role ?? 'guest',
+        audience: 'school',
         permissions: requestContext.permissions,
         session_id: requestContext.session_id ?? '',
         is_authenticated: requestContext.is_authenticated,
