@@ -6,12 +6,24 @@ import { MfaService } from './mfa.service';
 
 test('MfaService requires a challenge for high-privilege roles without a trusted device', async () => {
   const queries: Array<{ text: string; values: unknown[] }> = [];
+  let independentTransactions = 0;
   const sentEmails: Array<{ code: string; to: string }> = [];
   const service = new MfaService(
     {
       query: async (text: string, values: unknown[]) => {
         queries.push({ text, values });
         return { rows: [] };
+      },
+      withIndependentRequestTransaction: async (
+        callback: (client: { query: (text: string, values: unknown[]) => Promise<{ rows: [] }> }) => Promise<void>,
+      ) => {
+        independentTransactions += 1;
+        await callback({
+          query: async (text: string, values: unknown[]) => {
+            queries.push({ text, values });
+            return { rows: [] };
+          },
+        });
       },
     } as never,
     {
@@ -38,6 +50,7 @@ test('MfaService requires a challenge for high-privilege roles without a trusted
     /MFA challenge required/,
   );
   assert.equal(sentEmails.length, 1);
+  assert.equal(independentTransactions, 1);
   assert.equal(sentEmails[0]?.to, 'owner@example.test');
   assert.match(sentEmails[0]?.code ?? '', /^\d{6}$/);
   assert.match(queries[0]?.text ?? '', /INSERT INTO auth_mfa_challenges/);

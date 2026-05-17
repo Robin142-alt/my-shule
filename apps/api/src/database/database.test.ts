@@ -130,3 +130,57 @@ test('DatabaseService.query uses the raw pool when no request context exists', a
   assert.equal(pool.connectCalls, 0);
   assert.deepEqual(pool.queryCalls, [{ text: 'SELECT 1', values: [] }]);
 });
+
+test('DatabaseService.withIndependentRequestTransaction commits outside the request client', async () => {
+  const requestContext = new RequestContextService();
+  const pool = new FakePool();
+  const service = new DatabaseService(
+    pool as never,
+    requestContext,
+    {
+      getRuntimeRoleName: () => 'shule_hub_runtime',
+    } as never,
+    {
+      get: () => undefined,
+    } as never,
+  );
+
+  await requestContext.run(
+    {
+      request_id: 'req-independent',
+      tenant_id: null,
+      user_id: 'anonymous',
+      role: 'guest',
+      session_id: null,
+      permissions: [],
+      is_authenticated: false,
+      client_ip: null,
+      user_agent: 'database.test',
+      method: 'POST',
+      path: '/auth/login',
+      started_at: '2026-05-17T00:00:00.000Z',
+      db_client: {
+        query: async () => {
+          throw new Error('request client should not be used');
+        },
+      } as never,
+    },
+    async () => {
+      await service.withIndependentRequestTransaction(async (client) => {
+        await client.query('INSERT INTO auth_mfa_challenges DEFAULT VALUES');
+      });
+    },
+  );
+
+  assert.equal(pool.connectCalls, 1);
+  assert.equal(pool.client.released, true);
+  assert.deepEqual(
+    pool.client.queries.map((query) => query.text),
+    [
+      'BEGIN',
+      "SET LOCAL ROLE shule_hub_runtime; SET LOCAL app.tenant_id = ''; SET LOCAL app.user_id = 'anonymous'; SET LOCAL app.request_id = 'req-independent'; SET LOCAL app.role = 'guest'; SET LOCAL app.session_id = ''; SET LOCAL app.method = 'POST'; SET LOCAL app.path = '/auth/login'; SET LOCAL app.client_ip = ''; SET LOCAL app.user_agent = 'database.test'; SET LOCAL app.started_at = '2026-05-17T00:00:00.000Z'; SET LOCAL app.is_authenticated = 'false'",
+      'INSERT INTO auth_mfa_challenges DEFAULT VALUES',
+      'COMMIT',
+    ],
+  );
+});

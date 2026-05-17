@@ -105,13 +105,17 @@ export class MfaService {
     const code = randomInt(100000, 1000000).toString();
     const expiresAt = new Date(Date.now() + this.getMfaTtlMs());
 
-    await this.databaseService.query(
-      `
-        INSERT INTO auth_mfa_challenges (user_id, code_hash, purpose, expires_at)
-        VALUES ($1::uuid, $2, 'login', $3)
-        RETURNING id
-      `,
-      [input.userId, this.hashSecret(code), expiresAt],
+    await this.databaseService.withIndependentRequestTransaction(
+      async (client) => {
+        await client.query(
+          `
+            INSERT INTO auth_mfa_challenges (user_id, code_hash, purpose, expires_at)
+            VALUES ($1::uuid, $2, 'login', $3)
+            RETURNING id
+          `,
+          [input.userId, this.hashSecret(code), expiresAt],
+        );
+      },
     );
 
     await this.emailService.sendMfaLoginCodeEmail({

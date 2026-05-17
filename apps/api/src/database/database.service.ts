@@ -164,6 +164,34 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
+  async withIndependentRequestTransaction<T>(
+    callback: (client: PoolClient) => Promise<T>,
+  ): Promise<T> {
+    const requestContext = this.requestContext.getStore();
+    const client = await this.acquireClient();
+
+    try {
+      if (requestContext) {
+        await this.initializeRequestSession(client, {
+          ...requestContext,
+          db_client: undefined,
+        });
+      } else {
+        await client.query('BEGIN');
+      }
+
+      const result = await callback(client);
+      await client.query('COMMIT');
+
+      return result;
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
   async withClient<T>(callback: (client: PoolClient) => Promise<T>): Promise<T> {
     const requestContext = this.requestContext.getStore();
     const existingClient = requestContext?.db_client;
