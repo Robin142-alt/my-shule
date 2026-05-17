@@ -13,3 +13,7 @@ export function isMfaChallengeRequiredMessage(message?: string | null) {
 export function isMfaChallengeRequiredError(error: unknown) {
   return error instanceof Error && isMfaChallengeRequiredMessage(error.message);
 }
+
+export function normalizeMfaCode(value?: string | null) {
+  return (value ?? "").replace(/\D/g, "").slice(0, 6);
+}

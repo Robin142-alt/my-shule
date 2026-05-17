@@ -20,6 +20,7 @@ import { AuthSubmitButton } from "@/components/auth/auth-submit-button";
 import {
   MFA_CHALLENGE_HELP_TEXT,
   isMfaChallengeRequiredError,
+  normalizeMfaCode,
 } from "@/lib/auth/mfa-challenge";
 import { useExperienceSession } from "@/lib/auth/use-experience-session";
 
@@ -97,7 +98,9 @@ export function PublicSchoolLoginView({
   const copy = intentCopy[intent];
 
   const submit = handleSubmit(async (values) => {
-    if (mfaRequired && !values.verificationCode?.trim()) {
+    const normalizedVerificationCode = normalizeMfaCode(values.verificationCode);
+
+    if (mfaRequired && normalizedVerificationCode.length !== 6) {
       setError("verificationCode", {
         message: "Enter the verification code from your email.",
       });
@@ -108,7 +111,7 @@ export function PublicSchoolLoginView({
       const result = await authSession.login({
         identifier: values.identifier.trim(),
         password: values.password,
-        verificationCode: mfaRequired ? values.verificationCode?.trim() : undefined,
+        verificationCode: mfaRequired ? normalizedVerificationCode : undefined,
       });
       void router.push(result.redirectTo ?? "/school/admin");
     } catch (error) {

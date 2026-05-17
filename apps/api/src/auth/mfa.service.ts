@@ -29,6 +29,8 @@ const HIGH_PRIVILEGE_ROLES = new Set([
   'superadmin',
 ]);
 
+const MFA_CODE_LENGTH = 6;
+
 @Injectable()
 export class MfaService {
   constructor(
@@ -46,9 +48,16 @@ export class MfaService {
       return { status: 'trusted_device' };
     }
 
-    if (!input.mfaCode?.trim()) {
+    const hasSubmittedMfaCode = Boolean(input.mfaCode?.trim());
+    const normalizedMfaCode = this.normalizeMfaCode(input.mfaCode ?? '');
+
+    if (!hasSubmittedMfaCode) {
       await this.issueLoginChallenge(input);
       throw new UnauthorizedException('MFA challenge required for this role');
+    }
+
+    if (normalizedMfaCode.length !== MFA_CODE_LENGTH) {
+      throw new UnauthorizedException('MFA challenge is invalid or expired');
     }
 
     const result = await this.databaseService.query<{ verified: boolean }>(
@@ -61,7 +70,7 @@ export class MfaService {
           AND expires_at > NOW()
         RETURNING TRUE AS verified
       `,
-      [input.userId, this.hashSecret(input.mfaCode)],
+      [input.userId, this.hashSecret(normalizedMfaCode)],
     );
 
     if (!result.rows[0]?.verified) {
@@ -83,7 +92,11 @@ export class MfaService {
   }
 
   private hashSecret(value: string): string {
-    return createHash('sha256').update(value.trim()).digest('hex');
+    return createHash('sha256').update(this.normalizeMfaCode(value)).digest('hex');
+  }
+
+  private normalizeMfaCode(value: string): string {
+    return value.replace(/\D/g, '').slice(0, MFA_CODE_LENGTH);
   }
 
   private async issueLoginChallenge(input: EnforceMfaLoginInput): Promise<void> {
@@ -94,16 +107,9 @@ export class MfaService {
 
     await this.databaseService.query(
       `
-        WITH consumed AS (
-          UPDATE auth_mfa_challenges
-          SET consumed_at = NOW()
-          WHERE user_id = $1::uuid
-            AND purpose = 'login'
-            AND consumed_at IS NULL
-          RETURNING id
-        )
         INSERT INTO auth_mfa_challenges (user_id, code_hash, purpose, expires_at)
-        VALUES ($1::uuid, $2, 'login', $3);
+        VALUES ($1::uuid, $2, 'login', $3)
+        RETURNING id
       `,
       [input.userId, this.hashSecret(code), expiresAt],
     );

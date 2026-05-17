@@ -1,6 +1,7 @@
 import type { LiveAuthUser } from "@/lib/dashboard/api-client";
 import { getDashboardApiBaseUrl } from "@/lib/dashboard/api-client";
 import type { ExperienceAudience } from "@/lib/auth/experience-audience";
+import { normalizeMfaCode } from "@/lib/auth/mfa-challenge";
 import {
   readAccessCookie,
   readAudienceCookie,
@@ -150,6 +151,7 @@ async function loginSchoolAudience(input: LoginInput) {
       email: input.identifier.trim(),
       password: input.password,
       audience: "school",
+      mfa_code: normalizeMfaCode(input.verificationCode) || undefined,
     },
   });
 
@@ -173,7 +175,7 @@ async function loginSuperadminAudience(input: LoginInput) {
       email: input.identifier.trim(),
       password: input.password,
       audience: "superadmin",
-      mfa_code: input.verificationCode?.trim() || undefined,
+      mfa_code: normalizeMfaCode(input.verificationCode) || undefined,
     },
   });
 
@@ -197,6 +199,7 @@ async function loginPortalAudience(input: LoginInput) {
       email: input.identifier.trim(),
       password: input.password,
       audience: "portal",
+      mfa_code: normalizeMfaCode(input.verificationCode) || undefined,
     },
   });
 

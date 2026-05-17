@@ -118,7 +118,7 @@ describe("enterprise authentication flows", () => {
     expect(await screen.findByText(/verification required/i)).toBeVisible();
     expect(screen.queryByText(/sign-in blocked/i)).not.toBeInTheDocument();
 
-    await user.type(screen.getByLabelText(/verification code/i), "123456");
+    await user.type(screen.getByLabelText(/verification code/i), "123 456");
     await user.click(screen.getByRole("button", { name: /verify and continue/i }));
 
     await waitFor(() =>

@@ -81,7 +81,7 @@ describe("server auth client production gateway", () => {
       audience: "superadmin",
       identifier: "system.owner@example.invalid",
       password: "ManagedByPasswordVault!42",
-      verificationCode: "provided-by-email",
+      verificationCode: "123 456",
     });
 
     expect(session.homePath).toBe("/superadmin");
@@ -98,7 +98,7 @@ describe("server auth client production gateway", () => {
           email: "system.owner@example.invalid",
           password: "ManagedByPasswordVault!42",
           audience: "superadmin",
-          mfa_code: "provided-by-email",
+          mfa_code: "123456",
         }),
       }),
     );

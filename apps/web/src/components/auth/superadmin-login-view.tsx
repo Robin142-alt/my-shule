@@ -19,6 +19,7 @@ import { AuthSubmitButton } from "@/components/auth/auth-submit-button";
 import {
   MFA_CHALLENGE_HELP_TEXT,
   isMfaChallengeRequiredError,
+  normalizeMfaCode,
 } from "@/lib/auth/mfa-challenge";
 import { useExperienceSession } from "@/lib/auth/use-experience-session";
 
@@ -85,7 +86,9 @@ export function SuperadminLoginView({
     setFieldErrors({});
     setGeneralError(null);
 
-    if (mfaRequired && verificationCode.trim().length < 6) {
+    const normalizedVerificationCode = normalizeMfaCode(verificationCode);
+
+    if (mfaRequired && normalizedVerificationCode.length !== 6) {
       setFieldErrors({
         verificationCode: "Enter the verification code from your email.",
       });
@@ -96,7 +99,7 @@ export function SuperadminLoginView({
       const result = await authSession.login({
         identifier: nextEmail,
         password: nextPassword,
-        verificationCode: mfaRequired ? verificationCode.trim() : undefined,
+        verificationCode: mfaRequired ? normalizedVerificationCode : undefined,
       });
       void router.push(result.redirectTo ?? "/superadmin");
     } catch (loginError) {
@@ -182,7 +185,9 @@ export function SuperadminLoginView({
                 inputMode="numeric"
                 autoComplete="one-time-code"
                 value={verificationCode}
-                onChange={(event) => setVerificationCode(event.target.value)}
+                onChange={(event) =>
+                  setVerificationCode(normalizeMfaCode(event.target.value))
+                }
                 error={fieldErrors.verificationCode || undefined}
               />
             ) : null}
