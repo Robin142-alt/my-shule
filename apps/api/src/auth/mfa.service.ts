@@ -94,12 +94,14 @@ export class MfaService {
 
     await this.databaseService.query(
       `
-        UPDATE auth_mfa_challenges
-        SET consumed_at = NOW()
-        WHERE user_id = $1::uuid
-          AND purpose = 'login'
-          AND consumed_at IS NULL;
-
+        WITH consumed AS (
+          UPDATE auth_mfa_challenges
+          SET consumed_at = NOW()
+          WHERE user_id = $1::uuid
+            AND purpose = 'login'
+            AND consumed_at IS NULL
+          RETURNING id
+        )
         INSERT INTO auth_mfa_challenges (user_id, code_hash, purpose, expires_at)
         VALUES ($1::uuid, $2, 'login', $3);
       `,

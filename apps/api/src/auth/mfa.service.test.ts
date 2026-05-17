@@ -40,6 +40,8 @@ test('MfaService requires a challenge for high-privilege roles without a trusted
   assert.equal(sentEmails[0]?.to, 'owner@example.test');
   assert.match(sentEmails[0]?.code ?? '', /^\d{6}$/);
   assert.match(queries[0]?.text ?? '', /INSERT INTO auth_mfa_challenges/);
+  assert.match(queries[0]?.text ?? '', /WITH consumed AS/);
+  assert.doesNotMatch(queries[0]?.text ?? '', /;\s*\S/);
   assert.notEqual(queries[0]?.values[1], sentEmails[0]?.code);
 });
 
