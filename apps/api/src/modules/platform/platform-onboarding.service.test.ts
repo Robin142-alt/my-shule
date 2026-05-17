@@ -71,6 +71,8 @@ test('PlatformOnboardingService creates a school and sends an invite without exp
   assert.match(sentInvites[0]?.inviteUrl ?? '', /^https:\/\/shule-hub-erp\.vercel\.app\/invite\/accept\?token=/);
   assert.equal(response.tenant_id, 'green-valley');
   assert.equal(response.invitation_sent, true);
+  assert.equal(response.invitation_status, 'sent');
+  assert.match(response.invitation_message, /Invitation sent/i);
   assert.equal(JSON.stringify(response).includes('token='), false);
   const tokenInsert = queries.find((query) => query.text.includes('INSERT INTO auth_action_tokens'));
   assert.match(String(tokenInsert?.values[3]), /^[a-f0-9]{64}$/);
@@ -133,7 +135,7 @@ test('PlatformOnboardingService rejects duplicate school URL slugs without sendi
   assert.equal(queries.some((query) => query.text.includes('auth_email_outbox')), false);
 });
 
-test('PlatformOnboardingService wraps school creation and invitation delivery in a transaction', async () => {
+test('PlatformOnboardingService creates the school even when invitation delivery fails', async () => {
   let transactionCalls = 0;
 
   const service = new PlatformOnboardingService(
@@ -185,16 +187,87 @@ test('PlatformOnboardingService wraps school creation and invitation delivery in
     } as never,
   );
 
-  await assert.rejects(
-    () =>
-      service.createSchool({
-        school_name: 'Green Valley School',
-        tenant_id: 'Green Valley',
-        admin_email: 'principal@example.test',
-        admin_name: 'Principal User',
-      }),
-    /Resend rejected the invitation/,
-  );
+  const response = await service.createSchool({
+    school_name: 'Green Valley School',
+    tenant_id: 'Green Valley',
+    admin_email: 'principal@example.test',
+    admin_name: 'Principal User',
+  });
 
   assert.equal(transactionCalls, 1);
+  assert.equal(response.tenant_id, 'green-valley');
+  assert.equal(response.invitation_sent, false);
+  assert.equal(response.invitation_status, 'failed');
+  assert.match(response.invitation_message, /resend it/i);
+});
+
+test('PlatformOnboardingService resends a school administrator invite with a rotated token', async () => {
+  const queries: Array<{ text: string; values: unknown[] }> = [];
+  const sentInvites: Array<{ to: string; inviteUrl: string }> = [];
+
+  const service = new PlatformOnboardingService(
+    {
+      withRequestTransaction: async (callback: () => Promise<unknown>) => callback(),
+      query: async (text: string, values: unknown[]) => {
+        queries.push({ text, values });
+
+        if (text.includes('FROM tenants') && text.includes('latest_token.email')) {
+          return {
+            rows: [
+              {
+                tenant_id: 'green-valley',
+                name: 'Green Valley School',
+                subdomain: 'green-valley',
+                status: 'active',
+                created_at: new Date('2026-05-11T00:00:00.000Z'),
+                admin_email: 'principal@example.test',
+                invite_metadata: { display_name: 'Principal User' },
+              },
+            ],
+          };
+        }
+
+        if (text.includes('INSERT INTO auth_action_tokens')) {
+          return { rows: [{ id: '00000000-0000-0000-0000-000000000802' }] };
+        }
+
+        if (text.includes('INSERT INTO auth_email_outbox')) {
+          return { rows: [{ id: '00000000-0000-0000-0000-000000000902' }] };
+        }
+
+        return { rows: [] };
+      },
+    } as never,
+    {
+      ensureTenantAuthorizationBaseline: async () => undefined,
+    } as never,
+    {
+      assertTransactionalEmailConfigured: () => undefined,
+      sendInvitationEmail: async (input: { to: string; inviteUrl: string }) => {
+        sentInvites.push(input);
+      },
+    } as never,
+    { get: (key: string) => (key === 'email.publicAppUrl' ? 'https://shule-hub-erp.vercel.app' : undefined) } as never,
+    {
+      getStore: () => ({
+        user_id: 'platform-owner',
+      }),
+    } as never,
+  );
+
+  const response = await service.resendSchoolAdminInvite('green-valley');
+
+  assert.equal(response.tenant_id, 'green-valley');
+  assert.equal(response.invitation_status, 'sent');
+  assert.equal(response.admin_email, 'principal@example.test');
+  assert.equal(sentInvites.length, 1);
+  assert.match(sentInvites[0]?.inviteUrl ?? '', /^https:\/\/shule-hub-erp\.vercel\.app\/invite\/accept\?token=/);
+  assert.equal(
+    queries.some(
+      (query) =>
+        query.text.includes('UPDATE auth_action_tokens') &&
+        String(query.values[1]) === 'principal@example.test',
+    ),
+    true,
+  );
 });

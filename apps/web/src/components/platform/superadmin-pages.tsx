@@ -46,6 +46,7 @@ import {
 import {
   createPlatformSchool,
   fetchPlatformSchools,
+  resendPlatformSchoolAdminInvite,
   type PlatformSchool,
 } from "@/lib/platform/school-onboarding-client";
 import { toSuperadminPath } from "@/lib/routing/experience-routes";
@@ -164,6 +165,13 @@ function unwrapPlatformPayload<T>(payload: T | ApiEnvelope<T> | null): T | null 
 }
 
 function mapPlatformSchoolToTenantRow(row: PlatformSchool): (typeof tenantRows)[number] {
+  const invitationLabel =
+    row.invitation_status === "sent"
+      ? "Invitation sent"
+      : row.invitation_status === "queued"
+        ? "Invite queued"
+        : "Invite delivery failed";
+
   return {
     id: row.tenant_id,
     schoolName: row.school_name,
@@ -171,8 +179,12 @@ function mapPlatformSchoolToTenantRow(row: PlatformSchool): (typeof tenantRows)[
     statusTone: row.status === "active" ? "ok" : "critical",
     subscription: "Not configured",
     studentCount: "0",
-    lastActive: row.invitation_sent ? "Invitation sent" : "Awaiting admin",
+    lastActive: invitationLabel,
     revenue: "KES 0",
+    adminEmail: row.admin_email,
+    invitationStatus: row.invitation_status,
+    invitationMessage: row.invitation_message,
+    inviteExpiresAt: row.invite_expires_at,
   };
 }
 
@@ -180,6 +192,8 @@ function TenantsTable() {
   const [rows, setRows] = useState(tenantRows);
   const [selectedTenantId, setSelectedTenantId] = useState<string | null>(null);
   const [resetMessage, setResetMessage] = useState<string | null>(null);
+  const [resendMessage, setResendMessage] = useState<string | null>(null);
+  const [isResendingInvite, setIsResendingInvite] = useState(false);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [schoolForm, setSchoolForm] = useState(emptySchoolForm);
   const [createError, setCreateError] = useState<string | null>(null);
@@ -245,7 +259,7 @@ function TenantsTable() {
         mapPlatformSchoolToTenantRow(createdSchool),
         ...currentRows.filter((row) => row.id !== createdSchool.tenant_id),
       ]);
-      setCreateSuccess(`Invitation sent to ${createdSchool.admin_email}.`);
+      setCreateSuccess(createdSchool.invitation_message);
       setSchoolForm(emptySchoolForm);
     } catch (error) {
       setCreateError(
@@ -273,6 +287,35 @@ function TenantsTable() {
     );
   }
 
+  async function resendInvite() {
+    if (!selectedTenant) {
+      return;
+    }
+
+    setIsResendingInvite(true);
+    setResendMessage(null);
+    setResetMessage(null);
+
+    try {
+      const updatedSchool = await resendPlatformSchoolAdminInvite(selectedTenant.id);
+      const updatedRow = mapPlatformSchoolToTenantRow(updatedSchool);
+
+      setRows((currentRows) =>
+        currentRows.map((row) => (row.id === updatedRow.id ? updatedRow : row)),
+      );
+      setSelectedTenantId(updatedRow.id);
+      setResendMessage(updatedSchool.invitation_message);
+    } catch (error) {
+      setResendMessage(
+        error instanceof Error
+          ? error.message
+          : "Unable to resend this school invitation right now.",
+      );
+    } finally {
+      setIsResendingInvite(false);
+    }
+  }
+
   const columns: DataTableColumn<(typeof tenantRows)[number]>[] = [
     {
       id: "schoolName",
@@ -296,6 +339,7 @@ function TenantsTable() {
           <Button variant="secondary" size="sm" onClick={() => {
             setSelectedTenantId(row.id);
             setResetMessage(null);
+            setResendMessage(null);
           }}>
             Open tenant
           </Button>
@@ -312,6 +356,7 @@ function TenantsTable() {
           )}
           <Button variant="ghost" size="sm" onClick={() => {
             setSelectedTenantId(row.id);
+            setResendMessage(null);
             setResetMessage(`A one-time admin reset bundle is ready for ${row.schoolName}.`);
           }}>
             <UserRoundCog className="h-4 w-4" />
@@ -362,6 +407,8 @@ function TenantsTable() {
         onClose={() => {
           if (!isCreating) {
             setIsCreateOpen(false);
+            setCreateSuccess(null);
+            setCreateError(null);
           }
         }}
         footer={
@@ -451,12 +498,21 @@ function TenantsTable() {
         onClose={() => {
           setSelectedTenantId(null);
           setResetMessage(null);
+          setResendMessage(null);
         }}
         footer={
           selectedTenant ? (
             <>
               <Button variant="secondary" onClick={() => setSelectedTenantId(null)}>
                 Close
+              </Button>
+              <Button
+                variant="secondary"
+                disabled={isResendingInvite || !selectedTenant.adminEmail}
+                onClick={resendInvite}
+              >
+                <MailCheck className="h-4 w-4" />
+                {isResendingInvite ? "Resending" : "Resend invite"}
               </Button>
               <Button
                 variant="ghost"
@@ -523,10 +579,26 @@ function TenantsTable() {
                 </p>
                 <p className="mt-2 text-sm font-semibold text-foreground">{selectedTenant.revenue}</p>
               </div>
+              <div className="rounded-xl border border-border bg-surface-muted px-4 py-3">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted">
+                  Admin invite
+                </p>
+                <p className="mt-2 text-sm font-semibold text-foreground">
+                  {selectedTenant.adminEmail || "No admin email recorded"}
+                </p>
+                <p className="mt-1 text-xs text-muted">
+                  {selectedTenant.invitationMessage || selectedTenant.lastActive}
+                </p>
+              </div>
             </div>
             {resetMessage ? (
               <div className="rounded-xl border border-success/20 bg-success/10 px-4 py-3 text-sm text-foreground">
                 {resetMessage}
+              </div>
+            ) : null}
+            {resendMessage ? (
+              <div className="rounded-xl border border-warning/20 bg-warning/10 px-4 py-3 text-sm text-foreground">
+                {resendMessage}
               </div>
             ) : null}
           </div>
@@ -815,6 +887,14 @@ async function parsePlatformSmsResponse<T>(response: Response): Promise<T> {
     | null;
 
   if (!response.ok) {
+    if (response.status === 401 || response.status === 403) {
+      throw new Error("Your platform session expired. Sign in again to manage SMS providers.");
+    }
+
+    if (response.status >= 500) {
+      throw new Error("SMS provider settings could not be loaded. Check API health and retry.");
+    }
+
     throw new Error(
       payload && typeof payload === "object" && "message" in payload && payload.message
         ? payload.message
@@ -875,7 +955,11 @@ function PlatformSmsSettingsPage() {
         }
       } catch (loadError) {
         if (!cancelled) {
-          setError(loadError instanceof Error ? loadError.message : "Unable to load SMS providers.");
+          setError(
+            loadError instanceof Error
+              ? loadError.message
+              : "SMS provider settings could not be loaded. Check API health and retry.",
+          );
         }
       } finally {
         if (!cancelled) {
@@ -1000,7 +1084,11 @@ function PlatformSmsSettingsPage() {
       await reloadProviders();
       setNotice(`${provider.provider_name} connection test passed.`);
     } catch (testError) {
-      setError(testError instanceof Error ? testError.message : "SMS provider test failed.");
+      setError(
+        testError instanceof Error
+          ? testError.message
+          : "SMS provider test failed. Confirm the provider account, sender ID, and network access.",
+      );
     }
   }
 
@@ -1095,7 +1183,7 @@ function PlatformSmsSettingsPage() {
           columns={providerColumns}
           rows={providerRows}
           getRowKey={(row) => row.id}
-          emptyMessage="No SMS provider has been configured yet."
+          emptyMessage="No SMS provider has been configured yet. Add TextSMS Kenya, Africa's Talking, or Twilio to start sending school messages through platform-managed credentials."
         />
 
         <Card className="space-y-4 p-5">
@@ -1223,58 +1311,109 @@ function PlatformSmsSettingsPage() {
 }
 
 function SettingsPage({ routeMode }: { routeMode: SuperadminRouteMode }) {
+  const apiConfigured = isDashboardApiConfigured();
+  const settingsCards = [
+    {
+      title: "Messaging and SMS providers",
+      status: "Needs setup",
+      tone: "warning" as const,
+      description: "Manage platform-owned SMS providers, sender IDs, provider tests, and default dispatch routing.",
+      href: buildSuperadminHref("sms-settings", routeMode),
+      action: "Open SMS settings",
+    },
+    {
+      title: "School invitations",
+      status: "Operational",
+      tone: "ok" as const,
+      description: "Create schools, send administrator invites, and recover invitation delivery from the tenant control page.",
+      href: buildSuperadminHref("schools", routeMode),
+      action: "Open school onboarding",
+    },
+    {
+      title: "Support routing and SLA",
+      status: "Review queues",
+      tone: "warning" as const,
+      description: "Watch open, in-progress, escalated, resolved, SLA, and analytics support workspaces.",
+      href: buildSuperadminHref("support", routeMode),
+      action: "Open support",
+    },
+    {
+      title: "Security and audit posture",
+      status: "Audit ready",
+      tone: "ok" as const,
+      description: "Review platform owner actions, tenant-sensitive changes, and security-sensitive activity history.",
+      href: buildSuperadminHref("audit-logs", routeMode),
+      action: "Open audit logs",
+    },
+    {
+      title: "Infrastructure readiness",
+      status: apiConfigured ? "Connected" : "Needs API",
+      tone: apiConfigured ? "ok" : "warning",
+      description: "Monitor API health, callback reliability, queues, and production readiness signals.",
+      href: buildSuperadminHref("infrastructure", routeMode),
+      action: "Open infrastructure",
+    },
+    {
+      title: "Notifications",
+      status: "Tenant aware",
+      tone: "ok" as const,
+      description: "Review delivery posture for platform notices, support updates, and operational alerts.",
+      href: buildSuperadminHref("notifications", routeMode),
+      action: "Open notifications",
+    },
+  ] satisfies Array<{
+    title: string;
+    status: string;
+    tone: "ok" | "warning" | "critical";
+    description: string;
+    href: string;
+    action: string;
+  }>;
+
   return (
     <div className="space-y-6">
       <SuperadminPageHeader
         title="Settings"
-        description="Platform-wide controls, webhook posture, notification defaults, and support-response policies."
+        description="Platform-wide control surfaces for messaging, school invitations, support operations, audit posture, and infrastructure readiness."
         actions={
           <Link href={buildSuperadminHref("sms-settings", routeMode)}>
             <Button variant="secondary">Open SMS settings</Button>
           </Link>
         }
       />
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Card className="p-5">
-          <p className="text-lg font-semibold text-foreground">Operational defaults</p>
-          <div className="mt-4 space-y-3">
-            {[
-              "Tenant grace period: 7 days",
-              "Callback replay tolerance: 300 seconds",
-              "Ledger reconciliation sweep: daily at 23:10 EAT",
-              "Support escalation SLA: 30 minutes",
-            ].map((item) => (
-              <div key={item} className="rounded-xl border border-border bg-surface-muted px-4 py-3 text-sm text-foreground">
-                {item}
+      <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
+        {settingsCards.map((card) => (
+          <Card key={card.title} className="flex min-h-56 flex-col justify-between p-5">
+            <div>
+              <div className="flex items-start justify-between gap-3">
+                <p className="text-lg font-semibold text-foreground">{card.title}</p>
+                <StatusPill label={card.status} tone={card.tone} />
               </div>
-            ))}
-          </div>
-        </Card>
-        <Card className="p-5">
-          <p className="text-lg font-semibold text-foreground">Security posture</p>
-          <div className="mt-4 space-y-3">
-            {[
-              "Runtime role uses NOBYPASSRLS",
-              "Payments queue uses idempotent job IDs",
-              "Finance postings require balanced ledger entries",
-              "Rate limiting enabled for auth and MPESA callbacks",
-            ].map((item) => (
-              <div key={item} className="rounded-xl border border-border bg-surface-muted px-4 py-3 text-sm text-foreground">
-                {item}
-              </div>
-            ))}
-          </div>
-        </Card>
+              <p className="mt-3 text-sm leading-6 text-muted">{card.description}</p>
+            </div>
+            <Link href={card.href} className="mt-5">
+              <Button variant="secondary" className="w-full justify-center">
+                {card.action}
+                <ArrowRight className="h-4 w-4" />
+              </Button>
+            </Link>
+          </Card>
+        ))}
       </div>
     </div>
   );
 }
 
 function SuperadminOverview({ routeMode }: { routeMode: SuperadminRouteMode }) {
+  const quickActions = superadminQuickActions.map((action) => ({
+    ...action,
+    href: mapSuperadminHref(action.href, routeMode),
+  }));
+
   return (
     <div className="space-y-6">
       <MetricGrid items={superadminKpis} columns="three" />
-      <QuickActionBar actions={superadminQuickActions} />
+      <QuickActionBar actions={quickActions} />
       <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
         <div className="space-y-6">
           <ChartCard

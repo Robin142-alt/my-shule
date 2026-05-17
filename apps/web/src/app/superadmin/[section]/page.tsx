@@ -3,26 +3,7 @@ import { notFound } from "next/navigation";
 import { SuperadminPages } from "@/components/platform/superadmin-pages";
 import { readPublicSuperadminSession } from "@/lib/routing/public-experience-session";
 import type { SuperadminSection } from "@/lib/routing/experience-routes";
-
-const allowedSections = new Set([
-  "tenants",
-  "schools",
-  "revenue",
-  "subscriptions",
-  "mpesa-monitoring",
-  "users",
-  "support",
-  "support-open",
-  "support-in-progress",
-  "support-escalated",
-  "support-resolved",
-  "support-sla",
-  "support-analytics",
-  "audit-logs",
-  "infrastructure",
-  "notifications",
-  "settings",
-]);
+import { isSuperadminPublicSection } from "@/lib/routing/superadmin-sections";
 
 export default async function SuperadminSectionPage({
   params,
@@ -33,7 +14,7 @@ export default async function SuperadminSectionPage({
 
   const { section } = await params;
 
-  if (!allowedSections.has(section)) {
+  if (!isSuperadminPublicSection(section)) {
     notFound();
   }
 

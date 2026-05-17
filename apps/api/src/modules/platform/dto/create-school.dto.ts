@@ -31,6 +31,9 @@ export type PlatformSchoolResponseDto = {
   subdomain: string;
   status: 'active' | 'inactive';
   invitation_sent: boolean;
+  invitation_status: 'sent' | 'queued' | 'failed';
+  invitation_message: string;
+  invite_expires_at: string;
   admin_email: string;
   created_at: string;
 };

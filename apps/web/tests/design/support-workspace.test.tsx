@@ -5,12 +5,14 @@ import { createElement } from "react";
 import { SuperadminPages } from "@/components/platform/superadmin-pages";
 import { SchoolPages } from "@/components/school/school-pages";
 import { StorekeeperWorkspace } from "@/components/storekeeper/storekeeper-workspace";
+import { PlatformSupportWorkspace } from "@/components/support/platform-support-workspace";
 import {
   adminSupportSidebarItems,
   supportSidebarItems,
   type SupportMessage,
   type SupportTicket,
 } from "@/lib/support/support-data";
+import { isSuperadminPublicSection } from "@/lib/routing/superadmin-sections";
 
 import { renderWithProviders } from "./test-utils";
 
@@ -28,9 +30,18 @@ const mockMergeSupportTicketLive = jest.fn();
 const mockReplyToSupportTicketLive = jest.fn();
 const mockUpdateSupportTicketStatusLive = jest.fn();
 const mockUploadSupportAttachmentLive = jest.fn();
+const mockCreatePlatformSchool = jest.fn();
+const mockFetchPlatformSchools = jest.fn();
+const mockResendPlatformSchoolAdminInvite = jest.fn();
 
 jest.mock("@/lib/dashboard/api-client", () => ({
   isDashboardApiConfigured: () => true,
+}));
+
+jest.mock("@/lib/platform/school-onboarding-client", () => ({
+  createPlatformSchool: (...args: unknown[]) => mockCreatePlatformSchool(...args),
+  fetchPlatformSchools: (...args: unknown[]) => mockFetchPlatformSchools(...args),
+  resendPlatformSchoolAdminInvite: (...args: unknown[]) => mockResendPlatformSchoolAdminInvite(...args),
 }));
 
 jest.mock("@/lib/support/support-live", () => ({
@@ -103,6 +114,31 @@ function buildSupportTicket(overrides: Partial<SupportTicket> = {}): SupportTick
 beforeEach(() => {
   jest.clearAllMocks();
 
+  mockFetchPlatformSchools.mockResolvedValue([]);
+  mockCreatePlatformSchool.mockResolvedValue({
+    tenant_id: "green-valley",
+    school_name: "Green Valley School",
+    subdomain: "green-valley",
+    status: "active",
+    invitation_sent: false,
+    invitation_status: "queued",
+    invitation_message: "School created. The admin invite is queued for delivery.",
+    invite_expires_at: "2026-05-24T00:00:00.000Z",
+    admin_email: "principal@example.test",
+    created_at: "2026-05-17T00:00:00.000Z",
+  });
+  mockResendPlatformSchoolAdminInvite.mockResolvedValue({
+    tenant_id: "green-valley",
+    school_name: "Green Valley School",
+    subdomain: "green-valley",
+    status: "active",
+    invitation_sent: true,
+    invitation_status: "sent",
+    invitation_message: "School created. Invitation sent to principal@example.test.",
+    invite_expires_at: "2026-05-24T00:00:00.000Z",
+    admin_email: "principal@example.test",
+    created_at: "2026-05-17T00:00:00.000Z",
+  });
   mockFetchSupportTicketsLive.mockResolvedValue([]);
   mockFetchSupportCategoriesLive.mockResolvedValue([
     "Finance",
@@ -151,6 +187,81 @@ describe("enterprise support workspace", () => {
       "SLA Monitoring",
       "Support Analytics",
     ]);
+  });
+
+  it("keeps superadmin SMS settings and quick actions on valid public platform routes", async () => {
+    renderWithProviders(createElement(SuperadminPages, { section: "overview", routeMode: "public" }));
+
+    expect(isSuperadminPublicSection("sms-settings")).toBe(true);
+    expect(await screen.findByRole("link", { name: /sms settings/i })).toHaveAttribute(
+      "href",
+      "/superadmin/sms-settings",
+    );
+    expect(screen.getByRole("link", { name: /create school/i })).toHaveAttribute(
+      "href",
+      "/superadmin/schools",
+    );
+    expect(screen.getByRole("link", { name: /open support/i })).toHaveAttribute(
+      "href",
+      "/superadmin/support",
+    );
+    expect(screen.getByRole("link", { name: /review audit logs/i })).toHaveAttribute(
+      "href",
+      "/superadmin/audit-logs",
+    );
+  });
+
+  it("renders distinct platform support workspaces for status, SLA, and analytics routes", async () => {
+    const views = [
+      { view: "support-open", title: /open ticket intake/i, queue: /unassigned and newly opened tickets/i },
+      { view: "support-in-progress", title: /active support work/i, queue: /tickets currently being worked/i },
+      { view: "support-escalated", title: /escalated incidents/i, queue: /escalated ticket queue/i },
+      { view: "support-resolved", title: /resolved tickets/i, queue: /resolved ticket history/i },
+      { view: "support-sla", title: /sla monitoring/i, queue: /tickets at sla risk/i },
+      { view: "support-analytics", title: /support analytics/i, queue: /module heatmap/i },
+    ] as const;
+
+    for (const item of views) {
+      const { unmount } = renderWithProviders(
+        createElement(PlatformSupportWorkspace, { defaultView: item.view }),
+      );
+
+      expect(await screen.findByRole("heading", { name: item.title })).toBeVisible();
+      const matches = await screen.findAllByText(item.queue);
+      expect(matches.length).toBeGreaterThan(0);
+      unmount();
+    }
+  });
+
+  it("shows queued invitation status after school creation instead of treating email delay as school failure", async () => {
+    const user = userEvent.setup();
+
+    renderWithProviders(createElement(SuperadminPages, { section: "schools", routeMode: "public" }));
+
+    await user.click(screen.getByRole("button", { name: /create school/i }));
+    fireEvent.change(screen.getByLabelText(/school name/i), {
+      target: { value: "Green Valley School" },
+    });
+    fireEvent.change(screen.getByLabelText(/school url slug/i), {
+      target: { value: "green-valley" },
+    });
+    fireEvent.change(screen.getByLabelText(/administrator name/i), {
+      target: { value: "Principal User" },
+    });
+    fireEvent.change(screen.getByLabelText(/administrator email/i), {
+      target: { value: "principal@example.test" },
+    });
+    await user.click(screen.getByRole("button", { name: /create and invite/i }));
+
+    expect(
+      await screen.findByText(/school created\. the admin invite is queued for delivery/i),
+    ).toBeVisible();
+    expect(mockCreatePlatformSchool).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tenantId: "green-valley",
+        adminEmail: "principal@example.test",
+      }),
+    );
   });
 
   it("keeps Support Center reachable from the dedicated storekeeper workspace", () => {
@@ -270,14 +381,14 @@ describe("enterprise support workspace", () => {
 
     renderWithProviders(createElement(SuperadminPages, { section: "support" }));
 
-    expect(screen.getByRole("heading", { name: /support command center/i })).toBeVisible();
+    expect(screen.getByRole("heading", { name: /all support tickets/i })).toBeVisible();
     expect(screen.getByRole("link", { name: /sla monitoring/i })).toHaveAttribute(
       "href",
       "/support-sla",
     );
     expect(await screen.findByText(/Recurring MPESA callback failures/i)).toBeVisible();
     expect(screen.getAllByText(/SLA breach risk/i).length).toBeGreaterThan(0);
-    expect(await screen.findByText(/Notification dead letters/i)).toBeVisible();
+    expect((await screen.findAllByText(/Notification dead letters/i)).length).toBeGreaterThan(0);
     expect(screen.getByText(/SMTP rejected recipient/i)).toBeVisible();
 
     const openButtons = await screen.findAllByRole("button", { name: /open sup-2026-000145/i });

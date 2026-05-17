@@ -6,6 +6,9 @@ export type PlatformSchool = {
   subdomain: string;
   status: "active" | "inactive";
   invitation_sent: boolean;
+  invitation_status: "sent" | "queued" | "failed";
+  invitation_message: string;
+  invite_expires_at: string;
   admin_email: string;
   created_at: string;
 };
@@ -44,6 +47,26 @@ async function parsePlatformResponse(response: Response) {
     : payload;
 }
 
+async function fetchWithTimeout(input: RequestInfo | URL, init: RequestInit, timeoutMs = 20_000) {
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    return await fetch(input, {
+      ...init,
+      signal: controller.signal,
+    });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new Error("School creation is taking longer than expected. Refresh schools before trying again.");
+    }
+
+    throw error;
+  } finally {
+    window.clearTimeout(timeout);
+  }
+}
+
 export async function fetchPlatformSchools() {
   const response = await fetch("/api/platform/schools", {
     method: "GET",
@@ -62,7 +85,7 @@ export async function createPlatformSchool(input: {
   adminName: string;
   county?: string;
 }) {
-  const response = await fetch("/api/platform/schools", {
+  const response = await fetchWithTimeout("/api/platform/schools", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -77,6 +100,23 @@ export async function createPlatformSchool(input: {
       county: input.county,
     }),
   });
+  const payload = await parsePlatformResponse(response);
+
+  return payload as PlatformSchool;
+}
+
+export async function resendPlatformSchoolAdminInvite(tenantId: string) {
+  const response = await fetchWithTimeout(
+    `/api/platform/schools/${encodeURIComponent(tenantId)}/admin-invite/resend`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-shulehub-csrf": await getCsrfToken(),
+      },
+      credentials: "same-origin",
+    },
+  );
   const payload = await parsePlatformResponse(response);
 
   return payload as PlatformSchool;

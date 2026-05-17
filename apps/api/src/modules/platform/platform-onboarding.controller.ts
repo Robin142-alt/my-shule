@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post } from '@nestjs/common';
 
 import { Roles } from '../../auth/decorators/roles.decorator';
 import { SUPERADMIN_ROLE_OWNER } from '../../auth/auth.constants';
@@ -18,5 +18,12 @@ export class PlatformOnboardingController {
   @Post('schools')
   createSchool(@Body() dto: CreateSchoolDto): Promise<PlatformSchoolResponseDto> {
     return this.onboardingService.createSchool(dto);
+  }
+
+  @Post('schools/:tenantId/admin-invite/resend')
+  resendSchoolAdminInvite(
+    @Param('tenantId') tenantId: string,
+  ): Promise<PlatformSchoolResponseDto> {
+    return this.onboardingService.resendSchoolAdminInvite(tenantId);
   }
 }

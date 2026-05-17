@@ -57,6 +57,107 @@ const viewStatusMap: Partial<Record<PlatformSupportView, SupportStatus>> = {
   "support-resolved": "Resolved",
 };
 
+type SupportViewConfig = {
+  title: string;
+  subtitle: string;
+  queueTitle: string;
+  queueSubtitle: string;
+  emptyMessage: string;
+};
+
+const supportViewConfig: Record<PlatformSupportView, SupportViewConfig> = {
+  support: {
+    title: "All support tickets",
+    subtitle: "Monitor every tenant conversation, escalation, and customer reply.",
+    queueTitle: "Global support queue",
+    queueSubtitle: "Search globally by ticket ID, school, module, subject, user, priority, or status.",
+    emptyMessage: "Tickets will appear here when schools contact support.",
+  },
+  "support-open": {
+    title: "Open ticket intake",
+    subtitle: "New school requests waiting for triage and first response.",
+    queueTitle: "Unassigned and newly opened tickets",
+    queueSubtitle: "Prioritize first responses, owner assignment, and critical school issues.",
+    emptyMessage: "No open tickets. New tickets will appear here before assignment.",
+  },
+  "support-in-progress": {
+    title: "Active support work",
+    subtitle: "Tickets already owned by support agents and being resolved.",
+    queueTitle: "Tickets currently being worked",
+    queueSubtitle: "Track assigned owners, next actions, and conversations waiting on support.",
+    emptyMessage: "No tickets in progress. Assigned tickets will appear here after support begins work.",
+  },
+  "support-escalated": {
+    title: "Escalated incidents",
+    subtitle: "Critical issues requiring senior support, engineering, or management visibility.",
+    queueTitle: "Escalated ticket queue",
+    queueSubtitle: "Watch high-visibility tenant issues, escalation owners, and time-sensitive risk.",
+    emptyMessage: "No escalated tickets. Critical escalations will appear here with SLA and owner visibility.",
+  },
+  "support-resolved": {
+    title: "Resolved tickets",
+    subtitle: "Recently resolved support conversations and closure quality checks.",
+    queueTitle: "Resolved ticket history",
+    queueSubtitle: "Review closure notes, reopening risk, and tenant outcomes after support resolution.",
+    emptyMessage: "No resolved tickets yet. Closed support outcomes will appear here for audit and reporting.",
+  },
+  "support-sla": {
+    title: "SLA monitoring",
+    subtitle: "Track response risk, overdue tickets, and support service health.",
+    queueTitle: "Tickets at SLA risk",
+    queueSubtitle: "Focus on first response deadlines, resolution deadlines, and overdue tenant impact.",
+    emptyMessage: "No SLA breaches. Overdue and at-risk tickets will appear here.",
+  },
+  "support-analytics": {
+    title: "Support analytics",
+    subtitle: "Understand ticket volume, recurring issues, tenant friction, and support performance.",
+    queueTitle: "Recurring issue patterns",
+    queueSubtitle: "Analyze modules, schools, and workloads that repeatedly create support demand.",
+    emptyMessage: "Support analytics will populate after live ticket activity.",
+  },
+};
+
+const supportViewPanels: Record<
+  PlatformSupportView,
+  Array<{ title: string; description: string; status: string; tone: "ok" | "warning" | "critical" }>
+> = {
+  support: [
+    { title: "Global visibility", description: "All tickets across tenants stay visible to platform support.", status: "All queues", tone: "ok" },
+    { title: "Recurring issues", description: "Repeated module complaints are grouped for product follow-up.", status: "Tracked", tone: "warning" },
+    { title: "Notification dead letters", description: "Failed support notices surface before customers are left waiting.", status: "Watched", tone: "ok" },
+  ],
+  "support-open": [
+    { title: "New ticket intake", description: "Unassigned school requests should receive ownership quickly.", status: "Triage", tone: "warning" },
+    { title: "First response due", description: "Critical tickets need visible response discipline from the first minute.", status: "15 min", tone: "critical" },
+    { title: "Critical new tickets", description: "High-impact school issues are separated from routine questions.", status: "Priority", tone: "warning" },
+  ],
+  "support-in-progress": [
+    { title: "Assigned agents", description: "Owned tickets remain visible until a school receives a useful update.", status: "Active", tone: "ok" },
+    { title: "Next action due", description: "Tickets without recent movement should be reviewed by the support lead.", status: "Review", tone: "warning" },
+    { title: "Waiting on support", description: "Conversations should not stall after a school provides more context.", status: "Watch", tone: "warning" },
+  ],
+  "support-escalated": [
+    { title: "Senior visibility", description: "Critical incidents require owners, context, and executive-level clarity.", status: "Escalated", tone: "critical" },
+    { title: "Engineering handoff", description: "Product defects should carry request IDs, logs, and tenant impact.", status: "Required", tone: "warning" },
+    { title: "Tenant impact", description: "Escalations track affected schools before communication becomes reactive.", status: "High", tone: "critical" },
+  ],
+  "support-resolved": [
+    { title: "Closure quality", description: "Resolved tickets should include a clear outcome and school-visible answer.", status: "Review", tone: "ok" },
+    { title: "Reopen risk", description: "Recently resolved issues stay visible while the school confirms stability.", status: "Monitor", tone: "warning" },
+    { title: "Resolution audit", description: "Support outcomes remain available for operational review.", status: "Logged", tone: "ok" },
+  ],
+  "support-sla": [
+    { title: "First response SLA", description: "New and critical tickets are checked against response commitments.", status: "Live", tone: "warning" },
+    { title: "Resolution SLA", description: "Long-running issues are surfaced before service levels are breached.", status: "Live", tone: "warning" },
+    { title: "Overdue tenant impact", description: "Breaches are treated as customer-impacting operational incidents.", status: "Guarded", tone: "critical" },
+  ],
+  "support-analytics": [
+    { title: "Module heatmap", description: "Recurring issues by module identify where product fixes reduce support load.", status: "Insights", tone: "ok" },
+    { title: "Tenant friction", description: "Repeated tickets from a school identify onboarding or reliability gaps.", status: "Tracked", tone: "warning" },
+    { title: "Agent workload", description: "Ticket distribution helps the platform owner balance support capacity.", status: "Measured", tone: "ok" },
+  ],
+};
+
 const supportStatuses: SupportStatus[] = [
   "Open",
   "In Progress",
@@ -127,6 +228,8 @@ export function PlatformSupportWorkspace({
     ?? null;
   const analytics = liveAnalyticsQuery.data ?? supportAnalytics;
   const notificationDeadLetters = liveDeadLettersQuery.data ?? [];
+  const viewConfig = supportViewConfig[defaultView];
+  const viewPanels = supportViewPanels[defaultView];
   const filteredTickets = useMemo(() => {
     const mappedStatus = viewStatusMap[defaultView];
 
@@ -136,6 +239,9 @@ export function PlatformSupportWorkspace({
 
     return tickets.filter((ticket) => ticket.status === mappedStatus);
   }, [defaultView, tickets]);
+  const slaTickets = tickets.filter(
+    (ticket) => ticket.status !== "Resolved" && ticket.status !== "Closed",
+  );
 
   function updateTicketState(nextTicket: SupportTicket) {
     setLocalTickets((currentTickets) => upsertTicket(currentTickets, nextTicket));
@@ -378,9 +484,9 @@ export function PlatformSupportWorkspace({
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">
               Support
             </p>
-            <h2 className="mt-2 text-2xl font-bold text-foreground">Support Command Center</h2>
+            <h2 className="mt-2 text-2xl font-bold text-foreground">{viewConfig.title}</h2>
             <p className="mt-2 text-sm leading-6 text-muted">
-              Global tenant support queue with threaded conversations, escalation visibility, assignment, internal notes, SLA monitoring, and recurring issue analytics.
+              {viewConfig.subtitle}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -392,9 +498,11 @@ export function PlatformSupportWorkspace({
 
       <MetricGrid items={analytics.metrics} />
 
+      <SupportOperationsCards panels={viewPanels} />
+
       {defaultView === "support-sla" ? (
         <div className="grid gap-6 lg:grid-cols-3">
-          {tickets.map((ticket) => (
+          {slaTickets.length > 0 ? slaTickets.map((ticket) => (
             <Card key={ticket.id} className="p-5">
               <Clock3 className="h-5 w-5 text-foreground" />
               <p className="mt-4 text-sm font-semibold text-foreground">{ticket.ticketNumber}</p>
@@ -405,7 +513,15 @@ export function PlatformSupportWorkspace({
               </div>
               <div className="mt-4"><StatusPill label={ticket.status} tone={statusTone(ticket.status)} /></div>
             </Card>
-          ))}
+          )) : (
+            <Card className="p-5 lg:col-span-3">
+              <Clock3 className="h-5 w-5 text-success" />
+              <p className="mt-4 text-lg font-semibold text-foreground">No SLA breaches</p>
+              <p className="mt-2 text-sm leading-6 text-muted">
+                Overdue first responses and resolution deadlines will appear here when live tickets need intervention.
+              </p>
+            </Card>
+          )}
         </div>
       ) : null}
 
@@ -413,7 +529,7 @@ export function PlatformSupportWorkspace({
         <div className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
           <Card className="p-5">
             <BarChart3 className="h-5 w-5 text-foreground" />
-            <p className="mt-4 text-lg font-semibold text-foreground">Ticket heatmap</p>
+            <p className="mt-4 text-lg font-semibold text-foreground">Module heatmap</p>
             <div className="mt-5 space-y-3">
               {analytics.heatmap.map((point) => (
                 <div key={point.day} className="grid grid-cols-[44px_1fr_44px] items-center gap-3 text-sm">
@@ -433,11 +549,12 @@ export function PlatformSupportWorkspace({
       {defaultView !== "support-analytics" ? (
         <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
           <DataTable
-            title="Live support queue"
-            subtitle="Search globally by ticket ID, school, module, subject, user, priority, or status."
+            title={viewConfig.queueTitle}
+            subtitle={viewConfig.queueSubtitle}
             columns={columns}
             rows={filteredTickets}
             getRowKey={(row) => row.id}
+            emptyMessage={viewConfig.emptyMessage}
           />
           <div className="space-y-6">
             <RecurringIssuesCard issues={analytics.recurringIssues} />
@@ -604,6 +721,33 @@ function RecurringIssuesCard({ issues }: { issues: string[] }) {
         ))}
       </div>
     </Card>
+  );
+}
+
+function SupportOperationsCards({
+  panels,
+}: {
+  panels: Array<{
+    title: string;
+    description: string;
+    status: string;
+    tone: "ok" | "warning" | "critical";
+  }>;
+}) {
+  return (
+    <div className="grid gap-4 lg:grid-cols-3">
+      {panels.map((panel) => (
+        <Card key={panel.title} className="p-5">
+          <div className="flex items-start justify-between gap-3">
+            <p className="text-sm font-semibold uppercase tracking-[0.14em] text-muted">
+              {panel.title}
+            </p>
+            <StatusPill label={panel.status} tone={panel.tone} />
+          </div>
+          <p className="mt-4 text-sm leading-6 text-muted">{panel.description}</p>
+        </Card>
+      ))}
+    </div>
   );
 }
 

@@ -40,6 +40,10 @@ export type TenantControlRow = {
   studentCount: string;
   lastActive: string;
   revenue: string;
+  adminEmail?: string;
+  invitationStatus?: "sent" | "queued" | "failed";
+  invitationMessage?: string;
+  inviteExpiresAt?: string;
 };
 
 export type SubscriptionRow = {
