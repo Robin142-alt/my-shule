@@ -707,6 +707,8 @@ test('AuthService enforces MFA and can persist a trusted device during high-priv
   });
   assert.deepEqual(securityChecks.mfa, {
     userId: 'user-admin',
+    email: 'admin@example.test',
+    displayName: 'School Admin',
     role: 'admin',
     permissions: ['users:write'],
     mfaEnabled: true,

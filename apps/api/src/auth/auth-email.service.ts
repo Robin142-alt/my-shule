@@ -23,6 +23,13 @@ type EmailVerificationEmailInput = {
   expiresAt: Date;
 };
 
+type MfaLoginCodeEmailInput = {
+  to: string;
+  displayName: string;
+  code: string;
+  expiresAt: Date;
+};
+
 type SupportNotificationEmailInput = {
   to: string;
   title: string;
@@ -50,6 +57,12 @@ export class AuthEmailService {
   assertEmailVerificationConfigured(): void {
     this.assertTransactionalEmailConfigured(
       'Email verification is temporarily unavailable. Please contact support if you need immediate access.',
+    );
+  }
+
+  assertMfaConfigured(): void {
+    this.assertTransactionalEmailConfigured(
+      'MFA verification is temporarily unavailable. Please contact support if you need immediate access.',
     );
   }
 
@@ -167,6 +180,38 @@ export class AuthEmailService {
     if (!response.ok) {
       throw new ServiceUnavailableException(
         'Email verification email could not be sent right now.',
+      );
+    }
+  }
+
+  async sendMfaLoginCodeEmail(input: MfaLoginCodeEmailInput): Promise<void> {
+    const apiKey = this.getResendApiKey();
+    const from = this.getSender();
+
+    if (!apiKey || !from) {
+      throw new ServiceUnavailableException(
+        'MFA verification email could not be sent right now.',
+      );
+    }
+
+    const response = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from,
+        to: input.to,
+        subject: 'Your ShuleHub ERP verification code',
+        html: this.renderMfaLoginCodeHtml(input),
+        text: this.renderMfaLoginCodeText(input),
+      }),
+    });
+
+    if (!response.ok) {
+      throw new ServiceUnavailableException(
+        'MFA verification email could not be sent right now.',
       );
     }
   }
@@ -313,6 +358,38 @@ export class AuthEmailService {
         </p>
         <p style="color:#475569;font-size:14px;">This link expires at ${expiry}.</p>
         <p style="color:#475569;font-size:14px;">If you did not request this, you can ignore this email.</p>
+        <p>ShuleHub ERP</p>
+      </div>
+    `;
+  }
+
+  private renderMfaLoginCodeText(input: MfaLoginCodeEmailInput): string {
+    return [
+      `Hello ${input.displayName},`,
+      '',
+      'Use this ShuleHub ERP verification code to complete your sign-in:',
+      input.code,
+      '',
+      `This code expires at ${input.expiresAt.toISOString()}.`,
+      'If you did not try to sign in, reset your password and contact support.',
+      'ShuleHub ERP',
+    ].join('\n');
+  }
+
+  private renderMfaLoginCodeHtml(input: MfaLoginCodeEmailInput): string {
+    const safeName = this.escapeHtml(input.displayName);
+    const safeCode = this.escapeHtml(input.code);
+    const expiry = this.escapeHtml(input.expiresAt.toISOString());
+
+    return `
+      <div style="font-family:Arial,sans-serif;line-height:1.6;color:#0f172a;max-width:560px;margin:0 auto;padding:32px 20px;">
+        <p>Hello ${safeName},</p>
+        <p>Use this ShuleHub ERP verification code to complete your sign-in:</p>
+        <p style="font-size:28px;letter-spacing:6px;font-weight:800;background:#ecfdf5;border:1px solid #a7f3d0;border-radius:12px;padding:14px 18px;text-align:center;color:#065f46;">
+          ${safeCode}
+        </p>
+        <p style="color:#475569;font-size:14px;">This code expires at ${expiry}.</p>
+        <p style="color:#475569;font-size:14px;">If you did not try to sign in, reset your password and contact support.</p>
         <p>ShuleHub ERP</p>
       </div>
     `;

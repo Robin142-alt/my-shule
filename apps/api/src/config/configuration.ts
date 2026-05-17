@@ -98,6 +98,10 @@ export default () => ({
       process.env.PASSWORD_RECOVERY_TTL_MINUTES,
       30,
     ),
+    mfaCodeTtlMinutes: parseNumber(
+      process.env.MFA_CODE_TTL_MINUTES,
+      10,
+    ),
     invitationTtlMinutes: parseNumber(
       process.env.INVITATION_TTL_MINUTES,
       10080,

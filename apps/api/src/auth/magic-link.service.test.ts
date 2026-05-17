@@ -2,15 +2,23 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import 'reflect-metadata';
 
+import { ConfigService } from '@nestjs/config';
+
 import { DatabaseService } from '../database/database.service';
+import { AuthEmailService } from './auth-email.service';
 import { MagicLinkService } from './magic-link.service';
 import { MfaService } from './mfa.service';
 import { TrustedDeviceService } from './trusted-device.service';
 
 test('auth challenge services expose concrete DatabaseService dependency metadata', () => {
-  for (const service of [MagicLinkService, MfaService, TrustedDeviceService]) {
+  for (const service of [MagicLinkService, TrustedDeviceService]) {
     assert.deepEqual(Reflect.getMetadata('design:paramtypes', service), [DatabaseService]);
   }
+  assert.deepEqual(Reflect.getMetadata('design:paramtypes', MfaService), [
+    DatabaseService,
+    AuthEmailService,
+    ConfigService,
+  ]);
 });
 
 test('MagicLinkService consumes a login token exactly once', async () => {

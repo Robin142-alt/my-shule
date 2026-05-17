@@ -17,6 +17,10 @@ import {
   SecurityBadge,
 } from "@/components/auth/auth-security";
 import { AuthSubmitButton } from "@/components/auth/auth-submit-button";
+import {
+  MFA_CHALLENGE_HELP_TEXT,
+  isMfaChallengeRequiredError,
+} from "@/lib/auth/mfa-challenge";
 import { useExperienceSession } from "@/lib/auth/use-experience-session";
 
 const publicSchoolSchema = z.object({
@@ -25,6 +29,7 @@ const publicSchoolSchema = z.object({
     .trim()
     .email("Enter a valid work email address."),
   password: z.string().min(8, "Enter your password."),
+  verificationCode: z.string().optional(),
 });
 
 type PublicSchoolForm = z.infer<typeof publicSchoolSchema>;
@@ -76,25 +81,43 @@ export function PublicSchoolLoginView({
   const {
     register,
     handleSubmit,
+    setError,
+    clearErrors,
     formState: { errors, isSubmitting },
   } = useForm<PublicSchoolForm>({
     resolver: zodResolver(publicSchoolSchema),
     defaultValues: {
       identifier: "",
       password: "",
+      verificationCode: "",
     },
   });
   const authSession = useExperienceSession("school");
+  const [mfaRequired, setMfaRequired] = useState(false);
   const copy = intentCopy[intent];
 
   const submit = handleSubmit(async (values) => {
+    if (mfaRequired && !values.verificationCode?.trim()) {
+      setError("verificationCode", {
+        message: "Enter the verification code from your email.",
+      });
+      return;
+    }
+
     try {
       const result = await authSession.login({
         identifier: values.identifier.trim(),
         password: values.password,
+        verificationCode: mfaRequired ? values.verificationCode?.trim() : undefined,
       });
       void router.push(result.redirectTo ?? "/school/admin");
-    } catch {
+    } catch (error) {
+      if (isMfaChallengeRequiredError(error)) {
+        setMfaRequired(true);
+        clearErrors("verificationCode");
+        authSession.clearError();
+        return;
+      }
       // useExperienceSession exposes the safe message.
     }
   });
@@ -139,6 +162,15 @@ export function PublicSchoolLoginView({
             {...register("password")}
             error={errors.password?.message}
           />
+          {mfaRequired ? (
+            <AuthField
+              label="Verification code"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              {...register("verificationCode")}
+              error={errors.verificationCode?.message}
+            />
+          ) : null}
         </div>
 
         <div className="flex items-center justify-between gap-3">
@@ -156,6 +188,14 @@ export function PublicSchoolLoginView({
           </Link>
         </div>
 
+        {mfaRequired ? (
+          <AuthMessage
+            tone="warning"
+            title="Verification required"
+            description={MFA_CHALLENGE_HELP_TEXT}
+          />
+        ) : null}
+
         {authSession.error ? (
           <AuthMessage
             tone="error"
@@ -168,7 +208,7 @@ export function PublicSchoolLoginView({
           busy={isSubmitting || authSession.isSubmitting}
           type="submit"
         >
-          Sign in securely
+          {mfaRequired ? "Verify and continue" : "Sign in securely"}
         </AuthSubmitButton>
       </form>
     </AuthCard>

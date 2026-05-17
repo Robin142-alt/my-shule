@@ -16,6 +16,10 @@ import {
   SessionWarning,
 } from "@/components/auth/auth-security";
 import { AuthSubmitButton } from "@/components/auth/auth-submit-button";
+import {
+  MFA_CHALLENGE_HELP_TEXT,
+  isMfaChallengeRequiredError,
+} from "@/lib/auth/mfa-challenge";
 import { useExperienceSession } from "@/lib/auth/use-experience-session";
 
 const credentialsSchema = z.object({
@@ -31,6 +35,8 @@ export function SuperadminLoginView({
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [verificationCode, setVerificationCode] = useState("");
+  const [mfaRequired, setMfaRequired] = useState(false);
   const [rememberSession, setRememberSession] = useState(true);
   const [generalError, setGeneralError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -79,13 +85,27 @@ export function SuperadminLoginView({
     setFieldErrors({});
     setGeneralError(null);
 
+    if (mfaRequired && verificationCode.trim().length < 6) {
+      setFieldErrors({
+        verificationCode: "Enter the verification code from your email.",
+      });
+      return;
+    }
+
     try {
       const result = await authSession.login({
         identifier: nextEmail,
         password: nextPassword,
+        verificationCode: mfaRequired ? verificationCode.trim() : undefined,
       });
       void router.push(result.redirectTo ?? "/superadmin");
     } catch (loginError) {
+      if (isMfaChallengeRequiredError(loginError)) {
+        setMfaRequired(true);
+        setGeneralError(null);
+        return;
+      }
+
       setGeneralError(
         loginError instanceof Error
           ? loginError.message
@@ -135,7 +155,11 @@ export function SuperadminLoginView({
               type="email"
               autoComplete="email"
               value={email}
-              onChange={(event) => setEmail(event.target.value)}
+              onChange={(event) => {
+                setEmail(event.target.value);
+                setMfaRequired(false);
+                setVerificationCode("");
+              }}
               error={fieldErrors.email || undefined}
             />
             <AuthPasswordField
@@ -143,9 +167,25 @@ export function SuperadminLoginView({
               name="password"
               autoComplete="current-password"
               value={password}
-              onChange={(event) => setPassword(event.target.value)}
+              onChange={(event) => {
+                setPassword(event.target.value);
+                setMfaRequired(false);
+                setVerificationCode("");
+              }}
               error={fieldErrors.password || undefined}
             />
+            {mfaRequired ? (
+              <AuthField
+                label="Verification code"
+                name="verificationCode"
+                type="text"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                value={verificationCode}
+                onChange={(event) => setVerificationCode(event.target.value)}
+                error={fieldErrors.verificationCode || undefined}
+              />
+            ) : null}
           </div>
 
           <div className="flex items-center justify-between gap-3">
@@ -164,6 +204,14 @@ export function SuperadminLoginView({
 
           <SessionWarning mode="normal" />
 
+          {mfaRequired ? (
+            <AuthMessage
+              tone="warning"
+              title="Verification required"
+              description={MFA_CHALLENGE_HELP_TEXT}
+            />
+          ) : null}
+
           {generalError ? (
             <AuthMessage tone="error" title="Sign-in blocked" description={generalError} />
           ) : null}
@@ -172,7 +220,7 @@ export function SuperadminLoginView({
             busy={authSession.isSubmitting}
             type="submit"
           >
-            Continue securely
+            {mfaRequired ? "Verify and continue" : "Continue securely"}
           </AuthSubmitButton>
         </form>
 

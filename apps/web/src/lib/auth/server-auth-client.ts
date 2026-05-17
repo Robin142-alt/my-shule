@@ -173,7 +173,7 @@ async function loginSuperadminAudience(input: LoginInput) {
       email: input.identifier.trim(),
       password: input.password,
       audience: "superadmin",
-      verification_code: input.verificationCode?.trim() || undefined,
+      mfa_code: input.verificationCode?.trim() || undefined,
     },
   });
 

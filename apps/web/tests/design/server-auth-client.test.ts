@@ -98,7 +98,7 @@ describe("server auth client production gateway", () => {
           email: "system.owner@example.invalid",
           password: "ManagedByPasswordVault!42",
           audience: "superadmin",
-          verification_code: "provided-by-email",
+          mfa_code: "provided-by-email",
         }),
       }),
     );

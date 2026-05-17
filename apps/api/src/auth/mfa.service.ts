@@ -1,10 +1,14 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
-import { createHash } from 'node:crypto';
+import { ConfigService } from '@nestjs/config';
+import { createHash, randomInt } from 'node:crypto';
 
 import { DatabaseService } from '../database/database.service';
+import { AuthEmailService } from './auth-email.service';
 
 export interface EnforceMfaLoginInput {
   userId: string;
+  email: string;
+  displayName: string;
   role: string;
   permissions: string[];
   mfaEnabled: boolean;
@@ -27,7 +31,11 @@ const HIGH_PRIVILEGE_ROLES = new Set([
 
 @Injectable()
 export class MfaService {
-  constructor(private readonly databaseService: DatabaseService) {}
+  constructor(
+    private readonly databaseService: DatabaseService,
+    private readonly emailService: AuthEmailService,
+    private readonly configService: ConfigService,
+  ) {}
 
   async enforceLoginChallenge(input: EnforceMfaLoginInput): Promise<EnforceMfaLoginResult> {
     if (!this.requiresChallenge(input.role, input.permissions)) {
@@ -38,7 +46,8 @@ export class MfaService {
       return { status: 'trusted_device' };
     }
 
-    if (!input.mfaEnabled || !input.mfaCode?.trim()) {
+    if (!input.mfaCode?.trim()) {
+      await this.issueLoginChallenge(input);
       throw new UnauthorizedException('MFA challenge required for this role');
     }
 
@@ -75,5 +84,42 @@ export class MfaService {
 
   private hashSecret(value: string): string {
     return createHash('sha256').update(value.trim()).digest('hex');
+  }
+
+  private async issueLoginChallenge(input: EnforceMfaLoginInput): Promise<void> {
+    this.emailService.assertMfaConfigured();
+
+    const code = randomInt(100000, 1000000).toString();
+    const expiresAt = new Date(Date.now() + this.getMfaTtlMs());
+
+    await this.databaseService.query(
+      `
+        UPDATE auth_mfa_challenges
+        SET consumed_at = NOW()
+        WHERE user_id = $1::uuid
+          AND purpose = 'login'
+          AND consumed_at IS NULL;
+
+        INSERT INTO auth_mfa_challenges (user_id, code_hash, purpose, expires_at)
+        VALUES ($1::uuid, $2, 'login', $3);
+      `,
+      [input.userId, this.hashSecret(code), expiresAt],
+    );
+
+    await this.emailService.sendMfaLoginCodeEmail({
+      to: input.email,
+      displayName: input.displayName,
+      code,
+      expiresAt,
+    });
+  }
+
+  private getMfaTtlMs(): number {
+    const ttlMinutes = Number(
+      this.configService.get<number>('email.mfaCodeTtlMinutes') ?? 10,
+    );
+    const safeMinutes = Number.isFinite(ttlMinutes) && ttlMinutes > 0 ? ttlMinutes : 10;
+
+    return safeMinutes * 60 * 1000;
   }
 }

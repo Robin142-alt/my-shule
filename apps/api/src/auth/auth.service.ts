@@ -464,6 +464,8 @@ export class AuthService {
       : false;
     const result = await this.mfaService.enforceLoginChallenge({
       userId: user.id,
+      email: user.email,
+      displayName: user.display_name,
       role,
       permissions,
       mfaEnabled: Boolean(user.mfa_enabled),

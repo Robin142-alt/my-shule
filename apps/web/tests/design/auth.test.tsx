@@ -81,6 +81,57 @@ describe("enterprise authentication flows", () => {
     );
   });
 
+  test("super admin sign-in opens an MFA step when the backend requires a challenge", async () => {
+    const user = userEvent.setup();
+
+    fetchMock
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ token: "csrf-first-token" }),
+      })
+      .mockResolvedValueOnce({
+        ok: false,
+        json: async () => ({ message: "MFA challenge required for this role" }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ token: "csrf-second-token" }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          redirectTo: "/superadmin",
+          session: {
+            audience: "superadmin",
+            homePath: "/superadmin",
+            userLabel: "Platform owner",
+          },
+        }),
+      });
+
+    renderWithProviders(<SuperadminLoginView />);
+
+    await user.type(screen.getByLabelText(/^email$/i), "owner@example.invalid");
+    await user.type(screen.getByLabelText(/^password$/i), "ManagedByVault!2026");
+    await user.click(screen.getByRole("button", { name: /continue securely/i }));
+
+    expect(await screen.findByText(/verification required/i)).toBeVisible();
+    expect(screen.queryByText(/sign-in blocked/i)).not.toBeInTheDocument();
+
+    await user.type(screen.getByLabelText(/verification code/i), "123456");
+    await user.click(screen.getByRole("button", { name: /verify and continue/i }));
+
+    await waitFor(() =>
+      expect(routerPushMock).toHaveBeenCalledWith("/superadmin"),
+    );
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      "/api/auth/login",
+      expect.objectContaining({
+        body: expect.stringContaining('"verificationCode":"123456"'),
+      }),
+    );
+  });
+
   test("does not expose school staff credentials and routes bursar access", async () => {
     const user = userEvent.setup();
 

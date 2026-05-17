@@ -4,12 +4,30 @@ import test from 'node:test';
 import { MfaService } from './mfa.service';
 
 test('MfaService requires a challenge for high-privilege roles without a trusted device', async () => {
-  const service = new MfaService({} as never);
+  const queries: Array<{ text: string; values: unknown[] }> = [];
+  const sentEmails: Array<{ code: string; to: string }> = [];
+  const service = new MfaService(
+    {
+      query: async (text: string, values: unknown[]) => {
+        queries.push({ text, values });
+        return { rows: [] };
+      },
+    } as never,
+    {
+      assertMfaConfigured: () => undefined,
+      sendMfaLoginCodeEmail: async (input: { code: string; to: string }) => {
+        sentEmails.push(input);
+      },
+    } as never,
+    { get: () => 10 } as never,
+  );
 
   await assert.rejects(
     () =>
       service.enforceLoginChallenge({
         userId: 'user-1',
+        email: 'owner@example.test',
+        displayName: 'System Owner',
         role: 'admin',
         permissions: ['users:write'],
         mfaEnabled: true,
@@ -18,19 +36,33 @@ test('MfaService requires a challenge for high-privilege roles without a trusted
       }),
     /MFA challenge required/,
   );
+  assert.equal(sentEmails.length, 1);
+  assert.equal(sentEmails[0]?.to, 'owner@example.test');
+  assert.match(sentEmails[0]?.code ?? '', /^\d{6}$/);
+  assert.match(queries[0]?.text ?? '', /INSERT INTO auth_mfa_challenges/);
+  assert.notEqual(queries[0]?.values[1], sentEmails[0]?.code);
 });
 
 test('MfaService consumes a verified challenge before allowing high-privilege login', async () => {
   const queries: Array<{ text: string; values: unknown[] }> = [];
-  const service = new MfaService({
-    query: async (text: string, values: unknown[]) => {
-      queries.push({ text, values });
-      return { rows: [{ verified: true }] };
-    },
-  } as never);
+  const service = new MfaService(
+    {
+      query: async (text: string, values: unknown[]) => {
+        queries.push({ text, values });
+        return { rows: [{ verified: true }] };
+      },
+    } as never,
+    {
+      assertMfaConfigured: () => undefined,
+      sendMfaLoginCodeEmail: async () => undefined,
+    } as never,
+    { get: () => 10 } as never,
+  );
 
   const result = await service.enforceLoginChallenge({
     userId: 'user-1',
+    email: 'owner@example.test',
+    displayName: 'System Owner',
     role: 'platform_owner',
     permissions: ['*:*'],
     mfaEnabled: true,
