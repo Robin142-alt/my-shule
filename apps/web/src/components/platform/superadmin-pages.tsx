@@ -193,14 +193,16 @@ function TenantsTable() {
   const [selectedTenantId, setSelectedTenantId] = useState<string | null>(null);
   const [resetMessage, setResetMessage] = useState<string | null>(null);
   const [resendMessage, setResendMessage] = useState<string | null>(null);
-  const [isResendingInvite, setIsResendingInvite] = useState(false);
+  const [resendingTenantId, setResendingTenantId] = useState<string | null>(null);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [schoolForm, setSchoolForm] = useState(emptySchoolForm);
   const [createError, setCreateError] = useState<string | null>(null);
   const [createSuccess, setCreateSuccess] = useState<string | null>(null);
+  const [createdTenantForInvite, setCreatedTenantForInvite] = useState<(typeof tenantRows)[number] | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [isLoadingSchools, setIsLoadingSchools] = useState(true);
   const selectedTenant = rows.find((row) => row.id === selectedTenantId) ?? null;
+  const isResendingInvite = resendingTenantId !== null;
 
   useEffect(() => {
     let cancelled = false;
@@ -246,6 +248,7 @@ function TenantsTable() {
     setIsCreating(true);
     setCreateError(null);
     setCreateSuccess(null);
+    setCreatedTenantForInvite(null);
 
     try {
       const createdSchool = await createPlatformSchool({
@@ -255,11 +258,13 @@ function TenantsTable() {
         adminName: schoolForm.adminName.trim(),
         adminEmail: schoolForm.adminEmail.trim(),
       });
+      const createdRow = mapPlatformSchoolToTenantRow(createdSchool);
       setRows((currentRows) => [
-        mapPlatformSchoolToTenantRow(createdSchool),
+        createdRow,
         ...currentRows.filter((row) => row.id !== createdSchool.tenant_id),
       ]);
       setCreateSuccess(createdSchool.invitation_message);
+      setCreatedTenantForInvite(createdRow);
       setSchoolForm(emptySchoolForm);
     } catch (error) {
       setCreateError(
@@ -287,24 +292,34 @@ function TenantsTable() {
     );
   }
 
-  async function resendInvite() {
-    if (!selectedTenant) {
+  async function resendInviteForTenant(tenantId: string) {
+    const tenant = rows.find((row) => row.id === tenantId) ?? createdTenantForInvite;
+
+    if (!tenant || tenant.id !== tenantId) {
       return;
     }
 
-    setIsResendingInvite(true);
+    setResendingTenantId(tenantId);
     setResendMessage(null);
     setResetMessage(null);
 
     try {
-      const updatedSchool = await resendPlatformSchoolAdminInvite(selectedTenant.id);
+      const updatedSchool = await resendPlatformSchoolAdminInvite(tenantId);
       const updatedRow = mapPlatformSchoolToTenantRow(updatedSchool);
 
       setRows((currentRows) =>
         currentRows.map((row) => (row.id === updatedRow.id ? updatedRow : row)),
       );
-      setSelectedTenantId(updatedRow.id);
+      setCreatedTenantForInvite((currentTenant) =>
+        currentTenant?.id === updatedRow.id ? updatedRow : currentTenant,
+      );
+      if (selectedTenantId === updatedRow.id) {
+        setSelectedTenantId(updatedRow.id);
+      }
       setResendMessage(updatedSchool.invitation_message);
+      setCreateSuccess((currentMessage) =>
+        createdTenantForInvite?.id === updatedRow.id ? updatedSchool.invitation_message : currentMessage,
+      );
     } catch (error) {
       setResendMessage(
         error instanceof Error
@@ -312,7 +327,7 @@ function TenantsTable() {
           : "Unable to resend this school invitation right now.",
       );
     } finally {
-      setIsResendingInvite(false);
+      setResendingTenantId(null);
     }
   }
 
@@ -343,6 +358,18 @@ function TenantsTable() {
           }}>
             Open tenant
           </Button>
+          {row.adminEmail && row.invitationStatus !== "sent" ? (
+            <Button
+              variant="secondary"
+              size="sm"
+              aria-label={`Resend invite to ${row.schoolName}`}
+              disabled={resendingTenantId === row.id}
+              onClick={() => void resendInviteForTenant(row.id)}
+            >
+              <MailCheck className="h-4 w-4" />
+              {resendingTenantId === row.id ? "Resending" : "Resend invite"}
+            </Button>
+          ) : null}
           {row.status === "Suspended" ? (
             <Button variant="secondary" size="sm" onClick={() => updateTenantStatus(row.id, "Active")}>
               <RotateCcw className="h-4 w-4" />
@@ -382,11 +409,17 @@ function TenantsTable() {
           setIsCreateOpen(true);
           setCreateError(null);
           setCreateSuccess(null);
+          setCreatedTenantForInvite(null);
         }}>
           <Plus className="h-4 w-4" />
           Create school
         </Button>
       </div>
+      {resendMessage && !selectedTenant ? (
+        <div className="mb-4 rounded-[var(--radius-sm)] border border-success/20 bg-success/10 px-4 py-3 text-sm text-foreground">
+          {resendMessage}
+        </div>
+      ) : null}
       <DataTable
         title="Tenant control"
         subtitle="Every tenant is isolated operationally, but platform support can review billing, access, and activity from one control surface."
@@ -409,6 +442,7 @@ function TenantsTable() {
             setIsCreateOpen(false);
             setCreateSuccess(null);
             setCreateError(null);
+            setCreatedTenantForInvite(null);
           }
         }}
         footer={
@@ -486,8 +520,30 @@ function TenantsTable() {
           </div>
         ) : null}
         {createSuccess ? (
-          <div className="mt-4 rounded-[var(--radius-sm)] border border-success/20 bg-success/10 px-4 py-3 text-sm text-foreground">
-            {createSuccess}
+          <div className="mt-4 space-y-3 rounded-[var(--radius-sm)] border border-success/20 bg-success/10 px-4 py-3 text-sm text-foreground">
+            <p>{createSuccess}</p>
+            {createdTenantForInvite ? (
+              <div className="flex flex-col gap-3 rounded-xl border border-success/20 bg-white/70 px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="font-semibold text-foreground">{createdTenantForInvite.schoolName}</p>
+                  <p className="mt-1 text-xs text-muted">
+                    Admin invite: {createdTenantForInvite.adminEmail || "No administrator email recorded"}
+                  </p>
+                </div>
+                {createdTenantForInvite.invitationStatus !== "sent" ? (
+                  <Button
+                    size="sm"
+                    disabled={resendingTenantId === createdTenantForInvite.id}
+                    onClick={() => void resendInviteForTenant(createdTenantForInvite.id)}
+                  >
+                    <MailCheck className="h-4 w-4" />
+                    {resendingTenantId === createdTenantForInvite.id ? "Resending" : "Resend invite now"}
+                  </Button>
+                ) : (
+                  <StatusPill label="Invitation sent" tone="ok" />
+                )}
+              </div>
+            ) : null}
           </div>
         ) : null}
       </Modal>
@@ -509,10 +565,10 @@ function TenantsTable() {
               <Button
                 variant="secondary"
                 disabled={isResendingInvite || !selectedTenant.adminEmail}
-                onClick={resendInvite}
+                onClick={() => void resendInviteForTenant(selectedTenant.id)}
               >
                 <MailCheck className="h-4 w-4" />
-                {isResendingInvite ? "Resending" : "Resend invite"}
+                {resendingTenantId === selectedTenant.id ? "Resending" : "Resend invite"}
               </Button>
               <Button
                 variant="ghost"

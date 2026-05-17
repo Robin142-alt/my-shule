@@ -1,4 +1,4 @@
-import { Injectable, ServiceUnavailableException } from '@nestjs/common';
+import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
 type PasswordRecoveryEmailInput = {
@@ -46,6 +46,8 @@ export type TransactionalEmailStatus = {
 
 @Injectable()
 export class AuthEmailService {
+  private readonly logger = new Logger(AuthEmailService.name);
+
   constructor(private readonly configService: ConfigService) {}
 
   assertPasswordRecoveryConfigured(): void {
@@ -89,161 +91,124 @@ export class AuthEmailService {
   }
 
   async sendPasswordRecoveryEmail(input: PasswordRecoveryEmailInput): Promise<void> {
-    const apiKey = this.getResendApiKey();
-    const from = this.getSender();
-
-    if (!apiKey || !from) {
-      throw new ServiceUnavailableException(
+    await this.sendTransactionalEmail({
+      to: input.to,
+      subject: 'Reset your ShuleHub ERP password',
+      html: this.renderPasswordRecoveryHtml(input),
+      text: this.renderPasswordRecoveryText(input),
+      unavailableMessage:
         'Password recovery is temporarily unavailable. Please contact support if you need immediate access.',
-      );
-    }
-
-    const response = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        from,
-        to: input.to,
-        subject: 'Reset your ShuleHub ERP password',
-        html: this.renderPasswordRecoveryHtml(input),
-        text: this.renderPasswordRecoveryText(input),
-      }),
+      deliveryFailureMessage: 'Password recovery email could not be sent right now.',
     });
-
-    if (!response.ok) {
-      throw new ServiceUnavailableException(
-        'Password recovery email could not be sent right now.',
-      );
-    }
   }
 
   async sendInvitationEmail(input: InvitationEmailInput): Promise<void> {
-    const apiKey = this.getResendApiKey();
-    const from = this.getSender();
-
-    if (!apiKey || !from) {
-      throw new ServiceUnavailableException(
-        'School invitation email could not be sent right now.',
-      );
-    }
-
-    const response = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        from,
-        to: input.to,
-        subject: 'You have been invited to ShuleHub ERP',
-        html: this.renderInvitationHtml(input),
-        text: this.renderInvitationText(input),
-      }),
+    await this.sendTransactionalEmail({
+      to: input.to,
+      subject: 'You have been invited to ShuleHub ERP',
+      html: this.renderInvitationHtml(input),
+      text: this.renderInvitationText(input),
+      unavailableMessage: 'School invitation email could not be sent right now.',
+      deliveryFailureMessage: 'School invitation email could not be sent right now.',
     });
-
-    if (!response.ok) {
-      throw new ServiceUnavailableException(
-        'School invitation email could not be sent right now.',
-      );
-    }
   }
 
   async sendEmailVerificationEmail(input: EmailVerificationEmailInput): Promise<void> {
-    const apiKey = this.getResendApiKey();
-    const from = this.getSender();
-
-    if (!apiKey || !from) {
-      throw new ServiceUnavailableException(
-        'Email verification email could not be sent right now.',
-      );
-    }
-
-    const response = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        from,
-        to: input.to,
-        subject: 'Verify your ShuleHub ERP email address',
-        html: this.renderEmailVerificationHtml(input),
-        text: this.renderEmailVerificationText(input),
-      }),
+    await this.sendTransactionalEmail({
+      to: input.to,
+      subject: 'Verify your ShuleHub ERP email address',
+      html: this.renderEmailVerificationHtml(input),
+      text: this.renderEmailVerificationText(input),
+      unavailableMessage: 'Email verification email could not be sent right now.',
+      deliveryFailureMessage: 'Email verification email could not be sent right now.',
     });
-
-    if (!response.ok) {
-      throw new ServiceUnavailableException(
-        'Email verification email could not be sent right now.',
-      );
-    }
   }
 
   async sendMfaLoginCodeEmail(input: MfaLoginCodeEmailInput): Promise<void> {
-    const apiKey = this.getResendApiKey();
-    const from = this.getSender();
-
-    if (!apiKey || !from) {
-      throw new ServiceUnavailableException(
-        'MFA verification email could not be sent right now.',
-      );
-    }
-
-    const response = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        from,
-        to: input.to,
-        subject: 'Your ShuleHub ERP verification code',
-        html: this.renderMfaLoginCodeHtml(input),
-        text: this.renderMfaLoginCodeText(input),
-      }),
+    await this.sendTransactionalEmail({
+      to: input.to,
+      subject: 'Your ShuleHub ERP verification code',
+      html: this.renderMfaLoginCodeHtml(input),
+      text: this.renderMfaLoginCodeText(input),
+      unavailableMessage: 'MFA verification email could not be sent right now.',
+      deliveryFailureMessage: 'MFA verification email could not be sent right now.',
     });
-
-    if (!response.ok) {
-      throw new ServiceUnavailableException(
-        'MFA verification email could not be sent right now.',
-      );
-    }
   }
 
   async sendSupportNotificationEmail(input: SupportNotificationEmailInput): Promise<void> {
+    await this.sendTransactionalEmail({
+      to: input.to,
+      subject: input.title,
+      html: this.renderSupportNotificationHtml(input),
+      text: this.renderSupportNotificationText(input),
+      unavailableMessage: 'Support notification email could not be sent right now.',
+      deliveryFailureMessage: 'Support notification email could not be sent right now.',
+    });
+  }
+
+  private async sendTransactionalEmail(input: {
+    to: string;
+    subject: string;
+    html: string;
+    text: string;
+    unavailableMessage: string;
+    deliveryFailureMessage: string;
+  }): Promise<void> {
     const apiKey = this.getResendApiKey();
     const from = this.getSender();
 
     if (!apiKey || !from) {
       throw new ServiceUnavailableException(
-        'Support notification email could not be sent right now.',
+        input.unavailableMessage,
       );
     }
 
-    const response = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        from,
-        to: input.to,
-        subject: input.title,
-        html: this.renderSupportNotificationHtml(input),
-        text: this.renderSupportNotificationText(input),
-      }),
-    });
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), this.getRequestTimeoutMs());
+
+    let response: Response;
+
+    try {
+      response = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          from,
+          to: input.to,
+          subject: input.subject,
+          html: input.html,
+          text: input.text,
+        }),
+        signal: controller.signal,
+      });
+    } catch (error) {
+      const errorName =
+        error instanceof Error
+          ? error.name
+          : typeof error === 'object' && error !== null && 'name' in error
+            ? String(error.name)
+            : '';
+      const isTimeout = errorName === 'AbortError';
+      const message = isTimeout
+        ? `${input.deliveryFailureMessage} Email provider request timed out.`
+        : input.deliveryFailureMessage;
+
+      throw new ServiceUnavailableException(message);
+    } finally {
+      clearTimeout(timeout);
+    }
 
     if (!response.ok) {
+      const providerDetail = await this.safeProviderErrorDetail(response);
+
+      this.logger.warn(
+        `Transactional email provider rejected ${this.sanitizeProviderText(input.subject)}: status=${response.status}; detail=${providerDetail}`,
+      );
       throw new ServiceUnavailableException(
-        'Support notification email could not be sent right now.',
+        input.deliveryFailureMessage,
       );
     }
   }
@@ -258,6 +223,30 @@ export class AuthEmailService {
 
   private getPublicAppUrl(): string {
     return this.configService.get<string>('email.publicAppUrl')?.trim() ?? '';
+  }
+
+  private getRequestTimeoutMs(): number {
+    const configuredTimeoutMs = Number(
+      this.configService.get<number>('email.requestTimeoutMs') ?? 22000,
+    );
+
+    return Number.isFinite(configuredTimeoutMs) && configuredTimeoutMs > 0
+      ? configuredTimeoutMs
+      : 22000;
+  }
+
+  private async safeProviderErrorDetail(response: Response): Promise<string> {
+    const body = await response.text().catch(() => '');
+    const detail = this.sanitizeProviderText(body);
+
+    return detail || 'No provider response body';
+  }
+
+  private sanitizeProviderText(value: string): string {
+    return value
+      .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, '[email]')
+      .replace(/[A-Za-z0-9_=-]{24,}/g, '[redacted]')
+      .slice(0, 500);
   }
 
   private renderPasswordRecoveryText(input: PasswordRecoveryEmailInput): string {

@@ -47,7 +47,7 @@ async function parsePlatformResponse(response: Response) {
     : payload;
 }
 
-async function fetchWithTimeout(input: RequestInfo | URL, init: RequestInit, timeoutMs = 20_000) {
+async function fetchWithTimeout(input: RequestInfo | URL, init: RequestInit, timeoutMs = 35_000) {
   const controller = new AbortController();
   const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
 

@@ -514,10 +514,10 @@ export class PlatformOnboardingService {
 
   private getInvitationDeliveryTimeoutMs(): number {
     const timeoutMs = Number(
-      this.configService.get<number>('email.invitationDeliveryTimeoutMs') ?? 12_000,
+      this.configService.get<number>('email.invitationDeliveryTimeoutMs') ?? 26_000,
     );
 
-    return Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : 12_000;
+    return Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : 26_000;
   }
 
   private buildInvitationUrl(token: string): string {

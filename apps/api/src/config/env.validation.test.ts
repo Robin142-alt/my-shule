@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
+import configuration from './configuration';
 import { validateEnv } from './env.validation';
 
 const requiredEnvironment = {
@@ -102,4 +103,31 @@ test('validateEnv allows complete malware scan configuration', () => {
   };
 
   assert.equal(validateEnv(env), env);
+});
+
+test('configuration maps transactional email delivery timeouts for platform invites', () => {
+  const originalInvitationTimeout = process.env.EMAIL_INVITATION_DELIVERY_TIMEOUT_MS;
+  const originalRequestTimeout = process.env.EMAIL_REQUEST_TIMEOUT_MS;
+
+  try {
+    process.env.EMAIL_INVITATION_DELIVERY_TIMEOUT_MS = '26000';
+    process.env.EMAIL_REQUEST_TIMEOUT_MS = '22000';
+
+    const config = configuration();
+
+    assert.equal(config.email.invitationDeliveryTimeoutMs, 26000);
+    assert.equal(config.email.requestTimeoutMs, 22000);
+  } finally {
+    if (originalInvitationTimeout === undefined) {
+      delete process.env.EMAIL_INVITATION_DELIVERY_TIMEOUT_MS;
+    } else {
+      process.env.EMAIL_INVITATION_DELIVERY_TIMEOUT_MS = originalInvitationTimeout;
+    }
+
+    if (originalRequestTimeout === undefined) {
+      delete process.env.EMAIL_REQUEST_TIMEOUT_MS;
+    } else {
+      process.env.EMAIL_REQUEST_TIMEOUT_MS = originalRequestTimeout;
+    }
+  }
 });

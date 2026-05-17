@@ -106,6 +106,14 @@ export default () => ({
       process.env.INVITATION_TTL_MINUTES,
       10080,
     ),
+    requestTimeoutMs: parseNumber(
+      process.env.EMAIL_REQUEST_TIMEOUT_MS,
+      22000,
+    ),
+    invitationDeliveryTimeoutMs: parseNumber(
+      process.env.EMAIL_INVITATION_DELIVERY_TIMEOUT_MS,
+      26000,
+    ),
   },
   support: {
     notificationEmails: parseCsv(process.env.SUPPORT_NOTIFICATION_EMAILS),

@@ -264,6 +264,77 @@ describe("enterprise support workspace", () => {
     );
   });
 
+  it("lets the platform owner resend a failed school admin invite immediately after creation", async () => {
+    const user = userEvent.setup();
+
+    mockCreatePlatformSchool.mockResolvedValueOnce({
+      tenant_id: "green-valley",
+      school_name: "Green Valley School",
+      subdomain: "green-valley",
+      status: "active",
+      invitation_sent: false,
+      invitation_status: "failed",
+      invitation_message: "School created. The invite could not be delivered yet. You can resend it.",
+      invite_expires_at: "2026-05-24T00:00:00.000Z",
+      admin_email: "principal@example.test",
+      created_at: "2026-05-17T00:00:00.000Z",
+    });
+
+    renderWithProviders(createElement(SuperadminPages, { section: "schools", routeMode: "public" }));
+
+    await user.click(screen.getByRole("button", { name: /create school/i }));
+    fireEvent.change(screen.getByLabelText(/school name/i), {
+      target: { value: "Green Valley School" },
+    });
+    fireEvent.change(screen.getByLabelText(/school url slug/i), {
+      target: { value: "green-valley" },
+    });
+    fireEvent.change(screen.getByLabelText(/administrator name/i), {
+      target: { value: "Principal User" },
+    });
+    fireEvent.change(screen.getByLabelText(/administrator email/i), {
+      target: { value: "principal@example.test" },
+    });
+    await user.click(screen.getByRole("button", { name: /create and invite/i }));
+
+    expect(await screen.findByText(/invite could not be delivered yet/i)).toBeVisible();
+    await user.click(screen.getByRole("button", { name: /resend invite now/i }));
+
+    expect(mockResendPlatformSchoolAdminInvite).toHaveBeenCalledWith("green-valley");
+    expect((await screen.findAllByText(/invitation sent to principal@example\.test/i)).length).toBeGreaterThan(0);
+  });
+
+  it("shows a direct resend action on tenant rows with unsent admin invites", async () => {
+    const user = userEvent.setup();
+
+    mockFetchPlatformSchools.mockResolvedValueOnce([
+      {
+        tenant_id: "green-valley",
+        school_name: "Green Valley School",
+        subdomain: "green-valley",
+        status: "active",
+        invitation_sent: false,
+        invitation_status: "failed",
+        invitation_message: "School created. The invite could not be delivered yet. You can resend it.",
+        invite_expires_at: "2026-05-24T00:00:00.000Z",
+        admin_email: "principal@example.test",
+        created_at: "2026-05-17T00:00:00.000Z",
+      },
+    ]);
+
+    renderWithProviders(createElement(SuperadminPages, { section: "schools", routeMode: "public" }));
+
+    expect((await screen.findAllByText("Green Valley School")).length).toBeGreaterThan(0);
+    const [resendButton] = screen.getAllByRole("button", {
+      name: /resend invite to green valley school/i,
+    });
+    expect(resendButton).toBeTruthy();
+    await user.click(resendButton!);
+
+    expect(mockResendPlatformSchoolAdminInvite).toHaveBeenCalledWith("green-valley");
+    expect((await screen.findAllByText(/invitation sent to principal@example\.test/i)).length).toBeGreaterThan(0);
+  });
+
   it("keeps Support Center reachable from the dedicated storekeeper workspace", () => {
     renderWithProviders(createElement(StorekeeperWorkspace, { section: "dashboard" }));
 
