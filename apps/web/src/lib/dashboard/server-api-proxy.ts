@@ -3,12 +3,15 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
 import { validateCsrfRequest } from "@/lib/auth/csrf";
+import { createServerAuthClient } from "@/lib/auth/server-auth-client";
 import {
   readAccessCookie,
   readExperienceSessionCookie,
   readTenantCookie,
+  setExperienceSessionCookies,
 } from "@/lib/auth/server-session";
 import { getDashboardApiBaseUrl } from "@/lib/dashboard/api-client";
+import { fetchWithSessionRefresh } from "@/lib/dashboard/session-refreshing-fetch";
 
 type CatchAllContext = {
   params: Promise<{ path?: string[] }> | { path?: string[] };
@@ -108,24 +111,44 @@ export async function proxySchoolApiRequest(
       ? undefined
       : await request.arrayBuffer();
   const contentType = request.headers.get("content-type");
-  const upstreamResponse = await fetch(`${baseUrl}${upstreamPath}${query ? `?${query}` : ""}`, {
-    method: request.method,
-    headers: {
-      Accept: "application/json",
-      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-      ...(body && contentType ? { "Content-Type": contentType } : {}),
-      "x-auth-audience": audience,
-      ...(tenantSlug ? { "x-tenant-id": tenantSlug } : {}),
-    },
-    body: body && body.byteLength > 0 ? body : undefined,
-    cache: "no-store",
-  });
-  const responseBody = await upstreamResponse.text();
+  const upstreamUrl = `${baseUrl}${upstreamPath}${query ? `?${query}` : ""}`;
+  const sendUpstream = (token: string) =>
+    fetch(upstreamUrl, {
+      method: request.method,
+      headers: {
+        Accept: "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(body && contentType ? { "Content-Type": contentType } : {}),
+        "x-auth-audience": audience,
+        ...(tenantSlug ? { "x-tenant-id": tenantSlug } : {}),
+      },
+      body: body && body.byteLength > 0 ? body : undefined,
+      cache: "no-store",
+    });
+  const { response: upstreamResponse, body: responseBody, refreshedSession } =
+    await fetchWithSessionRefresh({
+      accessToken,
+      send: sendUpstream,
+      refreshSession: () =>
+        createServerAuthClient(request).refresh(
+          {
+            audience,
+            tenantSlug,
+          },
+          cookieStore,
+        ),
+    });
 
-  return new NextResponse(responseBody, {
+  const response = new NextResponse(responseBody, {
     status: upstreamResponse.status,
     headers: {
       "content-type": upstreamResponse.headers.get("content-type") ?? "application/json",
     },
   });
+
+  if (refreshedSession) {
+    setExperienceSessionCookies(response, refreshedSession);
+  }
+
+  return response;
 }
