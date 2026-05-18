@@ -126,7 +126,7 @@ const stateCopy: Record<
     label: "New password setup",
     title: "Create a secure password",
     description:
-      "Choose a password that is unique to ShuleHub and meets your administrator's security requirements.",
+      "Choose a password that is unique to My Shule and meets your administrator's security requirements.",
     primaryHref: "/reset-password",
     primaryLabel: "Set password",
   },
@@ -171,7 +171,7 @@ const stateCopy: Record<
     label: "Offline",
     title: "Connection unavailable",
     description:
-      "Check your internet connection. ShuleHub needs a secure connection before opening protected workspaces.",
+      "Check your internet connection. My Shule needs a secure connection before opening protected workspaces.",
     primaryHref: "/login",
     primaryLabel: "Retry sign-in",
   },

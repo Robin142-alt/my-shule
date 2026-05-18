@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Raise ShuleHub ERP from "release gate passes" to a high-scoring production SaaS system across security, reliability, performance, tenant safety, UX completeness, provider integrations, and real-user workflow confidence.
+Raise My Shule ERP from "release gate passes" to a high-scoring production SaaS system across security, reliability, performance, tenant safety, UX completeness, provider integrations, and real-user workflow confidence.
 
 This plan is based on a repository and live-environment scan performed on 2026-05-16.
 
@@ -45,7 +45,7 @@ Release readiness verified:
 - implementation7 operability artifacts
 
 ```powershell
-Invoke-WebRequest https://shulehub-production.up.railway.app/health/ready
+Invoke-WebRequest https://my-shule-production.up.railway.app/health/ready
 ```
 
 Result: HTTP 200.
@@ -60,7 +60,7 @@ Observed live readiness:
 - SLO: healthy
 
 ```powershell
-Invoke-WebRequest https://shule-hub-erp.vercel.app/login
+Invoke-WebRequest https://my-shule-erp.vercel.app/login
 ```
 
 Result: HTTP 200.
@@ -252,7 +252,7 @@ Required fix:
 - Add evidence-producing gates, not just code.
 - Keep Kenyan school workflows simple: use admission number, student name search, and familiar school terms instead of technical identifiers.
 - Use an appealing, trustworthy color system that feels modern and calm without becoming playful or distracting.
-- Make login pages purposeful: they should communicate that ShuleHub protects school records, supports parents, improves accountability, and keeps operations moving.
+- Make login pages purposeful: they should communicate that My Shule protects school records, supports parents, improves accountability, and keeps operations moving.
 
 ## Visual Identity Requirements
 
@@ -1042,7 +1042,7 @@ Implementation 10 is complete when:
 
 ## Final Verdict From Current Scan
 
-ShuleHub ERP is not in a broken state. It has passed the release readiness gate and the live API is healthy. The system is beyond a prototype.
+My Shule ERP is not in a broken state. It has passed the release readiness gate and the live API is healthy. The system is beyond a prototype.
 
 However, to score highly in a serious production audit, the platform needs stronger evidence and tighter operational truth. The main gap is not raw feature count. The main gap is proving that every visible production workflow is live, tenant-safe, observable, recoverable, and backed by automated evidence.
 

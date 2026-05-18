@@ -2,7 +2,7 @@
 
 > **For agentic workers:** Implement this plan task-by-task with focused tests first. Use the existing NestJS API, Next.js web app, PostgreSQL RLS, request context, audit logging, encryption helpers, and current Railway/Vercel deployment shape. Do not introduce new infrastructure unless the task explicitly needs it.
 
-**Goal:** Add practical Kenyan school integrations and simpler user flows to the existing ShuleHub ERP without turning the product into an overengineered enterprise platform.
+**Goal:** Add practical Kenyan school integrations and simpler user flows to the existing My Shule ERP without turning the product into an overengineered enterprise platform.
 
 **Primary outcomes:**
 
@@ -547,7 +547,7 @@ Responses must mask secrets:
   "provider_name": "Africa's Talking",
   "api_key": "************abcd",
   "username": "********",
-  "sender_id": "SHULEHUB",
+  "sender_id": "MYSHULE",
   "is_active": true,
   "is_default": true
 }
@@ -1349,7 +1349,7 @@ npm.cmd run monitor:synthetic
 
 # 17. Final Architecture Verdict
 
-This plan keeps ShuleHub practical:
+This plan keeps My Shule practical:
 
 - SMS is centralized because the platform pays and controls provider cost.
 - Daraja is tenant-owned because schools own their funds.

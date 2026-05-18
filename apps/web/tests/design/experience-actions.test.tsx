@@ -124,7 +124,7 @@ describe("experience actions", () => {
 
     await user.click(screen.getByRole("button", { name: /share statement/i }));
 
-    expect(writeText).toHaveBeenCalledWith(expect.stringContaining("ShuleHub family statement"));
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining("My Shule family statement"));
     expect(screen.getByText(/statement copied for sharing/i)).toBeVisible();
   });
 
@@ -185,7 +185,7 @@ describe("experience actions", () => {
         expect.objectContaining({
           method: "POST",
           headers: expect.objectContaining({
-            "x-shulehub-csrf": "csrf-payment-token",
+            "x-myshule-csrf": "csrf-payment-token",
           }),
         }),
       );

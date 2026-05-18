@@ -117,7 +117,7 @@ export function UserManagementPanel() {
         credentials: "same-origin",
         headers: {
           "Content-Type": "application/json",
-          "x-shulehub-csrf": await getCsrfToken(),
+          "x-myshule-csrf": await getCsrfToken(),
         },
         body: JSON.stringify({
           display_name: displayName,
@@ -165,7 +165,7 @@ export function UserManagementPanel() {
         method: "POST",
         credentials: "same-origin",
         headers: {
-          "x-shulehub-csrf": await getCsrfToken(),
+          "x-myshule-csrf": await getCsrfToken(),
         },
       });
       const payload = (await response.json().catch(() => null)) as { message?: string } | null;
@@ -196,7 +196,7 @@ export function UserManagementPanel() {
         method: "DELETE",
         credentials: "same-origin",
         headers: {
-          "x-shulehub-csrf": await getCsrfToken(),
+          "x-myshule-csrf": await getCsrfToken(),
         },
       });
       const payload = (await response.json().catch(() => null)) as { message?: string } | null;
@@ -224,7 +224,7 @@ export function UserManagementPanel() {
         credentials: "same-origin",
         headers: {
           "Content-Type": "application/json",
-          "x-shulehub-csrf": await getCsrfToken(),
+          "x-myshule-csrf": await getCsrfToken(),
         },
         body: JSON.stringify({ status }),
       });
@@ -261,7 +261,7 @@ export function UserManagementPanel() {
         credentials: "same-origin",
         headers: {
           "Content-Type": "application/json",
-          "x-shulehub-csrf": await getCsrfToken(),
+          "x-myshule-csrf": await getCsrfToken(),
         },
         body: JSON.stringify({ role_code: nextRoleCode }),
       });

@@ -264,7 +264,7 @@ describe("storekeeper inventory workspace", () => {
       expect.objectContaining({
         method: "POST",
         headers: expect.objectContaining({
-          "x-shulehub-csrf": "csrf-inventory-token",
+          "x-myshule-csrf": "csrf-inventory-token",
           "Content-Type": "application/json",
         }),
       }),

@@ -110,7 +110,7 @@ const stateHero: Record<
   },
   "not-found": {
     eyebrow: "Auth 404",
-    title: "Unknown authentication routes still feel like ShuleHub.",
+    title: "Unknown authentication routes still feel like My Shule.",
     description:
       "Even missing auth links guide users back to the right school, portal, or platform entry point.",
     badge: "Route recovery",
@@ -127,7 +127,7 @@ export function AuthStatePage({ kind }: { kind: AuthStateKind }) {
       heroDescription={hero.description}
       badge={hero.badge}
       logoMark="SH"
-      helper="Authentication states use consistent language, accessible controls, and enterprise security patterns across ShuleHub."
+      helper="Authentication states use consistent language, accessible controls, and enterprise security patterns across My Shule."
       highlights={[
         {
           id: "csrf",

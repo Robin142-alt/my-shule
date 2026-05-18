@@ -193,7 +193,7 @@ export class SmsDispatchService {
         message,
         sender_id: senderId,
         tenant_id: input.tenant_id ?? null,
-        source: input.source ?? 'shulehub',
+        source: input.source ?? 'myshule',
         metadata: input.metadata ?? {},
       }),
     };

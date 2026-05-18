@@ -53,7 +53,7 @@ Set `EMAIL_PROVIDER_SMOKE_URL=https://api.resend.com/emails` for production live
 
 ## External Object Storage
 
-Use a private Cloudflare R2 or S3 bucket dedicated to ShuleHub production uploads.
+Use a private Cloudflare R2 or S3 bucket dedicated to My Shule production uploads.
 
 Required API variables:
 

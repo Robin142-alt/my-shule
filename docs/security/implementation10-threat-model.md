@@ -4,7 +4,7 @@ Generated for the production score maximization workstream on 2026-05-16.
 
 ## Scope
 
-This model covers the highest-risk surfaces in ShuleHub ERP:
+This model covers the highest-risk surfaces in My Shule ERP:
 
 - authentication, JWT refresh, password reset, email verification, MFA, trusted devices, and invitations
 - tenant resolution and row-level isolation

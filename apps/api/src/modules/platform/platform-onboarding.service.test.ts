@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
+import { EmailDeliveryError } from '../../auth/auth-email.service';
 import { PlatformOnboardingService } from './platform-onboarding.service';
 
 test('PlatformOnboardingService creates a school and sends an invite without exposing the token', async () => {
@@ -50,7 +51,7 @@ test('PlatformOnboardingService creates a school and sends an invite without exp
         sentInvites.push(input);
       },
     } as never,
-    { get: (key: string) => (key === 'email.publicAppUrl' ? 'https://shule-hub-erp.vercel.app' : undefined) } as never,
+    { get: (key: string) => (key === 'email.publicAppUrl' ? 'https://my-shule-erp.vercel.app' : undefined) } as never,
     {
       getStore: () => ({
         user_id: 'platform-owner',
@@ -68,7 +69,7 @@ test('PlatformOnboardingService creates a school and sends an invite without exp
   assert.deepEqual(baselines, ['green-valley']);
   assert.equal(sentInvites.length, 1);
   assert.equal(sentInvites[0]?.to, 'principal@example.test');
-  assert.match(sentInvites[0]?.inviteUrl ?? '', /^https:\/\/shule-hub-erp\.vercel\.app\/invite\/accept\?token=/);
+  assert.match(sentInvites[0]?.inviteUrl ?? '', /^https:\/\/my-shule-erp\.vercel\.app\/invite\/accept\?token=/);
   assert.equal(response.tenant_id, 'green-valley');
   assert.equal(response.invitation_sent, true);
   assert.equal(response.invitation_status, 'sent');
@@ -110,7 +111,7 @@ test('PlatformOnboardingService rejects duplicate school URL slugs without sendi
         sentInvites.push(input);
       },
     } as never,
-    { get: (key: string) => (key === 'email.publicAppUrl' ? 'https://shule-hub-erp.vercel.app' : undefined) } as never,
+    { get: (key: string) => (key === 'email.publicAppUrl' ? 'https://my-shule-erp.vercel.app' : undefined) } as never,
     {
       getStore: () => ({
         user_id: 'platform-owner',
@@ -179,7 +180,7 @@ test('PlatformOnboardingService creates the school even when invitation delivery
         throw new Error('Resend rejected the invitation');
       },
     } as never,
-    { get: (key: string) => (key === 'email.publicAppUrl' ? 'https://shule-hub-erp.vercel.app' : undefined) } as never,
+    { get: (key: string) => (key === 'email.publicAppUrl' ? 'https://my-shule-erp.vercel.app' : undefined) } as never,
     {
       getStore: () => ({
         user_id: 'platform-owner',
@@ -247,7 +248,7 @@ test('PlatformOnboardingService resends a school administrator invite with a rot
         sentInvites.push(input);
       },
     } as never,
-    { get: (key: string) => (key === 'email.publicAppUrl' ? 'https://shule-hub-erp.vercel.app' : undefined) } as never,
+    { get: (key: string) => (key === 'email.publicAppUrl' ? 'https://my-shule-erp.vercel.app' : undefined) } as never,
     {
       getStore: () => ({
         user_id: 'platform-owner',
@@ -261,7 +262,7 @@ test('PlatformOnboardingService resends a school administrator invite with a rot
   assert.equal(response.invitation_status, 'sent');
   assert.equal(response.admin_email, 'principal@example.test');
   assert.equal(sentInvites.length, 1);
-  assert.match(sentInvites[0]?.inviteUrl ?? '', /^https:\/\/shule-hub-erp\.vercel\.app\/invite\/accept\?token=/);
+  assert.match(sentInvites[0]?.inviteUrl ?? '', /^https:\/\/my-shule-erp\.vercel\.app\/invite\/accept\?token=/);
   assert.equal(
     queries.some(
       (query) =>
@@ -270,4 +271,250 @@ test('PlatformOnboardingService resends a school administrator invite with a rot
     ),
     true,
   );
+});
+
+test('PlatformOnboardingService reports Resend testing mode as blocked instead of encouraging repeated resends', async () => {
+  const markDeliveryCalls: Array<{ values: unknown[] }> = [];
+
+  const service = new PlatformOnboardingService(
+    {
+      withRequestTransaction: async (callback: () => Promise<unknown>) => callback(),
+      query: async (text: string, values: unknown[]) => {
+        if (text.includes('INSERT INTO tenants')) {
+          return {
+            rows: [
+              {
+                tenant_id: 'green-valley',
+                name: 'Green Valley School',
+                subdomain: 'green-valley',
+                status: 'active',
+                created_at: new Date('2026-05-11T00:00:00.000Z'),
+              },
+            ],
+          };
+        }
+
+        if (text.includes('INSERT INTO auth_action_tokens')) {
+          return { rows: [{ id: '00000000-0000-0000-0000-000000000801' }] };
+        }
+
+        if (text.includes('INSERT INTO auth_email_outbox')) {
+          return { rows: [{ id: '00000000-0000-0000-0000-000000000901' }] };
+        }
+
+        if (text.includes('app.mark_auth_email_outbox_delivery')) {
+          markDeliveryCalls.push({ values });
+        }
+
+        return { rows: [] };
+      },
+    } as never,
+    {
+      ensureTenantAuthorizationBaseline: async () => undefined,
+    } as never,
+    {
+      assertTransactionalEmailConfigured: () => undefined,
+      sendInvitationEmail: async () => {
+        throw new EmailDeliveryError(
+          'resend_domain_not_verified',
+          'Email delivery is blocked by Resend testing mode. Verify a Resend sending domain and set EMAIL_FROM to that verified domain before resending school invitations.',
+          403,
+        );
+      },
+    } as never,
+    { get: (key: string) => (key === 'email.publicAppUrl' ? 'https://my-shule-erp.vercel.app' : undefined) } as never,
+    {
+      getStore: () => ({
+        user_id: 'platform-owner',
+        request_id: 'request-1',
+      }),
+    } as never,
+  );
+
+  const response = await service.createSchool({
+    school_name: 'Green Valley School',
+    tenant_id: 'Green Valley',
+    admin_email: 'principal@example.test',
+    admin_name: 'Principal User',
+  });
+
+  assert.equal(response.invitation_status, 'blocked');
+  assert.equal(response.invitation_sent, false);
+  assert.equal(response.can_resend_invite, false);
+  assert.equal(response.invitation_failure_code, 'resend_domain_not_verified');
+  assert.match(response.invitation_action_required ?? '', /Verify a Resend sending domain/i);
+  assert.equal(markDeliveryCalls[0]?.values[2], 'resend_domain_not_verified');
+  assert.equal(markDeliveryCalls[0]?.values[4], 403);
+});
+
+test('PlatformOnboardingService hard deletes an empty failed-invite school after slug confirmation', async () => {
+  const queries: Array<{ text: string; values: unknown[] }> = [];
+
+  const service = new PlatformOnboardingService(
+    {
+      withRequestTransaction: async (callback: () => Promise<unknown>) => callback(),
+      query: async (text: string, values: unknown[]) => {
+        queries.push({ text, values });
+
+        if (text.includes('FROM tenants') && text.includes('WHERE tenant_id = $1')) {
+          return {
+            rows: [
+              {
+                tenant_id: 'green-valley',
+                name: 'Green Valley School',
+                subdomain: 'green-valley',
+                status: 'active',
+                created_at: new Date('2026-05-11T00:00:00.000Z'),
+              },
+            ],
+          };
+        }
+
+        if (text.includes('AS memberships') && text.includes('AS students')) {
+          return {
+            rows: [
+              {
+                memberships: '1',
+                students: '0',
+                invoices: '0',
+                support_tickets: '0',
+                mpesa_transactions: '0',
+              },
+            ],
+          };
+        }
+
+        return { rows: [] };
+      },
+    } as never,
+    { ensureTenantAuthorizationBaseline: async () => undefined } as never,
+    { getTransactionalEmailStatus: () => ({ provider: 'resend', status: 'configured' }) } as never,
+    { get: () => undefined } as never,
+    {
+      getStore: () => ({
+        user_id: '00000000-0000-0000-0000-000000000111',
+        request_id: 'request-1',
+        ip_address: '127.0.0.1',
+        user_agent: 'node:test',
+      }),
+    } as never,
+  );
+
+  const response = await service.deleteSchool('green-valley', {
+    confirmation: 'green-valley',
+    reason: 'Duplicate test tenant',
+    hard_delete_empty_tenant: true,
+  });
+
+  assert.equal(response.deleted, true);
+  assert.equal(response.deprovisioned, false);
+  assert.equal(
+    queries.some((query) => query.text.includes('DELETE FROM tenants') && query.values[0] === 'green-valley'),
+    true,
+  );
+  assert.equal(
+    queries.some((query) => query.text.includes('INSERT INTO audit_logs') && JSON.stringify(query.values).includes('platform.school.deleted')),
+    true,
+  );
+});
+
+test('PlatformOnboardingService refuses delete when confirmation does not match tenant id', async () => {
+  const service = new PlatformOnboardingService(
+    {
+      withRequestTransaction: async (callback: () => Promise<unknown>) => callback(),
+      query: async () => ({ rows: [] }),
+    } as never,
+    { ensureTenantAuthorizationBaseline: async () => undefined } as never,
+    { getTransactionalEmailStatus: () => ({ provider: 'resend', status: 'configured' }) } as never,
+    { get: () => undefined } as never,
+    { getStore: () => ({ user_id: 'platform-owner' }) } as never,
+  );
+
+  await assert.rejects(
+    () =>
+      service.deleteSchool('green-valley', {
+        confirmation: 'wrong-school',
+        reason: 'Duplicate test tenant',
+        hard_delete_empty_tenant: true,
+      }),
+    /Type green-valley to confirm/i,
+  );
+});
+
+test('PlatformOnboardingService deprovisions instead of hard deleting a tenant with operational records', async () => {
+  const queries: Array<{ text: string; values: unknown[] }> = [];
+
+  const service = new PlatformOnboardingService(
+    {
+      withRequestTransaction: async (callback: () => Promise<unknown>) => callback(),
+      query: async (text: string, values: unknown[]) => {
+        queries.push({ text, values });
+
+        if (text.includes('FROM tenants') && text.includes('WHERE tenant_id = $1')) {
+          return {
+            rows: [
+              {
+                tenant_id: 'green-valley',
+                name: 'Green Valley School',
+                subdomain: 'green-valley',
+                status: 'active',
+                created_at: new Date('2026-05-11T00:00:00.000Z'),
+              },
+            ],
+          };
+        }
+
+        if (text.includes('AS memberships') && text.includes('AS students')) {
+          return {
+            rows: [
+              {
+                memberships: '4',
+                students: '23',
+                invoices: '8',
+                support_tickets: '1',
+                mpesa_transactions: '2',
+              },
+            ],
+          };
+        }
+
+        if (text.includes('UPDATE tenants')) {
+          return {
+            rows: [
+              {
+                tenant_id: 'green-valley',
+                name: 'Green Valley School',
+                subdomain: 'green-valley',
+                status: 'inactive',
+                created_at: new Date('2026-05-11T00:00:00.000Z'),
+              },
+            ],
+          };
+        }
+
+        return { rows: [] };
+      },
+    } as never,
+    { ensureTenantAuthorizationBaseline: async () => undefined } as never,
+    { getTransactionalEmailStatus: () => ({ provider: 'resend', status: 'configured' }) } as never,
+    { get: () => undefined } as never,
+    {
+      getStore: () => ({
+        user_id: '00000000-0000-0000-0000-000000000111',
+        request_id: 'request-1',
+      }),
+    } as never,
+  );
+
+  const response = await service.deleteSchool('green-valley', {
+    confirmation: 'green-valley',
+    reason: 'Pilot ended',
+    hard_delete_empty_tenant: true,
+  });
+
+  assert.equal(response.deleted, false);
+  assert.equal(response.deprovisioned, true);
+  assert.equal(response.school?.status, 'inactive');
+  assert.equal(queries.some((query) => query.text.includes('DELETE FROM tenants')), false);
+  assert.equal(queries.some((query) => query.text.includes('UPDATE tenants')), true);
 });

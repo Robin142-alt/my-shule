@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "ShuleHub ERP Dashboard",
+  title: "My Shule ERP Dashboard",
   description: "Multi-tenant School ERP dashboard for Kenyan CBC schools",
 };
 

@@ -9,25 +9,25 @@ import {
 
 describe("experience routing", () => {
   test("resolves superadmin hosts into the platform experience", () => {
-    expect(resolveExperienceHost("superadmin.shulehub.test")).toEqual({
+    expect(resolveExperienceHost("superadmin.myshule.test")).toEqual({
       experience: "superadmin",
-      host: "superadmin.shulehub.test",
+      host: "superadmin.myshule.test",
       tenantSlug: null,
     });
   });
 
   test("resolves school subdomains into the tenant experience", () => {
-    expect(resolveExperienceHost("barakaacademy.shulehub.test")).toEqual({
+    expect(resolveExperienceHost("barakaacademy.myshule.test")).toEqual({
       experience: "school",
-      host: "barakaacademy.shulehub.test",
+      host: "barakaacademy.myshule.test",
       tenantSlug: "barakaacademy",
     });
   });
 
   test("resolves portal hosts into the family experience", () => {
-    expect(resolveExperienceHost("portal.shulehub.test")).toEqual({
+    expect(resolveExperienceHost("portal.myshule.test")).toEqual({
       experience: "portal",
-      host: "portal.shulehub.test",
+      host: "portal.myshule.test",
       tenantSlug: null,
     });
   });
@@ -41,9 +41,9 @@ describe("experience routing", () => {
   });
 
   test("resolves hosted vercel app domains into the public experience", () => {
-    expect(resolveExperienceHost("shule-hub-erp.vercel.app")).toEqual({
+    expect(resolveExperienceHost("my-shule-erp.vercel.app")).toEqual({
       experience: "public",
-      host: "shule-hub-erp.vercel.app",
+      host: "my-shule-erp.vercel.app",
       tenantSlug: null,
     });
   });
@@ -51,7 +51,7 @@ describe("experience routing", () => {
   test("redirects a superadmin host root request to the superadmin login without a session", () => {
     expect(
       evaluateExperienceRouting({
-        host: "superadmin.shulehub.test",
+        host: "superadmin.myshule.test",
         pathname: "/",
         cookies: {},
       }),
@@ -67,7 +67,7 @@ describe("experience routing", () => {
   test("rewrites superadmin dashboard requests into the internal platform namespace", () => {
     expect(
       evaluateExperienceRouting({
-        host: "superadmin.shulehub.test",
+        host: "superadmin.myshule.test",
         pathname: "/dashboard",
         cookies: {},
       }),
@@ -83,7 +83,7 @@ describe("experience routing", () => {
   test("rewrites school dashboard requests into the internal tenant namespace once authenticated", () => {
     expect(
       evaluateExperienceRouting({
-        host: "greenfield.shulehub.test",
+        host: "greenfield.myshule.test",
         pathname: "/dashboard",
         cookies: {
           [SCHOOL_SESSION_COOKIE]: serializeExperienceSession({
@@ -108,7 +108,7 @@ describe("experience routing", () => {
   test("rewrites role dashboard aliases into internal school sections once authenticated", () => {
     expect(
       evaluateExperienceRouting({
-        host: "greenfield.shulehub.test",
+        host: "greenfield.myshule.test",
         pathname: "/finance/dashboard",
         cookies: {
           [SCHOOL_SESSION_COOKIE]: serializeExperienceSession({
@@ -143,7 +143,7 @@ describe("experience routing", () => {
 
     expect(
       evaluateExperienceRouting({
-        host: "greenfield.shulehub.test",
+        host: "greenfield.myshule.test",
         pathname: "/academics/dashboard",
         cookies,
       }),
@@ -158,7 +158,7 @@ describe("experience routing", () => {
 
     expect(
       evaluateExperienceRouting({
-        host: "greenfield.shulehub.test",
+        host: "greenfield.myshule.test",
         pathname: "/school/teacher/academics",
         cookies,
       }),
@@ -175,7 +175,7 @@ describe("experience routing", () => {
   test("allows authenticated storekeeper sessions to open dedicated inventory routes", () => {
     expect(
       evaluateExperienceRouting({
-        host: "amani-prep.shulehub.test",
+        host: "amani-prep.myshule.test",
         pathname: "/inventory/dashboard",
         cookies: {
           [SCHOOL_SESSION_COOKIE]: serializeExperienceSession({
@@ -199,7 +199,7 @@ describe("experience routing", () => {
   test("denies dedicated inventory routes to non-storekeeper school sessions", () => {
     expect(
       evaluateExperienceRouting({
-        host: "amani-prep.shulehub.test",
+        host: "amani-prep.myshule.test",
         pathname: "/inventory/dashboard",
         cookies: {
           [SCHOOL_SESSION_COOKIE]: serializeExperienceSession({
@@ -224,7 +224,7 @@ describe("experience routing", () => {
   test("allows authenticated librarian sessions to open dedicated library routes", () => {
     expect(
       evaluateExperienceRouting({
-        host: "amani-prep.shulehub.test",
+        host: "amani-prep.myshule.test",
         pathname: "/library/dashboard",
         cookies: {
           [SCHOOL_SESSION_COOKIE]: serializeExperienceSession({
@@ -248,7 +248,7 @@ describe("experience routing", () => {
   test("denies dedicated library routes to non-librarian school sessions", () => {
     expect(
       evaluateExperienceRouting({
-        host: "amani-prep.shulehub.test",
+        host: "amani-prep.myshule.test",
         pathname: "/library/dashboard",
         cookies: {
           [SCHOOL_SESSION_COOKIE]: serializeExperienceSession({
@@ -273,7 +273,7 @@ describe("experience routing", () => {
   test("redirects authenticated school sessions away from the login page to their role home", () => {
     expect(
       evaluateExperienceRouting({
-        host: "barakaacademy.shulehub.test",
+        host: "barakaacademy.myshule.test",
         pathname: "/school/login",
         cookies: {
           [SCHOOL_SESSION_COOKIE]: serializeExperienceSession({
@@ -298,7 +298,7 @@ describe("experience routing", () => {
   test("redirects authenticated portal users away from the login page to their viewer home", () => {
     expect(
       evaluateExperienceRouting({
-        host: "portal.shulehub.test",
+        host: "portal.myshule.test",
         pathname: "/portal/login",
         cookies: {
           [PORTAL_SESSION_COOKIE]: serializeExperienceSession({
@@ -321,7 +321,7 @@ describe("experience routing", () => {
   test("redirects authenticated superadmin users away from the login page to the platform home", () => {
     expect(
       evaluateExperienceRouting({
-        host: "superadmin.shulehub.test",
+        host: "superadmin.myshule.test",
         pathname: "/superadmin/login",
         cookies: {
           [SUPERADMIN_SESSION_COOKIE]: serializeExperienceSession({
@@ -343,7 +343,7 @@ describe("experience routing", () => {
   test("rewrites public login routes into the portal internal namespace", () => {
     expect(
       evaluateExperienceRouting({
-        host: "portal.shulehub.test",
+        host: "portal.myshule.test",
         pathname: "/login",
         cookies: {},
       }),
@@ -374,7 +374,7 @@ describe("experience routing", () => {
   test("leaves public compatibility login routes alone on hosted vercel domains", () => {
     expect(
       evaluateExperienceRouting({
-        host: "shule-hub-erp.vercel.app",
+        host: "my-shule-erp.vercel.app",
         pathname: "/superadmin/login",
         cookies: {},
       }),

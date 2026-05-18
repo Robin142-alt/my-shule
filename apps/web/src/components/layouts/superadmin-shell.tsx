@@ -62,7 +62,7 @@ export function SuperAdminShell({
               <span className="text-sm font-bold text-white">SH</span>
             </div>
             <div>
-              <p className="text-[14px] font-semibold text-white tracking-tight">ShuleHub</p>
+              <p className="text-[14px] font-semibold text-white tracking-tight">My Shule</p>
               <p className="text-[11px] text-white/40">Platform Control</p>
             </div>
           </div>

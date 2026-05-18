@@ -387,7 +387,7 @@ async function postScannerAction(endpoint: string, body: Record<string, string>)
     credentials: "same-origin",
     headers: {
       "Content-Type": "application/json",
-      "x-shulehub-csrf": csrfToken,
+      "x-myshule-csrf": csrfToken,
     },
     body: JSON.stringify(body),
   });

@@ -7,7 +7,7 @@ export default function SuperadminLoginPage() {
       eyebrow="Super admin login"
       heroTitle="Operate the platform with confidence."
       heroDescription="Monitor tenant health, subscriptions, MPESA reliability, and infrastructure from one premium control surface designed for platform owners and support teams."
-      badge="ShuleHub Platform Control"
+      badge="My Shule Platform Control"
       logoMark="SH"
       helper="Platform-wide actions are audit logged, role protected, and separated from tenant data access."
       highlights={[

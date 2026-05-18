@@ -2,7 +2,17 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { ArrowRight, ExternalLink, MailCheck, Plus, RotateCcw, ShieldBan, UserRoundCog } from "lucide-react";
+import {
+  AlertTriangle,
+  ArrowRight,
+  ExternalLink,
+  MailCheck,
+  Plus,
+  RotateCcw,
+  ShieldBan,
+  Trash2,
+  UserRoundCog,
+} from "lucide-react";
 
 import { ActivityListCard, SimpleListCard } from "@/components/experience/activity-list-card";
 import { ChartCard } from "@/components/experience/chart-card";
@@ -45,6 +55,7 @@ import {
 } from "@/lib/experiences/superadmin-data";
 import {
   createPlatformSchool,
+  deletePlatformSchool,
   fetchPlatformSchools,
   resendPlatformSchoolAdminInvite,
   type PlatformSchool,
@@ -147,7 +158,7 @@ const emptySmsProviderForm: PlatformSmsProviderForm = {
   provider_code: "textsms_kenya",
   api_key: "",
   username: "",
-  sender_id: "SHULEHUB",
+  sender_id: "MYSHULE",
   base_url: "",
   is_active: true,
   is_default: true,
@@ -164,13 +175,26 @@ function unwrapPlatformPayload<T>(payload: T | ApiEnvelope<T> | null): T | null 
     : (payload as T | null);
 }
 
-function mapPlatformSchoolToTenantRow(row: PlatformSchool): (typeof tenantRows)[number] {
+type PlatformTenantRow = Omit<(typeof tenantRows)[number], "invitationStatus"> & {
+  adminEmail?: string;
+  invitationStatus?: PlatformSchool["invitation_status"];
+  invitationMessage?: string;
+  invitationFailureCode?: string;
+  invitationFailureReason?: string;
+  invitationActionRequired?: string;
+  canResendInvite?: boolean;
+  inviteExpiresAt?: string;
+};
+
+function mapPlatformSchoolToTenantRow(row: PlatformSchool): PlatformTenantRow {
   const invitationLabel =
     row.invitation_status === "sent"
       ? "Invitation sent"
       : row.invitation_status === "queued"
         ? "Invite queued"
-        : "Invite delivery failed";
+        : row.invitation_status === "blocked"
+          ? "Email setup required"
+          : "Invite delivery failed";
 
   return {
     id: row.tenant_id,
@@ -184,12 +208,16 @@ function mapPlatformSchoolToTenantRow(row: PlatformSchool): (typeof tenantRows)[
     adminEmail: row.admin_email,
     invitationStatus: row.invitation_status,
     invitationMessage: row.invitation_message,
+    invitationFailureCode: row.invitation_failure_code,
+    invitationFailureReason: row.invitation_failure_reason,
+    invitationActionRequired: row.invitation_action_required,
+    canResendInvite: row.can_resend_invite,
     inviteExpiresAt: row.invite_expires_at,
   };
 }
 
 function TenantsTable() {
-  const [rows, setRows] = useState(tenantRows);
+  const [rows, setRows] = useState<PlatformTenantRow[]>(tenantRows);
   const [selectedTenantId, setSelectedTenantId] = useState<string | null>(null);
   const [resetMessage, setResetMessage] = useState<string | null>(null);
   const [resendMessage, setResendMessage] = useState<string | null>(null);
@@ -198,11 +226,19 @@ function TenantsTable() {
   const [schoolForm, setSchoolForm] = useState(emptySchoolForm);
   const [createError, setCreateError] = useState<string | null>(null);
   const [createSuccess, setCreateSuccess] = useState<string | null>(null);
-  const [createdTenantForInvite, setCreatedTenantForInvite] = useState<(typeof tenantRows)[number] | null>(null);
+  const [createdTenantForInvite, setCreatedTenantForInvite] = useState<PlatformTenantRow | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [isLoadingSchools, setIsLoadingSchools] = useState(true);
+  const [deleteTarget, setDeleteTarget] = useState<PlatformTenantRow | null>(null);
+  const [deleteConfirmation, setDeleteConfirmation] = useState("");
+  const [deleteReason, setDeleteReason] = useState("");
+  const [hardDeleteEmptyTenant, setHardDeleteEmptyTenant] = useState(true);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [deleteMessage, setDeleteMessage] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const selectedTenant = rows.find((row) => row.id === selectedTenantId) ?? null;
   const isResendingInvite = resendingTenantId !== null;
+  const blockedInviteRows = rows.filter((row) => row.invitationStatus === "blocked");
 
   useEffect(() => {
     let cancelled = false;
@@ -299,6 +335,14 @@ function TenantsTable() {
       return;
     }
 
+    if (tenant.canResendInvite === false) {
+      setResendMessage(
+        tenant.invitationActionRequired ??
+          "Email delivery is blocked by provider setup. Fix the email settings, then refresh this page.",
+      );
+      return;
+    }
+
     setResendingTenantId(tenantId);
     setResendMessage(null);
     setResetMessage(null);
@@ -331,7 +375,55 @@ function TenantsTable() {
     }
   }
 
-  const columns: DataTableColumn<(typeof tenantRows)[number]>[] = [
+  function startDeleteTenant(row: PlatformTenantRow) {
+    setDeleteTarget(row);
+    setDeleteConfirmation("");
+    setDeleteReason("");
+    setHardDeleteEmptyTenant(true);
+    setDeleteError(null);
+    setDeleteMessage(null);
+  }
+
+  async function submitDeleteTenant() {
+    if (!deleteTarget) {
+      return;
+    }
+
+    setIsDeleting(true);
+    setDeleteError(null);
+    setDeleteMessage(null);
+
+    try {
+      const response = await deletePlatformSchool({
+        tenantId: deleteTarget.id,
+        confirmation: deleteConfirmation.trim(),
+        reason: deleteReason.trim(),
+        hardDeleteEmptyTenant,
+      });
+
+      if (response.deleted) {
+        setRows((currentRows) => currentRows.filter((row) => row.id !== response.tenant_id));
+      } else if (response.school) {
+        const updatedRow = mapPlatformSchoolToTenantRow(response.school);
+        setRows((currentRows) =>
+          currentRows.map((row) => (row.id === response.tenant_id ? updatedRow : row)),
+        );
+      }
+
+      setDeleteMessage(response.message);
+      setDeleteTarget(null);
+      setDeleteConfirmation("");
+      setDeleteReason("");
+    } catch (error) {
+      setDeleteError(
+        error instanceof Error ? error.message : "Unable to delete or deprovision this school.",
+      );
+    } finally {
+      setIsDeleting(false);
+    }
+  }
+
+  const columns: DataTableColumn<PlatformTenantRow>[] = [
     {
       id: "schoolName",
       header: "School Name",
@@ -363,11 +455,16 @@ function TenantsTable() {
               variant="secondary"
               size="sm"
               aria-label={`Resend invite to ${row.schoolName}`}
-              disabled={resendingTenantId === row.id}
+              disabled={resendingTenantId === row.id || row.canResendInvite === false}
               onClick={() => void resendInviteForTenant(row.id)}
+              title={row.canResendInvite === false ? row.invitationActionRequired : undefined}
             >
               <MailCheck className="h-4 w-4" />
-              {resendingTenantId === row.id ? "Resending" : "Resend invite"}
+              {row.canResendInvite === false
+                ? "Fix email setup"
+                : resendingTenantId === row.id
+                  ? "Resending"
+                  : "Resend invite"}
             </Button>
           ) : null}
           {row.status === "Suspended" ? (
@@ -388,6 +485,10 @@ function TenantsTable() {
           }}>
             <UserRoundCog className="h-4 w-4" />
             Reset admin
+          </Button>
+          <Button variant="ghost" size="sm" onClick={() => startDeleteTenant(row)}>
+            <Trash2 className="h-4 w-4" />
+            Delete
           </Button>
         </div>
       ),
@@ -416,8 +517,25 @@ function TenantsTable() {
         </Button>
       </div>
       {resendMessage && !selectedTenant ? (
-        <div className="mb-4 rounded-[var(--radius-sm)] border border-success/20 bg-success/10 px-4 py-3 text-sm text-foreground">
+        <div className="mb-4 rounded-[var(--radius-sm)] border border-warning/20 bg-warning/10 px-4 py-3 text-sm text-foreground">
           {resendMessage}
+        </div>
+      ) : null}
+      {deleteMessage ? (
+        <div className="mb-4 rounded-[var(--radius-sm)] border border-success/20 bg-success/10 px-4 py-3 text-sm text-foreground">
+          {deleteMessage}
+        </div>
+      ) : null}
+      {blockedInviteRows.length > 0 ? (
+        <div className="mb-4 flex gap-3 rounded-[var(--radius-sm)] border border-warning/25 bg-warning/10 px-4 py-3 text-sm text-foreground">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
+          <div>
+            <p className="font-semibold">School invites are blocked by email provider setup.</p>
+            <p className="mt-1 text-muted">
+              Verify a Resend sending domain and set EMAIL_FROM to that verified domain before resending.
+              The resend buttons are disabled so the system does not keep repeating the same failed delivery.
+            </p>
+          </div>
         </div>
       ) : null}
       <DataTable
@@ -533,16 +651,33 @@ function TenantsTable() {
                 {createdTenantForInvite.invitationStatus !== "sent" ? (
                   <Button
                     size="sm"
-                    disabled={resendingTenantId === createdTenantForInvite.id}
+                    disabled={
+                      resendingTenantId === createdTenantForInvite.id ||
+                      createdTenantForInvite.canResendInvite === false
+                    }
                     onClick={() => void resendInviteForTenant(createdTenantForInvite.id)}
+                    title={
+                      createdTenantForInvite.canResendInvite === false
+                        ? createdTenantForInvite.invitationActionRequired
+                        : undefined
+                    }
                   >
                     <MailCheck className="h-4 w-4" />
-                    {resendingTenantId === createdTenantForInvite.id ? "Resending" : "Resend invite now"}
+                    {createdTenantForInvite.canResendInvite === false
+                      ? "Fix email setup first"
+                      : resendingTenantId === createdTenantForInvite.id
+                        ? "Resending"
+                        : "Resend invite now"}
                   </Button>
                 ) : (
                   <StatusPill label="Invitation sent" tone="ok" />
                 )}
               </div>
+            ) : null}
+            {createdTenantForInvite?.invitationActionRequired ? (
+              <p className="rounded-xl border border-warning/25 bg-warning/10 px-3 py-2 text-xs text-muted-strong">
+                {createdTenantForInvite.invitationActionRequired}
+              </p>
             ) : null}
           </div>
         ) : null}
@@ -564,11 +699,24 @@ function TenantsTable() {
               </Button>
               <Button
                 variant="secondary"
-                disabled={isResendingInvite || !selectedTenant.adminEmail}
+                disabled={
+                  isResendingInvite ||
+                  !selectedTenant.adminEmail ||
+                  selectedTenant.canResendInvite === false
+                }
                 onClick={() => void resendInviteForTenant(selectedTenant.id)}
+                title={
+                  selectedTenant.canResendInvite === false
+                    ? selectedTenant.invitationActionRequired
+                    : undefined
+                }
               >
                 <MailCheck className="h-4 w-4" />
-                {resendingTenantId === selectedTenant.id ? "Resending" : "Resend invite"}
+                {selectedTenant.canResendInvite === false
+                  ? "Fix email setup"
+                  : resendingTenantId === selectedTenant.id
+                    ? "Resending"
+                    : "Resend invite"}
               </Button>
               <Button
                 variant="ghost"
@@ -600,6 +748,16 @@ function TenantsTable() {
                   Suspend
                 </Button>
               )}
+              <Button
+                variant="danger"
+                onClick={() => {
+                  startDeleteTenant(selectedTenant);
+                  setSelectedTenantId(null);
+                }}
+              >
+                <Trash2 className="h-4 w-4" />
+                Delete
+              </Button>
             </>
           ) : null
         }
@@ -645,6 +803,11 @@ function TenantsTable() {
                 <p className="mt-1 text-xs text-muted">
                   {selectedTenant.invitationMessage || selectedTenant.lastActive}
                 </p>
+                {selectedTenant.invitationActionRequired ? (
+                  <p className="mt-2 rounded-lg border border-warning/25 bg-warning/10 px-3 py-2 text-xs text-muted-strong">
+                    {selectedTenant.invitationActionRequired}
+                  </p>
+                ) : null}
               </div>
             </div>
             {resetMessage ? (
@@ -655,6 +818,112 @@ function TenantsTable() {
             {resendMessage ? (
               <div className="rounded-xl border border-warning/20 bg-warning/10 px-4 py-3 text-sm text-foreground">
                 {resendMessage}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+      </Modal>
+      <Modal
+        open={Boolean(deleteTarget)}
+        title="Delete school"
+        description="Empty test tenants can be permanently removed. Schools with records are safely deprovisioned instead."
+        size="lg"
+        onClose={() => {
+          if (!isDeleting) {
+            setDeleteTarget(null);
+            setDeleteError(null);
+          }
+        }}
+        footer={
+          <>
+            <Button
+              variant="secondary"
+              disabled={isDeleting}
+              onClick={() => setDeleteTarget(null)}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="danger"
+              disabled={
+                isDeleting ||
+                !deleteTarget ||
+                deleteConfirmation.trim().toLowerCase() !== deleteTarget.id ||
+                deleteReason.trim().length < 3
+              }
+              onClick={() => void submitDeleteTenant()}
+            >
+              <Trash2 className="h-4 w-4" />
+              {isDeleting ? "Deleting" : "Delete or deprovision"}
+            </Button>
+          </>
+        }
+      >
+        {deleteTarget ? (
+          <div className="space-y-4">
+            <div className="rounded-xl border border-danger/20 bg-danger/10 px-4 py-3 text-sm text-foreground">
+              <p className="font-semibold">This action affects the tenant workspace.</p>
+              <p className="mt-1 text-muted-strong">
+                If the school has students, invoices, support tickets, or MPESA records, the system will
+                deactivate it instead of deleting history.
+              </p>
+            </div>
+            <div className="grid gap-3 md:grid-cols-2">
+              <div className="rounded-xl border border-border bg-surface-muted px-4 py-3">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted">
+                  School
+                </p>
+                <p className="mt-2 text-sm font-semibold text-foreground">
+                  {deleteTarget.schoolName}
+                </p>
+              </div>
+              <div className="rounded-xl border border-border bg-surface-muted px-4 py-3">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted">
+                  Confirmation slug
+                </p>
+                <p className="mt-2 font-mono text-sm font-semibold text-foreground">
+                  {deleteTarget.id}
+                </p>
+              </div>
+            </div>
+            <label className="block space-y-1.5">
+              <span className="text-[13px] font-semibold text-foreground">
+                Type {deleteTarget.id} to confirm
+              </span>
+              <input
+                value={deleteConfirmation}
+                disabled={isDeleting}
+                onChange={(event) => setDeleteConfirmation(event.target.value)}
+                className="h-10 w-full rounded-[var(--radius-sm)] border border-border bg-surface px-3 text-sm text-foreground outline-none transition focus:border-danger focus:ring-2 focus:ring-danger/20 disabled:cursor-not-allowed disabled:opacity-60"
+              />
+            </label>
+            <label className="block space-y-1.5">
+              <span className="text-[13px] font-semibold text-foreground">Audit reason</span>
+              <textarea
+                value={deleteReason}
+                disabled={isDeleting}
+                rows={3}
+                placeholder="Example: Duplicate test tenant created during onboarding."
+                onChange={(event) => setDeleteReason(event.target.value)}
+                className="w-full resize-none rounded-[var(--radius-sm)] border border-border bg-surface px-3 py-2 text-sm text-foreground outline-none transition focus:border-danger focus:ring-2 focus:ring-danger/20 disabled:cursor-not-allowed disabled:opacity-60"
+              />
+            </label>
+            <label className="flex items-start gap-3 rounded-xl border border-border bg-surface-muted px-4 py-3 text-sm text-foreground">
+              <input
+                type="checkbox"
+                checked={hardDeleteEmptyTenant}
+                disabled={isDeleting}
+                onChange={(event) => setHardDeleteEmptyTenant(event.target.checked)}
+                className="mt-1 h-4 w-4"
+              />
+              <span>
+                Permanently delete if the tenant has no operational records. Otherwise, deprovision
+                and keep the audit/history protected.
+              </span>
+            </label>
+            {deleteError ? (
+              <div className="rounded-xl border border-danger/20 bg-danger/10 px-4 py-3 text-sm text-danger">
+                {deleteError}
               </div>
             ) : null}
           </div>
@@ -1100,7 +1369,7 @@ function PlatformSmsSettingsPage() {
           method: selectedProvider ? "PATCH" : "POST",
           headers: {
             "Content-Type": "application/json",
-            "x-shulehub-csrf": await getCsrfToken(),
+            "x-myshule-csrf": await getCsrfToken(),
           },
           credentials: "same-origin",
           body: JSON.stringify(body),
@@ -1130,7 +1399,7 @@ function PlatformSmsSettingsPage() {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "x-shulehub-csrf": await getCsrfToken(),
+            "x-myshule-csrf": await getCsrfToken(),
           },
           credentials: "same-origin",
         },
@@ -1159,7 +1428,7 @@ function PlatformSmsSettingsPage() {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "x-shulehub-csrf": await getCsrfToken(),
+            "x-myshule-csrf": await getCsrfToken(),
           },
           credentials: "same-origin",
         },
@@ -1570,7 +1839,7 @@ export function SuperadminPages({
 
   return (
     <PlatformShell
-      brand={{ title: "ShuleHub", subtitle: "Platform owner" }}
+      brand={{ title: "My Shule", subtitle: "Platform owner" }}
       navItems={navItems}
       activeHref={activeHref}
       topLabel="Platform owner workspace"

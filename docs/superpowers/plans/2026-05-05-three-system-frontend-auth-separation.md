@@ -434,9 +434,9 @@ export function middleware(request: NextRequest) {
   url.pathname = internalPath;
 
   const response = NextResponse.rewrite(url);
-  response.headers.set("x-shulehub-experience", resolution.experience);
+  response.headers.set("x-myshule-experience", resolution.experience);
   if (resolution.tenantSlug) {
-    response.headers.set("x-shulehub-tenant-slug", resolution.tenantSlug);
+    response.headers.set("x-myshule-tenant-slug", resolution.tenantSlug);
   }
 
   return response;
@@ -510,10 +510,10 @@ Expected: FAIL because the current login views still rely on local demo routing 
 Create `apps/web/src/lib/auth/session-cookies.ts`:
 
 ```ts
-export const ACCESS_COOKIE = "shulehub_access";
-export const REFRESH_COOKIE = "shulehub_refresh";
-export const AUDIENCE_COOKIE = "shulehub_audience";
-export const TENANT_COOKIE = "shulehub_tenant";
+export const ACCESS_COOKIE = "myshule_access";
+export const REFRESH_COOKIE = "myshule_refresh";
+export const AUDIENCE_COOKIE = "myshule_audience";
+export const TENANT_COOKIE = "myshule_tenant";
 ```
 
 Create `apps/web/src/app/api/auth/login/route.ts`:
@@ -528,8 +528,8 @@ export async function POST(request: Request) {
   const session = await authClient.login(body);
   const response = NextResponse.json({ redirectTo: "/dashboard", user: session.user });
 
-  response.cookies.set("shulehub_access", session.tokens.access_token, { httpOnly: true, sameSite: "lax", secure: true, path: "/" });
-  response.cookies.set("shulehub_refresh", session.tokens.refresh_token, { httpOnly: true, sameSite: "lax", secure: true, path: "/" });
+  response.cookies.set("myshule_access", session.tokens.access_token, { httpOnly: true, sameSite: "lax", secure: true, path: "/" });
+  response.cookies.set("myshule_refresh", session.tokens.refresh_token, { httpOnly: true, sameSite: "lax", secure: true, path: "/" });
 
   return response;
 }

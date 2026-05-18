@@ -56,7 +56,7 @@ export default () => ({
   },
   database: {
     url: process.env.DATABASE_URL ?? '',
-    runtimeRole: process.env.DATABASE_RUNTIME_ROLE ?? 'shule_hub_runtime',
+    runtimeRole: process.env.DATABASE_RUNTIME_ROLE ?? 'my_shule_runtime',
     maxConnections: parseNumber(process.env.DATABASE_MAX_CONNECTIONS, 20),
     idleTimeoutMs: parseNumber(process.env.DATABASE_IDLE_TIMEOUT_MS, 10000),
     statementTimeoutMs: parseNumber(process.env.DATABASE_STATEMENT_TIMEOUT_MS, 5000),
@@ -69,14 +69,14 @@ export default () => ({
     connectTimeoutMs: parseNumber(process.env.REDIS_CONNECT_TIMEOUT_MS, isServerlessRuntime ? 1500 : 10000),
   },
   queue: {
-    prefix: process.env.QUEUE_PREFIX ?? 'shule-hub',
+    prefix: process.env.QUEUE_PREFIX ?? 'my-shule',
     defaultJobAttempts: parseNumber(process.env.QUEUE_DEFAULT_JOB_ATTEMPTS, 3),
     removeOnComplete: parseNumber(process.env.QUEUE_REMOVE_ON_COMPLETE, 1000),
     removeOnFail: parseNumber(process.env.QUEUE_REMOVE_ON_FAIL, 5000),
   },
   auth: {
-    issuer: process.env.JWT_ISSUER ?? 'shule-hub-api',
-    audience: process.env.JWT_AUDIENCE ?? 'shule-hub-web',
+    issuer: process.env.JWT_ISSUER ?? 'my-shule-api',
+    audience: process.env.JWT_AUDIENCE ?? 'my-shule-web',
     accessTokenSecret:
       process.env.JWT_ACCESS_TOKEN_SECRET ?? process.env.JWT_SECRET ?? '',
     refreshTokenSecret:
@@ -93,7 +93,7 @@ export default () => ({
     publicAppUrl:
       process.env.PUBLIC_APP_URL ??
       process.env.WEB_APP_URL ??
-      'https://shule-hub-erp.vercel.app',
+      'https://my-shule-erp.vercel.app',
     passwordRecoveryTtlMinutes: parseNumber(
       process.env.PASSWORD_RECOVERY_TTL_MINUTES,
       30,

@@ -50,7 +50,7 @@ const intentCopy: Record<
     badge: "Institutional access",
     title: "Sign in to your school account",
     description:
-      "Use your school email and password. ShuleHub opens the correct school automatically.",
+      "Use your school email and password. My Shule opens the correct school automatically.",
     message:
       "Financial workflows, academics, support, and communication stay inside the verified school workspace.",
   },

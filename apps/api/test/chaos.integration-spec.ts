@@ -522,14 +522,14 @@ describe('Chaos recovery integration', () => {
 const ensureBaseIntegrationEnv = (): void => {
   (process.env as Record<string, string | undefined>).NODE_ENV = process.env.NODE_ENV ?? 'test';
   process.env.APP_BASE_DOMAIN = process.env.APP_BASE_DOMAIN ?? 'integration.test';
-  process.env.JWT_ISSUER = process.env.JWT_ISSUER ?? 'shule-hub-chaos-tests';
-  process.env.JWT_AUDIENCE = process.env.JWT_AUDIENCE ?? 'shule-hub-chaos-clients';
+  process.env.JWT_ISSUER = process.env.JWT_ISSUER ?? 'my-shule-chaos-tests';
+  process.env.JWT_AUDIENCE = process.env.JWT_AUDIENCE ?? 'my-shule-chaos-clients';
   process.env.JWT_ACCESS_TOKEN_SECRET =
     process.env.JWT_ACCESS_TOKEN_SECRET ?? 'chaos-access-secret';
   process.env.JWT_REFRESH_TOKEN_SECRET =
     process.env.JWT_REFRESH_TOKEN_SECRET ?? 'chaos-refresh-secret';
   process.env.DATABASE_RUNTIME_ROLE =
-    process.env.DATABASE_RUNTIME_ROLE ?? 'shule_hub_runtime';
+    process.env.DATABASE_RUNTIME_ROLE ?? 'my_shule_runtime';
   process.env.DATABASE_STATEMENT_TIMEOUT_MS =
     process.env.DATABASE_STATEMENT_TIMEOUT_MS ?? '20000';
   process.env.SECURITY_PII_ENCRYPTION_KEY =
@@ -564,7 +564,7 @@ const createDatabasePool = (): Pool => {
 
   return new Pool({
     connectionString,
-    application_name: 'shule-hub-chaos-tests',
+    application_name: 'my-shule-chaos-tests',
     ssl: connectionString.includes('sslmode=require')
       ? { rejectUnauthorized: false }
       : undefined,

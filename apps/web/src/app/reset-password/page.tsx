@@ -16,7 +16,7 @@ export default async function ResetPasswordPage({
       heroDescription="Reset passwords with validation, confirmation, short-lived codes, and calm enterprise messaging."
       badge="Password security"
       logoMark="SH"
-      helper="New passwords should be unique to ShuleHub and never shared with school staff, families, or support."
+      helper="New passwords should be unique to My Shule and never shared with school staff, families, or support."
       highlights={[
         {
           id: "requirements",

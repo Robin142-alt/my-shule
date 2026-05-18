@@ -98,7 +98,7 @@ test('DatabaseFileStorageService writes enabled uploads to object storage and st
         objectStorageCalls.push(input);
         return {
           provider: 'r2',
-          bucket: 'shule-hub-files',
+          bucket: 'my-shule-files',
           key: input.storagePath,
           storage_path: input.storagePath,
           sha256: createHash('sha256').update(buffer).digest('hex'),
@@ -133,7 +133,7 @@ test('DatabaseFileStorageService writes enabled uploads to object storage and st
   assert.equal(queries[0].values[6], null);
   assert.equal(queries[0].values[10], 'object_storage');
   assert.equal(queries[0].values[11], 'r2');
-  assert.equal(queries[0].values[12], 'shule-hub-files');
+  assert.equal(queries[0].values[12], 'my-shule-files');
   assert.equal(queries[0].values[13], 'tenant/tenant-a/support/ticket-1/file.pdf');
   assert.equal(queries[0].values[14], 'etag-1');
   assert.deepEqual(JSON.parse(queries[0].values[7] as string), {
@@ -141,7 +141,7 @@ test('DatabaseFileStorageService writes enabled uploads to object storage and st
     ticket_id: 'ticket-1',
     object_storage: {
       provider: 'r2',
-      bucket: 'shule-hub-files',
+      bucket: 'my-shule-files',
       key: 'tenant/tenant-a/support/ticket-1/file.pdf',
       etag: 'etag-1',
     },
@@ -314,7 +314,7 @@ test('DatabaseFileStorageService reads signed external object storage files thro
               content: null,
               storage_backend: 'object_storage',
               object_storage_provider: 'r2',
-              object_storage_bucket: 'shule-hub-files',
+              object_storage_bucket: 'my-shule-files',
               object_storage_key: values[1],
             },
           ],
@@ -373,7 +373,7 @@ test('DatabaseFileStorageService rejects external object storage reads with chec
             content: null,
             storage_backend: 'object_storage',
             object_storage_provider: 'r2',
-            object_storage_bucket: 'shule-hub-files',
+            object_storage_bucket: 'my-shule-files',
             object_storage_key: values[1],
           },
         ],
@@ -526,7 +526,7 @@ test('S3CompatibleObjectStorageService stores tenant-scoped objects with signed 
   const env: Record<string, string> = {
     UPLOAD_OBJECT_STORAGE_PROVIDER: 'r2',
     UPLOAD_OBJECT_STORAGE_ENDPOINT: 'https://objects.example.test',
-    UPLOAD_OBJECT_STORAGE_BUCKET: 'shule-hub-files',
+    UPLOAD_OBJECT_STORAGE_BUCKET: 'my-shule-files',
     UPLOAD_OBJECT_STORAGE_REGION: 'auto',
     UPLOAD_OBJECT_STORAGE_ACCESS_KEY_ID: 'access-key',
     UPLOAD_OBJECT_STORAGE_SECRET_ACCESS_KEY: 'secret-key',
@@ -559,14 +559,14 @@ test('S3CompatibleObjectStorageService stores tenant-scoped objects with signed 
 
   assert.deepEqual(stored, {
     provider: 'r2',
-    bucket: 'shule-hub-files',
+    bucket: 'my-shule-files',
     key: 'tenant/tenant-a/support/ticket-1/file.pdf',
     storage_path: 'tenant/tenant-a/support/ticket-1/file.pdf',
     sha256: createHash('sha256').update(buffer).digest('hex'),
     etag: 'etag-1',
   });
   assert.equal(requests.length, 1);
-  assert.equal(requests[0].url, 'https://objects.example.test/shule-hub-files/tenant/tenant-a/support/ticket-1/file.pdf');
+  assert.equal(requests[0].url, 'https://objects.example.test/my-shule-files/tenant/tenant-a/support/ticket-1/file.pdf');
   assert.equal(requests[0].init.method, 'PUT');
   assert.equal(requests[0].init.body, buffer);
   assert.equal(requests[0].init.headers['Content-Type'], 'application/pdf');
@@ -582,7 +582,7 @@ test('S3CompatibleObjectStorageService stores tenant-scoped objects with signed 
 test('S3CompatibleObjectStorageService rejects object keys outside the tenant namespace before upload', async () => {
   const env: Record<string, string> = {
     UPLOAD_OBJECT_STORAGE_ENDPOINT: 'https://objects.example.test',
-    UPLOAD_OBJECT_STORAGE_BUCKET: 'shule-hub-files',
+    UPLOAD_OBJECT_STORAGE_BUCKET: 'my-shule-files',
     UPLOAD_OBJECT_STORAGE_ACCESS_KEY_ID: 'access-key',
     UPLOAD_OBJECT_STORAGE_SECRET_ACCESS_KEY: 'secret-key',
   };
@@ -615,7 +615,7 @@ test('S3CompatibleObjectStorageService deletes tenant-scoped objects with signed
   const env: Record<string, string> = {
     UPLOAD_OBJECT_STORAGE_PROVIDER: 'r2',
     UPLOAD_OBJECT_STORAGE_ENDPOINT: 'https://objects.example.test',
-    UPLOAD_OBJECT_STORAGE_BUCKET: 'shule-hub-files',
+    UPLOAD_OBJECT_STORAGE_BUCKET: 'my-shule-files',
     UPLOAD_OBJECT_STORAGE_REGION: 'auto',
     UPLOAD_OBJECT_STORAGE_ACCESS_KEY_ID: 'access-key',
     UPLOAD_OBJECT_STORAGE_SECRET_ACCESS_KEY: 'secret-key',
@@ -641,7 +641,7 @@ test('S3CompatibleObjectStorageService deletes tenant-scoped objects with signed
   });
 
   assert.equal(requests.length, 1);
-  assert.equal(requests[0].url, 'https://objects.example.test/shule-hub-files/tenant/tenant-a/support/ticket-1/file.pdf');
+  assert.equal(requests[0].url, 'https://objects.example.test/my-shule-files/tenant/tenant-a/support/ticket-1/file.pdf');
   assert.equal(requests[0].init.method, 'DELETE');
   assert.equal(requests[0].init.headers['x-amz-content-sha256'], 'UNSIGNED-PAYLOAD');
   assert.equal(requests[0].init.headers['x-amz-date'], '20260514T144500Z');
@@ -655,7 +655,7 @@ test('S3CompatibleObjectStorageService deletes tenant-scoped objects with signed
 test('S3CompatibleObjectStorageService rejects object keys outside the tenant namespace before delete', async () => {
   const env: Record<string, string> = {
     UPLOAD_OBJECT_STORAGE_ENDPOINT: 'https://objects.example.test',
-    UPLOAD_OBJECT_STORAGE_BUCKET: 'shule-hub-files',
+    UPLOAD_OBJECT_STORAGE_BUCKET: 'my-shule-files',
     UPLOAD_OBJECT_STORAGE_ACCESS_KEY_ID: 'access-key',
     UPLOAD_OBJECT_STORAGE_SECRET_ACCESS_KEY: 'secret-key',
   };
@@ -685,7 +685,7 @@ test('S3CompatibleObjectStorageService rejects object keys outside the tenant na
 test('S3CompatibleObjectStorageService reports failed object deletes as unavailable', async () => {
   const env: Record<string, string> = {
     UPLOAD_OBJECT_STORAGE_ENDPOINT: 'https://objects.example.test',
-    UPLOAD_OBJECT_STORAGE_BUCKET: 'shule-hub-files',
+    UPLOAD_OBJECT_STORAGE_BUCKET: 'my-shule-files',
     UPLOAD_OBJECT_STORAGE_ACCESS_KEY_ID: 'access-key',
     UPLOAD_OBJECT_STORAGE_SECRET_ACCESS_KEY: 'secret-key',
   };

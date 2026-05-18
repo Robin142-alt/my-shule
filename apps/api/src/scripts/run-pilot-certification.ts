@@ -58,7 +58,7 @@ const WORKFLOWS: Array<{
     checks: [
       check('superadmin-login-view', 'Superadmin login view exists', 'apps/web/src/components/auth/superadmin-login-view.tsx', /SuperadminLoginView/),
       check('secure-session', 'Superadmin login uses session service', 'apps/web/src/components/auth/superadmin-login-view.tsx', /useExperienceSession\("superadmin"\)/),
-      check('no-demo-creds', 'Superadmin login has no visible demo credentials', 'apps/web/src/components/auth/superadmin-login-view.tsx', /ShuleHub never asks users to share passwords/),
+      check('no-demo-creds', 'Superadmin login has no visible demo credentials', 'apps/web/src/components/auth/superadmin-login-view.tsx', /My Shule never asks users to share passwords/),
     ],
   },
   {
@@ -84,7 +84,7 @@ const WORKFLOWS: Array<{
     title: 'School login by email and password with automatic workspace resolution',
     checks: [
       check('school-login-simple', 'School login collects email and password only', 'apps/web/src/components/auth/school-login-view.tsx', /Email address[\s\S]+Password/),
-      check('school-login-no-workspace-code', 'School login does not ask for workspace code', 'apps/web/src/components/auth/school-login-view.tsx', /ShuleHub will open the school linked to your account/),
+      check('school-login-no-workspace-code', 'School login does not ask for workspace code', 'apps/web/src/components/auth/school-login-view.tsx', /My Shule will open the school linked to your account/),
       check('auth-tenant-session', 'Auth service binds sessions to tenant membership', 'apps/api/src/auth/auth.service.ts', /membership\.tenant_id|tenant_id/),
     ],
   },

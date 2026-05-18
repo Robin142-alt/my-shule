@@ -25,20 +25,20 @@ The API and workers must run as separate processes in production.
 Build the production image:
 
 ```bash
-docker build -t shule-hub:latest .
+docker build -t my-shule:latest .
 ```
 
 Run the API container:
 
 ```bash
-docker run --rm -p 3000:3000 --env-file .env.production shule-hub:latest
+docker run --rm -p 3000:3000 --env-file .env.production my-shule:latest
 ```
 
 Run the workers from the same image:
 
 ```bash
-docker run --rm --env-file .env.production shule-hub:latest node dist/apps/api/src/payments-worker.js
-docker run --rm --env-file .env.production shule-hub:latest node dist/apps/api/src/events-worker.js
+docker run --rm --env-file .env.production my-shule:latest node dist/apps/api/src/payments-worker.js
+docker run --rm --env-file .env.production my-shule:latest node dist/apps/api/src/events-worker.js
 ```
 
 ## Docker Compose

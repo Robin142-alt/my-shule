@@ -1,4 +1,4 @@
-import { IsEmail, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
+import { IsBoolean, IsEmail, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
 
 export class CreateSchoolDto {
   @IsString()
@@ -25,15 +25,64 @@ export class CreateSchoolDto {
   county?: string;
 }
 
+export class DeleteSchoolDto {
+  @IsString()
+  @MinLength(2)
+  @MaxLength(64)
+  confirmation!: string;
+
+  @IsString()
+  @MinLength(3)
+  @MaxLength(240)
+  reason!: string;
+
+  @IsOptional()
+  @IsBoolean()
+  hard_delete_empty_tenant?: boolean;
+}
+
 export type PlatformSchoolResponseDto = {
   tenant_id: string;
   school_name: string;
   subdomain: string;
   status: 'active' | 'inactive';
   invitation_sent: boolean;
-  invitation_status: 'sent' | 'queued' | 'failed';
+  invitation_status: 'sent' | 'queued' | 'failed' | 'blocked';
   invitation_message: string;
+  invitation_failure_code?: string;
+  invitation_failure_reason?: string;
+  invitation_action_required?: string;
+  can_resend_invite: boolean;
   invite_expires_at: string;
   admin_email: string;
   created_at: string;
+};
+
+export type PlatformSchoolUsageSummaryDto = {
+  memberships: number;
+  students: number;
+  invoices: number;
+  support_tickets: number;
+  mpesa_transactions: number;
+};
+
+export type PlatformSchoolDeleteResponseDto = {
+  tenant_id: string;
+  deleted: boolean;
+  deprovisioned: boolean;
+  message: string;
+  usage_summary: PlatformSchoolUsageSummaryDto;
+  school?: PlatformSchoolResponseDto;
+};
+
+export type PlatformEmailReadinessResponseDto = {
+  provider: string;
+  status: 'configured' | 'missing' | 'blocked' | 'degraded';
+  api_key_configured: boolean;
+  sender_configured: boolean;
+  public_app_url_configured: boolean;
+  last_invite_status?: string;
+  last_failure_code?: string;
+  last_failure_reason?: string;
+  action_required?: string;
 };

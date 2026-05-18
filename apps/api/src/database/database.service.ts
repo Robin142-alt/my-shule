@@ -23,7 +23,7 @@ import { DatabaseSecurityService } from './database-security.service';
 @Injectable()
 export class DatabaseService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(DatabaseService.name);
-  private static readonly SCHEMA_BOOTSTRAP_LOCK_KEY = 'shule_hub_schema_bootstrap';
+  private static readonly SCHEMA_BOOTSTRAP_LOCK_KEY = 'my_shule_schema_bootstrap';
   private structuredLoggerRef: StructuredLoggerService | null | undefined;
   private sloMetricsRef: SloMetricsService | null | undefined;
 

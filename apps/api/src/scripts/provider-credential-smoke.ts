@@ -538,7 +538,7 @@ async function runLiveCredentialCheck(input: {
       method,
       headers: {
         Authorization: `Bearer ${input.authorizationToken}`,
-        'User-Agent': 'shulehub-provider-smoke',
+        'User-Agent': 'my-shule-provider-smoke',
         ...(input.extraHeaders ?? {}),
       },
       body: input.body,
@@ -625,7 +625,7 @@ async function runLiveObjectStorageCheck(
   fetchImpl?: ObjectStorageFetch,
 ): Promise<ProviderCredentialSmokeCheck> {
   const provider = getValue(env, 'UPLOAD_OBJECT_STORAGE_PROVIDER') || 's3';
-  const content = Buffer.from(`shule-hub-provider-smoke:${new Date().toISOString()}`);
+  const content = Buffer.from(`my-shule-provider-smoke:${new Date().toISOString()}`);
   const storagePath = 'tenant/provider-smoke/support/provider-smoke.txt';
   const storage = new S3CompatibleObjectStorageService({
     get: (key: string) => getValue(env, key),

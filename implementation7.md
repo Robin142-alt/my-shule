@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Move ShuleHub from controlled pilot readiness to production-operable readiness by configuring SMS support delivery, upload malware scanning, external object storage, live workflow validation, and scheduled synthetic/core load monitoring.
+**Goal:** Move My Shule from controlled pilot readiness to production-operable readiness by configuring SMS support delivery, upload malware scanning, external object storage, live workflow validation, and scheduled synthetic/core load monitoring.
 
 **Architecture:** Keep the existing NestJS API, PostgreSQL RLS, Redis/BullMQ, provider smoke script, streaming upload service, S3/R2-compatible storage adapter, and read-only synthetic/load scripts. Implementation 7 does not add random ERP features; it turns existing optional provider channels and live validation hooks into required production contracts with no secret leakage, no seeded data, and no long-lived human JWTs in automation.
 
@@ -84,7 +84,7 @@ Use the existing `SUPPORT_NOTIFICATION_SMS_WEBHOOK_*` contract as the backend in
 
 Implementation choice:
 
-- Preferred production path: deploy a small SMS relay service that accepts the ShuleHub webhook payload and forwards to the chosen SMS provider.
+- Preferred production path: deploy a small SMS relay service that accepts the My Shule webhook payload and forwards to the chosen SMS provider.
 - Initial provider target: Africa's Talking or another Kenya-ready SMS aggregator. The ERP API remains provider-agnostic.
 - Direct-provider integration can be added only if the provider accepts the exact JSON webhook contract above.
 
@@ -347,7 +347,7 @@ Create `apps/sms-relay/src/server.test.ts` covering:
 - `GET /health` returns 200 without secrets.
 - `POST /send` rejects missing bearer token.
 - `POST /send` rejects invalid phone numbers.
-- `POST /send` maps ShuleHub webhook payload to the configured provider request.
+- `POST /send` maps My Shule webhook payload to the configured provider request.
 - provider failure returns non-2xx so the API retry worker can retry.
 - logs redact recipient phone numbers to the last four digits.
 
@@ -363,7 +363,7 @@ Create `apps/sms-relay/src/server.ts` with:
 - timeout of 10 seconds for provider calls
 - redacted logs
 
-The relay receives ShuleHub JSON and forwards an SMS text shaped like:
+The relay receives My Shule JSON and forwards an SMS text shaped like:
 
 ```text
 {title}
@@ -595,7 +595,7 @@ Modify `apps/api/src/scripts/provider-credential-smoke.ts`:
 
 For Cloudflare R2:
 
-- create bucket dedicated to production ShuleHub uploads
+- create bucket dedicated to production My Shule uploads
 - create access key with object read/write/delete for that bucket only
 - configure CORS only if browser direct uploads are introduced; current API-mediated uploads do not require public bucket CORS
 - keep bucket private

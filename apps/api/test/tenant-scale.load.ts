@@ -231,7 +231,7 @@ const parseConfig = (): ScaleConfig => ({
 
 const ensureTenantScaleEnv = (): void => {
   process.env.NODE_ENV = process.env.NODE_ENV ?? 'test';
-  process.env.DATABASE_RUNTIME_ROLE = process.env.DATABASE_RUNTIME_ROLE ?? 'shule_hub_runtime';
+  process.env.DATABASE_RUNTIME_ROLE = process.env.DATABASE_RUNTIME_ROLE ?? 'my_shule_runtime';
 
   if (!process.env.DATABASE_URL) {
     throw new Error('DATABASE_URL is required for tenant-scale load verification');
@@ -452,7 +452,7 @@ const seedScaleDataset = async (
       tenant_id,
       '978-9966-' || LPAD(tenant_ord::text, 4, '0') || '-' || LPAD(title_ord::text, 3, '0'),
       title,
-      'ShuleHub Scale Fixture',
+      'My Shule Scale Fixture',
       CASE title_ord % 4
         WHEN 0 THEN 'Reference'
         WHEN 1 THEN 'English'

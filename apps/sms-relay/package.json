@@ -1,5 +1,5 @@
 {
-  "name": "@shulehub/sms-relay",
+  "name": "@myshule/sms-relay",
   "version": "0.1.0",
   "private": true,
   "scripts": {

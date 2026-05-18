@@ -71,14 +71,14 @@ export function SchoolLoginView({
           tone: "error" as const,
           title: "Workspace not recognized",
           description:
-            "This school address could not be verified. Use your official ShuleHub login page or contact your administrator.",
+            "This school address could not be verified. Use your official My Shule login page or contact your administrator.",
         }
       : resolution.status === "default"
         ? {
             tone: "warning" as const,
             title: "School access pending",
             description:
-              "Use your email and password. ShuleHub will open the school linked to your account.",
+              "Use your email and password. My Shule will open the school linked to your account.",
           }
         : {
             tone: "info" as const,

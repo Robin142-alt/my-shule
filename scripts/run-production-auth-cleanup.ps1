@@ -18,7 +18,7 @@ function Convert-SecureStringToPlainText {
   }
 }
 
-Write-Host "ShuleHub production auth cleanup" -ForegroundColor Cyan
+Write-Host "My Shule production auth cleanup" -ForegroundColor Cyan
 Write-Host "This will purge operational tenant data and leave one platform owner." -ForegroundColor Yellow
 Write-Host "Owner email captured from secure operator input."
 Write-Host ""

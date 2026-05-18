@@ -69,7 +69,7 @@ describe("enterprise authentication flows", () => {
       expect.objectContaining({
         method: "POST",
         headers: expect.objectContaining({
-          "x-shulehub-csrf": "csrf-test-token",
+          "x-myshule-csrf": "csrf-test-token",
         }),
       }),
     );
@@ -174,7 +174,7 @@ describe("enterprise authentication flows", () => {
       expect.objectContaining({
         method: "POST",
         headers: expect.objectContaining({
-          "x-shulehub-csrf": "csrf-test-token",
+          "x-myshule-csrf": "csrf-test-token",
         }),
       }),
     );
@@ -217,7 +217,7 @@ describe("enterprise authentication flows", () => {
       expect.objectContaining({
         method: "POST",
         headers: expect.objectContaining({
-          "x-shulehub-csrf": "csrf-test-token",
+          "x-myshule-csrf": "csrf-test-token",
         }),
       }),
     );
@@ -309,7 +309,7 @@ describe("enterprise authentication flows", () => {
         method: "POST",
         credentials: "same-origin",
         headers: expect.objectContaining({
-          "x-shulehub-csrf": "csrf-test-token",
+          "x-myshule-csrf": "csrf-test-token",
         }),
         body: JSON.stringify({
           audience: "superadmin",
@@ -375,7 +375,7 @@ describe("enterprise authentication flows", () => {
         method: "POST",
         credentials: "same-origin",
         headers: expect.objectContaining({
-          "x-shulehub-csrf": "csrf-email-token",
+          "x-myshule-csrf": "csrf-email-token",
         }),
         body: JSON.stringify({
           token: "email-link-token",

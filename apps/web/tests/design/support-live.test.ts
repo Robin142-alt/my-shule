@@ -59,7 +59,7 @@ describe("live support proxy client", () => {
         method: "GET",
         credentials: "same-origin",
         headers: expect.not.objectContaining({
-          "x-shulehub-csrf": expect.any(String),
+          "x-myshule-csrf": expect.any(String),
         }),
       }),
     );
@@ -128,7 +128,7 @@ describe("live support proxy client", () => {
         method: "POST",
         credentials: "same-origin",
         headers: expect.objectContaining({
-          "x-shulehub-csrf": "csrf-support-token",
+          "x-myshule-csrf": "csrf-support-token",
           "Content-Type": "application/json",
         }),
       }),

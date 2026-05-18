@@ -90,7 +90,7 @@ test('core API load plan refuses remote targets without an explicit opt-in', () 
   assert.throws(
     () =>
       buildCoreApiLoadPlan({
-        baseUrl: 'https://shulehub-production.up.railway.app',
+        baseUrl: 'https://myshule-production.up.railway.app',
         tenantId: 'tenant-a',
         accessToken: 'access-token',
       }),

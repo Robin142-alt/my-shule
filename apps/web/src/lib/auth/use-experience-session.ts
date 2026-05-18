@@ -120,7 +120,7 @@ export function useExperienceSession(
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-shulehub-csrf": await getCsrfToken(),
+          "x-myshule-csrf": await getCsrfToken(),
         },
         credentials: "same-origin",
         body: JSON.stringify({
@@ -153,7 +153,7 @@ export function useExperienceSession(
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-shulehub-csrf": await getCsrfToken(),
+          "x-myshule-csrf": await getCsrfToken(),
         },
         credentials: "same-origin",
         body: JSON.stringify({ audience }),
@@ -174,7 +174,7 @@ export function useExperienceSession(
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-shulehub-csrf": await getCsrfToken(),
+          "x-myshule-csrf": await getCsrfToken(),
         },
         credentials: "same-origin",
         body: JSON.stringify({

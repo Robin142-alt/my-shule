@@ -17,7 +17,7 @@ function Convert-SecureStringToPlainText {
   }
 }
 
-Write-Host "ShuleHub production auth verification" -ForegroundColor Cyan
+Write-Host "My Shule production auth verification" -ForegroundColor Cyan
 Write-Host "Owner email captured from secure operator input."
 Write-Host ""
 

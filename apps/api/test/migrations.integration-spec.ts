@@ -31,7 +31,7 @@ describe('Multi-tenant migration safety', () => {
 
   beforeAll(() => {
     ensureMigrationTestEnv();
-    pool = createIntegrationPool('shule-hub-migration-tests');
+    pool = createIntegrationPool('my-shule-migration-tests');
   });
 
   afterAll(async () => {

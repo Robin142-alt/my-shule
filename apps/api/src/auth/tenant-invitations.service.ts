@@ -504,7 +504,7 @@ export class TenantInvitationsService {
       [
         input.tenantId,
         input.email,
-        'You have been invited to ShuleHub ERP',
+        'You have been invited to My Shule ERP',
         JSON.stringify(input.payload),
       ],
     );
@@ -549,7 +549,7 @@ export class TenantInvitationsService {
       [
         input.tenantId,
         input.email,
-        'You have been invited to ShuleHub ERP',
+        'You have been invited to My Shule ERP',
         JSON.stringify(input.payload),
       ],
     );
@@ -654,7 +654,7 @@ export class TenantInvitationsService {
   private buildInvitationUrl(token: string): string {
     const baseUrl = (
       this.configService.get<string>('email.publicAppUrl') ??
-      'https://shule-hub-erp.vercel.app'
+      'https://my-shule-erp.vercel.app'
     ).replace(/\/$/, '');
 
     return `${baseUrl}/invite/accept?token=${encodeURIComponent(token)}`;

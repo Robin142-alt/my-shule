@@ -127,7 +127,7 @@ function PortalFeesPage({ viewer }: { viewer: PortalViewer }) {
 
   async function shareStatement() {
     const statementText = [
-      "ShuleHub family statement",
+      "My Shule family statement",
       "",
       ...portalFeeHistory.map(
         (row) => `${row.date} | ${row.amount} | ${row.method} | ${row.reference} | ${row.status}`,
@@ -265,7 +265,7 @@ function PortalDownloadsPage() {
     downloadTextFile({
       filename: "portal-downloads.txt",
       content: [
-        "ShuleHub portal downloads",
+        "My Shule portal downloads",
         "",
         "No portal documents are available yet.",
       ].join("\n"),
@@ -343,7 +343,7 @@ export function PortalPages({
 
   return (
     <PortalShell
-      brand={{ title: "ShuleHub Portal", subtitle: viewer === "parent" ? "Family portal" : "Student portal" }}
+      brand={{ title: "My Shule Portal", subtitle: viewer === "parent" ? "Family portal" : "Student portal" }}
       navItems={scopedNavItems}
       activeHref={activeHref}
       topLabel={viewer === "parent" ? "Family portal" : "Student portal"}

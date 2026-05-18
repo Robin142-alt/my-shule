@@ -553,7 +553,7 @@ describe('MPESA network conditions integration', () => {
 
 const ensureIntegrationEnv = (callbackPort: number, mpesaBaseUrl: string): void => {
   (process.env as Record<string, string | undefined>).NODE_ENV = process.env.NODE_ENV ?? 'test';
-  process.env.DATABASE_RUNTIME_ROLE = process.env.DATABASE_RUNTIME_ROLE ?? 'shule_hub_runtime';
+  process.env.DATABASE_RUNTIME_ROLE = process.env.DATABASE_RUNTIME_ROLE ?? 'my_shule_runtime';
   process.env.SECURITY_PII_ENCRYPTION_KEY =
     process.env.SECURITY_PII_ENCRYPTION_KEY ??
     'MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=';

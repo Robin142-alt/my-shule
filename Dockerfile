@@ -25,7 +25,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends dumb-init \
 WORKDIR /app
 
 # Run as non-root user for security
-RUN groupadd -r shulehub && useradd -r -g shulehub -s /bin/false shulehub
+RUN groupadd -r myshule && useradd -r -g myshule -s /bin/false myshule
 
 ENV NODE_ENV=production
 ENV PORT=3000
@@ -38,9 +38,9 @@ RUN npm ci --omit=dev && npm cache clean --force
 COPY --from=build /app/dist ./dist
 
 # Set ownership
-RUN chown -R shulehub:shulehub /app
+RUN chown -R myshule:myshule /app
 
-USER shulehub
+USER myshule
 
 EXPOSE 3000
 

@@ -19,7 +19,7 @@ export async function createXlsxReportArtifact(
   const generatedAt = normalizeReportGeneratedAt(input.generatedAt);
   const workbook = new ExcelJS.Workbook();
 
-  workbook.creator = 'Shule Hub';
+  workbook.creator = 'My Shule';
   workbook.created = new Date(generatedAt);
   workbook.modified = new Date(generatedAt);
   workbook.calcProperties.fullCalcOnLoad = false;

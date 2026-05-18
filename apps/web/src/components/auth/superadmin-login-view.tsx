@@ -230,7 +230,7 @@ export function SuperadminLoginView({
         </form>
 
         <p className="text-xs leading-6 text-slate-500">
-          ShuleHub never asks users to share passwords or verification codes.
+          My Shule never asks users to share passwords or verification codes.
         </p>
       </div>
     </AuthCard>

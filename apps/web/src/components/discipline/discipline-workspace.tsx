@@ -1266,7 +1266,7 @@ export function ParentDisciplineView({
     downloadTextFile({
       filename: "discipline-notices.txt",
       content: [
-        "ShuleHub discipline notices",
+        "My Shule discipline notices",
         "",
         ...incidents.map((incident) => `${incident.incident_number} | ${incident.title} | ${humanize(incident.status)} | ${formatDate(incident.occurred_at)}`),
       ].join("\n"),

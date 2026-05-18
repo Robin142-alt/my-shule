@@ -1,6 +1,6 @@
 # Incident Response Runbook
 
-This runbook is for production incidents affecting Shule Hub schools, support operators, or platform availability. Use it for degraded readiness, public status changes, support notification failures, billing/MPESA disruption, export failures, and release regressions.
+This runbook is for production incidents affecting My Shule schools, support operators, or platform availability. Use it for degraded readiness, public status changes, support notification failures, billing/MPESA disruption, export failures, and release regressions.
 
 ## Detection
 

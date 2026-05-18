@@ -14,7 +14,7 @@ test('SupportNotificationDeliveryService reports provider readiness without expo
     {
       get: (key: string) => {
         if (key === 'support.notificationEmails') {
-          return ['support@shulehub.test', 'ops@shulehub.test'];
+          return ['support@myshule.test', 'ops@myshule.test'];
         }
 
         if (key === 'support.notificationSmsWebhookUrl') {
@@ -91,7 +91,7 @@ test('SupportNotificationDeliveryService reports provider readiness without expo
   });
   assert.equal(JSON.stringify(status).includes('sms-secret-token'), false);
   assert.equal(JSON.stringify(status).includes('sms-gateway.test'), false);
-  assert.equal(JSON.stringify(status).includes('support@shulehub.test'), false);
+  assert.equal(JSON.stringify(status).includes('support@myshule.test'), false);
 });
 
 test('SupportNotificationDeliveryService reports precise missing provider status for dashboard-managed SMS', async () => {
@@ -99,7 +99,7 @@ test('SupportNotificationDeliveryService reports precise missing provider status
     {
       get: (key: string) => {
         if (key === 'support.notificationEmails') {
-          return ['support@shulehub.test'];
+          return ['support@myshule.test'];
         }
 
         if (key === 'support.notificationSmsRecipients') {
@@ -196,7 +196,7 @@ test('SupportNotificationDeliveryService sends support email notifications to co
     {
       get: (key: string) => {
         if (key === 'support.notificationEmails') {
-          return ['support@shulehub.test', 'ops@shulehub.test'];
+          return ['support@myshule.test', 'ops@myshule.test'];
         }
 
         return undefined;
@@ -232,7 +232,7 @@ test('SupportNotificationDeliveryService sends support email notifications to co
 
   assert.deepEqual(
     sent.map((item) => item.to),
-    ['support@shulehub.test', 'ops@shulehub.test'],
+    ['support@myshule.test', 'ops@myshule.test'],
   );
   assert.equal(sent[0]?.title, 'Critical support ticket raised: SUP-2026-000145');
   assert.deepEqual(deliveryUpdates, [{ id: 'notification-1', status: 'sent' }]);
@@ -363,7 +363,7 @@ test('SupportNotificationDeliveryService keeps provider failures queued until re
     {
       get: (key: string) => {
         if (key === 'support.notificationEmails') {
-          return ['support@shulehub.test'];
+          return ['support@myshule.test'];
         }
 
         if (key === 'support.notificationMaxAttempts') {
@@ -433,7 +433,7 @@ test('SupportNotificationDeliveryService creates an in-app support alert when em
     {
       get: (key: string) => {
         if (key === 'support.notificationEmails') {
-          return ['support@shulehub.test'];
+          return ['support@myshule.test'];
         }
 
         if (key === 'support.notificationMaxAttempts') {
@@ -555,7 +555,7 @@ test('SupportNotificationDeliveryService claims due queued email notifications b
             delivery_status: 'queued',
             delivery_attempts: 2,
             metadata: {
-              recipient_email: 'lead@shulehub.test',
+              recipient_email: 'lead@myshule.test',
             },
             created_at: '2026-05-12T09:00:00.000Z',
           },
@@ -574,7 +574,7 @@ test('SupportNotificationDeliveryService claims due queued email notifications b
   assert.deepEqual(claimedLimits, [{ limit: 25, leaseMs: 120000 }]);
   assert.deepEqual(sent, [
     {
-      to: 'lead@shulehub.test',
+      to: 'lead@myshule.test',
       title: 'Critical support ticket raised: SUP-2026-000147',
       body: 'School Alpha reported fee receipt failures.',
     },

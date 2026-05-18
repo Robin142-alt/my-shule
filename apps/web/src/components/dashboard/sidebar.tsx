@@ -58,7 +58,7 @@ function SidebarContent({
           </div>
           <div className="min-w-0">
             <p className="truncate text-[14px] font-semibold text-foreground tracking-tight">
-              ShuleHub
+              My Shule
             </p>
             <p className="truncate text-[11px] text-muted">
               {roleLabels[role]}

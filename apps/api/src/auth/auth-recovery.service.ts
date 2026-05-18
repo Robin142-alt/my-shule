@@ -69,7 +69,7 @@ export class AuthRecoveryService {
     const tokenHash = this.hashToken(token);
     const expiresAt = new Date(Date.now() + this.getRecoveryTtlMs());
     const resetUrl = this.buildResetUrl(audience, token);
-    const subject = 'Reset your ShuleHub ERP password';
+    const subject = 'Reset your My Shule ERP password';
     const payload = {
       display_name: user.display_name,
       expires_at: expiresAt.toISOString(),
@@ -216,7 +216,7 @@ export class AuthRecoveryService {
   ): string {
     const baseUrl = (
       this.configService.get<string>('email.publicAppUrl') ??
-      'https://shule-hub-erp.vercel.app'
+      'https://my-shule-erp.vercel.app'
     ).replace(/\/$/, '');
     const path = audience === 'superadmin'
       ? '/superadmin/reset-password'

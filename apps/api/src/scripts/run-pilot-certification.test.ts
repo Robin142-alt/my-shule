@@ -45,13 +45,13 @@ test('renderPilotCertificationMarkdown includes safe workflow evidence without s
 
 function buildPassingSources(): Record<string, string> {
   return {
-    'apps/web/src/components/auth/superadmin-login-view.tsx': 'SuperadminLoginView useExperienceSession("superadmin") ShuleHub never asks users to share passwords',
+    'apps/web/src/components/auth/superadmin-login-view.tsx': 'SuperadminLoginView useExperienceSession("superadmin") My Shule never asks users to share passwords',
     'apps/api/src/modules/platform/platform-onboarding.service.ts': 'createSchool tenant_id tenantId',
     'apps/web/src/app/api/platform/schools/route.ts': 'proxyPlatformApiRequest platform',
     'apps/api/src/auth/tenant-invitations.service.ts': 'class TenantInvitationsService {}',
     'apps/api/src/auth/auth-email.service.ts': 'sendTenantInvitationEmail Invitation',
     'apps/web/src/app/invite/accept/page.tsx': 'Invitation accept invite',
-    'apps/web/src/components/auth/school-login-view.tsx': 'Email address Password ShuleHub will open the school linked to your account',
+    'apps/web/src/components/auth/school-login-view.tsx': 'Email address Password My Shule will open the school linked to your account',
     'apps/api/src/auth/auth.service.ts': 'membership.tenant_id tenant_id',
     'apps/api/src/modules/integrations/daraja-integration.service.ts': 'saveDarajaSettings Daraja encrypt masked',
     'apps/api/src/modules/integrations/platform-sms.service.ts': 'class PlatformSmsService encrypt',

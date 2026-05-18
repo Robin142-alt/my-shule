@@ -19,7 +19,7 @@ const FALLBACK_TENANT: TenantResolution = {
   name: "No school workspace selected",
   primaryColor: "#059669",
   county: "Awaiting onboarding",
-  supportEmail: "support@shulehub.co.ke",
+  supportEmail: "support@myshule.co.ke",
   supportPhone: "Configured during onboarding",
   subscriptionStatus: "suspended",
 };

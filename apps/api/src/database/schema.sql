@@ -545,6 +545,10 @@ CREATE TABLE auth_email_outbox (
   attempts integer NOT NULL DEFAULT 0,
   next_attempt_at timestamptz NOT NULL DEFAULT NOW(),
   sent_at timestamptz,
+  last_error_code text,
+  last_error_summary text,
+  provider_status_code integer,
+  last_attempt_at timestamptz,
   created_at timestamptz NOT NULL DEFAULT NOW(),
   updated_at timestamptz NOT NULL DEFAULT NOW(),
   CONSTRAINT ck_auth_email_outbox_template CHECK (
@@ -561,6 +565,8 @@ CREATE TABLE auth_email_outbox (
   ),
   CONSTRAINT ck_auth_email_outbox_status CHECK (status IN ('pending', 'processing', 'sent', 'failed')),
   CONSTRAINT ck_auth_email_outbox_attempts CHECK (attempts >= 0),
+  CONSTRAINT ck_auth_email_outbox_provider_status_code
+    CHECK (provider_status_code IS NULL OR provider_status_code BETWEEN 100 AND 599),
   CONSTRAINT fk_auth_email_outbox_user
     FOREIGN KEY (user_id)
     REFERENCES users (id)

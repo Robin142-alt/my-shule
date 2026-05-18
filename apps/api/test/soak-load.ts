@@ -151,7 +151,7 @@ const main = async (): Promise<void> => {
   const harness = await createRaceTestHarness();
   const queueProbe = await createSoakQueueProbe({
     queueName: 'soak-heartbeat',
-    prefix: 'shule-hub-soak',
+    prefix: 'my-shule-soak',
     workerConcurrency: Math.max(2, Math.ceil(config.concurrency / 8)),
     producerIntervalMs: 200,
     mode: config.queue_mode,

@@ -13,7 +13,7 @@ type StartedCluster = {
   postgresProcess?: ChildProcess;
 };
 
-const DEFAULT_DATABASE_NAME = 'shule_hub';
+const DEFAULT_DATABASE_NAME = 'my_shule';
 const POSTGRES_SUPERUSER = 'postgres';
 const LOCAL_POSTGRES_CLEANUP_RETRIES = 5;
 const LOCAL_POSTGRES_CLEANUP_DELAY_MS = 250;
@@ -235,7 +235,7 @@ const reservePort = async (): Promise<number> =>
   });
 
 const initializeCluster = async (binDir: string | null): Promise<StartedCluster> => {
-  const rootDir = await mkdtemp(path.join(os.tmpdir(), 'shule-hub-it-postgres-'));
+  const rootDir = await mkdtemp(path.join(os.tmpdir(), 'my-shule-it-postgres-'));
   const dataDir = path.join(rootDir, 'data');
   const logDir = path.join(rootDir, 'log');
   const logFile = path.join(logDir, 'postgres.log');

@@ -66,7 +66,7 @@ Post-merge production hardening evidence on 2026-05-14:
 - Live query-plan review passed against the production database: 11 active search/read hotspots reviewed; protected student, admissions, inventory, academics, exams, billing, support, HR, and timetable paths used index-backed plans. Library catalog search remains hidden and tenant-scoped; the review currently records the plan shape without failing that hidden path.
 - Local verification after the final patch passed: `npm.cmd run build`, focused query-plan tests (5/5), full API suite (307/307), and release readiness (11/11).
 - Runtime blockers discovered during deployment were fixed on `main`: Nest provider DI metadata, additive `file_objects` retention columns, immutable support search indexes, additive `student_guardians` invitation columns, HR department lower-name expression uniqueness, and deterministic live query-plan review behavior on tiny production tables.
-- Frontend remains available at `https://shule-hub-erp.vercel.app`; API remains available at `https://shulehub-production.up.railway.app`.
+- Frontend remains available at `https://my-shule-erp.vercel.app`; API remains available at `https://myshule-production.up.railway.app`.
 
 Remaining post-hardening risk: SMS escalation delivery, upload malware scanning, and external object storage are still optional/unconfigured provider channels. They are detected cleanly by provider smoke and must be configured before those channels are advertised as production capabilities.
 

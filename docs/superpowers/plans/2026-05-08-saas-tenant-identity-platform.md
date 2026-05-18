@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build real tenant onboarding, invitation-based activation, password recovery, role routing, session management, and subscription-aware access for Shule Hub.
+**Goal:** Build real tenant onboarding, invitation-based activation, password recovery, role routing, session management, and subscription-aware access for My Shule.
 
 **Architecture:** Extend the existing NestJS API and Next.js app. The backend owns tenant identity state, token generation, membership activation, session revocation, audit logging, and subscription gates. The frontend becomes an operational client for superadmin onboarding, school-branded login, invite acceptance, password reset, user management, and active sessions.
 

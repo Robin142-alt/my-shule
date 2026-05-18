@@ -188,7 +188,7 @@ export class ParentPortalAuthService {
     try {
       await this.schoolSmsWalletService.sendSms({
         recipient,
-        message: `Your ShuleHub parent portal code is ${otpCode}. It expires in 10 minutes.`,
+        message: `Your My Shule parent portal code is ${otpCode}. It expires in 10 minutes.`,
         message_type: 'parent_otp',
       });
     } catch {

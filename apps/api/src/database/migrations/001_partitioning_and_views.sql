@@ -1,4 +1,4 @@
--- ShuleHub — Table Partitioning Migration
+-- My Shule — Table Partitioning Migration
 -- Partitions high-volume tables by date for query performance at scale.
 --
 -- Tables partitioned:

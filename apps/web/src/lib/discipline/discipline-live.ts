@@ -177,7 +177,7 @@ async function disciplineRequest<T>(
     method,
     headers: {
       Accept: "application/json",
-      ...(token ? { "x-shulehub-csrf": token } : {}),
+      ...(token ? { "x-myshule-csrf": token } : {}),
       ...(!isFormData && options?.body ? { "Content-Type": "application/json" } : {}),
     },
     body: requestBody,
@@ -207,7 +207,7 @@ async function counsellingRequest<T>(
     method,
     headers: {
       Accept: "application/json",
-      ...(token ? { "x-shulehub-csrf": token } : {}),
+      ...(token ? { "x-myshule-csrf": token } : {}),
       ...(options?.body ? { "Content-Type": "application/json" } : {}),
     },
     body: options?.body ? JSON.stringify(options.body) : undefined,

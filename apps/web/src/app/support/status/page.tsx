@@ -73,7 +73,7 @@ export default async function PublicSupportStatusPage({
                   <Activity className="h-5 w-5" />
                 </span>
                 <p className="text-sm font-semibold uppercase tracking-[0.14em] text-muted">
-                  Shule Hub Status
+                  My Shule Status
                 </p>
               </div>
               <h1 className="mt-5 text-3xl font-semibold tracking-normal text-foreground md:text-4xl">

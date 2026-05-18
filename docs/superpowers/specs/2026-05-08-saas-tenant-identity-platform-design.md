@@ -2,7 +2,7 @@
 
 ## Goal
 
-Build a production-grade SaaS tenant onboarding, authentication, user management, invitation, password recovery, session, and subscription access platform for Shule Hub.
+Build a production-grade SaaS tenant onboarding, authentication, user management, invitation, password recovery, session, and subscription access platform for My Shule.
 
 The product must behave like a real school ERP SaaS business platform:
 

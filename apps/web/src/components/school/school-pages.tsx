@@ -1669,7 +1669,7 @@ function SchoolFinancePage({
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-shulehub-csrf": csrfToken,
+          "x-myshule-csrf": csrfToken,
         },
         body: JSON.stringify({
           name: feeStructureDraft.name.trim(),
@@ -1720,7 +1720,7 @@ function SchoolFinancePage({
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "x-shulehub-csrf": csrfToken,
+            "x-myshule-csrf": csrfToken,
           },
         },
       );
@@ -1771,7 +1771,7 @@ function SchoolFinancePage({
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "x-shulehub-csrf": csrfToken,
+            "x-myshule-csrf": csrfToken,
           },
           body: JSON.stringify({
             idempotency_key: idempotencyKey,
@@ -1892,7 +1892,7 @@ function SchoolFinancePage({
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-shulehub-csrf": csrfToken,
+          "x-myshule-csrf": csrfToken,
         },
         body: JSON.stringify({
           description: `Fees for ${invoiceDraft.studentName.trim()}`,
@@ -1948,7 +1948,7 @@ function SchoolFinancePage({
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-shulehub-csrf": csrfToken,
+          "x-myshule-csrf": csrfToken,
         },
         body: JSON.stringify({
           idempotency_key: `finance-quick-${Date.now()}-${Math.random().toString(36).slice(2)}`,
@@ -3094,7 +3094,7 @@ function MpesaC2bReviewPanel({ tenantSlug }: { tenantSlug?: string | null }) {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "x-shulehub-csrf": csrfToken,
+            "x-myshule-csrf": csrfToken,
           },
           body: JSON.stringify({
             invoice_id: invoiceId.trim() || undefined,
@@ -3302,7 +3302,7 @@ function ManualReceiptsPanel({ tenantSlug }: { tenantSlug?: string | null }) {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-shulehub-csrf": csrfToken,
+          "x-myshule-csrf": csrfToken,
         },
         body: JSON.stringify({
           idempotency_key: `manual-${Date.now()}-${Math.random().toString(36).slice(2)}`,
@@ -3369,7 +3369,7 @@ function ManualReceiptsPanel({ tenantSlug }: { tenantSlug?: string | null }) {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "x-shulehub-csrf": csrfToken,
+            "x-myshule-csrf": csrfToken,
           },
           body: JSON.stringify({
             occurred_at: new Date().toISOString(),
@@ -3853,7 +3853,7 @@ function SchoolCommunicationPage({
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-shulehub-csrf": await getCsrfToken(),
+          "x-myshule-csrf": await getCsrfToken(),
         },
         credentials: "same-origin",
         body: JSON.stringify({
@@ -4094,7 +4094,7 @@ function DarajaIntegrationSettings() {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
-          "x-shulehub-csrf": await getCsrfToken(),
+          "x-myshule-csrf": await getCsrfToken(),
         },
         credentials: "same-origin",
         body: JSON.stringify({
@@ -4133,7 +4133,7 @@ function DarajaIntegrationSettings() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-shulehub-csrf": await getCsrfToken(),
+          "x-myshule-csrf": await getCsrfToken(),
         },
         credentials: "same-origin",
       });
@@ -4157,7 +4157,7 @@ function DarajaIntegrationSettings() {
           <p className="text-sm font-bold uppercase tracking-[0.14em] text-muted">M-PESA Daraja</p>
           <h3 className="mt-1 text-lg font-semibold text-foreground">School-owned payment integration</h3>
           <p className="mt-1 max-w-2xl text-sm text-muted">
-            Schools keep their own paybill or till credentials. ShuleHub only reconciles callbacks and receipts.
+            Schools keep their own paybill or till credentials. My Shule only reconciles callbacks and receipts.
           </p>
         </div>
         <StatusPill

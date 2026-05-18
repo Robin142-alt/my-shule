@@ -23,7 +23,7 @@ const defaultBranding: SchoolBranding = {
   name: "School workspace",
   shortName: "Workspace",
   county: "Secure tenant access",
-  supportEmail: "support@shulehub.co.ke",
+  supportEmail: "support@myshule.co.ke",
   supportPhone: "Use your invitation channel",
   heroMessage: "Sign in with your email and password to open the verified school workspace assigned to your account.",
   logoMark: "SH",

@@ -42,7 +42,7 @@ describe('Disaster recovery validation', () => {
 
   beforeAll(() => {
     ensureDisasterRecoveryEnv();
-    pool = createRecoveryPool('shule-hub-disaster-recovery-tests');
+    pool = createRecoveryPool('my-shule-disaster-recovery-tests');
   });
 
   afterAll(async () => {
