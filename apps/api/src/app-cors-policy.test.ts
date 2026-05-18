@@ -32,7 +32,7 @@ test('resolveCorsOriginPolicy rejects non-HTTPS credentialed production origins'
     () =>
       resolveCorsOriginPolicy({
         nodeEnv: 'production',
-        origins: ['http://shule-hub-erp.vercel.app'],
+        origins: ['http://my-shule-erp.vercel.app'],
         credentials: true,
       }),
     /Production CORS origins must be HTTPS URLs/,
@@ -43,10 +43,10 @@ test('resolveCorsOriginPolicy allows explicit HTTPS production origins', () => {
   assert.deepEqual(
     resolveCorsOriginPolicy({
       nodeEnv: 'production',
-      origins: ['https://shule-hub-erp.vercel.app'],
+      origins: ['https://my-shule-erp.vercel.app'],
       credentials: true,
     }),
-    ['https://shule-hub-erp.vercel.app'],
+    ['https://my-shule-erp.vercel.app'],
   );
 });
 

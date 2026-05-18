@@ -6,7 +6,7 @@
 
 **Architecture:** Keep the current monorepo and module boundaries. Add lightweight automated maintainability gates, reuse existing tenant-scoped APIs, and replace internal-ID workflows with operator-friendly lookup components instead of introducing new services.
 
-**Tech Stack:** Next.js App Router, React, NestJS, PostgreSQL RLS, TypeScript, Jest/node:test, existing ShuleHub dashboard proxy routes.
+**Tech Stack:** Next.js App Router, React, NestJS, PostgreSQL RLS, TypeScript, Jest/node:test, existing My Shule dashboard proxy routes.
 
 ---
 

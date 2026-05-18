@@ -265,14 +265,14 @@ describe('Data compliance workflows', () => {
 const ensureIntegrationEnv = (): void => {
   (process.env as Record<string, string | undefined>).NODE_ENV = process.env.NODE_ENV ?? 'test';
   process.env.APP_BASE_DOMAIN = process.env.APP_BASE_DOMAIN ?? 'integration.test';
-  process.env.JWT_ISSUER = process.env.JWT_ISSUER ?? 'shule-hub-compliance-tests';
-  process.env.JWT_AUDIENCE = process.env.JWT_AUDIENCE ?? 'shule-hub-compliance-clients';
+  process.env.JWT_ISSUER = process.env.JWT_ISSUER ?? 'my-shule-compliance-tests';
+  process.env.JWT_AUDIENCE = process.env.JWT_AUDIENCE ?? 'my-shule-compliance-clients';
   process.env.JWT_ACCESS_TOKEN_SECRET =
     process.env.JWT_ACCESS_TOKEN_SECRET ?? 'compliance-access-secret';
   process.env.JWT_REFRESH_TOKEN_SECRET =
     process.env.JWT_REFRESH_TOKEN_SECRET ?? 'compliance-refresh-secret';
   process.env.DATABASE_RUNTIME_ROLE =
-    process.env.DATABASE_RUNTIME_ROLE ?? 'shule_hub_runtime';
+    process.env.DATABASE_RUNTIME_ROLE ?? 'my_shule_runtime';
   process.env.SECURITY_PII_ENCRYPTION_KEY =
     process.env.SECURITY_PII_ENCRYPTION_KEY ??
     'MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=';
@@ -287,7 +287,7 @@ const createDatabasePool = (): Pool => {
 
   return new Pool({
     connectionString,
-    application_name: 'shule-hub-compliance-tests',
+    application_name: 'my-shule-compliance-tests',
     ssl: connectionString.includes('sslmode=require')
       ? { rejectUnauthorized: false }
       : undefined,

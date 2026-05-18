@@ -58,7 +58,7 @@ describe("admissions live API client", () => {
         method: "POST",
         headers: expect.objectContaining({
           "Content-Type": "application/json",
-          "x-shulehub-csrf": "csrf-token",
+          "x-myshule-csrf": "csrf-token",
         }),
         body: expect.any(String),
       }),

@@ -18,7 +18,7 @@ import type {
   SystemDomain,
 } from "./types";
 
-const STORAGE_PREFIX = "shulehub_auth";
+const STORAGE_PREFIX = "myshule_auth";
 const getStorageKey = (domain: SystemDomain) => `${STORAGE_PREFIX}_${domain}`;
 
 function emptyAuthState(isLoading = false): AuthState {

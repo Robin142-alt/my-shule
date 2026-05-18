@@ -1,8 +1,14 @@
-import { Body, Controller, Get, Param, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post } from '@nestjs/common';
 
 import { Roles } from '../../auth/decorators/roles.decorator';
 import { SUPERADMIN_ROLE_OWNER } from '../../auth/auth.constants';
-import { CreateSchoolDto, PlatformSchoolResponseDto } from './dto/create-school.dto';
+import {
+  CreateSchoolDto,
+  DeleteSchoolDto,
+  PlatformEmailReadinessResponseDto,
+  PlatformSchoolDeleteResponseDto,
+  PlatformSchoolResponseDto,
+} from './dto/create-school.dto';
 import { PlatformOnboardingService } from './platform-onboarding.service';
 
 @Controller('platform')
@@ -15,6 +21,11 @@ export class PlatformOnboardingController {
     return this.onboardingService.listSchools();
   }
 
+  @Get('email/readiness')
+  getEmailReadiness(): Promise<PlatformEmailReadinessResponseDto> {
+    return this.onboardingService.getEmailReadiness();
+  }
+
   @Post('schools')
   createSchool(@Body() dto: CreateSchoolDto): Promise<PlatformSchoolResponseDto> {
     return this.onboardingService.createSchool(dto);
@@ -25,5 +36,13 @@ export class PlatformOnboardingController {
     @Param('tenantId') tenantId: string,
   ): Promise<PlatformSchoolResponseDto> {
     return this.onboardingService.resendSchoolAdminInvite(tenantId);
+  }
+
+  @Delete('schools/:tenantId')
+  deleteSchool(
+    @Param('tenantId') tenantId: string,
+    @Body() dto: DeleteSchoolDto,
+  ): Promise<PlatformSchoolDeleteResponseDto> {
+    return this.onboardingService.deleteSchool(tenantId, dto);
   }
 }

@@ -24,7 +24,7 @@ import { DatabaseService } from './database.service';
           idleTimeoutMillis: Number(configService.get<number>('database.idleTimeoutMs') ?? 10000),
           connectionTimeoutMillis: connectionTimeoutMs,
           statement_timeout: statementTimeoutMs,
-          application_name: 'shule-hub-api',
+          application_name: 'my-shule-api',
           keepAlive: true,
           ssl: connectionString?.includes('sslmode=require') ? { rejectUnauthorized: false } : undefined,
         });

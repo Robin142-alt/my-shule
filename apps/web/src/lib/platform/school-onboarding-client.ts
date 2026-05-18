@@ -6,11 +6,30 @@ export type PlatformSchool = {
   subdomain: string;
   status: "active" | "inactive";
   invitation_sent: boolean;
-  invitation_status: "sent" | "queued" | "failed";
+  invitation_status: "sent" | "queued" | "failed" | "blocked";
   invitation_message: string;
+  invitation_failure_code?: string;
+  invitation_failure_reason?: string;
+  invitation_action_required?: string;
+  can_resend_invite: boolean;
   invite_expires_at: string;
   admin_email: string;
   created_at: string;
+};
+
+export type PlatformSchoolDeleteResponse = {
+  tenant_id: string;
+  deleted: boolean;
+  deprovisioned: boolean;
+  message: string;
+  usage_summary: {
+    memberships: number;
+    students: number;
+    invoices: number;
+    support_tickets: number;
+    mpesa_transactions: number;
+  };
+  school?: PlatformSchool;
 };
 
 type ApiEnvelope<T> = {
@@ -31,7 +50,8 @@ async function parsePlatformResponse(response: Response) {
     | { message?: string }
     | PlatformSchool
     | PlatformSchool[]
-    | ApiEnvelope<PlatformSchool | PlatformSchool[]>
+    | PlatformSchoolDeleteResponse
+    | ApiEnvelope<PlatformSchool | PlatformSchool[] | PlatformSchoolDeleteResponse>
     | null;
 
   if (!response.ok) {
@@ -42,7 +62,7 @@ async function parsePlatformResponse(response: Response) {
     );
   }
 
-  return isEnvelope<PlatformSchool | PlatformSchool[]>(payload)
+  return isEnvelope<PlatformSchool | PlatformSchool[] | PlatformSchoolDeleteResponse>(payload)
     ? payload.data
     : payload;
 }
@@ -89,7 +109,7 @@ export async function createPlatformSchool(input: {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "x-shulehub-csrf": await getCsrfToken(),
+      "x-myshule-csrf": await getCsrfToken(),
     },
     credentials: "same-origin",
     body: JSON.stringify({
@@ -112,7 +132,7 @@ export async function resendPlatformSchoolAdminInvite(tenantId: string) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "x-shulehub-csrf": await getCsrfToken(),
+        "x-myshule-csrf": await getCsrfToken(),
       },
       credentials: "same-origin",
     },
@@ -120,4 +140,31 @@ export async function resendPlatformSchoolAdminInvite(tenantId: string) {
   const payload = await parsePlatformResponse(response);
 
   return payload as PlatformSchool;
+}
+
+export async function deletePlatformSchool(input: {
+  tenantId: string;
+  confirmation: string;
+  reason: string;
+  hardDeleteEmptyTenant: boolean;
+}) {
+  const response = await fetchWithTimeout(
+    `/api/platform/schools/${encodeURIComponent(input.tenantId)}`,
+    {
+      method: "DELETE",
+      headers: {
+        "Content-Type": "application/json",
+        "x-myshule-csrf": await getCsrfToken(),
+      },
+      credentials: "same-origin",
+      body: JSON.stringify({
+        confirmation: input.confirmation,
+        reason: input.reason,
+        hard_delete_empty_tenant: input.hardDeleteEmptyTenant,
+      }),
+    },
+  );
+  const payload = await parsePlatformResponse(response);
+
+  return payload as PlatformSchoolDeleteResponse;
 }

@@ -10,8 +10,8 @@ const baseEnv = {
   SMS_PROVIDER: 'africastalking',
   SMS_PROVIDER_API_URL: 'https://sms-provider.example.test/send',
   SMS_PROVIDER_API_KEY: 'provider-key',
-  SMS_PROVIDER_USERNAME: 'shulehub',
-  SMS_PROVIDER_SENDER_ID: 'SHULEHUB',
+  SMS_PROVIDER_USERNAME: 'MYSHULE',
+  SMS_PROVIDER_SENDER_ID: 'MYSHULE',
 };
 
 test('GET /health returns readiness without secrets', async () => {
@@ -141,7 +141,7 @@ test('POST /send rejects invalid phone numbers', async () => {
   }
 });
 
-test('POST /send maps ShuleHub payload to Africa Talking provider request', async () => {
+test('POST /send maps My Shule payload to Africa Talking provider request', async () => {
   const providerRequests: Array<Parameters<RelayFetch>> = [];
   const { baseUrl, close } = await startTestServer({
     fetchImpl: async (...args) => {
@@ -165,9 +165,9 @@ test('POST /send maps ShuleHub payload to Africa Talking provider request', asyn
     assert.equal(providerRequests[0][0], baseEnv.SMS_PROVIDER_API_URL);
     assert.equal(providerRequests[0][1].headers.apiKey, baseEnv.SMS_PROVIDER_API_KEY);
     const providerBody = new URLSearchParams(providerRequests[0][1].body);
-    assert.equal(providerBody.get('username'), 'shulehub');
+    assert.equal(providerBody.get('username'), 'MYSHULE');
     assert.equal(providerBody.get('to'), '+254700000001');
-    assert.equal(providerBody.get('from'), 'SHULEHUB');
+    assert.equal(providerBody.get('from'), 'MYSHULE');
     assert.match(providerBody.get('message') ?? '', /Critical ticket/);
     assert.match(providerBody.get('message') ?? '', /Ticket: ticket-1/);
   } finally {

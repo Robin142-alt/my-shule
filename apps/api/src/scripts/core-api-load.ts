@@ -272,7 +272,7 @@ export function buildCoreApiLoadPlan(options: CoreApiLoadPlanOptions): CoreApiLo
   const endpoints = workloads.map((workload) => {
     const headers: Record<string, string> = {
       accept: workload.path.endsWith('/export') ? 'text/csv' : 'application/json',
-      'user-agent': 'shule-hub-core-api-load-probe',
+      'user-agent': 'my-shule-core-api-load-probe',
     };
 
     if (workload.auth === 'tenant') {

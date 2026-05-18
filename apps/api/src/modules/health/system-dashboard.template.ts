@@ -3,7 +3,7 @@ export const renderSystemDashboard = (): string => `<!doctype html>
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>ShuleHub Operations Console</title>
+    <title>My Shule Operations Console</title>
     <style>
       :root {
         color-scheme: light;
@@ -349,7 +349,7 @@ export const renderSystemDashboard = (): string => `<!doctype html>
           <span class="eyebrow-dot"></span>
           Live Production Console
         </div>
-        <h1>ShuleHub SaaS Operations</h1>
+        <h1>My Shule SaaS Operations</h1>
         <p class="lead">
           This frontend is connected to the live NestJS backend and renders real health,
           readiness, observability, and queue-alert data from the deployed production system.

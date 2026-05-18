@@ -56,7 +56,7 @@ export interface KenyanSchoolLoadHarness {
 
 export const ensureKenyanSchoolLoadEnv = (mpesaBaseUrl?: string): void => {
   (process.env as Record<string, string | undefined>).NODE_ENV = process.env.NODE_ENV ?? 'test';
-  process.env.DATABASE_RUNTIME_ROLE = process.env.DATABASE_RUNTIME_ROLE ?? 'shule_hub_runtime';
+  process.env.DATABASE_RUNTIME_ROLE = process.env.DATABASE_RUNTIME_ROLE ?? 'my_shule_runtime';
   process.env.DATABASE_STATEMENT_TIMEOUT_MS =
     process.env.DATABASE_STATEMENT_TIMEOUT_MS ?? '30000';
   process.env.SECURITY_PII_ENCRYPTION_KEY =

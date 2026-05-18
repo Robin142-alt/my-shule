@@ -112,7 +112,7 @@ export class EventsConsumerWorker implements OnModuleInit, OnModuleDestroy {
       },
       {
         connection: this.redisService.getBullConnectionOptions(),
-        prefix: this.configService.get<string>('queue.prefix') ?? 'shule-hub',
+        prefix: this.configService.get<string>('queue.prefix') ?? 'my-shule',
         concurrency: 10,
       },
     );

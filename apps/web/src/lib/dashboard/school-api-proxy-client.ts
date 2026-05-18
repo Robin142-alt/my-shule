@@ -37,7 +37,7 @@ export async function requestSchoolApiProxy<T>(
   };
 
   if (method !== "GET") {
-    headers["x-shulehub-csrf"] = await getCsrfToken();
+    headers["x-myshule-csrf"] = await getCsrfToken();
   }
 
   if (hasBody && !isFormData) {

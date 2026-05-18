@@ -38,7 +38,7 @@ function renderPdf(input: ReportArtifactInput, generatedAt: string): Promise<Buf
       size: 'A4',
       info: {
         Title: input.title,
-        Author: 'Shule Hub',
+        Author: 'My Shule',
         Subject: input.reportId,
         CreationDate: new Date(generatedAt),
         ModDate: new Date(generatedAt),

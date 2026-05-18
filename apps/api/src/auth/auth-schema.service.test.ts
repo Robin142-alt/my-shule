@@ -51,6 +51,25 @@ test('AuthSchemaService defines email verification token functions and route pol
   assert.match(bootstrapSql, /\/auth\/email-verification\//);
 });
 
+test('AuthSchemaService persists safe email outbox delivery diagnostics for platform invites', async () => {
+  let bootstrapSql = '';
+  const service = new AuthSchemaService({
+    runSchemaBootstrap: async (sql: string) => {
+      bootstrapSql = sql;
+    },
+  } as never);
+
+  await service.onModuleInit();
+
+  assert.match(bootstrapSql, /last_error_code text/);
+  assert.match(bootstrapSql, /last_error_summary text/);
+  assert.match(bootstrapSql, /provider_status_code integer/);
+  assert.match(bootstrapSql, /input_error_code text DEFAULT NULL/);
+  assert.match(bootstrapSql, /input_provider_status_code integer DEFAULT NULL/);
+  assert.match(bootstrapSql, /\/platform\/schools/);
+  assert.match(bootstrapSql, /ck_auth_email_outbox_provider_status_code/);
+});
+
 test('AuthSchemaService does not grant broad public path access to auth token tables', async () => {
   let bootstrapSql = '';
   const service = new AuthSchemaService({

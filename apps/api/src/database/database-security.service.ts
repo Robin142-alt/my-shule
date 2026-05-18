@@ -44,7 +44,7 @@ export class DatabaseSecurityService implements OnModuleInit, OnApplicationBoots
         }
 
         const configuredRuntimeRole =
-          this.configService.get<string>('database.runtimeRole')?.trim() || 'shule_hub_runtime';
+          this.configService.get<string>('database.runtimeRole')?.trim() || 'my_shule_runtime';
 
         await this.ensureRuntimeRole(configuredRuntimeRole, currentRoleState.current_user);
         await this.grantRuntimeRolePrivileges(configuredRuntimeRole);

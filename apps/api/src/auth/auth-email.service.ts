@@ -44,6 +44,23 @@ export type TransactionalEmailStatus = {
   public_app_url_configured: boolean;
 };
 
+export type EmailDeliveryErrorCode =
+  | 'email_not_configured'
+  | 'resend_domain_not_verified'
+  | 'provider_rejected'
+  | 'provider_timeout'
+  | 'provider_network_error';
+
+export class EmailDeliveryError extends ServiceUnavailableException {
+  constructor(
+    readonly code: EmailDeliveryErrorCode,
+    readonly safeMessage: string,
+    readonly providerStatus?: number,
+  ) {
+    super(safeMessage);
+  }
+}
+
 @Injectable()
 export class AuthEmailService {
   private readonly logger = new Logger(AuthEmailService.name);
@@ -70,7 +87,8 @@ export class AuthEmailService {
 
   assertTransactionalEmailConfigured(message: string): void {
     if (!this.getResendApiKey() || !this.getSender()) {
-      throw new ServiceUnavailableException(
+      throw new EmailDeliveryError(
+        'email_not_configured',
         message,
       );
     }
@@ -90,10 +108,30 @@ export class AuthEmailService {
     };
   }
 
+  hasLikelyProductionSenderConfigured(): boolean {
+    const sender = this.getSender().toLowerCase();
+    const emailMatch = sender.match(/<([^>]+)>/) ?? sender.match(/([^\s<>]+@[^\s<>]+)/);
+    const email = (emailMatch?.[1] ?? sender).trim();
+    const domain = email.includes('@') ? email.split('@').pop() ?? '' : '';
+
+    return Boolean(
+      domain &&
+        domain.includes('.') &&
+        !domain.endsWith('gmail.com') &&
+        !domain.endsWith('googlemail.com') &&
+        !domain.endsWith('yahoo.com') &&
+        !domain.endsWith('outlook.com') &&
+        !domain.endsWith('hotmail.com') &&
+        !domain.endsWith('resend.dev') &&
+        !domain.endsWith('example.com') &&
+        !domain.endsWith('example.test'),
+    );
+  }
+
   async sendPasswordRecoveryEmail(input: PasswordRecoveryEmailInput): Promise<void> {
     await this.sendTransactionalEmail({
       to: input.to,
-      subject: 'Reset your ShuleHub ERP password',
+      subject: 'Reset your My Shule ERP password',
       html: this.renderPasswordRecoveryHtml(input),
       text: this.renderPasswordRecoveryText(input),
       unavailableMessage:
@@ -105,7 +143,7 @@ export class AuthEmailService {
   async sendInvitationEmail(input: InvitationEmailInput): Promise<void> {
     await this.sendTransactionalEmail({
       to: input.to,
-      subject: 'You have been invited to ShuleHub ERP',
+      subject: 'You have been invited to My Shule ERP',
       html: this.renderInvitationHtml(input),
       text: this.renderInvitationText(input),
       unavailableMessage: 'School invitation email could not be sent right now.',
@@ -116,7 +154,7 @@ export class AuthEmailService {
   async sendEmailVerificationEmail(input: EmailVerificationEmailInput): Promise<void> {
     await this.sendTransactionalEmail({
       to: input.to,
-      subject: 'Verify your ShuleHub ERP email address',
+      subject: 'Verify your My Shule ERP email address',
       html: this.renderEmailVerificationHtml(input),
       text: this.renderEmailVerificationText(input),
       unavailableMessage: 'Email verification email could not be sent right now.',
@@ -127,7 +165,7 @@ export class AuthEmailService {
   async sendMfaLoginCodeEmail(input: MfaLoginCodeEmailInput): Promise<void> {
     await this.sendTransactionalEmail({
       to: input.to,
-      subject: 'Your ShuleHub ERP verification code',
+      subject: 'Your My Shule ERP verification code',
       html: this.renderMfaLoginCodeHtml(input),
       text: this.renderMfaLoginCodeText(input),
       unavailableMessage: 'MFA verification email could not be sent right now.',
@@ -158,7 +196,8 @@ export class AuthEmailService {
     const from = this.getSender();
 
     if (!apiKey || !from) {
-      throw new ServiceUnavailableException(
+      throw new EmailDeliveryError(
+        'email_not_configured',
         input.unavailableMessage,
       );
     }
@@ -192,24 +231,24 @@ export class AuthEmailService {
             ? String(error.name)
             : '';
       const isTimeout = errorName === 'AbortError';
-      const message = isTimeout
-        ? `${input.deliveryFailureMessage} Email provider request timed out.`
-        : input.deliveryFailureMessage;
-
-      throw new ServiceUnavailableException(message);
+      throw new EmailDeliveryError(
+        isTimeout ? 'provider_timeout' : 'provider_network_error',
+        isTimeout
+          ? `${input.deliveryFailureMessage} Email provider request timed out.`
+          : input.deliveryFailureMessage,
+      );
     } finally {
       clearTimeout(timeout);
     }
 
     if (!response.ok) {
-      const providerDetail = await this.safeProviderErrorDetail(response);
+      const providerBody = await response.text().catch(() => '');
+      const providerDetail = this.sanitizeProviderText(providerBody);
 
       this.logger.warn(
         `Transactional email provider rejected ${this.sanitizeProviderText(input.subject)}: status=${response.status}; detail=${providerDetail}`,
       );
-      throw new ServiceUnavailableException(
-        input.deliveryFailureMessage,
-      );
+      throw this.classifyProviderRejection(response.status, providerBody, input.deliveryFailureMessage);
     }
   }
 
@@ -235,11 +274,29 @@ export class AuthEmailService {
       : 22000;
   }
 
-  private async safeProviderErrorDetail(response: Response): Promise<string> {
-    const body = await response.text().catch(() => '');
-    const detail = this.sanitizeProviderText(body);
+  private classifyProviderRejection(
+    providerStatus: number,
+    providerBody: string,
+    deliveryFailureMessage: string,
+  ): EmailDeliveryError {
+    const normalizedBody = providerBody.toLowerCase();
 
-    return detail || 'No provider response body';
+    if (
+      normalizedBody.includes('you can only send testing emails') ||
+      normalizedBody.includes('verify a domain at resend.com/domains')
+    ) {
+      return new EmailDeliveryError(
+        'resend_domain_not_verified',
+        'Email delivery is blocked by Resend testing mode. Verify a Resend sending domain and set EMAIL_FROM to that verified domain before resending school invitations.',
+        providerStatus,
+      );
+    }
+
+    return new EmailDeliveryError(
+      'provider_rejected',
+      deliveryFailureMessage,
+      providerStatus,
+    );
   }
 
   private sanitizeProviderText(value: string): string {
@@ -253,12 +310,12 @@ export class AuthEmailService {
     return [
       `Hello ${input.displayName},`,
       '',
-      'We received a request to reset your ShuleHub ERP password.',
+      'We received a request to reset your My Shule ERP password.',
       `Open this secure link before ${input.expiresAt.toISOString()}:`,
       input.resetUrl,
       '',
       'If you did not request this, you can ignore this email.',
-      'ShuleHub ERP',
+      'My Shule ERP',
     ].join('\n');
   }
 
@@ -270,7 +327,7 @@ export class AuthEmailService {
     return `
       <div style="font-family:Arial,sans-serif;line-height:1.6;color:#0f172a;max-width:560px;margin:0 auto;padding:32px 20px;">
         <p>Hello ${safeName},</p>
-        <p>We received a request to reset your ShuleHub ERP password.</p>
+        <p>We received a request to reset your My Shule ERP password.</p>
         <p>
           <a href="${safeUrl}" style="display:inline-block;background:#047857;color:#ffffff;text-decoration:none;border-radius:10px;padding:12px 18px;font-weight:700;">
             Reset password
@@ -278,7 +335,7 @@ export class AuthEmailService {
         </p>
         <p style="color:#475569;font-size:14px;">This link expires at ${expiry}.</p>
         <p style="color:#475569;font-size:14px;">If you did not request this, you can ignore this email.</p>
-        <p>ShuleHub ERP</p>
+        <p>My Shule ERP</p>
       </div>
     `;
   }
@@ -287,12 +344,12 @@ export class AuthEmailService {
     return [
       `Hello ${input.displayName},`,
       '',
-      `You have been invited to manage ${input.schoolName} in ShuleHub ERP.`,
+      `You have been invited to manage ${input.schoolName} in My Shule ERP.`,
       `Accept this secure invitation before ${input.expiresAt.toISOString()}:`,
       input.inviteUrl,
       '',
       'If you were not expecting this invitation, ignore this email.',
-      'ShuleHub ERP',
+      'My Shule ERP',
     ].join('\n');
   }
 
@@ -305,7 +362,7 @@ export class AuthEmailService {
     return `
       <div style="font-family:Arial,sans-serif;line-height:1.6;color:#0f172a;max-width:560px;margin:0 auto;padding:32px 20px;">
         <p>Hello ${safeName},</p>
-        <p>You have been invited to manage <strong>${safeSchoolName}</strong> in ShuleHub ERP.</p>
+        <p>You have been invited to manage <strong>${safeSchoolName}</strong> in My Shule ERP.</p>
         <p>
           <a href="${safeUrl}" style="display:inline-block;background:#047857;color:#ffffff;text-decoration:none;border-radius:10px;padding:12px 18px;font-weight:700;">
             Accept invitation
@@ -313,7 +370,7 @@ export class AuthEmailService {
         </p>
         <p style="color:#475569;font-size:14px;">This invitation expires at ${expiry}.</p>
         <p style="color:#475569;font-size:14px;">If you were not expecting this invitation, ignore this email.</p>
-        <p>ShuleHub ERP</p>
+        <p>My Shule ERP</p>
       </div>
     `;
   }
@@ -322,12 +379,12 @@ export class AuthEmailService {
     return [
       `Hello ${input.displayName},`,
       '',
-      'Verify your ShuleHub ERP email address to keep your account recovery and security notices working.',
+      'Verify your My Shule ERP email address to keep your account recovery and security notices working.',
       `Open this secure link before ${input.expiresAt.toISOString()}:`,
       input.verifyUrl,
       '',
       'If you did not request this, you can ignore this email.',
-      'ShuleHub ERP',
+      'My Shule ERP',
     ].join('\n');
   }
 
@@ -339,7 +396,7 @@ export class AuthEmailService {
     return `
       <div style="font-family:Arial,sans-serif;line-height:1.6;color:#0f172a;max-width:560px;margin:0 auto;padding:32px 20px;">
         <p>Hello ${safeName},</p>
-        <p>Verify your ShuleHub ERP email address to keep your account recovery and security notices working.</p>
+        <p>Verify your My Shule ERP email address to keep your account recovery and security notices working.</p>
         <p>
           <a href="${safeUrl}" style="display:inline-block;background:#047857;color:#ffffff;text-decoration:none;border-radius:10px;padding:12px 18px;font-weight:700;">
             Verify email
@@ -347,7 +404,7 @@ export class AuthEmailService {
         </p>
         <p style="color:#475569;font-size:14px;">This link expires at ${expiry}.</p>
         <p style="color:#475569;font-size:14px;">If you did not request this, you can ignore this email.</p>
-        <p>ShuleHub ERP</p>
+        <p>My Shule ERP</p>
       </div>
     `;
   }
@@ -356,12 +413,12 @@ export class AuthEmailService {
     return [
       `Hello ${input.displayName},`,
       '',
-      'Use this ShuleHub ERP verification code to complete your sign-in:',
+      'Use this My Shule ERP verification code to complete your sign-in:',
       input.code,
       '',
       `This code expires at ${input.expiresAt.toISOString()}.`,
       'If you did not try to sign in, reset your password and contact support.',
-      'ShuleHub ERP',
+      'My Shule ERP',
     ].join('\n');
   }
 
@@ -373,13 +430,13 @@ export class AuthEmailService {
     return `
       <div style="font-family:Arial,sans-serif;line-height:1.6;color:#0f172a;max-width:560px;margin:0 auto;padding:32px 20px;">
         <p>Hello ${safeName},</p>
-        <p>Use this ShuleHub ERP verification code to complete your sign-in:</p>
+        <p>Use this My Shule ERP verification code to complete your sign-in:</p>
         <p style="font-size:28px;letter-spacing:6px;font-weight:800;background:#ecfdf5;border:1px solid #a7f3d0;border-radius:12px;padding:14px 18px;text-align:center;color:#065f46;">
           ${safeCode}
         </p>
         <p style="color:#475569;font-size:14px;">This code expires at ${expiry}.</p>
         <p style="color:#475569;font-size:14px;">If you did not try to sign in, reset your password and contact support.</p>
-        <p>ShuleHub ERP</p>
+        <p>My Shule ERP</p>
       </div>
     `;
   }
@@ -390,7 +447,7 @@ export class AuthEmailService {
       '',
       input.body,
       '',
-      'ShuleHub ERP Support',
+      'My Shule ERP Support',
     ].join('\n');
   }
 
@@ -402,7 +459,7 @@ export class AuthEmailService {
       <div style="font-family:Arial,sans-serif;line-height:1.6;color:#0f172a;max-width:560px;margin:0 auto;padding:32px 20px;">
         <h1 style="font-size:20px;line-height:1.3;margin:0 0 16px;">${safeTitle}</h1>
         <p>${safeBody}</p>
-        <p style="color:#475569;font-size:14px;">ShuleHub ERP Support</p>
+        <p style="color:#475569;font-size:14px;">My Shule ERP Support</p>
       </div>
     `;
   }

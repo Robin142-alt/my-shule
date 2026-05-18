@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use `superpowers:subagent-driven-development` or `superpowers:executing-plans` to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking. Keep commits small, run tests after each vertical slice, and preserve existing multi-tenant, RBAC, notification, reporting, and upload patterns.
 
-**Goal:** Build a production-grade Discipline and Counselling Management module inside the existing ShuleHub ERP so schools can securely manage incidents, disciplinary actions, counselling referrals, parent acknowledgements, behavior scoring, documents, analytics, and student discipline history.
+**Goal:** Build a production-grade Discipline and Counselling Management module inside the existing My Shule ERP so schools can securely manage incidents, disciplinary actions, counselling referrals, parent acknowledgements, behavior scoring, documents, analytics, and student discipline history.
 
 **Architecture:** Add a focused NestJS `DisciplineModule` with tenant-scoped PostgreSQL tables, forced RLS, repository/service/controller layers, encrypted counselling notes, event/audit integration, and report/export support. Add a Next.js school workspace, parent portal view, student profile discipline section, and API proxy routes that reuse the existing session, CSRF, upload, and design patterns. Treat `tenant_id` as the database workspace isolation key; expose `workspace_id` in product copy only when useful, and always bind records to `tenant_id`, `school_id`, `student_id`, `class_id`, `academic_term_id`, `academic_year_id`, and `reporting_staff_id` where the workflow requires them.
 

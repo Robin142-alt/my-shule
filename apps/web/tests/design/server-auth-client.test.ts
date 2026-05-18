@@ -163,7 +163,7 @@ describe("server auth client production gateway", () => {
         },
       }),
     );
-    const client = createServerAuthClient(buildRequest("shule-hub-erp.vercel.app"));
+    const client = createServerAuthClient(buildRequest("my-shule-erp.vercel.app"));
 
     const session = await client.login({
       audience: "school",
@@ -207,7 +207,7 @@ describe("server auth client production gateway", () => {
         },
       }),
     );
-    const client = createServerAuthClient(buildRequest("shule-hub-erp.vercel.app"));
+    const client = createServerAuthClient(buildRequest("my-shule-erp.vercel.app"));
 
     const session = await client.login({
       audience: "portal",

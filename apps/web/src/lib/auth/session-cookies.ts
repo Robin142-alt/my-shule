@@ -5,10 +5,10 @@ import {
 } from "@/lib/auth/experience-routing";
 import type { ExperienceAudience } from "@/lib/auth/experience-audience";
 
-export const ACCESS_COOKIE = "shulehub_access";
-export const REFRESH_COOKIE = "shulehub_refresh";
-export const AUDIENCE_COOKIE = "shulehub_audience";
-export const TENANT_COOKIE = "shulehub_tenant";
+export const ACCESS_COOKIE = "myshule_access";
+export const REFRESH_COOKIE = "myshule_refresh";
+export const AUDIENCE_COOKIE = "myshule_audience";
+export const TENANT_COOKIE = "myshule_tenant";
 
 export function getExperienceSessionCookieName(audience: ExperienceAudience) {
   switch (audience) {

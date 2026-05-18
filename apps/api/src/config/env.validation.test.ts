@@ -5,7 +5,7 @@ import configuration from './configuration';
 import { validateEnv } from './env.validation';
 
 const requiredEnvironment = {
-  DATABASE_URL: 'postgres://shulehub:secret@localhost:5432/shulehub',
+  DATABASE_URL: 'postgres://myshule:secret@localhost:5432/myshule',
   REDIS_URL: 'redis://localhost:6379',
   SECURITY_PII_ENCRYPTION_KEY: 'pii-encryption-key',
   MPESA_CONSUMER_KEY: 'consumer-key',
@@ -42,7 +42,7 @@ test('validateEnv allows complete S3-compatible upload object storage config', (
     UPLOAD_OBJECT_STORAGE_ENABLED: 'true',
     UPLOAD_OBJECT_STORAGE_PROVIDER: 'r2',
     UPLOAD_OBJECT_STORAGE_ENDPOINT: 'https://objects.example.test',
-    UPLOAD_OBJECT_STORAGE_BUCKET: 'shule-hub-files',
+    UPLOAD_OBJECT_STORAGE_BUCKET: 'my-shule-files',
     UPLOAD_OBJECT_STORAGE_ACCESS_KEY_ID: 'object-access-key',
     UPLOAD_OBJECT_STORAGE_SECRET_ACCESS_KEY: 'object-secret-key',
   };

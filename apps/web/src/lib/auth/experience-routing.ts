@@ -35,9 +35,9 @@ export type ExperienceSession =
       userLabel: string;
     };
 
-export const SUPERADMIN_SESSION_COOKIE = "shulehub.superadmin.session";
-export const SCHOOL_SESSION_COOKIE = "shulehub.school.session";
-export const PORTAL_SESSION_COOKIE = "shulehub.portal.session";
+export const SUPERADMIN_SESSION_COOKIE = "myshule.superadmin.session";
+export const SCHOOL_SESSION_COOKIE = "myshule.school.session";
+export const PORTAL_SESSION_COOKIE = "myshule.portal.session";
 
 const reservedSubdomains = new Set(["www", "app", "localhost"]);
 const sharedPublicPaths = new Set(["/login", "/forgot-password", "/reset-password"]);

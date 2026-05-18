@@ -18,7 +18,7 @@ async function postEmailVerificationAction(
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "x-shulehub-csrf": await getCsrfToken(),
+      "x-myshule-csrf": await getCsrfToken(),
     },
     credentials: "same-origin",
     body: JSON.stringify(body),

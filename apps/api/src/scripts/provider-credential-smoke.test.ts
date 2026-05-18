@@ -10,10 +10,10 @@ const configuredEnvironment = {
   EMAIL_PROVIDER: 'resend',
   RESEND_API_KEY: 're_test_123456789',
   EMAIL_PROVIDER_SMOKE_URL: 'https://email.example.test/health',
-  EMAIL_FROM: 'Shule Hub <support@shulehub.test>',
-  PUBLIC_APP_URL: 'https://shule-hub-erp.example.test',
-  SUPPORT_NOTIFICATION_EMAILS: 'support@shulehub.test,ops@shulehub.test',
-  SUPPORT_NOTIFICATION_SMS_WEBHOOK_URL: 'https://sms.example.test/hooks/shulehub',
+  EMAIL_FROM: 'My Shule <support@myshule.test>',
+  PUBLIC_APP_URL: 'https://my-shule-erp.example.test',
+  SUPPORT_NOTIFICATION_EMAILS: 'support@myshule.test,ops@myshule.test',
+  SUPPORT_NOTIFICATION_SMS_WEBHOOK_URL: 'https://sms.example.test/hooks/my-shule',
   SUPPORT_NOTIFICATION_SMS_WEBHOOK_HEALTH_URL: 'https://sms.example.test/health',
   SUPPORT_NOTIFICATION_SMS_WEBHOOK_TOKEN: 'sms-secret-token',
   SUPPORT_NOTIFICATION_SMS_RECIPIENTS: '+254700000001,+254700000002',
@@ -31,7 +31,7 @@ const configuredEnvironment = {
   UPLOAD_OBJECT_STORAGE_ENABLED: 'true',
   UPLOAD_OBJECT_STORAGE_PROVIDER: 'r2',
   UPLOAD_OBJECT_STORAGE_ENDPOINT: 'https://objects.example.test',
-  UPLOAD_OBJECT_STORAGE_BUCKET: 'shule-hub-files',
+  UPLOAD_OBJECT_STORAGE_BUCKET: 'my-shule-files',
   UPLOAD_OBJECT_STORAGE_REGION: 'auto',
   UPLOAD_OBJECT_STORAGE_ACCESS_KEY_ID: 'object-access-key',
   UPLOAD_OBJECT_STORAGE_SECRET_ACCESS_KEY: 'object-secret-key',
@@ -71,7 +71,7 @@ test('provider credential smoke live checks probe SMS and malware health without
       probedUrls.push(url);
       assert.equal(init.method, url === configuredEnvironment.EMAIL_PROVIDER_SMOKE_URL ? 'POST' : 'GET');
       assert.equal(init.headers.Authorization.startsWith('Bearer '), true);
-      assert.equal(init.headers['User-Agent'], 'shulehub-provider-smoke');
+      assert.equal(init.headers['User-Agent'], 'my-shule-provider-smoke');
 
       if (url === configuredEnvironment.EMAIL_PROVIDER_SMOKE_URL) {
         assert.equal(init.headers['Content-Type'], 'application/json');
@@ -103,7 +103,7 @@ test('provider credential smoke live checks probe SMS and malware health without
         return {
           ok: true,
           status: 200,
-          arrayBuffer: async () => Uint8Array.from(Buffer.from('shule-hub-provider-smoke')).buffer,
+          arrayBuffer: async () => Uint8Array.from(Buffer.from('my-shule-provider-smoke')).buffer,
         };
       }
 
@@ -184,7 +184,7 @@ test('provider credential smoke live SMS check fails when relay is still in dry-
         return {
           ok: true,
           status: 200,
-          arrayBuffer: async () => Uint8Array.from(Buffer.from('shule-hub-provider-smoke')).buffer,
+          arrayBuffer: async () => Uint8Array.from(Buffer.from('my-shule-provider-smoke')).buffer,
         };
       }
 
@@ -337,7 +337,7 @@ test('provider credential validation requires SMS settings to be complete when S
 test('provider credential validation rejects retired attendance notification targets', () => {
   const errors = validateProviderCredentialEnvironment({
     ...configuredEnvironment,
-    SUPPORT_NOTIFICATION_EMAILS: 'attendance@shulehub.test',
+    SUPPORT_NOTIFICATION_EMAILS: 'attendance@myshule.test',
   });
 
   assert.deepEqual(errors, [

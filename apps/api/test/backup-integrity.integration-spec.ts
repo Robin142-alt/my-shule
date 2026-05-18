@@ -32,7 +32,7 @@ describe('Backup artifact integrity', () => {
 
   beforeAll(() => {
     ensureDisasterRecoveryEnv();
-    pool = createRecoveryPool('shule-hub-backup-integrity-tests');
+    pool = createRecoveryPool('my-shule-backup-integrity-tests');
   });
 
   afterAll(async () => {
@@ -169,7 +169,7 @@ describe('Backup artifact integrity', () => {
 
 const writeBackupArtifactToDisk = async (snapshot: Awaited<ReturnType<typeof exportSchemaBackup>>) => {
   const artifact = buildSerializedBackupArtifact(snapshot);
-  const tempDirectory = await mkdtemp(join(tmpdir(), 'shule-hub-backup-artifact-'));
+  const tempDirectory = await mkdtemp(join(tmpdir(), 'my-shule-backup-artifact-'));
   const artifactPath = join(tempDirectory, 'backup-artifact.json');
 
   tempDirectories.add(tempDirectory);

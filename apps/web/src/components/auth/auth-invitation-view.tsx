@@ -88,7 +88,7 @@ export function InviteAcceptanceView({
             Accept your invitation
           </h2>
           <p className="text-sm leading-6 text-slate-600">
-            Set your first password for the school workspace issued by ShuleHub.
+            Set your first password for the school workspace issued by My Shule.
           </p>
         </div>
 

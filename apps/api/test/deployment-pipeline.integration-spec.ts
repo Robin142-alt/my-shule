@@ -34,7 +34,7 @@ describe('Deployment pipeline safety', () => {
 
   beforeAll(() => {
     ensureDeploymentTestEnv();
-    pool = createDeploymentPool('shule-hub-deployment-tests');
+    pool = createDeploymentPool('my-shule-deployment-tests');
   });
 
   afterAll(async () => {

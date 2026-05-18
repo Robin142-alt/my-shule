@@ -161,7 +161,7 @@ function AuthHero({
             </span>
             <div>
               <p className={dark ? "text-sm font-semibold text-white" : "text-sm font-semibold text-slate-950"}>
-                ShuleHub ERP
+                My Shule ERP
               </p>
               <p className={dark ? "mt-1 text-xs text-slate-300" : "mt-1 text-xs text-slate-500"}>
                 {badge}

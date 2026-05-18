@@ -37,7 +37,7 @@ async function postLibrarySync(path: string, payload: Record<string, unknown>) {
     headers: {
       Accept: "application/json",
       "Content-Type": "application/json",
-      "x-shulehub-csrf": await getCsrfToken(),
+      "x-myshule-csrf": await getCsrfToken(),
     },
     body: JSON.stringify(payload),
   });

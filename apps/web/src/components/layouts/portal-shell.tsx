@@ -54,7 +54,7 @@ export function PortalShell({
               <span className="text-sm font-bold text-white">SH</span>
             </div>
             <div className="min-w-0">
-              <p className="truncate text-[14px] font-semibold text-[#1a1d26]">ShuleHub Portal</p>
+              <p className="truncate text-[14px] font-semibold text-[#1a1d26]">My Shule Portal</p>
               <p className="text-[11px] text-[#8b8f9a]">{viewer === "parent" ? "Family access" : "Student access"}</p>
             </div>
           </div>

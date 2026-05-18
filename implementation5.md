@@ -1,8 +1,8 @@
 # IMPLEMENTATION 5 — FULL SYSTEM OPERABILITY & ANTI-FRAGILITY AUDIT
 
 Audit date: 2026-05-12  
-Workspace audited: `C:\Users\user\Desktop\PROJECTS\Shule hub\.worktrees\codex-support-ticketing-release`  
-Live targets checked: `https://shule-hub-erp.vercel.app`, `https://shulehub-production.up.railway.app`
+Workspace audited: `C:\Users\user\Desktop\PROJECTS\My Shule\.worktrees\codex-support-ticketing-release`
+Live targets checked: `https://my-shule-erp.vercel.app`, `https://my-shule-production.up.railway.app`
 
 This audit used static code tracing plus safe live smoke checks. I did not create tenants, students, payments, tickets, or other operational records in production during this audit because the production database was intentionally cleaned and mutation tests would create real data.
 
@@ -611,8 +611,8 @@ Recommended operational controls:
 - Verification: `npm.cmd --prefix apps/web run build` completed a production Next.js build successfully.
 - Verification: `npm.cmd test` passed with 79/79 backend tests.
 - Deployment: Railway API deployment `6902b5f5-1666-4a27-a4c2-f2bb171ae5a9` succeeded; `/health` and `/health/ready` returned 200 with Postgres up, Redis up, BullMQ configured, and zero active SLO alerts. Runtime logs confirmed `Support notification retry worker running every 60000ms`.
-- Deployment: Vercel production deployment `https://shule-hub-9hrbnp6vr-robin142-alts-projects.vercel.app` completed successfully and was aliased to `https://shule-hub-erp.vercel.app`.
-- Live smoke check: `https://shule-hub-erp.vercel.app/school/login` returned 200, protected production-ready school routes returned session redirects, and inactive `/school/teacher/academics` returned 404.
+- Deployment: Vercel production deployment `https://my-shule-9hrbnp6vr-robin142-alts-projects.vercel.app` completed successfully and was aliased to `https://my-shule-erp.vercel.app`.
+- Live smoke check: `https://my-shule-erp.vercel.app/school/login` returned 200, protected production-ready school routes returned session redirects, and inactive `/school/teacher/academics` returned 404.
 
 ## Phase 2 — Workflow Completion
 

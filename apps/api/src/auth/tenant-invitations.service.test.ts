@@ -52,7 +52,7 @@ test('TenantInvitationsService sends a tenant-scoped role invitation without exp
         sentInvites.push(input);
       },
     } as never,
-    { get: (key: string) => (key === 'email.publicAppUrl' ? 'https://shule-hub-erp.vercel.app' : undefined) } as never,
+    { get: (key: string) => (key === 'email.publicAppUrl' ? 'https://my-shule-erp.vercel.app' : undefined) } as never,
     {
       requireStore: () => ({
         tenant_id: 'green-valley',
@@ -73,7 +73,7 @@ test('TenantInvitationsService sends a tenant-scoped role invitation without exp
   assert.equal(sentInvites[0]?.to, 'teacher@example.test');
   assert.equal(sentInvites[0]?.displayName, 'Teacher One');
   assert.equal(sentInvites[0]?.schoolName, 'Green Valley School');
-  assert.match(sentInvites[0]?.inviteUrl ?? '', /^https:\/\/shule-hub-erp\.vercel\.app\/invite\/accept\?token=/);
+  assert.match(sentInvites[0]?.inviteUrl ?? '', /^https:\/\/my-shule-erp\.vercel\.app\/invite\/accept\?token=/);
   assert.equal(response.tenant_id, 'green-valley');
   assert.equal(response.email, 'teacher@example.test');
   assert.equal(response.role_code, 'teacher');
@@ -246,7 +246,7 @@ test('TenantInvitationsService resends a pending invitation with a rotated token
         sentInvites.push(input);
       },
     } as never,
-    { get: (key: string) => (key === 'email.publicAppUrl' ? 'https://shule-hub-erp.vercel.app' : undefined) } as never,
+    { get: (key: string) => (key === 'email.publicAppUrl' ? 'https://my-shule-erp.vercel.app' : undefined) } as never,
     {
       requireStore: () => ({
         tenant_id: 'green-valley',
@@ -261,7 +261,7 @@ test('TenantInvitationsService resends a pending invitation with a rotated token
   assert.equal(response.invitation_sent, true);
   assert.equal(sentInvites.length, 1);
   assert.equal(sentInvites[0]?.to, 'parent@example.test');
-  assert.match(sentInvites[0]?.inviteUrl ?? '', /^https:\/\/shule-hub-erp\.vercel\.app\/invite\/accept\?token=/);
+  assert.match(sentInvites[0]?.inviteUrl ?? '', /^https:\/\/my-shule-erp\.vercel\.app\/invite\/accept\?token=/);
   const tokenUpdate = queries.find((query) => query.text.includes('UPDATE auth_action_tokens'));
   assert.equal(tokenUpdate?.values[0], 'invite-1');
   assert.match(String(tokenUpdate?.values[2]), /^[a-f0-9]{64}$/);
@@ -478,7 +478,7 @@ test('TenantInvitationsService records audit logs for invitation and membership 
       assertTransactionalEmailConfigured: () => undefined,
       sendInvitationEmail: async () => undefined,
     } as never,
-    { get: (key: string) => (key === 'email.publicAppUrl' ? 'https://shule-hub-erp.vercel.app' : undefined) } as never,
+    { get: (key: string) => (key === 'email.publicAppUrl' ? 'https://my-shule-erp.vercel.app' : undefined) } as never,
     {
       requireStore: () => ({
         tenant_id: 'green-valley',

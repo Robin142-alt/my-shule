@@ -74,7 +74,7 @@ describe("school user management", () => {
         credentials: "same-origin",
         headers: expect.objectContaining({
           "Content-Type": "application/json",
-          "x-shulehub-csrf": "csrf-invite-token",
+          "x-myshule-csrf": "csrf-invite-token",
         }),
         body: JSON.stringify({
           display_name: "Jane Parent",
@@ -131,7 +131,7 @@ describe("school user management", () => {
         method: "POST",
         credentials: "same-origin",
         headers: expect.objectContaining({
-          "x-shulehub-csrf": "csrf-resend-token",
+          "x-myshule-csrf": "csrf-resend-token",
         }),
       }),
     );
@@ -146,7 +146,7 @@ describe("school user management", () => {
         method: "DELETE",
         credentials: "same-origin",
         headers: expect.objectContaining({
-          "x-shulehub-csrf": "csrf-revoke-token",
+          "x-myshule-csrf": "csrf-revoke-token",
         }),
       }),
     );
@@ -194,7 +194,7 @@ describe("school user management", () => {
         credentials: "same-origin",
         headers: expect.objectContaining({
           "Content-Type": "application/json",
-          "x-shulehub-csrf": "csrf-suspend-token",
+          "x-myshule-csrf": "csrf-suspend-token",
         }),
         body: JSON.stringify({ status: "suspended" }),
       }),
@@ -244,7 +244,7 @@ describe("school user management", () => {
         credentials: "same-origin",
         headers: expect.objectContaining({
           "Content-Type": "application/json",
-          "x-shulehub-csrf": "csrf-role-token",
+          "x-myshule-csrf": "csrf-role-token",
         }),
         body: JSON.stringify({ role_code: "teacher" }),
       }),

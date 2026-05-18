@@ -9,7 +9,7 @@ export default async function PublicLoginPage() {
     <AuthShell
       eyebrow="School ERP sign-in"
       heroTitle="Run collections, academics, and school operations from one trusted workspace."
-      heroDescription="ShuleHub is built for institutions that need fee clarity, operational control, and tenant-safe access from the first sign-in screen."
+      heroDescription="My Shule is built for institutions that need fee clarity, operational control, and tenant-safe access from the first sign-in screen."
       badge="Institutional school access"
       logoMark="SH"
       helper="Every school signs into its own operational environment with finance-safe access controls, role-aware routing, and clear support paths."

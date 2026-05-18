@@ -50,7 +50,7 @@ test('PlatformSmsService stores encrypted credentials and returns only masked pr
           provider_code: 'africas_talking',
           api_key_ciphertext: String(input.api_key_ciphertext),
           username_ciphertext: String(input.username_ciphertext),
-          sender_id: 'SHULEHUB',
+          sender_id: 'MYSHULE',
           is_active: true,
           is_default: true,
           last_test_status: null,
@@ -71,8 +71,8 @@ test('PlatformSmsService stores encrypted credentials and returns only masked pr
     provider_name: 'Africa\'s Talking',
     provider_code: 'africas_talking',
     api_key: 'live-api-key-secret',
-    username: 'shulehub',
-    sender_id: 'SHULEHUB',
+    username: 'MYSHULE',
+    sender_id: 'MYSHULE',
     is_active: true,
     is_default: true,
   });
@@ -117,7 +117,7 @@ test('SmsDispatchService reports missing credential fields without exposing secr
         provider_code: 'africas_talking',
         api_key_ciphertext: 'encrypted',
         username_ciphertext: 'encrypted',
-        sender_id: 'SHULEHUB',
+        sender_id: 'MYSHULE',
         base_url: null,
         is_active: true,
         is_default: true,
@@ -127,7 +127,7 @@ test('SmsDispatchService reports missing credential fields without exposing secr
         updated_at: '2026-05-16T00:00:00.000Z',
       },
       api_key: 'live-api-key-secret',
-      username: 'shulehub',
+      username: 'MYSHULE',
     }),
   } as never);
 
@@ -166,7 +166,7 @@ test('SmsDispatchService maps Africa Talking provider dispatch without logging s
           provider_code: 'africas_talking',
           api_key_ciphertext: 'encrypted',
           username_ciphertext: 'encrypted',
-          sender_id: 'SHULEHUB',
+          sender_id: 'MYSHULE',
           base_url: 'https://sms.example.test/send',
           is_active: true,
           is_default: true,
@@ -176,7 +176,7 @@ test('SmsDispatchService maps Africa Talking provider dispatch without logging s
           updated_at: '2026-05-16T00:00:00.000Z',
         },
         api_key: 'live-api-key-secret',
-        username: 'shulehub',
+        username: 'MYSHULE',
       }),
     } as never);
 

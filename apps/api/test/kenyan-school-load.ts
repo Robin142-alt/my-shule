@@ -288,7 +288,7 @@ const main = async (): Promise<void> => {
   const smsQueue = await createSmsBurstQueue({
     mode: config.sms_queue_mode,
     queue_name: 'kenyan-school-sms',
-    prefix: 'shule-hub-kenyan-school',
+    prefix: 'my-shule-kenyan-school',
     worker_concurrency: config.sms_worker_concurrency,
     per_message_processing_ms: { min: 8, max: 35 },
   });

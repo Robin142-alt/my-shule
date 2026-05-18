@@ -17,7 +17,7 @@ import { QueueService } from './queue.service';
         configService: ConfigService,
       ) => ({
         connection: redisService.getBullConnectionOptions(),
-        prefix: configService.get<string>('queue.prefix') ?? 'shule-hub',
+        prefix: configService.get<string>('queue.prefix') ?? 'my-shule',
         defaultJobOptions: {
           attempts: Number(configService.get<number>('queue.defaultJobAttempts') ?? 3),
           removeOnComplete: Number(configService.get<number>('queue.removeOnComplete') ?? 1000),

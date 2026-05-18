@@ -592,7 +592,10 @@ export class AuthSchemaService implements OnModuleInit {
 
       CREATE OR REPLACE FUNCTION app.mark_auth_email_outbox_delivery(
         input_outbox_id uuid,
-        input_status text
+        input_status text,
+        input_error_code text DEFAULT NULL,
+        input_error_summary text DEFAULT NULL,
+        input_provider_status_code integer DEFAULT NULL
       )
       RETURNS void
       LANGUAGE plpgsql
@@ -618,6 +621,13 @@ export class AuthSchemaService implements OnModuleInit {
             USING ERRCODE = '22023';
         END IF;
 
+        IF input_provider_status_code IS NOT NULL
+          AND (input_provider_status_code < 100 OR input_provider_status_code > 599)
+        THEN
+          RAISE EXCEPTION 'Unsupported email provider status code'
+            USING ERRCODE = '22023';
+        END IF;
+
         PERFORM set_config('app.auth_email_outbox_operation', 'mark_delivery', true);
 
         UPDATE auth_email_outbox
@@ -625,6 +635,19 @@ export class AuthSchemaService implements OnModuleInit {
           status = input_status,
           attempts = attempts + 1,
           sent_at = CASE WHEN input_status = 'sent' THEN NOW() ELSE sent_at END,
+          last_error_code = CASE
+            WHEN input_status = 'sent' THEN NULL
+            ELSE NULLIF(input_error_code, '')
+          END,
+          last_error_summary = CASE
+            WHEN input_status = 'sent' THEN NULL
+            ELSE NULLIF(input_error_summary, '')
+          END,
+          provider_status_code = CASE
+            WHEN input_status = 'sent' THEN NULL
+            ELSE input_provider_status_code
+          END,
+          last_attempt_at = NOW(),
           next_attempt_at = CASE
             WHEN input_status = 'failed' THEN NOW() + INTERVAL '10 minutes'
             ELSE next_attempt_at
@@ -1064,9 +1087,32 @@ export class AuthSchemaService implements OnModuleInit {
         attempts integer NOT NULL DEFAULT 0,
         next_attempt_at timestamptz NOT NULL DEFAULT NOW(),
         sent_at timestamptz,
+        last_error_code text,
+        last_error_summary text,
+        provider_status_code integer CHECK (provider_status_code IS NULL OR provider_status_code BETWEEN 100 AND 599),
+        last_attempt_at timestamptz,
         created_at timestamptz NOT NULL DEFAULT NOW(),
         updated_at timestamptz NOT NULL DEFAULT NOW()
       );
+
+      ALTER TABLE auth_email_outbox
+        ADD COLUMN IF NOT EXISTS last_error_code text,
+        ADD COLUMN IF NOT EXISTS last_error_summary text,
+        ADD COLUMN IF NOT EXISTS provider_status_code integer,
+        ADD COLUMN IF NOT EXISTS last_attempt_at timestamptz;
+
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1
+          FROM pg_constraint
+          WHERE conname = 'ck_auth_email_outbox_provider_status_code'
+        ) THEN
+          ALTER TABLE auth_email_outbox
+            ADD CONSTRAINT ck_auth_email_outbox_provider_status_code
+            CHECK (provider_status_code IS NULL OR provider_status_code BETWEEN 100 AND 599);
+        END IF;
+      END $$;
 
       CREATE TABLE IF NOT EXISTS auth_mfa_challenges (
         id uuid PRIMARY KEY DEFAULT gen_random_uuid(),

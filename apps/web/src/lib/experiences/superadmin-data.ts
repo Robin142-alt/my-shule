@@ -102,7 +102,7 @@ export const superadminNav: ExperienceNavItem[] = [
 export const superadminProfile: ExperienceProfile = {
   name: "System Owner",
   roleLabel: "Platform owner",
-  contextLabel: "ShuleHub SaaS",
+  contextLabel: "My Shule SaaS",
 };
 
 export const superadminKpis: ExperienceMetric[] = [

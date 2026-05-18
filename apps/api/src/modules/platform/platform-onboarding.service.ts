@@ -8,11 +8,22 @@ import { ConfigService } from '@nestjs/config';
 import { createHash, randomBytes } from 'node:crypto';
 
 import { SUPERADMIN_ROLE_OWNER } from '../../auth/auth.constants';
-import { AuthEmailService } from '../../auth/auth-email.service';
+import {
+  AuthEmailService,
+  EmailDeliveryError,
+  type EmailDeliveryErrorCode,
+} from '../../auth/auth-email.service';
 import { AuthorizationRepository } from '../../auth/repositories/authorization.repository';
 import { RequestContextService } from '../../common/request-context/request-context.service';
 import { DatabaseService } from '../../database/database.service';
-import { CreateSchoolDto, PlatformSchoolResponseDto } from './dto/create-school.dto';
+import {
+  CreateSchoolDto,
+  DeleteSchoolDto,
+  PlatformEmailReadinessResponseDto,
+  PlatformSchoolDeleteResponseDto,
+  PlatformSchoolResponseDto,
+  PlatformSchoolUsageSummaryDto,
+} from './dto/create-school.dto';
 
 type TenantRow = {
   tenant_id: string;
@@ -23,6 +34,9 @@ type TenantRow = {
   admin_email?: string | null;
   invitation_status?: 'pending' | 'processing' | 'sent' | 'failed' | null;
   invite_expires_at?: Date | string | null;
+  last_error_code?: string | null;
+  last_error_summary?: string | null;
+  provider_status_code?: number | string | null;
 };
 
 type InvitationDeliveryStatus = PlatformSchoolResponseDto['invitation_status'];
@@ -30,6 +44,11 @@ type InvitationDeliveryStatus = PlatformSchoolResponseDto['invitation_status'];
 type InvitationDeliveryResult = {
   status: InvitationDeliveryStatus;
   message: string;
+  failureCode?: string;
+  failureReason?: string;
+  actionRequired?: string;
+  providerStatusCode?: number;
+  canResendInvite: boolean;
 };
 
 type InvitationAction = {
@@ -45,6 +64,8 @@ type InvitationAction = {
 type InvitationContextRow = TenantRow & {
   invite_metadata?: Record<string, unknown> | string | null;
 };
+
+type AuditAction = 'platform.school.deleted' | 'platform.school.deprovisioned';
 
 @Injectable()
 export class PlatformOnboardingService {
@@ -67,10 +88,18 @@ export class PlatformOnboardingService {
           tenants.created_at,
           latest_email.recipient_email AS admin_email,
           latest_email.status AS invitation_status,
+          latest_email.last_error_code,
+          latest_email.last_error_summary,
+          latest_email.provider_status_code,
           latest_token.expires_at AS invite_expires_at
         FROM tenants
         LEFT JOIN LATERAL (
-          SELECT recipient_email, status
+          SELECT
+            recipient_email,
+            status,
+            last_error_code,
+            last_error_summary,
+            provider_status_code
           FROM auth_email_outbox
           WHERE tenant_id = tenants.tenant_id
             AND template = 'school_invitation'
@@ -90,11 +119,48 @@ export class PlatformOnboardingService {
     );
 
     return result.rows.map((row) =>
-      this.toPlatformSchoolResponse(row, {
-        status: this.mapOutboxStatus(row.invitation_status),
-        message: this.invitationMessageForStatus(this.mapOutboxStatus(row.invitation_status)),
-      }),
+      this.toPlatformSchoolResponse(row, this.deliveryResultForOutboxRow(row)),
     );
+  }
+
+  async getEmailReadiness(): Promise<PlatformEmailReadinessResponseDto> {
+    const configured = this.emailService.getTransactionalEmailStatus();
+    const latestInvite = await this.databaseService.query<{
+      status?: string | null;
+      last_error_code?: string | null;
+      last_error_summary?: string | null;
+    }>(
+      `
+        SELECT status, last_error_code, last_error_summary
+        FROM auth_email_outbox
+        WHERE template = 'school_invitation'
+        ORDER BY created_at DESC
+        LIMIT 1
+      `,
+    );
+    const latest = latestInvite.rows[0];
+    const failureCode = latest?.last_error_code ?? undefined;
+    const actionRequired = failureCode
+      ? this.actionRequiredForFailureCode(failureCode)
+      : undefined;
+
+    return {
+      provider: configured.provider,
+      status: failureCode === 'resend_domain_not_verified'
+        ? 'blocked'
+        : configured.status === 'missing'
+          ? 'missing'
+          : latest?.status === 'failed'
+            ? 'degraded'
+            : 'configured',
+      api_key_configured: configured.api_key_configured,
+      sender_configured: configured.sender_configured,
+      public_app_url_configured: configured.public_app_url_configured,
+      last_invite_status: latest?.status ?? undefined,
+      last_failure_code: failureCode,
+      last_failure_reason: latest?.last_error_summary ?? undefined,
+      action_required: actionRequired,
+    };
   }
 
   async createSchool(dto: CreateSchoolDto): Promise<PlatformSchoolResponseDto> {
@@ -177,6 +243,68 @@ export class PlatformOnboardingService {
     });
   }
 
+  async deleteSchool(
+    tenantIdInput: string,
+    dto: DeleteSchoolDto,
+  ): Promise<PlatformSchoolDeleteResponseDto> {
+    const tenantId = this.normalizeTenantId(tenantIdInput);
+    const confirmation = dto.confirmation.trim().toLowerCase();
+    const reason = dto.reason.trim();
+
+    if (confirmation !== tenantId) {
+      throw new BadRequestException(`Type ${tenantId} to confirm school deletion.`);
+    }
+
+    if (reason.length < 3) {
+      throw new BadRequestException('Enter a deletion reason for the audit trail.');
+    }
+
+    return this.databaseService.withRequestTransaction(async () => {
+      await this.scopeTenantForLifecycleMutation(tenantId);
+      const tenant = await this.findTenantForDelete(tenantId);
+      const usageSummary = await this.getTenantUsageSummary(tenantId);
+      const hasOperationalRecords =
+        usageSummary.students > 0 ||
+        usageSummary.invoices > 0 ||
+        usageSummary.support_tickets > 0 ||
+        usageSummary.mpesa_transactions > 0;
+
+      if (dto.hard_delete_empty_tenant && !hasOperationalRecords) {
+        await this.writeSchoolLifecycleAudit('platform.school.deleted', tenant, usageSummary, reason);
+        await this.deleteTenantShell(tenantId);
+
+        return {
+          tenant_id: tenantId,
+          deleted: true,
+          deprovisioned: false,
+          message: `${tenant.name} was permanently deleted because it had no operational records.`,
+          usage_summary: usageSummary,
+        };
+      }
+
+      const updatedTenant = await this.deprovisionTenant(tenantId, reason);
+      await this.writeSchoolLifecycleAudit(
+        'platform.school.deprovisioned',
+        updatedTenant,
+        usageSummary,
+        reason,
+      );
+
+      return {
+        tenant_id: tenantId,
+        deleted: false,
+        deprovisioned: true,
+        message: `${updatedTenant.name} has records, so it was deprovisioned instead of deleted.`,
+        usage_summary: usageSummary,
+        school: this.toPlatformSchoolResponse(updatedTenant, {
+          status: 'blocked',
+          message: 'School deprovisioned. Invites are disabled for this tenant.',
+          canResendInvite: false,
+        }),
+      };
+    });
+  }
+
   private async createTenant(input: {
     tenantId: string;
     schoolName: string;
@@ -242,6 +370,152 @@ export class PlatformOnboardingService {
     }
 
     return context;
+  }
+
+  private async findTenantForDelete(tenantId: string): Promise<TenantRow> {
+    const result = await this.databaseService.query<TenantRow>(
+      `
+        SELECT tenant_id, name, subdomain, status, created_at
+        FROM tenants
+        WHERE tenant_id = $1
+        LIMIT 1
+      `,
+      [tenantId],
+    );
+    const tenant = result.rows[0];
+
+    if (!tenant) {
+      throw new NotFoundException('School workspace was not found.');
+    }
+
+    return tenant;
+  }
+
+  private async scopeTenantForLifecycleMutation(tenantId: string): Promise<void> {
+    await this.databaseService.query(
+      "SELECT set_config('app.tenant_id', $1, true)",
+      [tenantId],
+    );
+  }
+
+  private async getTenantUsageSummary(
+    tenantId: string,
+  ): Promise<PlatformSchoolUsageSummaryDto> {
+    const result = await this.databaseService.query<{
+      memberships: string | number;
+      students: string | number;
+      invoices: string | number;
+      support_tickets: string | number;
+      mpesa_transactions: string | number;
+    }>(
+      `
+        SELECT
+          (SELECT COUNT(*) FROM tenant_memberships WHERE tenant_id = $1) AS memberships,
+          (SELECT COUNT(*) FROM students WHERE tenant_id = $1) AS students,
+          (SELECT COUNT(*) FROM invoices WHERE tenant_id = $1) AS invoices,
+          (SELECT COUNT(*) FROM support_tickets WHERE tenant_id = $1) AS support_tickets,
+          (SELECT COUNT(*) FROM mpesa_transactions WHERE tenant_id = $1) AS mpesa_transactions
+      `,
+      [tenantId],
+    );
+    const row = result.rows[0];
+
+    return {
+      memberships: this.toCount(row?.memberships),
+      students: this.toCount(row?.students),
+      invoices: this.toCount(row?.invoices),
+      support_tickets: this.toCount(row?.support_tickets),
+      mpesa_transactions: this.toCount(row?.mpesa_transactions),
+    };
+  }
+
+  private async deleteTenantShell(tenantId: string): Promise<void> {
+    const cleanupStatements = [
+      'DELETE FROM auth_email_outbox WHERE tenant_id = $1',
+      'DELETE FROM auth_action_tokens WHERE tenant_id = $1',
+      'DELETE FROM sms_purchase_requests WHERE tenant_id = $1',
+      'DELETE FROM sms_wallet_transactions WHERE tenant_id = $1',
+      'DELETE FROM sms_logs WHERE tenant_id = $1',
+      'DELETE FROM school_sms_wallets WHERE tenant_id = $1',
+      'DELETE FROM school_integrations WHERE tenant_id = $1',
+      'DELETE FROM integration_logs WHERE tenant_id = $1',
+      'DELETE FROM tenant_payment_channels WHERE tenant_id = $1',
+      'DELETE FROM tenant_bank_accounts WHERE tenant_id = $1',
+      'DELETE FROM tenant_mpesa_configs WHERE tenant_id = $1',
+      'DELETE FROM tenant_financial_accounts WHERE tenant_id = $1',
+      'DELETE FROM tenant_memberships WHERE tenant_id = $1',
+      'DELETE FROM role_permissions WHERE tenant_id = $1',
+      'DELETE FROM roles WHERE tenant_id = $1',
+      'DELETE FROM permissions WHERE tenant_id = $1',
+      'DELETE FROM tenants WHERE tenant_id = $1',
+    ];
+
+    for (const statement of cleanupStatements) {
+      await this.databaseService.query(statement, [tenantId]);
+    }
+  }
+
+  private async deprovisionTenant(tenantId: string, reason: string): Promise<TenantRow> {
+    const result = await this.databaseService.query<TenantRow>(
+      `
+        UPDATE tenants
+        SET
+          status = 'inactive',
+          metadata = COALESCE(metadata, '{}'::jsonb) || $2::jsonb,
+          updated_at = NOW()
+        WHERE tenant_id = $1
+        RETURNING tenant_id, name, subdomain, status, created_at
+      `,
+      [
+        tenantId,
+        JSON.stringify({
+          deprovisioned_at: new Date().toISOString(),
+          deprovision_reason: reason,
+        }),
+      ],
+    );
+
+    return result.rows[0] ?? (await this.findTenantForDelete(tenantId));
+  }
+
+  private async writeSchoolLifecycleAudit(
+    action: AuditAction,
+    tenant: TenantRow,
+    usageSummary: PlatformSchoolUsageSummaryDto,
+    reason: string,
+  ): Promise<void> {
+    const context = this.requestContext.getStore();
+
+    await this.databaseService.query(
+      `
+        INSERT INTO audit_logs (
+          tenant_id,
+          actor_user_id,
+          request_id,
+          action,
+          resource_type,
+          resource_id,
+          ip_address,
+          user_agent,
+          metadata
+        )
+        VALUES ($1, NULL, $2, $3, 'tenant', NULL, NULL, $4, $5::jsonb)
+      `,
+      [
+        tenant.tenant_id,
+        context?.request_id ?? null,
+        action,
+        context?.user_agent ?? null,
+        JSON.stringify({
+          tenant_id: tenant.tenant_id,
+          school_name: tenant.name,
+          actor_user_id: context?.user_id ?? null,
+          client_ip: context?.client_ip ?? null,
+          reason,
+          usage_summary: usageSummary,
+        }),
+      ],
+    );
   }
 
   private async prepareInvitationAction(input: {
@@ -344,7 +618,7 @@ export class PlatformOnboardingService {
       [
         input.tenantId,
         input.adminEmail,
-        'You have been invited to ShuleHub ERP',
+        'You have been invited to My Shule ERP',
         JSON.stringify(input.payload),
       ],
     );
@@ -372,30 +646,42 @@ export class PlatformOnboardingService {
       return {
         status: 'sent',
         message: `School created. Invitation sent to ${input.adminEmail}.`,
+        canResendInvite: false,
       };
     } catch (error) {
-      await this.markOutboxDelivery(input.outboxId, 'failed').catch(() => undefined);
+      const failure = this.invitationFailureFromError(error);
+      await this.markOutboxDelivery(input.outboxId, 'failed', {
+        errorCode: failure.failureCode,
+        errorSummary: failure.failureReason,
+        providerStatusCode: failure.providerStatusCode,
+      }).catch(() => undefined);
 
-      const status = this.shouldQueueInvitationFailure(error) ? 'queued' : 'failed';
-
-      return {
-        status,
-        message: this.invitationMessageForStatus(status),
-      };
+      return failure;
     }
   }
 
   private async markOutboxDelivery(
     outboxId: string | undefined,
     status: 'sent' | 'failed',
+    options: {
+      errorCode?: string;
+      errorSummary?: string;
+      providerStatusCode?: number;
+    } = {},
   ): Promise<void> {
     if (!outboxId) {
       return;
     }
 
     await this.databaseService.query(
-      'SELECT app.mark_auth_email_outbox_delivery($1, $2)',
-      [outboxId, status],
+      'SELECT app.mark_auth_email_outbox_delivery($1, $2, $3, $4, $5)',
+      [
+        outboxId,
+        status,
+        options.errorCode ?? null,
+        options.errorSummary ?? null,
+        options.providerStatusCode ?? null,
+      ],
     );
   }
 
@@ -418,24 +704,102 @@ export class PlatformOnboardingService {
       invitation_sent: delivery.status === 'sent',
       invitation_status: delivery.status,
       invitation_message: delivery.message,
+      invitation_failure_code: delivery.failureCode,
+      invitation_failure_reason: delivery.failureReason,
+      invitation_action_required: delivery.actionRequired,
+      can_resend_invite: delivery.canResendInvite,
       invite_expires_at: inviteExpiresAt ? new Date(inviteExpiresAt).toISOString() : '',
       admin_email: override?.adminEmail ?? tenant.admin_email ?? '',
       created_at: new Date(tenant.created_at).toISOString(),
     };
   }
 
-  private mapOutboxStatus(
-    status: TenantRow['invitation_status'],
-  ): InvitationDeliveryStatus {
-    if (status === 'sent') {
-      return 'sent';
+  private deliveryResultForOutboxRow(row: TenantRow): InvitationDeliveryResult {
+    const failureCode = row.last_error_code ?? undefined;
+    const failureReason = row.last_error_summary ?? undefined;
+
+    if (row.invitation_status === 'sent') {
+      return {
+        status: 'sent',
+        message: this.invitationMessageForStatus('sent'),
+        canResendInvite: false,
+      };
     }
 
-    if (status === 'failed') {
-      return 'failed';
+    if (failureCode) {
+      const isBlocked = this.isNonRetryableInviteFailure(failureCode);
+      const status: InvitationDeliveryStatus = isBlocked ? 'blocked' : 'failed';
+
+      return {
+        status,
+        message: this.invitationMessageForStatus(status),
+        failureCode,
+        failureReason,
+        actionRequired: this.actionRequiredForFailureCode(failureCode),
+        providerStatusCode: this.toOptionalCount(row.provider_status_code),
+        canResendInvite: !isBlocked,
+      };
     }
 
-    return 'queued';
+    if (row.invitation_status === 'failed') {
+      return {
+        status: 'failed',
+        message: this.invitationMessageForStatus('failed'),
+        canResendInvite: true,
+      };
+    }
+
+    return {
+      status: 'queued',
+      message: this.invitationMessageForStatus('queued'),
+      canResendInvite: true,
+    };
+  }
+
+  private invitationFailureFromError(error: unknown): InvitationDeliveryResult {
+    if (error instanceof EmailDeliveryError) {
+      const status = this.statusForEmailDeliveryError(error.code);
+
+      return {
+        status,
+        message: this.invitationMessageForStatus(status),
+        failureCode: error.code,
+        failureReason: error.safeMessage,
+        actionRequired: this.actionRequiredForFailureCode(error.code),
+        providerStatusCode: error.providerStatus,
+        canResendInvite: !this.isNonRetryableInviteFailure(error.code),
+      };
+    }
+
+    const status = this.shouldQueueInvitationFailure(error) ? 'queued' : 'failed';
+    const message = error instanceof Error ? error.message : '';
+
+    return {
+      status,
+      message: this.invitationMessageForStatus(status),
+      failureCode: status === 'queued' ? 'provider_network_error' : 'provider_rejected',
+      failureReason: message || this.invitationMessageForStatus(status),
+      actionRequired: this.actionRequiredForFailureCode(
+        status === 'queued' ? 'provider_network_error' : 'provider_rejected',
+      ),
+      canResendInvite: true,
+    };
+  }
+
+  private statusForEmailDeliveryError(code: EmailDeliveryErrorCode): InvitationDeliveryStatus {
+    if (this.isNonRetryableInviteFailure(code)) {
+      return 'blocked';
+    }
+
+    if (code === 'provider_timeout' || code === 'provider_network_error') {
+      return 'queued';
+    }
+
+    return 'failed';
+  }
+
+  private isNonRetryableInviteFailure(code: string): boolean {
+    return code === 'email_not_configured' || code === 'resend_domain_not_verified';
   }
 
   private invitationMessageForStatus(status: InvitationDeliveryStatus): string {
@@ -447,7 +811,27 @@ export class PlatformOnboardingService {
       return 'School created. The admin invite is queued for delivery.';
     }
 
+    if (status === 'blocked') {
+      return 'School created, but invite delivery is blocked by email provider setup.';
+    }
+
     return 'School created. The invite could not be delivered yet. You can resend it.';
+  }
+
+  private actionRequiredForFailureCode(code: string): string {
+    if (code === 'resend_domain_not_verified') {
+      return 'Verify a Resend sending domain, set EMAIL_FROM to an address on that domain, redeploy, then resend the invite.';
+    }
+
+    if (code === 'email_not_configured') {
+      return 'Configure RESEND_API_KEY, EMAIL_FROM, and PUBLIC_APP_URL for the API deployment before sending invites.';
+    }
+
+    if (code === 'provider_timeout' || code === 'provider_network_error') {
+      return 'Check provider connectivity and retry. If this repeats, inspect API logs before resending in bulk.';
+    }
+
+    return 'Open API logs for the provider rejection details, correct the email setup, then retry.';
   }
 
   private shouldQueueInvitationFailure(error: unknown): boolean {
@@ -523,7 +907,7 @@ export class PlatformOnboardingService {
   private buildInvitationUrl(token: string): string {
     const baseUrl = (
       this.configService.get<string>('email.publicAppUrl') ??
-      'https://shule-hub-erp.vercel.app'
+      'https://my-shule-erp.vercel.app'
     ).replace(/\/$/, '');
 
     return `${baseUrl}/invite/accept?token=${encodeURIComponent(token)}`;
@@ -545,5 +929,19 @@ export class PlatformOnboardingService {
     }
 
     return value;
+  }
+
+  private toCount(value: string | number | null | undefined): number {
+    const count = Number(value ?? 0);
+
+    return Number.isFinite(count) ? count : 0;
+  }
+
+  private toOptionalCount(value: string | number | null | undefined): number | undefined {
+    if (value === null || value === undefined) {
+      return undefined;
+    }
+
+    return this.toCount(value);
   }
 }

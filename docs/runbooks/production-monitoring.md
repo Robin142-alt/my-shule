@@ -74,7 +74,7 @@ The script stores only a hash in PostgreSQL and writes the raw token directly in
 
 ```bash
 export MONITORING_SERVICE_ACCOUNT_SECRET_TARGET="railway"
-export MONITORING_SERVICE_ACCOUNT_RAILWAY_SERVICE="ShuleHub"
+export MONITORING_SERVICE_ACCOUNT_RAILWAY_SERVICE="My Shule"
 export MONITORING_SERVICE_ACCOUNT_RAILWAY_ENVIRONMENT="production"
 npm run monitor:create-service-account
 ```

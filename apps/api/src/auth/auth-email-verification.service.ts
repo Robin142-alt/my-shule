@@ -60,7 +60,7 @@ export class AuthEmailVerificationService {
     const tokenHash = this.hashToken(token);
     const expiresAt = new Date(Date.now() + this.getEmailVerificationTtlMs());
     const verifyUrl = this.buildVerifyUrl(token);
-    const subject = 'Verify your ShuleHub ERP email address';
+    const subject = 'Verify your My Shule ERP email address';
     const payload = {
       display_name: user.display_name,
       expires_at: expiresAt.toISOString(),
@@ -201,7 +201,7 @@ export class AuthEmailVerificationService {
   private buildVerifyUrl(token: string): string {
     const baseUrl = (
       this.configService.get<string>('email.publicAppUrl') ??
-      'https://shule-hub-erp.vercel.app'
+      'https://my-shule-erp.vercel.app'
     ).replace(/\/$/, '');
 
     return `${baseUrl}/verify-email?token=${encodeURIComponent(token)}`;

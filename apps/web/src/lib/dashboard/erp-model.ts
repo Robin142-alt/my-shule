@@ -372,7 +372,7 @@ function buildTenantFinanceConfig(tenant: TenantOption): TenantFinanceConfigView
     reconciliationStatus: "Balanced to 09:00",
     reconciliationStatusTone: "ok",
     darajaEnvironment: "Production",
-    callbackUrl: "https://api.shulehub.co.ke/mpesa/callback/barakaacademy",
+    callbackUrl: "https://api.myshule.co.ke/mpesa/callback/barakaacademy",
     todayCollections: formatCurrency(248_500),
     pendingReconciliations: "3",
     failedCallbacks: "1",

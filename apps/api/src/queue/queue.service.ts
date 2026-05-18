@@ -24,7 +24,7 @@ export class QueueService implements OnModuleDestroy {
 
     const queue = new Queue(queueName, {
       connection: this.redisService.getBullConnectionOptions(),
-      prefix: this.configService.get<string>('queue.prefix') ?? 'shule-hub',
+      prefix: this.configService.get<string>('queue.prefix') ?? 'my-shule',
       defaultJobOptions: {
         attempts: Number(this.configService.get<number>('queue.defaultJobAttempts') ?? 3),
         removeOnComplete: Number(this.configService.get<number>('queue.removeOnComplete') ?? 1000),

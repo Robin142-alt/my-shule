@@ -11,7 +11,7 @@ export function sanitizeRequestPath(value: string | undefined | null): string {
   const rawPath = typeof value === 'string' && value.trim().length > 0 ? value.trim() : '/';
 
   try {
-    const parsed = new URL(rawPath, 'http://shulehub.local');
+    const parsed = new URL(rawPath, 'http://myshule.local');
 
     if (parsed.searchParams.size === 0) {
       return parsed.pathname || '/';

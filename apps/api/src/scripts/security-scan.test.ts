@@ -53,7 +53,7 @@ test('renderSecurityScanMarkdown includes tenant isolation section', () => {
 
 function buildSecuritySources(): Record<string, string> {
   return {
-    'apps/web/src/components/auth/superadmin-login-view.tsx': 'ShuleHub never asks users to share passwords',
+    'apps/web/src/components/auth/superadmin-login-view.tsx': 'My Shule never asks users to share passwords',
     'apps/web/src/components/auth/school-login-view.tsx': 'Email address Password',
     'apps/web/src/components/auth/portal-login-view.tsx': 'Private records',
     'apps/web/src/components/auth/public-school-login-view.tsx': 'Secure session',

@@ -71,7 +71,7 @@ test('HealthController readiness surfaces production CORS allowlist status witho
         ({
           'app.corsEnabled': true,
           'app.nodeEnv': 'production',
-          'app.corsOrigins': ['https://shule-hub-erp.vercel.app'],
+          'app.corsOrigins': ['https://my-shule-erp.vercel.app'],
           'app.corsCredentials': true,
         })[key] as T | undefined,
     } as never,
@@ -86,7 +86,7 @@ test('HealthController readiness surfaces production CORS allowlist status witho
     origin_count: 1,
     production_locked: true,
   });
-  assert.equal(JSON.stringify(readiness).includes('shule-hub-erp.vercel.app'), false);
+  assert.equal(JSON.stringify(readiness).includes('my-shule-erp.vercel.app'), false);
 });
 
 test('HealthController readiness surfaces support notification provider status without secrets', async () => {
@@ -147,7 +147,7 @@ test('HealthController readiness surfaces support notification provider status w
   assert.equal(readiness.support_notifications?.email.recipient_count, 2);
   assert.equal(readiness.support_notifications?.sms.dispatch_provider_configured, true);
   assert.equal(JSON.stringify(readiness).includes('sms-secret-token'), false);
-  assert.equal(JSON.stringify(readiness).includes('support@shulehub.test'), false);
+  assert.equal(JSON.stringify(readiness).includes('support@myshule.test'), false);
 });
 
 test('HealthController readiness surfaces object storage and malware scanning without secrets', async () => {
@@ -176,7 +176,7 @@ test('HealthController readiness surfaces object storage and malware scanning wi
           UPLOAD_OBJECT_STORAGE_ENABLED: 'true',
           UPLOAD_OBJECT_STORAGE_PROVIDER: 'r2',
           UPLOAD_OBJECT_STORAGE_ENDPOINT: 'https://objects.example.test',
-          UPLOAD_OBJECT_STORAGE_BUCKET: 'shulehub-files',
+          UPLOAD_OBJECT_STORAGE_BUCKET: 'myshule-files',
           UPLOAD_OBJECT_STORAGE_REGION: 'auto',
           UPLOAD_OBJECT_STORAGE_ACCESS_KEY_ID: 'access-key-id',
           UPLOAD_OBJECT_STORAGE_SECRET_ACCESS_KEY: 'secret-access-key',

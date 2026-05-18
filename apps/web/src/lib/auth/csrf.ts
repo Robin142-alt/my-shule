@@ -1,8 +1,8 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
-export const CSRF_COOKIE = "shulehub.csrf";
-export const CSRF_HEADER = "x-shulehub-csrf";
+export const CSRF_COOKIE = "myshule.csrf";
+export const CSRF_HEADER = "x-myshule-csrf";
 
 const secureCookies = process.env.NODE_ENV === "production";
 

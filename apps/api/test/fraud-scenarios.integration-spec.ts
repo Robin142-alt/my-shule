@@ -249,7 +249,7 @@ const registerTenantId = (tenantIds: Set<string>, prefix: string): string => {
 
 const ensureIntegrationEnv = (mpesaBaseUrl: string): void => {
   (process.env as Record<string, string | undefined>).NODE_ENV = process.env.NODE_ENV ?? 'test';
-  process.env.DATABASE_RUNTIME_ROLE = process.env.DATABASE_RUNTIME_ROLE ?? 'shule_hub_runtime';
+  process.env.DATABASE_RUNTIME_ROLE = process.env.DATABASE_RUNTIME_ROLE ?? 'my_shule_runtime';
   process.env.SECURITY_PII_ENCRYPTION_KEY =
     process.env.SECURITY_PII_ENCRYPTION_KEY ??
     'MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=';
@@ -276,7 +276,7 @@ const createDatabasePool = (): Pool => {
 
   return new Pool({
     connectionString,
-    application_name: 'shule-hub-fraud-scenarios-tests',
+    application_name: 'my-shule-fraud-scenarios-tests',
     ssl: connectionString.includes('sslmode=require')
       ? { rejectUnauthorized: false }
       : undefined,

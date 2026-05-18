@@ -1,4 +1,4 @@
-import { fireEvent, screen, within } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createElement } from "react";
 
@@ -31,6 +31,7 @@ const mockReplyToSupportTicketLive = jest.fn();
 const mockUpdateSupportTicketStatusLive = jest.fn();
 const mockUploadSupportAttachmentLive = jest.fn();
 const mockCreatePlatformSchool = jest.fn();
+const mockDeletePlatformSchool = jest.fn();
 const mockFetchPlatformSchools = jest.fn();
 const mockResendPlatformSchoolAdminInvite = jest.fn();
 
@@ -40,6 +41,7 @@ jest.mock("@/lib/dashboard/api-client", () => ({
 
 jest.mock("@/lib/platform/school-onboarding-client", () => ({
   createPlatformSchool: (...args: unknown[]) => mockCreatePlatformSchool(...args),
+  deletePlatformSchool: (...args: unknown[]) => mockDeletePlatformSchool(...args),
   fetchPlatformSchools: (...args: unknown[]) => mockFetchPlatformSchools(...args),
   resendPlatformSchoolAdminInvite: (...args: unknown[]) => mockResendPlatformSchoolAdminInvite(...args),
 }));
@@ -123,6 +125,7 @@ beforeEach(() => {
     invitation_sent: false,
     invitation_status: "queued",
     invitation_message: "School created. The admin invite is queued for delivery.",
+    can_resend_invite: true,
     invite_expires_at: "2026-05-24T00:00:00.000Z",
     admin_email: "principal@example.test",
     created_at: "2026-05-17T00:00:00.000Z",
@@ -135,9 +138,23 @@ beforeEach(() => {
     invitation_sent: true,
     invitation_status: "sent",
     invitation_message: "School created. Invitation sent to principal@example.test.",
+    can_resend_invite: false,
     invite_expires_at: "2026-05-24T00:00:00.000Z",
     admin_email: "principal@example.test",
     created_at: "2026-05-17T00:00:00.000Z",
+  });
+  mockDeletePlatformSchool.mockResolvedValue({
+    tenant_id: "green-valley",
+    deleted: true,
+    deprovisioned: false,
+    message: "Green Valley School was permanently deleted because it had no operational records.",
+    usage_summary: {
+      memberships: 1,
+      students: 0,
+      invoices: 0,
+      support_tickets: 0,
+      mpesa_transactions: 0,
+    },
   });
   mockFetchSupportTicketsLive.mockResolvedValue([]);
   mockFetchSupportCategoriesLive.mockResolvedValue([
@@ -333,6 +350,83 @@ describe("enterprise support workspace", () => {
 
     expect(mockResendPlatformSchoolAdminInvite).toHaveBeenCalledWith("green-valley");
     expect((await screen.findAllByText(/invitation sent to principal@example\.test/i)).length).toBeGreaterThan(0);
+  });
+
+  it("stops pointless resend loops when school invites are blocked by email provider setup", async () => {
+    mockFetchPlatformSchools.mockResolvedValueOnce([
+      {
+        tenant_id: "green-valley",
+        school_name: "Green Valley School",
+        subdomain: "green-valley",
+        status: "active",
+        invitation_sent: false,
+        invitation_status: "blocked",
+        invitation_message: "School created, but invite delivery is blocked by email provider setup.",
+        invitation_failure_code: "resend_domain_not_verified",
+        invitation_action_required:
+          "Verify a Resend sending domain, set EMAIL_FROM to an address on that domain, redeploy, then resend the invite.",
+        can_resend_invite: false,
+        invite_expires_at: "2026-05-24T00:00:00.000Z",
+        admin_email: "principal@example.test",
+        created_at: "2026-05-17T00:00:00.000Z",
+      },
+    ]);
+
+    renderWithProviders(createElement(SuperadminPages, { section: "schools", routeMode: "public" }));
+
+    expect(await screen.findByText(/school invites are blocked by email provider setup/i)).toBeVisible();
+    const [blockedResendButton] = screen.getAllByRole("button", {
+      name: /resend invite to green valley school/i,
+    });
+    expect(blockedResendButton).toBeDisabled();
+    expect(mockResendPlatformSchoolAdminInvite).not.toHaveBeenCalled();
+  });
+
+  it("lets the platform owner delete an empty failed-invite school through a guarded confirmation", async () => {
+    const user = userEvent.setup();
+
+    mockFetchPlatformSchools.mockResolvedValueOnce([
+      {
+        tenant_id: "green-valley",
+        school_name: "Green Valley School",
+        subdomain: "green-valley",
+        status: "active",
+        invitation_sent: false,
+        invitation_status: "failed",
+        invitation_message: "School created. The invite could not be delivered yet. You can resend it.",
+        can_resend_invite: true,
+        invite_expires_at: "2026-05-24T00:00:00.000Z",
+        admin_email: "principal@example.test",
+        created_at: "2026-05-17T00:00:00.000Z",
+      },
+    ]);
+
+    renderWithProviders(createElement(SuperadminPages, { section: "schools", routeMode: "public" }));
+
+    expect((await screen.findAllByText("Green Valley School")).length).toBeGreaterThan(0);
+    await user.click(screen.getAllByRole("button", { name: /^delete$/i })[0]!);
+    const dialog = await screen.findByRole("dialog", { name: /delete school/i });
+
+    fireEvent.change(within(dialog).getByLabelText(/type green-valley to confirm/i), {
+      target: { value: "green-valley" },
+    });
+    fireEvent.change(within(dialog).getByLabelText(/audit reason/i), {
+      target: { value: "Duplicate test tenant" },
+    });
+    await user.click(within(dialog).getByRole("button", { name: /delete or deprovision/i }));
+
+    expect(mockDeletePlatformSchool).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tenantId: "green-valley",
+        confirmation: "green-valley",
+        reason: "Duplicate test tenant",
+        hardDeleteEmptyTenant: true,
+      }),
+    );
+    expect(await screen.findByText(/permanently deleted/i)).toBeVisible();
+    await waitFor(() => {
+      expect(screen.queryAllByText("Green Valley School")).toHaveLength(0);
+    });
   });
 
   it("keeps Support Center reachable from the dedicated storekeeper workspace", () => {

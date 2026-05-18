@@ -57,7 +57,7 @@ describe("STEP 1: Layout tests", () => {
 
     secondRender.unmount();
     renderWithProviders(createElement(PortalPages, { viewer: "parent" }));
-    expect(screen.getByText(/shulehub portal/i)).toBeVisible();
+    expect(screen.getByText(/my shule portal/i)).toBeVisible();
     expect(screen.getByRole("heading", { name: /family dashboard/i })).toBeVisible();
   });
 });

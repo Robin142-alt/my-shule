@@ -75,14 +75,14 @@ type CollectionEnvelope<T> = {
 const ensureIntegrationEnv = (): void => {
   (process.env as Record<string, string | undefined>).NODE_ENV = process.env.NODE_ENV ?? 'test';
   process.env.APP_BASE_DOMAIN = process.env.APP_BASE_DOMAIN ?? 'integration.test';
-  process.env.JWT_ISSUER = process.env.JWT_ISSUER ?? 'shule-hub-integration-tests';
-  process.env.JWT_AUDIENCE = process.env.JWT_AUDIENCE ?? 'shule-hub-integration-clients';
+  process.env.JWT_ISSUER = process.env.JWT_ISSUER ?? 'my-shule-integration-tests';
+  process.env.JWT_AUDIENCE = process.env.JWT_AUDIENCE ?? 'my-shule-integration-clients';
   process.env.JWT_ACCESS_TOKEN_SECRET =
     process.env.JWT_ACCESS_TOKEN_SECRET ?? 'integration-access-secret';
   process.env.JWT_REFRESH_TOKEN_SECRET =
     process.env.JWT_REFRESH_TOKEN_SECRET ?? 'integration-refresh-secret';
   process.env.DATABASE_RUNTIME_ROLE =
-    process.env.DATABASE_RUNTIME_ROLE ?? 'shule_hub_runtime';
+    process.env.DATABASE_RUNTIME_ROLE ?? 'my_shule_runtime';
   process.env.SECURITY_PII_ENCRYPTION_KEY =
     process.env.SECURITY_PII_ENCRYPTION_KEY ??
     'MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=';
@@ -97,7 +97,7 @@ const createDatabasePool = (): Pool => {
 
   return new Pool({
     connectionString,
-    application_name: 'shule-hub-billing-correctness-tests',
+    application_name: 'my-shule-billing-correctness-tests',
     ssl: connectionString.includes('sslmode=require')
       ? { rejectUnauthorized: false }
       : undefined,

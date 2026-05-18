@@ -71,7 +71,7 @@ test('DatabaseService.query scopes request-context calls into a transaction-loca
     pool as never,
     requestContext,
     {
-      getRuntimeRoleName: () => 'shule_hub_runtime',
+      getRuntimeRoleName: () => 'my_shule_runtime',
     } as never,
     {
       get: () => undefined,
@@ -104,7 +104,7 @@ test('DatabaseService.query scopes request-context calls into a transaction-loca
     pool.client.queries.map((query) => query.text),
     [
       'BEGIN',
-      "SET LOCAL ROLE shule_hub_runtime; SET LOCAL app.tenant_id = 'tenant-a'; SET LOCAL app.user_id = '00000000-0000-0000-0000-000000000001'; SET LOCAL app.request_id = 'req-1'; SET LOCAL app.role = 'owner'; SET LOCAL app.session_id = 'session-1'; SET LOCAL app.method = 'GET'; SET LOCAL app.path = '/students'; SET LOCAL app.client_ip = ''; SET LOCAL app.user_agent = 'database.test'; SET LOCAL app.started_at = '2026-04-26T00:00:00.000Z'; SET LOCAL app.is_authenticated = 'true'",
+      "SET LOCAL ROLE my_shule_runtime; SET LOCAL app.tenant_id = 'tenant-a'; SET LOCAL app.user_id = '00000000-0000-0000-0000-000000000001'; SET LOCAL app.request_id = 'req-1'; SET LOCAL app.role = 'owner'; SET LOCAL app.session_id = 'session-1'; SET LOCAL app.method = 'GET'; SET LOCAL app.path = '/students'; SET LOCAL app.client_ip = ''; SET LOCAL app.user_agent = 'database.test'; SET LOCAL app.started_at = '2026-04-26T00:00:00.000Z'; SET LOCAL app.is_authenticated = 'true'",
       'SELECT 42',
       'COMMIT',
     ],
@@ -118,7 +118,7 @@ test('DatabaseService.query uses the raw pool when no request context exists', a
     pool as never,
     requestContext,
     {
-      getRuntimeRoleName: () => 'shule_hub_runtime',
+      getRuntimeRoleName: () => 'my_shule_runtime',
     } as never,
     {
       get: () => undefined,
@@ -138,7 +138,7 @@ test('DatabaseService.withIndependentRequestTransaction commits outside the requ
     pool as never,
     requestContext,
     {
-      getRuntimeRoleName: () => 'shule_hub_runtime',
+      getRuntimeRoleName: () => 'my_shule_runtime',
     } as never,
     {
       get: () => undefined,
@@ -178,7 +178,7 @@ test('DatabaseService.withIndependentRequestTransaction commits outside the requ
     pool.client.queries.map((query) => query.text),
     [
       'BEGIN',
-      "SET LOCAL ROLE shule_hub_runtime; SET LOCAL app.tenant_id = ''; SET LOCAL app.user_id = 'anonymous'; SET LOCAL app.request_id = 'req-independent'; SET LOCAL app.role = 'guest'; SET LOCAL app.session_id = ''; SET LOCAL app.method = 'POST'; SET LOCAL app.path = '/auth/login'; SET LOCAL app.client_ip = ''; SET LOCAL app.user_agent = 'database.test'; SET LOCAL app.started_at = '2026-05-17T00:00:00.000Z'; SET LOCAL app.is_authenticated = 'false'",
+      "SET LOCAL ROLE my_shule_runtime; SET LOCAL app.tenant_id = ''; SET LOCAL app.user_id = 'anonymous'; SET LOCAL app.request_id = 'req-independent'; SET LOCAL app.role = 'guest'; SET LOCAL app.session_id = ''; SET LOCAL app.method = 'POST'; SET LOCAL app.path = '/auth/login'; SET LOCAL app.client_ip = ''; SET LOCAL app.user_agent = 'database.test'; SET LOCAL app.started_at = '2026-05-17T00:00:00.000Z'; SET LOCAL app.is_authenticated = 'false'",
       'INSERT INTO auth_mfa_challenges DEFAULT VALUES',
       'COMMIT',
     ],

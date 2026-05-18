@@ -25,3 +25,9 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     audience: "superadmin",
   });
 }
+
+export async function DELETE(request: NextRequest, context: RouteContext) {
+  return proxySchoolApiRequest(request, context, "/platform", {
+    audience: "superadmin",
+  });
+}

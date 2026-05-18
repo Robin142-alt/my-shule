@@ -601,7 +601,7 @@ async function requestSupportProxy<T>(
 
   const method = options?.method ?? "GET";
   const csrfHeaders: Record<string, string> =
-    method === "GET" ? {} : { "x-shulehub-csrf": await getCsrfToken() };
+    method === "GET" ? {} : { "x-myshule-csrf": await getCsrfToken() };
   const separator = path.includes("?") ? "&" : "?";
   const query = params.toString();
   const response = await fetch(`/api/support${path}${query ? `${separator}${query}` : ""}`, {

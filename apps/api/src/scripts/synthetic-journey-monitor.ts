@@ -452,7 +452,7 @@ function buildHeaders(
 ): Record<string, string> {
   const headers: Record<string, string> = {
     accept: resolveAcceptHeader(step),
-    'user-agent': 'shule-hub-synthetic-journey-monitor',
+    'user-agent': 'my-shule-synthetic-journey-monitor',
   };
 
   if (step.auth === 'tenant') {
