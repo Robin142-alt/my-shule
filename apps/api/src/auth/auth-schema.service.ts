@@ -1294,11 +1294,13 @@ export class AuthSchemaService implements OnModuleInit {
       USING (
         tenant_id = current_setting('app.tenant_id', true)
         OR NULLIF(current_setting('app.role', true), '') = 'platform_owner'
+        OR NULLIF(current_setting('app.role', true), '') = 'system'
         OR COALESCE(NULLIF(current_setting('app.path', true), ''), '') LIKE '%/auth/invitations/accept%'
       )
       WITH CHECK (
         tenant_id = current_setting('app.tenant_id', true)
         OR NULLIF(current_setting('app.role', true), '') = 'platform_owner'
+        OR NULLIF(current_setting('app.role', true), '') = 'system'
         OR COALESCE(NULLIF(current_setting('app.path', true), ''), '') LIKE '%/auth/invitations/accept%'
       );
 
@@ -1332,11 +1334,13 @@ export class AuthSchemaService implements OnModuleInit {
       USING (
         tenant_id = current_setting('app.tenant_id', true)
         OR NULLIF(current_setting('app.role', true), '') = 'platform_owner'
+        OR NULLIF(current_setting('app.role', true), '') = 'system'
         OR COALESCE(NULLIF(current_setting('app.path', true), ''), '') LIKE '%/auth/invitations/accept%'
       )
       WITH CHECK (
         tenant_id = current_setting('app.tenant_id', true)
         OR NULLIF(current_setting('app.role', true), '') = 'platform_owner'
+        OR NULLIF(current_setting('app.role', true), '') = 'system'
         OR COALESCE(NULLIF(current_setting('app.path', true), ''), '') LIKE '%/auth/invitations/accept%'
       );
 

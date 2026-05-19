@@ -57,9 +57,19 @@ import {
   createPlatformSchool,
   deletePlatformSchool,
   fetchPlatformSchools,
+  fetchPlatformModules,
+  fetchPlatformSchoolModules,
   resendPlatformSchoolAdminInvite,
+  updatePlatformSchoolModules,
   type PlatformSchool,
+  type PlatformSchoolModuleAccess,
 } from "@/lib/platform/school-onboarding-client";
+import {
+  defaultOnboardingModuleCodes,
+  fallbackModuleCatalog,
+  sortModuleCatalog,
+  type ModuleRegistryItem,
+} from "@/lib/module-access/module-access-map";
 import { toSuperadminPath } from "@/lib/routing/experience-routes";
 
 type SuperadminRouteMode = "hosted" | "public";
@@ -177,6 +187,7 @@ function unwrapPlatformPayload<T>(payload: T | ApiEnvelope<T> | null): T | null 
 
 type PlatformTenantRow = Omit<(typeof tenantRows)[number], "invitationStatus"> & {
   adminEmail?: string;
+  enabledModules?: string[];
   invitationStatus?: PlatformSchool["invitation_status"];
   invitationMessage?: string;
   invitationFailureCode?: string;
@@ -206,6 +217,7 @@ function mapPlatformSchoolToTenantRow(row: PlatformSchool): PlatformTenantRow {
     lastActive: invitationLabel,
     revenue: "KES 0",
     adminEmail: row.admin_email,
+    enabledModules: row.enabled_modules ?? [],
     invitationStatus: row.invitation_status,
     invitationMessage: row.invitation_message,
     invitationFailureCode: row.invitation_failure_code,
@@ -216,6 +228,168 @@ function mapPlatformSchoolToTenantRow(row: PlatformSchool): PlatformTenantRow {
   };
 }
 
+function ModuleAllocationEditor({
+  tenant,
+  catalog,
+  onSaved,
+}: {
+  tenant: PlatformTenantRow;
+  catalog: ModuleRegistryItem[];
+  onSaved: (tenantId: string, moduleCodes: string[]) => void;
+}) {
+  const [rows, setRows] = useState<PlatformSchoolModuleAccess[]>([]);
+  const [selectedCodes, setSelectedCodes] = useState<string[]>(tenant.enabledModules ?? []);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadTenantModules() {
+      setIsLoading(true);
+      setNotice(null);
+      setError(null);
+
+      try {
+        const accessRows = await fetchPlatformSchoolModules(tenant.id);
+
+        if (!cancelled) {
+          setRows(accessRows);
+          setSelectedCodes(accessRows.filter((row) => row.enabled).map((row) => row.code));
+        }
+      } catch (loadError) {
+        if (!cancelled) {
+          setRows(
+            catalog.map((moduleItem) => ({
+              ...moduleItem,
+              enabled: (tenant.enabledModules ?? []).includes(moduleItem.code),
+            })),
+          );
+          setSelectedCodes(tenant.enabledModules ?? []);
+          setError(
+            loadError instanceof Error
+              ? loadError.message
+              : "Unable to load live module access. Showing the last known allocation.",
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
+      }
+    }
+
+    void loadTenantModules();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [catalog, tenant.enabledModules, tenant.id]);
+
+  function toggleModule(moduleCode: string) {
+    setSelectedCodes((currentCodes) =>
+      currentCodes.includes(moduleCode)
+        ? currentCodes.filter((code) => code !== moduleCode)
+        : [...currentCodes, moduleCode],
+    );
+    setNotice(null);
+    setError(null);
+  }
+
+  async function saveModules() {
+    if (selectedCodes.length === 0) {
+      setError("Select at least one module before saving.");
+      return;
+    }
+
+    setIsSaving(true);
+    setNotice(null);
+    setError(null);
+
+    try {
+      const updatedRows = await updatePlatformSchoolModules({
+        tenantId: tenant.id,
+        moduleCodes: selectedCodes,
+      });
+      const enabledCodes = updatedRows.filter((row) => row.enabled).map((row) => row.code);
+
+      setRows(updatedRows);
+      setSelectedCodes(enabledCodes);
+      onSaved(tenant.id, enabledCodes);
+      setNotice("Module allocation updated. Disabled module data remains preserved.");
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : "Unable to update module allocation.");
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  const visibleRows = rows.length > 0 ? rows : catalog.map((moduleItem) => ({
+    ...moduleItem,
+    enabled: selectedCodes.includes(moduleItem.code),
+  }));
+
+  return (
+    <div className="space-y-3 rounded-xl border border-border bg-surface-muted p-4">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="text-sm font-semibold text-foreground">Module allocation</p>
+          <p className="mt-1 text-xs leading-5 text-muted">
+            Toggle modules without deleting the school&apos;s historical records.
+          </p>
+        </div>
+        <StatusPill
+          label={isLoading ? "Loading" : `${selectedCodes.length} enabled`}
+          tone={selectedCodes.length > 0 ? "ok" : "warning"}
+        />
+      </div>
+      {notice ? (
+        <div className="rounded-[var(--radius-sm)] border border-success/20 bg-success/10 px-3 py-2 text-sm text-foreground">
+          {notice}
+        </div>
+      ) : null}
+      {error ? (
+        <div className="rounded-[var(--radius-sm)] border border-warning/20 bg-warning/10 px-3 py-2 text-sm text-foreground">
+          {error}
+        </div>
+      ) : null}
+      <div className="grid gap-3 md:grid-cols-2">
+        {visibleRows.map((moduleItem) => {
+          const isSelected = selectedCodes.includes(moduleItem.code);
+
+          return (
+            <label
+              key={moduleItem.code}
+              className={`flex min-h-24 items-start gap-3 rounded-[var(--radius-sm)] border p-3 text-sm transition ${
+                isSelected
+                  ? "border-accent bg-surface"
+                  : "border-border bg-white/60"
+              }`}
+            >
+              <input
+                type="checkbox"
+                checked={isSelected}
+                disabled={isSaving || moduleItem.status === "inactive"}
+                onChange={() => toggleModule(moduleItem.code)}
+                className="mt-1 h-4 w-4 rounded border-border"
+              />
+              <span>
+                <span className="block font-semibold text-foreground">{moduleItem.name}</span>
+                <span className="mt-1 block leading-5 text-muted">{moduleItem.description}</span>
+              </span>
+            </label>
+          );
+        })}
+      </div>
+      <Button disabled={isSaving || isLoading} onClick={saveModules}>
+        {isSaving ? "Saving modules" : "Save module access"}
+      </Button>
+    </div>
+  );
+}
+
 function TenantsTable() {
   const [rows, setRows] = useState<PlatformTenantRow[]>(tenantRows);
   const [selectedTenantId, setSelectedTenantId] = useState<string | null>(null);
@@ -224,6 +398,8 @@ function TenantsTable() {
   const [resendingTenantId, setResendingTenantId] = useState<string | null>(null);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [schoolForm, setSchoolForm] = useState(emptySchoolForm);
+  const [moduleCatalog, setModuleCatalog] = useState<ModuleRegistryItem[]>(fallbackModuleCatalog);
+  const [selectedModuleCodes, setSelectedModuleCodes] = useState<string[]>(defaultOnboardingModuleCodes);
   const [createError, setCreateError] = useState<string | null>(null);
   const [createSuccess, setCreateSuccess] = useState<string | null>(null);
   const [createdTenantForInvite, setCreatedTenantForInvite] = useState<PlatformTenantRow | null>(null);
@@ -270,6 +446,30 @@ function TenantsTable() {
     };
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadModules() {
+      try {
+        const registry = await fetchPlatformModules();
+
+        if (!cancelled) {
+          setModuleCatalog(registry);
+        }
+      } catch {
+        if (!cancelled) {
+          setModuleCatalog(sortModuleCatalog(fallbackModuleCatalog));
+        }
+      }
+    }
+
+    void loadModules();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   async function submitSchoolCreate() {
     if (
       schoolForm.schoolName.trim().length < 2 ||
@@ -278,6 +478,11 @@ function TenantsTable() {
       !schoolForm.adminEmail.includes("@")
     ) {
       setCreateError("Enter the school name, school URL slug, admin name, and admin email.");
+      return;
+    }
+
+    if (selectedModuleCodes.length === 0) {
+      setCreateError("Select at least one module for this school.");
       return;
     }
 
@@ -293,6 +498,7 @@ function TenantsTable() {
         county: schoolForm.county.trim() || undefined,
         adminName: schoolForm.adminName.trim(),
         adminEmail: schoolForm.adminEmail.trim(),
+        moduleCodes: selectedModuleCodes,
       });
       const createdRow = mapPlatformSchoolToTenantRow(createdSchool);
       setRows((currentRows) => [
@@ -302,6 +508,7 @@ function TenantsTable() {
       setCreateSuccess(createdSchool.invitation_message);
       setCreatedTenantForInvite(createdRow);
       setSchoolForm(emptySchoolForm);
+      setSelectedModuleCodes(defaultOnboardingModuleCodes);
     } catch (error) {
       setCreateError(
         error instanceof Error
@@ -325,6 +532,27 @@ function TenantsTable() {
             }
           : row,
       ),
+    );
+  }
+
+  function toggleOnboardingModule(moduleCode: string) {
+    setSelectedModuleCodes((currentCodes) =>
+      currentCodes.includes(moduleCode)
+        ? currentCodes.filter((code) => code !== moduleCode)
+        : [...currentCodes, moduleCode],
+    );
+  }
+
+  function updateTenantModules(tenantId: string, moduleCodes: string[]) {
+    setRows((currentRows) =>
+      currentRows.map((row) =>
+        row.id === tenantId ? { ...row, enabledModules: moduleCodes } : row,
+      ),
+    );
+    setCreatedTenantForInvite((currentTenant) =>
+      currentTenant?.id === tenantId
+        ? { ...currentTenant, enabledModules: moduleCodes }
+        : currentTenant,
     );
   }
 
@@ -435,6 +663,13 @@ function TenantsTable() {
       render: (row) => <StatusPill label={row.status} tone={row.statusTone} />,
     },
     { id: "subscription", header: "Subscription", render: (row) => row.subscription },
+    {
+      id: "modules",
+      header: "Modules",
+      render: (row) => `${row.enabledModules?.length ?? 0} enabled`,
+      className: "text-right",
+      headerClassName: "text-right",
+    },
     { id: "studentCount", header: "Student Count", render: (row) => row.studentCount, className: "text-right", headerClassName: "text-right" },
     { id: "lastActive", header: "Last Active", render: (row) => row.lastActive },
     { id: "revenue", header: "Revenue", render: (row) => row.revenue, className: "text-right font-semibold", headerClassName: "text-right" },
@@ -511,6 +746,7 @@ function TenantsTable() {
           setCreateError(null);
           setCreateSuccess(null);
           setCreatedTenantForInvite(null);
+          setSelectedModuleCodes(defaultOnboardingModuleCodes);
         }}>
           <Plus className="h-4 w-4" />
           Create school
@@ -631,6 +867,53 @@ function TenantsTable() {
               />
             </label>
           ))}
+        </div>
+        <div className="mt-5 space-y-3">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="text-sm font-semibold text-foreground">Module stack</p>
+              <p className="mt-1 text-[13px] text-muted">
+                Enable only the modules this school should receive on day one.
+              </p>
+            </div>
+            <StatusPill
+              label={`${selectedModuleCodes.length} selected`}
+              tone={selectedModuleCodes.length > 0 ? "ok" : "warning"}
+            />
+          </div>
+          <div className="grid gap-3 md:grid-cols-2">
+            {moduleCatalog.map((moduleItem) => {
+              const isSelected = selectedModuleCodes.includes(moduleItem.code);
+
+              return (
+                <label
+                  key={moduleItem.code}
+                  className={`flex min-h-28 items-start gap-3 rounded-[var(--radius-sm)] border p-3 text-sm transition ${
+                    isSelected
+                      ? "border-accent bg-accent-soft"
+                      : "border-border bg-surface-muted"
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={isSelected}
+                    disabled={isCreating || moduleItem.status === "inactive"}
+                    onChange={() => toggleOnboardingModule(moduleItem.code)}
+                    className="mt-1 h-4 w-4 rounded border-border"
+                  />
+                  <span>
+                    <span className="block font-semibold text-foreground">{moduleItem.name}</span>
+                    <span className="mt-1 block leading-5 text-muted">{moduleItem.description}</span>
+                    {moduleItem.status === "inactive" ? (
+                      <span className="mt-2 inline-flex text-xs font-semibold text-warning">
+                        Globally inactive
+                      </span>
+                    ) : null}
+                  </span>
+                </label>
+              );
+            })}
+          </div>
         </div>
         {createError ? (
           <div className="mt-4 rounded-[var(--radius-sm)] border border-danger/20 bg-danger/10 px-4 py-3 text-sm text-danger">
@@ -810,6 +1093,11 @@ function TenantsTable() {
                 ) : null}
               </div>
             </div>
+            <ModuleAllocationEditor
+              tenant={selectedTenant}
+              catalog={moduleCatalog}
+              onSaved={updateTenantModules}
+            />
             {resetMessage ? (
               <div className="rounded-xl border border-success/20 bg-success/10 px-4 py-3 text-sm text-foreground">
                 {resetMessage}

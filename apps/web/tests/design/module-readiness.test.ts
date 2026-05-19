@@ -9,17 +9,34 @@ import { buildSchoolErpModel } from "@/lib/dashboard/erp-model";
 import { getSchoolWorkspace, type SchoolExperienceRole } from "@/lib/experiences/school-data";
 import { isProductionReadyHref, isProductionReadyModule } from "@/lib/features/module-readiness";
 
-const incompleteModules = new Set([
+const moduleControlledProductionSections = new Set([
   "academics",
-  "attendance",
   "communication",
   "reports",
   "staff",
   "timetable",
+  "library",
+  "labs",
+  "leadership",
+  "teacher-attendance",
+]);
+
+const inactiveModules = new Set([
+  "attendance",
 ]);
 
 const dashboardRoles = ["admin", "teacher", "parent", "bursar", "storekeeper", "admissions"] as const;
-const schoolRoles: SchoolExperienceRole[] = ["principal", "bursar", "teacher", "admin", "storekeeper", "admissions"];
+const schoolRoles: SchoolExperienceRole[] = [
+  "principal",
+  "deputy-principal",
+  "secretary",
+  "bursar",
+  "teacher",
+  "admin",
+  "storekeeper",
+  "admissions",
+  "librarian",
+];
 
 function moduleFromDashboardHref(href: string) {
   const segments = href.split(/[?#]/)[0].split("/").filter(Boolean);
@@ -35,14 +52,14 @@ describe("production module readiness", () => {
   it("hides incomplete modules from role sidebar navigation", () => {
     for (const role of dashboardRoles) {
       const sidebarIds = getRoleSidebar(role).map((item) => item.id);
-      expect(sidebarIds.filter((id) => incompleteModules.has(id))).toEqual([]);
+      expect(sidebarIds.filter((id) => inactiveModules.has(id))).toEqual([]);
     }
   });
 
   it("hides incomplete modules from school workspace navigation", () => {
     for (const role of schoolRoles) {
       const workspaceIds = getSchoolWorkspace(role).navItems.map((item) => item.id);
-      expect(workspaceIds.filter((id) => incompleteModules.has(id))).toEqual([]);
+      expect(workspaceIds.filter((id) => inactiveModules.has(id))).toEqual([]);
     }
   });
 
@@ -51,25 +68,34 @@ describe("production module readiness", () => {
       const actionModules = getRoleQuickActions(role).map((action) => action.href);
       const capabilityCategories = getRoleCapabilities(role).map((capability) => capability.category);
 
-      expect(actionModules.filter((module) => incompleteModules.has(module))).toEqual([]);
-      expect(capabilityCategories.filter((category) => incompleteModules.has(category))).toEqual([]);
+      expect(actionModules.filter((module) => inactiveModules.has(module))).toEqual([]);
+      expect(capabilityCategories.filter((category) => inactiveModules.has(category))).toEqual([]);
     }
   });
 
   it("prevents direct access checks from treating incomplete modules as available", () => {
-    expect(doesModuleExist("communication")).toBe(false);
-    expect(doesModuleExist("reports")).toBe(false);
-    expect(canRoleAccessModule("teacher", "academics")).toBe(false);
+    expect(doesModuleExist("communication")).toBe(true);
+    expect(doesModuleExist("reports")).toBe(true);
+    expect(canRoleAccessModule("teacher", "academics")).toBe(true);
     expect(canRoleAccessModule("admin", "attendance")).toBe(false);
   });
 
-  it("keeps the implemented exams module available while attendance stays retired", () => {
+  it("keeps module-controlled production surfaces available while attendance stays retired", () => {
     expect(isProductionReadyModule("exams")).toBe(true);
     expect(isProductionReadyHref("/school/teacher/exams")).toBe(true);
     expect(isProductionReadyModule("attendance")).toBe(false);
 
+    for (const moduleId of moduleControlledProductionSections) {
+      expect(isProductionReadyModule(moduleId)).toBe(true);
+      expect(isProductionReadyHref(`/school/principal/${moduleId}`)).toBe(true);
+    }
+
     expect(getSchoolWorkspace("principal").navItems.map((item) => item.id)).toContain("exams");
     expect(getSchoolWorkspace("teacher").navItems.map((item) => item.id)).toContain("exams");
+    expect(getSchoolWorkspace("principal").navItems.map((item) => item.id)).toContain("leadership");
+    expect(getSchoolWorkspace("principal").navItems.map((item) => item.id)).toContain("teacher-attendance");
+    expect(getSchoolWorkspace("teacher").navItems.map((item) => item.id)).toContain("labs");
+    expect(getSchoolWorkspace("librarian").navItems.map((item) => item.id)).toContain("library");
   });
 
   it("does not generate dashboard KPI links into inactive workflows", () => {
@@ -81,7 +107,7 @@ describe("production module readiness", () => {
       });
       const kpiModules = model.dashboard.kpis.map((kpi) => moduleFromDashboardHref(kpi.href));
 
-      expect(kpiModules.filter((module) => incompleteModules.has(module))).toEqual([]);
+      expect(kpiModules.filter((module) => inactiveModules.has(module))).toEqual([]);
     }
   });
 });

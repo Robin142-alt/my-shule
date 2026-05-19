@@ -1,9 +1,11 @@
 import { Controller, Get, Query } from '@nestjs/common';
 
 import { Permissions } from '../../auth/decorators/permissions.decorator';
+import { RequiresModule } from '../../modules/module-access/module-access.decorator';
 import { ReportSnapshotRepository } from './report-snapshot.repository';
 
 @Controller('reports')
+@RequiresModule('reports')
 export class ReportExportJobsController {
   constructor(private readonly reportSnapshots: ReportSnapshotRepository) {}
 

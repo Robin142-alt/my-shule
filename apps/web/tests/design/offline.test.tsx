@@ -36,12 +36,12 @@ describe("STEP 6: Offline UI tests", () => {
     expect(screen.queryByRole("button", { name: /send sms/i })).not.toBeInTheDocument();
   });
 
-  it("does not expose retired teacher attendance actions while offline", () => {
+  it("keeps retired teacher attendance actions hidden and disables active communication while offline", () => {
     renderDashboardScreen({ role: "teacher", online: false });
 
     expect(
       screen.queryByRole("button", { name: /mark attendance/i }),
     ).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /send sms/i })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /send sms/i })).toBeDisabled();
   });
 });

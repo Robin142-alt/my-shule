@@ -1,6 +1,7 @@
 import { Body, Controller, Get, Post, Query } from '@nestjs/common';
 
 import { Permissions } from '../../auth/decorators/permissions.decorator';
+import { RequiresModule } from '../module-access/module-access.decorator';
 import {
   IssueLibraryByScanDto,
   IssueLibraryCopyDto,
@@ -11,6 +12,7 @@ import {
 import { LibraryService } from './library.service';
 
 @Controller('library')
+@RequiresModule('library')
 export class LibraryController {
   constructor(private readonly libraryService: LibraryService) {}
 

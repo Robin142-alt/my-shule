@@ -1,6 +1,7 @@
 import { Body, Controller, Get, Post, Query } from '@nestjs/common';
 
 import { Permissions } from '../../auth/decorators/permissions.decorator';
+import { RequiresModule } from '../module-access/module-access.decorator';
 import {
   CreateSmsPurchaseRequestDto,
   SendSmsDto,
@@ -8,6 +9,7 @@ import {
 import { SchoolSmsWalletService } from './school-sms-wallet.service';
 
 @Controller()
+@RequiresModule('communication_sms')
 export class SchoolSmsController {
   constructor(private readonly schoolSmsWalletService: SchoolSmsWalletService) {}
 

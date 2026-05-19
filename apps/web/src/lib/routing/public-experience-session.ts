@@ -7,7 +7,15 @@ import {
   SCHOOL_SESSION_COOKIE,
   SUPERADMIN_SESSION_COOKIE,
 } from "@/lib/auth/experience-routing";
+import {
+  readAccessCookie,
+  readTenantCookie,
+} from "@/lib/auth/server-session";
 import type { PortalViewer, SchoolExperienceRole } from "@/lib/experiences/types";
+import {
+  checkSchoolModuleAccess,
+  type SchoolModuleAccessState,
+} from "@/lib/module-access/server-school-module-access";
 
 export async function readPublicSuperadminSession() {
   const cookieStore = await cookies();
@@ -74,7 +82,18 @@ export async function readLibrarianLibrarySession() {
     redirect("/forbidden");
   }
 
-  return session;
+  const tenantId = readTenantCookie(cookieStore) ?? session.tenantSlug;
+  const accessToken = readAccessCookie(cookieStore);
+  const libraryModuleAccess: SchoolModuleAccessState = await checkSchoolModuleAccess({
+    tenantId,
+    accessToken,
+    moduleCode: "library",
+  });
+
+  return {
+    ...session,
+    libraryModuleAccess,
+  };
 }
 
 export async function readPublicPortalSession(expectedViewer?: PortalViewer) {

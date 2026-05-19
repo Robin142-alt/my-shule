@@ -862,7 +862,7 @@ export class DisciplineRepository {
     class_id: string;
     academic_term_id: string;
     academic_year_id: string;
-    source_type: 'incident' | 'commendation' | 'correction';
+    source_type: 'incident' | 'commendation' | 'correction' | 'lab_attendance';
     source_id: string;
     points_delta: number;
     reason: string;

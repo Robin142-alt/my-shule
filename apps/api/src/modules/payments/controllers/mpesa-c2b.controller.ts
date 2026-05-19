@@ -16,6 +16,7 @@ import type { Request } from 'express';
 
 import { Public } from '../../../auth/decorators/public.decorator';
 import { Permissions } from '../../../auth/decorators/permissions.decorator';
+import { RequiresModule } from '../../module-access/module-access.decorator';
 import { ReconcileMpesaC2bPaymentDto } from '../dto/reconcile-mpesa-c2b-payment.dto';
 import { MpesaC2bPaymentEntity } from '../entities/mpesa-c2b-payment.entity';
 import {
@@ -62,6 +63,7 @@ export class MpesaC2bController {
   }
 
   @Get('payments')
+  @RequiresModule('finance')
   @Permissions('billing:read')
   async listPayments(
     @Query('status') status?: MpesaC2bPaymentStatus,
@@ -72,6 +74,7 @@ export class MpesaC2bController {
   }
 
   @Post('payments/:paymentId/reconcile')
+  @RequiresModule('finance')
   @Permissions('billing:update')
   async reconcilePayment(
     @Param('paymentId') paymentId: string,

@@ -1,4 +1,9 @@
 import { getCsrfToken } from "@/lib/auth/csrf-client";
+import {
+  fallbackModuleCatalog,
+  sortModuleCatalog,
+  type ModuleRegistryItem,
+} from "@/lib/module-access/module-access-map";
 
 export type PlatformSchool = {
   tenant_id: string;
@@ -15,6 +20,14 @@ export type PlatformSchool = {
   invite_expires_at: string;
   admin_email: string;
   created_at: string;
+  enabled_modules?: string[];
+};
+
+export type PlatformSchoolModuleAccess = ModuleRegistryItem & {
+  enabled: boolean;
+  enabled_at?: string | null;
+  disabled_at?: string | null;
+  updated_by?: string | null;
 };
 
 export type PlatformSchoolDeleteResponse = {
@@ -45,24 +58,31 @@ function isEnvelope<T>(value: unknown): value is ApiEnvelope<T> {
   );
 }
 
-async function parsePlatformResponse(response: Response) {
+async function parsePlatformResponse<T>(
+  response: Response,
+  fallbackMessage = "Unable to complete this platform request.",
+) {
   const payload = (await response.json().catch(() => null)) as
     | { message?: string }
-    | PlatformSchool
-    | PlatformSchool[]
-    | PlatformSchoolDeleteResponse
-    | ApiEnvelope<PlatformSchool | PlatformSchool[] | PlatformSchoolDeleteResponse>
+    | T
+    | ApiEnvelope<T>
     | null;
 
   if (!response.ok) {
-    throw new Error(
-      payload && "message" in payload && payload.message
+    const message =
+      payload &&
+      typeof payload === "object" &&
+      "message" in payload &&
+      typeof payload.message === "string"
         ? payload.message
-        : "Unable to complete this platform request.",
+        : fallbackMessage;
+
+    throw new Error(
+      message,
     );
   }
 
-  return isEnvelope<PlatformSchool | PlatformSchool[] | PlatformSchoolDeleteResponse>(payload)
+  return isEnvelope<T>(payload)
     ? payload.data
     : payload;
 }
@@ -93,9 +113,40 @@ export async function fetchPlatformSchools() {
     credentials: "same-origin",
     cache: "no-store",
   });
-  const payload = await parsePlatformResponse(response);
+  const payload = await parsePlatformResponse<PlatformSchool[]>(response);
 
   return Array.isArray(payload) ? payload : [];
+}
+
+export async function fetchPlatformModules() {
+  const response = await fetch("/api/platform/modules", {
+    method: "GET",
+    credentials: "same-origin",
+    cache: "no-store",
+  });
+  const payload = await parsePlatformResponse<ModuleRegistryItem[]>(
+    response,
+    "Unable to load the platform module registry.",
+  );
+
+  return sortModuleCatalog(Array.isArray(payload) ? payload : fallbackModuleCatalog);
+}
+
+export async function fetchPlatformSchoolModules(tenantId: string) {
+  const response = await fetch(
+    `/api/platform/schools/${encodeURIComponent(tenantId)}/modules`,
+    {
+      method: "GET",
+      credentials: "same-origin",
+      cache: "no-store",
+    },
+  );
+  const payload = await parsePlatformResponse<PlatformSchoolModuleAccess[]>(
+    response,
+    "Unable to load school module access.",
+  );
+
+  return Array.isArray(payload) ? sortModuleCatalog(payload) as PlatformSchoolModuleAccess[] : [];
 }
 
 export async function createPlatformSchool(input: {
@@ -104,6 +155,7 @@ export async function createPlatformSchool(input: {
   adminEmail: string;
   adminName: string;
   county?: string;
+  moduleCodes?: string[];
 }) {
   const response = await fetchWithTimeout("/api/platform/schools", {
     method: "POST",
@@ -118,11 +170,38 @@ export async function createPlatformSchool(input: {
       admin_email: input.adminEmail,
       admin_name: input.adminName,
       county: input.county,
+      module_codes: input.moduleCodes,
     }),
   });
-  const payload = await parsePlatformResponse(response);
+  const payload = await parsePlatformResponse<PlatformSchool>(response);
 
   return payload as PlatformSchool;
+}
+
+export async function updatePlatformSchoolModules(input: {
+  tenantId: string;
+  moduleCodes: string[];
+}) {
+  const response = await fetchWithTimeout(
+    `/api/platform/schools/${encodeURIComponent(input.tenantId)}/modules`,
+    {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        "x-myshule-csrf": await getCsrfToken(),
+      },
+      credentials: "same-origin",
+      body: JSON.stringify({
+        module_codes: input.moduleCodes,
+      }),
+    },
+  );
+  const payload = await parsePlatformResponse<PlatformSchoolModuleAccess[]>(
+    response,
+    "Unable to update school modules.",
+  );
+
+  return Array.isArray(payload) ? sortModuleCatalog(payload) as PlatformSchoolModuleAccess[] : [];
 }
 
 export async function resendPlatformSchoolAdminInvite(tenantId: string) {
@@ -137,7 +216,7 @@ export async function resendPlatformSchoolAdminInvite(tenantId: string) {
       credentials: "same-origin",
     },
   );
-  const payload = await parsePlatformResponse(response);
+  const payload = await parsePlatformResponse<PlatformSchool>(response);
 
   return payload as PlatformSchool;
 }
@@ -164,7 +243,7 @@ export async function deletePlatformSchool(input: {
       }),
     },
   );
-  const payload = await parsePlatformResponse(response);
+  const payload = await parsePlatformResponse<PlatformSchoolDeleteResponse>(response);
 
   return payload as PlatformSchoolDeleteResponse;
 }

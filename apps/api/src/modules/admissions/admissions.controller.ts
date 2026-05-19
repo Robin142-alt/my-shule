@@ -13,6 +13,7 @@ import {
 
 import { Permissions } from '../../auth/decorators/permissions.decorator';
 import { StreamingUploadInterceptor } from '../../common/uploads/streaming-upload.interceptor';
+import { RequiresModule } from '../module-access/module-access.decorator';
 import {
   ReportExportQueueService,
   type QueueReportExportRequest,
@@ -31,6 +32,7 @@ import { AdmissionsService } from './admissions.service';
 import type { UploadedBinaryFile } from './storage/local-document-storage.service';
 
 @Controller('admissions')
+@RequiresModule('admissions')
 export class AdmissionsController {
   constructor(
     private readonly admissionsService: AdmissionsService,

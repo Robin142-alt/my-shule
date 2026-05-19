@@ -265,9 +265,15 @@ export class DisciplineSchemaService implements OnModuleInit {
         awarded_at timestamptz NOT NULL DEFAULT now(),
         metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
         created_at timestamptz NOT NULL DEFAULT now(),
-        CONSTRAINT ck_behavior_points_source CHECK (source_type IN ('incident', 'commendation', 'correction')),
+        CONSTRAINT ck_behavior_points_source CHECK (source_type IN ('incident', 'commendation', 'correction', 'lab_attendance')),
         CONSTRAINT ck_behavior_points_reason CHECK (btrim(reason) <> '')
       );
+
+      ALTER TABLE behavior_points
+        DROP CONSTRAINT IF EXISTS ck_behavior_points_source;
+      ALTER TABLE behavior_points
+        ADD CONSTRAINT ck_behavior_points_source
+        CHECK (source_type IN ('incident', 'commendation', 'correction', 'lab_attendance'));
 
       CREATE TABLE IF NOT EXISTS commendations (
         id uuid PRIMARY KEY DEFAULT gen_random_uuid(),

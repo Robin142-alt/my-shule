@@ -5,6 +5,7 @@ import {
   ReportExportQueueService,
   type QueueReportExportRequest,
 } from '../../common/reports/report-export-queue';
+import { RequiresModule } from '../module-access/module-access.decorator';
 import { AdjustStockDto, CreateInventoryItemDto, UpdateInventoryItemDto } from './dto/create-inventory-item.dto';
 import {
   CreateInventoryCategoryDto,
@@ -28,6 +29,7 @@ import { ListInventoryQueryDto } from './dto/list-inventory-query.dto';
 import { InventoryService } from './inventory.service';
 
 @Controller('inventory')
+@RequiresModule('inventory')
 export class InventoryController {
   constructor(
     private readonly inventoryService: InventoryService,

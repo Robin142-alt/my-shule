@@ -1,0 +1,153 @@
+import {
+  BadRequestException,
+  Injectable,
+  MessageEvent,
+  Optional,
+  ServiceUnavailableException,
+  UnauthorizedException,
+} from '@nestjs/common';
+import { Observable } from 'rxjs';
+
+import { RequestContextService } from '../../common/request-context/request-context.service';
+import {
+  CreateAdminIncidentDto,
+  CreateAnnouncementDto,
+  CreateMeetingMinutesDto,
+} from './dto/admin-command.dto';
+import { PrincipalInsightsService } from './principal-insights.service';
+import { AdminCommandRepository } from './repositories/admin-command.repository';
+
+@Injectable()
+export class AdminCommandService {
+  constructor(
+    private readonly requestContext: RequestContextService,
+    private readonly repository: AdminCommandRepository,
+    @Optional()
+    private readonly principalInsights?: PrincipalInsightsService,
+  ) {}
+
+  getPrincipalDashboard() {
+    if (this.principalInsights) {
+      return this.principalInsights.buildDashboard(this.requireTenantId());
+    }
+
+    return this.repository.getPrincipalDashboard(this.requireTenantId());
+  }
+
+  streamPrincipalDashboard(): Observable<MessageEvent> {
+    if (!this.principalInsights) {
+      throw new ServiceUnavailableException('Principal insight streaming is not available');
+    }
+
+    return this.principalInsights.streamDashboard(this.requireTenantId());
+  }
+
+  getDeputyDashboard() {
+    return this.repository.getDeputyDashboard(this.requireTenantId());
+  }
+
+  getSecretaryDashboard() {
+    return this.repository.getSecretaryDashboard(this.requireTenantId());
+  }
+
+  async createIncident(dto: CreateAdminIncidentDto) {
+    const incident = await this.repository.createIncident({
+      tenant_id: this.requireTenantId(),
+      title: this.requireText(dto.title, 'Incident title'),
+      description: this.requireText(dto.description, 'Incident description'),
+      severity: this.requireSeverity(dto.severity),
+      involved_parties: dto.involved_parties ?? [],
+      created_by: this.requireUserId(),
+    });
+    await this.audit('admin_command.incident_created', 'admin_incident', incident?.id, dto);
+
+    return incident;
+  }
+
+  async createAnnouncement(dto: CreateAnnouncementDto) {
+    const announcement = await this.repository.createAnnouncement({
+      tenant_id: this.requireTenantId(),
+      title: this.requireText(dto.title, 'Announcement title'),
+      body: this.requireText(dto.body, 'Announcement body'),
+      channels: dto.channels ?? ['in_app'],
+      audience: dto.audience ?? {},
+      created_by: this.requireUserId(),
+    });
+    await this.audit('admin_command.announcement_created', 'announcement', announcement?.id, dto);
+
+    return announcement;
+  }
+
+  async createMeetingMinutes(dto: CreateMeetingMinutesDto) {
+    const minutes = await this.repository.createMeetingMinutes({
+      tenant_id: this.requireTenantId(),
+      meeting_date: this.requireText(dto.meeting_date, 'Meeting date'),
+      title: this.requireText(dto.title, 'Meeting title'),
+      agenda: dto.agenda ?? [],
+      minutes: this.requireText(dto.minutes, 'Meeting minutes'),
+      action_items: dto.action_items ?? [],
+      created_by: this.requireUserId(),
+    });
+    await this.audit('admin_command.meeting_minutes_created', 'meeting_minutes', minutes?.id, dto);
+
+    return minutes;
+  }
+
+  private async audit(
+    action: string,
+    entityType: string,
+    entityId: string | undefined,
+    metadata: unknown,
+  ) {
+    await this.repository.appendAuditLog({
+      tenant_id: this.requireTenantId(),
+      actor_user_id: this.currentUserId(),
+      action,
+      entity_type: entityType,
+      entity_id: entityId ?? null,
+      metadata: metadata && typeof metadata === 'object' ? metadata : {},
+    });
+  }
+
+  private requireTenantId(): string {
+    const tenantId = this.requestContext.getStore()?.tenant_id;
+
+    if (!tenantId) {
+      throw new UnauthorizedException('Tenant context is required for administrative command operations');
+    }
+
+    return tenantId;
+  }
+
+  private requireUserId(): string {
+    const userId = this.currentUserId();
+
+    if (!userId) {
+      throw new UnauthorizedException('Authenticated user is required for administrative command operations');
+    }
+
+    return userId;
+  }
+
+  private currentUserId(): string | null {
+    return this.requestContext.getStore()?.user_id ?? null;
+  }
+
+  private requireText(value: string | undefined, fieldName: string): string {
+    const normalized = value?.trim() ?? '';
+
+    if (!normalized) {
+      throw new BadRequestException(`${fieldName} is required`);
+    }
+
+    return normalized;
+  }
+
+  private requireSeverity(value: string): 'low' | 'medium' | 'high' | 'critical' {
+    if (value === 'low' || value === 'medium' || value === 'high' || value === 'critical') {
+      return value;
+    }
+
+    throw new BadRequestException('Incident severity is invalid');
+  }
+}

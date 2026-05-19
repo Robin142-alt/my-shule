@@ -4,6 +4,8 @@ export type ExperienceIcon = LucideIcon;
 
 export type SchoolExperienceRole =
   | "principal"
+  | "deputy-principal"
+  | "secretary"
   | "bursar"
   | "teacher"
   | "admin"

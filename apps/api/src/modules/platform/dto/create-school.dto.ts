@@ -1,4 +1,12 @@
-import { IsBoolean, IsEmail, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
+import {
+  IsArray,
+  IsBoolean,
+  IsEmail,
+  IsOptional,
+  IsString,
+  MaxLength,
+  MinLength,
+} from 'class-validator';
 
 export class CreateSchoolDto {
   @IsString()
@@ -23,6 +31,11 @@ export class CreateSchoolDto {
   @IsString()
   @MaxLength(80)
   county?: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  module_codes?: string[];
 }
 
 export class DeleteSchoolDto {
@@ -56,6 +69,7 @@ export type PlatformSchoolResponseDto = {
   invite_expires_at: string;
   admin_email: string;
   created_at: string;
+  enabled_modules: string[];
 };
 
 export type PlatformSchoolUsageSummaryDto = {

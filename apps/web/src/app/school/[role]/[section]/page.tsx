@@ -6,7 +6,7 @@ import { isProductionReadyModule } from "@/lib/features/module-readiness";
 import { readPublicSchoolSession } from "@/lib/routing/public-experience-session";
 import { isSchoolSection } from "@/lib/routing/experience-routes";
 
-const allowedRoles = ["principal", "bursar", "teacher", "admin", "storekeeper", "admissions", "librarian"] as const;
+const allowedRoles = ["principal", "deputy-principal", "secretary", "bursar", "teacher", "admin", "storekeeper", "admissions", "librarian"] as const;
 const supportSections = new Set([
   "support-new-ticket",
   "support-my-tickets",

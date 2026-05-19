@@ -15,12 +15,11 @@ describe("STEP 4: Role tests", () => {
     expect(screen.getByRole("button", { name: /record payment/i })).toBeVisible();
   });
 
-  it("keeps teacher dashboard free of inactive academics, communication, attendance, and finance controls", () => {
+  it("keeps teacher dashboard focused on active academics and communication without attendance or finance controls", () => {
     renderDashboardScreen({ role: "teacher" });
 
-    expect(screen.queryByRole("link", { name: /class planner/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /send sms/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: /open academics/i })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /class planner/i })).toBeVisible();
+    expect(screen.getByRole("button", { name: /send sms/i })).toBeVisible();
     expect(screen.queryByRole("link", { name: /attendance today/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /mark attendance/i })).not.toBeInTheDocument();
     expect(

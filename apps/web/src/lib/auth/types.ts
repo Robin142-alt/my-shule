@@ -9,6 +9,8 @@ export type SuperAdminRole = "platform_owner" | "support_agent" | "finance_admin
 /** School ERP roles */
 export type SchoolRole =
   | "principal"
+  | "deputy-principal"
+  | "secretary"
   | "bursar"
   | "teacher"
   | "registrar"

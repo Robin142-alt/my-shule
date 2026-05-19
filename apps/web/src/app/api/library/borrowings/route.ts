@@ -12,6 +12,11 @@ import {
   isDashboardApiConfigured,
   requestDashboardApi,
 } from "@/lib/dashboard/api-client";
+import {
+  checkSchoolModuleAccess,
+  getSchoolModuleAccessFailureMessage,
+  getSchoolModuleAccessFailureStatus,
+} from "@/lib/module-access/server-school-module-access";
 
 export async function POST(request: NextRequest) {
   if (!validateCsrfRequest(request)) {
@@ -33,6 +38,24 @@ export async function POST(request: NextRequest) {
 
   const tenantId = readTenantCookie(cookieStore) ?? session.tenantSlug;
   const accessToken = readAccessCookie(cookieStore);
+  const moduleAccess = await checkSchoolModuleAccess({
+    tenantId,
+    accessToken,
+    moduleCode: "library",
+  });
+
+  if (!moduleAccess.enabled) {
+    return NextResponse.json(
+      {
+        synced: false,
+        message:
+          moduleAccess.reason === "module_disabled"
+            ? "Module not enabled for your school"
+            : getSchoolModuleAccessFailureMessage(moduleAccess),
+      },
+      { status: getSchoolModuleAccessFailureStatus(moduleAccess) },
+    );
+  }
 
   if (!isDashboardApiConfigured() || !tenantId || !accessToken) {
     return NextResponse.json(

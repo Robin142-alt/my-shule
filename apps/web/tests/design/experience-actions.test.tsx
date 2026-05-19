@@ -41,6 +41,20 @@ function emptyReconciliationReport() {
   };
 }
 
+const enabledSchoolModules = [
+  "students",
+  "admissions",
+  "academics",
+  "finance",
+  "communication_sms",
+  "reports",
+  "staff",
+  "timetable",
+  "inventory",
+  "admin_command_centers",
+  "principal_dashboard",
+];
+
 describe("experience actions", () => {
   it("supports shell search and notifications inside the hosted school workspace", async () => {
     const user = userEvent.setup();
@@ -131,13 +145,7 @@ describe("experience actions", () => {
   it("records a school payment through the collections workspace", async () => {
     const user = userEvent.setup();
     const originalFetch = global.fetch;
-    const fetchMock = jest
-      .fn()
-      .mockResolvedValueOnce(jsonResponse([]))
-      .mockResolvedValueOnce(jsonResponse([]))
-      .mockResolvedValueOnce(jsonResponse(emptyReconciliationReport()))
-      .mockResolvedValueOnce(jsonResponse([]))
-      .mockResolvedValueOnce(jsonResponse([
+    const learnerSearchResponse = [
         {
           id: "student-mercy-atieno",
           admission_number: "ADM-024",
@@ -147,12 +155,44 @@ describe("experience actions", () => {
           stream_name: "East",
           primary_guardian_phone: "+254700000000",
         },
-      ]))
-      .mockResolvedValueOnce(jsonResponse({ token: "csrf-payment-token" }))
-      .mockResolvedValueOnce(jsonResponse({ id: "manual-payment-1", status: "cleared" }))
-      .mockResolvedValueOnce(jsonResponse([]))
-      .mockResolvedValueOnce(jsonResponse([]))
-      .mockResolvedValueOnce(jsonResponse(emptyReconciliationReport()));
+      ];
+    const fetchMock = jest.fn((input: RequestInfo | URL) => {
+      const url = typeof input === "string" ? input : input.toString();
+
+      if (url.includes("/api/school/modules/me")) {
+        return Promise.resolve(jsonResponse({ data: enabledSchoolModules }));
+      }
+
+      if (url.includes("/api/billing/finance-activity")) {
+        return Promise.resolve(jsonResponse([]));
+      }
+
+      if (url.includes("/api/billing/student-balances")) {
+        return Promise.resolve(jsonResponse([]));
+      }
+
+      if (url.includes("/api/billing/reconciliation")) {
+        return Promise.resolve(jsonResponse(emptyReconciliationReport()));
+      }
+
+      if (url.includes("/api/billing/fee-structures")) {
+        return Promise.resolve(jsonResponse([]));
+      }
+
+      if (url.includes("/api/admissions/students")) {
+        return Promise.resolve(jsonResponse(learnerSearchResponse));
+      }
+
+      if (url.includes("/api/auth/csrf")) {
+        return Promise.resolve(jsonResponse({ token: "csrf-payment-token" }));
+      }
+
+      if (url.includes("/api/billing/manual-fee-payments")) {
+        return Promise.resolve(jsonResponse({ id: "manual-payment-1", status: "cleared" }));
+      }
+
+      return Promise.resolve(jsonResponse({}));
+    });
 
     global.fetch = fetchMock as unknown as typeof fetch;
 

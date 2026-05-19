@@ -10,6 +10,15 @@ const productionReadyModules = new Set([
   "library",
   "discipline",
   "exams",
+  "academics",
+  "communication",
+  "reports",
+  "staff",
+  "timetable",
+  "labs",
+  "clinic",
+  "leadership",
+  "teacher-attendance",
   "settings",
   "support-new-ticket",
   "support-my-tickets",
@@ -18,12 +27,7 @@ const productionReadyModules = new Set([
 ]);
 
 const inactiveModules = new Set([
-  "academics",
   "attendance",
-  "communication",
-  "reports",
-  "staff",
-  "timetable",
 ]);
 
 export function isInactiveModule(moduleId: string) {

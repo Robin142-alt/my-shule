@@ -6,6 +6,7 @@ import {
   MessageSquareText,
   ReceiptText,
   ShieldAlert,
+  Stethoscope,
 } from "lucide-react";
 
 import { formatCurrency } from "@/lib/dashboard/format";
@@ -25,6 +26,7 @@ const portalNavBase = {
     { id: "fees", label: "Fees", href: toPortalPath("fees"), icon: ReceiptText, group: "Learner record" },
     { id: "academics", label: "Academics", href: toPortalPath("academics"), icon: BookOpenCheck, group: "Learner record" },
     { id: "discipline", label: "Behavior", href: toPortalPath("discipline"), icon: ShieldAlert, group: "Learner record" },
+    { id: "health", label: "Health", href: toPortalPath("health"), icon: Stethoscope, group: "Learner record" },
     { id: "messages", label: "Messages", href: toPortalPath("messages"), icon: MessageSquareText, group: "School contact" },
     { id: "downloads", label: "Downloads", href: toPortalPath("downloads"), icon: Download, group: "School contact" },
     { id: "notifications", label: "Notifications", href: toPortalPath("notifications"), icon: BellRing, group: "School contact" },

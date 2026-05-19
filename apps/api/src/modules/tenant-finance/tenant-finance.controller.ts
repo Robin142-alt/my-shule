@@ -2,6 +2,7 @@ import { Body, Controller, Get, Param, Patch, Post, Put, UnauthorizedException }
 
 import { Permissions } from '../../auth/decorators/permissions.decorator';
 import { RequestContextService } from '../../common/request-context/request-context.service';
+import { RequiresModule } from '../module-access/module-access.decorator';
 import { UpsertTenantBankAccountDto } from './dto/upsert-tenant-bank-account.dto';
 import { UpsertTenantMpesaConfigDto } from './dto/upsert-tenant-mpesa-config.dto';
 import { UpdatePaymentChannelStatusDto } from './dto/update-payment-channel-status.dto';
@@ -9,6 +10,7 @@ import { TenantFinanceConfigService } from './tenant-finance-config.service';
 import { TenantFinanceSummary } from './tenant-finance.types';
 
 @Controller('tenant-finance')
+@RequiresModule('finance')
 export class TenantFinanceController {
   constructor(
     private readonly requestContext: RequestContextService,

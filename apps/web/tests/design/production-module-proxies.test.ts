@@ -1,0 +1,51 @@
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+
+type ProxyExpectation = {
+  route: string;
+  upstream: string;
+  methods: string[];
+};
+
+const productionModuleProxies: ProxyExpectation[] = [
+  { route: "admin-command", upstream: "/admin-command", methods: ["GET", "POST"] },
+  { route: "academics", upstream: "/academics", methods: ["GET", "POST"] },
+  { route: "reports", upstream: "/reports", methods: ["GET", "POST"] },
+  { route: "staff", upstream: "/hr", methods: ["GET", "POST", "PATCH"] },
+  { route: "hr", upstream: "/hr", methods: ["GET", "POST", "PATCH"] },
+  { route: "timetable", upstream: "/timetable", methods: ["GET", "POST"] },
+];
+
+function readProxyRoute(route: string) {
+  const routePath = join(process.cwd(), "src", "app", "api", route, "[...path]", "route.ts");
+
+  expect(existsSync(routePath)).toBe(true);
+
+  return readFileSync(routePath, "utf8");
+}
+
+describe("production module live API proxies", () => {
+  it.each(productionModuleProxies)(
+    "exposes /api/$route through the guarded school API proxy",
+    ({ route, upstream, methods }) => {
+      const source = readProxyRoute(route);
+
+      expect(source).toContain("proxySchoolApiRequest");
+      expect(source).toContain(`"${upstream}"`);
+
+      for (const method of methods) {
+        expect(source).toContain(`function ${method}`);
+      }
+    },
+  );
+
+  it("keeps principal insight event streams as streaming responses through the proxy", () => {
+    const proxySource = readFileSync(join(process.cwd(), "src", "lib", "dashboard", "server-api-proxy.ts"), "utf8");
+    const schoolPageSource = readFileSync(join(process.cwd(), "src", "components", "school", "school-pages.tsx"), "utf8");
+
+    expect(proxySource).toContain("text/event-stream");
+    expect(proxySource).toContain("upstreamResponse.body");
+    expect(schoolPageSource).toContain("new EventSource");
+    expect(schoolPageSource).toContain("principal.dashboard");
+  });
+});

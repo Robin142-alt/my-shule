@@ -3,6 +3,7 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createHash, randomBytes } from 'node:crypto';
@@ -16,6 +17,10 @@ import {
 import { AuthorizationRepository } from '../../auth/repositories/authorization.repository';
 import { RequestContextService } from '../../common/request-context/request-context.service';
 import { DatabaseService } from '../../database/database.service';
+import {
+  DEFAULT_ONBOARDING_MODULE_CODES,
+} from '../module-access/module-access.constants';
+import { ModuleAccessService } from '../module-access/module-access.service';
 import {
   CreateSchoolDto,
   DeleteSchoolDto,
@@ -75,6 +80,7 @@ export class PlatformOnboardingService {
     private readonly emailService: AuthEmailService,
     private readonly configService: ConfigService,
     private readonly requestContext: RequestContextService,
+    @Optional() private readonly moduleAccessService?: ModuleAccessService,
   ) {}
 
   async listSchools(): Promise<PlatformSchoolResponseDto[]> {
@@ -183,6 +189,11 @@ export class PlatformOnboardingService {
       });
 
       await this.authorizationRepository.ensureTenantAuthorizationBaseline(tenantId);
+      const enabledModules = await this.assignInitialModules({
+        tenantId,
+        moduleCodes: dto.module_codes,
+        updatedBy: invitedByUserId,
+      });
 
       const invitation = await this.prepareInvitationAction({
         tenantId,
@@ -192,7 +203,7 @@ export class PlatformOnboardingService {
         invitedByUserId,
       });
 
-      return { tenant, invitation };
+      return { tenant, invitation, enabledModules };
     });
 
     const delivery = await this.deliverInvitation(transactionResult.invitation);
@@ -200,6 +211,7 @@ export class PlatformOnboardingService {
     return this.toPlatformSchoolResponse(transactionResult.tenant, delivery, {
       adminEmail,
       inviteExpiresAt: transactionResult.invitation.expiresAt,
+      enabledModules: transactionResult.enabledModules,
     });
   }
 
@@ -691,6 +703,7 @@ export class PlatformOnboardingService {
     override?: {
       adminEmail?: string;
       inviteExpiresAt?: Date | string | null;
+      enabledModules?: string[];
     },
   ): PlatformSchoolResponseDto {
     const inviteExpiresAt =
@@ -711,7 +724,32 @@ export class PlatformOnboardingService {
       invite_expires_at: inviteExpiresAt ? new Date(inviteExpiresAt).toISOString() : '',
       admin_email: override?.adminEmail ?? tenant.admin_email ?? '',
       created_at: new Date(tenant.created_at).toISOString(),
+      enabled_modules: override?.enabledModules ?? [],
     };
+  }
+
+  private async assignInitialModules(input: {
+    tenantId: string;
+    moduleCodes: string[] | undefined;
+    updatedBy: string | null;
+  }): Promise<string[]> {
+    if (!this.moduleAccessService) {
+      return input.moduleCodes?.length
+        ? [...input.moduleCodes]
+        : [...DEFAULT_ONBOARDING_MODULE_CODES];
+    }
+
+    const moduleCodes = input.moduleCodes?.length
+      ? input.moduleCodes
+      : [...DEFAULT_ONBOARDING_MODULE_CODES];
+
+    await this.moduleAccessService.setSchoolModuleCodes({
+      tenantId: input.tenantId,
+      moduleCodes,
+      updatedBy: input.updatedBy,
+    });
+
+    return moduleCodes;
   }
 
   private deliveryResultForOutboxRow(row: TenantRow): InvitationDeliveryResult {

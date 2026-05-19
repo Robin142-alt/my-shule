@@ -53,22 +53,156 @@ export class AcademicsRepository {
     const result = await this.databaseService.query(
       `
         INSERT INTO class_sections (
-          tenant_id, academic_year_id, name, grade_level, stream, created_by_user_id
+          tenant_id,
+          academic_year_id,
+          academic_level_id,
+          name,
+          grade_level,
+          stream,
+          custom_label,
+          capacity,
+          created_by_user_id
         )
-        VALUES ($1, $2::uuid, $3, $4, $5, $6::uuid)
+        VALUES ($1, $2::uuid, $3::uuid, $4, $5, $6, $7, $8, $9::uuid)
         RETURNING *
       `,
       [
         input.tenant_id,
         input.academic_year_id,
+        input.academic_level_id ?? null,
         input.name,
         input.grade_level,
         input.stream ?? null,
+        input.custom_label ?? null,
+        input.capacity ?? null,
         input.created_by_user_id,
       ],
     );
 
     return result.rows[0];
+  }
+
+  async createClassStructure(input: {
+    tenant_id: string;
+    created_by_user_id: string | null;
+    system_type: string;
+    levels: Array<{
+      name: string;
+      order_index: number;
+      classes: Array<{
+        name: string;
+        custom_label?: string;
+        capacity?: number;
+        streams?: Array<{
+          name: string;
+          capacity?: number;
+          class_teacher_id?: string;
+        }>;
+      }>;
+    }>;
+  }) {
+    return this.databaseService.withRequestTransaction(async () => {
+      const createdLevels = [];
+      const createdClasses = [];
+      const createdStreams = [];
+
+      for (const level of input.levels) {
+        const levelResult = await this.databaseService.query(
+          `
+            INSERT INTO academic_levels (
+              tenant_id, system_type, name, order_index
+            )
+            VALUES ($1, $2, $3, $4)
+            ON CONFLICT (tenant_id, order_index)
+            DO UPDATE SET
+              system_type = EXCLUDED.system_type,
+              name = EXCLUDED.name,
+              is_active = true,
+              updated_at = NOW()
+            RETURNING *
+          `,
+          [input.tenant_id, input.system_type, level.name, level.order_index],
+        );
+        const createdLevel = levelResult.rows[0];
+        createdLevels.push(createdLevel);
+
+        for (const classSection of level.classes) {
+          const classResult = await this.databaseService.query(
+            `
+              INSERT INTO class_sections (
+                tenant_id,
+                academic_year_id,
+                academic_level_id,
+                name,
+                grade_level,
+                custom_label,
+                capacity,
+                created_by_user_id
+              )
+              SELECT $1, ay.id, $2::uuid, $3, $4, $5, $6, $7::uuid
+              FROM academic_years ay
+              WHERE ay.tenant_id = $1
+              ORDER BY ay.starts_on DESC
+              LIMIT 1
+              ON CONFLICT (tenant_id, academic_year_id, name)
+              DO UPDATE SET
+                academic_level_id = EXCLUDED.academic_level_id,
+                grade_level = EXCLUDED.grade_level,
+                custom_label = EXCLUDED.custom_label,
+                capacity = EXCLUDED.capacity,
+                is_active = true,
+                updated_at = NOW()
+              RETURNING *
+            `,
+            [
+              input.tenant_id,
+              createdLevel.id,
+              classSection.name,
+              level.name,
+              classSection.custom_label ?? null,
+              classSection.capacity ?? null,
+              input.created_by_user_id,
+            ],
+          );
+          const createdClass = classResult.rows[0];
+          createdClasses.push(createdClass);
+
+          for (const stream of classSection.streams ?? []) {
+            const streamResult = await this.databaseService.query(
+              `
+                INSERT INTO class_streams (
+                  tenant_id, class_section_id, name, capacity, class_teacher_id
+                )
+                VALUES ($1, $2::uuid, $3, $4, $5::uuid)
+                ON CONFLICT (tenant_id, class_section_id, name)
+                DO UPDATE SET
+                  capacity = EXCLUDED.capacity,
+                  class_teacher_id = EXCLUDED.class_teacher_id,
+                  is_active = true,
+                  updated_at = NOW()
+                RETURNING *
+              `,
+              [
+                input.tenant_id,
+                createdClass.id,
+                stream.name,
+                stream.capacity ?? null,
+                stream.class_teacher_id ?? null,
+              ],
+            );
+            createdStreams.push(streamResult.rows[0]);
+          }
+        }
+      }
+
+      return {
+        tenant_id: input.tenant_id,
+        system_type: input.system_type,
+        levels: createdLevels,
+        classes: createdClasses,
+        streams: createdStreams,
+      };
+    });
   }
 
   async createSubject(input: Record<string, unknown>) {
@@ -130,6 +264,67 @@ export class AcademicsRepository {
     );
 
     return result.rows;
+  }
+
+  async assignStudentToClass(input: Record<string, unknown>) {
+    return this.databaseService.withRequestTransaction(async () => {
+      if (input.stream_id) {
+        const streamResult = await this.databaseService.query(
+          `
+            SELECT id
+            FROM class_streams
+            WHERE tenant_id = $1
+              AND id = $2::uuid
+              AND class_section_id = $3::uuid
+            LIMIT 1
+          `,
+          [input.tenant_id, input.stream_id, input.class_section_id],
+        );
+
+        if (!streamResult.rows[0]) {
+          throw new Error('Selected stream does not belong to the selected class');
+        }
+      }
+
+      await this.databaseService.query(
+        `
+          UPDATE student_class_assignments
+          SET status = 'transferred', updated_at = NOW()
+          WHERE tenant_id = $1
+            AND student_id = $2::uuid
+            AND academic_year_id = $3::uuid
+            AND status = 'active'
+        `,
+        [input.tenant_id, input.student_id, input.academic_year_id],
+      );
+
+      const result = await this.databaseService.query(
+        `
+          INSERT INTO student_class_assignments (
+            tenant_id,
+            student_id,
+            class_section_id,
+            stream_id,
+            academic_level_id,
+            academic_year_id,
+            assigned_by_user_id
+          )
+          VALUES ($1, $2::uuid, $3::uuid, $4::uuid, $5::uuid, $6::uuid, $7::uuid)
+          RETURNING *
+        `,
+        [
+          input.tenant_id,
+          input.student_id,
+          input.class_section_id,
+          input.stream_id ?? null,
+          input.academic_level_id,
+          input.academic_year_id,
+          input.assigned_by_user_id,
+        ],
+      );
+
+      return result.rows[0];
+    });
   }
 
   async appendAuditLog(input: Record<string, unknown>) {

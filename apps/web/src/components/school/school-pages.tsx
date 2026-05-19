@@ -29,6 +29,11 @@ import {
 import { getCsrfToken } from "@/lib/auth/csrf-client";
 import type { ExperienceNotificationItem } from "@/lib/experiences/types";
 import { getSchoolKpiSummary, getSchoolWorkspace, schoolSectionLabels, type SchoolExperienceRole, type SchoolSubscriptionView } from "@/lib/experiences/school-data";
+import {
+  filterNavItemsByEnabledModules,
+  getModuleCodeForSchoolSection,
+  isSchoolSectionEnabled,
+} from "@/lib/module-access/module-access-map";
 import { toSchoolPath, toSchoolStudentPath } from "@/lib/routing/experience-routes";
 import type { LearnerLookupItem } from "@/lib/students/student-lookup";
 
@@ -210,6 +215,81 @@ type BillableFeeStudentResponse = {
   grade_level: string;
   class_name: string | null;
   guardian_phone: string | null;
+};
+
+type PrincipalDashboardWidget = {
+  id: string;
+  title: string;
+  value: number | string;
+  unit?: string;
+  status: "normal" | "warning" | "critical";
+};
+
+type PrincipalDashboardSection = {
+  id: string;
+  module_code: string;
+  title: string;
+  category: string;
+  confidentiality?: "summary_only" | "restricted" | "standard";
+  widgets: PrincipalDashboardWidget[];
+  alerts: Array<{
+    id: string;
+    title: string;
+    message: string;
+    severity: "warning" | "critical";
+  }>;
+  reports: string[];
+};
+
+type PrincipalDashboardResponse = {
+  tenant_id: string;
+  generated_at: string;
+  enabled_modules: string[];
+  overview: {
+    total_students: number;
+    total_teachers: number;
+    total_support_staff: number;
+    active_classes_streams: number;
+    student_attendance_today: number;
+    teacher_attendance_today: number;
+    parent_engagement_rate: number;
+    active_users_online: number;
+  };
+  sections: PrincipalDashboardSection[];
+  alerts: Array<{
+    id: string;
+    module_code: string;
+    title: string;
+    message: string;
+    severity: "warning" | "critical";
+  }>;
+  realtime_channels: string[];
+  report_exports: string[];
+};
+
+type ClinicAnalyticsResponse = {
+  total_medicines?: number | string;
+  low_stock_medicines?: number | string;
+  out_of_stock_medicines?: number | string;
+  expiring_medicines?: number | string;
+  clinic_visits_today?: number | string;
+  medicine_units_dispensed_month?: number | string;
+  medicine_consumption_cost_minor?: number | string;
+  wastage_due_to_expiry_minor?: number | string;
+  emergency_supply_ready_rate?: number | string;
+  most_used_medicine?: number | string;
+  critical_alerts?: number | string;
+};
+
+type ClinicMedicineResponse = {
+  id: string;
+  medicine_name: string;
+  generic_name?: string | null;
+  category: string;
+  unit_type: string;
+  quantity_in_stock?: number | string;
+  nearest_expiry_date?: string | null;
+  prescription_required?: boolean;
 };
 
 type FinanceActivityRow = {
@@ -4239,6 +4319,590 @@ function AuthLikeNotice({ tone, message }: { tone: "success" | "error"; message:
   );
 }
 
+function ModuleDisabledPanel({
+  section,
+  role,
+  routeMode,
+}: {
+  section: string;
+  role: SchoolExperienceRole;
+  routeMode: SchoolRouteMode;
+}) {
+  const requiredModule = getModuleCodeForSchoolSection(section);
+
+  return (
+    <div className="space-y-6">
+      <SchoolPageHeader
+        eyebrow="Module access"
+        title="Module not enabled for your school"
+        description="This workspace is controlled by the platform Superadmin. Existing records stay preserved and become visible again when the module is re-enabled."
+        actions={
+          <Link href={buildSchoolSectionHref(role, "dashboard", routeMode)}>
+            <Button variant="secondary">Back to dashboard</Button>
+          </Link>
+        }
+      />
+      <Card className="p-5">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-sm font-semibold text-foreground">
+              {schoolSectionLabels[section] ?? "Requested module"}
+            </p>
+            <p className="mt-1 text-sm text-muted">
+              Required module code: {requiredModule ?? "core workspace"}
+            </p>
+          </div>
+          <StatusPill label="Disabled by Superadmin" tone="warning" />
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+type LabsAttendanceRow = {
+  id: string;
+  student: string;
+  className: string;
+  status: string;
+  tone: "ok" | "warning" | "critical";
+};
+
+function LabsOperationsPage() {
+  const [attendanceRows, setAttendanceRows] = useState<LabsAttendanceRow[]>([
+    { id: "lab-att-1", student: "Awaiting class register", className: "Grade 9 Blue", status: "Not marked", tone: "warning" as const },
+    { id: "lab-att-2", student: "Class stream register", className: "Form 2 East", status: "Not marked", tone: "warning" as const },
+  ]);
+
+  function markMandatoryAttendance() {
+    setAttendanceRows((rows) =>
+      rows.map((row) => ({
+        ...row,
+        status: "Present",
+        tone: "ok" as const,
+      })),
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <SchoolPageHeader
+        eyebrow="Laboratories"
+        title="Laboratory operations"
+        description="Departments, sessions, mandatory attendance, equipment issuing, chemical safety, and reconciliation in one tenant-safe workspace."
+        actions={<Button onClick={markMandatoryAttendance}>Mark attendance</Button>}
+      />
+      <MetricGrid
+        items={[
+          { id: "scheduled", label: "Scheduled sessions", value: "0", helper: "Create sessions from the lab API" },
+          { id: "attendance", label: "Attendance required", value: "Mandatory", helper: "Completion is blocked until marking is done" },
+          { id: "chemicals", label: "Expired chemicals", value: "Blocked", helper: "Unsafe batches cannot be issued" },
+          { id: "returns", label: "Open reconciliations", value: "0", helper: "Returned equipment is tracked per session" },
+        ]}
+      />
+      <Tabs
+        items={[
+          {
+            id: "sessions",
+            label: "Sessions",
+            panel: (
+              <DataTable
+                title="Lab sessions"
+                subtitle="Every session is linked to a lab, class, subject, teacher, and attendance register."
+                columns={[
+                  { id: "subject", header: "Subject", render: (row) => row.subject },
+                  { id: "className", header: "Class", render: (row) => row.className },
+                  { id: "lab", header: "Lab", render: (row) => row.lab },
+                  { id: "status", header: "Status", render: (row) => <StatusPill label={row.status} tone={row.tone} /> },
+                ]}
+                rows={[
+                  { id: "session-1", subject: "Chemistry practical", className: "Form 3", lab: "Chemistry Lab 1", status: "Ready to schedule", tone: "warning" as const },
+                  { id: "session-2", subject: "ICT project", className: "Grade 8", lab: "ICT Lab", status: "No conflicts", tone: "ok" as const },
+                ]}
+                getRowKey={(row) => row.id}
+              />
+            ),
+          },
+          {
+            id: "attendance",
+            label: "Attendance",
+            panel: (
+              <DataTable
+                title="Mandatory lab attendance"
+                subtitle="Absent, late, and excused records are traceable to the lab session."
+                columns={[
+                  { id: "student", header: "Learner", render: (row) => row.student },
+                  { id: "className", header: "Class", render: (row) => row.className },
+                  { id: "status", header: "Status", render: (row) => <StatusPill label={row.status} tone={row.tone} /> },
+                ]}
+                rows={attendanceRows}
+                getRowKey={(row) => row.id}
+              />
+            ),
+          },
+          {
+            id: "inventory",
+            label: "Equipment",
+            panel: (
+              <DataTable
+                title="Equipment issue register"
+                subtitle="Quantity issued, returned, damaged, and reconciled are recorded per session."
+                columns={[
+                  { id: "name", header: "Equipment", render: (row) => row.name },
+                  { id: "department", header: "Department", render: (row) => row.department },
+                  { id: "available", header: "Available", render: (row) => row.available, className: "text-right", headerClassName: "text-right" },
+                  { id: "condition", header: "Condition", render: (row) => <StatusPill label={row.condition} tone={row.tone} /> },
+                ]}
+                rows={[
+                  { id: "eq-1", name: "Microscope", department: "Biology", available: "12", condition: "Serviceable", tone: "ok" as const },
+                  { id: "eq-2", name: "Bunsen burner", department: "Chemistry", available: "18", condition: "Reconcile returns", tone: "warning" as const },
+                ]}
+                getRowKey={(row) => row.id}
+              />
+            ),
+          },
+          {
+            id: "chemicals",
+            label: "Chemicals",
+            panel: (
+              <DataTable
+                title="Chemical batch safety"
+                subtitle="Expired and quarantined chemicals cannot be issued; disposal requires HOD approval."
+                columns={[
+                  { id: "name", header: "Chemical", render: (row) => row.name },
+                  { id: "batch", header: "Batch", render: (row) => row.batch },
+                  { id: "hazard", header: "Hazard", render: (row) => row.hazard },
+                  { id: "status", header: "Status", render: (row) => <StatusPill label={row.status} tone={row.tone} /> },
+                ]}
+                rows={[
+                  { id: "chem-1", name: "Hydrochloric acid", batch: "HCL-2026-01", hazard: "Corrosive", status: "Active", tone: "ok" as const },
+                  { id: "chem-2", name: "Ethanol", batch: "ETH-2025-04", hazard: "Flammable", status: "Near expiry", tone: "warning" as const },
+                ]}
+                getRowKey={(row) => row.id}
+              />
+            ),
+          },
+        ]}
+      />
+    </div>
+  );
+}
+
+function TeacherBiometricAttendancePage() {
+  return (
+    <div className="space-y-6">
+      <SchoolPageHeader
+        eyebrow="Teacher attendance"
+        title="Biometric attendance"
+        description="Biometric scans are the source of truth, with offline device sync, duplicate event protection, and principal-only audited overrides."
+      />
+      <MetricGrid
+        items={[
+          { id: "devices", label: "Registered devices", value: "0", helper: "Devices appear after enrollment" },
+          { id: "offline", label: "Offline queue", value: "0", helper: "Scans sync when connectivity returns" },
+          { id: "late", label: "Late threshold", value: "7:40 AM", helper: "Start time plus grace period" },
+          { id: "cutoff", label: "Absence cutoff", value: "9:00 AM", helper: "Configurable per school" },
+        ]}
+      />
+      <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+        <DataTable
+          title="Scan feed"
+          subtitle="Append-only attendance events from registered school devices."
+          columns={[
+            { id: "teacher", header: "Teacher", render: (row) => row.teacher },
+            { id: "device", header: "Device", render: (row) => row.device },
+            { id: "time", header: "Time", render: (row) => row.time },
+            { id: "status", header: "Status", render: (row) => <StatusPill label={row.status} tone={row.tone} /> },
+          ]}
+          rows={[
+            { id: "scan-1", teacher: "No live scan yet", device: "Gate device", time: "Awaiting sync", status: "Ready", tone: "ok" as const },
+            { id: "scan-2", teacher: "Offline device queue", device: "Staff room", time: "0 pending", status: "Synced", tone: "ok" as const },
+          ]}
+          getRowKey={(row) => row.id}
+        />
+        <SimpleListCard
+          title="Attendance rule engine"
+          subtitle="Rules are tenant-specific and audited when changed."
+          items={[
+            { id: "rule-1", title: "Late detection", subtitle: "After default start time plus grace period.", value: "Active" },
+            { id: "rule-2", title: "Half-day detection", subtitle: "Missing checkout is treated as half-day review.", value: "Active" },
+            { id: "rule-3", title: "Duplicate prevention", subtitle: "Event hashes are ignored after first sync.", value: "Active" },
+          ]}
+        />
+      </div>
+    </div>
+  );
+}
+
+function metricNumber(value: number | string | undefined) {
+  const parsed = Number(value ?? 0);
+
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function formatInsightValue(value: number | string | undefined, unit?: string) {
+  if (unit === "KES cents") {
+    return new Intl.NumberFormat("en-KE", {
+      style: "currency",
+      currency: "KES",
+      maximumFractionDigits: 0,
+    }).format(metricNumber(value) / 100);
+  }
+
+  if (unit === "%") {
+    return `${metricNumber(value).toFixed(0)}%`;
+  }
+
+  if (typeof value === "number") {
+    return new Intl.NumberFormat("en-KE").format(value);
+  }
+
+  return value ?? "0";
+}
+
+function widgetTone(status: PrincipalDashboardWidget["status"]) {
+  return status === "critical" ? "critical" : status === "warning" ? "warning" : "ok";
+}
+
+function InsightMiniBar({ value, status }: { value: number | string; status: PrincipalDashboardWidget["status"] }) {
+  const numeric = Math.max(0, Math.min(100, metricNumber(value)));
+  const colorClass =
+    status === "critical"
+      ? "bg-danger"
+      : status === "warning"
+        ? "bg-warning"
+        : "bg-success";
+
+  return (
+    <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-surface-muted">
+      <div className={`h-full rounded-full ${colorClass}`} style={{ width: `${numeric}%` }} />
+    </div>
+  );
+}
+
+function PrincipalExecutiveDashboardPage({ tenantSlug }: { tenantSlug?: string | null }) {
+  const [dashboard, setDashboard] = useState<PrincipalDashboardResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    let eventSource: EventSource | null = null;
+    const query = tenantSlug ? `?tenantSlug=${encodeURIComponent(tenantSlug)}` : "";
+
+    async function loadDashboard(showLoading = true) {
+      if (showLoading) {
+        setLoading(true);
+      }
+      setError(null);
+
+      try {
+        const response = await fetch(`/api/admin-command/principal/dashboard${query}`, {
+          method: "GET",
+          credentials: "same-origin",
+          cache: "no-store",
+        });
+
+        if (!response.ok) {
+          throw new Error("Principal dashboard is not available.");
+        }
+
+        const payload = await response.json() as PrincipalDashboardResponse;
+
+        if (!cancelled) {
+          setDashboard(payload);
+        }
+      } catch (loadError) {
+        if (!cancelled) {
+          setError(loadError instanceof Error ? loadError.message : "Principal dashboard is not available.");
+        }
+      } finally {
+        if (!cancelled && showLoading) {
+          setLoading(false);
+        }
+      }
+    }
+
+    void loadDashboard();
+    const refreshTimer = window.setInterval(() => {
+      void loadDashboard(false);
+    }, 45_000);
+
+    if (typeof EventSource !== "undefined") {
+      eventSource = new EventSource(`/api/admin-command/principal/dashboard/stream${query}`, {
+        withCredentials: true,
+      });
+      eventSource.addEventListener("principal.dashboard", (event) => {
+        try {
+          const payload = JSON.parse((event as MessageEvent<string>).data) as PrincipalDashboardResponse;
+
+          if (!cancelled) {
+            setDashboard(payload);
+            setError(null);
+            setLoading(false);
+          }
+        } catch {
+          if (!cancelled) {
+            setError("Principal dashboard stream sent an unreadable update.");
+          }
+        }
+      });
+      eventSource.addEventListener("principal.error", (event) => {
+        if (!cancelled) {
+          const message = (event as MessageEvent<string>).data || "Principal dashboard stream is unavailable.";
+          setError(message);
+        }
+      });
+    }
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(refreshTimer);
+      eventSource?.close();
+    };
+  }, [tenantSlug]);
+
+  const overview = dashboard?.overview;
+  const overviewMetrics = [
+    { id: "students", label: "Students", value: formatInsightValue(overview?.total_students), helper: "Active learner population" },
+    { id: "teachers", label: "Teachers", value: formatInsightValue(overview?.total_teachers), helper: "Active teaching staff" },
+    { id: "classes", label: "Classes", value: formatInsightValue(overview?.active_classes_streams), helper: "Active classes and streams" },
+    { id: "parent-engagement", label: "Parent engagement", value: formatInsightValue(overview?.parent_engagement_rate, "%"), helper: "Linked active guardians" },
+  ];
+  const sections = dashboard?.sections ?? [];
+  const alerts = dashboard?.alerts ?? [];
+
+  return (
+    <div className="space-y-6">
+      <SchoolPageHeader
+        eyebrow="Principal"
+        title="Executive dashboard"
+        description="Module-aware oversight across the active school stack."
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <StatusPill label={loading ? "Loading" : "Live refresh"} tone={loading ? "warning" : "ok"} />
+            <StatusPill label={`${dashboard?.enabled_modules.length ?? 0} modules`} tone="ok" />
+          </div>
+        }
+      />
+      {error ? (
+        <Card className="border-warning/20 bg-warning/5 p-4">
+          <p className="text-sm font-semibold text-foreground">{error}</p>
+        </Card>
+      ) : null}
+      <MetricGrid items={overviewMetrics} />
+      <div className="grid gap-4 xl:grid-cols-3">
+        {sections.slice(0, 12).map((section) => (
+          <Card key={section.id} className="p-5">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase text-muted">{section.category}</p>
+                <h3 className="mt-2 text-lg font-semibold text-foreground">{section.title}</h3>
+              </div>
+              <StatusPill
+                label={section.confidentiality === "summary_only" ? "Summary" : "Active"}
+                tone={section.alerts.length > 0 ? "warning" : "ok"}
+              />
+            </div>
+            <div className="mt-5 grid gap-3 sm:grid-cols-2">
+              {section.widgets.slice(0, 4).map((widget) => (
+                <div key={widget.id} className="rounded-lg border border-border bg-surface-muted p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-xs font-semibold text-muted">{widget.title}</p>
+                    <StatusPill label={widget.status === "normal" ? "OK" : widget.status} tone={widgetTone(widget.status)} compact />
+                  </div>
+                  <p className="mt-2 text-2xl font-bold text-foreground">
+                    {formatInsightValue(widget.value, widget.unit)}
+                  </p>
+                  <InsightMiniBar value={widget.value} status={widget.status} />
+                </div>
+              ))}
+            </div>
+            <div className="mt-4 flex flex-wrap gap-2">
+              {section.reports.slice(0, 3).map((report) => (
+                <span key={report} className="rounded-full border border-border px-2.5 py-1 text-xs font-semibold text-muted">
+                  {report}
+                </span>
+              ))}
+            </div>
+          </Card>
+        ))}
+      </div>
+      <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
+        <DataTable
+          title="Notifications center"
+          subtitle="Critical and warning alerts from active modules."
+          columns={[
+            { id: "title", header: "Alert", render: (row) => row.title },
+            { id: "module", header: "Module", render: (row) => row.module_code },
+            { id: "severity", header: "Severity", render: (row) => <StatusPill label={row.severity} tone={row.severity} /> },
+          ]}
+          rows={alerts.length > 0 ? alerts : [{ id: "none", title: "No critical alerts", module_code: "all", message: "", severity: "warning" as const }]}
+          getRowKey={(row) => row.id}
+        />
+        <SimpleListCard
+          title="Real-time channels"
+          subtitle="Live dashboard streams refresh automatically for executive updates."
+          items={(dashboard?.realtime_channels ?? ["principal.alerts"]).map((channel) => ({
+            id: channel,
+            title: channel,
+            subtitle: "Subscribed for executive updates.",
+            value: "Live",
+          }))}
+        />
+      </div>
+    </div>
+  );
+}
+
+function ClinicOperationsPage({ tenantSlug }: { tenantSlug?: string | null }) {
+  const [analytics, setAnalytics] = useState<ClinicAnalyticsResponse | null>(null);
+  const [medicines, setMedicines] = useState<ClinicMedicineResponse[]>([]);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadClinic() {
+      try {
+        const query = tenantSlug ? `?tenantSlug=${encodeURIComponent(tenantSlug)}` : "";
+        const [analyticsResponse, medicinesResponse] = await Promise.all([
+          fetch(`/api/clinic/analytics/principal${query}`, { credentials: "same-origin", cache: "no-store" }),
+          fetch(`/api/clinic/medicines${query}`, { credentials: "same-origin", cache: "no-store" }),
+        ]);
+
+        if (!analyticsResponse.ok || !medicinesResponse.ok) {
+          throw new Error("Clinic workspace is not available.");
+        }
+
+        const nextAnalytics = await analyticsResponse.json() as ClinicAnalyticsResponse;
+        const nextMedicines = await medicinesResponse.json() as ClinicMedicineResponse[];
+
+        if (!cancelled) {
+          setAnalytics(nextAnalytics);
+          setMedicines(Array.isArray(nextMedicines) ? nextMedicines : []);
+        }
+      } catch (loadError) {
+        if (!cancelled) {
+          setError(loadError instanceof Error ? loadError.message : "Clinic workspace is not available.");
+        }
+      }
+    }
+
+    void loadClinic();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [tenantSlug]);
+
+  const metrics = [
+    { id: "medicines", label: "Medicines", value: formatInsightValue(analytics?.total_medicines), helper: "Active medicine records" },
+    { id: "low-stock", label: "Low stock", value: formatInsightValue(analytics?.low_stock_medicines), helper: "Batches below threshold" },
+    { id: "expiring", label: "Expiring", value: formatInsightValue(analytics?.expiring_medicines), helper: "Within 90 days" },
+    { id: "visits", label: "Visits today", value: formatInsightValue(analytics?.clinic_visits_today), helper: "Recorded clinic visits" },
+    { id: "clinic-costs", label: "Clinic costs", value: formatMinorKes(String(analytics?.medicine_consumption_cost_minor ?? "0")), helper: "Medicine issued this month" },
+    { id: "expiry-wastage", label: "Expiry wastage", value: formatMinorKes(String(analytics?.wastage_due_to_expiry_minor ?? "0")), helper: "Expired medicine value" },
+    { id: "emergency-ready", label: "Emergency ready", value: `${formatInsightValue(analytics?.emergency_supply_ready_rate)}%`, helper: "Emergency supplies available" },
+  ];
+
+  return (
+    <div className="space-y-6">
+      <SchoolPageHeader
+        eyebrow="Clinic"
+        title="Medicine inventory"
+        description="Medicine stock, dispensing, expiry, and administrative analytics."
+        actions={<StatusPill label={error ? "Attention" : "Ready"} tone={error ? "warning" : "ok"} />}
+      />
+      {error ? (
+        <Card className="border-warning/20 bg-warning/5 p-4">
+          <p className="text-sm font-semibold text-foreground">{error}</p>
+        </Card>
+      ) : null}
+      <MetricGrid items={metrics} />
+      <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
+        <DataTable
+          title="Medicine batches"
+          subtitle="Stock levels and expiry status from clinic inventory."
+          columns={[
+            { id: "medicine", header: "Medicine", render: (row) => row.medicine_name },
+            { id: "category", header: "Category", render: (row) => row.category },
+            { id: "stock", header: "Stock", render: (row) => `${formatInsightValue(row.quantity_in_stock)} ${row.unit_type}`, className: "text-right font-semibold", headerClassName: "text-right" },
+            { id: "expiry", header: "Nearest expiry", render: (row) => row.nearest_expiry_date ?? "Not batched" },
+          ]}
+          rows={medicines}
+          getRowKey={(row) => row.id}
+        />
+        <SimpleListCard
+          title="Readiness"
+          subtitle="Principal-facing health operations without confidential notes."
+          items={[
+            { id: "critical", title: "Critical alerts", subtitle: "Open critical clinic alerts.", value: formatInsightValue(analytics?.critical_alerts) },
+            { id: "out-stock", title: "Out of stock", subtitle: "Medicine batches with no available stock.", value: formatInsightValue(analytics?.out_of_stock_medicines) },
+            { id: "dispensed", title: "Dispensed this month", subtitle: "Medicine units issued from clinic visits.", value: formatInsightValue(analytics?.medicine_units_dispensed_month) },
+            { id: "most-used", title: "Most used medicine", subtitle: "Highest volume medicine dispensed this month.", value: formatInsightValue(analytics?.most_used_medicine) },
+            { id: "emergency", title: "Emergency readiness", subtitle: "Emergency supplies with usable stock.", value: `${formatInsightValue(analytics?.emergency_supply_ready_rate)}%` },
+          ]}
+        />
+      </div>
+    </div>
+  );
+}
+
+function LeadershipCommandCenterPage({ role }: { role: SchoolExperienceRole }) {
+  const title =
+    role === "deputy-principal"
+      ? "Operations command center"
+      : role === "secretary"
+        ? "Administration and records desk"
+        : "Strategic control center";
+  const description =
+    role === "deputy-principal"
+      ? "Daily attendance, discipline, timetable execution, duty roster, and incident enforcement."
+      : role === "secretary"
+        ? "Admissions, communication, records, reporting, meeting minutes, and action item follow-up."
+        : "Executive oversight of academic, financial, disciplinary, staff, and governance signals.";
+
+  return (
+    <div className="space-y-6">
+      <SchoolPageHeader eyebrow="Leadership" title={title} description={description} />
+      <MetricGrid
+        items={[
+          { id: "attendance", label: "Attendance compliance", value: "Live", helper: "Teacher and learner signals" },
+          { id: "fees", label: "Fee collection", value: "Read only", helper: "Principal financial oversight" },
+          { id: "discipline", label: "Discipline severity", value: "Weighted", helper: "Repeat cases and escalations" },
+          { id: "audit", label: "Audit trail", value: "Immutable", helper: "Critical action history" },
+        ]}
+      />
+      <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
+        <DataTable
+          title="Command queue"
+          subtitle="Role-specific work that needs leadership action."
+          columns={[
+            { id: "item", header: "Item", render: (row) => row.item },
+            { id: "owner", header: "Owner", render: (row) => row.owner },
+            { id: "status", header: "Status", render: (row) => <StatusPill label={row.status} tone={row.tone} /> },
+          ]}
+          rows={[
+            { id: "cmd-1", item: "Morning attendance sweep", owner: "Deputy principal", status: "Watching", tone: "warning" as const },
+            { id: "cmd-2", item: "Fee arrears report", owner: "Principal", status: "Read only", tone: "ok" as const },
+            { id: "cmd-3", item: "Admissions documents", owner: "Secretary", status: "Queued", tone: "warning" as const },
+          ]}
+          getRowKey={(row) => row.id}
+        />
+        <SimpleListCard
+          title="Audit and governance"
+          subtitle="Every critical action is logged with actor, tenant, reason, and time."
+          items={[
+            { id: "audit-1", title: "Policy approval", subtitle: "Non-technical approvals are tracked before enforcement.", value: "Ready" },
+            { id: "audit-2", title: "Permission changes", subtitle: "RBAC edits appear in the immutable audit log.", value: "Tracked" },
+            { id: "audit-3", title: "Manual overrides", subtitle: "Teacher attendance overrides require principal reason.", value: "Restricted" },
+          ]}
+        />
+      </div>
+    </div>
+  );
+}
+
 function SchoolBasicCardPage({
   eyebrow,
   title,
@@ -4272,6 +4936,7 @@ export function SchoolPages({
   routeMode?: SchoolRouteMode;
 }) {
   const workspace = getSchoolWorkspace(role, tenantSlug);
+  const [enabledModuleCodes, setEnabledModuleCodes] = useState<Set<string> | null>(null);
   const { navItems, profile, branding } = workspace;
   const activeHref = studentId
     ? buildSchoolSectionHref(role, "students", routeMode)
@@ -4282,10 +4947,64 @@ export function SchoolPages({
           section as Parameters<typeof toSchoolPath>[0],
           routeMode,
         );
-  const scopedNavItems = navItems.map((item) => ({
-    ...item,
-    href: mapSchoolHref(role, item.href, routeMode),
-  }));
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadModuleAccess() {
+      try {
+        const response = await fetch("/api/school/modules/me", {
+          method: "GET",
+          credentials: "same-origin",
+          cache: "no-store",
+        });
+
+        if (!response.ok) {
+          return;
+        }
+
+        const payload = (await response.json().catch(() => null)) as string[] | { data?: string[] } | null;
+        const moduleCodes = Array.isArray(payload)
+          ? payload
+          : Array.isArray(payload?.data)
+            ? payload.data
+            : null;
+
+        if (!cancelled && moduleCodes) {
+          setEnabledModuleCodes(new Set(moduleCodes));
+        }
+      } catch {
+        if (!cancelled) {
+          setEnabledModuleCodes(null);
+        }
+      }
+    }
+
+    void loadModuleAccess();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const scopedNavItems = filterNavItemsByEnabledModules(navItems, enabledModuleCodes)
+    .filter((item) => !(
+      role === "principal"
+      && item.id === "dashboard"
+      && enabledModuleCodes
+      && !enabledModuleCodes.has("principal_dashboard")
+    ))
+    .map((item) => ({
+      ...item,
+      href: mapSchoolHref(role, item.href, routeMode),
+    }));
+  const principalDashboardEnabled =
+    role !== "principal"
+    || section !== "dashboard"
+    || !enabledModuleCodes
+    || enabledModuleCodes.has("principal_dashboard");
+  const canOpenSection = studentId
+    ? true
+    : isSchoolSectionEnabled(section, enabledModuleCodes) && principalDashboardEnabled;
   const subscriptionNotifications: ExperienceNotificationItem[] =
     workspace.subscription.state === "ACTIVE"
       ? []
@@ -4334,8 +5053,15 @@ export function SchoolPages({
         />
       }
     >
+      {!canOpenSection ? (
+        <ModuleDisabledPanel section={section} role={role} routeMode={routeMode} />
+      ) : (
+        <>
       {studentId ? <StudentProfilePage role={role} tenantSlug={tenantSlug} studentId={studentId} /> : null}
-      {!studentId && section === "dashboard" ? <SchoolDashboardHome role={role} tenantSlug={tenantSlug} routeMode={routeMode} /> : null}
+      {!studentId && section === "dashboard" && role === "principal" ? (
+        <PrincipalExecutiveDashboardPage tenantSlug={tenantSlug} />
+      ) : null}
+      {!studentId && section === "dashboard" && role !== "principal" ? <SchoolDashboardHome role={role} tenantSlug={tenantSlug} routeMode={routeMode} /> : null}
       {!studentId && section === "students" ? <SchoolStudentsPage role={role} tenantSlug={tenantSlug} routeMode={routeMode} /> : null}
       {!studentId && section === "finance" ? <SchoolFinancePage role={role} tenantSlug={tenantSlug} routeMode={routeMode} /> : null}
       {!studentId && section === "mpesa" ? <SchoolMpesaPage role={role} tenantSlug={tenantSlug} /> : null}
@@ -4361,6 +5087,18 @@ export function SchoolPages({
       ) : null}
       {!studentId && section === "discipline" ? (
         <DisciplineWorkspace tenantSlug={tenantSlug} />
+      ) : null}
+      {!studentId && section === "labs" ? (
+        <LabsOperationsPage />
+      ) : null}
+      {!studentId && section === "teacher-attendance" ? (
+        <TeacherBiometricAttendancePage />
+      ) : null}
+      {!studentId && section === "clinic" ? (
+        <ClinicOperationsPage tenantSlug={tenantSlug} />
+      ) : null}
+      {!studentId && section === "leadership" ? (
+        <LeadershipCommandCenterPage role={role} />
       ) : null}
       {!studentId && section === "timetable" ? (
         <SchoolBasicCardPage
@@ -4424,6 +5162,8 @@ export function SchoolPages({
           <UserManagementPanel />
         </div>
       ) : null}
+        </>
+      )}
     </ErpShell>
   );
 }

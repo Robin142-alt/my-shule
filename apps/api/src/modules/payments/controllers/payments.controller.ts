@@ -1,6 +1,7 @@
 import { Body, Controller, Get, Post, Query } from '@nestjs/common';
 
 import { Permissions } from '../../../auth/decorators/permissions.decorator';
+import { RequiresModule } from '../../module-access/module-access.decorator';
 import { CreatePaymentIntentDto } from '../dto/create-payment-intent.dto';
 import { GenerateMpesaReconciliationReportDto } from '../dto/generate-mpesa-reconciliation-report.dto';
 import { PaymentIntentResponseDto } from '../dto/payment-intent-response.dto';
@@ -9,6 +10,7 @@ import { MpesaReconciliationService } from '../services/mpesa-reconciliation.ser
 import { MpesaService } from '../services/mpesa.service';
 
 @Controller('payments/mpesa')
+@RequiresModule('finance')
 export class PaymentsController {
   constructor(
     private readonly mpesaService: MpesaService,
