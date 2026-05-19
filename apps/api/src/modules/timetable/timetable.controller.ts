@@ -1,10 +1,12 @@
 import { Body, Controller, Get, Post, Query } from '@nestjs/common';
 
 import { Permissions } from '../../auth/decorators/permissions.decorator';
+import { RequiresModule } from '../module-access/module-access.decorator';
 import { CreateTimetableSlotDto, PublishTimetableVersionDto } from './dto/timetable.dto';
 import { TimetableService } from './timetable.service';
 
 @Controller('timetable')
+@RequiresModule('timetable')
 export class TimetableController {
   constructor(private readonly timetableService: TimetableService) {}
 

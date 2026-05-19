@@ -2,6 +2,8 @@ const roleHomePaths: Record<string, string> = {
   superadmin: "/superadmin/dashboard",
   platform_owner: "/superadmin/dashboard",
   principal: "/dashboard",
+  "deputy-principal": "/dashboard",
+  secretary: "/dashboard",
   owner: "/dashboard",
   admin: "/dashboard",
   school_admin: "/dashboard",

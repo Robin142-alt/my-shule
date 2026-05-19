@@ -126,6 +126,8 @@ jobs:
           npm run finance:certify
           npm run library:certify
           npm run discipline:certify
+          npm run implementation20:certify
+          npm run implementation21:certify
 
       - name: Security and tenant isolation audit
         if: github.event.inputs.check == 'all' || github.event.inputs.check == 'security' || github.event.schedule == '33 2 * * *'
@@ -158,6 +160,8 @@ jobs:
             docs/validation/implementation10-library-certification.md
             docs/validation/implementation10-discipline-certification.md
             docs/validation/implementation11-maintainability-scan.md
+            docs/validation/implementation20-certification.md
+            docs/validation/implementation21-certification.md
             docs/security/implementation10-threat-model.md
             docs/security/implementation10-security-audit.md
             docs/security/implementation10-security-scan.md

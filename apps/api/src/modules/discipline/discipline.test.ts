@@ -47,6 +47,7 @@ test('DisciplineSchemaService creates tenant-scoped discipline and counselling t
   assert.match(bootstrapSql, /CREATE INDEX IF NOT EXISTS ix_discipline_incidents_student_term/);
   assert.match(bootstrapSql, /CREATE INDEX IF NOT EXISTS ix_counselling_sessions_counsellor_schedule/);
   assert.match(bootstrapSql, /visibility IN \('internal_only', 'discipline_office', 'parent_visible'\)/);
+  assert.match(bootstrapSql, /source_type IN \('incident', 'commendation', 'correction', 'lab_attendance'\)/);
 });
 
 test('default auth catalog exposes discipline and counselling permissions to operational roles', () => {

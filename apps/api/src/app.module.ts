@@ -44,6 +44,12 @@ import { LibraryModule } from './modules/library/library.module';
 import { TimetableModule } from './modules/timetable/timetable.module';
 import { IntegrationsModule } from './modules/integrations/integrations.module';
 import { DisciplineModule } from './modules/discipline/discipline.module';
+import { ModuleAccessModule } from './modules/module-access/module-access.module';
+import { ModuleAccessGuard } from './modules/module-access/module-access.guard';
+import { LabsModule } from './modules/labs/labs.module';
+import { AdminCommandModule } from './modules/admin-command/admin-command.module';
+import { BiometricAttendanceModule } from './modules/biometric-attendance/biometric-attendance.module';
+import { ClinicModule } from './modules/clinic/clinic.module';
 
 @Module({
   imports: [
@@ -65,6 +71,7 @@ import { DisciplineModule } from './modules/discipline/discipline.module';
     EventsModule,
     ObservabilityModule,
     SecurityModule,
+    ModuleAccessModule,
     InventoryModule,
     AdmissionsModule,
     SupportModule,
@@ -76,9 +83,13 @@ import { DisciplineModule } from './modules/discipline/discipline.module';
     TimetableModule,
     IntegrationsModule,
     DisciplineModule,
+    LabsModule,
+    AdminCommandModule,
+    BiometricAttendanceModule,
     FinanceModule,
     SyncModule,
     StudentsModule,
+    ClinicModule,
     PaymentsModule,
     BillingModule,
     ComplianceModule,
@@ -99,6 +110,10 @@ import { DisciplineModule } from './modules/discipline/discipline.module';
     {
       provide: APP_GUARD,
       useClass: AbacGuard,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: ModuleAccessGuard,
     },
   ],
 })

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { SmartphoneCharging } from "lucide-react";
 
 import { ParentDisciplineView } from "@/components/discipline/discipline-workspace";
@@ -27,6 +27,20 @@ import {
 import { toPortalPath } from "@/lib/routing/experience-routes";
 
 type PortalRouteMode = "hosted" | "public";
+
+type ParentMedicalHistoryRow = {
+  id: string;
+  visit_date?: string;
+  symptoms_summary?: string | null;
+  diagnosis_summary?: string | null;
+  treatment_summary?: string | null;
+  status?: string;
+  medicines_dispensed?: Array<{
+    medicine_name?: string;
+    dosage?: string;
+    quantity_dispensed?: number | string;
+  }>;
+};
 
 function buildPortalSectionHref(
   viewer: PortalViewer,
@@ -292,6 +306,101 @@ function PortalDownloadsPage() {
   );
 }
 
+function PortalHealthPage({ viewer }: { viewer: PortalViewer }) {
+  const [studentId, setStudentId] = useState("");
+  const [history, setHistory] = useState<ParentMedicalHistoryRow[]>([]);
+  const [status, setStatus] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!studentId.trim() || viewer !== "parent") {
+      return;
+    }
+
+    let cancelled = false;
+
+    async function loadHistory() {
+      setStatus("Loading medical history");
+
+      try {
+        const response = await fetch(`/api/clinic/parent/students/${encodeURIComponent(studentId.trim())}/history`, {
+          credentials: "same-origin",
+          cache: "no-store",
+        });
+
+        if (!response.ok) {
+          throw new Error("Medical history is not available for this learner.");
+        }
+
+        const payload = await response.json() as ParentMedicalHistoryRow[];
+
+        if (!cancelled) {
+          setHistory(Array.isArray(payload) ? payload : []);
+          setStatus(null);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setStatus(error instanceof Error ? error.message : "Medical history is not available for this learner.");
+        }
+      }
+    }
+
+    const timer = window.setTimeout(() => {
+      void loadHistory();
+    }, 350);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [studentId, viewer]);
+
+  return (
+    <div className="space-y-6">
+      <PortalPageHeader
+        title="Health"
+        description="Clinic visits and medicines issued to linked learners."
+      />
+      {viewer !== "parent" ? (
+        <Card className="p-5">
+          <p className="text-sm text-muted">Health history is available to linked parents and guardians.</p>
+        </Card>
+      ) : (
+        <>
+          <Card className="p-5">
+            <label className="text-sm font-semibold text-foreground" htmlFor="student-medical-history-id">
+              Learner ID
+            </label>
+            <input
+              id="student-medical-history-id"
+              value={studentId}
+              onChange={(event) => setStudentId(event.target.value)}
+              className="mt-2 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground outline-none focus:border-accent"
+              placeholder="Paste linked learner ID"
+            />
+            {status ? <p className="mt-3 text-sm text-muted">{status}</p> : null}
+          </Card>
+          <DataTable
+            title="Medical history"
+            subtitle="Confidential clinician notes remain hidden from this view."
+            columns={[
+              { id: "date", header: "Date", render: (row) => row.visit_date ?? "Not dated" },
+              { id: "diagnosis", header: "Summary", render: (row) => row.diagnosis_summary ?? row.symptoms_summary ?? "No summary" },
+              {
+                id: "medicine",
+                header: "Medicine",
+                render: (row) => row.medicines_dispensed?.map((item) => item.medicine_name).filter(Boolean).join(", ") || "None recorded",
+              },
+              { id: "status", header: "Status", render: (row) => <StatusPill label={row.status ?? "recorded"} tone="ok" /> },
+            ]}
+            rows={history}
+            getRowKey={(row) => row.id}
+          />
+        </>
+      )}
+    </div>
+  );
+}
+
 function PortalNotificationsPage() {
   return (
     <div className="space-y-6">
@@ -358,6 +467,7 @@ export function PortalPages({
       {section === "fees" ? <PortalFeesPage viewer={viewer} /> : null}
       {section === "academics" ? <PortalAcademicsPage /> : null}
       {section === "discipline" ? <ParentDisciplineView /> : null}
+      {section === "health" ? <PortalHealthPage viewer={viewer} /> : null}
       {section === "messages" ? <PortalMessagesPage /> : null}
       {section === "downloads" ? <PortalDownloadsPage /> : null}
       {section === "notifications" ? <PortalNotificationsPage /> : null}

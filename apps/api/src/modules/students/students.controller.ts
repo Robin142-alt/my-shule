@@ -10,6 +10,7 @@ import {
 } from '@nestjs/common';
 
 import { Permissions } from '../../auth/decorators/permissions.decorator';
+import { RequiresModule } from '../module-access/module-access.decorator';
 import { FeatureGate } from '../billing/decorators/feature-gate.decorator';
 import { CreateStudentDto } from './dto/create-student.dto';
 import { ListStudentsQueryDto } from './dto/list-students-query.dto';
@@ -19,6 +20,7 @@ import { StudentsService } from './students.service';
 
 @Controller('students')
 @FeatureGate('students')
+@RequiresModule('students')
 export class StudentsController {
   constructor(private readonly studentsService: StudentsService) {}
 

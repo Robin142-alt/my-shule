@@ -13,6 +13,7 @@ import {
   ReportExportQueueService,
   type QueueReportExportRequest,
 } from '../../common/reports/report-export-queue';
+import { RequiresModule } from '../module-access/module-access.decorator';
 import { FeatureGate } from './decorators/feature-gate.decorator';
 import { BILLING_MPESA_FEATURE } from './billing.constants';
 import { BillableFeeStudentResponseDto } from './dto/billable-fee-student-response.dto';
@@ -45,6 +46,7 @@ import { UsageMeterService } from './usage-meter.service';
 import { ManualFeePaymentStatus } from './entities/manual-fee-payment.entity';
 
 @Controller('billing')
+@RequiresModule('finance')
 export class BillingController {
   constructor(
     private readonly billingService: BillingService,

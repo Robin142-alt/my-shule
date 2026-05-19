@@ -1,6 +1,7 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
 
 import { Permissions } from '../../auth/decorators/permissions.decorator';
+import { RequiresModule } from '../module-access/module-access.decorator';
 import {
   CreateCounsellingNoteDto,
   CreateCounsellingReferralDto,
@@ -12,6 +13,7 @@ import {
 import { CounsellingService } from './counselling.service';
 
 @Controller('counselling')
+@RequiresModule('discipline')
 export class CounsellingController {
   constructor(private readonly counsellingService: CounsellingService) {}
 

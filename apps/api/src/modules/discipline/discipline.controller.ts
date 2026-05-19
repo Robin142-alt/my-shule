@@ -13,6 +13,7 @@ import {
 
 import { Permissions } from '../../auth/decorators/permissions.decorator';
 import { StreamingUploadInterceptor } from '../../common/uploads/streaming-upload.interceptor';
+import { RequiresModule } from '../module-access/module-access.decorator';
 import {
   AcknowledgeDisciplineIncidentDto,
   AssignDisciplineIncidentDto,
@@ -33,6 +34,7 @@ import { DisciplineService } from './discipline.service';
 import type { UploadedDisciplineFile } from './storage/discipline-attachment-storage.service';
 
 @Controller('discipline')
+@RequiresModule('discipline')
 export class DisciplineController {
   constructor(private readonly disciplineService: DisciplineService) {}
 

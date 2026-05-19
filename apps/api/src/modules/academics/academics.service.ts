@@ -3,9 +3,11 @@ import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/
 import { RequestContextService } from '../../common/request-context/request-context.service';
 import {
   AssignTeacherDto,
+  AssignStudentToClassDto,
   CreateAcademicTermDto,
   CreateAcademicYearDto,
   CreateClassSectionDto,
+  CreateClassStructureDto,
   CreateSubjectDto,
 } from './dto/academic.dto';
 import { AcademicsRepository } from './repositories/academics.repository';
@@ -43,10 +45,50 @@ export class AcademicsService {
       tenant_id: this.requireTenantId(),
       created_by_user_id: this.currentUserId(),
       academic_year_id: this.requireText(dto.academic_year_id, 'Academic year'),
+      academic_level_id: dto.academic_level_id?.trim() || null,
       name: this.requireText(dto.name, 'Class section name'),
       grade_level: this.requireText(dto.grade_level, 'Grade level'),
       stream: dto.stream?.trim() || null,
+      custom_label: dto.custom_label?.trim() || null,
+      capacity: dto.capacity ?? null,
     });
+  }
+
+  async createClassStructure(dto: CreateClassStructureDto) {
+    const tenantId = this.requireTenantId();
+    const structure = await this.repository.createClassStructure({
+      tenant_id: tenantId,
+      created_by_user_id: this.currentUserId(),
+      system_type: this.requireAcademicSystemType(dto.system_type),
+      levels: (dto.levels ?? []).map((level) => ({
+        name: this.requireText(level.name, 'Academic level name'),
+        order_index: this.requirePositiveInteger(level.order_index, 'Academic level order'),
+        classes: (level.classes ?? []).map((classSection) => ({
+          name: this.requireText(classSection.name, 'Class name'),
+          custom_label: classSection.custom_label?.trim() || undefined,
+          capacity: classSection.capacity,
+          streams: (classSection.streams ?? []).map((stream) => ({
+            name: this.requireText(stream.name, 'Stream name'),
+            capacity: stream.capacity,
+            class_teacher_id: stream.class_teacher_id?.trim() || undefined,
+          })),
+        })),
+      })),
+    });
+
+    await this.repository.appendAuditLog({
+      tenant_id: tenantId,
+      entity_type: 'class_structure',
+      entity_id: null,
+      action: 'academics.class_structure_created',
+      actor_user_id: this.currentUserId(),
+      metadata: {
+        system_type: dto.system_type,
+        level_count: dto.levels?.length ?? 0,
+      },
+    });
+
+    return structure;
   }
 
   createSubject(dto: CreateSubjectDto) {
@@ -86,6 +128,35 @@ export class AcademicsService {
     return assignment;
   }
 
+  async assignStudentToClass(dto: AssignStudentToClassDto) {
+    const tenantId = this.requireTenantId();
+    const assignment = await this.repository.assignStudentToClass({
+      tenant_id: tenantId,
+      student_id: this.requireText(dto.student_id, 'Student'),
+      class_section_id: this.requireText(dto.class_section_id, 'Class'),
+      stream_id: dto.stream_id?.trim() || null,
+      academic_level_id: this.requireText(dto.academic_level_id, 'Academic level'),
+      academic_year_id: this.requireText(dto.academic_year_id, 'Academic year'),
+      assigned_by_user_id: this.currentUserId(),
+    });
+
+    await this.repository.appendAuditLog({
+      tenant_id: tenantId,
+      entity_type: 'student_class_assignment',
+      entity_id: assignment.id,
+      action: 'academics.student_class_assigned',
+      actor_user_id: this.currentUserId(),
+      metadata: {
+        student_id: dto.student_id,
+        class_section_id: dto.class_section_id,
+        stream_id: dto.stream_id ?? null,
+        academic_year_id: dto.academic_year_id,
+      },
+    });
+
+    return assignment;
+  }
+
   listTeacherAssignments(teacherUserId?: string) {
     return this.repository.listTeacherAssignments({
       tenantId: this.requireTenantId(),
@@ -115,5 +186,25 @@ export class AcademicsService {
     }
 
     return normalized;
+  }
+
+  private requireAcademicSystemType(value: string | undefined): string {
+    const normalized = this.requireText(value, 'Academic system type');
+
+    if (!['CBC', 'CBE', '8-4-4', 'International', 'Custom'].includes(normalized)) {
+      throw new BadRequestException('Academic system type must be CBC, CBE, 8-4-4, International, or Custom');
+    }
+
+    return normalized;
+  }
+
+  private requirePositiveInteger(value: number | undefined, fieldName: string): number {
+    const numericValue = Number(value);
+
+    if (!Number.isInteger(numericValue) || numericValue < 0) {
+      throw new BadRequestException(`${fieldName} must be a non-negative integer`);
+    }
+
+    return numericValue;
   }
 }

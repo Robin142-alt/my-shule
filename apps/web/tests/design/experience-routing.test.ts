@@ -130,7 +130,7 @@ describe("experience routing", () => {
     });
   });
 
-  test("does not route inactive academic aliases into the school workspace", () => {
+  test("routes module-controlled academic aliases into the school workspace", () => {
     const cookies = {
       [SCHOOL_SESSION_COOKIE]: serializeExperienceSession({
         experience: "school",
@@ -148,8 +148,8 @@ describe("experience routing", () => {
         cookies,
       }),
     ).toEqual({
-      action: "redirect",
-      location: "/dashboard",
+      action: "next",
+      rewrittenPath: "/internal/school/academics",
       headers: {
         "x-platform-experience": "school",
         "x-tenant-slug": "greenfield",
@@ -164,7 +164,7 @@ describe("experience routing", () => {
       }),
     ).toEqual({
       action: "redirect",
-      location: "/dashboard",
+      location: "/academics",
       headers: {
         "x-platform-experience": "school",
         "x-tenant-slug": "greenfield",

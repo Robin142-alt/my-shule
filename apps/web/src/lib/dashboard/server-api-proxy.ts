@@ -18,6 +18,7 @@ type CatchAllContext = {
 };
 
 const MAX_PROXY_UPLOAD_BYTES = 11 * 1024 * 1024;
+const EVENT_STREAM_CONTENT_TYPE = "text/event-stream";
 
 function validateProxyBody(request: NextRequest) {
   if (request.method === "GET" || request.method === "HEAD") {
@@ -111,12 +112,14 @@ export async function proxySchoolApiRequest(
       ? undefined
       : await request.arrayBuffer();
   const contentType = request.headers.get("content-type");
+  const acceptHeader = request.headers.get("accept") ?? "application/json";
+  const wantsEventStream = acceptHeader.toLowerCase().includes(EVENT_STREAM_CONTENT_TYPE);
   const upstreamUrl = `${baseUrl}${upstreamPath}${query ? `?${query}` : ""}`;
   const sendUpstream = (token: string) =>
     fetch(upstreamUrl, {
       method: request.method,
       headers: {
-        Accept: "application/json",
+        Accept: wantsEventStream ? EVENT_STREAM_CONTENT_TYPE : "application/json",
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...(body && contentType ? { "Content-Type": contentType } : {}),
         "x-auth-audience": audience,
@@ -125,6 +128,20 @@ export async function proxySchoolApiRequest(
       body: body && body.byteLength > 0 ? body : undefined,
       cache: "no-store",
     });
+
+  if (wantsEventStream) {
+    const upstreamResponse = await sendUpstream(accessToken ?? "");
+
+    return new NextResponse(upstreamResponse.body, {
+      status: upstreamResponse.status,
+      headers: {
+        "cache-control": "no-store, no-transform",
+        "content-type": upstreamResponse.headers.get("content-type") ?? EVENT_STREAM_CONTENT_TYPE,
+        "x-accel-buffering": "no",
+      },
+    });
+  }
+
   const { response: upstreamResponse, body: responseBody, refreshedSession } =
     await fetchWithSessionRefresh({
       accessToken,

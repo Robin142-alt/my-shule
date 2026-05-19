@@ -1,6 +1,7 @@
 import { Body, Controller, Get, Patch, Post, Query } from '@nestjs/common';
 
 import { Permissions } from '../../auth/decorators/permissions.decorator';
+import { RequiresModule } from '../module-access/module-access.decorator';
 import {
   ApproveLeaveRequestDto,
   ApproveStaffContractDto,
@@ -9,6 +10,7 @@ import {
 import { HrService } from './hr.service';
 
 @Controller('hr')
+@RequiresModule('staff')
 export class HrController {
   constructor(private readonly hrService: HrService) {}
 

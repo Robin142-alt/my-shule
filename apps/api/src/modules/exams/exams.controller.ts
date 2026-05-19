@@ -1,6 +1,7 @@
 import { Body, Controller, Get, Patch, Post, Query } from '@nestjs/common';
 
 import { Permissions } from '../../auth/decorators/permissions.decorator';
+import { RequiresModule } from '../module-access/module-access.decorator';
 import {
   CorrectLockedExamMarkDto,
   CreateExamAssessmentDto,
@@ -11,6 +12,7 @@ import {
 import { ExamsService } from './exams.service';
 
 @Controller('exams')
+@RequiresModule('exams')
 export class ExamsController {
   constructor(private readonly examsService: ExamsService) {}
 

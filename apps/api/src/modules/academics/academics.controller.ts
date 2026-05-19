@@ -1,16 +1,20 @@
 import { Body, Controller, Get, Post, Query } from '@nestjs/common';
 
 import { Permissions } from '../../auth/decorators/permissions.decorator';
+import { RequiresModule } from '../module-access/module-access.decorator';
 import { AcademicsService } from './academics.service';
 import {
   AssignTeacherDto,
+  AssignStudentToClassDto,
   CreateAcademicTermDto,
   CreateAcademicYearDto,
   CreateClassSectionDto,
+  CreateClassStructureDto,
   CreateSubjectDto,
 } from './dto/academic.dto';
 
 @Controller('academics')
+@RequiresModule('academics')
 export class AcademicsController {
   constructor(private readonly academicsService: AcademicsService) {}
 
@@ -32,6 +36,12 @@ export class AcademicsController {
     return this.academicsService.createClassSection(dto);
   }
 
+  @Post('class-structure')
+  @Permissions('academics:write')
+  createClassStructure(@Body() dto: CreateClassStructureDto) {
+    return this.academicsService.createClassStructure(dto);
+  }
+
   @Post('subjects')
   @Permissions('academics:write')
   createSubject(@Body() dto: CreateSubjectDto) {
@@ -42,6 +52,12 @@ export class AcademicsController {
   @Permissions('academics:assign-teachers')
   assignTeacher(@Body() dto: AssignTeacherDto) {
     return this.academicsService.assignTeacher(dto);
+  }
+
+  @Post('student-class-assignments')
+  @Permissions('students:write', 'academics:write')
+  assignStudentToClass(@Body() dto: AssignStudentToClassDto) {
+    return this.academicsService.assignStudentToClass(dto);
   }
 
   @Get('teacher-assignments')
