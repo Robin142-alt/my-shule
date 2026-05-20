@@ -1,5 +1,5 @@
 import { Transform, Type } from 'class-transformer';
-import { IsIn, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
+import { IsIn, IsInt, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
 
 const trim = ({ value }: { value: unknown }): unknown =>
   typeof value === 'string' ? value.trim() : value;
@@ -22,4 +22,10 @@ export class ListStudentsQueryDto {
   @Min(1)
   @Max(200)
   limit?: number = 50;
+
+  @Transform(trim)
+  @IsOptional()
+  @IsString()
+  @MaxLength(512)
+  cursor?: string;
 }

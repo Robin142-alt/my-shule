@@ -1,6 +1,8 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, Optional } from '@nestjs/common';
 import type { JobsOptions } from 'bullmq';
 
+import { ModuleCode } from '../../modules/module-access/module-access.constants';
+import { ModuleAccessService } from '../../modules/module-access/module-access.service';
 import { QueueService } from '../../queue/queue.service';
 import { RequestContextService } from '../request-context/request-context.service';
 
@@ -19,6 +21,36 @@ const REPORT_EXPORT_JOB_OPTIONS: Omit<JobsOptions, 'jobId'> = {
   },
   removeOnComplete: 1000,
   removeOnFail: 5000,
+};
+
+const REPORT_EXPORT_MODULE_ACCESS_MAP: Record<string, ModuleCode> = {
+  academics: 'academics',
+  admin_command: 'admin_command_centers',
+  'admin-command': 'admin_command_centers',
+  admissions: 'admissions',
+  billing: 'finance',
+  biometric_attendance: 'teacher_biometric_attendance',
+  'biometric-attendance': 'teacher_biometric_attendance',
+  clinic: 'clinic_health',
+  communication: 'communication_sms',
+  counselling: 'discipline',
+  discipline: 'discipline',
+  exams: 'exams',
+  finance: 'finance',
+  hr: 'staff',
+  inventory: 'inventory',
+  labs: 'lab_management',
+  library: 'library',
+  mpesa: 'finance',
+  payments: 'finance',
+  reports: 'reports',
+  school_sms: 'communication_sms',
+  'school-sms': 'communication_sms',
+  staff: 'staff',
+  students: 'students',
+  tenant_finance: 'finance',
+  'tenant-finance': 'finance',
+  timetable: 'timetable',
 };
 
 export type ReportExportFormat = 'csv' | 'xlsx' | 'pdf';
@@ -148,11 +180,43 @@ export function buildReportExportJobId(payload: ReportExportJobPayload): string 
     .join(':');
 }
 
+export function resolveReportExportModuleAccessCode(moduleName: string): ModuleCode {
+  const normalized = moduleName.trim().toLowerCase().replace(/[^a-z0-9_-]+/g, '_');
+  const underscored = normalized.replace(/-/g, '_');
+
+  return (
+    REPORT_EXPORT_MODULE_ACCESS_MAP[normalized]
+    ?? REPORT_EXPORT_MODULE_ACCESS_MAP[underscored]
+    ?? underscored as ModuleCode
+  );
+}
+
+export async function assertReportExportModuleEnabled(
+  tenantId: string,
+  moduleName: string,
+  moduleAccessService?: Pick<ModuleAccessService, 'findFirstMissingModule'>,
+): Promise<void> {
+  if (!moduleAccessService) {
+    return;
+  }
+
+  const moduleCode = resolveReportExportModuleAccessCode(moduleName);
+  const missingModule = await moduleAccessService.findFirstMissingModule(tenantId, [moduleCode]);
+
+  if (missingModule) {
+    throw new ForbiddenException(
+      `Module not enabled for your school report exports: ${missingModule}`,
+    );
+  }
+}
+
 @Injectable()
 export class ReportExportQueueService {
   constructor(
     private readonly queueService: QueueService,
     private readonly requestContextService: RequestContextService,
+    @Optional()
+    private readonly moduleAccessService?: ModuleAccessService,
   ) {}
 
   async enqueueCurrentRequestReportExport(
@@ -196,6 +260,12 @@ export class ReportExportQueueService {
         errors,
       });
     }
+
+    await assertReportExportModuleEnabled(
+      payload.tenant_id,
+      payload.module,
+      this.moduleAccessService,
+    );
 
     const jobId = buildReportExportJobId(payload);
     const job = await this.queueService.add<ReportExportJobPayload>(

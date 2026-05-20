@@ -3,6 +3,7 @@ import test from 'node:test';
 import type { PoolClient, QueryResult, QueryResultRow } from 'pg';
 
 import { RequestContextService } from '../common/request-context/request-context.service';
+import { buildDatabasePoolOptions } from './database.module';
 import { DatabaseService } from './database.service';
 
 interface RecordedQuery {
@@ -64,6 +65,28 @@ class FakePool {
   }
 }
 
+test('buildDatabasePoolOptions enables PostgreSQL SSL from explicit production flag', () => {
+  const options = buildDatabasePoolOptions({
+    get: (key: string) => {
+      const values: Record<string, unknown> = {
+        'database.url': 'postgres://myshule:secret@db.example.test:5432/myshule',
+        'database.ssl': true,
+        'database.statementTimeoutMs': 5000,
+        'database.connectionTimeoutMs': 1500,
+        'database.apiMaxConnections': 15,
+        'database.workerMaxConnections': 5,
+        'database.idleTimeoutMs': 10000,
+        'app.runtime': 'server',
+      };
+
+      return values[key];
+    },
+  } as never);
+
+  assert.deepEqual(options.ssl, { rejectUnauthorized: false });
+  assert.equal(options.max, 15);
+});
+
 test('DatabaseService.query scopes request-context calls into a transaction-local session', async () => {
   const requestContext = new RequestContextService();
   const pool = new FakePool();
@@ -109,6 +132,44 @@ test('DatabaseService.query scopes request-context calls into a transaction-loca
       'COMMIT',
     ],
   );
+});
+
+test('DatabaseService.query bypasses request transactions for safe public read-only GETs', async () => {
+  const requestContext = new RequestContextService();
+  const pool = new FakePool();
+  const service = new DatabaseService(
+    pool as never,
+    requestContext,
+    {
+      getRuntimeRoleName: () => 'my_shule_runtime',
+    } as never,
+    {
+      get: () => undefined,
+    } as never,
+  );
+
+  await requestContext.run(
+    {
+      request_id: 'req-public-read',
+      tenant_id: null,
+      user_id: 'anonymous',
+      role: 'guest',
+      session_id: null,
+      permissions: [],
+      is_authenticated: false,
+      client_ip: null,
+      user_agent: 'database.test',
+      method: 'GET',
+      path: '/health/ready',
+      started_at: '2026-05-20T00:00:00.000Z',
+    },
+    async () => {
+      await service.query('SELECT 1');
+    },
+  );
+
+  assert.equal(pool.connectCalls, 0);
+  assert.deepEqual(pool.queryCalls, [{ text: 'SELECT 1', values: [] }]);
 });
 
 test('DatabaseService.query uses the raw pool when no request context exists', async () => {

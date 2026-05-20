@@ -9,7 +9,19 @@ export type PaymentIntentStatus =
   | 'expired';
 
 export type MpesaTransactionStatus = 'succeeded' | 'failed';
-export type MpesaC2bPaymentStatus = 'pending_review' | 'matched' | 'rejected';
+export type MpesaC2bPaymentStatus =
+  | 'received_unverified'
+  | 'verification_requested'
+  | 'verified_matched'
+  | 'verified_unmatched'
+  | 'amount_mismatch'
+  | 'duplicate_provider_receipt'
+  | 'missing_provider_record'
+  | 'reversed'
+  | 'manual_review_required'
+  | 'pending_review'
+  | 'matched'
+  | 'rejected';
 export type PaymentOwner = 'tenant' | 'platform';
 export type CallbackLogStatus =
   | 'received'
@@ -197,11 +209,35 @@ export type MpesaReconciliationDiscrepancyType =
   | 'missing_ledger_transaction'
   | 'amount_mismatch'
   | 'duplicate_mpesa_receipt'
-  | 'unmatched_ledger_transaction';
+  | 'unmatched_ledger_transaction'
+  | 'missing_provider_record'
+  | 'wrong_account_reference'
+  | 'manual_review_required';
+
+export type MpesaReconciliationState =
+  | 'provider_received'
+  | 'system_received'
+  | 'verified_matched'
+  | 'verified_unmatched'
+  | 'amount_mismatch'
+  | 'duplicate_provider_receipt'
+  | 'missing_provider_record'
+  | 'reversed'
+  | 'manual_review_required';
 
 export interface GenerateMpesaReconciliationReportInput {
   report_date: string;
   missing_callback_grace_minutes?: number;
+  payment_channel_id?: string | null;
+  persist_batch?: boolean;
+}
+
+export interface GenerateMpesaReconciliationRangeReportInput {
+  start_date: string;
+  end_date: string;
+  missing_callback_grace_minutes?: number;
+  payment_channel_id?: string | null;
+  persist_batch?: boolean;
 }
 
 export interface MpesaReconciliationSummary {
@@ -216,11 +252,13 @@ export interface MpesaReconciliationSummary {
   amount_mismatch_count: number;
   duplicate_receipt_group_count: number;
   unmatched_ledger_transaction_count: number;
+  manual_review_required_count: number;
   discrepancy_count: number;
 }
 
 export interface MpesaReconciliationDiscrepancy {
   type: MpesaReconciliationDiscrepancyType;
+  reconciliation_state: MpesaReconciliationState;
   severity: 'warning' | 'critical';
   detail: string;
   occurred_at: string;
@@ -235,7 +273,9 @@ export interface MpesaReconciliationDiscrepancy {
 }
 
 export interface MpesaReconciliationReport {
+  reconciliation_batch_id: string | null;
   tenant_id: string;
+  payment_channel_id: string | null;
   report_date: string;
   generated_at: string;
   window_started_at: string;
@@ -243,4 +283,24 @@ export interface MpesaReconciliationReport {
   is_balanced: boolean;
   summary: MpesaReconciliationSummary;
   discrepancies: MpesaReconciliationDiscrepancy[];
+}
+
+export interface MpesaReconciliationRangeReport {
+  tenant_id: string;
+  payment_channel_id: string | null;
+  start_date: string;
+  end_date: string;
+  generated_at: string;
+  report_count: number;
+  is_balanced: boolean;
+  summary: MpesaReconciliationSummary;
+  reports: MpesaReconciliationReport[];
+}
+
+export interface MpesaReconciliationProcessorResult {
+  report_date: string;
+  generated_at: string;
+  processed_channel_count: number;
+  is_balanced: boolean;
+  reports: MpesaReconciliationReport[];
 }

@@ -120,3 +120,48 @@ test('ReportExportQueueService enqueues report exports with a stable job contrac
     removeOnFail: 5000,
   });
 });
+
+test('ReportExportQueueService rejects export requests for disabled tenant modules before enqueue', async () => {
+  let addCalled = false;
+  const queueService = {
+    add: async () => {
+      addCalled = true;
+      return {
+        id: 'unexpected',
+        getState: async () => 'waiting',
+      };
+    },
+  };
+  const requestContext = {
+    requireStore: () => ({
+      tenant_id: 'tenant-1',
+      user_id: 'user-1',
+      request_id: 'req-disabled-module',
+    }),
+  };
+  const moduleAccessService = {
+    findFirstMissingModule: async (tenantId: string, moduleCodes: string[]) => {
+      assert.equal(tenantId, 'tenant-1');
+      assert.deepEqual(moduleCodes, ['inventory']);
+
+      return 'inventory';
+    },
+  };
+  const service = new ReportExportQueueService(
+    queueService as never,
+    requestContext as never,
+    moduleAccessService as never,
+  );
+
+  await assert.rejects(
+    () =>
+      service.enqueueCurrentRequestReportExport({
+        module: 'inventory',
+        report_id: 'stock-valuation',
+        format: 'csv',
+        estimated_rows: 50000,
+      }),
+    /Module not enabled for your school report exports/i,
+  );
+  assert.equal(addCalled, false);
+});

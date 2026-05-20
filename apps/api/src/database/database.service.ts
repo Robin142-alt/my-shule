@@ -110,6 +110,10 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       );
     }
 
+    if (requestContext && this.isSafePublicReadOnlyRequestQuery(requestContext, text)) {
+      return this.executeObservedQuery(text, values, () => this.pool.query<T>(text, values));
+    }
+
     if (requestContext) {
       return this.executeInScopedRequestSession(requestContext, (client) =>
         this.executeObservedQuery(text, values, () => client.query<T>(text, values)),
@@ -260,6 +264,22 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
+  private isSafePublicReadOnlyRequestQuery(
+    context: RequestContextState,
+    sql: string,
+  ): boolean {
+    if (context.tenant_id || context.is_authenticated) {
+      return false;
+    }
+
+    const method = (context.method ?? '').toUpperCase();
+    if (method !== 'GET' && method !== 'HEAD') {
+      return false;
+    }
+
+    return READ_ONLY_SQL_PATTERN.test(sql) && !MUTATING_SQL_PATTERN.test(sql);
+  }
+
   private async executeObservedQuery<T extends QueryResultRow = QueryResultRow>(
     text: string,
     values: unknown[],
@@ -379,6 +399,9 @@ const extractStatementType = (sql: string): string => {
 
   return normalized.split(' ')[0]!.toUpperCase();
 };
+
+const READ_ONLY_SQL_PATTERN = /^\s*(SELECT|WITH|SHOW|EXPLAIN)\b/i;
+const MUTATING_SQL_PATTERN = /\b(INSERT|UPDATE|DELETE|TRUNCATE|ALTER|DROP|CREATE|MERGE|CALL)\b/i;
 
 const createQueryFingerprint = (sql: string): string => {
   const normalized = sql.replace(/\s+/g, ' ').trim().toLowerCase();

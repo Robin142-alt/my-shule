@@ -1,5 +1,6 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, Optional } from '@nestjs/common';
 
+import { ModuleAccessService } from '../../modules/module-access/module-access.service';
 import { createCsvReportArtifact } from './report-csv-artifact';
 import {
   type ReportArtifact,
@@ -10,6 +11,7 @@ import { ReportArtifactStorageService } from './report-artifact-storage.service'
 import { createXlsxReportArtifact } from './report-excel-artifact';
 import { createPdfReportArtifact } from './report-pdf-artifact';
 import {
+  assertReportExportModuleEnabled,
   type ReportExportJobPayload,
   validateReportExportJobPayload,
 } from './report-export-queue';
@@ -51,6 +53,8 @@ export class ReportExportWorkerService {
   constructor(
     private readonly artifactStorage: ReportArtifactStorageService,
     private readonly snapshotRepository: ReportSnapshotRepository,
+    @Optional()
+    private readonly moduleAccessService?: ModuleAccessService,
   ) {}
 
   async execute(
@@ -62,6 +66,12 @@ export class ReportExportWorkerService {
     if (validationErrors.length > 0) {
       throw new BadRequestException(validationErrors.join(' '));
     }
+
+    await assertReportExportModuleEnabled(
+      payload.tenant_id,
+      payload.module,
+      this.moduleAccessService,
+    );
 
     const dedupeKey = buildExportDedupeKey(payload);
     const existing = this.completedExports.get(dedupeKey);

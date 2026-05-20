@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   HttpException,
   HttpStatus,
@@ -8,6 +9,7 @@ import {
 } from '@nestjs/common';
 
 import { AUTH_ANONYMOUS_USER_ID } from '../../auth/auth.constants';
+import { InvalidCursorError, normalizeCursorLimit } from '../../common/pagination/cursor-pagination';
 import { RequestContextService } from '../../common/request-context/request-context.service';
 import { DatabaseService } from '../../database/database.service';
 import { BillingAccessService } from '../billing/billing-access.service';
@@ -87,11 +89,22 @@ export class StudentsService {
   }
 
   async listStudents(query: ListStudentsQueryDto): Promise<StudentResponseDto[]> {
-    const students = await this.studentsRepository.listStudents(this.requireTenantId(), {
-      search: query.search?.trim() || undefined,
-      status: query.status,
-      limit: query.limit ?? 50,
-    });
+    let students: StudentEntity[];
+
+    try {
+      students = await this.studentsRepository.listStudents(this.requireTenantId(), {
+        search: query.search?.trim() || undefined,
+        status: query.status,
+        limit: normalizeCursorLimit(query.limit, 50, 200),
+        cursor: query.cursor,
+      });
+    } catch (error) {
+      if (error instanceof InvalidCursorError) {
+        throw new BadRequestException('Invalid student pagination cursor');
+      }
+
+      throw error;
+    }
 
     return students.map((student) => this.mapStudent(student));
   }

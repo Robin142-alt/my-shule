@@ -31,7 +31,7 @@ export const buildRedisClientOptions = (
   bullConnection: BullRedisConnectionOptions;
 } => {
   const redisUrl = resolveRedisUrl(configService);
-  const useTls = requiresRedisTls(redisUrl);
+  const useTls = Boolean(configService.get<boolean>('redis.tlsEnabled')) || requiresRedisTls(redisUrl);
   const connectTimeout = Number(configService.get<number>('redis.connectTimeoutMs') ?? 10000);
   const isServerlessRuntime = Boolean(configService.get<boolean>('app.isServerlessRuntime'));
 

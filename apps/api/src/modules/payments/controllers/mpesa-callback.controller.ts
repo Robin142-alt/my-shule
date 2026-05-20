@@ -25,9 +25,19 @@ import {
   PAYMENTS_QUEUE_NAME,
 } from '../payments.constants';
 import { CallbackLogsRepository } from '../repositories/callback-logs.repository';
+import { MpesaVerificationJobsRepository } from '../repositories/mpesa-verification-jobs.repository';
 import { PaymentsJobProducerService } from '../services/payments-job-producer.service';
 import { MpesaReplayProtectionService } from '../services/mpesa-replay-protection.service';
 import { MpesaService } from '../services/mpesa.service';
+import {
+  MpesaCallbackChannelService,
+  ResolvedMpesaCallbackChannel,
+} from '../services/mpesa-callback-channel.service';
+import {
+  MpesaPayloadVaultService,
+  redactMpesaOperationalPayload,
+} from '../services/mpesa-payload-vault.service';
+import { MpesaCallbackTrustService } from '../services/mpesa-callback-trust.service';
 import { MpesaSignatureService } from '../services/mpesa-signature.service';
 
 @Public()
@@ -45,12 +55,28 @@ export class MpesaCallbackController {
     @Optional() private readonly tenantFinanceConfigService?: TenantFinanceConfigService,
     @Optional() private readonly databaseService?: DatabaseService,
     @Optional() private readonly darajaIntegrationService?: DarajaIntegrationService,
+    @Optional() private readonly mpesaPayloadVaultService?: MpesaPayloadVaultService,
+    @Optional() private readonly mpesaCallbackTrustService?: MpesaCallbackTrustService,
+    @Optional() private readonly mpesaCallbackChannelService?: MpesaCallbackChannelService,
+    @Optional() private readonly mpesaVerificationJobsRepository?: MpesaVerificationJobsRepository,
   ) {}
 
   @Post('callback')
   @HttpCode(HttpStatus.OK)
   async handleCallback(@Req() request: Request): Promise<MpesaCallbackResponseDto> {
     return this.handleCallbackInternal(request, null);
+  }
+
+  @Post('callback/:channelId/:secretRef')
+  @HttpCode(HttpStatus.OK)
+  async handleChannelCallback(
+    @Param('channelId') channelId: string,
+    @Param('secretRef') secretRef: string,
+    @Req() request: Request,
+  ): Promise<MpesaCallbackResponseDto> {
+    const callbackChannel = await this.resolveCallbackChannel(channelId, secretRef);
+
+    return this.handleCallbackInternal(request, null, callbackChannel);
   }
 
   @Post('callback/:integrationId')
@@ -65,6 +91,7 @@ export class MpesaCallbackController {
   private async handleCallbackInternal(
     request: Request,
     integrationId: string | null,
+    callbackChannel: ResolvedMpesaCallbackChannel | null = null,
   ): Promise<MpesaCallbackResponseDto> {
     const requestContext = this.requestContext.requireStore();
     const rawBody = this.getRawBody(request);
@@ -75,6 +102,8 @@ export class MpesaCallbackController {
       | null = null;
     let payloadError: Error | null = null;
     let signatureError: Error | null = null;
+    let signatureVerified = false;
+    const requiresEdgeSignature = callbackChannel?.requires_edge_signature ?? this.requiresEdgeSignature();
 
     try {
       parsedCallback = this.mpesaService.parseCallbackPayload(request.body);
@@ -83,7 +112,10 @@ export class MpesaCallbackController {
     }
 
     try {
-      this.mpesaSignatureService.verifyCallback(rawBody, request.headers, inspection);
+      if (requiresEdgeSignature || inspection.signature) {
+        this.mpesaSignatureService.verifyCallback(rawBody, request.headers, inspection);
+        signatureVerified = true;
+      }
     } catch (error) {
       signatureError = error as Error;
     }
@@ -93,8 +125,19 @@ export class MpesaCallbackController {
       parsedCallback,
       requestContext.tenant_id,
       integrationId,
+      callbackChannel,
     );
     const tenantId = resolvedTenant.tenant_id;
+    const payloadVaultRecord =
+      request.body && typeof request.body === 'object'
+        ? await this.mpesaPayloadVaultService?.storePayload({
+          tenant_id: tenantId,
+          source: 'callback_logs',
+          source_id: inspection.delivery_id,
+          purpose: 'stk_callback',
+          payload: request.body as Record<string, unknown>,
+        })
+        : null;
 
     if (requestContext.tenant_id !== tenantId) {
       this.requestContext.setTenantId(tenantId);
@@ -110,13 +153,18 @@ export class MpesaCallbackController {
       request_fingerprint: inspection.request_fingerprint,
       event_timestamp: inspection.event_timestamp,
       signature: inspection.signature,
-      signature_verified: !signatureError,
+      signature_verified: signatureVerified,
       headers: request.headers as Record<string, unknown>,
       raw_body: rawBody,
       raw_payload:
-        request.body && typeof request.body === 'object'
-          ? (request.body as Record<string, unknown>)
-          : null,
+        payloadVaultRecord?.redacted_payload ??
+        (
+          request.body && typeof request.body === 'object'
+            ? redactMpesaOperationalPayload(request.body as Record<string, unknown>)
+            : null
+        ),
+      raw_payload_encrypted_ref: payloadVaultRecord?.raw_payload_encrypted_ref ?? null,
+      payload_sha256: payloadVaultRecord?.payload_sha256 ?? null,
       source_ip: this.getSourceIp(request),
     });
 
@@ -125,7 +173,7 @@ export class MpesaCallbackController {
       throw new BadRequestException(payloadError.message);
     }
 
-    if (signatureError) {
+    if (signatureError && requiresEdgeSignature) {
       await this.callbackLogsRepository.markRejected(
         tenantId,
         callbackLog.id,
@@ -168,6 +216,40 @@ export class MpesaCallbackController {
         duplicate: true,
         callback_log_id: callbackLog.id,
         checkout_request_id: parsedCallback?.checkout_request_id ?? null,
+      });
+    }
+
+    if (!signatureVerified) {
+      if (this.resolveCallbackTrustMode() !== 'manual_review_only') {
+        if (!this.mpesaVerificationJobsRepository) {
+          throw new BadRequestException('M-PESA verification jobs are not configured');
+        }
+
+        const verificationJob = await this.mpesaVerificationJobsRepository.createForStkCallback({
+          tenant_id: tenantId,
+          callback_log_id: callbackLog.id,
+          checkout_request_id: parsedCallback.checkout_request_id,
+          mpesa_receipt_number: parsedCallback.mpesa_receipt_number,
+        });
+        await this.paymentsJobProducerService.enqueueMpesaVerification?.({
+          tenant_id: tenantId,
+          verification_job_id: verificationJob.id,
+          callback_log_id: callbackLog.id,
+          checkout_request_id: parsedCallback.checkout_request_id,
+          request_id: requestContext.request_id,
+          trace_id: requestContext.trace_id,
+          parent_span_id: requestContext.span_id,
+          user_id: requestContext.user_id,
+          role: requestContext.role,
+          session_id: requestContext.session_id,
+        });
+      }
+
+      return Object.assign(new MpesaCallbackResponseDto(), {
+        accepted: true,
+        duplicate: false,
+        callback_log_id: callbackLog.id,
+        checkout_request_id: parsedCallback.checkout_request_id,
       });
     }
 
@@ -258,6 +340,33 @@ export class MpesaCallbackController {
     return JSON.stringify(request.body ?? {});
   }
 
+  private requiresEdgeSignature(): boolean {
+    return this.mpesaCallbackTrustService?.requiresEdgeSignature() ?? true;
+  }
+
+  private resolveCallbackTrustMode(): string {
+    const trustService = this.mpesaCallbackTrustService as
+      | { resolveMode?: () => string; requiresEdgeSignature?: () => boolean }
+      | undefined;
+
+    return trustService?.resolveMode?.() ??
+      (trustService?.requiresEdgeSignature?.() === false ? 'daraja_direct' : 'edge_signed');
+  }
+
+  private async resolveCallbackChannel(
+    channelId: string,
+    secretRef: string,
+  ): Promise<ResolvedMpesaCallbackChannel> {
+    if (!this.mpesaCallbackChannelService) {
+      throw new UnauthorizedException('M-PESA callback channel verification is unavailable');
+    }
+
+    return this.mpesaCallbackChannelService.resolveChannelBySecret({
+      channel_id: channelId,
+      secret_ref: secretRef,
+    });
+  }
+
   private getSourceIp(request: Request): string | null {
     const forwardedFor = request.headers['x-forwarded-for'];
 
@@ -279,7 +388,15 @@ export class MpesaCallbackController {
       | null,
     fallbackTenantId: string | null,
     integrationId: string | null,
+    callbackChannel: ResolvedMpesaCallbackChannel | null,
   ): Promise<{ tenant_id: string; shortcode: string | null }> {
+    if (callbackChannel) {
+      return {
+        tenant_id: callbackChannel.tenant_id,
+        shortcode: callbackChannel.shortcode,
+      };
+    }
+
     if (integrationId && this.darajaIntegrationService) {
       const integration = await this.darajaIntegrationService.getCredentialsForCallback(integrationId);
 

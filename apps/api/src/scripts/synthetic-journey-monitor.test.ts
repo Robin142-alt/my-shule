@@ -18,6 +18,17 @@ test('synthetic journeys are read-only and exclude retired attendance', () => {
     SYNTHETIC_JOURNEYS.some((journey) => journey.id === 'public-status-page'),
     true,
   );
+  const syntheticStepIds = new Set(SYNTHETIC_JOURNEYS.flatMap((journey) => journey.steps.map((step) => step.id)));
+  for (const requiredStep of [
+    'login-page',
+    'tenant-switch-modules',
+    'stk-sandbox-readiness',
+    'c2b-sandbox-registration',
+    'parent-report-card-download',
+    'principal-dashboard-load',
+  ]) {
+    assert.equal(syntheticStepIds.has(requiredStep), true, `${requiredStep} synthetic check is required`);
+  }
 
   assert.deepEqual(
     validateSyntheticJourneys([
@@ -107,7 +118,7 @@ test('synthetic journey plan keeps public checks when tenant credentials are abs
 
   assert.deepEqual(
     plan.journeys.map((journey) => journey.id),
-    ['public-readiness', 'public-status-page', 'exams-workspace', 'discipline-workspace'],
+    ['public-readiness', 'public-status-page', 'login-smoke', 'exams-workspace', 'discipline-workspace'],
   );
   assert.equal(
     plan.journeys.flatMap((journey) => journey.steps).some((step) => step.auth === 'tenant'),

@@ -229,6 +229,15 @@ test('DarajaIntegrationService masks credentials after save and never returns ra
     {
       encrypt: (value: string) => `enc:${value}`,
     } as never,
+    {
+      get: (key: string) => {
+        if (key === 'mpesa.callbackUrl') {
+          return 'https://api.example.test/payments/mpesa/callback';
+        }
+
+        return undefined;
+      },
+    } as never,
   );
 
   const response = await service.saveDarajaSettings({
@@ -243,6 +252,114 @@ test('DarajaIntegrationService masks credentials after save and never returns ra
   assert.equal(saved[0]?.consumer_secret_ciphertext, 'enc:consumer-secret-live');
   assert.equal(response.consumer_secret_masked?.endsWith('live'), true);
   assert.equal(JSON.stringify(response).includes('consumer-secret-live'), false);
+});
+
+test('DarajaIntegrationService mirrors saved Daraja settings into canonical tenant finance config', async () => {
+  const savedIntegrations: Record<string, unknown>[] = [];
+  const canonicalConfigs: Record<string, unknown>[] = [];
+  const service = new DarajaIntegrationService(
+    { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'finance-1' }) } as never,
+    {
+      upsertDarajaIntegration: async (input: Record<string, unknown>) => {
+        savedIntegrations.push(input);
+        return {
+          id: 'integration-1',
+          tenant_id: 'tenant-a',
+          integration_type: 'mpesa_daraja',
+          paybill_number: input.paybill_number,
+          till_number: input.till_number,
+          shortcode: input.shortcode,
+          consumer_key_ciphertext: String(input.consumer_key_ciphertext),
+          consumer_secret_ciphertext: String(input.consumer_secret_ciphertext),
+          passkey_ciphertext: String(input.passkey_ciphertext),
+          environment: 'production',
+          callback_url: input.callback_url,
+          is_active: true,
+          last_test_status: null,
+          last_tested_at: null,
+          created_at: '2026-05-16T00:00:00.000Z',
+          updated_at: '2026-05-16T00:00:00.000Z',
+        };
+      },
+      appendIntegrationLog: async () => undefined,
+    } as never,
+    {
+      encrypt: (value: string) => `enc:${value}`,
+      decrypt: (value: string) => value.replace(/^enc:/, ''),
+    } as never,
+    {
+      get: (key: string) => {
+        if (key === 'mpesa.callbackUrl') {
+          return 'https://api.shulehub.co.ke/payments/mpesa/callback';
+        }
+
+        return undefined;
+      },
+    } as never,
+    {
+      upsertMpesaConfig: async (tenantId: string, input: Record<string, unknown>) => {
+        canonicalConfigs.push({ tenantId, ...input });
+        return {};
+      },
+    } as never,
+  );
+
+  const response = await service.saveDarajaSettings({
+    paybill_number: '123456',
+    shortcode: '123456',
+    consumer_key: 'consumer-key-live',
+    consumer_secret: 'consumer-secret-live',
+    passkey: 'passkey-live',
+    environment: 'production',
+    is_active: true,
+  });
+
+  assert.equal(savedIntegrations[0]?.callback_url, 'https://api.shulehub.co.ke/payments/mpesa/callback');
+  assert.equal(response.callback_url, 'https://api.shulehub.co.ke/payments/mpesa/callback');
+  assert.equal(canonicalConfigs[0]?.tenantId, 'tenant-a');
+  assert.equal(canonicalConfigs[0]?.shortcode, '123456');
+  assert.equal(canonicalConfigs[0]?.callback_url, 'https://api.shulehub.co.ke/payments/mpesa/callback');
+  assert.equal(canonicalConfigs[0]?.status, 'active');
+});
+
+test('DarajaIntegrationService rejects non-HTTPS callback URLs before saving credentials', async () => {
+  let wroteCredentials = false;
+  const service = new DarajaIntegrationService(
+    { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'finance-1' }) } as never,
+    {
+      upsertDarajaIntegration: async () => {
+        wroteCredentials = true;
+        return {};
+      },
+      appendIntegrationLog: async () => undefined,
+    } as never,
+    {
+      encrypt: (value: string) => `enc:${value}`,
+    } as never,
+    {
+      get: (key: string) => {
+        if (key === 'mpesa.callbackUrl') {
+          return 'http://api.shulehub.co.ke/payments/mpesa/callback';
+        }
+
+        return undefined;
+      },
+    } as never,
+  );
+
+  await assert.rejects(
+    () =>
+      service.saveDarajaSettings({
+        paybill_number: '123456',
+        shortcode: '123456',
+        consumer_key: 'consumer-key-live',
+        consumer_secret: 'consumer-secret-live',
+        passkey: 'passkey-live',
+        environment: 'production',
+      }),
+    BadRequestException,
+  );
+  assert.equal(wroteCredentials, false);
 });
 
 test('PlatformSmsController protects provider management with platform permissions', () => {

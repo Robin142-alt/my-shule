@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 
 export type AuditStatus = 'pass' | 'fail';
@@ -28,6 +28,16 @@ export interface TenantIsolationAuditOptions {
   generatedAt?: string;
   sourceOverrides?: Record<string, string>;
   outputPath?: string;
+}
+
+export interface ForcedRlsSource {
+  file: string;
+  source: string;
+}
+
+export interface MissingForcedRlsTable {
+  file: string;
+  table: string;
 }
 
 const CHECKS: TenantIsolationAuditCheck[] = [
@@ -69,12 +79,99 @@ export function runTenantIsolationAudit(
       status: passed ? 'pass' as const : 'fail' as const,
     };
   });
+  const forcedRlsMissing = options.sourceOverrides
+    ? []
+    : findTenantTablesWithoutForcedRls(readTenantSchemaSources(workspaceRoot));
+
+  checks.push({
+    id: 'all-tenant-tables-forced-rls',
+    label: 'All statically declared tenant tables enforce forced row level security',
+    file: 'apps/api/src',
+    severity: 'critical' as const,
+    status: forcedRlsMissing.length === 0 ? 'pass' as const : 'fail' as const,
+  });
 
   return {
     generated_at: options.generatedAt ?? new Date().toISOString(),
     ok: checks.every((item) => item.status === 'pass'),
     checks,
   };
+}
+
+export function findTenantTablesWithoutForcedRls(
+  sources: readonly ForcedRlsSource[],
+): MissingForcedRlsTable[] {
+  const missing: MissingForcedRlsTable[] = [];
+  const createTablePattern = /CREATE TABLE(?: IF NOT EXISTS)?\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\(([\s\S]*?)\);/g;
+
+  for (const { file, source } of sources) {
+    let match: RegExpExecArray | null;
+
+    while ((match = createTablePattern.exec(source)) !== null) {
+      const [, tableName, tableBody] = match;
+
+      if (!tableName || !/\btenant_id\b/.test(tableBody)) {
+        continue;
+      }
+
+      if (!hasForcedRlsForTable(source, tableName)) {
+        missing.push({ file, table: tableName });
+      }
+    }
+  }
+
+  return missing;
+}
+
+function readTenantSchemaSources(workspaceRoot: string): ForcedRlsSource[] {
+  const root = join(workspaceRoot, 'apps', 'api', 'src');
+
+  if (!existsSync(root)) {
+    return [];
+  }
+
+  return listSourceFiles(root)
+    .filter((file) => /(?:schema|migration|database)/i.test(file))
+    .map((file) => ({
+      file: file.replace(`${workspaceRoot}\\`, '').replace(`${workspaceRoot}/`, '').replace(/\\/g, '/'),
+      source: readFileSync(file, 'utf8'),
+    }));
+}
+
+function listSourceFiles(root: string): string[] {
+  const entries = readdirSync(root);
+  const files: string[] = [];
+
+  for (const entry of entries) {
+    const filePath = join(root, entry);
+    const stats = statSync(filePath);
+
+    if (stats.isDirectory()) {
+      files.push(...listSourceFiles(filePath));
+      continue;
+    }
+
+    if (/\.(ts|sql)$/.test(entry)) {
+      files.push(filePath);
+    }
+  }
+
+  return files;
+}
+
+function hasForcedRlsForTable(source: string, tableName: string): boolean {
+  if (/ALTER\s+TABLE\s+\$\{(?:table|tableName)\}\s+FORCE\s+ROW\s+LEVEL\s+SECURITY/i.test(source)) {
+    return true;
+  }
+
+  return new RegExp(
+    `ALTER\\s+TABLE\\s+(?:IF\\s+EXISTS\\s+)?${escapeRegExp(tableName)}\\s+FORCE\\s+ROW\\s+LEVEL\\s+SECURITY`,
+    'i',
+  ).test(source);
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 export function renderTenantIsolationAuditMarkdown(result: TenantIsolationAuditResult): string {

@@ -518,3 +518,124 @@ test('PlatformOnboardingService deprovisions instead of hard deleting a tenant w
   assert.equal(queries.some((query) => query.text.includes('DELETE FROM tenants')), false);
   assert.equal(queries.some((query) => query.text.includes('UPDATE tenants')), true);
 });
+
+test('PlatformOnboardingService exports a tenant offboarding manifest before contract closeout', async () => {
+  const service = new PlatformOnboardingService(
+    {
+      query: async (text: string) => {
+        if (text.includes('FROM tenants')) {
+          return {
+            rows: [
+              {
+                tenant_id: 'green-valley',
+                name: 'Green Valley School',
+                subdomain: 'green-valley',
+                status: 'inactive',
+                created_at: new Date('2026-05-11T00:00:00.000Z'),
+              },
+            ],
+          };
+        }
+
+        if (text.includes('AS memberships') && text.includes('AS students')) {
+          return {
+            rows: [
+              {
+                memberships: '3',
+                students: '120',
+                invoices: '48',
+                support_tickets: '2',
+                mpesa_transactions: '20',
+              },
+            ],
+          };
+        }
+
+        return { rows: [] };
+      },
+    } as never,
+    { ensureTenantAuthorizationBaseline: async () => undefined } as never,
+    { getTransactionalEmailStatus: () => ({ provider: 'resend', status: 'configured' }) } as never,
+    { get: () => undefined } as never,
+    { getStore: () => ({ user_id: 'platform-owner', request_id: 'request-1' }) } as never,
+  );
+
+  const manifest = await service.exportTenantOffboardingPackage('green-valley');
+
+  assert.equal(manifest.tenant_id, 'green-valley');
+  assert.equal(manifest.export_type, 'contract_offboarding');
+  assert.equal(manifest.tables.some((table) => table.name === 'students'), true);
+  assert.equal(manifest.retention_policy.raw_provider_payloads, 'expire encrypted raw payloads after operational review window');
+});
+
+test('PlatformOnboardingService anonymizes tenant shell metadata for legal offboarding', async () => {
+  const queries: Array<{ text: string; values: unknown[] }> = [];
+  const service = new PlatformOnboardingService(
+    {
+      withRequestTransaction: async (callback: () => Promise<unknown>) => callback(),
+      query: async (text: string, values: unknown[]) => {
+        queries.push({ text, values });
+
+        if (text.includes('FROM tenants')) {
+          return {
+            rows: [
+              {
+                tenant_id: 'green-valley',
+                name: 'Green Valley School',
+                subdomain: 'green-valley',
+                status: 'inactive',
+                created_at: new Date('2026-05-11T00:00:00.000Z'),
+              },
+            ],
+          };
+        }
+
+        if (text.includes('AS memberships') && text.includes('AS students')) {
+          return {
+            rows: [
+              {
+                memberships: '0',
+                students: '0',
+                invoices: '0',
+                support_tickets: '0',
+                mpesa_transactions: '0',
+              },
+            ],
+          };
+        }
+
+        if (text.includes('UPDATE tenants')) {
+          return {
+            rows: [
+              {
+                tenant_id: 'green-valley',
+                name: 'Anonymized School green-valley',
+                subdomain: 'green-valley',
+                status: 'inactive',
+                created_at: new Date('2026-05-11T00:00:00.000Z'),
+              },
+            ],
+          };
+        }
+
+        return { rows: [] };
+      },
+    } as never,
+    { ensureTenantAuthorizationBaseline: async () => undefined } as never,
+    { getTransactionalEmailStatus: () => ({ provider: 'resend', status: 'configured' }) } as never,
+    { get: () => undefined } as never,
+    { getStore: () => ({ user_id: 'platform-owner', request_id: 'request-1' }) } as never,
+  );
+
+  const response = await service.anonymizeTenantForLegalOffboarding('green-valley', {
+    confirmation: 'green-valley',
+    reason: 'Legal deletion request completed',
+  });
+
+  assert.equal(response.anonymized, true);
+  assert.equal(response.school.school_name, 'Anonymized School green-valley');
+  assert.equal(
+    queries.some((query) => query.values.some((value) => String(value).includes('legal_offboarding_anonymized_at'))),
+    true,
+  );
+});

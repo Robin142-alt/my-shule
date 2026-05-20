@@ -2,6 +2,7 @@ export const MPESA_QUEUE_NAME = 'payments-mpesa';
 export const MPESA_PROCESS_CALLBACK_JOB = 'payments.mpesa.process-callback';
 export const PAYMENTS_QUEUE_NAME = 'payments';
 export const PAYMENTS_PROCESS_JOB = 'process-payment';
+export const PAYMENTS_VERIFY_MPESA_JOB = 'verify-mpesa-callback';
 export const PAYMENTS_QUEUE_RESULT_KEY_PREFIX = 'payments:queue:result';
 export const PAYMENTS_QUEUE_LOCK_KEY_PREFIX = 'payments:queue:lock';
 export const MPESA_PAYMENT_INTENT_SCOPE = 'payments:mpesa:payment-intents:create';

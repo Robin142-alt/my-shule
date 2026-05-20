@@ -59,6 +59,7 @@ const passingPackageJsonSource = JSON.stringify({
       'dist/apps/api/src/scripts/incident-drill.test.js',
       'dist/apps/api/src/scripts/implementation20-certification.test.js',
       'dist/apps/api/src/scripts/implementation21-certification.test.js',
+      'dist/apps/api/src/scripts/implementation30-certification.test.js',
       'dist/apps/api/src/scripts/synthetic-journey-monitor.test.js',
       'dist/apps/api/src/common/uploads/streaming-upload.service.test.js',
       'dist/apps/api/src/modules/module-access/module-access.test.js',
@@ -94,6 +95,7 @@ const passingPackageJsonSource = JSON.stringify({
     'discipline:certify': 'node apps/api/src/scripts/certify-discipline.ts',
     'implementation20:certify': 'node apps/api/src/scripts/implementation20-certification.ts',
     'implementation21:certify': 'node apps/api/src/scripts/implementation21-certification.ts',
+    'implementation30:certify': 'node apps/api/src/scripts/implementation30-certification.ts',
     'ci:full': 'npm run build && npm run security:deps',
     'monitor:create-service-account': 'node apps/api/src/scripts/create-monitoring-service-account.ts',
     'build:sms-relay': 'npm --prefix apps/sms-relay run build',
@@ -163,6 +165,7 @@ const passingProductionOperabilityWorkflowSource = `
         - run: npm run discipline:certify
         - run: npm run implementation20:certify
         - run: npm run implementation21:certify
+        - run: npm run implementation30:certify
         - run: npm run tenant:isolation:audit
         - run: npm run security:scan
         - run: npm run security:deps

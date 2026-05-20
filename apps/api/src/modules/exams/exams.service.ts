@@ -3,27 +3,74 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  Optional,
   UnauthorizedException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
 
 import { RequestContextService } from '../../common/request-context/request-context.service';
 import {
+  BulkExamMarkUploadDto,
+  BulkExamMarkUploadRowDto,
   CorrectLockedExamMarkDto,
   CreateExamAssessmentDto,
   CreateExamSeriesDto,
   EnterExamMarkDto,
+  GenerateReportCardBatchDto,
+  GenerateReportCardDto,
   PublishReportCardDto,
 } from './dto/exams.dto';
 import { ExamsRepository } from './repositories/exams.repository';
+import { ReportCardGenerationService } from './services/report-card-generation.service';
 
 const OFFICER_PERMISSIONS = new Set(['exams:review', 'exams:approve', '*:*']);
 const OFFICER_ROLES = new Set(['owner', 'admin', 'platform_owner', 'superadmin', 'exams_officer']);
+const PARENT_REPORT_CARD_DOWNLOAD_PURPOSE = 'exams.report_card.parent_download';
+const BULK_MARK_UPLOAD_MAX_ROWS = 500;
+const BULK_MARK_UPLOAD_HEADERS = [
+  'exam_series_id',
+  'assessment_id',
+  'academic_term_id',
+  'class_section_id',
+  'subject_id',
+  'student_id',
+  'score',
+  'remarks',
+] as const;
+
+interface ParentReportCardDownloadTokenPayload {
+  purpose: typeof PARENT_REPORT_CARD_DOWNLOAD_PURPOSE;
+  tenant_id: string;
+  actor_user_id: string;
+  report_card_id: string;
+  student_id: string;
+  report_snapshot_id: string;
+  expires_at: string;
+}
+
+interface ValidatedMarkEntry {
+  dto: EnterExamMarkDto;
+  score: number;
+  grade_boundary: Record<string, unknown> | null;
+}
+
+interface BulkMarkUploadValidationResult {
+  row_number: number;
+  status: 'valid' | 'invalid' | 'duplicate' | 'committed';
+  errors: string[];
+  student_id: string | null;
+  assessment_id: string | null;
+  grade_label: string | null;
+}
 
 @Injectable()
 export class ExamsService {
   constructor(
     private readonly requestContext: RequestContextService,
     private readonly repository: ExamsRepository,
+    @Optional() private readonly configService?: ConfigService,
+    @Optional() private readonly reportCardGenerationService?: ReportCardGenerationService,
   ) {}
 
   createSeries(dto: CreateExamSeriesDto) {
@@ -52,60 +99,122 @@ export class ExamsService {
   async enterMark(dto: EnterExamMarkDto) {
     const tenantId = this.requireTenantId();
     const actorUserId = this.requireUserId();
+    const validated = await this.validateMarkEntry(dto, tenantId, actorUserId);
 
-    if (!this.isExamsOfficer()) {
-      const assignment = await this.repository.findTeacherAssignment({
-        tenant_id: tenantId,
-        teacher_user_id: actorUserId,
-        academic_term_id: dto.academic_term_id,
-        class_section_id: dto.class_section_id,
-        subject_id: dto.subject_id,
+    return this.persistValidatedMark(validated, tenantId, actorUserId, 'grade.updated');
+  }
+
+  getBulkMarkUploadTemplate() {
+    return {
+      content_type: 'text/csv',
+      max_rows: BULK_MARK_UPLOAD_MAX_ROWS,
+      headers: [...BULK_MARK_UPLOAD_HEADERS],
+      sample_row: {
+        exam_series_id: 'series-uuid',
+        assessment_id: 'assessment-uuid',
+        academic_term_id: 'term-uuid',
+        class_section_id: 'class-section-uuid',
+        subject_id: 'subject-uuid',
+        student_id: 'student-uuid',
+        score: 84,
+        remarks: 'Optional teacher comment',
+      },
+    };
+  }
+
+  async bulkUploadMarks(dto: BulkExamMarkUploadDto) {
+    const tenantId = this.requireTenantId();
+    const actorUserId = this.requireUserId();
+    const rows = this.requireBulkRows(dto.rows);
+    const mode = dto.mode === 'commit' ? 'commit' : 'preview';
+    const seenKeys = new Set<string>();
+    const rowResults: BulkMarkUploadValidationResult[] = [];
+    const validEntries: Array<{ row_number: number; entry: ValidatedMarkEntry }> = [];
+
+    for (const [index, row] of rows.entries()) {
+      const rowNumber = Number.isInteger(row.row_number) && Number(row.row_number) > 0
+        ? Number(row.row_number)
+        : index + 2;
+      const errors: string[] = [];
+      let normalized: EnterExamMarkDto | null = null;
+      let duplicate = false;
+      let gradeLabel: string | null = null;
+
+      try {
+        normalized = this.normalizeBulkMarkRow(row);
+        const duplicateKey = this.bulkMarkDuplicateKey(normalized);
+
+        if (seenKeys.has(duplicateKey)) {
+          duplicate = true;
+          errors.push('Duplicate mark row for assessment and student in this upload');
+        } else {
+          seenKeys.add(duplicateKey);
+        }
+      } catch (error) {
+        errors.push(errorMessage(error));
+      }
+
+      if (normalized && errors.length === 0) {
+        try {
+          const entry = await this.validateMarkEntry(normalized, tenantId, actorUserId);
+          gradeLabel = textValue(entry.grade_boundary?.label);
+          validEntries.push({ row_number: rowNumber, entry });
+        } catch (error) {
+          errors.push(errorMessage(error));
+        }
+      }
+
+      rowResults.push({
+        row_number: rowNumber,
+        status: errors.length > 0 ? (duplicate ? 'duplicate' : 'invalid') : 'valid',
+        errors,
+        student_id: normalized?.student_id ?? null,
+        assessment_id: normalized?.assessment_id ?? null,
+        grade_label: gradeLabel,
       });
+    }
 
-      if (!assignment) {
-        throw new ForbiddenException('Teacher is not assigned to this subject and class section');
+    const invalidRows = rowResults.filter((row) => row.status === 'invalid' || row.status === 'duplicate').length;
+    const duplicateRows = rowResults.filter((row) => row.status === 'duplicate').length;
+    const previewToken = this.buildBulkMarkUploadPreviewToken(tenantId, actorUserId, validEntries);
+
+    if (mode === 'commit') {
+      if (!dto.preview_token || dto.preview_token !== previewToken) {
+        throw new BadRequestException('Bulk mark upload must be previewed before commit');
+      }
+
+      if (invalidRows > 0) {
+        throw new BadRequestException('Bulk mark upload contains invalid rows; preview and fix them before commit');
+      }
+
+      for (const validEntry of validEntries) {
+        await this.persistValidatedMark(
+          validEntry.entry,
+          tenantId,
+          actorUserId,
+          'bulk_grade.updated',
+          {
+            bulk_upload: true,
+            row_number: validEntry.row_number,
+          },
+        );
+      }
+
+      for (const row of rowResults) {
+        row.status = 'committed';
       }
     }
 
-    const series = await this.repository.findSeriesState({
-      tenant_id: tenantId,
-      exam_series_id: dto.exam_series_id,
-    });
-
-    if (series && (series.locked_at || series.published_at || ['locked', 'published'].includes(series.status))) {
-      throw new ForbiddenException('Exam series is locked; use an audited correction workflow');
-    }
-
-    const score = this.requireNonNegativeNumber(dto.score, 'Score');
-    const mark = await this.repository.upsertMark({
-      tenant_id: tenantId,
-      actor_user_id: actorUserId,
-      exam_series_id: dto.exam_series_id,
-      assessment_id: dto.assessment_id,
-      academic_term_id: dto.academic_term_id,
-      class_section_id: dto.class_section_id,
-      subject_id: dto.subject_id,
-      student_id: dto.student_id,
-      score,
-      remarks: dto.remarks?.trim() || null,
-    });
-
-    await this.repository.appendMarkAuditLog({
-      tenant_id: tenantId,
-      mark_id: mark.id,
-      exam_series_id: dto.exam_series_id,
-      assessment_id: dto.assessment_id,
-      student_id: dto.student_id,
-      action: 'grade.updated',
-      actor_user_id: actorUserId,
-      new_score: score,
-      metadata: {
-        class_section_id: dto.class_section_id,
-        subject_id: dto.subject_id,
-      },
-    });
-
-    return mark;
+    return {
+      mode,
+      total_rows: rows.length,
+      valid_rows: validEntries.length,
+      invalid_rows: invalidRows,
+      duplicate_rows: duplicateRows,
+      committed_rows: mode === 'commit' ? validEntries.length : 0,
+      preview_token: previewToken,
+      row_results: rowResults,
+    };
   }
 
   async correctLockedMark(dto: CorrectLockedExamMarkDto) {
@@ -126,12 +235,52 @@ export class ExamsService {
     }
 
     const score = this.requireNonNegativeNumber(dto.score, 'Score');
+    const publishedReportCards = await this.findPublishedReportCardsForMark(tenantId, dto.mark_id);
+    const correctionApprovals = dto as CorrectLockedExamMarkDto & {
+      first_approver_user_id?: string;
+      second_approver_user_id?: string;
+    };
+
+    if (publishedReportCards.length > 0) {
+      const firstApprover = correctionApprovals.first_approver_user_id?.trim() || '';
+      const secondApprover = correctionApprovals.second_approver_user_id?.trim() || '';
+
+      if (!firstApprover || !secondApprover || firstApprover === secondApprover) {
+        throw new ForbiddenException(
+          'Published report-card corrections require dual approval before regeneration',
+        );
+      }
+    }
+
     const corrected = await this.repository.correctLockedMark({
       tenant_id: tenantId,
       mark_id: dto.mark_id,
       score,
       actor_user_id: actorUserId,
     });
+
+    await this.createMarkVersionIfSupported({
+      tenant_id: tenantId,
+      mark_id: dto.mark_id,
+      original_score: existing.score,
+      correction_score: score,
+      corrected_by_user_id: actorUserId,
+      reason,
+      approval_state: publishedReportCards.length > 0 ? 'dual_approved' : 'approved',
+      first_approver_user_id: correctionApprovals.first_approver_user_id ?? null,
+      second_approver_user_id: correctionApprovals.second_approver_user_id ?? null,
+    });
+
+    if (publishedReportCards.length > 0) {
+      await this.markReportCardsRegenerationRequiredIfSupported({
+        tenant_id: tenantId,
+        report_card_ids: publishedReportCards.map((card) => card.id),
+        status: 'regeneration_required',
+        reason,
+        corrected_mark_id: dto.mark_id,
+        actor_user_id: actorUserId,
+      });
+    }
 
     await this.repository.appendMarkAuditLog({
       tenant_id: tenantId,
@@ -146,6 +295,7 @@ export class ExamsService {
       reason,
       metadata: {
         correction: true,
+        published_report_card_ids: publishedReportCards.map((card) => card.id),
       },
     });
 
@@ -185,11 +335,227 @@ export class ExamsService {
     return reportCard;
   }
 
+  async generateReportCard(dto: GenerateReportCardDto) {
+    if (!this.isExamsOfficer()) {
+      throw new ForbiddenException('Exam approval permission is required to generate report cards');
+    }
+
+    const tenantId = this.requireTenantId();
+    const actorUserId = this.requireUserId();
+    const examSeriesId = this.requireText(dto.exam_series_id, 'Exam series');
+    const studentId = this.requireText(dto.student_id, 'Student');
+
+    if (this.reportCardGenerationService) {
+      return this.reportCardGenerationService.generateStudentReportCard({
+        tenant_id: tenantId,
+        actor_user_id: actorUserId,
+        exam_series_id: examSeriesId,
+        student_id: studentId,
+      });
+    }
+
+    const data = await this.repository.loadReportCardData({
+      tenant_id: tenantId,
+      exam_series_id: examSeriesId,
+      student_id: studentId,
+    });
+    const reportCardPayload = this.buildReportCardPayload(data);
+    const reportSnapshotId = this.buildReportSnapshotId(tenantId, examSeriesId, studentId);
+    const reportCard = await this.repository.createGeneratedReportCardSnapshot({
+      tenant_id: tenantId,
+      actor_user_id: actorUserId,
+      exam_series_id: examSeriesId,
+      student_id: studentId,
+      report_snapshot_id: reportSnapshotId,
+      metadata: {
+        generated_by: actorUserId,
+        report_card: reportCardPayload,
+      },
+    });
+
+    await this.repository.appendReportCardAuditLog({
+      tenant_id: tenantId,
+      report_card_id: reportCard.id,
+      exam_series_id: examSeriesId,
+      student_id: studentId,
+      action: 'report_card.generated',
+      actor_user_id: actorUserId,
+      metadata: {
+        report_snapshot_id: reportSnapshotId,
+        subject_count: Array.isArray(reportCardPayload.subjects)
+          ? reportCardPayload.subjects.length
+          : 0,
+      },
+    });
+
+    return reportCard;
+  }
+
+  async regenerateReportCard(dto: GenerateReportCardDto & { reason?: string }) {
+    if (!this.isExamsOfficer()) {
+      throw new ForbiddenException('Exam approval permission is required to regenerate report cards');
+    }
+
+    const generationService = this.requireReportCardGenerationService();
+
+    return generationService.generateStudentReportCard({
+      tenant_id: this.requireTenantId(),
+      actor_user_id: this.requireUserId(),
+      exam_series_id: this.requireText(dto.exam_series_id, 'Exam series'),
+      student_id: this.requireText(dto.student_id, 'Student'),
+      regeneration_reason: dto.reason?.trim() || 'Manual regeneration',
+    });
+  }
+
+  async generateReportCardBatch(dto: GenerateReportCardBatchDto) {
+    if (!this.isExamsOfficer()) {
+      throw new ForbiddenException('Exam approval permission is required to generate report cards');
+    }
+
+    const generationService = this.requireReportCardGenerationService();
+
+    return generationService.generateReportCardBatch({
+      tenant_id: this.requireTenantId(),
+      actor_user_id: this.requireUserId(),
+      exam_series_id: this.requireText(dto.exam_series_id, 'Exam series'),
+      class_section_id: this.optionalText(dto.class_section_id),
+      stream_name: this.optionalText(dto.stream_name),
+    });
+  }
+
+  async getReportCardBatchStatus(batchId: string) {
+    return this.requireReportCardGenerationService().getReportCardBatchStatus({
+      tenant_id: this.requireTenantId(),
+      batch_id: this.requireText(batchId, 'Report-card batch'),
+    });
+  }
+
+  async verifyReportCard(verificationCode: string) {
+    return this.requireReportCardGenerationService().verifyPrintedReportCard({
+      tenant_id: this.requireTenantId(),
+      verification_code: this.requireText(verificationCode, 'Verification code'),
+    });
+  }
+
   listReportCards(studentId?: string) {
     return this.repository.listReportCards({
       tenant_id: this.requireTenantId(),
       student_id: studentId?.trim() || undefined,
     });
+  }
+
+  async lockMarkSheet(markSheetId: string) {
+    const tenantId = this.requireTenantId();
+    const actorUserId = this.requireUserId();
+    const normalizedMarkSheetId = this.requireText(markSheetId, 'Mark sheet');
+
+    if (!this.isExamsOfficer()) {
+      const assignedSheets = await this.repository.listMarkSheets({
+        tenant_id: tenantId,
+        teacher_user_id: actorUserId,
+      });
+      const canLockAssignedSheet = assignedSheets.some((sheet: Record<string, unknown>) =>
+        String(sheet.id) === normalizedMarkSheetId,
+      );
+
+      if (!canLockAssignedSheet) {
+        throw new ForbiddenException('Only assigned teachers or exam officers can lock this mark sheet');
+      }
+    }
+
+    const locked = await this.repository.lockMarkSheet({
+      tenant_id: tenantId,
+      mark_sheet_id: normalizedMarkSheetId,
+      actor_user_id: actorUserId,
+    });
+
+    if (!locked) {
+      throw new NotFoundException(`Exam mark sheet "${normalizedMarkSheetId}" was not found`);
+    }
+
+    return locked;
+  }
+
+  async createParentReportCardDownload(reportCardId: string) {
+    const tenantId = this.requireTenantId();
+    const actorUserId = this.requireUserId();
+    const normalizedReportCardId = this.requireText(reportCardId, 'Report card');
+    const reportCard = await this.repository.findReportCardForGuardian({
+      tenant_id: tenantId,
+      report_card_id: normalizedReportCardId,
+      guardian_user_id: actorUserId,
+    });
+
+    if (!reportCard) {
+      throw new NotFoundException('Report card was not found for this parent account');
+    }
+
+    this.assertParentReportCardDownloadable(reportCard);
+
+    const secret = this.requireReportCardDownloadSigningSecret();
+    const expiresAt = new Date(Date.now() + this.reportCardDownloadTtlSeconds() * 1000).toISOString();
+    const token = signParentReportCardDownloadToken(
+      {
+        purpose: PARENT_REPORT_CARD_DOWNLOAD_PURPOSE,
+        tenant_id: tenantId,
+        actor_user_id: actorUserId,
+        report_card_id: String(reportCard.id),
+        student_id: String(reportCard.student_id),
+        report_snapshot_id: String(reportCard.report_snapshot_id),
+        expires_at: expiresAt,
+      },
+      secret,
+    );
+
+    return {
+      report_card_id: String(reportCard.id),
+      student_id: String(reportCard.student_id),
+      report_snapshot_id: String(reportCard.report_snapshot_id),
+      expires_at: expiresAt,
+      token,
+      download_url: `/exams/report-cards/download/${token}`,
+      verification_code: this.buildReportCardVerificationCode(reportCard, secret),
+    };
+  }
+
+  async readParentReportCardDownloadToken(token: string) {
+    const tenantId = this.requireTenantId();
+    const actorUserId = this.requireUserId();
+    const payload = verifyParentReportCardDownloadToken(
+      this.requireText(token, 'Download token'),
+      this.requireReportCardDownloadSigningSecret(),
+    );
+
+    if (payload.tenant_id !== tenantId || payload.actor_user_id !== actorUserId) {
+      throw new ForbiddenException('Report-card download token does not belong to this parent account');
+    }
+
+    const reportCard = await this.repository.findReportCardForGuardian({
+      tenant_id: tenantId,
+      report_card_id: payload.report_card_id,
+      guardian_user_id: actorUserId,
+    });
+
+    if (!reportCard) {
+      throw new NotFoundException('Report card was not found for this parent account');
+    }
+
+    this.assertParentReportCardDownloadable(reportCard);
+
+    if (
+      String(reportCard.student_id) !== payload.student_id
+      || String(reportCard.report_snapshot_id) !== payload.report_snapshot_id
+    ) {
+      throw new ForbiddenException('Report-card download token no longer matches the published snapshot');
+    }
+
+    return {
+      report_card_id: String(reportCard.id),
+      student_id: String(reportCard.student_id),
+      report_snapshot_id: String(reportCard.report_snapshot_id),
+      metadata: reportCard.metadata ?? {},
+      expires_at: payload.expires_at,
+    };
   }
 
   listMarkSheets(query: Record<string, string | undefined> = {}) {
@@ -213,6 +579,155 @@ export class ExamsService {
     if (subjectId) input.subject_id = subjectId;
 
     return this.repository.listMarkSheets(input);
+  }
+
+  private async validateMarkEntry(
+    dto: EnterExamMarkDto,
+    tenantId: string,
+    actorUserId: string,
+  ): Promise<ValidatedMarkEntry> {
+    if (!this.isExamsOfficer()) {
+      const assignment = await this.repository.findTeacherAssignment({
+        tenant_id: tenantId,
+        teacher_user_id: actorUserId,
+        academic_term_id: dto.academic_term_id,
+        class_section_id: dto.class_section_id,
+        subject_id: dto.subject_id,
+      });
+
+      if (!assignment) {
+        throw new ForbiddenException('Teacher is not assigned to this subject and class section');
+      }
+    }
+
+    const series = await this.repository.findSeriesState({
+      tenant_id: tenantId,
+      exam_series_id: dto.exam_series_id,
+    });
+
+    if (series && (series.locked_at || series.published_at || ['locked', 'published'].includes(series.status))) {
+      throw new ForbiddenException('Exam series is locked; use an audited correction workflow');
+    }
+
+    const score = this.requireNonNegativeNumber(dto.score, 'Score');
+    const assessmentScope = await this.findAssessmentScopeForMark(dto);
+
+    if (assessmentScope) {
+      this.assertAssessmentScopeMatchesMark(assessmentScope, dto);
+      const maxScore = Number(assessmentScope.max_score ?? Number.POSITIVE_INFINITY);
+
+      if (Number.isFinite(maxScore) && score > maxScore) {
+        throw new BadRequestException(`Score exceeds assessment maximum score of ${maxScore}`);
+      }
+    }
+
+    const gradeBoundary = await this.assertGradeBoundaryForMark(tenantId, dto, score);
+
+    return {
+      dto,
+      score,
+      grade_boundary: gradeBoundary,
+    };
+  }
+
+  private async persistValidatedMark(
+    validated: ValidatedMarkEntry,
+    tenantId: string,
+    actorUserId: string,
+    action: 'grade.updated' | 'bulk_grade.updated',
+    extraMetadata: Record<string, unknown> = {},
+  ) {
+    const mark = await this.repository.upsertMark({
+      tenant_id: tenantId,
+      actor_user_id: actorUserId,
+      exam_series_id: validated.dto.exam_series_id,
+      assessment_id: validated.dto.assessment_id,
+      academic_term_id: validated.dto.academic_term_id,
+      class_section_id: validated.dto.class_section_id,
+      subject_id: validated.dto.subject_id,
+      student_id: validated.dto.student_id,
+      score: validated.score,
+      remarks: validated.dto.remarks?.trim() || null,
+    });
+
+    await this.repository.appendMarkAuditLog({
+      tenant_id: tenantId,
+      mark_id: mark.id,
+      exam_series_id: validated.dto.exam_series_id,
+      assessment_id: validated.dto.assessment_id,
+      student_id: validated.dto.student_id,
+      action,
+      actor_user_id: actorUserId,
+      new_score: validated.score,
+      metadata: {
+        class_section_id: validated.dto.class_section_id,
+        subject_id: validated.dto.subject_id,
+        grade_boundary_label: textValue(validated.grade_boundary?.label),
+        ...extraMetadata,
+      },
+    });
+
+    return mark;
+  }
+
+  private requireBulkRows(rows: BulkExamMarkUploadRowDto[]): BulkExamMarkUploadRowDto[] {
+    if (!Array.isArray(rows) || rows.length === 0) {
+      throw new BadRequestException('Bulk mark upload rows are required');
+    }
+
+    if (rows.length > BULK_MARK_UPLOAD_MAX_ROWS) {
+      throw new BadRequestException(`Bulk mark uploads are limited to ${BULK_MARK_UPLOAD_MAX_ROWS} rows`);
+    }
+
+    return rows;
+  }
+
+  private normalizeBulkMarkRow(row: BulkExamMarkUploadRowDto): EnterExamMarkDto {
+    return {
+      exam_series_id: this.requireText(row.exam_series_id, 'Exam series'),
+      assessment_id: this.requireText(row.assessment_id, 'Assessment'),
+      academic_term_id: this.requireText(row.academic_term_id, 'Academic term'),
+      class_section_id: this.requireText(row.class_section_id, 'Class section'),
+      subject_id: this.requireText(row.subject_id, 'Subject'),
+      student_id: this.requireText(row.student_id, 'Student'),
+      score: this.requireNonNegativeNumber(row.score, 'Score'),
+      remarks: row.remarks?.trim() || undefined,
+    };
+  }
+
+  private bulkMarkDuplicateKey(dto: EnterExamMarkDto): string {
+    return [
+      dto.exam_series_id,
+      dto.assessment_id,
+      dto.academic_term_id,
+      dto.class_section_id,
+      dto.subject_id,
+      dto.student_id,
+    ].join(':');
+  }
+
+  private buildBulkMarkUploadPreviewToken(
+    tenantId: string,
+    actorUserId: string,
+    entries: Array<{ row_number: number; entry: ValidatedMarkEntry }>,
+  ): string {
+    return createHash('sha256')
+      .update(JSON.stringify({
+        tenant_id: tenantId,
+        actor_user_id: actorUserId,
+        rows: entries.map(({ row_number, entry }) => ({
+          row_number,
+          exam_series_id: entry.dto.exam_series_id,
+          assessment_id: entry.dto.assessment_id,
+          academic_term_id: entry.dto.academic_term_id,
+          class_section_id: entry.dto.class_section_id,
+          subject_id: entry.dto.subject_id,
+          student_id: entry.dto.student_id,
+          score: entry.score,
+          remarks: entry.dto.remarks?.trim() || null,
+        })),
+      }))
+      .digest('hex');
   }
 
   private isExamsOfficer(): boolean {
@@ -282,4 +797,337 @@ export class ExamsService {
 
     return value;
   }
+
+  private async findAssessmentScopeForMark(
+    dto: EnterExamMarkDto,
+  ): Promise<Record<string, unknown> | null> {
+    const repository = this.repository as ExamsRepository & {
+      findAssessmentScope?: (input: {
+        tenant_id: string;
+        assessment_id: string;
+      }) => Promise<Record<string, unknown> | null>;
+    };
+
+    if (typeof repository.findAssessmentScope !== 'function') {
+      return null;
+    }
+
+    return repository.findAssessmentScope({
+      tenant_id: this.requireTenantId(),
+      assessment_id: dto.assessment_id,
+    });
+  }
+
+  private async assertGradeBoundaryForMark(
+    tenantId: string,
+    dto: EnterExamMarkDto,
+    score: number,
+  ): Promise<Record<string, unknown> | null> {
+    const repository = this.repository as ExamsRepository & {
+      findGradeBoundaryForScore?: (input: {
+        tenant_id: string;
+        exam_series_id: string;
+        score: number;
+      }) => Promise<{
+        configured_count?: number | string;
+        match_count?: number | string;
+        boundary?: Record<string, unknown> | null;
+      } | null>;
+    };
+
+    if (typeof repository.findGradeBoundaryForScore !== 'function') {
+      return null;
+    }
+
+    const result = await repository.findGradeBoundaryForScore({
+      tenant_id: tenantId,
+      exam_series_id: dto.exam_series_id,
+      score,
+    });
+    const configuredCount = Number(result?.configured_count ?? 0);
+    const matchCount = Number(result?.match_count ?? 0);
+
+    if (!Number.isFinite(configuredCount) || configuredCount <= 0) {
+      return null;
+    }
+
+    if (!Number.isFinite(matchCount) || matchCount <= 0) {
+      throw new BadRequestException('Score is outside configured grade boundaries for this exam series');
+    }
+
+    if (matchCount > 1) {
+      throw new BadRequestException('Score matches multiple grade boundaries for this exam series');
+    }
+
+    return result?.boundary ?? null;
+  }
+
+  private assertAssessmentScopeMatchesMark(
+    assessmentScope: Record<string, unknown>,
+    dto: EnterExamMarkDto,
+  ): void {
+    const expectedFields: Array<[string, string]> = [
+      ['exam_series_id', dto.exam_series_id],
+      ['academic_term_id', dto.academic_term_id],
+      ['class_section_id', dto.class_section_id],
+      ['subject_id', dto.subject_id],
+    ];
+
+    for (const [field, expected] of expectedFields) {
+      const actual = assessmentScope[field];
+
+      if (typeof actual === 'string' && actual.trim() && actual !== expected) {
+        throw new BadRequestException(`Assessment ${field} does not match the mark scope`);
+      }
+    }
+  }
+
+  private async findPublishedReportCardsForMark(
+    tenantId: string,
+    markId: string,
+  ): Promise<Array<{ id: string; status?: string }>> {
+    const repository = this.repository as ExamsRepository & {
+      findPublishedReportCardsForMark?: (input: {
+        tenant_id: string;
+        mark_id: string;
+      }) => Promise<Array<{ id: string; status?: string }>>;
+    };
+
+    if (typeof repository.findPublishedReportCardsForMark !== 'function') {
+      return [];
+    }
+
+    return repository.findPublishedReportCardsForMark({
+      tenant_id: tenantId,
+      mark_id: markId,
+    });
+  }
+
+  private async createMarkVersionIfSupported(input: Record<string, unknown>): Promise<void> {
+    const repository = this.repository as ExamsRepository & {
+      createMarkVersion?: (input: Record<string, unknown>) => Promise<unknown>;
+    };
+
+    if (typeof repository.createMarkVersion === 'function') {
+      await repository.createMarkVersion(input);
+    }
+  }
+
+  private async markReportCardsRegenerationRequiredIfSupported(
+    input: Record<string, unknown>,
+  ): Promise<void> {
+    const repository = this.repository as ExamsRepository & {
+      markReportCardsRegenerationRequired?: (input: Record<string, unknown>) => Promise<unknown>;
+    };
+
+    if (typeof repository.markReportCardsRegenerationRequired === 'function') {
+      await repository.markReportCardsRegenerationRequired(input);
+    }
+  }
+
+  private buildReportCardPayload(data: Record<string, unknown>): Record<string, unknown> {
+    const subjects = this.normalizeReportCardSubjects(data.subjects);
+    const totalScore = subjects.reduce((sum, subject) => sum + subject.score, 0);
+    const totalMaxScore = subjects.reduce((sum, subject) => sum + subject.max_score, 0);
+    const meanScore = subjects.length > 0 ? Number((totalScore / subjects.length).toFixed(2)) : 0;
+    const percentage = totalMaxScore > 0
+      ? Number(((totalScore / totalMaxScore) * 100).toFixed(2))
+      : 0;
+
+    return {
+      exam_series: data.exam_series ?? {},
+      student: data.student ?? {},
+      attendance: data.attendance ?? null,
+      subjects,
+      totals: {
+        total_score: totalScore,
+        total_max_score: totalMaxScore,
+        mean_score: meanScore,
+        percentage,
+      },
+      generated_at: new Date().toISOString(),
+    };
+  }
+
+  private normalizeReportCardSubjects(value: unknown): Array<{
+    subject_id: string;
+    subject_name: string;
+    score: number;
+    max_score: number;
+    grade_label: string | null;
+    remarks: string | null;
+  }> {
+    if (!Array.isArray(value)) {
+      return [];
+    }
+
+    return value.map((subject) => {
+      const row = subject as Record<string, unknown>;
+      const score = Number(row.score ?? 0);
+      const maxScore = Number(row.max_score ?? 100);
+
+      return {
+        subject_id: String(row.subject_id ?? ''),
+        subject_name: String(row.subject_name ?? 'Subject'),
+        score: Number.isFinite(score) ? score : 0,
+        max_score: Number.isFinite(maxScore) && maxScore > 0 ? maxScore : 100,
+        grade_label:
+          typeof row.grade_label === 'string' && row.grade_label.trim()
+            ? row.grade_label.trim()
+            : null,
+        remarks:
+          typeof row.remarks === 'string' && row.remarks.trim()
+            ? row.remarks.trim()
+            : null,
+      };
+    });
+  }
+
+  private buildReportSnapshotId(tenantId: string, examSeriesId: string, studentId: string): string {
+    return `report-card:${tenantId}:${examSeriesId}:${studentId}:v1`;
+  }
+
+  private assertParentReportCardDownloadable(reportCard: Record<string, unknown>): void {
+    if (reportCard.status !== 'published') {
+      throw new ForbiddenException('Report card is not available for parent download');
+    }
+
+    const metadata = isRecord(reportCard.metadata) ? reportCard.metadata : {};
+
+    if (metadata.withdrawn_at || metadata.withdrawn_by || metadata.withdrawal_reason) {
+      throw new ForbiddenException('Report card is not available for parent download');
+    }
+
+    if (!String(reportCard.report_snapshot_id ?? '').trim()) {
+      throw new BadRequestException('Published report card is missing its immutable snapshot reference');
+    }
+  }
+
+  private requireReportCardDownloadSigningSecret(): string {
+    const secret = this.configService?.get<string>('reportCards.downloadSigningSecret')?.trim() ?? '';
+
+    if (!secret) {
+      throw new BadRequestException('Report-card download signing secret is required');
+    }
+
+    return secret;
+  }
+
+  private reportCardDownloadTtlSeconds(): number {
+    const configuredTtl = Number(this.configService?.get<number>('reportCards.downloadTtlSeconds') ?? 900);
+
+    if (!Number.isFinite(configuredTtl) || configuredTtl <= 0 || configuredTtl > 3600) {
+      return 900;
+    }
+
+    return Math.floor(configuredTtl);
+  }
+
+  private buildReportCardVerificationCode(reportCard: Record<string, unknown>, secret: string): string {
+    return createHmac('sha256', secret)
+      .update([
+        reportCard.id,
+        reportCard.student_id,
+        reportCard.report_snapshot_id,
+      ].map((value) => String(value ?? '')).join(':'))
+      .digest('hex')
+      .slice(0, 12)
+      .toUpperCase();
+  }
+
+  private requireReportCardGenerationService(): ReportCardGenerationService {
+    if (!this.reportCardGenerationService) {
+      throw new BadRequestException('Report-card generation service is not configured');
+    }
+
+    return this.reportCardGenerationService;
+  }
+}
+
+function signParentReportCardDownloadToken(
+  payload: ParentReportCardDownloadTokenPayload,
+  secret: string,
+): string {
+  const encodedPayload = Buffer.from(JSON.stringify(payload), 'utf8').toString('base64url');
+  const signature = createHmac('sha256', secret).update(encodedPayload).digest('base64url');
+  return `${encodedPayload}.${signature}`;
+}
+
+function verifyParentReportCardDownloadToken(
+  token: string,
+  secret: string,
+): ParentReportCardDownloadTokenPayload {
+  const [encodedPayload, signature, extra] = token.split('.');
+
+  if (!encodedPayload || !signature || extra !== undefined) {
+    throw new BadRequestException('Invalid report-card download token');
+  }
+
+  const expectedSignature = createHmac('sha256', secret).update(encodedPayload).digest('base64url');
+
+  if (!safeEqual(signature, expectedSignature)) {
+    throw new BadRequestException('Invalid report-card download token');
+  }
+
+  let parsed: unknown;
+
+  try {
+    parsed = JSON.parse(Buffer.from(encodedPayload, 'base64url').toString('utf8'));
+  } catch {
+    throw new BadRequestException('Invalid report-card download token');
+  }
+
+  if (!isParentReportCardDownloadTokenPayload(parsed)) {
+    throw new BadRequestException('Invalid report-card download token');
+  }
+
+  if (Date.parse(parsed.expires_at) <= Date.now()) {
+    throw new BadRequestException('Report-card download token has expired');
+  }
+
+  return parsed;
+}
+
+function isParentReportCardDownloadTokenPayload(
+  value: unknown,
+): value is ParentReportCardDownloadTokenPayload {
+  if (!isRecord(value) || value.purpose !== PARENT_REPORT_CARD_DOWNLOAD_PURPOSE) {
+    return false;
+  }
+
+  const fields = [
+    value.tenant_id,
+    value.actor_user_id,
+    value.report_card_id,
+    value.student_id,
+    value.report_snapshot_id,
+    value.expires_at,
+  ];
+
+  return fields.every((entry) => typeof entry === 'string' && entry.trim().length > 0)
+    && typeof value.expires_at === 'string'
+    && !Number.isNaN(Date.parse(value.expires_at));
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function textValue(value: unknown): string | null {
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
+}
+
+function errorMessage(error: unknown): string {
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+
+  return 'Invalid mark upload row';
+}
+
+function safeEqual(left: string, right: string): boolean {
+  const leftBuffer = Buffer.from(left);
+  const rightBuffer = Buffer.from(right);
+
+  return leftBuffer.length === rightBuffer.length && timingSafeEqual(leftBuffer, rightBuffer);
 }

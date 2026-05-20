@@ -3,6 +3,7 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
+  Optional,
   UnauthorizedException,
 } from '@nestjs/common';
 
@@ -25,6 +26,14 @@ import {
   ParsedMpesaC2bPayment,
 } from '../payments.types';
 import { MpesaC2bPaymentsRepository } from '../repositories/mpesa-c2b-payments.repository';
+import { MpesaVerificationJobsRepository } from '../repositories/mpesa-verification-jobs.repository';
+import {
+  maskMpesaName,
+  maskMpesaPhoneNumber,
+  MpesaPayloadVaultService,
+  redactMpesaOperationalPayload,
+} from './mpesa-payload-vault.service';
+import { PaymentsJobProducerService } from './payments-job-producer.service';
 
 const DEFAULT_CURRENCY_CODE = 'KES';
 const DEFAULT_C2B_ASSET_ACCOUNT_CODE = '1110-MPESA-CLEARING';
@@ -47,6 +56,9 @@ export class MpesaC2bService {
     private readonly mpesaC2bPaymentsRepository: MpesaC2bPaymentsRepository,
     private readonly invoicesRepository: InvoicesRepository,
     private readonly manualFeePaymentService: ManualFeePaymentService,
+    @Optional() private readonly mpesaPayloadVaultService?: MpesaPayloadVaultService,
+    @Optional() private readonly mpesaVerificationJobsRepository?: MpesaVerificationJobsRepository,
+    @Optional() private readonly paymentsJobProducerService?: PaymentsJobProducerService,
   ) {}
 
   parseC2bPayload(payload: MpesaC2bPayload): ParsedMpesaC2bPayment {
@@ -122,6 +134,7 @@ export class MpesaC2bService {
           };
         }
 
+        const payloadVaultRecord = await this.storeRawPayload(tenantId, parsed.trans_id, payload);
         const created = await this.mpesaC2bPaymentsRepository.createReceived({
           tenant_id: tenantId,
           mpesa_config_id: mpesaConfig.mpesa_config_id,
@@ -133,12 +146,14 @@ export class MpesaC2bService {
           invoice_number: parsed.invoice_number,
           amount_minor: parsed.amount_minor,
           currency_code: DEFAULT_CURRENCY_CODE,
-          phone_number: parsed.phone_number,
-          payer_name: parsed.payer_name,
+          phone_number: maskMpesaPhoneNumber(parsed.phone_number),
+          payer_name: maskMpesaName(parsed.payer_name),
           org_account_balance: parsed.org_account_balance,
           third_party_trans_id: parsed.third_party_trans_id,
           received_at: parsed.transaction_occurred_at,
-          raw_payload: payload as Record<string, unknown>,
+          raw_payload: payloadVaultRecord.redacted_payload,
+          raw_payload_encrypted_ref: payloadVaultRecord.raw_payload_encrypted_ref,
+          payload_sha256: payloadVaultRecord.payload_sha256,
           metadata: parsed.metadata,
         });
 
@@ -156,85 +171,95 @@ export class MpesaC2bService {
 
         const target = await this.resolveAllocationTarget(tenantId, parsed);
 
-        if (!target.invoice_id && !target.student_id) {
-          const pendingPayment = await this.mpesaC2bPaymentsRepository.markPendingReview({
-            tenant_id: tenantId,
-            payment_id: created.payment.id,
-            reason: 'no_invoice_or_student_match',
-            metadata: {
-              bill_ref_number: parsed.bill_ref_number,
-              invoice_number: parsed.invoice_number,
-            },
-          });
-
-          return {
-            accepted: true,
-            duplicate: false,
-            status: pendingPayment.status,
-            tenant_id: tenantId,
-            mpesa_c2b_payment_id: pendingPayment.id,
-            manual_fee_payment_id: null,
-            ledger_transaction_id: null,
-          };
-        }
-
-        const manualPayment = await this.manualFeePaymentService.createManualFeePayment({
-          idempotency_key: `mpesa-c2b:${tenantId}:${parsed.trans_id}`,
-          payment_method: 'mpesa_c2b',
-          amount_minor: parsed.amount_minor,
-          student_id: target.student_id ?? undefined,
-          invoice_id: target.invoice_id ?? undefined,
-          payer_name: parsed.payer_name ?? parsed.phone_number ?? undefined,
-          received_at: parsed.transaction_occurred_at,
-          deposit_reference: parsed.trans_id,
-          external_reference: parsed.trans_id,
-          asset_account_code:
-            mpesaConfig.ledger_debit_account_code || DEFAULT_C2B_ASSET_ACCOUNT_CODE,
-          fee_control_account_code:
-            mpesaConfig.ledger_credit_account_code || DEFAULT_FEE_CONTROL_ACCOUNT_CODE,
-          notes: `M-PESA Paybill ${parsed.business_short_code} payment ${parsed.trans_id}`,
+        const verificationRequestedPayment = await this.mpesaC2bPaymentsRepository.markVerificationRequested({
+          tenant_id: tenantId,
+          payment_id: created.payment.id,
+          reason: target.invoice_id || target.student_id
+            ? 'provider_verification_required'
+            : 'no_invoice_or_student_match',
           metadata: {
-            source: 'mpesa_c2b',
-            mpesa_c2b_payment_id: created.payment.id,
-            business_short_code: parsed.business_short_code,
+            matching_strategy: target.matching_strategy,
+            matched_invoice_id: target.invoice_id,
+            matched_student_id: target.student_id,
+            verification_status: 'provider_verification_required',
             bill_ref_number: parsed.bill_ref_number,
             invoice_number: parsed.invoice_number,
-            phone_number: parsed.phone_number,
           },
         });
 
-        const matchedPayment = await this.mpesaC2bPaymentsRepository.markMatched({
+        if (!this.mpesaVerificationJobsRepository) {
+          throw new BadRequestException('M-PESA C2B verification jobs are not configured');
+        }
+
+        const verificationJob = await this.mpesaVerificationJobsRepository.createForC2bConfirmation({
           tenant_id: tenantId,
-          payment_id: created.payment.id,
-          matched_invoice_id: target.invoice_id,
-          matched_student_id: target.student_id,
-          manual_fee_payment_id: manualPayment.id,
-          ledger_transaction_id: manualPayment.ledger_transaction_id,
-          metadata: {
-            matching_strategy: target.matching_strategy,
-          },
+          c2b_payment_id: verificationRequestedPayment.id,
+          mpesa_receipt_number: parsed.trans_id,
+        });
+        const currentContext = this.requestContext.requireStore();
+        await this.paymentsJobProducerService?.enqueueMpesaVerification({
+          tenant_id: tenantId,
+          verification_job_id: verificationJob.id,
+          c2b_payment_id: verificationRequestedPayment.id,
+          mpesa_receipt_number: parsed.trans_id,
+          request_id: currentContext.request_id,
+          trace_id: currentContext.trace_id,
+          parent_span_id: currentContext.span_id,
+          user_id: currentContext.user_id,
+          role: currentContext.role,
+          session_id: currentContext.session_id,
         });
 
         return {
           accepted: true,
           duplicate: false,
-          status: matchedPayment.status,
+          status: verificationRequestedPayment.status,
           tenant_id: tenantId,
-          mpesa_c2b_payment_id: matchedPayment.id,
-          manual_fee_payment_id: matchedPayment.manual_fee_payment_id,
-          ledger_transaction_id: matchedPayment.ledger_transaction_id,
+          mpesa_c2b_payment_id: verificationRequestedPayment.id,
+          manual_fee_payment_id: null,
+          ledger_transaction_id: null,
         };
       }),
     );
   }
 
+  private async storeRawPayload(
+    tenantId: string,
+    transId: string,
+    payload: MpesaC2bPayload,
+  ): Promise<{
+    raw_payload_encrypted_ref: string | null;
+    payload_sha256: string | null;
+    redacted_payload: Record<string, unknown>;
+  }> {
+    const recordPayload = payload as Record<string, unknown>;
+
+    if (!this.mpesaPayloadVaultService) {
+      return {
+        raw_payload_encrypted_ref: null,
+        payload_sha256: null,
+        redacted_payload: redactMpesaOperationalPayload(recordPayload),
+      };
+    }
+
+    return this.mpesaPayloadVaultService.storePayload({
+      tenant_id: tenantId,
+      source: 'mpesa_c2b_payments',
+      source_id: transId,
+      purpose: 'c2b_confirmation',
+      payload: recordPayload,
+    });
+  }
+
   async listC2bPayments(input: {
-    status?: 'pending_review' | 'matched' | 'rejected' | null;
+    status?: MpesaC2bPaymentEntity['status'] | null;
   } = {}): Promise<MpesaC2bPaymentEntity[]> {
-    return this.mpesaC2bPaymentsRepository.list({
+    const payments = await this.mpesaC2bPaymentsRepository.list({
       tenant_id: this.requireTenantId(),
       status: input.status ?? null,
     });
+
+    return payments.map((payment) => this.redactC2bPaymentForResponse(payment));
   }
 
   async reconcilePendingPayment(
@@ -251,12 +276,15 @@ export class MpesaC2bService {
       }
 
       if (payment.status === 'matched') {
-        return payment;
+        return this.redactC2bPaymentForResponse(payment);
       }
 
-      if (payment.status !== 'pending_review') {
+      if (
+        payment.status !== 'verified_matched' &&
+        payment.status !== 'verified_unmatched'
+      ) {
         throw new ConflictException(
-          `M-PESA C2B payment cannot be reconciled while status is "${payment.status}"`,
+          `M-PESA C2B payment requires provider verification before reconciliation; current status is "${payment.status}"`,
         );
       }
 
@@ -294,13 +322,27 @@ export class MpesaC2bService {
         throw new BadRequestException('M-PESA C2B payment shortcode does not belong to this tenant');
       }
 
+      if (payment.status === 'verified_unmatched') {
+        await this.mpesaC2bPaymentsRepository.markProviderVerified({
+          tenant_id: tenantId,
+          payment_id: payment.id,
+          metadata: {
+            matched_invoice_id: invoiceId,
+            matched_student_id: studentId,
+            matching_strategy: 'manual_accountant_review',
+          },
+        });
+      }
+
+      const maskedPhoneNumber = maskMpesaPhoneNumber(payment.phone_number);
+      const maskedPayerName = maskMpesaName(payment.payer_name);
       const manualPayment = await this.manualFeePaymentService.createManualFeePayment({
         idempotency_key: `mpesa-c2b:${tenantId}:${payment.trans_id}`,
         payment_method: 'mpesa_c2b',
         amount_minor: payment.amount_minor,
         student_id: studentId ?? undefined,
         invoice_id: invoiceId ?? undefined,
-        payer_name: payment.payer_name ?? payment.phone_number ?? undefined,
+        payer_name: maskedPayerName ?? maskedPhoneNumber ?? undefined,
         received_at: payment.received_at.toISOString(),
         deposit_reference: payment.trans_id,
         external_reference: payment.trans_id,
@@ -317,11 +359,11 @@ export class MpesaC2bService {
           business_short_code: payment.business_short_code,
           bill_ref_number: payment.bill_ref_number,
           invoice_number: payment.invoice_number,
-          phone_number: payment.phone_number,
+          phone_number: maskedPhoneNumber,
         },
       });
 
-      return this.mpesaC2bPaymentsRepository.markMatched({
+      const matchedPayment = await this.mpesaC2bPaymentsRepository.markMatched({
         tenant_id: tenantId,
         payment_id: payment.id,
         matched_invoice_id: invoiceId,
@@ -332,6 +374,17 @@ export class MpesaC2bService {
           matching_strategy: 'manual_accountant_review',
         },
       });
+
+      return this.redactC2bPaymentForResponse(matchedPayment);
+    });
+  }
+
+  private redactC2bPaymentForResponse(payment: MpesaC2bPaymentEntity): MpesaC2bPaymentEntity {
+    return Object.assign(new MpesaC2bPaymentEntity(), payment, {
+      phone_number: maskMpesaPhoneNumber(payment.phone_number),
+      payer_name: maskMpesaName(payment.payer_name),
+      raw_payload: redactMpesaOperationalPayload(payment.raw_payload ?? {}),
+      metadata: redactMpesaOperationalPayload(payment.metadata ?? {}),
     });
   }
 

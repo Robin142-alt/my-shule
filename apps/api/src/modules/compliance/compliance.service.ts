@@ -1,11 +1,29 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+  Optional,
+  UnauthorizedException,
+} from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 
 import { AUTH_ANONYMOUS_USER_ID } from '../../auth/auth.constants';
 import { SessionService } from '../../auth/session.service';
 import { RequestContextService } from '../../common/request-context/request-context.service';
 import { DatabaseService } from '../../database/database.service';
+import { AuditLogService } from '../observability/audit-log.service';
+import { BreachResponseReportExportDto } from './dto/breach-response-report.dto';
 import { ConsentRecordResponseDto } from './dto/consent-record-response.dto';
 import { DataExportResponseDto, ExportedMembershipDto, ExportedUserDto } from './dto/data-export-response.dto';
+import {
+  CompleteDataSubjectRequestDto,
+  DataSubjectRequestResponseDto,
+  DataSubjectRequestStatus,
+  DataSubjectRequestType,
+  ReviewDataSubjectRequestDto,
+  SubmitDataSubjectRequestDto,
+  VerifyDataSubjectRequestIdentityDto,
+} from './dto/data-subject-request.dto';
 import { DeleteAccountResponseDto } from './dto/delete-account-response.dto';
 import { RecordConsentDto } from './dto/record-consent.dto';
 
@@ -39,12 +57,47 @@ interface ConsentRecordRow {
   updated_at: Date;
 }
 
+interface DataSubjectRequestRow {
+  id: string;
+  tenant_id: string;
+  requester_user_id: string;
+  subject_user_id: string | null;
+  request_type: DataSubjectRequestType;
+  status: DataSubjectRequestStatus;
+  legal_basis: string | null;
+  requested_payload: Record<string, unknown> | null;
+  response_payload: Record<string, unknown> | null;
+  due_at: Date;
+  completed_at: Date | null;
+  created_at: Date;
+  updated_at: Date;
+}
+
+interface BreachResponseReportRow {
+  id: string;
+  tenant_id: string;
+  incident_number: string;
+  severity: string;
+  status: string;
+  detected_at: Date;
+  contained_at: Date | null;
+  reported_to_odpc_at: Date | null;
+  affected_categories: string[] | null;
+  evidence_export: Record<string, unknown> | null;
+}
+
+const DSR_DEFAULT_DUE_DAYS = 30;
+const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
+const REDACTED_VALUE = '[redacted]';
+
 @Injectable()
 export class ComplianceService {
   constructor(
     private readonly requestContext: RequestContextService,
     private readonly databaseService: DatabaseService,
     private readonly sessionService: SessionService,
+    @Optional() private readonly auditLogService?: AuditLogService,
+    @Optional() private readonly configService?: ConfigService,
   ) {}
 
   async exportMyData(): Promise<DataExportResponseDto> {
@@ -110,6 +163,200 @@ export class ComplianceService {
     });
 
     return this.mapConsent(consent);
+  }
+
+  async submitDataSubjectRequest(dto: SubmitDataSubjectRequestDto): Promise<DataSubjectRequestResponseDto> {
+    const { tenantId, userId } = this.requireAuthenticatedContext();
+    const subjectUserId = dto.subject_user_id?.trim() || userId;
+    const dueAt = new Date(Date.now() + this.resolveDataSubjectRequestDueDays() * MILLISECONDS_PER_DAY);
+
+    const request = await this.databaseService.withRequestTransaction(async () => {
+      const result = await this.databaseService.query<DataSubjectRequestRow>(
+        `
+          INSERT INTO data_subject_requests (
+            tenant_id,
+            requester_user_id,
+            subject_user_id,
+            request_type,
+            status,
+            legal_basis,
+            requested_payload,
+            due_at
+          )
+          VALUES ($1, $2::uuid, $3::uuid, $4, 'submitted', $5, $6::jsonb, $7::timestamptz)
+          RETURNING
+            id,
+            tenant_id,
+            requester_user_id,
+            subject_user_id,
+            request_type,
+            status,
+            legal_basis,
+            requested_payload,
+            response_payload,
+            due_at,
+            completed_at,
+            created_at,
+            updated_at
+        `,
+        [
+          tenantId,
+          userId,
+          subjectUserId,
+          dto.request_type,
+          dto.legal_basis?.trim() || null,
+          JSON.stringify(dto.requested_payload ?? {}),
+          dueAt.toISOString(),
+        ],
+      );
+
+      return this.requireDataSubjectRequestRow(result.rows[0]);
+    });
+
+    await this.recordComplianceAudit('data_subject_request.submitted', 'data_subject_request', request.id, {
+      request_type: request.request_type,
+      subject_user_id: request.subject_user_id,
+      due_at: request.due_at.toISOString(),
+    });
+
+    return this.mapDataSubjectRequest(request);
+  }
+
+  async verifyDataSubjectRequestIdentity(
+    requestId: string,
+    dto: VerifyDataSubjectRequestIdentityDto,
+  ): Promise<DataSubjectRequestResponseDto> {
+    const { tenantId } = this.requireAuthenticatedContext();
+    const verification = {
+      method: dto.verification_method.trim(),
+      reference: dto.verification_reference?.trim() ?? null,
+      verified_at: new Date().toISOString(),
+    };
+    const request = await this.updateDataSubjectRequestStatus({
+      tenantId,
+      requestId,
+      nextStatus: 'identity_verification',
+      allowedStatuses: ['submitted', 'identity_verification'],
+      responsePatch: { identity_verification: verification },
+    });
+
+    await this.recordComplianceAudit('data_subject_request.identity_verified', 'data_subject_request', request.id, {
+      verification_method: verification.method,
+    });
+
+    return this.mapDataSubjectRequest(request);
+  }
+
+  async reviewDataSubjectRequest(
+    requestId: string,
+    dto: ReviewDataSubjectRequestDto,
+  ): Promise<DataSubjectRequestResponseDto> {
+    const { tenantId } = this.requireAuthenticatedContext();
+    const approved = dto.decision === 'approved';
+    const request = await this.updateDataSubjectRequestStatus({
+      tenantId,
+      requestId,
+      nextStatus: approved ? 'in_review' : 'rejected',
+      allowedStatuses: ['submitted', 'identity_verification', 'in_review'],
+      responsePatch: {
+        review: {
+          decision: dto.decision,
+          reason: dto.reason.trim(),
+          reviewed_at: new Date().toISOString(),
+        },
+      },
+      completeNow: !approved,
+    });
+
+    await this.recordComplianceAudit(
+      approved ? 'data_subject_request.approved' : 'data_subject_request.rejected',
+      'data_subject_request',
+      request.id,
+      { reason: dto.reason.trim() },
+    );
+
+    return this.mapDataSubjectRequest(request);
+  }
+
+  async completeDataSubjectRequest(
+    requestId: string,
+    dto: CompleteDataSubjectRequestDto,
+  ): Promise<DataSubjectRequestResponseDto> {
+    const { tenantId } = this.requireAuthenticatedContext();
+
+    if (dto.anonymize_subject) {
+      await this.anonymizeDataSubject(tenantId, requestId);
+    }
+
+    const request = await this.updateDataSubjectRequestStatus({
+      tenantId,
+      requestId,
+      nextStatus: 'completed',
+      allowedStatuses: ['identity_verification', 'in_review'],
+      responsePatch: {
+        completion: {
+          completed_at: new Date().toISOString(),
+          anonymize_subject: Boolean(dto.anonymize_subject),
+          ...(dto.response_payload ?? {}),
+        },
+      },
+      completeNow: true,
+    });
+
+    await this.recordComplianceAudit('data_subject_request.completed', 'data_subject_request', request.id, {
+      anonymize_subject: Boolean(dto.anonymize_subject),
+    });
+
+    return this.mapDataSubjectRequest(request);
+  }
+
+  async exportBreachResponseReport(reportId: string): Promise<BreachResponseReportExportDto> {
+    const { tenantId } = this.requireAuthenticatedContext();
+    const result = await this.databaseService.query<BreachResponseReportRow>(
+      `
+        SELECT
+          id,
+          tenant_id,
+          incident_number,
+          severity,
+          status,
+          detected_at,
+          contained_at,
+          reported_to_odpc_at,
+          affected_categories,
+          evidence_export
+        FROM breach_response_reports
+        WHERE tenant_id = $1
+          AND id = $2::uuid
+        LIMIT 1
+      `,
+      [tenantId, reportId],
+    );
+    const row = result.rows[0];
+
+    if (!row) {
+      throw new NotFoundException('Breach response report was not found');
+    }
+
+    await this.recordComplianceAudit('breach_response_report.exported', 'breach_response_report', row.id, {
+      incident_number: row.incident_number,
+      severity: row.severity,
+      status: row.status,
+    });
+
+    return Object.assign(new BreachResponseReportExportDto(), {
+      report_id: row.id,
+      tenant_id: row.tenant_id,
+      incident_number: row.incident_number,
+      severity: row.severity,
+      status: row.status,
+      detected_at: row.detected_at.toISOString(),
+      contained_at: row.contained_at?.toISOString() ?? null,
+      reported_to_odpc_at: row.reported_to_odpc_at?.toISOString() ?? null,
+      affected_categories: row.affected_categories ?? [],
+      evidence_export: this.redactEvidence(row.evidence_export ?? {}),
+      exported_at: new Date().toISOString(),
+    });
   }
 
   async deleteMyAccount(): Promise<DeleteAccountResponseDto> {
@@ -277,5 +524,177 @@ export class ComplianceService {
       created_at: consent.created_at.toISOString(),
       updated_at: consent.updated_at.toISOString(),
     });
+  }
+
+  private async updateDataSubjectRequestStatus(input: {
+    tenantId: string;
+    requestId: string;
+    nextStatus: DataSubjectRequestStatus;
+    allowedStatuses: DataSubjectRequestStatus[];
+    responsePatch: Record<string, unknown>;
+    completeNow?: boolean;
+  }): Promise<DataSubjectRequestRow> {
+    const result = await this.databaseService.query<DataSubjectRequestRow>(
+      `
+        UPDATE data_subject_requests
+        SET
+          status = '${input.nextStatus}',
+          response_payload = response_payload || $3::jsonb,
+          completed_at = CASE WHEN $4::boolean THEN NOW() ELSE completed_at END,
+          updated_at = NOW()
+        WHERE tenant_id = $1
+          AND id = $2::uuid
+          AND status = ANY($5::text[])
+        RETURNING
+          id,
+          tenant_id,
+          requester_user_id,
+          subject_user_id,
+          request_type,
+          status,
+          legal_basis,
+          requested_payload,
+          response_payload,
+          due_at,
+          completed_at,
+          created_at,
+          updated_at
+      `,
+      [
+        input.tenantId,
+        input.requestId,
+        JSON.stringify(input.responsePatch),
+        Boolean(input.completeNow),
+        input.allowedStatuses,
+      ],
+    );
+
+    return this.requireDataSubjectRequestRow(result.rows[0]);
+  }
+
+  private async anonymizeDataSubject(tenantId: string, requestId: string): Promise<void> {
+    const result = await this.databaseService.query<{ id: string }>(
+      `
+        UPDATE users
+        SET
+          email = CONCAT('anonymized+', id::text, '@deleted.local'),
+          display_name = 'Anonymized user',
+          status = 'deleted',
+          updated_at = NOW()
+        WHERE id = (
+          SELECT subject_user_id
+          FROM data_subject_requests
+          WHERE tenant_id = $1
+            AND id = $2::uuid
+            AND request_type = 'deletion_anonymization_request'
+          LIMIT 1
+        )
+        RETURNING id
+      `,
+      [tenantId, requestId],
+    );
+    const subjectUserId = result.rows[0]?.id;
+
+    if (!subjectUserId) {
+      throw new BadRequestException('No deletable data subject was found for this request');
+    }
+
+    await this.sessionService.invalidateUserSessions(subjectUserId);
+    await this.recordComplianceAudit('data_subject_request.subject_anonymized', 'data_subject_request', requestId, {
+      subject_user_id: subjectUserId,
+    });
+  }
+
+  private requireDataSubjectRequestRow(row: DataSubjectRequestRow | undefined): DataSubjectRequestRow {
+    if (!row) {
+      throw new NotFoundException('Data subject request was not found or is not in a valid workflow state');
+    }
+
+    return row;
+  }
+
+  private mapDataSubjectRequest(request: DataSubjectRequestRow): DataSubjectRequestResponseDto {
+    const daysRemaining = Math.ceil((request.due_at.getTime() - Date.now()) / MILLISECONDS_PER_DAY);
+
+    return Object.assign(new DataSubjectRequestResponseDto(), {
+      id: request.id,
+      tenant_id: request.tenant_id,
+      requester_user_id: request.requester_user_id,
+      subject_user_id: request.subject_user_id,
+      request_type: request.request_type,
+      status: request.status,
+      legal_basis: request.legal_basis,
+      requested_payload: request.requested_payload ?? {},
+      response_payload: request.response_payload ?? {},
+      sla: {
+        due_at: request.due_at.toISOString(),
+        days_remaining: Math.max(0, daysRemaining),
+        overdue: daysRemaining < 0,
+      },
+      completed_at: request.completed_at?.toISOString() ?? null,
+      created_at: request.created_at.toISOString(),
+      updated_at: request.updated_at.toISOString(),
+    });
+  }
+
+  private async recordComplianceAudit(
+    action: string,
+    resourceType: string,
+    resourceId: string,
+    metadata: Record<string, unknown> = {},
+  ): Promise<void> {
+    await this.auditLogService?.record({
+      action,
+      resource_type: resourceType,
+      resource_id: resourceId,
+      metadata,
+    });
+  }
+
+  private resolveDataSubjectRequestDueDays(): number {
+    const configuredDays = Number(this.configService?.get<number>('compliance.dataSubjectRequestDueDays') ?? DSR_DEFAULT_DUE_DAYS);
+    return Number.isFinite(configuredDays) && configuredDays > 0 ? configuredDays : DSR_DEFAULT_DUE_DAYS;
+  }
+
+  private redactEvidence(value: unknown): Record<string, unknown> {
+    const redacted = this.redactValue(value);
+    return typeof redacted === 'object' && redacted !== null && !Array.isArray(redacted)
+      ? redacted as Record<string, unknown>
+      : {};
+  }
+
+  private redactValue(value: unknown, key = ''): unknown {
+    if (this.isSensitiveEvidenceKey(key)) {
+      return REDACTED_VALUE;
+    }
+
+    if (typeof value === 'string') {
+      return this.redactSensitiveString(value);
+    }
+
+    if (Array.isArray(value)) {
+      return value.map((item) => this.redactValue(item));
+    }
+
+    if (typeof value === 'object' && value !== null) {
+      return Object.fromEntries(
+        Object.entries(value).map(([entryKey, entryValue]) => [
+          entryKey,
+          this.redactValue(entryValue, entryKey),
+        ]),
+      );
+    }
+
+    return value;
+  }
+
+  private isSensitiveEvidenceKey(key: string): boolean {
+    return /(phone|payer|name|email|admission|national|id_number|raw_payload|callback_body)/i.test(key);
+  }
+
+  private redactSensitiveString(value: string): string {
+    return value
+      .replace(/\b(?:254|0)7\d{8}\b/g, REDACTED_VALUE)
+      .replace(/\b(?:Jane|John|Mary|Grace|Amina|Parent)\b(?:\s+\b(?:Parent|Otieno|Wanjiku|Mwangi|Achieng)\b)?/g, REDACTED_VALUE);
   }
 }

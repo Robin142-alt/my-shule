@@ -1,4 +1,16 @@
-export type MpesaC2bPaymentStatus = 'pending_review' | 'matched' | 'rejected';
+export type MpesaC2bPaymentStatus =
+  | 'received_unverified'
+  | 'verification_requested'
+  | 'verified_matched'
+  | 'verified_unmatched'
+  | 'amount_mismatch'
+  | 'duplicate_provider_receipt'
+  | 'missing_provider_record'
+  | 'reversed'
+  | 'manual_review_required'
+  | 'pending_review'
+  | 'matched'
+  | 'rejected';
 
 export class MpesaC2bPaymentEntity {
   id!: string;
@@ -24,6 +36,8 @@ export class MpesaC2bPaymentEntity {
   received_at!: Date;
   matched_at!: Date | null;
   raw_payload!: Record<string, unknown>;
+  raw_payload_encrypted_ref!: string | null;
+  payload_sha256!: string | null;
   metadata!: Record<string, unknown>;
   created_at!: Date;
   updated_at!: Date;

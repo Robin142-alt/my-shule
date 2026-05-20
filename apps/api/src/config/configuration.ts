@@ -51,13 +51,27 @@ export default () => ({
     corsCredentials: parseBoolean(process.env.APP_CORS_CREDENTIALS, true),
     baseDomain: process.env.APP_BASE_DOMAIN ?? 'localhost',
     defaultTenantId: process.env.DEFAULT_TENANT_ID ?? null,
+    trustedTenantHeaderSecret: process.env.APP_TRUSTED_TENANT_HEADER_SECRET ?? '',
+    trustedProxyCidrs: parseCsv(process.env.APP_TRUSTED_PROXY_CIDRS),
     globalPrefix: process.env.APP_GLOBAL_PREFIX ?? '',
     shutdownTimeoutMs: parseNumber(process.env.APP_SHUTDOWN_TIMEOUT_MS, 15000),
+  },
+  reportCards: {
+    downloadSigningSecret: process.env.REPORT_CARD_DOWNLOAD_SIGNING_SECRET ?? '',
+    downloadTtlSeconds: parseNumber(process.env.REPORT_CARD_DOWNLOAD_TTL_SECONDS, 900),
   },
   database: {
     url: process.env.DATABASE_URL ?? '',
     runtimeRole: process.env.DATABASE_RUNTIME_ROLE ?? 'my_shule_runtime',
     maxConnections: parseNumber(process.env.DATABASE_MAX_CONNECTIONS, 20),
+    apiMaxConnections: parseNumber(
+      process.env.DATABASE_API_MAX_CONNECTIONS,
+      parseNumber(process.env.DATABASE_MAX_CONNECTIONS, 20),
+    ),
+    workerMaxConnections: parseNumber(process.env.DATABASE_WORKER_MAX_CONNECTIONS, isServerlessRuntime ? 2 : 5),
+    pgBouncerMode: process.env.DATABASE_PGBOUNCER_MODE ?? 'transaction',
+    ssl: parseBoolean(process.env.DATABASE_SSL, false),
+    rlsAuditEnabled: parseBoolean(process.env.DATABASE_RLS_AUDIT_ENABLED, false),
     idleTimeoutMs: parseNumber(process.env.DATABASE_IDLE_TIMEOUT_MS, 10000),
     statementTimeoutMs: parseNumber(process.env.DATABASE_STATEMENT_TIMEOUT_MS, 5000),
     connectionTimeoutMs: parseNumber(process.env.DATABASE_CONNECT_TIMEOUT_MS, isServerlessRuntime ? 1500 : 10000),
@@ -66,6 +80,7 @@ export default () => ({
   },
   redis: {
     url: process.env.REDIS_URL ?? 'redis://127.0.0.1:6379',
+    tlsEnabled: parseBoolean(process.env.REDIS_TLS_ENABLED, false),
     connectTimeoutMs: parseNumber(process.env.REDIS_CONNECT_TIMEOUT_MS, isServerlessRuntime ? 1500 : 10000),
   },
   queue: {
@@ -81,6 +96,8 @@ export default () => ({
       process.env.JWT_ACCESS_TOKEN_SECRET ?? process.env.JWT_SECRET ?? '',
     refreshTokenSecret:
       process.env.JWT_REFRESH_TOKEN_SECRET ?? process.env.JWT_SECRET ?? '',
+    cookieSecure: parseBoolean(process.env.AUTH_COOKIE_SECURE, process.env.NODE_ENV === 'production'),
+    cookieSameSite: process.env.AUTH_COOKIE_SAME_SITE ?? 'lax',
     systemOwnerEmail: process.env.SYSTEM_OWNER_EMAIL ?? '',
     accessTokenTtlSeconds: parseNumber(process.env.JWT_ACCESS_TOKEN_TTL_SECONDS, 900),
     refreshTokenTtlSeconds: parseNumber(process.env.JWT_REFRESH_TOKEN_TTL_SECONDS, 2592000),
@@ -158,6 +175,8 @@ export default () => ({
   },
   security: {
     piiEncryptionKey: process.env.SECURITY_PII_ENCRYPTION_KEY ?? '',
+    kmsProvider: process.env.SECURITY_KMS_PROVIDER ?? '',
+    kmsKeyId: process.env.SECURITY_KMS_KEY_ID ?? '',
     rateLimitWindowSeconds: parseNumber(process.env.SECURITY_RATE_LIMIT_WINDOW_SECONDS, 60),
     rateLimitMaxRequests: parseNumber(process.env.SECURITY_RATE_LIMIT_MAX_REQUESTS, 120),
     authRateLimitMaxRequests: parseNumber(
@@ -206,9 +225,13 @@ export default () => ({
     consumerSecret: process.env.MPESA_CONSUMER_SECRET ?? '',
     shortCode: process.env.MPESA_SHORT_CODE ?? '',
     passkey: process.env.MPESA_PASSKEY ?? '',
+    transactionStatusSecurityCredential:
+      process.env.MPESA_TRANSACTION_STATUS_SECURITY_CREDENTIAL ?? '',
     transactionType: process.env.MPESA_TRANSACTION_TYPE ?? 'CustomerPayBillOnline',
     callbackUrl: process.env.MPESA_CALLBACK_URL ?? '',
     callbackSecret: process.env.MPESA_CALLBACK_SECRET ?? '',
+    callbackTrustMode: process.env.MPESA_CALLBACK_TRUST_MODE ?? 'edge_signed',
+    payloadVaultEnabled: parseBoolean(process.env.MPESA_PAYLOAD_VAULT_ENABLED, true),
     callbackTimestampToleranceSeconds: parseNumber(
       process.env.MPESA_CALLBACK_TIMESTAMP_TOLERANCE_SECONDS,
       300,

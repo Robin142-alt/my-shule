@@ -1,16 +1,46 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { createHmac, timingSafeEqual } from 'node:crypto';
+import { TenantTrustBoundaryService } from './tenant-trust-boundary.service';
 
 @Injectable()
 export class TenantService {
-  constructor(private readonly configService: ConfigService) {}
+  constructor(
+    private readonly configService: ConfigService,
+    @Optional() private readonly tenantTrustBoundaryService?: TenantTrustBoundaryService,
+  ) {}
 
-  resolveTenantId(hostHeader?: string, forwardedTenantId?: string | string[]): string {
+  async resolveTenantIdForRequest(
+    hostHeader?: string,
+    forwardedTenantId?: string | string[],
+    forwardedTenantSignature?: string | string[],
+  ): Promise<string> {
+    if (this.tenantTrustBoundaryService) {
+      const resolved = await this.tenantTrustBoundaryService.resolveTenantContext({
+        host_header: hostHeader,
+        forwarded_tenant_id: forwardedTenantId,
+        forwarded_tenant_signature: forwardedTenantSignature,
+      });
+
+      return resolved.tenant_id;
+    }
+
+    return this.resolveTenantId(hostHeader, forwardedTenantId, forwardedTenantSignature);
+  }
+
+  resolveTenantId(
+    hostHeader?: string,
+    forwardedTenantId?: string | string[],
+    forwardedTenantSignature?: string | string[],
+  ): string {
     const explicitTenantId = this.normalizeForwardedTenantId(forwardedTenantId);
 
     if (explicitTenantId) {
       this.assertTenantId(explicitTenantId);
-      return explicitTenantId;
+
+      if (this.isTrustedForwardedTenantId(explicitTenantId, forwardedTenantSignature)) {
+        return explicitTenantId;
+      }
     }
 
     const host = this.normalizeHost(hostHeader);
@@ -67,6 +97,37 @@ export class TenantService {
     const normalized = rawValue?.trim().toLowerCase() ?? '';
 
     return normalized.length > 0 ? normalized : null;
+  }
+
+  private normalizeForwardedTenantSignature(
+    forwardedTenantSignature?: string | string[],
+  ): string | null {
+    const rawValue = Array.isArray(forwardedTenantSignature)
+      ? forwardedTenantSignature[0]
+      : forwardedTenantSignature;
+    const normalized = rawValue?.trim().toLowerCase() ?? '';
+
+    return normalized.length > 0 ? normalized : null;
+  }
+
+  private isTrustedForwardedTenantId(
+    tenantId: string,
+    forwardedTenantSignature?: string | string[],
+  ): boolean {
+    const secret = this.configService.get<string>('app.trustedTenantHeaderSecret')?.trim() ?? '';
+    const signature = this.normalizeForwardedTenantSignature(forwardedTenantSignature);
+
+    if (!secret || !signature) {
+      return false;
+    }
+
+    const expected = createHmac('sha256', secret).update(tenantId).digest('hex');
+
+    try {
+      return timingSafeEqual(Buffer.from(signature, 'hex'), Buffer.from(expected, 'hex'));
+    } catch {
+      return false;
+    }
   }
 
   private assertTenantId(tenantId: string): void {

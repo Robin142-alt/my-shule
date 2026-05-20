@@ -12,6 +12,10 @@ import {
   mapInventoryReportsFromLive,
 } from "@/lib/modules/inventory-live";
 import {
+  buildParentReportCardDownloadPath,
+  mapExamsWorkspaceFromLive,
+} from "@/lib/modules/exams-client";
+import {
   mapLiveSupportAnalytics,
   mapLiveSupportTicketDetail,
 } from "@/lib/support/support-live";
@@ -1120,5 +1124,70 @@ describe("module live adapters", () => {
       headers: ["Item", "SKU", "Item Qty", "Location Qty", "Variance", "Status"],
       rows: [["A4 Printing Paper", "STAT-A4-001", "18", "17", "1", "mismatch"]],
     });
+  });
+
+  test("maps live exams mark sheets and generated artifacts into the exams workspace", () => {
+    const workspace = mapExamsWorkspaceFromLive({
+      markSheets: [
+        {
+          id: "window-1",
+          exam_series_id: "series-1",
+          academic_term_id: "term-1",
+          subject_id: "subject-maths",
+          subject_name: "Mathematics",
+          class_section_id: "class-8-unity",
+          class_name: "Grade 8 Unity",
+          opens_at: "2026-05-20T06:00:00.000Z",
+          closes_at: "2026-05-24T14:00:00.000Z",
+          status: "open",
+          mark_count: 42,
+          learner_count: 46,
+          last_marked_at: "2026-05-20T09:15:00.000Z",
+        },
+      ],
+      reportCards: [
+        {
+          id: "report-card-1",
+          exam_series_id: "series-1",
+          student_id: "student-1",
+          report_snapshot_id: "snapshot-1",
+          status: "approved",
+          metadata: {
+            artifact: {
+              id: "artifact-1",
+              verification_code: "BARAKA-8U-2026",
+              pdf_url: "/api/exams/report-cards/download/report-token",
+              checksum_sha256: "abc123",
+              generated_at: "2026-05-20T10:00:00.000Z",
+            },
+            report_card: {
+              learner_name: "Aisha Njeri",
+              class_name: "Grade 8 Unity",
+              total_score: 412,
+              mean_score: 82.4,
+            },
+          },
+          published_at: null,
+        },
+      ],
+    });
+
+    expect(workspace.markSheets[0]).toMatchObject({
+      title: "Grade 8 Unity - Mathematics",
+      progressLabel: "42/46 marks",
+      status: "open",
+    });
+    expect(workspace.reportCards[0]).toMatchObject({
+      title: "Aisha Njeri",
+      verificationCode: "BARAKA-8U-2026",
+      artifactId: "artifact-1",
+      downloadUrl: "/api/exams/report-cards/download/report-token",
+    });
+  });
+
+  test("builds parent report-card download paths without accepting caller supplied student ids", () => {
+    expect(buildParentReportCardDownloadPath("report-card-1")).toBe(
+      "/exams/report-cards/report-card-1/parent-download",
+    );
   });
 });

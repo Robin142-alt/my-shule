@@ -6,10 +6,13 @@ const REQUIRED_ENV_VARS = [
   'MPESA_CONSUMER_SECRET',
   'MPESA_SHORT_CODE',
   'MPESA_PASSKEY',
+  'MPESA_TRANSACTION_STATUS_SECURITY_CREDENTIAL',
   'MPESA_CALLBACK_URL',
   'MPESA_CALLBACK_SECRET',
   'MPESA_LEDGER_DEBIT_ACCOUNT_CODE',
   'MPESA_LEDGER_CREDIT_ACCOUNT_CODE',
+  'APP_TRUSTED_TENANT_HEADER_SECRET',
+  'REPORT_CARD_DOWNLOAD_SIGNING_SECRET',
 ];
 
 export function validateEnv(env: Record<string, unknown>): Record<string, unknown> {
@@ -18,6 +21,8 @@ export function validateEnv(env: Record<string, unknown>): Record<string, unknow
     return typeof value !== 'string' || value.trim().length === 0;
   });
   const invalidEnvVars = [
+    ...validateMpesaEnv(env),
+    ...validateProductionEnv(env),
     ...validateSupportSmsEnv(env),
     ...validateUploadMalwareScanEnv(env),
     ...validateUploadObjectStorageEnv(env),
@@ -45,6 +50,144 @@ export function validateEnv(env: Record<string, unknown>): Record<string, unknow
   }
 
   return env;
+}
+
+function validateMpesaEnv(env: Record<string, unknown>): string[] {
+  const errors: string[] = [];
+  const callbackUrl = getString(env, 'MPESA_CALLBACK_URL');
+  const callbackTrustMode = getString(env, 'MPESA_CALLBACK_TRUST_MODE') || 'edge_signed';
+
+  if (callbackUrl && !isHttpsUrl(callbackUrl)) {
+    errors.push('MPESA_CALLBACK_URL must be an HTTPS URL');
+  }
+
+  if (!['edge_signed', 'daraja_direct', 'manual_review_only'].includes(callbackTrustMode)) {
+    errors.push('MPESA_CALLBACK_TRUST_MODE must be edge_signed, daraja_direct, or manual_review_only');
+  }
+
+  return errors;
+}
+
+function validateProductionEnv(env: Record<string, unknown>): string[] {
+  if (getString(env, 'NODE_ENV').toLowerCase() !== 'production') {
+    return [];
+  }
+
+  const errors: string[] = [];
+  const corsEnabled = parseBoolean(getString(env, 'APP_CORS_ENABLED'), true);
+  const corsOrigins = parseCsv(getString(env, 'APP_CORS_ORIGINS'));
+  const callbackUrl = getString(env, 'MPESA_CALLBACK_URL');
+  const databaseUrl = getString(env, 'DATABASE_URL');
+  const redisUrl = getString(env, 'REDIS_URL');
+  const trustedProxyCidrs = parseCsv(getString(env, 'APP_TRUSTED_PROXY_CIDRS'));
+
+  if (corsEnabled && corsOrigins.length === 0) {
+    errors.push('APP_CORS_ORIGINS must be configured in production');
+  }
+
+  if (corsEnabled && corsOrigins.includes('*')) {
+    errors.push('APP_CORS_ORIGINS must not include wildcard origins in production');
+  }
+
+  if (callbackUrl && isLocalhostUrl(callbackUrl)) {
+    errors.push('MPESA_CALLBACK_URL must not use localhost in production');
+  }
+
+  if (databaseUrl && isExternalUrl(databaseUrl) && !usesDatabaseSsl(databaseUrl, env)) {
+    errors.push('DATABASE_SSL must be true or DATABASE_URL must include sslmode=require for external production databases');
+  }
+
+  if (redisUrl && isExternalUrl(redisUrl) && !usesRedisTls(redisUrl, env)) {
+    errors.push('REDIS_URL must use rediss:// or REDIS_TLS_ENABLED=true for external production Redis');
+  }
+
+  if (trustedProxyCidrs.length === 0) {
+    errors.push('APP_TRUSTED_PROXY_CIDRS must be configured in production');
+  } else if (!trustedProxyCidrs.every(isValidCidr)) {
+    errors.push('APP_TRUSTED_PROXY_CIDRS must contain valid CIDR ranges');
+  }
+
+  const pgBouncerMode = getString(env, 'DATABASE_PGBOUNCER_MODE');
+  if (pgBouncerMode !== 'transaction') {
+    errors.push('DATABASE_PGBOUNCER_MODE must be transaction in production');
+  }
+
+  if (!parseBoolean(getString(env, 'DATABASE_RLS_AUDIT_ENABLED'), false)) {
+    errors.push('DATABASE_RLS_AUDIT_ENABLED must be true in production');
+  }
+
+  if (!parseBoolean(getString(env, 'MPESA_PAYLOAD_VAULT_ENABLED'), false)) {
+    errors.push('MPESA_PAYLOAD_VAULT_ENABLED must be true in production');
+  }
+
+  if (!parseBoolean(getString(env, 'UPLOAD_OBJECT_STORAGE_ENABLED'), false)) {
+    errors.push('UPLOAD_OBJECT_STORAGE_ENABLED must be true in production');
+  }
+
+  if (!parseBoolean(getString(env, 'AUTH_COOKIE_SECURE'), false)) {
+    errors.push('AUTH_COOKIE_SECURE must be true in production');
+  }
+
+  if (!['lax', 'strict'].includes(getString(env, 'AUTH_COOKIE_SAME_SITE').toLowerCase())) {
+    errors.push('AUTH_COOKIE_SAME_SITE must be lax or strict in production');
+  }
+
+  validateProductionIntegerRange(
+    'DATABASE_API_MAX_CONNECTIONS',
+    getString(env, 'DATABASE_API_MAX_CONNECTIONS') || getString(env, 'DATABASE_MAX_CONNECTIONS'),
+    1,
+    30,
+    errors,
+  );
+  validateProductionIntegerRange(
+    'DATABASE_WORKER_MAX_CONNECTIONS',
+    getString(env, 'DATABASE_WORKER_MAX_CONNECTIONS'),
+    1,
+    10,
+    errors,
+  );
+
+  const jwtSecret = getString(env, 'JWT_SECRET');
+
+  if (jwtSecret) {
+    validateProductionSecret('JWT_SECRET', jwtSecret, errors);
+  } else {
+    validateProductionSecret(
+      'JWT_ACCESS_TOKEN_SECRET',
+      getString(env, 'JWT_ACCESS_TOKEN_SECRET'),
+      errors,
+    );
+    validateProductionSecret(
+      'JWT_REFRESH_TOKEN_SECRET',
+      getString(env, 'JWT_REFRESH_TOKEN_SECRET'),
+      errors,
+    );
+  }
+
+  validateProductionSecret(
+    'APP_TRUSTED_TENANT_HEADER_SECRET',
+    getString(env, 'APP_TRUSTED_TENANT_HEADER_SECRET'),
+    errors,
+  );
+  validateProductionSecret(
+    'REPORT_CARD_DOWNLOAD_SIGNING_SECRET',
+    getString(env, 'REPORT_CARD_DOWNLOAD_SIGNING_SECRET'),
+    errors,
+  );
+  validateProductionSecret(
+    'MPESA_CALLBACK_SECRET',
+    getString(env, 'MPESA_CALLBACK_SECRET'),
+    errors,
+  );
+  validateProductionSecret(
+    'MPESA_TRANSACTION_STATUS_SECURITY_CREDENTIAL',
+    getString(env, 'MPESA_TRANSACTION_STATUS_SECURITY_CREDENTIAL'),
+    errors,
+  );
+  validateProductionPiiEncryption(env, errors);
+  validateProductionKmsConfig(env, errors);
+
+  return errors;
 }
 
 function validateSupportSmsEnv(env: Record<string, unknown>): string[] {
@@ -203,11 +346,189 @@ function parseBoolean(value: string, fallback: boolean): boolean {
   return fallback;
 }
 
+function parseCsv(value: string): string[] {
+  return value
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
+}
+
 function isHttpsUrl(value: string): boolean {
   try {
     return new URL(value).protocol === 'https:';
   } catch {
     return false;
+  }
+}
+
+function isLocalhostUrl(value: string): boolean {
+  try {
+    const host = new URL(value).hostname.toLowerCase();
+    return host === 'localhost' || host === '127.0.0.1' || host.endsWith('.localhost');
+  } catch {
+    return false;
+  }
+}
+
+function isExternalUrl(value: string): boolean {
+  try {
+    return isExternalHost(new URL(value).hostname);
+  } catch {
+    return false;
+  }
+}
+
+function usesDatabaseSsl(databaseUrl: string, env: Record<string, unknown>): boolean {
+  if (parseBoolean(getString(env, 'DATABASE_SSL'), false)) {
+    return true;
+  }
+
+  try {
+    return new URL(databaseUrl).searchParams.get('sslmode') === 'require';
+  } catch {
+    return false;
+  }
+}
+
+function usesRedisTls(redisUrl: string, env: Record<string, unknown>): boolean {
+  if (parseBoolean(getString(env, 'REDIS_TLS_ENABLED'), false)) {
+    return true;
+  }
+
+  try {
+    return new URL(redisUrl).protocol === 'rediss:';
+  } catch {
+    return false;
+  }
+}
+
+function isExternalHost(host: string): boolean {
+  const normalized = host.trim().toLowerCase().replace(/^\[|\]$/g, '');
+
+  if (
+    !normalized
+    || normalized === 'localhost'
+    || normalized.endsWith('.localhost')
+    || normalized.endsWith('.local')
+    || normalized.endsWith('.internal')
+    || normalized.endsWith('.svc')
+    || !normalized.includes('.')
+  ) {
+    return false;
+  }
+
+  if (isPrivateIpv4(normalized)) {
+    return false;
+  }
+
+  return normalized !== '::1';
+}
+
+function isPrivateIpv4(host: string): boolean {
+  const parts = host.split('.').map((part) => Number(part));
+
+  if (parts.length !== 4 || parts.some((part) => !Number.isInteger(part) || part < 0 || part > 255)) {
+    return false;
+  }
+
+  const [first, second] = parts;
+
+  return first === 10
+    || first === 127
+    || (first === 172 && second >= 16 && second <= 31)
+    || (first === 192 && second === 168);
+}
+
+function isValidCidr(value: string): boolean {
+  const [address, prefix] = value.split('/');
+  const prefixNumber = Number(prefix);
+
+  if (!address || !Number.isInteger(prefixNumber) || prefixNumber < 0 || prefixNumber > 32) {
+    return false;
+  }
+
+  if (value === '0.0.0.0/0') {
+    return false;
+  }
+
+  return isIpv4Address(address);
+}
+
+function isIpv4Address(value: string): boolean {
+  const parts = value.split('.').map((part) => Number(part));
+
+  return parts.length === 4
+    && parts.every((part) => Number.isInteger(part) && part >= 0 && part <= 255);
+}
+
+function validateProductionSecret(
+  name: string,
+  value: string,
+  errors: string[],
+): void {
+  if (value.length < 32) {
+    errors.push(`${name} must be at least 32 characters in production`);
+    return;
+  }
+
+  if (/^(replace-with|change-me|changeme|example|default)/i.test(value)) {
+    errors.push(`${name} must be a strong production secret`);
+  }
+}
+
+function validateProductionPiiEncryption(
+  env: Record<string, unknown>,
+  errors: string[],
+): void {
+  const piiEncryptionKey = getString(env, 'SECURITY_PII_ENCRYPTION_KEY');
+
+  if (!isBase64Encoded32ByteKey(piiEncryptionKey)) {
+    errors.push('SECURITY_PII_ENCRYPTION_KEY must be a base64-encoded 32-byte key in production');
+  }
+}
+
+function validateProductionKmsConfig(
+  env: Record<string, unknown>,
+  errors: string[],
+): void {
+  const provider = getString(env, 'SECURITY_KMS_PROVIDER');
+  const keyId = getString(env, 'SECURITY_KMS_KEY_ID');
+
+  if (!provider && !keyId) {
+    return;
+  }
+
+  if (!['aws_kms', 'gcp_kms', 'azure_key_vault', 'hashicorp_vault'].includes(provider)) {
+    errors.push('SECURITY_KMS_PROVIDER must be aws_kms, gcp_kms, azure_key_vault, or hashicorp_vault');
+  }
+
+  if (!keyId) {
+    errors.push('SECURITY_KMS_KEY_ID is required when SECURITY_KMS_PROVIDER is set');
+  }
+}
+
+function isBase64Encoded32ByteKey(value: string): boolean {
+  if (!/^[A-Za-z0-9+/]+={0,2}$/.test(value)) {
+    return false;
+  }
+
+  const normalized = value.replace(/=+$/, '');
+  const decoded = Buffer.from(value, 'base64');
+
+  return decoded.length === 32 && decoded.toString('base64').replace(/=+$/, '') === normalized;
+}
+
+function validateProductionIntegerRange(
+  name: string,
+  value: string,
+  min: number,
+  max: number,
+  errors: string[],
+): void {
+  const parsed = Number(value);
+
+  if (!Number.isInteger(parsed) || parsed < min || parsed > max) {
+    errors.push(`${name} must be between ${min} and ${max}`);
   }
 }
 

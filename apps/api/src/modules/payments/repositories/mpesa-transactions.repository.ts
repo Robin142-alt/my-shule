@@ -21,6 +21,8 @@ interface MpesaTransactionRow {
   amount_minor: string | null;
   phone_number: string | null;
   raw_payload: Record<string, unknown> | null;
+  raw_payload_encrypted_ref: string | null;
+  payload_sha256: string | null;
   transaction_occurred_at: Date | null;
   ledger_transaction_id: string | null;
   processed_at: Date | null;
@@ -42,6 +44,8 @@ export class MpesaTransactionsRepository {
     callback_log_id: string;
     callback: ParsedMpesaCallback;
     raw_payload: Record<string, unknown> | null;
+    raw_payload_encrypted_ref?: string | null;
+    payload_sha256?: string | null;
   }): Promise<MpesaTransactionEntity> {
     const result = await this.databaseService.query<MpesaTransactionRow>(
       `
@@ -60,6 +64,8 @@ export class MpesaTransactionsRepository {
           amount_minor,
           phone_number,
           raw_payload,
+          raw_payload_encrypted_ref,
+          payload_sha256,
           transaction_occurred_at,
           metadata
         )
@@ -78,8 +84,10 @@ export class MpesaTransactionsRepository {
           $12::bigint,
           $13,
           $14::jsonb,
-          $15::timestamptz,
-          $16::jsonb
+          $15,
+          $16,
+          $17::timestamptz,
+          $18::jsonb
         )
         ON CONFLICT (tenant_id, checkout_request_id)
         DO UPDATE SET
@@ -95,6 +103,11 @@ export class MpesaTransactionsRepository {
           amount_minor = COALESCE(EXCLUDED.amount_minor, mpesa_transactions.amount_minor),
           phone_number = COALESCE(EXCLUDED.phone_number, mpesa_transactions.phone_number),
           raw_payload = COALESCE(EXCLUDED.raw_payload, mpesa_transactions.raw_payload),
+          raw_payload_encrypted_ref = COALESCE(
+            EXCLUDED.raw_payload_encrypted_ref,
+            mpesa_transactions.raw_payload_encrypted_ref
+          ),
+          payload_sha256 = COALESCE(EXCLUDED.payload_sha256, mpesa_transactions.payload_sha256),
           transaction_occurred_at = COALESCE(
             EXCLUDED.transaction_occurred_at,
             mpesa_transactions.transaction_occurred_at
@@ -117,6 +130,8 @@ export class MpesaTransactionsRepository {
           amount_minor::text,
           phone_number,
           raw_payload,
+          raw_payload_encrypted_ref,
+          payload_sha256,
           transaction_occurred_at,
           ledger_transaction_id,
           processed_at,
@@ -142,6 +157,8 @@ export class MpesaTransactionsRepository {
           this.phoneNumberAad(input.tenant_id),
         ),
         input.raw_payload ? JSON.stringify(input.raw_payload) : null,
+        input.raw_payload_encrypted_ref ?? null,
+        input.payload_sha256 ?? null,
         input.callback.transaction_occurred_at,
         JSON.stringify(input.callback.metadata ?? {}),
       ],
@@ -191,6 +208,8 @@ export class MpesaTransactionsRepository {
           amount_minor::text,
           phone_number,
           raw_payload,
+          raw_payload_encrypted_ref,
+          payload_sha256,
           transaction_occurred_at,
           ledger_transaction_id,
           processed_at,
