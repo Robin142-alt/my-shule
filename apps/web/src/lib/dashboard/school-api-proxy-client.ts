@@ -19,7 +19,7 @@ export async function requestSchoolApiProxy<T>(
   options?: {
     unwrapEnvelope?: boolean;
     method?: "GET" | "POST" | "PATCH" | "DELETE";
-    body?: BodyInit | Record<string, unknown> | null;
+    body?: BodyInit | object | null;
   },
 ): Promise<T> {
   const method = options?.method ?? "GET";

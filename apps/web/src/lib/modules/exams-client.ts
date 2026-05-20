@@ -135,7 +135,7 @@ function withSession<T>(
   path: string,
   options?: {
     method?: "GET" | "POST" | "PATCH";
-    body?: BodyInit | Record<string, unknown> | null;
+    body?: BodyInit | object | null;
   },
 ) {
   void session;

@@ -3664,7 +3664,9 @@ function ManualReceiptsPanel({ tenantSlug }: { tenantSlug?: string | null }) {
   );
 }
 
-function unwrapApiData<T>(payload: T | { data?: T } | null | undefined): T | null {
+function unwrapApiData<T>(
+  payload: T | { data?: T; message?: string } | { message?: string } | null | undefined,
+): T | null {
   if (isRecord(payload) && "data" in payload) {
     return payload.data === undefined ? null : payload.data as T;
   }

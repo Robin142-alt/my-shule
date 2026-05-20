@@ -1553,7 +1553,7 @@ export function ExamsModuleScreen({
         mark_id: "mark-1",
         score: 86,
         reason: "Correction approved from the exams workspace.",
-        first_approver_user_id: liveSession.user?.id ?? "officer-1",
+        first_approver_user_id: liveSession.user?.user_id ?? "officer-1",
         second_approver_user_id: role === "principal" ? "deputy-1" : "principal-1",
       });
       return "Locked mark correction sent for audited approval.";
