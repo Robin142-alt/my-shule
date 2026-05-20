@@ -2,7 +2,7 @@ import { ImageResponse } from "next/og";
 
 import { SITE_DESCRIPTION, SITE_NAME } from "@/lib/seo";
 
-export const alt = "My Shule school ERP dashboard for Kenyan CBC schools";
+export const alt = "My Shule parent login and principal dashboard preview";
 export const size = {
   width: 1200,
   height: 630,
@@ -52,7 +52,7 @@ export default function Image() {
             <div style={{ display: "flex", flexDirection: "column" }}>
               <div style={{ fontSize: 32, fontWeight: 800 }}>{SITE_NAME}</div>
               <div style={{ color: "#047857", fontSize: 20, fontWeight: 700 }}>
-                School ERP for Kenya
+                Parent login + principal dashboard
               </div>
             </div>
           </div>
@@ -67,7 +67,7 @@ export default function Image() {
               fontWeight: 700,
             }}
           >
-            CBC + M-PESA ready
+            M-PESA + SMS reminders
           </div>
         </div>
 
@@ -82,7 +82,7 @@ export default function Image() {
         >
           <div style={{ display: "flex", width: "48%", flexDirection: "column" }}>
             <div style={{ fontSize: 62, lineHeight: 1.05, fontWeight: 800 }}>
-              Secure school management software
+              Best school ERP in Kenya
             </div>
             <div style={{ marginTop: 24, color: "#475569", fontSize: 24, lineHeight: 1.35 }}>
               {SITE_DESCRIPTION}
@@ -103,7 +103,7 @@ export default function Image() {
             }}
           >
             <div style={{ display: "flex", gap: "12px" }}>
-              {["Fees", "Exams", "Portal"].map((label, index) => (
+              {["Parent", "School", "Dashboard"].map((label, index) => (
                 <div
                   key={label}
                   style={{
@@ -117,16 +117,16 @@ export default function Image() {
                 >
                   <div style={{ color: "#64748b", fontSize: 16, fontWeight: 700 }}>{label}</div>
                   <div style={{ marginTop: 14, fontSize: 30, fontWeight: 800 }}>
-                    {index === 0 ? "KES" : index === 1 ? "CBC" : "Live"}
+                    {index === 0 ? "Fees" : index === 1 ? "SMS" : "Live"}
                   </div>
                 </div>
               ))}
             </div>
             {[
-              ["M-PESA fee payments", "Payment tracking"],
-              ["CBC report cards", "Ready for review"],
-              ["Admissions pipeline", "Application review"],
-              ["Inventory and library", "Barcode workflows"],
+              ["Parent portal", "Fee balance, grade, discipline"],
+              ["SMS fee reminders", "Queued before arrears grow"],
+              ["Principal insights", "Fees, CBC, clinic, discipline"],
+              ["School login", "One dashboard for decisions"],
             ].map(([label, value]) => (
               <div
                 key={label}

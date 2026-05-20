@@ -224,9 +224,19 @@ export function SchoolLoginView({
           <div className="flex items-start gap-3">
             <ShieldCheck className="mt-0.5 h-4 w-4 text-emerald-600" />
             <p className="text-sm leading-6 text-slate-600">
-              Need account help? Contact your school administrator or use the official support channel for your school.
+              Need account help? Contact your school administrator or call My Shule on 0769622589.
             </p>
           </div>
+        </div>
+
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm">
+          <span className="font-semibold text-emerald-900">Looking for the main dashboard route?</span>
+          <Link
+            href="/login"
+            className="font-bold text-emerald-700 underline-offset-4 hover:underline"
+          >
+            My Shule dashboard
+          </Link>
         </div>
       </form>
     </AuthCard>

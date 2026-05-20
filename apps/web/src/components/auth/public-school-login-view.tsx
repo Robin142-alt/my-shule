@@ -213,6 +213,24 @@ export function PublicSchoolLoginView({
         >
           {mfaRequired ? "Verify and continue" : "Sign in securely"}
         </AuthSubmitButton>
+
+        <div className="grid gap-2 rounded-2xl border border-emerald-100 bg-emerald-50 p-4 text-sm sm:grid-cols-2">
+          <Link
+            href="/parent/login"
+            className="font-bold text-emerald-800 underline-offset-4 hover:underline"
+          >
+            Parent login
+          </Link>
+          <Link
+            href="/school/login"
+            className="font-bold text-emerald-800 underline-offset-4 hover:underline sm:text-right"
+          >
+            School login
+          </Link>
+          <p className="text-emerald-900 sm:col-span-2">
+            Need setup help? Call My Shule on 0769622589.
+          </p>
+        </div>
       </form>
     </AuthCard>
   );

@@ -247,6 +247,25 @@ export function PortalLoginView({ mode = "family" }: { mode?: PortalMode }) {
           >
             Forgot password?
           </Link>
+          <Link
+            href="/login"
+            className="font-bold text-slate-700 underline-offset-4 hover:text-emerald-700 hover:underline"
+          >
+            My Shule dashboard
+          </Link>
+        </div>
+
+        <div className="flex items-center justify-between gap-3 rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm">
+          <span className="font-semibold text-emerald-900">Need the school side?</span>
+          <Link
+            href="/school/login"
+            className="font-bold text-emerald-700 underline-offset-4 hover:underline"
+          >
+            School login
+          </Link>
+        </div>
+
+        <div className="flex items-center justify-end text-sm">
           <span className="inline-flex items-center gap-2 text-slate-500">
             <Smartphone className="h-4 w-4" />
             Mobile optimized

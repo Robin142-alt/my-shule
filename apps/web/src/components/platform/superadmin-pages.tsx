@@ -2140,7 +2140,7 @@ export function SuperadminPages({
         <Link href={buildSuperadminHref("infrastructure", routeMode)}>
           <Button variant="secondary">
             <ExternalLink className="h-4 w-4" />
-            Open incident feed
+            Platform status
           </Button>
         </Link>
       }

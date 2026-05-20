@@ -158,6 +158,13 @@ export const superadminQuickActions = [
     icon: LifeBuoy,
   },
   {
+    id: "platform-status",
+    label: "Platform status",
+    description: "Check API, database, Redis, queue, storage, scanner, and deployment readiness from the owner dashboard.",
+    href: toSuperadminPath("infrastructure"),
+    icon: ServerCog,
+  },
+  {
     id: "security-audit",
     label: "Review audit logs",
     description: "Monitor real authentication, invitation, and tenant actions.",

@@ -6,7 +6,7 @@ export default function robots(): MetadataRoute.Robots {
   return {
     rules: {
       userAgent: "*",
-      allow: ["/", "/support/status"],
+      allow: ["/", "/parent/login", "/school/login", "/portal/login", "/login"],
       disallow: [
         "/api/",
         "/dashboard/",
@@ -16,13 +16,11 @@ export default function robots(): MetadataRoute.Robots {
         "/superadmin/",
         "/inventory/",
         "/library/",
-        "/login",
         "/forgot-password",
         "/reset-password",
         "/accountant/",
         "/teacher/",
         "/student/",
-        "/parent/",
         "/support/login",
         "/tenant-selection",
         "/mfa",

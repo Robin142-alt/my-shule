@@ -132,6 +132,7 @@ function AuthHero({
   title,
   description,
   badge,
+  highlights,
   trustNotes,
   logoMark,
   helper,
@@ -141,6 +142,7 @@ function AuthHero({
   title: string;
   description: string;
   badge: string;
+  highlights: AuthHighlight[];
   trustNotes: AuthTrustNote[];
   logoMark: string;
   helper: string;
@@ -201,6 +203,25 @@ function AuthHero({
       </div>
 
       <div className="relative z-10 space-y-5">
+        <div className="grid gap-3">
+          {highlights.map((item) => (
+            <div
+              key={item.id}
+              className={`rounded-2xl border px-4 py-3 ${
+                dark
+                  ? "border-white/10 bg-white/[0.07] text-slate-200"
+                  : "border-white/70 bg-white/80 text-slate-700"
+              } shadow-sm backdrop-blur`}
+            >
+              <p className={dark ? "text-sm font-bold text-white" : "text-sm font-bold text-slate-950"}>
+                {item.title}
+              </p>
+              <p className={dark ? "mt-1 text-xs leading-5 text-slate-300" : "mt-1 text-xs leading-5 text-slate-600"}>
+                {item.description}
+              </p>
+            </div>
+          ))}
+        </div>
         <SecurityStrip dark={dark} />
         <TrustIndicators notes={trustNotes} dark={dark} />
         <p className={dark ? "max-w-2xl text-sm leading-6 text-slate-300" : "max-w-2xl text-sm leading-6 text-slate-600"}>
@@ -218,6 +239,7 @@ export function AuthShell({
   badge,
   logoMark,
   helper,
+  highlights,
   trustNotes,
   children,
 }: {
@@ -254,6 +276,7 @@ export function AuthShell({
           badge={badge}
           logoMark={logoMark}
           helper={helper}
+          highlights={highlights}
           trustNotes={trustNotes}
           dark={dark}
         />
