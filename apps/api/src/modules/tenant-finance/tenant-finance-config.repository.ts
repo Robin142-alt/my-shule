@@ -6,6 +6,7 @@ import { PiiEncryptionService } from '../security/pii-encryption.service';
 import {
   TenantBankAccountRecord,
   TenantFinanceStatus,
+  TenantMpesaSetupState,
   TenantFinanceSummary,
   TenantFinancialAccountsRecord,
   TenantMpesaConfigRecord,
@@ -23,10 +24,14 @@ interface TenantMpesaConfigRow {
   consumer_key: string;
   consumer_secret: string;
   passkey: string;
+  callback_secret_hash: string | null;
+  callback_secret_rotated_at: Date | null;
   initiator_name: string | null;
   environment: 'sandbox' | 'production';
   callback_url: string;
   status: TenantFinanceStatus;
+  credential_version: number;
+  rotated_at: Date | null;
   created_at: Date;
   updated_at: Date;
 }
@@ -78,10 +83,14 @@ export class TenantFinanceConfigRepository {
           consumer_key,
           consumer_secret,
           passkey,
+          callback_secret_hash,
+          callback_secret_rotated_at,
           initiator_name,
           environment,
           callback_url,
           status,
+          credential_version,
+          rotated_at,
           created_at,
           updated_at
         FROM tenant_mpesa_configs
@@ -111,10 +120,14 @@ export class TenantFinanceConfigRepository {
           consumer_key,
           consumer_secret,
           passkey,
+          callback_secret_hash,
+          callback_secret_rotated_at,
           initiator_name,
           environment,
           callback_url,
           status,
+          credential_version,
+          rotated_at,
           created_at,
           updated_at
         FROM tenant_mpesa_configs
@@ -134,6 +147,42 @@ export class TenantFinanceConfigRepository {
     return result.rows[0] ? this.mapMpesaConfig(result.rows[0]) : null;
   }
 
+  async findMpesaConfigForTenantById(
+    tenantId: string,
+    mpesaConfigId: string,
+  ): Promise<TenantMpesaConfigRecord | null> {
+    const result = await this.databaseService.query<TenantMpesaConfigRow>(
+      `
+        SELECT
+          id,
+          tenant_id,
+          shortcode,
+          paybill_number,
+          till_number,
+          consumer_key,
+          consumer_secret,
+          passkey,
+          callback_secret_hash,
+          callback_secret_rotated_at,
+          initiator_name,
+          environment,
+          callback_url,
+          status,
+          credential_version,
+          rotated_at,
+          created_at,
+          updated_at
+        FROM tenant_mpesa_configs
+        WHERE tenant_id = $1
+          AND id = $2::uuid
+        LIMIT 1
+      `,
+      [tenantId, mpesaConfigId],
+    );
+
+    return result.rows[0] ? this.mapMpesaConfig(result.rows[0]) : null;
+  }
+
   async findActiveMpesaConfigByShortcode(
     shortcode: string,
   ): Promise<TenantMpesaConfigRecord | null> {
@@ -148,10 +197,14 @@ export class TenantFinanceConfigRepository {
           consumer_key,
           consumer_secret,
           passkey,
+          callback_secret_hash,
+          callback_secret_rotated_at,
           initiator_name,
           environment,
           callback_url,
           status,
+          credential_version,
+          rotated_at,
           created_at,
           updated_at
         FROM tenant_mpesa_configs
@@ -200,14 +253,26 @@ export class TenantFinanceConfigRepository {
       id: string;
       tenant_id: string;
       channel_type: TenantPaymentChannelType;
+      name: string;
+      mpesa_config_id: string | null;
+      bank_account_id: string | null;
       status: TenantPaymentChannelStatus;
+      metadata: Record<string, unknown> | null;
+      created_at: Date;
+      updated_at: Date;
     }>(
       `
         SELECT
           id,
           tenant_id,
           channel_type,
-          status
+          name,
+          mpesa_config_id,
+          bank_account_id,
+          status,
+          metadata,
+          created_at,
+          updated_at
         FROM tenant_payment_channels
         WHERE tenant_id = $1
           AND mpesa_config_id = $2::uuid
@@ -218,7 +283,7 @@ export class TenantFinanceConfigRepository {
       [tenantId, mpesaConfigId],
     );
 
-    return result.rows[0] ?? null;
+    return result.rows[0] ? this.mapPaymentChannel(result.rows[0]) : null;
   }
 
   async findTenantIdByPaymentRequest(
@@ -337,10 +402,14 @@ export class TenantFinanceConfigRepository {
           consumer_key,
           consumer_secret,
           passkey,
+          callback_secret_hash,
+          callback_secret_rotated_at,
           initiator_name,
           environment,
           callback_url,
           status,
+          credential_version,
+          rotated_at,
           created_at,
           updated_at
       `,
@@ -367,6 +436,112 @@ export class TenantFinanceConfigRepository {
         input.status,
       ],
     );
+
+    return this.mapMpesaConfig(result.rows[0]);
+  }
+
+  async insertMpesaConfigAuditLog(input: {
+    tenant_id: string;
+    mpesa_config_id: string;
+    action: string;
+    changed_fields: string[];
+    old_values: Record<string, unknown>;
+    new_values: Record<string, unknown>;
+  }): Promise<void> {
+    await this.databaseService.query(
+      `
+        INSERT INTO mpesa_config_audit_logs (
+          tenant_id,
+          mpesa_config_id,
+          action,
+          changed_fields,
+          old_values,
+          new_values
+        )
+        VALUES ($1, $2::uuid, $3, $4::text[], $5::jsonb, $6::jsonb)
+      `,
+      [
+        input.tenant_id,
+        input.mpesa_config_id,
+        input.action,
+        input.changed_fields,
+        JSON.stringify(input.old_values),
+        JSON.stringify(input.new_values),
+      ],
+    );
+  }
+
+  async rotateMpesaCredentials(input: {
+    tenant_id: string;
+    mpesa_config_id: string;
+    shortcode: string;
+    consumer_key: string;
+    consumer_secret: string;
+    passkey: string;
+    callback_secret_hash: string | null;
+    initiator_name: string | null;
+  }): Promise<TenantMpesaConfigRecord> {
+    const result = await this.databaseService.query<TenantMpesaConfigRow>(
+      `
+        UPDATE tenant_mpesa_configs
+        SET
+          consumer_key = $3,
+          consumer_secret = $4,
+          passkey = $5,
+          callback_secret_hash = COALESCE($6, callback_secret_hash),
+          callback_secret_rotated_at = CASE
+            WHEN $6 IS NULL THEN callback_secret_rotated_at
+            ELSE NOW()
+          END,
+          initiator_name = $7,
+          credential_version = credential_version + 1,
+          rotated_at = NOW(),
+          updated_at = NOW()
+        WHERE tenant_id = $1
+          AND id = $2::uuid
+        RETURNING
+          id,
+          tenant_id,
+          shortcode,
+          paybill_number,
+          till_number,
+          consumer_key,
+          consumer_secret,
+          passkey,
+          callback_secret_hash,
+          callback_secret_rotated_at,
+          initiator_name,
+          environment,
+          callback_url,
+          status,
+          credential_version,
+          rotated_at,
+          created_at,
+          updated_at
+      `,
+      [
+        input.tenant_id,
+        input.mpesa_config_id,
+        this.piiEncryptionService.encrypt(
+          input.consumer_key,
+          this.mpesaSecretAad(input.tenant_id, input.shortcode, 'consumer_key'),
+        ),
+        this.piiEncryptionService.encrypt(
+          input.consumer_secret,
+          this.mpesaSecretAad(input.tenant_id, input.shortcode, 'consumer_secret'),
+        ),
+        this.piiEncryptionService.encrypt(
+          input.passkey,
+          this.mpesaSecretAad(input.tenant_id, input.shortcode, 'passkey'),
+        ),
+        input.callback_secret_hash,
+        input.initiator_name,
+      ],
+    );
+
+    if (!result.rows[0]) {
+      throw new Error('M-PESA credential rotation did not update a config row');
+    }
 
     return this.mapMpesaConfig(result.rows[0]);
   }
@@ -502,6 +677,7 @@ export class TenantFinanceConfigRepository {
         this.loadDashboard(tenantId),
       ]);
     const hasActiveMpesa = mpesaConfigs.some((config) => config.status === 'active');
+    const mpesaSetupState = this.resolveMpesaSetupState(mpesaConfigs);
 
     return {
       tenant_id: tenantId,
@@ -515,11 +691,15 @@ export class TenantFinanceConfigRepository {
         environment: config.environment,
         callback_url: config.callback_url,
         status: config.status,
+        credential_version: config.credential_version,
+        rotated_at: config.rotated_at,
+        callback_secret_rotated_at: config.callback_secret_rotated_at,
         created_at: config.created_at,
         updated_at: config.updated_at,
         consumer_key_masked: this.maskSecret(config.consumer_key),
         consumer_secret_masked: this.maskSecret(config.consumer_secret),
         passkey_masked: this.maskSecret(config.passkey),
+        callback_secret_configured: Boolean(config.callback_secret_hash),
       })),
       bank_accounts: bankAccounts.map((account) => ({
         id: account.id,
@@ -538,6 +718,7 @@ export class TenantFinanceConfigRepository {
       dashboard: {
         ...dashboard,
         mpesa_status: hasActiveMpesa ? 'active' : 'inactive',
+        mpesa_setup_state: mpesaSetupState,
         reconciliation_status:
           dashboard.pending_reconciliations === 0 &&
           dashboard.failed_callbacks === 0 &&
@@ -560,10 +741,14 @@ export class TenantFinanceConfigRepository {
           consumer_key,
           consumer_secret,
           passkey,
+          callback_secret_hash,
+          callback_secret_rotated_at,
           initiator_name,
           environment,
           callback_url,
           status,
+          credential_version,
+          rotated_at,
           created_at,
           updated_at
         FROM tenant_mpesa_configs
@@ -670,8 +855,31 @@ export class TenantFinanceConfigRepository {
       failed_callbacks: Number(row?.failed_callbacks ?? 0),
       unmatched_payments: Number(row?.unmatched_payments ?? 0),
       mpesa_status: 'inactive',
+      mpesa_setup_state: 'not_configured',
       reconciliation_status: 'balanced',
     };
+  }
+
+  private resolveMpesaSetupState(mpesaConfigs: TenantMpesaConfigRecord[]): TenantMpesaSetupState {
+    if (mpesaConfigs.length === 0) {
+      return 'not_configured';
+    }
+
+    const activeConfigs = mpesaConfigs.filter((config) => config.status === 'active');
+
+    if (activeConfigs.some((config) => config.environment === 'production')) {
+      return 'production_ready';
+    }
+
+    if (activeConfigs.some((config) => config.environment === 'sandbox')) {
+      return 'sandbox_ready';
+    }
+
+    if (mpesaConfigs.every((config) => config.status === 'inactive' || config.status === 'revoked')) {
+      return 'suspended';
+    }
+
+    return 'awaiting_safaricom_registration';
   }
 
   private mapMpesaConfig(row: TenantMpesaConfigRow): TenantMpesaConfigRecord {

@@ -22,11 +22,14 @@ import {
 } from '../module-access/module-access.constants';
 import { ModuleAccessService } from '../module-access/module-access.service';
 import {
+  AnonymizeTenantOffboardingDto,
   CreateSchoolDto,
   DeleteSchoolDto,
   PlatformEmailReadinessResponseDto,
   PlatformSchoolDeleteResponseDto,
   PlatformSchoolResponseDto,
+  PlatformTenantAnonymizeResponseDto,
+  PlatformTenantOffboardingManifestDto,
   PlatformSchoolUsageSummaryDto,
 } from './dto/create-school.dto';
 
@@ -70,7 +73,11 @@ type InvitationContextRow = TenantRow & {
   invite_metadata?: Record<string, unknown> | string | null;
 };
 
-type AuditAction = 'platform.school.deleted' | 'platform.school.deprovisioned';
+type AuditAction =
+  | 'platform.school.deleted'
+  | 'platform.school.deprovisioned'
+  | 'platform.school.offboarding_exported'
+  | 'platform.school.legal_offboarding_anonymized';
 
 @Injectable()
 export class PlatformOnboardingService {
@@ -317,6 +324,88 @@ export class PlatformOnboardingService {
     });
   }
 
+  async exportTenantOffboardingPackage(
+    tenantIdInput: string,
+  ): Promise<PlatformTenantOffboardingManifestDto> {
+    const tenantId = this.normalizeTenantId(tenantIdInput);
+    const tenant = await this.findTenantForDelete(tenantId);
+    const usageSummary = await this.getTenantUsageSummary(tenantId);
+
+    await this.writeSchoolLifecycleAudit(
+      'platform.school.offboarding_exported',
+      tenant,
+      usageSummary,
+      'contract offboarding export generated',
+    );
+
+    return {
+      tenant_id: tenant.tenant_id,
+      school_name: tenant.name,
+      export_type: 'contract_offboarding',
+      generated_at: new Date().toISOString(),
+      usage_summary: usageSummary,
+      tables: [
+        { name: 'tenants', category: 'school profile', retention: 'export then retain shell audit' },
+        { name: 'tenant_memberships', category: 'users and roles', retention: 'export active and historical membership state' },
+        { name: 'students', category: 'child data', retention: 'export only to verified school owner or legal delegate' },
+        { name: 'invoices', category: 'finance records', retention: 'retain for finance/legal policy' },
+        { name: 'mpesa_transactions', category: 'payment records', retention: 'retain verified settlement evidence' },
+        { name: 'student_report_cards', category: 'academic records', retention: 'immutable academic record policy' },
+        { name: 'audit_logs', category: 'security evidence', retention: 'retain per compliance policy' },
+      ],
+      retention_policy: {
+        payment_records: 'keep as required by finance and legal policy',
+        audit_logs: 'keep per compliance policy',
+        health_discipline_notes: 'keep with strict school policy and legal review',
+        raw_provider_payloads: 'expire encrypted raw payloads after operational review window',
+        report_card_artifacts: 'immutable academic record policy',
+      },
+    };
+  }
+
+  async anonymizeTenantForLegalOffboarding(
+    tenantIdInput: string,
+    dto: AnonymizeTenantOffboardingDto,
+  ): Promise<PlatformTenantAnonymizeResponseDto> {
+    const tenantId = this.normalizeTenantId(tenantIdInput);
+    const confirmation = dto.confirmation.trim().toLowerCase();
+    const reason = dto.reason.trim();
+
+    if (confirmation !== tenantId) {
+      throw new BadRequestException(`Type ${tenantId} to confirm school anonymization.`);
+    }
+
+    if (reason.length < 3) {
+      throw new BadRequestException('Enter an anonymization reason for the audit trail.');
+    }
+
+    return this.databaseService.withRequestTransaction(async () => {
+      await this.scopeTenantForLifecycleMutation(tenantId);
+      const tenant = await this.findTenantForDelete(tenantId);
+      const usageSummary = await this.getTenantUsageSummary(tenantId);
+      const anonymizedTenant = await this.anonymizeTenantShell(tenantId, reason);
+
+      await this.writeSchoolLifecycleAudit(
+        'platform.school.legal_offboarding_anonymized',
+        anonymizedTenant,
+        usageSummary,
+        reason,
+      );
+
+      return {
+        tenant_id: tenant.tenant_id,
+        anonymized: true,
+        message: `${tenant.name} was anonymized for legal offboarding.`,
+        usage_summary: usageSummary,
+        school: this.toPlatformSchoolResponse(anonymizedTenant, {
+          status: 'blocked',
+          message: 'School anonymized. Invites are disabled for this tenant.',
+          canResendInvite: false,
+        }),
+      };
+    });
+  }
+
   private async createTenant(input: {
     tenantId: string;
     schoolName: string;
@@ -483,6 +572,32 @@ export class PlatformOnboardingService {
         JSON.stringify({
           deprovisioned_at: new Date().toISOString(),
           deprovision_reason: reason,
+        }),
+      ],
+    );
+
+    return result.rows[0] ?? (await this.findTenantForDelete(tenantId));
+  }
+
+  private async anonymizeTenantShell(tenantId: string, reason: string): Promise<TenantRow> {
+    const anonymizedName = `Anonymized School ${tenantId}`;
+    const result = await this.databaseService.query<TenantRow>(
+      `
+        UPDATE tenants
+        SET
+          name = $2,
+          status = 'inactive',
+          metadata = COALESCE(metadata, '{}'::jsonb) || $3::jsonb,
+          updated_at = NOW()
+        WHERE tenant_id = $1
+        RETURNING tenant_id, name, subdomain, status, created_at
+      `,
+      [
+        tenantId,
+        anonymizedName,
+        JSON.stringify({
+          legal_offboarding_anonymized_at: new Date().toISOString(),
+          legal_offboarding_reason: reason,
         }),
       ],
     );

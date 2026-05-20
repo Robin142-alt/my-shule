@@ -35,6 +35,7 @@ import { CallbackLogsRepository } from '../repositories/callback-logs.repository
 import { MpesaTransactionsRepository } from '../repositories/mpesa-transactions.repository';
 import { PaymentIntentsRepository } from '../repositories/payment-intents.repository';
 import { MpesaService } from './mpesa.service';
+import { MpesaPayloadVaultService } from './mpesa-payload-vault.service';
 
 interface PaymentProcessingJobInput {
   tenant_id: string;
@@ -67,6 +68,7 @@ export class MpesaCallbackProcessorService {
     private readonly billingService: BillingService,
     private readonly fraudDetectionService: FraudDetectionService,
     @Optional() private readonly sloMetrics?: SloMetricsService,
+    @Optional() private readonly mpesaPayloadVaultService?: MpesaPayloadVaultService,
   ) {}
 
   async process(jobPayload: ProcessMpesaCallbackJobPayload): Promise<void> {
@@ -217,7 +219,7 @@ export class MpesaCallbackProcessorService {
           tenantId,
           this.requireCheckoutRequestId(jobPayload.checkout_request_id),
         );
-    const callback = this.readCallbackPayload(callbackLog);
+    const callback = await this.readCallbackPayload(tenantId, callbackLog);
 
     if (
       jobPayload.checkout_request_id &&
@@ -231,17 +233,26 @@ export class MpesaCallbackProcessorService {
     return { callbackLog, callback };
   }
 
-  private readCallbackPayload(callbackLog: CallbackLogEntity): ParsedMpesaCallback {
+  private async readCallbackPayload(
+    tenantId: string,
+    callbackLog: CallbackLogEntity,
+  ): Promise<ParsedMpesaCallback> {
+    if (callbackLog.raw_payload_encrypted_ref && this.mpesaPayloadVaultService) {
+      const payload = await this.mpesaPayloadVaultService.retrieveForProcessing({
+        tenant_id: tenantId,
+        raw_payload_encrypted_ref: callbackLog.raw_payload_encrypted_ref,
+      });
+
+      return this.mpesaService.parseCallbackPayload(payload);
+    }
+
     if (callbackLog.raw_payload) {
       return this.mpesaService.parseCallbackPayload(callbackLog.raw_payload);
     }
 
-    try {
-      return this.mpesaService.parseCallbackPayload(JSON.parse(callbackLog.raw_body));
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Invalid callback payload';
-      throw new BadRequestException(message);
-    }
+    throw new BadRequestException(
+      'M-PESA callback payload is unavailable in operational storage',
+    );
   }
 
   private async lockPaymentIntent(
@@ -383,6 +394,8 @@ export class MpesaCallbackProcessorService {
     const paymentIntent = await this.lockPaymentIntent(tenantId, callback);
     const callbackDelayMs = this.computeCallbackDelayMs(paymentIntent, callbackLog);
 
+    this.assertCallbackCanChangePaymentState(callbackLog, callback);
+
     if (!this.isTerminalPaymentIntent(paymentIntent.status)) {
       await this.paymentIntentsRepository.markCallbackReceived(tenantId, paymentIntent.id);
     }
@@ -393,6 +406,8 @@ export class MpesaCallbackProcessorService {
       callback_log_id: callbackLog.id,
       callback,
       raw_payload: callbackLog.raw_payload,
+      raw_payload_encrypted_ref: callbackLog.raw_payload_encrypted_ref,
+      payload_sha256: callbackLog.payload_sha256,
     });
 
     if (callback.status === 'failed') {
@@ -598,6 +613,32 @@ export class MpesaCallbackProcessorService {
       ledger_transaction_id: postedTransaction.transaction_id,
       status: 'completed',
     });
+  }
+
+  private assertCallbackCanChangePaymentState(
+    callbackLog: CallbackLogEntity,
+    callback: ParsedMpesaCallback,
+  ): void {
+    if (callbackLog.signature_verified) {
+      return;
+    }
+
+    const providerVerifiedAt = (callbackLog as unknown as { provider_verified_at?: Date | string | null })
+      .provider_verified_at;
+    const callbackTrustStatus = (callbackLog as unknown as { callback_trust_status?: string | null })
+      .callback_trust_status;
+
+    if (callbackTrustStatus === 'provider_verified' && providerVerifiedAt) {
+      return;
+    }
+
+    if (callback.status === 'failed' && callbackTrustStatus === 'provider_failed') {
+      return;
+    }
+
+    throw new BadRequestException(
+      'A verified M-PESA callback or provider verification is required before payment state changes',
+    );
   }
 
   private buildJobResult(

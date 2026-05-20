@@ -1,6 +1,6 @@
 # Implementation 10 Security Scan
 
-Generated at: 2026-05-17T14:17:53.564Z
+Generated at: 2026-05-20T17:48:26.349Z
 
 Status: pass
 
@@ -18,7 +18,7 @@ Status: pass
 
 # Implementation 10 Security And Tenant Isolation Audit
 
-Generated at: 2026-05-17T14:17:53.556Z
+Generated at: 2026-05-20T17:48:26.327Z
 
 Status: pass
 
@@ -44,6 +44,7 @@ Status: pass
 | high | Upload path supports malware scanning | pass | apps/api/src/common/uploads/upload-malware-scan.service.ts |
 | medium | Object storage path is tenant scoped or signed | pass | apps/api/src/common/uploads/database-file-storage.service.ts |
 | critical | SMS dispatch service does not log raw provider secrets | pass | apps/api/src/modules/integrations/sms-dispatch.service.ts |
+| critical | All statically declared tenant tables enforce forced row level security | pass | apps/api/src |
 
 ## Audit Scope
 

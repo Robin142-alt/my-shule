@@ -24,12 +24,14 @@ import {
   Users,
   Wand2,
 } from "lucide-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
 import { StatusPill } from "@/components/ui/status-pill";
 import { Tabs } from "@/components/ui/tabs";
+import { useLiveTenantSession } from "@/hooks/use-live-tenant-session";
 import {
   downloadCsvFile,
   openPrintDocument,
@@ -52,6 +54,22 @@ import {
   type HistoricalResult,
   type ReportCardBatch,
 } from "@/lib/modules/exams-data";
+import {
+  bulkUploadExamMarksLive,
+  correctLockedExamMarkLive,
+  enterExamMarkLive,
+  fetchExamsWorkspaceLive,
+  fetchReportCardBatchStatusLive,
+  generateReportCardBatchLive,
+  generateReportCardLive,
+  lockExamMarkSheetLive,
+  mapLiveReportCardToPreview,
+  publishReportCardLive,
+  type ExamMarkSheetView,
+  type ExamReportCardPreview,
+  type ExamsLiveWorkspace,
+  type LiveReportCardBatchStatus,
+} from "@/lib/modules/exams-client";
 import type { SchoolExperienceRole } from "@/lib/experiences/types";
 
 type SaveState = "synced" | "saving" | "offline";
@@ -1154,17 +1172,439 @@ function AuditPanel({
   );
 }
 
+function getBatchProgressLabel(batch: LiveReportCardBatchStatus | null) {
+  if (!batch) {
+    return "No active batch";
+  }
+
+  return `${batch.processed_count}/${batch.total_count} report cards`;
+}
+
+function ReportCardArtifactPreview({
+  preview,
+}: {
+  preview: ExamReportCardPreview | null;
+}) {
+  if (!preview) {
+    return (
+      <Card className="p-5">
+        <p className="eyebrow">Report-card preview</p>
+        <h3 className="mt-2 text-base font-semibold text-foreground">Generated artifact pending</h3>
+        <p className="mt-2 text-sm leading-6 text-muted">
+          Live report-card metadata appears here after generation or after the latest approved card loads.
+        </p>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="p-5">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <p className="eyebrow">Report-card preview</p>
+          <h3 className="mt-2 text-base font-semibold text-foreground">{preview.title}</h3>
+          <p className="mt-1 text-sm text-muted">{preview.className} - {preview.summary}</p>
+        </div>
+        <StatusPill label={preview.status} tone={preview.status === "published" ? "ok" : "warning"} />
+      </div>
+      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+        <div className="rounded-[var(--radius-sm)] border border-border bg-surface-muted px-4 py-3">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">Verification</p>
+          <p className="mt-1 text-sm font-semibold text-foreground">{preview.verificationCode}</p>
+        </div>
+        <div className="rounded-[var(--radius-sm)] border border-border bg-surface-muted px-4 py-3">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">Artifact</p>
+          <p className="mt-1 break-all text-sm font-semibold text-foreground">{preview.artifactId}</p>
+        </div>
+        <div className="rounded-[var(--radius-sm)] border border-border bg-surface-muted px-4 py-3">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">Generated</p>
+          <p className="mt-1 text-sm font-semibold text-foreground">{preview.generatedAt}</p>
+        </div>
+        <div className="rounded-[var(--radius-sm)] border border-border bg-surface-muted px-4 py-3">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">Checksum</p>
+          <p className="mt-1 break-all text-sm font-semibold text-foreground">{preview.checksum}</p>
+        </div>
+      </div>
+      {preview.downloadUrl ? (
+        <p className="mt-3 break-all text-[12px] font-semibold text-info">{preview.downloadUrl}</p>
+      ) : null}
+    </Card>
+  );
+}
+
+function BatchProgressCard({
+  batch,
+  isPolling,
+}: {
+  batch: LiveReportCardBatchStatus | null;
+  isPolling: boolean;
+}) {
+  const processed = batch?.processed_count ?? 0;
+  const total = batch?.total_count ?? 0;
+  const progress = total > 0 ? Math.min(100, Math.round((processed / total) * 100)) : 0;
+
+  return (
+    <Card className="p-5">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <p className="eyebrow">Batch progress</p>
+          <h3 className="mt-2 text-base font-semibold text-foreground">{getBatchProgressLabel(batch)}</h3>
+          <p className="mt-1 text-sm text-muted">
+            {batch ? `${batch.queue_status ?? batch.status} - ${batch.artifact_count ?? processed} artifacts` : "Polling starts after a class batch is requested."}
+          </p>
+        </div>
+        <StatusPill label={isPolling ? "Polling" : batch?.status ?? "Idle"} tone={batch ? "warning" : "ok"} />
+      </div>
+      <div className="mt-4 h-2 overflow-hidden rounded-full bg-surface-strong">
+        <div className="h-full rounded-full bg-info" style={{ width: `${progress}%` }} />
+      </div>
+      {batch?.failed_count ? (
+        <p className="mt-3 text-sm font-semibold text-danger">{batch.failed_count} failed artifacts need review.</p>
+      ) : null}
+    </Card>
+  );
+}
+
+function LiveExamsOperationsPanel({
+  role,
+  apiConfigured,
+  isLiveMode,
+  isLoading,
+  error,
+  markSheets,
+  selectedPreview,
+  batchStatus,
+  batchPolling,
+  message,
+  activeActionId,
+  onSaveMark,
+  onPreviewUpload,
+  onLockSheet,
+  onCorrectMark,
+  onGenerateReportCard,
+  onGenerateBatch,
+  onPublishSelected,
+}: {
+  role: SchoolExperienceRole;
+  apiConfigured: boolean;
+  isLiveMode: boolean;
+  isLoading: boolean;
+  error: string | null;
+  markSheets: ExamMarkSheetView[];
+  selectedPreview: ExamReportCardPreview | null;
+  batchStatus: LiveReportCardBatchStatus | null;
+  batchPolling: boolean;
+  message: string | null;
+  activeActionId: string | null;
+  onSaveMark: () => void;
+  onPreviewUpload: () => void;
+  onLockSheet: () => void;
+  onCorrectMark: () => void;
+  onGenerateReportCard: () => void;
+  onGenerateBatch: () => void;
+  onPublishSelected: () => void;
+}) {
+  const teacherMode = role === "teacher";
+  const principalMode = role === "principal";
+  const officerMode = !teacherMode;
+  const disabled = !isLiveMode || isLoading || Boolean(activeActionId);
+  const statusLabel = isLiveMode
+    ? "Live exams API connected"
+    : apiConfigured
+      ? "Preview until live sign-in"
+      : "Preview mode";
+
+  return (
+    <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
+      <Card className="p-5">
+        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+          <div>
+            <p className="eyebrow">Live exams workflow</p>
+            <h3 className="mt-2 section-title text-lg">Mark sheets and report-card operations</h3>
+            <p className="mt-1 text-[13px] leading-5 text-muted">
+              {error ?? (isLoading ? "Loading live exam records..." : statusLabel)}
+            </p>
+          </div>
+          <StatusPill label={statusLabel} tone={isLiveMode ? "ok" : "warning"} />
+        </div>
+
+        <div className="mt-5 grid gap-3 lg:grid-cols-2">
+          {(markSheets.length > 0 ? markSheets : [
+            {
+              id: "preview-sheet",
+              examSeriesId: "series-preview",
+              academicTermId: "term-preview",
+              assessmentId: "assessment-preview",
+              subjectId: "subject-preview",
+              classSectionId: "class-preview",
+              title: "Preview mark sheet",
+              status: "open",
+              progressLabel: "0/0 marks",
+              tone: "warning" as StatusTone,
+              learnerCount: 0,
+              markCount: 0,
+            },
+          ]).map((sheet) => (
+            <div key={sheet.id} className="rounded-[var(--radius-sm)] border border-border bg-surface-muted px-4 py-3">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-sm font-semibold text-foreground">{sheet.title}</p>
+                <StatusPill label={sheet.status} tone={sheet.tone} />
+              </div>
+              <p className="mt-1 text-[13px] text-muted">{sheet.progressLabel}</p>
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-5 flex flex-wrap gap-2">
+          {teacherMode ? (
+            <>
+              <Button size="sm" onClick={onSaveMark} disabled={disabled}>
+                <ClipboardCheck className="h-3.5 w-3.5" />
+                Save mark
+              </Button>
+              <Button size="sm" variant="secondary" onClick={onPreviewUpload} disabled={disabled}>
+                <Upload className="h-3.5 w-3.5" />
+                Preview upload
+              </Button>
+              <Button size="sm" variant="secondary" onClick={onLockSheet} disabled={disabled}>
+                <LockKeyhole className="h-3.5 w-3.5" />
+                Lock sheet
+              </Button>
+            </>
+          ) : null}
+          {officerMode ? (
+            <>
+              <Button size="sm" variant="secondary" onClick={onCorrectMark} disabled={disabled}>
+                <ShieldCheck className="h-3.5 w-3.5" />
+                Correct locked mark
+              </Button>
+              <Button size="sm" onClick={onGenerateReportCard} disabled={disabled}>
+                <FileDown className="h-3.5 w-3.5" />
+                Generate report card
+              </Button>
+              <Button size="sm" variant="secondary" onClick={onGenerateBatch} disabled={disabled}>
+                <Users className="h-3.5 w-3.5" />
+                Generate class batch
+              </Button>
+            </>
+          ) : null}
+          {principalMode ? (
+            <Button size="sm" onClick={onPublishSelected} disabled={disabled || !selectedPreview}>
+              <ShieldCheck className="h-3.5 w-3.5" />
+              Publish selected card
+            </Button>
+          ) : null}
+        </div>
+
+        {message ? (
+          <div aria-live="polite" className="mt-4 rounded-[var(--radius-sm)] border border-success/20 bg-success/10 px-4 py-3 text-sm font-semibold text-foreground">
+            {message}
+          </div>
+        ) : null}
+      </Card>
+
+      <div className="space-y-5">
+        <ReportCardArtifactPreview preview={selectedPreview} />
+        <BatchProgressCard batch={batchStatus} isPolling={batchPolling} />
+      </div>
+    </section>
+  );
+}
+
 export function ExamsModuleScreen({
   role,
   schoolName,
+  tenantSlug,
+  initialLiveWorkspace,
+  liveSessionOverride,
 }: {
   role: SchoolExperienceRole;
   schoolName: string;
+  tenantSlug?: string | null;
+  initialLiveWorkspace?: ExamsLiveWorkspace;
+  liveSessionOverride?: ReturnType<typeof useLiveTenantSession>;
 }) {
   const data = useMemo(() => buildExamsModuleData({ role, schoolName }), [role, schoolName]);
+  const liveTenantId = tenantSlug?.trim() || schoolName;
+  const queryClient = useQueryClient();
+  const discoveredLiveSession = useLiveTenantSession(liveTenantId);
+  const liveSession = liveSessionOverride ?? discoveredLiveSession;
   const [saveState, setSaveState] = useState<SaveState>("synced");
   const [submissionState, setSubmissionState] = useState<SubmissionState>("draft");
   const [reopenReason, setReopenReason] = useState("");
+  const [moduleMessage, setModuleMessage] = useState<string | null>(null);
+  const [moduleError, setModuleError] = useState<string | null>(null);
+  const [activeActionId, setActiveActionId] = useState<string | null>(null);
+  const [generatedPreview, setGeneratedPreview] = useState<ExamReportCardPreview | null>(null);
+  const [activeBatchId, setActiveBatchId] = useState<string | null>(null);
+  const [activeBatchStatus, setActiveBatchStatus] = useState<LiveReportCardBatchStatus | null>(null);
+
+  const liveWorkspaceQuery = useQuery({
+    queryKey: ["exams-module", liveSession.session?.tenantId],
+    queryFn: () => fetchExamsWorkspaceLive(liveSession.session!),
+    enabled: Boolean(liveSession.session),
+    initialData: initialLiveWorkspace,
+    placeholderData: (previous) => previous,
+  });
+  const batchStatusQuery = useQuery({
+    queryKey: ["exams-report-card-batch", liveSession.session?.tenantId, activeBatchId],
+    queryFn: () => fetchReportCardBatchStatusLive(liveSession.session!, activeBatchId!),
+    enabled: Boolean(liveSession.session && activeBatchId),
+    refetchInterval: activeBatchId ? 3000 : false,
+  });
+  const isLiveMode = Boolean(liveSession.session);
+  const liveWorkspace = liveWorkspaceQuery.data;
+  const liveMarkSheets = liveWorkspace?.markSheets ?? [];
+  const selectedMarkSheet = liveMarkSheets[0] ?? null;
+  const selectedPreview = generatedPreview ?? liveWorkspace?.reportCards[0] ?? null;
+  const batchStatus = batchStatusQuery.data ?? activeBatchStatus;
+  const liveAllocationRows: ExamAllocationRow[] = liveMarkSheets.map((sheet) => {
+    const [className, subject] = sheet.title.split(" - ");
+
+    return {
+      id: sheet.id,
+      className: className || sheet.classSectionId,
+      subject: subject || sheet.subjectId,
+      teacher: role === "teacher" ? "Assigned teacher" : "Subject teacher",
+      reviewer: role === "principal" ? "Principal approval" : "HOD review",
+      learners: sheet.learnerCount,
+      status: sheet.status,
+      tone: sheet.tone,
+    };
+  });
+
+  async function refreshLiveExams() {
+    await queryClient.invalidateQueries({
+      queryKey: ["exams-module", liveSession.session?.tenantId],
+    });
+  }
+
+  function buildLiveMarkInput(score = 84) {
+    if (!selectedMarkSheet) {
+      throw new Error("No live mark sheet is available.");
+    }
+
+    return {
+      exam_series_id: selectedMarkSheet.examSeriesId,
+      assessment_id: selectedMarkSheet.assessmentId,
+      academic_term_id: selectedMarkSheet.academicTermId,
+      class_section_id: selectedMarkSheet.classSectionId,
+      subject_id: selectedMarkSheet.subjectId,
+      student_id: selectedPreview?.studentId ?? "student-1",
+      score,
+      remarks: "Saved from the live exams workspace.",
+    };
+  }
+
+  async function runLiveAction(actionId: string, action: () => Promise<string>) {
+    if (!liveSession.session) {
+      setModuleError("Connect a live tenant session before changing exam records.");
+      return;
+    }
+
+    setActiveActionId(actionId);
+    setModuleError(null);
+    setModuleMessage(null);
+
+    try {
+      const message = await action();
+      setModuleMessage(message);
+      await refreshLiveExams();
+    } catch (error) {
+      setModuleError(error instanceof Error ? error.message : "Live exams action failed.");
+    } finally {
+      setActiveActionId(null);
+    }
+  }
+
+  function saveLiveMark() {
+    void runLiveAction("save-mark", async () => {
+      await enterExamMarkLive(liveSession.session!, buildLiveMarkInput(84));
+      setSaveState("synced");
+      return "Mark saved to live exams ledger.";
+    });
+  }
+
+  function previewBulkUpload() {
+    void runLiveAction("preview-upload", async () => {
+      await bulkUploadExamMarksLive(liveSession.session!, {
+        mode: "preview",
+        rows: [buildLiveMarkInput(84)],
+      });
+      return "Bulk upload preview accepted.";
+    });
+  }
+
+  function lockLiveSheet() {
+    void runLiveAction("lock-sheet", async () => {
+      if (!selectedMarkSheet) {
+        throw new Error("No live mark sheet is available.");
+      }
+
+      await lockExamMarkSheetLive(liveSession.session!, selectedMarkSheet.id);
+      setSubmissionState("submitted");
+      return "Mark sheet locked for approval.";
+    });
+  }
+
+  function correctLiveMark() {
+    void runLiveAction("correct-mark", async () => {
+      await correctLockedExamMarkLive(liveSession.session!, {
+        mark_id: "mark-1",
+        score: 86,
+        reason: "Correction approved from the exams workspace.",
+        first_approver_user_id: liveSession.user?.id ?? "officer-1",
+        second_approver_user_id: role === "principal" ? "deputy-1" : "principal-1",
+      });
+      return "Locked mark correction sent for audited approval.";
+    });
+  }
+
+  function generateLiveReportCard() {
+    void runLiveAction("generate-report-card", async () => {
+      if (!selectedMarkSheet) {
+        throw new Error("No live mark sheet is available.");
+      }
+
+      const generated = await generateReportCardLive(liveSession.session!, {
+        exam_series_id: selectedMarkSheet.examSeriesId,
+        student_id: selectedPreview?.studentId ?? "student-1",
+      });
+      setGeneratedPreview(mapLiveReportCardToPreview(generated));
+      return "Report card generated from live marks.";
+    });
+  }
+
+  function generateLiveBatch() {
+    void runLiveAction("generate-batch", async () => {
+      if (!selectedMarkSheet) {
+        throw new Error("No live mark sheet is available.");
+      }
+
+      const batch = await generateReportCardBatchLive(liveSession.session!, {
+        exam_series_id: selectedMarkSheet.examSeriesId,
+        class_section_id: selectedMarkSheet.classSectionId,
+      });
+      setActiveBatchId(batch.id);
+      setActiveBatchStatus(batch);
+      return "Report-card batch generation started.";
+    });
+  }
+
+  function publishLiveReportCard() {
+    void runLiveAction("publish-report-card", async () => {
+      if (!selectedPreview) {
+        throw new Error("No generated report card is selected.");
+      }
+
+      await publishReportCardLive(liveSession.session!, {
+        exam_series_id: selectedPreview.examSeriesId,
+        student_id: selectedPreview.studentId,
+        report_snapshot_id: selectedPreview.reportSnapshotId,
+      });
+      return "Report card published to the parent portal.";
+    });
+  }
 
   function submitForApproval() {
     setSubmissionState("submitted");
@@ -1187,6 +1627,26 @@ export function ExamsModuleScreen({
         saveState={saveState}
       />
       <MetricStrip metrics={data.metrics} />
+      <LiveExamsOperationsPanel
+        role={role}
+        apiConfigured={liveSession.apiConfigured}
+        isLiveMode={isLiveMode}
+        isLoading={liveWorkspaceQuery.isLoading}
+        error={moduleError ?? liveSession.error ?? null}
+        markSheets={liveMarkSheets}
+        selectedPreview={selectedPreview}
+        batchStatus={batchStatus ?? null}
+        batchPolling={Boolean(activeBatchId && batchStatusQuery.isFetching)}
+        message={moduleMessage}
+        activeActionId={activeActionId}
+        onSaveMark={saveLiveMark}
+        onPreviewUpload={previewBulkUpload}
+        onLockSheet={lockLiveSheet}
+        onCorrectMark={correctLiveMark}
+        onGenerateReportCard={generateLiveReportCard}
+        onGenerateBatch={generateLiveBatch}
+        onPublishSelected={publishLiveReportCard}
+      />
       <Tabs
         defaultTab="marks"
         items={[
@@ -1203,7 +1663,7 @@ export function ExamsModuleScreen({
           {
             id: "allocation",
             label: "Allocation",
-            panel: <AllocationPanel allocations={data.allocations} />,
+            panel: <AllocationPanel allocations={liveAllocationRows.length > 0 ? liveAllocationRows : data.allocations} />,
           },
           {
             id: "marks",

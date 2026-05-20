@@ -3127,11 +3127,19 @@ function MpesaC2bReviewPanel({ tenantSlug }: { tenantSlug?: string | null }) {
           throw new Error("Pending Paybill deposits could not be loaded.");
         }
 
-        const payload = (await response.json()) as MpesaC2bPaymentResponse[];
+        const payload = (await response.json().catch(() => null)) as
+          | MpesaC2bPaymentResponse[]
+          | { data?: MpesaC2bPaymentResponse[]; message?: string }
+          | null;
+        const pendingPayments = unwrapApiData<MpesaC2bPaymentResponse[]>(payload);
+
+        if (!Array.isArray(pendingPayments)) {
+          throw new Error(getApiResponseMessage(payload) ?? "Pending Paybill deposits could not be loaded.");
+        }
 
         if (active) {
-          setPayments(payload);
-          setSelectedPaymentId((current) => current || payload[0]?.id || "");
+          setPayments(pendingPayments);
+          setSelectedPaymentId((current) => current || pendingPayments[0]?.id || "");
         }
       } catch (caught) {
         if (active) {
@@ -3185,19 +3193,21 @@ function MpesaC2bReviewPanel({ tenantSlug }: { tenantSlug?: string | null }) {
       );
       const payload = (await response.json().catch(() => null)) as
         | MpesaC2bPaymentResponse
+        | { data?: MpesaC2bPaymentResponse; message?: string }
         | { message?: string }
         | null;
+      const reconciledPayment = unwrapApiData<MpesaC2bPaymentResponse>(payload);
 
-      if (!response.ok || !payload || !("id" in payload)) {
+      if (!response.ok || !reconciledPayment?.id) {
+        const responseMessage = getApiResponseMessage(payload);
+
         throw new Error(
-          payload && "message" in payload && payload.message
-            ? payload.message
-            : "Paybill deposit could not be reconciled.",
+          responseMessage ?? "Paybill deposit could not be reconciled.",
         );
       }
 
-      setPayments((current) => current.filter((payment) => payment.id !== payload.id));
-      setMessage(`${payload.trans_id} reconciled and posted to the fee ledger.`);
+      setPayments((current) => current.filter((payment) => payment.id !== reconciledPayment.id));
+      setMessage(`${reconciledPayment.trans_id} reconciled and posted to the fee ledger.`);
       setSelectedPaymentId("");
       setInvoiceId("");
       setStudentId("");
@@ -3652,6 +3662,26 @@ function ManualReceiptsPanel({ tenantSlug }: { tenantSlug?: string | null }) {
       </div>
     </section>
   );
+}
+
+function unwrapApiData<T>(payload: T | { data?: T } | null | undefined): T | null {
+  if (isRecord(payload) && "data" in payload) {
+    return payload.data === undefined ? null : payload.data as T;
+  }
+
+  return payload === undefined ? null : payload as T;
+}
+
+function getApiResponseMessage(payload: unknown): string | null {
+  if (!isRecord(payload) || typeof payload.message !== "string") {
+    return null;
+  }
+
+  return payload.message;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function buildBillingApiPath(path: string, tenantSlug?: string | null) {
@@ -5083,6 +5113,7 @@ export function SchoolPages({
         <ExamsModuleScreen
           role={role}
           schoolName={workspace.branding.name}
+          tenantSlug={tenantSlug}
         />
       ) : null}
       {!studentId && section === "discipline" ? (

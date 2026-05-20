@@ -24,6 +24,24 @@ export class EnterExamMarkDto {
   remarks?: string;
 }
 
+export class BulkExamMarkUploadRowDto {
+  row_number?: number;
+  exam_series_id!: string;
+  assessment_id!: string;
+  academic_term_id!: string;
+  class_section_id!: string;
+  subject_id!: string;
+  student_id!: string;
+  score!: number;
+  remarks?: string;
+}
+
+export class BulkExamMarkUploadDto {
+  mode?: 'preview' | 'commit';
+  preview_token?: string;
+  rows!: BulkExamMarkUploadRowDto[];
+}
+
 export class CorrectLockedExamMarkDto {
   mark_id!: string;
   score!: number;
@@ -34,4 +52,15 @@ export class PublishReportCardDto {
   exam_series_id!: string;
   student_id!: string;
   report_snapshot_id!: string;
+}
+
+export class GenerateReportCardDto {
+  exam_series_id!: string;
+  student_id!: string;
+}
+
+export class GenerateReportCardBatchDto {
+  exam_series_id!: string;
+  class_section_id?: string;
+  stream_name?: string;
 }

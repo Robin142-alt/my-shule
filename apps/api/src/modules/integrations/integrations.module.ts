@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 
 import { SecurityModule } from '../security/security.module';
+import { TenantFinanceModule } from '../tenant-finance/tenant-finance.module';
 import { DarajaIntegrationController } from './daraja-integration.controller';
 import { DarajaIntegrationRepository } from './daraja-integration.repository';
 import { DarajaIntegrationService } from './daraja-integration.service';
@@ -17,7 +18,7 @@ import { SchoolSmsWalletService } from './school-sms-wallet.service';
 import { SmsDispatchService } from './sms-dispatch.service';
 
 @Module({
-  imports: [SecurityModule],
+  imports: [SecurityModule, TenantFinanceModule],
   controllers: [
     PlatformSmsController,
     SchoolSmsController,

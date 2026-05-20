@@ -22,6 +22,7 @@ on:
           - query-plan
           - maintainability
           - readiness
+          - implementation30
           - scorecard
           - pilot
           - security
@@ -113,6 +114,14 @@ jobs:
         if: github.event.inputs.check == 'all' || github.event.inputs.check == 'scorecard' || github.event.schedule == '33 2 * * *'
         run: npm run scorecard:production
 
+      - name: Implementation 30 certification
+        if: github.event.inputs.check == 'all' || github.event.inputs.check == 'implementation30' || github.event.schedule == '33 2 * * *'
+        run: |
+          npm run implementation30:rollout-gate
+          npm run implementation30:certify
+          npm run implementation30:load-profile
+          npm run module-access:certify
+
       - name: Pilot workflow certification
         if: github.event.inputs.check == 'all' || github.event.inputs.check == 'pilot' || github.event.schedule == '33 2 * * *'
         env:
@@ -128,12 +137,17 @@ jobs:
           npm run discipline:certify
           npm run implementation20:certify
           npm run implementation21:certify
+          npm run implementation30:rollout-gate
+          npm run implementation30:certify
+          npm run implementation30:load-profile
+          npm run module-access:certify
 
       - name: Security and tenant isolation audit
         if: github.event.inputs.check == 'all' || github.event.inputs.check == 'security' || github.event.schedule == '33 2 * * *'
         run: |
           npm run tenant:isolation:audit
           npm run security:scan
+          npm run security:pii-scan
           npm run security:deps
 
       - name: Backup restore verification
@@ -162,8 +176,13 @@ jobs:
             docs/validation/implementation11-maintainability-scan.md
             docs/validation/implementation20-certification.md
             docs/validation/implementation21-certification.md
+            docs/validation/implementation30-certification.md
+            docs/validation/implementation30-load-profile.md
+            docs/validation/implementation30-rollout-gate.md
+            docs/validation/module-access-certification.md
             docs/security/implementation10-threat-model.md
             docs/security/implementation10-security-audit.md
             docs/security/implementation10-security-scan.md
+            docs/security/pii-leak-ci-scan.md
           if-no-files-found: ignore
           retention-days: 14

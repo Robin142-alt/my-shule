@@ -3,11 +3,14 @@ import { Body, Controller, Delete, Get, Param, Post } from '@nestjs/common';
 import { Roles } from '../../auth/decorators/roles.decorator';
 import { SUPERADMIN_ROLE_OWNER } from '../../auth/auth.constants';
 import {
+  AnonymizeTenantOffboardingDto,
   CreateSchoolDto,
   DeleteSchoolDto,
   PlatformEmailReadinessResponseDto,
   PlatformSchoolDeleteResponseDto,
   PlatformSchoolResponseDto,
+  PlatformTenantAnonymizeResponseDto,
+  PlatformTenantOffboardingManifestDto,
 } from './dto/create-school.dto';
 import { PlatformOnboardingService } from './platform-onboarding.service';
 
@@ -36,6 +39,21 @@ export class PlatformOnboardingController {
     @Param('tenantId') tenantId: string,
   ): Promise<PlatformSchoolResponseDto> {
     return this.onboardingService.resendSchoolAdminInvite(tenantId);
+  }
+
+  @Get('schools/:tenantId/offboarding/export')
+  exportTenantOffboardingPackage(
+    @Param('tenantId') tenantId: string,
+  ): Promise<PlatformTenantOffboardingManifestDto> {
+    return this.onboardingService.exportTenantOffboardingPackage(tenantId);
+  }
+
+  @Post('schools/:tenantId/offboarding/anonymize')
+  anonymizeTenantForLegalOffboarding(
+    @Param('tenantId') tenantId: string,
+    @Body() dto: AnonymizeTenantOffboardingDto,
+  ): Promise<PlatformTenantAnonymizeResponseDto> {
+    return this.onboardingService.anonymizeTenantForLegalOffboarding(tenantId, dto);
   }
 
   @Delete('schools/:tenantId')

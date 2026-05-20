@@ -4,7 +4,9 @@ import test from 'node:test';
 import { RequestContextService } from '../../common/request-context/request-context.service';
 import { sanitizeRequestPath } from '../../common/request-path.util';
 import { FraudDetectionService } from './fraud-detection.service';
+import { DataClassificationRegistryService } from './data-classification-registry.service';
 import { PiiEncryptionService } from './pii-encryption.service';
+import { PiiLeakScannerService } from './pii-leak-scanner.service';
 import { RateLimitService } from './rate-limit.service';
 
 class FakeRedisClient {
@@ -64,6 +66,59 @@ test('PiiEncryptionService encrypts and decrypts field values', () => {
     'Grace Otieno',
   );
   assert.equal(service.maskPhoneNumber('254700000001'), '2547******01');
+});
+
+test('DataClassificationRegistryService covers child-data categories, encryption policy, consent, DPIA, and retention rules', () => {
+  const registry = new DataClassificationRegistryService();
+  const categories = registry.listClassifications().map((item) => item.id);
+
+  assert.deepEqual(
+    categories,
+    [
+      'public',
+      'internal',
+      'confidential',
+      'sensitive_child_data',
+      'sensitive_health_data',
+      'sensitive_biometric_data',
+      'payment_data',
+    ],
+  );
+  assert.equal(
+    registry.getColumnPolicy('students.primary_guardian_phone')?.classification,
+    'sensitive_child_data',
+  );
+  assert.equal(
+    registry.getColumnPolicy('clinic_health_records.confidential_notes')?.encryption,
+    'column',
+  );
+  assert.equal(
+    registry.getConsentPurpose('biometric_attendance')?.guardian_required,
+    true,
+  );
+  assert.equal(registry.getDpiaModule('payments')?.requires_dpia, true);
+  assert.equal(registry.getRetentionSchedule('mpesa_payload_vault')?.raw_payload_days, 90);
+});
+
+test('PiiLeakScannerService flags raw Kenyan phone numbers and payer names in leak-prone artifacts', () => {
+  const scanner = new PiiLeakScannerService(new DataClassificationRegistryService());
+  const result = scanner.scanArtifacts([
+    {
+      path: 'logs/mpesa-callback.log',
+      content: 'Paid by Jane Parent on 254700000001 for ADM-001',
+    },
+    {
+      path: 'docs/validation/safe.md',
+      content: 'Paid by J*** P*** on 2547******01 for ADM-***',
+    },
+  ]);
+
+  assert.equal(result.ok, false);
+  assert.equal(result.findings.length, 3);
+  assert.deepEqual(
+    result.findings.map((finding) => finding.classification).sort(),
+    ['payment_data', 'payment_data', 'sensitive_child_data'],
+  );
 });
 
 test('sanitizeRequestPath redacts auth tokens and one-time codes from URL query strings', () => {

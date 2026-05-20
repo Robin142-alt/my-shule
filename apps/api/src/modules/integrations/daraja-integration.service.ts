@@ -1,7 +1,9 @@
-import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, Injectable, Optional, UnauthorizedException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 
 import { RequestContextService } from '../../common/request-context/request-context.service';
 import { PiiEncryptionService } from '../security/pii-encryption.service';
+import { TenantFinanceConfigService } from '../tenant-finance/tenant-finance-config.service';
 import { SaveDarajaIntegrationDto } from './dto/integrations.dto';
 import { DarajaIntegrationRepository } from './daraja-integration.repository';
 import type {
@@ -15,6 +17,8 @@ export class DarajaIntegrationService {
     private readonly requestContext: RequestContextService,
     private readonly darajaIntegrationRepository: DarajaIntegrationRepository,
     private readonly piiEncryptionService: PiiEncryptionService,
+    @Optional() private readonly configService?: ConfigService,
+    @Optional() private readonly tenantFinanceConfigService?: TenantFinanceConfigService,
   ) {}
 
   async getDarajaSettings(environment?: string): Promise<DarajaIntegrationResponse | null> {
@@ -29,7 +33,7 @@ export class DarajaIntegrationService {
   async saveDarajaSettings(dto: SaveDarajaIntegrationDto): Promise<DarajaIntegrationResponse> {
     const tenantId = this.requireTenantId();
     const shortcode = dto.shortcode.trim();
-    const callbackUrl = `/payments/mpesa/callback/:integrationId`;
+    const callbackUrl = this.resolveCanonicalCallbackUrl();
     const record = await this.darajaIntegrationRepository.upsertDarajaIntegration({
       tenant_id: tenantId,
       paybill_number: dto.paybill_number?.trim() || null,
@@ -53,6 +57,19 @@ export class DarajaIntegrationService {
       actor_user_id: this.getActorUserId(),
     });
 
+    await this.tenantFinanceConfigService?.upsertMpesaConfig(tenantId, {
+      shortcode,
+      paybill_number: dto.paybill_number?.trim() || null,
+      till_number: dto.till_number?.trim() || null,
+      consumer_key: dto.consumer_key.trim(),
+      consumer_secret: dto.consumer_secret.trim(),
+      passkey: dto.passkey.trim(),
+      initiator_name: null,
+      environment: dto.environment,
+      callback_url: callbackUrl,
+      status: dto.is_active ? 'active' : 'inactive',
+    });
+
     await this.darajaIntegrationRepository.appendIntegrationLog({
       tenant_id: tenantId,
       integration_type: 'mpesa_daraja',
@@ -62,10 +79,7 @@ export class DarajaIntegrationService {
       created_by_user_id: this.getActorUserId(),
     });
 
-    return this.toResponse({
-      ...record,
-      callback_url: record.callback_url?.replace(':integrationId', record.id) ?? null,
-    });
+    return this.toResponse(record);
   }
 
   async testConnection(environment?: string): Promise<{ status: 'ok'; integration_id: string }> {
@@ -205,6 +219,32 @@ export class DarajaIntegrationService {
 
     const visible = value.length <= 4 ? value.slice(-2) : value.slice(-4);
     return `${'*'.repeat(Math.max(8, value.length - visible.length))}${visible}`;
+  }
+
+  private resolveCanonicalCallbackUrl(): string {
+    const configuredUrl = (
+      this.configService?.get<string>('mpesa.callbackUrl') ??
+      process.env.MPESA_CALLBACK_URL ??
+      ''
+    ).trim();
+
+    if (!configuredUrl) {
+      throw new BadRequestException('MPESA_CALLBACK_URL must be configured before saving Daraja settings');
+    }
+
+    let parsedUrl: URL;
+
+    try {
+      parsedUrl = new URL(configuredUrl);
+    } catch {
+      throw new BadRequestException('MPESA callback URL must be an absolute HTTPS URL');
+    }
+
+    if (parsedUrl.protocol !== 'https:') {
+      throw new BadRequestException('MPESA callback URL must use HTTPS');
+    }
+
+    return parsedUrl.toString();
   }
 
   private requireTenantId(): string {

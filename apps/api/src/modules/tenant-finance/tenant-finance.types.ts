@@ -2,6 +2,12 @@ export type TenantFinanceStatus = 'draft' | 'active' | 'inactive' | 'revoked';
 export type TenantPaymentChannelStatus = 'active' | 'inactive' | 'testing';
 export type TenantMpesaEnvironment = 'sandbox' | 'production';
 export type TenantPaymentOwner = 'tenant' | 'platform';
+export type TenantMpesaSetupState =
+  | 'not_configured'
+  | 'sandbox_ready'
+  | 'awaiting_safaricom_registration'
+  | 'production_ready'
+  | 'suspended';
 export type TenantPaymentChannelType =
   | 'mpesa_paybill'
   | 'mpesa_till'
@@ -17,10 +23,14 @@ export interface TenantMpesaConfigRecord {
   consumer_key: string;
   consumer_secret: string;
   passkey: string;
+  callback_secret_hash: string | null;
+  callback_secret_rotated_at: Date | null;
   initiator_name: string | null;
   environment: TenantMpesaEnvironment;
   callback_url: string;
   status: TenantFinanceStatus;
+  credential_version: number;
+  rotated_at: Date | null;
   created_at: Date;
   updated_at: Date;
 }
@@ -37,7 +47,27 @@ export interface TenantPaymentChannelRecord {
   tenant_id?: string;
   channel_type: TenantPaymentChannelType;
   name?: string;
+  mpesa_config_id?: string | null;
+  bank_account_id?: string | null;
   status: TenantPaymentChannelStatus;
+  metadata?: Record<string, unknown>;
+  created_at?: Date;
+  updated_at?: Date;
+}
+
+export interface TenantMpesaGoLiveCheck {
+  id: string;
+  label: string;
+  status: 'pass' | 'fail';
+  message: string;
+}
+
+export interface TenantMpesaGoLiveValidation {
+  tenant_id: string;
+  state: TenantMpesaSetupState;
+  eligible_for_production: boolean;
+  checked_at: string;
+  checks: TenantMpesaGoLiveCheck[];
 }
 
 export interface TenantBankAccountRecord {
@@ -76,10 +106,11 @@ export interface ResolvedTenantMpesaConfig {
 export interface TenantFinanceSummary {
   tenant_id: string;
   mpesa_configs: Array<
-    Omit<TenantMpesaConfigRecord, 'consumer_key' | 'consumer_secret' | 'passkey'> & {
+    Omit<TenantMpesaConfigRecord, 'consumer_key' | 'consumer_secret' | 'passkey' | 'callback_secret_hash'> & {
       consumer_key_masked: string;
       consumer_secret_masked: string;
       passkey_masked: string;
+      callback_secret_configured: boolean;
     }
   >;
   bank_accounts: Array<
@@ -106,6 +137,7 @@ export interface TenantFinanceSummary {
     failed_callbacks: number;
     unmatched_payments: number;
     mpesa_status: 'active' | 'inactive';
+    mpesa_setup_state: TenantMpesaSetupState;
     reconciliation_status: 'balanced' | 'attention_required';
   };
 }

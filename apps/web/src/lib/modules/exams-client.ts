@@ -1,0 +1,355 @@
+import type { LiveAuthSession } from "@/lib/dashboard/api-client";
+import type { StatusTone } from "@/lib/dashboard/types";
+import { requestSchoolApiProxy } from "@/lib/dashboard/school-api-proxy-client";
+
+export interface LiveExamMarkSheet {
+  id: string;
+  exam_series_id: string;
+  academic_term_id?: string | null;
+  assessment_id?: string | null;
+  subject_id: string;
+  subject_name?: string | null;
+  class_section_id: string;
+  class_name?: string | null;
+  opens_at?: string | null;
+  closes_at?: string | null;
+  status: "open" | "closed" | string;
+  mark_count: number;
+  learner_count?: number | null;
+  last_marked_at?: string | null;
+}
+
+export interface LiveExamReportCard {
+  id: string;
+  exam_series_id?: string | null;
+  student_id: string;
+  report_snapshot_id: string;
+  status: string;
+  metadata?: Record<string, unknown> | null;
+  published_at?: string | null;
+}
+
+export interface LiveReportCardArtifact {
+  id?: string | null;
+  artifact_id?: string | null;
+  verification_code?: string | null;
+  pdf_url?: string | null;
+  download_url?: string | null;
+  html_url?: string | null;
+  checksum_sha256?: string | null;
+  generated_at?: string | null;
+}
+
+export interface LiveReportCardBatchStatus {
+  id: string;
+  status: string;
+  queue_status?: string | null;
+  total_count: number;
+  processed_count: number;
+  failed_count?: number | null;
+  artifact_count?: number | null;
+}
+
+export interface ExamMarkSheetView {
+  id: string;
+  examSeriesId: string;
+  academicTermId: string;
+  assessmentId: string;
+  subjectId: string;
+  classSectionId: string;
+  title: string;
+  status: string;
+  progressLabel: string;
+  tone: StatusTone;
+  learnerCount: number;
+  markCount: number;
+}
+
+export interface ExamReportCardPreview {
+  id: string;
+  examSeriesId: string;
+  studentId: string;
+  reportSnapshotId: string;
+  title: string;
+  className: string;
+  status: string;
+  artifactId: string;
+  verificationCode: string;
+  downloadUrl: string;
+  checksum: string;
+  generatedAt: string;
+  summary: string;
+}
+
+export interface ExamsLiveWorkspace {
+  markSheets: ExamMarkSheetView[];
+  reportCards: ExamReportCardPreview[];
+  rawMarkSheets: LiveExamMarkSheet[];
+  rawReportCards: LiveExamReportCard[];
+}
+
+export interface EnterExamMarkLiveInput {
+  exam_series_id: string;
+  assessment_id: string;
+  academic_term_id: string;
+  class_section_id: string;
+  subject_id: string;
+  student_id: string;
+  score: number;
+  remarks?: string;
+}
+
+export interface BulkExamMarksLiveInput {
+  mode?: "preview" | "commit";
+  preview_token?: string;
+  rows: EnterExamMarkLiveInput[];
+}
+
+export interface CorrectLockedExamMarkLiveInput {
+  mark_id: string;
+  score: number;
+  reason: string;
+  first_approver_user_id?: string;
+  second_approver_user_id?: string;
+}
+
+export interface GenerateReportCardLiveInput {
+  exam_series_id: string;
+  student_id: string;
+}
+
+export interface GenerateReportCardBatchLiveInput {
+  exam_series_id: string;
+  class_section_id?: string;
+  stream_name?: string;
+}
+
+export interface PublishReportCardLiveInput {
+  exam_series_id: string;
+  student_id: string;
+  report_snapshot_id: string;
+}
+
+function withSession<T>(
+  session: LiveAuthSession,
+  path: string,
+  options?: {
+    method?: "GET" | "POST" | "PATCH";
+    body?: BodyInit | Record<string, unknown> | null;
+  },
+) {
+  void session;
+
+  return requestSchoolApiProxy<T | { data?: T }>(path, {
+    method: options?.method,
+    body: options?.body,
+    unwrapEnvelope: false,
+  }).then(unwrapApiData);
+}
+
+function unwrapApiData<T>(payload: T | { data?: T }): T {
+  if (
+    typeof payload === "object"
+    && payload !== null
+    && !Array.isArray(payload)
+    && "data" in payload
+  ) {
+    return (payload as { data?: T }).data as T;
+  }
+
+  return payload as T;
+}
+
+function text(value: unknown, fallback = "") {
+  return typeof value === "string" && value.trim() ? value.trim() : fallback;
+}
+
+function numberValue(value: unknown, fallback = 0) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function metadataRecord(value: unknown): Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
+}
+
+function getReportCardMetadata(card: LiveExamReportCard) {
+  const metadata = metadataRecord(card.metadata);
+  const reportCard = metadataRecord(metadata.report_card);
+  const artifact = metadataRecord(metadata.artifact);
+
+  return { metadata, reportCard, artifact };
+}
+
+function formatDate(value?: string | null) {
+  if (!value) {
+    return "Not generated";
+  }
+
+  return value.replace("T", " ").slice(0, 16);
+}
+
+export function mapExamMarkSheetFromLive(sheet: LiveExamMarkSheet): ExamMarkSheetView {
+  const learnerCount = numberValue(sheet.learner_count, Math.max(numberValue(sheet.mark_count), 1));
+  const markCount = numberValue(sheet.mark_count);
+  const className = text(sheet.class_name, sheet.class_section_id);
+  const subjectName = text(sheet.subject_name, sheet.subject_id);
+
+  return {
+    id: sheet.id,
+    examSeriesId: sheet.exam_series_id,
+    academicTermId: text(sheet.academic_term_id, "term-live"),
+    assessmentId: text(sheet.assessment_id, sheet.subject_id),
+    subjectId: sheet.subject_id,
+    classSectionId: sheet.class_section_id,
+    title: `${className} - ${subjectName}`,
+    status: sheet.status,
+    progressLabel: `${markCount}/${learnerCount} marks`,
+    tone: sheet.status === "closed" ? "ok" : markCount >= learnerCount ? "ok" : "warning",
+    learnerCount,
+    markCount,
+  };
+}
+
+export function mapLiveReportCardToPreview(card: LiveExamReportCard): ExamReportCardPreview {
+  const { reportCard, artifact } = getReportCardMetadata(card);
+  const learnerName = text(reportCard.learner_name, text(reportCard.student_name, card.student_id));
+  const className = text(reportCard.class_name, "Class on file");
+  const meanScore = text(reportCard.mean_score, "");
+  const totalScore = text(reportCard.total_score, "");
+  const summary = [
+    totalScore ? `Total ${totalScore}` : null,
+    meanScore ? `Mean ${meanScore}` : null,
+  ].filter(Boolean).join(" | ") || "Report-card artifact metadata is ready.";
+
+  return {
+    id: card.id,
+    examSeriesId: text(card.exam_series_id, "series-live"),
+    studentId: card.student_id,
+    reportSnapshotId: card.report_snapshot_id,
+    title: learnerName,
+    className,
+    status: card.status,
+    artifactId: text(artifact.id, text(artifact.artifact_id, card.report_snapshot_id)),
+    verificationCode: text(artifact.verification_code, "Verification pending"),
+    downloadUrl: text(artifact.pdf_url, text(artifact.download_url, "")),
+    checksum: text(artifact.checksum_sha256, "Checksum pending"),
+    generatedAt: formatDate(text(artifact.generated_at, card.published_at ?? "")),
+    summary,
+  };
+}
+
+export function mapExamsWorkspaceFromLive(input: {
+  markSheets: LiveExamMarkSheet[];
+  reportCards: LiveExamReportCard[];
+}): ExamsLiveWorkspace {
+  return {
+    markSheets: input.markSheets.map(mapExamMarkSheetFromLive),
+    reportCards: input.reportCards.map(mapLiveReportCardToPreview),
+    rawMarkSheets: input.markSheets,
+    rawReportCards: input.reportCards,
+  };
+}
+
+export async function fetchExamsWorkspaceLive(session: LiveAuthSession) {
+  const [markSheets, reportCards] = await Promise.all([
+    withSession<LiveExamMarkSheet[]>(session, "/exams/mark-sheets"),
+    withSession<LiveExamReportCard[]>(session, "/exams/report-cards"),
+  ]);
+
+  return mapExamsWorkspaceFromLive({ markSheets, reportCards });
+}
+
+export function fetchBulkMarkTemplateLive(session: LiveAuthSession) {
+  return withSession(session, "/exams/marks/bulk-template");
+}
+
+export function enterExamMarkLive(session: LiveAuthSession, input: EnterExamMarkLiveInput) {
+  return withSession(session, "/exams/marks", {
+    method: "POST",
+    body: input,
+  });
+}
+
+export function bulkUploadExamMarksLive(session: LiveAuthSession, input: BulkExamMarksLiveInput) {
+  return withSession(session, "/exams/marks/bulk-upload", {
+    method: "POST",
+    body: input,
+  });
+}
+
+export function lockExamMarkSheetLive(session: LiveAuthSession, markSheetId: string) {
+  return withSession(session, `/exams/mark-sheets/${encodeURIComponent(markSheetId)}/lock`, {
+    method: "PATCH",
+    body: {
+      status: "closed",
+    },
+  });
+}
+
+export function correctLockedExamMarkLive(
+  session: LiveAuthSession,
+  input: CorrectLockedExamMarkLiveInput,
+) {
+  return withSession(session, "/exams/marks/corrections", {
+    method: "PATCH",
+    body: input,
+  });
+}
+
+export function generateReportCardLive(
+  session: LiveAuthSession,
+  input: GenerateReportCardLiveInput,
+) {
+  return withSession<LiveExamReportCard>(session, "/exams/report-cards/generate", {
+    method: "POST",
+    body: input,
+  });
+}
+
+export function regenerateReportCardLive(
+  session: LiveAuthSession,
+  input: GenerateReportCardLiveInput & { reason?: string },
+) {
+  return withSession<LiveExamReportCard>(session, "/exams/report-cards/regenerate", {
+    method: "POST",
+    body: input,
+  });
+}
+
+export function generateReportCardBatchLive(
+  session: LiveAuthSession,
+  input: GenerateReportCardBatchLiveInput,
+) {
+  return withSession<LiveReportCardBatchStatus>(session, "/exams/report-cards/batches", {
+    method: "POST",
+    body: input,
+  });
+}
+
+export function fetchReportCardBatchStatusLive(session: LiveAuthSession, batchId: string) {
+  return withSession<LiveReportCardBatchStatus>(
+    session,
+    `/exams/report-cards/batches/${encodeURIComponent(batchId)}`,
+  );
+}
+
+export function publishReportCardLive(
+  session: LiveAuthSession,
+  input: PublishReportCardLiveInput,
+) {
+  return withSession(session, "/exams/report-cards/publish", {
+    method: "POST",
+    body: input,
+  });
+}
+
+export function buildParentReportCardDownloadPath(reportCardId: string) {
+  return `/exams/report-cards/${encodeURIComponent(reportCardId)}/parent-download`;
+}
+
+export function createParentReportCardDownloadLive(session: LiveAuthSession, reportCardId: string) {
+  return withSession(session, buildParentReportCardDownloadPath(reportCardId));
+}

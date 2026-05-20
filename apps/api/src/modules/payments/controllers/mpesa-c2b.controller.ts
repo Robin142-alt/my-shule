@@ -25,6 +25,8 @@ import {
   MpesaC2bPayload,
 } from '../payments.types';
 import { MpesaC2bService } from '../services/mpesa-c2b.service';
+import { MpesaCallbackChannelService } from '../services/mpesa-callback-channel.service';
+import { MpesaCallbackTrustService } from '../services/mpesa-callback-trust.service';
 import { MpesaSignatureService } from '../services/mpesa-signature.service';
 
 @Controller(['payments/mpesa/c2b', 'mpesa/c2b'])
@@ -33,6 +35,8 @@ export class MpesaC2bController {
     private readonly mpesaC2bService: MpesaC2bService,
     @Optional() private readonly mpesaSignatureService?: MpesaSignatureService,
     @Optional() private readonly configService?: ConfigService,
+    @Optional() private readonly mpesaCallbackTrustService?: MpesaCallbackTrustService,
+    @Optional() private readonly mpesaCallbackChannelService?: MpesaCallbackChannelService,
   ) {}
 
   @Public()
@@ -47,6 +51,22 @@ export class MpesaC2bController {
   }
 
   @Public()
+  @Post('validation/:channelId/:secretRef')
+  @HttpCode(HttpStatus.OK)
+  async validateChannel(
+    @Param('channelId') channelId: string,
+    @Param('secretRef') secretRef: string,
+    @Req() request: Request,
+    @Body() payload: MpesaC2bPayload,
+  ): Promise<MpesaC2bGatewayResponse> {
+    const channel = await this.resolveCallbackChannel(channelId, secretRef, payload.BusinessShortCode);
+
+    this.verifyCallbackRequired(request, channel.requires_edge_signature);
+
+    return this.mpesaC2bService.validatePayment(payload);
+  }
+
+  @Public()
   @Post('confirmation')
   @HttpCode(HttpStatus.OK)
   async confirm(
@@ -54,6 +74,26 @@ export class MpesaC2bController {
     @Body() payload: MpesaC2bPayload,
   ): Promise<MpesaC2bGatewayResponse> {
     this.verifyCallbackRequired(request);
+    await this.mpesaC2bService.processConfirmation(payload);
+
+    return {
+      ResultCode: 0,
+      ResultDesc: 'Confirmation received successfully',
+    };
+  }
+
+  @Public()
+  @Post('confirmation/:channelId/:secretRef')
+  @HttpCode(HttpStatus.OK)
+  async confirmChannel(
+    @Param('channelId') channelId: string,
+    @Param('secretRef') secretRef: string,
+    @Req() request: Request,
+    @Body() payload: MpesaC2bPayload,
+  ): Promise<MpesaC2bGatewayResponse> {
+    const channel = await this.resolveCallbackChannel(channelId, secretRef, payload.BusinessShortCode);
+
+    this.verifyCallbackRequired(request, channel.requires_edge_signature);
     await this.mpesaC2bService.processConfirmation(payload);
 
     return {
@@ -83,7 +123,11 @@ export class MpesaC2bController {
     return this.mpesaC2bService.reconcilePendingPayment(paymentId, dto);
   }
 
-  private verifyCallbackRequired(request: Request): void {
+  private verifyCallbackRequired(request: Request, requiresEdgeSignature = this.requiresEdgeSignature()): void {
+    if (!requiresEdgeSignature) {
+      return;
+    }
+
     const callbackSecret =
       this.configService?.get<string>('mpesa.callbackSecret')
       ?? process.env.MPESA_CALLBACK_SECRET
@@ -98,6 +142,26 @@ export class MpesaC2bController {
     }
 
     this.mpesaSignatureService.verifyCallback(this.getRawBody(request), request.headers);
+  }
+
+  private requiresEdgeSignature(): boolean {
+    return this.mpesaCallbackTrustService?.requiresEdgeSignature() ?? true;
+  }
+
+  private async resolveCallbackChannel(
+    channelId: string,
+    secretRef: string,
+    shortcode: string | number | null | undefined,
+  ): Promise<{ requires_edge_signature: boolean }> {
+    if (!this.mpesaCallbackChannelService) {
+      throw new UnauthorizedException('M-PESA callback channel verification is unavailable');
+    }
+
+    return this.mpesaCallbackChannelService.resolveChannelBySecret({
+      channel_id: channelId,
+      secret_ref: secretRef,
+      shortcode: shortcode === undefined || shortcode === null ? null : String(shortcode),
+    });
   }
 
   private getRawBody(request: Request): string {

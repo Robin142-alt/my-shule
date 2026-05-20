@@ -30,6 +30,8 @@ interface MpesaC2bPaymentRow {
   received_at: Date;
   matched_at: Date | null;
   raw_payload: Record<string, unknown> | null;
+  raw_payload_encrypted_ref: string | null;
+  payload_sha256: string | null;
   metadata: Record<string, unknown> | null;
   created_at: Date;
   updated_at: Date;
@@ -52,6 +54,8 @@ export interface CreateMpesaC2bPaymentInput {
   third_party_trans_id: string | null;
   received_at: string;
   raw_payload: Record<string, unknown>;
+  raw_payload_encrypted_ref?: string | null;
+  payload_sha256?: string | null;
   metadata?: Record<string, unknown>;
 }
 
@@ -89,6 +93,8 @@ export class MpesaC2bPaymentsRepository {
           received_at,
           matched_at,
           raw_payload,
+          raw_payload_encrypted_ref,
+          payload_sha256,
           metadata,
           created_at,
           updated_at
@@ -133,6 +139,8 @@ export class MpesaC2bPaymentsRepository {
           received_at,
           matched_at,
           raw_payload,
+          raw_payload_encrypted_ref,
+          payload_sha256,
           metadata,
           created_at,
           updated_at
@@ -177,6 +185,8 @@ export class MpesaC2bPaymentsRepository {
           received_at,
           matched_at,
           raw_payload,
+          raw_payload_encrypted_ref,
+          payload_sha256,
           metadata,
           created_at,
           updated_at
@@ -215,6 +225,8 @@ export class MpesaC2bPaymentsRepository {
           third_party_trans_id,
           received_at,
           raw_payload,
+          raw_payload_encrypted_ref,
+          payload_sha256,
           metadata
         )
         VALUES (
@@ -234,7 +246,9 @@ export class MpesaC2bPaymentsRepository {
           $14,
           $15::timestamptz,
           $16::jsonb,
-          $17::jsonb
+          $17,
+          $18,
+          $19::jsonb
         )
         ON CONFLICT (tenant_id, trans_id) DO NOTHING
         RETURNING
@@ -261,6 +275,8 @@ export class MpesaC2bPaymentsRepository {
           received_at,
           matched_at,
           raw_payload,
+          raw_payload_encrypted_ref,
+          payload_sha256,
           metadata,
           created_at,
           updated_at
@@ -282,6 +298,8 @@ export class MpesaC2bPaymentsRepository {
         input.third_party_trans_id,
         input.received_at,
         JSON.stringify(input.raw_payload),
+        input.raw_payload_encrypted_ref ?? null,
+        input.payload_sha256 ?? null,
         JSON.stringify(input.metadata ?? {}),
       ],
     );
@@ -352,6 +370,8 @@ export class MpesaC2bPaymentsRepository {
           received_at,
           matched_at,
           raw_payload,
+          raw_payload_encrypted_ref,
+          payload_sha256,
           metadata,
           created_at,
           updated_at
@@ -363,6 +383,217 @@ export class MpesaC2bPaymentsRepository {
         input.matched_student_id,
         input.manual_fee_payment_id,
         input.ledger_transaction_id,
+        JSON.stringify(input.metadata ?? {}),
+      ],
+    );
+
+    return this.mapRow(result.rows[0]);
+  }
+
+  async markVerificationRequested(input: {
+    tenant_id: string;
+    payment_id: string;
+    reason: string;
+    metadata?: Record<string, unknown>;
+  }): Promise<MpesaC2bPaymentEntity> {
+    const result = await this.databaseService.query<MpesaC2bPaymentRow>(
+      `
+        UPDATE mpesa_c2b_payments
+        SET
+          status = 'verification_requested',
+          metadata = metadata || jsonb_build_object('verification_reason', $3::text) || $4::jsonb,
+          updated_at = NOW()
+        WHERE tenant_id = $1
+          AND id = $2::uuid
+        RETURNING
+          id,
+          tenant_id,
+          mpesa_config_id,
+          payment_channel_id,
+          trans_id,
+          transaction_type,
+          business_short_code,
+          bill_ref_number,
+          invoice_number,
+          amount_minor::text,
+          currency_code,
+          phone_number,
+          payer_name,
+          org_account_balance,
+          third_party_trans_id,
+          status,
+          matched_invoice_id,
+          matched_student_id,
+          manual_fee_payment_id,
+          ledger_transaction_id,
+          received_at,
+          matched_at,
+          raw_payload,
+          raw_payload_encrypted_ref,
+          payload_sha256,
+          metadata,
+          created_at,
+          updated_at
+      `,
+      [input.tenant_id, input.payment_id, input.reason, JSON.stringify(input.metadata ?? {})],
+    );
+
+    return this.mapRow(result.rows[0]);
+  }
+
+  async markProviderVerified(input: {
+    tenant_id: string;
+    payment_id: string;
+    provider_result_code?: string | null;
+    provider_result_desc?: string | null;
+    provider_amount_minor?: string | null;
+    metadata?: Record<string, unknown>;
+  }): Promise<MpesaC2bPaymentEntity> {
+    const result = await this.databaseService.query<MpesaC2bPaymentRow>(
+      `
+        UPDATE mpesa_c2b_payments
+        SET
+          status = CASE
+            WHEN $6::bigint IS NOT NULL AND amount_minor <> $6::bigint THEN 'amount_mismatch'
+            WHEN COALESCE($5::jsonb ->> 'matched_invoice_id', metadata ->> 'matched_invoice_id') IS NOT NULL
+              OR COALESCE($5::jsonb ->> 'matched_student_id', metadata ->> 'matched_student_id') IS NOT NULL
+              THEN 'verified_matched'
+            ELSE 'verified_unmatched'
+          END,
+          matched_invoice_id = COALESCE(
+            ($5::jsonb ->> 'matched_invoice_id')::uuid,
+            (metadata ->> 'matched_invoice_id')::uuid,
+            matched_invoice_id
+          ),
+          matched_student_id = COALESCE(
+            ($5::jsonb ->> 'matched_student_id')::uuid,
+            (metadata ->> 'matched_student_id')::uuid,
+            matched_student_id
+          ),
+          matched_at = CASE
+            WHEN COALESCE($5::jsonb ->> 'matched_invoice_id', metadata ->> 'matched_invoice_id') IS NOT NULL
+              OR COALESCE($5::jsonb ->> 'matched_student_id', metadata ->> 'matched_student_id') IS NOT NULL
+              THEN COALESCE(matched_at, NOW())
+            ELSE matched_at
+          END,
+          metadata = metadata
+            || jsonb_build_object(
+              'verification_status',
+              'provider_verified',
+              'provider_result_code',
+              $3::text,
+              'provider_result_desc',
+              $4::text,
+              'provider_amount_minor',
+              $6::text
+            )
+            || $5::jsonb,
+          updated_at = NOW()
+        WHERE tenant_id = $1
+          AND id = $2::uuid
+        RETURNING
+          id,
+          tenant_id,
+          mpesa_config_id,
+          payment_channel_id,
+          trans_id,
+          transaction_type,
+          business_short_code,
+          bill_ref_number,
+          invoice_number,
+          amount_minor::text,
+          currency_code,
+          phone_number,
+          payer_name,
+          org_account_balance,
+          third_party_trans_id,
+          status,
+          matched_invoice_id,
+          matched_student_id,
+          manual_fee_payment_id,
+          ledger_transaction_id,
+          received_at,
+          matched_at,
+          raw_payload,
+          raw_payload_encrypted_ref,
+          payload_sha256,
+          metadata,
+          created_at,
+          updated_at
+      `,
+      [
+        input.tenant_id,
+        input.payment_id,
+        input.provider_result_code ?? null,
+        input.provider_result_desc ?? null,
+        JSON.stringify(input.metadata ?? {}),
+        input.provider_amount_minor ?? null,
+      ],
+    );
+
+    return this.mapRow(result.rows[0]);
+  }
+
+  async markProviderFailed(input: {
+    tenant_id: string;
+    payment_id: string;
+    provider_result_code?: string | null;
+    provider_result_desc?: string | null;
+    metadata?: Record<string, unknown>;
+  }): Promise<MpesaC2bPaymentEntity> {
+    const result = await this.databaseService.query<MpesaC2bPaymentRow>(
+      `
+        UPDATE mpesa_c2b_payments
+        SET
+          status = 'missing_provider_record',
+          metadata = metadata
+            || jsonb_build_object(
+              'verification_status',
+              'provider_failed',
+              'provider_result_code',
+              $3::text,
+              'provider_result_desc',
+              $4::text
+            )
+            || $5::jsonb,
+          updated_at = NOW()
+        WHERE tenant_id = $1
+          AND id = $2::uuid
+        RETURNING
+          id,
+          tenant_id,
+          mpesa_config_id,
+          payment_channel_id,
+          trans_id,
+          transaction_type,
+          business_short_code,
+          bill_ref_number,
+          invoice_number,
+          amount_minor::text,
+          currency_code,
+          phone_number,
+          payer_name,
+          org_account_balance,
+          third_party_trans_id,
+          status,
+          matched_invoice_id,
+          matched_student_id,
+          manual_fee_payment_id,
+          ledger_transaction_id,
+          received_at,
+          matched_at,
+          raw_payload,
+          raw_payload_encrypted_ref,
+          payload_sha256,
+          metadata,
+          created_at,
+          updated_at
+      `,
+      [
+        input.tenant_id,
+        input.payment_id,
+        input.provider_result_code ?? null,
+        input.provider_result_desc ?? null,
         JSON.stringify(input.metadata ?? {}),
       ],
     );
@@ -409,6 +640,8 @@ export class MpesaC2bPaymentsRepository {
           received_at,
           matched_at,
           raw_payload,
+          raw_payload_encrypted_ref,
+          payload_sha256,
           metadata,
           created_at,
           updated_at
@@ -458,6 +691,8 @@ export class MpesaC2bPaymentsRepository {
           received_at,
           matched_at,
           raw_payload,
+          raw_payload_encrypted_ref,
+          payload_sha256,
           metadata,
           created_at,
           updated_at

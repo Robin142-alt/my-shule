@@ -15,6 +15,8 @@ export class MpesaTransactionEntity extends BaseEntity {
   amount_minor!: string | null;
   phone_number!: string | null;
   raw_payload!: Record<string, unknown> | null;
+  raw_payload_encrypted_ref!: string | null;
+  payload_sha256!: string | null;
   transaction_occurred_at!: Date | null;
   ledger_transaction_id!: string | null;
   processed_at!: Date | null;

@@ -6,6 +6,12 @@ import { AuditLogService } from './audit-log.service';
 import { GradesAuditService } from './grades-audit.service';
 import { SloMetricsService } from './slo-metrics.service';
 import { SloMonitoringService } from './slo-monitoring.service';
+import {
+  PRODUCTION_ALERT_POLICIES,
+  PRODUCTION_OBSERVABILITY_DASHBOARDS,
+  PRODUCTION_SYNTHETIC_CHECKS,
+  validateProductionObservabilityCatalog,
+} from './production-observability.catalog';
 
 test('AuditLogService records contextual request fields', async () => {
   const requestContext = new RequestContextService();
@@ -196,4 +202,15 @@ test('SloMonitoringService raises and clears alerts when objectives are violated
         && alert.fields.alert_id === 'mpesa.stk_success_rate',
     ),
   );
+});
+
+test('production observability catalog covers Kenyan school operating dashboards, alerts, runbooks, and synthetics', () => {
+  assert.deepEqual(validateProductionObservabilityCatalog(), []);
+  assert.equal(PRODUCTION_OBSERVABILITY_DASHBOARDS.some((dashboard) => dashboard.id === 'api-latency-by-module'), true);
+  assert.equal(PRODUCTION_OBSERVABILITY_DASHBOARDS.some((dashboard) => dashboard.id === 'mpesa-reconciliation-mismatches'), true);
+  assert.equal(PRODUCTION_OBSERVABILITY_DASHBOARDS.some((dashboard) => dashboard.id === 'report-card-generation-queue-lag'), true);
+  assert.equal(PRODUCTION_ALERT_POLICIES.some((alert) => alert.id === 'cross-tenant-access-attempt'), true);
+  assert.equal(PRODUCTION_ALERT_POLICIES.some((alert) => alert.id === 'raw-pii-support-access-spike'), true);
+  assert.equal(PRODUCTION_SYNTHETIC_CHECKS.some((check) => check.id === 'parent-report-card-download'), true);
+  assert.equal(PRODUCTION_SYNTHETIC_CHECKS.some((check) => check.id === 'principal-dashboard-load'), true);
 });

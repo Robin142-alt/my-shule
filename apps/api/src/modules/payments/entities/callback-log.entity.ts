@@ -13,7 +13,13 @@ export class CallbackLogEntity extends BaseEntity {
   headers!: Record<string, unknown>;
   raw_body!: string;
   raw_payload!: Record<string, unknown> | null;
+  raw_payload_encrypted_ref!: string | null;
+  payload_sha256!: string | null;
   source_ip!: string | null;
+  callback_trust_status!: string;
+  provider_verified_at!: Date | null;
+  provider_result_code!: string | null;
+  provider_result_desc!: string | null;
   processing_status!: CallbackLogStatus;
   queue_job_id!: string | null;
   failure_reason!: string | null;

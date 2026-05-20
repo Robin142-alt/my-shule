@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 
+import { decodeCreatedAtIdCursor } from '../../../common/pagination/cursor-pagination';
 import { DatabaseService } from '../../../database/database.service';
 import { PiiEncryptionService } from '../../security/pii-encryption.service';
 import { StudentEntity } from '../entities/student.entity';
@@ -144,6 +145,7 @@ export class StudentsRepository {
       search?: string;
       status?: StudentEntity['status'];
       limit: number;
+      cursor?: string;
     },
   ): Promise<StudentEntity[]> {
     const conditions = ['tenant_id = $1'];
@@ -169,6 +171,13 @@ export class StudentsRepository {
       parameterIndex += 1;
     }
 
+    if (options.cursor) {
+      const cursor = decodeCreatedAtIdCursor(options.cursor);
+      conditions.push(`(created_at, id) < ($${parameterIndex}::timestamptz, $${parameterIndex + 1}::uuid)`);
+      values.push(cursor.created_at, cursor.id);
+      parameterIndex += 2;
+    }
+
     values.push(options.limit);
     const query = `
       SELECT
@@ -189,7 +198,7 @@ export class StudentsRepository {
         updated_at
       FROM students
       WHERE ${conditions.join('\n        AND ')}
-      ORDER BY created_at DESC, admission_number ASC
+      ORDER BY created_at DESC, id DESC
       LIMIT $${parameterIndex}
     `;
     const result = await this.databaseService.query<StudentRow>(query, values);

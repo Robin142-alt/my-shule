@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  findTenantTablesWithoutForcedRls,
   renderTenantIsolationAuditMarkdown,
   runTenantIsolationAudit,
 } from './tenant-isolation-audit';
@@ -39,6 +40,45 @@ test('renderTenantIsolationAuditMarkdown produces audit artifact content', () =>
   assert.match(markdown, /Security And Tenant Isolation Audit/);
   assert.match(markdown, /Support tickets enforce row level security/);
   assert.equal(markdown.includes('raw-secret'), false);
+});
+
+test('findTenantTablesWithoutForcedRls flags tenant tables missing forced RLS', () => {
+  const missing = findTenantTablesWithoutForcedRls([
+    {
+      file: 'apps/api/src/modules/example/example-schema.service.ts',
+      source: `
+        CREATE TABLE IF NOT EXISTS safe_records (
+          id uuid PRIMARY KEY,
+          tenant_id uuid NOT NULL
+        );
+        ALTER TABLE safe_records FORCE ROW LEVEL SECURITY;
+
+        CREATE TABLE IF NOT EXISTS leaky_records (
+          id uuid PRIMARY KEY,
+          tenant_id uuid NOT NULL
+        );
+      `,
+    },
+  ]);
+
+  assert.deepEqual(missing, [
+    {
+      file: 'apps/api/src/modules/example/example-schema.service.ts',
+      table: 'leaky_records',
+    },
+  ]);
+});
+
+test('runTenantIsolationAudit includes a forced-RLS source audit in workspace mode', () => {
+  const result = runTenantIsolationAudit({
+    generatedAt: '2026-05-16T00:00:00.000Z',
+    workspaceRoot: process.cwd(),
+  });
+
+  assert.equal(
+    result.checks.some((check) => check.id === 'all-tenant-tables-forced-rls'),
+    true,
+  );
 });
 
 export function buildPassingSources(): Record<string, string> {

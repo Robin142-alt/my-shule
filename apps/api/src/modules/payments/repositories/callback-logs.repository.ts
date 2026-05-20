@@ -19,7 +19,13 @@ interface CallbackLogRow {
   headers: Record<string, unknown> | null;
   raw_body: string;
   raw_payload: Record<string, unknown> | null;
+  raw_payload_encrypted_ref: string | null;
+  payload_sha256: string | null;
   source_ip: string | null;
+  callback_trust_status: string;
+  provider_verified_at: Date | null;
+  provider_result_code: string | null;
+  provider_result_desc: string | null;
   processing_status: CallbackLogStatus;
   queue_job_id: string | null;
   failure_reason: string | null;
@@ -42,7 +48,10 @@ interface CreateCallbackLogInput {
   headers: Record<string, unknown>;
   raw_body: string;
   raw_payload: Record<string, unknown> | null;
+  raw_payload_encrypted_ref?: string | null;
+  payload_sha256?: string | null;
   source_ip: string | null;
+  callback_trust_status?: string | null;
 }
 
 @Injectable()
@@ -68,7 +77,10 @@ export class CallbackLogsRepository {
           headers,
           raw_body,
           raw_payload,
+          raw_payload_encrypted_ref,
+          payload_sha256,
           source_ip,
+          callback_trust_status,
           processing_status
         )
         VALUES (
@@ -84,7 +96,10 @@ export class CallbackLogsRepository {
           $10::jsonb,
           $11,
           $12::jsonb,
-          $13::inet,
+          $13,
+          $14,
+          $15::inet,
+          $16,
           'received'
         )
         RETURNING
@@ -101,7 +116,13 @@ export class CallbackLogsRepository {
           headers,
           raw_body,
           raw_payload,
+          raw_payload_encrypted_ref,
+          payload_sha256,
           source_ip,
+          callback_trust_status,
+          provider_verified_at,
+          provider_result_code,
+          provider_result_desc,
           processing_status,
           queue_job_id,
           failure_reason,
@@ -126,7 +147,10 @@ export class CallbackLogsRepository {
           this.rawBodyAad(input.tenant_id),
         ),
         input.raw_payload ? JSON.stringify(input.raw_payload) : null,
+        input.raw_payload_encrypted_ref ?? null,
+        input.payload_sha256 ?? null,
         input.source_ip,
+        input.callback_trust_status ?? (input.signature_verified ? 'edge_signed' : 'received_unverified'),
       ],
     );
 
@@ -150,7 +174,13 @@ export class CallbackLogsRepository {
           headers,
           raw_body,
           raw_payload,
+          raw_payload_encrypted_ref,
+          payload_sha256,
           source_ip,
+          callback_trust_status,
+          provider_verified_at,
+          provider_result_code,
+          provider_result_desc,
           processing_status,
           queue_job_id,
           failure_reason,
@@ -189,7 +219,13 @@ export class CallbackLogsRepository {
           headers,
           raw_body,
           raw_payload,
+          raw_payload_encrypted_ref,
+          payload_sha256,
           source_ip,
+          callback_trust_status,
+          provider_verified_at,
+          provider_result_code,
+          provider_result_desc,
           processing_status,
           queue_job_id,
           failure_reason,
@@ -292,6 +328,53 @@ export class CallbackLogsRepository {
     });
   }
 
+  async markProviderVerified(
+    tenantId: string,
+    callbackLogId: string,
+    input: {
+      result_code?: string | null;
+      result_desc?: string | null;
+    } = {},
+  ): Promise<void> {
+    await this.databaseService.query(
+      `
+        UPDATE callback_logs
+        SET
+          callback_trust_status = 'provider_verified',
+          provider_verified_at = NOW(),
+          provider_result_code = $3,
+          provider_result_desc = $4,
+          updated_at = NOW()
+        WHERE tenant_id = $1
+          AND id = $2::uuid
+      `,
+      [tenantId, callbackLogId, input.result_code ?? null, input.result_desc ?? null],
+    );
+  }
+
+  async markProviderFailed(
+    tenantId: string,
+    callbackLogId: string,
+    input: {
+      result_code?: string | null;
+      result_desc?: string | null;
+    } = {},
+  ): Promise<void> {
+    await this.databaseService.query(
+      `
+        UPDATE callback_logs
+        SET
+          callback_trust_status = 'provider_failed',
+          provider_result_code = $3,
+          provider_result_desc = $4,
+          updated_at = NOW()
+        WHERE tenant_id = $1
+          AND id = $2::uuid
+      `,
+      [tenantId, callbackLogId, input.result_code ?? null, input.result_desc ?? null],
+    );
+  }
+
   private async markStatus(
     tenantId: string,
     callbackLogId: string,
@@ -327,10 +410,7 @@ export class CallbackLogsRepository {
   private mapEntity(row: CallbackLogRow): CallbackLogEntity {
     return Object.assign(new CallbackLogEntity(), {
       ...row,
-      raw_body: this.piiEncryptionService.decrypt(
-        row.raw_body,
-        this.rawBodyAad(row.tenant_id),
-      ),
+      raw_body: '[encrypted]',
       headers: row.headers ?? {},
       raw_payload: row.raw_payload ?? null,
     });

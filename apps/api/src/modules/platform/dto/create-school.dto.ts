@@ -54,6 +54,18 @@ export class DeleteSchoolDto {
   hard_delete_empty_tenant?: boolean;
 }
 
+export class AnonymizeTenantOffboardingDto {
+  @IsString()
+  @MinLength(2)
+  @MaxLength(64)
+  confirmation!: string;
+
+  @IsString()
+  @MinLength(3)
+  @MaxLength(240)
+  reason!: string;
+}
+
 export type PlatformSchoolResponseDto = {
   tenant_id: string;
   school_name: string;
@@ -87,6 +99,34 @@ export type PlatformSchoolDeleteResponseDto = {
   message: string;
   usage_summary: PlatformSchoolUsageSummaryDto;
   school?: PlatformSchoolResponseDto;
+};
+
+export type PlatformTenantOffboardingManifestDto = {
+  tenant_id: string;
+  school_name: string;
+  export_type: 'contract_offboarding';
+  generated_at: string;
+  usage_summary: PlatformSchoolUsageSummaryDto;
+  tables: Array<{
+    name: string;
+    category: string;
+    retention: string;
+  }>;
+  retention_policy: {
+    payment_records: string;
+    audit_logs: string;
+    health_discipline_notes: string;
+    raw_provider_payloads: string;
+    report_card_artifacts: string;
+  };
+};
+
+export type PlatformTenantAnonymizeResponseDto = {
+  tenant_id: string;
+  anonymized: boolean;
+  message: string;
+  usage_summary: PlatformSchoolUsageSummaryDto;
+  school: PlatformSchoolResponseDto;
 };
 
 export type PlatformEmailReadinessResponseDto = {

@@ -261,4 +261,93 @@ describe("experience actions", () => {
       await within(dialog).findByText(/receipt code was not found in the current mpesa queue/i),
     ).toBeVisible();
   });
+
+  it("lets accountants reconcile unmatched MPESA Paybill deposits from live envelope responses", async () => {
+    const user = userEvent.setup();
+    const originalFetch = global.fetch;
+    const pendingPayment = {
+      id: "c2b-payment-1",
+      trans_id: "QK72PLM9",
+      business_short_code: "600123",
+      bill_ref_number: "ADM-024",
+      invoice_number: null,
+      amount_minor: "1850000",
+      phone_number: "2547*****001",
+      payer_name: "M*** A*****",
+      status: "pending_review",
+      matched_invoice_id: null,
+      matched_student_id: null,
+      ledger_transaction_id: null,
+      received_at: "2026-05-20T08:10:00.000Z",
+    };
+    const fetchMock = jest.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input.toString();
+
+      if (url.includes("/api/school/modules/me")) {
+        return Promise.resolve(jsonResponse({ data: enabledSchoolModules }));
+      }
+
+      if (url.includes("/api/payments/mpesa/c2b/payments?status=pending_review")) {
+        return Promise.resolve(jsonResponse({ data: [pendingPayment] }));
+      }
+
+      if (url.includes("/api/auth/csrf")) {
+        return Promise.resolve(jsonResponse({ token: "csrf-c2b-token" }));
+      }
+
+      if (url.includes("/api/payments/mpesa/c2b/payments/c2b-payment-1/reconcile")) {
+        expect(init?.method).toBe("POST");
+
+        return Promise.resolve(jsonResponse({
+          data: {
+            ...pendingPayment,
+            status: "matched",
+            ledger_transaction_id: "ledger-1",
+          },
+        }));
+      }
+
+      if (url.includes("/api/billing/manual-fee-payments")) {
+        return Promise.resolve(jsonResponse([]));
+      }
+
+      return Promise.resolve(jsonResponse([]));
+    });
+
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    try {
+      renderWithProviders(
+        createElement(SchoolPages, {
+          role: "bursar",
+          tenantSlug: "barakaacademy",
+          section: "mpesa",
+        }),
+      );
+
+      expect((await screen.findAllByText("QK72PLM9")).length).toBeGreaterThan(0);
+      const reviewPanel = screen
+        .getByRole("heading", { name: /unmatched direct m-pesa deposits/i })
+        .closest("section") as HTMLElement;
+
+      fireEvent.change(within(reviewPanel).getByLabelText(/invoice reference/i), {
+        target: { value: "INV-2026-0001" },
+      });
+
+      await user.click(within(reviewPanel).getByRole("button", { name: /^reconcile$/i }));
+
+      expect(await screen.findByText(/QK72PLM9 reconciled and posted to the fee ledger/i)).toBeVisible();
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringContaining("/api/payments/mpesa/c2b/payments/c2b-payment-1/reconcile"),
+        expect.objectContaining({
+          method: "POST",
+          headers: expect.objectContaining({
+            "x-myshule-csrf": "csrf-c2b-token",
+          }),
+        }),
+      );
+    } finally {
+      global.fetch = originalFetch;
+    }
+  });
 });

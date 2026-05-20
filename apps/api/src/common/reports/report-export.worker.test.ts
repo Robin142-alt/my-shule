@@ -105,3 +105,43 @@ test('ReportExportWorkerService deduplicates identical export requests', async (
   assert.equal(second.deduplicated, true);
   assert.equal(second.snapshot.snapshot_id, first.snapshot.snapshot_id);
 });
+
+test('ReportExportWorkerService rejects disabled tenant modules before artifact generation', async () => {
+  let storeCalled = false;
+  const worker = new ReportExportWorkerService(
+    {
+      storeArtifact: async () => {
+        storeCalled = true;
+        return {
+          storage_path: 'tenant/tenant-a/reports/inventory/stock-valuation/artifact.csv',
+          checksum_sha256: 'e'.repeat(64),
+        };
+      },
+    } as never,
+    {
+      saveManifest: async () => {
+        throw new Error('unexpected manifest write');
+      },
+    } as never,
+    {
+      findFirstMissingModule: async (tenantId: string, moduleCodes: string[]) => {
+        assert.equal(tenantId, 'tenant-a');
+        assert.deepEqual(moduleCodes, ['inventory']);
+
+        return 'inventory';
+      },
+    } as never,
+  );
+
+  await assert.rejects(
+    () =>
+      worker.execute({
+        ...payload,
+        module: 'inventory',
+        report_id: 'stock-valuation',
+        format: 'csv',
+      }),
+    /Module not enabled for your school report exports/i,
+  );
+  assert.equal(storeCalled, false);
+});

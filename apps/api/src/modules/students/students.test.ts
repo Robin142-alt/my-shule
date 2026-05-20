@@ -8,6 +8,7 @@ import { MODULE_METADATA } from '@nestjs/common/constants';
 import { BillingAccessService } from '../billing/billing-access.service';
 import { RequestContextService } from '../../common/request-context/request-context.service';
 import { StudentsModule } from './students.module';
+import { StudentsRepository } from './repositories/students.repository';
 import { StudentsSchemaService } from './students-schema.service';
 import { StudentsService } from './students.service';
 
@@ -202,4 +203,63 @@ test('StudentsService creates a student and publishes student.created', async ()
   };
   assert.equal(studentCreatedPayload.student_id, '00000000-0000-0000-0000-000000000101');
   assert.equal(studentCreatedPayload.tenant_id, 'tenant-a');
+});
+
+test('StudentsRepository uses keyset cursor pagination for the high-volume student directory', async () => {
+  const queries: Array<{ text: string; values: unknown[] }> = [];
+  const repository = new StudentsRepository(
+    {
+      query: async (text: string, values: unknown[]) => {
+        queries.push({ text, values });
+        return {
+          rows: [
+            {
+              id: '00000000-0000-0000-0000-000000000202',
+              tenant_id: 'tenant-a',
+              admission_number: 'ADM-202',
+              first_name: 'Amina',
+              last_name: 'Wanjiku',
+              middle_name: null,
+              status: 'active',
+              date_of_birth: '2013-02-01',
+              gender: 'female',
+              primary_guardian_name: null,
+              primary_guardian_phone: null,
+              metadata: {},
+              created_by_user_id: null,
+              created_at: new Date('2026-05-20T06:00:00.000Z'),
+              updated_at: new Date('2026-05-20T06:00:00.000Z'),
+            },
+          ],
+        };
+      },
+    } as never,
+    {
+      decryptNullable: (value: string | null) => value,
+    } as never,
+  );
+  const cursor = Buffer.from(
+    JSON.stringify({
+      created_at: '2026-05-20T07:00:00.000Z',
+      id: '00000000-0000-0000-0000-000000000201',
+    }),
+  ).toString('base64url');
+
+  await repository.listStudents('tenant-a', {
+    status: 'active',
+    limit: 50,
+    cursor,
+  });
+
+  assert.equal(queries.length, 1);
+  assert.match(queries[0]!.text, /\(created_at, id\) < \(\$\d+::timestamptz, \$\d+::uuid\)/);
+  assert.match(queries[0]!.text, /ORDER BY created_at DESC, id DESC/);
+  assert.doesNotMatch(queries[0]!.text, /\bOFFSET\b/i);
+  assert.deepEqual(queries[0]!.values, [
+    'tenant-a',
+    'active',
+    '2026-05-20T07:00:00.000Z',
+    '00000000-0000-0000-0000-000000000201',
+    50,
+  ]);
 });

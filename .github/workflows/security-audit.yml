@@ -31,6 +31,9 @@ jobs:
       - name: Security scan
         run: npm run security:scan
 
+      - name: PII leak artifact scan
+        run: npm run security:pii-scan
+
       - name: Maintainability scan
         run: npm run maintainability:scan
 
@@ -46,6 +49,7 @@ jobs:
             docs/security/implementation10-threat-model.md
             docs/security/implementation10-security-audit.md
             docs/security/implementation10-security-scan.md
+            docs/security/pii-leak-ci-scan.md
             docs/validation/implementation11-maintainability-scan.md
           if-no-files-found: ignore
           retention-days: 14
