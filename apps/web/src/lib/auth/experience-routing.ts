@@ -40,6 +40,7 @@ export const SCHOOL_SESSION_COOKIE = "myshule.school.session";
 export const PORTAL_SESSION_COOKIE = "myshule.portal.session";
 
 const reservedSubdomains = new Set(["www", "app", "localhost"]);
+const publicApexDomains = new Set(["myshule.online"]);
 const sharedPublicPaths = new Set(["/login", "/forgot-password", "/reset-password"]);
 const hostedPublicSuffixes = [".vercel.app", ".vercel.sh"] as const;
 
@@ -394,6 +395,14 @@ export function resolveExperienceHost(
   }
 
   if (isHostedPublicDomain(host)) {
+    return {
+      experience: "public",
+      host,
+      tenantSlug: null,
+    };
+  }
+
+  if (publicApexDomains.has(host)) {
     return {
       experience: "public",
       host,

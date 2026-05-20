@@ -1,11 +1,34 @@
+import type { Metadata } from "next";
 import { Activity, AlertCircle, Clock3 } from "lucide-react";
 
 import { Card } from "@/components/ui/card";
 import { StatusPill } from "@/components/ui/status-pill";
 import { getDashboardApiBaseUrl } from "@/lib/dashboard/api-client";
+import { absoluteUrl, SITE_NAME } from "@/lib/seo";
 import type { LiveSystemStatusPayload } from "@/lib/support/support-live";
 
 export const dynamic = "force-dynamic";
+
+export const metadata: Metadata = {
+  title: "My Shule Status",
+  description:
+    "Live My Shule platform status for API, database, Redis, queues, storage, notifications, and school ERP services.",
+  alternates: {
+    canonical: "/support/status",
+  },
+  openGraph: {
+    title: "My Shule Status",
+    description:
+      "Live My Shule platform status for API, database, Redis, queues, storage, notifications, and school ERP services.",
+    url: absoluteUrl("/support/status"),
+    siteName: SITE_NAME,
+    type: "website",
+  },
+  robots: {
+    index: true,
+    follow: true,
+  },
+};
 
 type PublicStatusIncidentView = {
   id: string;
