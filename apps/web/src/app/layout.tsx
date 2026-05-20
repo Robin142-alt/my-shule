@@ -27,7 +27,7 @@ export const metadata: Metadata = {
   applicationName: SITE_NAME,
   title: {
     default: SITE_TITLE,
-    template: `%s | ${SITE_NAME}`,
+    template: `%s - ${SITE_NAME}`,
   },
   description: SITE_DESCRIPTION,
   keywords: SEO_KEYWORDS,
