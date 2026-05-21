@@ -2,6 +2,7 @@ import type {
   PortalViewer,
   SchoolExperienceRole,
 } from "@/lib/experiences/types";
+import { normalizeSchoolExperienceRole } from "@/lib/auth/school-role-normalization";
 import { isProductionReadyModule } from "@/lib/features/module-readiness";
 import {
   isPortalSection,
@@ -341,8 +342,18 @@ export function parseExperienceSession(
       return null;
     }
 
-    if (parsed.experience === "school" && !parsed.tenantSlug) {
-      return null;
+    if (parsed.experience === "school") {
+      if (!parsed.tenantSlug) {
+        return null;
+      }
+
+      const role = normalizeSchoolExperienceRole(parsed.role);
+
+      return {
+        ...parsed,
+        homePath: parsed.role === role ? parsed.homePath : `/school/${role}`,
+        role,
+      };
     }
 
     return parsed;

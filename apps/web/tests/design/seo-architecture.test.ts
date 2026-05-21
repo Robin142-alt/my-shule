@@ -102,6 +102,7 @@ describe("implementation 70 SEO architecture", () => {
   test("distinguishes reserved school role slugs from tenant slugs", () => {
     expect(isReservedSchoolRouteSlug("principal")).toBe(true);
     expect(isReservedSchoolRouteSlug("bursar")).toBe(true);
+    expect(isReservedSchoolRouteSlug("owner")).toBe(true);
     expect(isReservedSchoolRouteSlug("green-valley-academy")).toBe(false);
     expect(normalizeTenantSlug(" Green Valley Academy ")).toBe("green-valley-academy");
   });

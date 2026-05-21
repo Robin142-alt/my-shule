@@ -7,6 +7,7 @@ import { InfoCard } from "@/components/marketing/info-card";
 import { PublicSiteShell } from "@/components/marketing/public-site-shell";
 import { SeoJsonLd } from "@/components/marketing/seo-json-ld";
 import { SchoolPages } from "@/components/school/school-pages";
+import { getSchoolRoleAlias } from "@/lib/auth/school-role-normalization";
 import type { SchoolExperienceRole } from "@/lib/experiences/types";
 import { readPublicSchoolSession } from "@/lib/routing/public-experience-session";
 import { createTenantMetadata } from "@/lib/seo/metadata";
@@ -110,6 +111,11 @@ export default async function SchoolRoleHomePage({
   params: Promise<{ role: string }>;
 }) {
   const { role } = await params;
+  const roleAlias = getSchoolRoleAlias(role);
+
+  if (roleAlias) {
+    redirect(`/school/${roleAlias}`);
+  }
 
   if (!isAllowedRole(role)) {
     if (isReservedSchoolRouteSlug(role)) {

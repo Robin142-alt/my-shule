@@ -11,14 +11,18 @@ const reservedSchoolRouteSlugs = new Set([
   "librarian",
   "login",
   "parent-portal",
+  "owner",
   "principal",
   "reset-password",
   "school-portal",
+  "school-admin",
+  "school-owner",
   "secretary",
   "storekeeper",
   "student",
   "superadmin",
   "teacher",
+  "tenant-owner",
   "www",
 ]);
 

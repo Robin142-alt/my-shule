@@ -7,7 +7,7 @@ import {
   serializeExperienceSession,
   type ExperienceSession,
 } from "@/lib/auth/experience-routing";
-import type { PortalViewer, SchoolExperienceRole } from "@/lib/experiences/types";
+import type { PortalViewer } from "@/lib/experiences/types";
 import {
   ACCESS_COOKIE,
   AUDIENCE_COOKIE,
@@ -15,6 +15,7 @@ import {
   REFRESH_COOKIE,
   TENANT_COOKIE,
 } from "@/lib/auth/session-cookies";
+import { normalizeSchoolExperienceRole } from "@/lib/auth/school-role-normalization";
 
 export type ExperienceGatewaySession = {
   audience: ExperienceAudience;
@@ -71,7 +72,7 @@ function toExperienceSession(
     return {
       experience: "school",
       homePath: session.homePath,
-      role: (session.role ?? "admin") as SchoolExperienceRole,
+      role: normalizeSchoolExperienceRole(session.role),
       tenantSlug: session.tenantSlug ?? "",
       userLabel: session.userLabel,
     };

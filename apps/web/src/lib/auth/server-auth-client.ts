@@ -2,6 +2,7 @@ import type { LiveAuthUser } from "@/lib/dashboard/api-client";
 import { getDashboardApiBaseUrl } from "@/lib/dashboard/api-client";
 import type { ExperienceAudience } from "@/lib/auth/experience-audience";
 import { normalizeMfaCode } from "@/lib/auth/mfa-challenge";
+import { normalizeSchoolExperienceRole } from "@/lib/auth/school-role-normalization";
 import {
   readAccessCookie,
   readAudienceCookie,
@@ -65,11 +66,13 @@ function buildExperienceHomePath(input: {
   }
 
   if (input.audience === "school") {
-    if (input.role === "storekeeper") {
+    const role = normalizeSchoolExperienceRole(input.role);
+
+    if (role === "storekeeper") {
       return "/inventory/dashboard";
     }
 
-    return `/school/${input.role ?? "admin"}`;
+    return `/school/${role}`;
   }
 
   return `/portal/${input.viewer ?? "parent"}`;
@@ -85,9 +88,13 @@ function buildGatewaySession(input: {
   refreshToken?: string;
   user: LiveAuthUser;
 }) {
+  const role =
+    input.audience === "school"
+      ? normalizeSchoolExperienceRole(input.role)
+      : input.role;
   const homePath = buildExperienceHomePath({
     audience: input.audience,
-    role: input.role,
+    role,
     viewer: input.viewer,
   });
 
@@ -99,7 +106,7 @@ function buildGatewaySession(input: {
     userLabel: input.userLabel,
     accessToken: input.accessToken ?? "",
     refreshToken: input.refreshToken ?? "",
-    role: input.role,
+    role,
     viewer: input.viewer,
     user: input.user,
   } satisfies ExperienceGatewaySession;

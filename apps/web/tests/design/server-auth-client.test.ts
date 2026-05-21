@@ -244,6 +244,40 @@ describe("server auth client production gateway", () => {
     );
   });
 
+  it("routes backend school owner accounts to the protected admin workspace", async () => {
+    process.env.NEXT_PUBLIC_API_BASE_URL = "https://api.example.invalid";
+    jest.mocked(global.fetch).mockResolvedValue(
+      jsonResponse({
+        tokens: {
+          access_token: "access-token",
+          refresh_token: "refresh-token",
+        },
+        user: {
+          user_id: "user-school-owner",
+          tenant_id: "school-alpha",
+          role: "owner",
+          audience: "school",
+          email: "owner@example.invalid",
+          display_name: "School Owner",
+          permissions: ["tenant:admin"],
+          session_id: "session-school-owner",
+        },
+      }),
+    );
+    const client = createServerAuthClient(buildRequest("my-shule-erp.vercel.app"));
+
+    const session = await client.login({
+      audience: "school",
+      identifier: "owner@example.invalid",
+      password: "ManagedByPasswordVault!42",
+    });
+
+    expect(session.homePath).toBe("/school/admin");
+    expect(session.redirectTo).toBe("/school/admin");
+    expect(session.role).toBe("admin");
+    expect(session.user.role).toBe("owner");
+  });
+
   it("routes portal sign-in through the backend and keeps viewer-specific destinations", async () => {
     process.env.NEXT_PUBLIC_API_BASE_URL = "https://api.example.invalid";
     jest.mocked(global.fetch).mockResolvedValue(

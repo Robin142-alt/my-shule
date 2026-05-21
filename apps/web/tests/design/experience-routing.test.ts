@@ -312,6 +312,31 @@ describe("experience routing", () => {
     });
   });
 
+  test("normalizes stale school owner sessions away from public tenant routes", () => {
+    expect(
+      evaluateExperienceRouting({
+        host: "barakaacademy.myshule.test",
+        pathname: "/",
+        cookies: {
+          [SCHOOL_SESSION_COOKIE]: serializeExperienceSession({
+            experience: "school",
+            homePath: "/school/owner",
+            role: "owner" as never,
+            tenantSlug: "barakaacademy",
+            userLabel: "School Owner",
+          }),
+        },
+      }),
+    ).toEqual({
+      action: "redirect",
+      location: "/school/admin",
+      headers: {
+        "x-platform-experience": "school",
+        "x-tenant-slug": "barakaacademy",
+      },
+    });
+  });
+
   test("redirects authenticated portal users away from the login page to their viewer home", () => {
     expect(
       evaluateExperienceRouting({
