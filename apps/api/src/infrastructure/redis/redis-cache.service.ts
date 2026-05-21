@@ -16,6 +16,8 @@ import { RedisService } from './redis.service';
 export class RedisCacheService {
   private readonly logger = new Logger(RedisCacheService.name);
   private static readonly KEY_PREFIX = 'cache';
+  private static readonly LOCK_PREFIX = 'cache-lock';
+  private readonly pendingComputations = new Map<string, Promise<unknown>>();
 
   constructor(private readonly redisService: RedisService) {}
 
@@ -31,7 +33,13 @@ export class RedisCacheService {
         return null;
       }
 
-      return JSON.parse(raw) as T;
+      const parsed = JSON.parse(raw) as T | StaleWhileRevalidateEnvelope<T>;
+
+      if (isStaleWhileRevalidateEnvelope<T>(parsed)) {
+        return parsed.value;
+      }
+
+      return parsed as T;
     } catch (error) {
       this.logger.warn(
         `Cache GET failed for ${namespace}:${key} — ${error instanceof Error ? error.message : String(error)}`,
@@ -81,6 +89,105 @@ export class RedisCacheService {
     await this.set(tenantId, namespace, key, value, ttlSeconds);
 
     return value;
+  }
+
+  /**
+   * Get a cached value, or compute it with in-process and Redis lock protection.
+   *
+   * This is intended for hot dashboard/read-model paths where a cache expiry could
+   * otherwise create a stampede of identical database queries.
+   */
+  async getOrSetProtected<T>(
+    tenantId: string,
+    namespace: string,
+    key: string,
+    ttlSeconds: number,
+    factory: () => Promise<T>,
+    options: { lockTtlSeconds?: number } = {},
+  ): Promise<T> {
+    const cacheKey = this.buildKey(tenantId, namespace, key);
+    const pending = this.pendingComputations.get(cacheKey);
+
+    if (pending) {
+      return pending as Promise<T>;
+    }
+
+    const operation = this.computeWithStampedeProtection(
+      tenantId,
+      namespace,
+      key,
+      ttlSeconds,
+      factory,
+      options.lockTtlSeconds ?? 5,
+    );
+
+    this.pendingComputations.set(cacheKey, operation as Promise<unknown>);
+
+    try {
+      return await operation;
+    } finally {
+      this.pendingComputations.delete(cacheKey);
+    }
+  }
+
+  /**
+   * Stale-while-revalidate read-through caching.
+   *
+   * Fresh values are returned immediately. Stale values are returned immediately
+   * too, while a single protected refresh runs in the background.
+   */
+  async getOrSetStaleWhileRevalidate<T>(
+    tenantId: string,
+    namespace: string,
+    key: string,
+    options: {
+      freshTtlSeconds: number;
+      staleTtlSeconds: number;
+      lockTtlSeconds?: number;
+    },
+    factory: () => Promise<T>,
+  ): Promise<T> {
+    const now = Date.now();
+    const swrKey = `swr:${key}`;
+    const cacheKey = this.buildKey(tenantId, namespace, swrKey);
+    const lockTtlSeconds = options.lockTtlSeconds ?? 5;
+
+    try {
+      const raw = await this.redisService.getClient().get(cacheKey);
+      const envelope = raw ? JSON.parse(raw) as StaleWhileRevalidateEnvelope<T> : null;
+
+      if (envelope && envelope.fresh_until_ms > now) {
+        return envelope.value;
+      }
+
+      if (envelope && envelope.stale_until_ms > now) {
+        void this.refreshStaleWhileRevalidateValue(
+          tenantId,
+          namespace,
+          swrKey,
+          options.freshTtlSeconds,
+          options.staleTtlSeconds,
+          lockTtlSeconds,
+          factory,
+        );
+        return envelope.value;
+      }
+
+      return await this.refreshStaleWhileRevalidateValue(
+        tenantId,
+        namespace,
+        swrKey,
+        options.freshTtlSeconds,
+        options.staleTtlSeconds,
+        lockTtlSeconds,
+        factory,
+      );
+    } catch (error) {
+      this.logger.warn(
+        `Cache staleWhileRevalidate failed for ${namespace}:${key} - ${error instanceof Error ? error.message : String(error)}`,
+      );
+      return factory();
+    }
   }
 
   /**
@@ -168,4 +275,140 @@ export class RedisCacheService {
   private buildKey(tenantId: string, namespace: string, key: string): string {
     return `${RedisCacheService.KEY_PREFIX}:${tenantId}:${namespace}:${key}`;
   }
+
+  private buildLockKey(tenantId: string, namespace: string, key: string): string {
+    return `${RedisCacheService.LOCK_PREFIX}:${tenantId}:${namespace}:${key}`;
+  }
+
+  private async computeWithStampedeProtection<T>(
+    tenantId: string,
+    namespace: string,
+    key: string,
+    ttlSeconds: number,
+    factory: () => Promise<T>,
+    lockTtlSeconds: number,
+  ): Promise<T> {
+    const cached = await this.get<T>(tenantId, namespace, key);
+
+    if (cached !== null) {
+      return cached;
+    }
+
+    const lockKey = this.buildLockKey(tenantId, namespace, key);
+    const lockValue = `${Date.now()}:${Math.random()}`;
+    const acquired = await this.tryAcquireLock(lockKey, lockValue, lockTtlSeconds);
+
+    try {
+      if (acquired) {
+        const cachedAfterLock = await this.get<T>(tenantId, namespace, key);
+
+        if (cachedAfterLock !== null) {
+          return cachedAfterLock;
+        }
+      }
+
+      const value = await factory();
+      await this.set(tenantId, namespace, key, value, ttlSeconds);
+      return value;
+    } finally {
+      if (acquired) {
+        await this.releaseLock(lockKey);
+      }
+    }
+  }
+
+  private async refreshStaleWhileRevalidateValue<T>(
+    tenantId: string,
+    namespace: string,
+    swrKey: string,
+    freshTtlSeconds: number,
+    staleTtlSeconds: number,
+    lockTtlSeconds: number,
+    factory: () => Promise<T>,
+  ): Promise<T> {
+    const cacheKey = this.buildKey(tenantId, namespace, swrKey);
+    const pending = this.pendingComputations.get(cacheKey);
+
+    if (pending) {
+      return pending as Promise<T>;
+    }
+
+    const operation = (async () => {
+      const lockKey = this.buildLockKey(tenantId, namespace, swrKey);
+      const lockValue = `${Date.now()}:${Math.random()}`;
+      const acquired = await this.tryAcquireLock(lockKey, lockValue, lockTtlSeconds);
+
+      try {
+        const value = await factory();
+        const now = Date.now();
+        const envelope: StaleWhileRevalidateEnvelope<T> = {
+          value,
+          fresh_until_ms: now + freshTtlSeconds * 1000,
+          stale_until_ms: now + staleTtlSeconds * 1000,
+        };
+        await this.redisService
+          .getClient()
+          .set(cacheKey, JSON.stringify(envelope), 'EX', staleTtlSeconds);
+        return value;
+      } finally {
+        if (acquired) {
+          await this.releaseLock(lockKey);
+        }
+      }
+    })();
+
+    this.pendingComputations.set(cacheKey, operation as Promise<unknown>);
+
+    try {
+      return await operation;
+    } finally {
+      this.pendingComputations.delete(cacheKey);
+    }
+  }
+
+  private async tryAcquireLock(
+    lockKey: string,
+    lockValue: string,
+    lockTtlSeconds: number,
+  ): Promise<boolean> {
+    try {
+      const result = await this.redisService
+        .getClient()
+        .set(lockKey, lockValue, 'EX', lockTtlSeconds, 'NX');
+      return result === 'OK';
+    } catch (error) {
+      this.logger.warn(
+        `Cache stampede lock failed for ${lockKey} - ${error instanceof Error ? error.message : String(error)}`,
+      );
+      return false;
+    }
+  }
+
+  private async releaseLock(lockKey: string): Promise<void> {
+    try {
+      await this.redisService.getClient().del(lockKey);
+    } catch (error) {
+      this.logger.warn(
+        `Cache stampede lock release failed for ${lockKey} - ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  }
+}
+
+interface StaleWhileRevalidateEnvelope<T> {
+  value: T;
+  fresh_until_ms: number;
+  stale_until_ms: number;
+}
+
+function isStaleWhileRevalidateEnvelope<T>(
+  value: unknown,
+): value is StaleWhileRevalidateEnvelope<T> {
+  return Boolean(
+    value
+      && typeof value === 'object'
+      && 'value' in value
+      && 'fresh_until_ms' in value
+      && 'stale_until_ms' in value,
+  );
 }

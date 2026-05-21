@@ -89,6 +89,28 @@ export default () => ({
     removeOnComplete: parseNumber(process.env.QUEUE_REMOVE_ON_COMPLETE, 1000),
     removeOnFail: parseNumber(process.env.QUEUE_REMOVE_ON_FAIL, 5000),
   },
+  cache: {
+    staleWhileRevalidateTtlSeconds: parseNumber(
+      process.env.CACHE_STALE_WHILE_REVALIDATE_TTL_SECONDS,
+      60,
+    ),
+    stampedeLockTtlSeconds: parseNumber(
+      process.env.CACHE_STAMPEDE_LOCK_TTL_SECONDS,
+      5,
+    ),
+  },
+  implementation90: {
+    targetUsersPerSecond: parseNumber(
+      process.env.IMPLEMENTATION90_TARGET_USERS_PER_SECOND,
+      5000,
+    ),
+    durationMinutes: parseNumber(process.env.IMPLEMENTATION90_DURATION_MINUTES, 30),
+    maxApiErrorRate: parseNumber(process.env.IMPLEMENTATION90_MAX_API_ERROR_RATE, 0.001),
+    maxMoneyFlowErrorRate: parseNumber(
+      process.env.IMPLEMENTATION90_MAX_MONEY_FLOW_ERROR_RATE,
+      0.0001,
+    ),
+  },
   auth: {
     issuer: process.env.JWT_ISSUER ?? 'my-shule-api',
     audience: process.env.JWT_AUDIENCE ?? 'my-shule-web',
@@ -177,8 +199,25 @@ export default () => ({
     piiEncryptionKey: process.env.SECURITY_PII_ENCRYPTION_KEY ?? '',
     kmsProvider: process.env.SECURITY_KMS_PROVIDER ?? '',
     kmsKeyId: process.env.SECURITY_KMS_KEY_ID ?? '',
+    lockdownBypassSecret: process.env.SECURITY_LOCKDOWN_BYPASS_SECRET ?? '',
     rateLimitWindowSeconds: parseNumber(process.env.SECURITY_RATE_LIMIT_WINDOW_SECONDS, 60),
     rateLimitMaxRequests: parseNumber(process.env.SECURITY_RATE_LIMIT_MAX_REQUESTS, 120),
+    publicReadRateLimitMaxRequests: parseNumber(
+      process.env.SECURITY_PUBLIC_READ_RATE_LIMIT_MAX_REQUESTS,
+      500,
+    ),
+    authenticatedReadRateLimitMaxRequests: parseNumber(
+      process.env.SECURITY_AUTHENTICATED_READ_RATE_LIMIT_MAX_REQUESTS,
+      300,
+    ),
+    writeRateLimitMaxRequests: parseNumber(
+      process.env.SECURITY_WRITE_RATE_LIMIT_MAX_REQUESTS,
+      60,
+    ),
+    adminRateLimitMaxRequests: parseNumber(
+      process.env.SECURITY_ADMIN_RATE_LIMIT_MAX_REQUESTS,
+      20,
+    ),
     authRateLimitMaxRequests: parseNumber(
       process.env.SECURITY_AUTH_RATE_LIMIT_MAX_REQUESTS,
       20,

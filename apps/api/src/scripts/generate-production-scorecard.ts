@@ -73,6 +73,26 @@ export function generateProductionScorecard(
     workspaceRoot,
     'apps/api/src/modules/support/support-notification-delivery.service.ts',
   );
+  const implementation90LoadProfileSource = readOptionalFile(
+    workspaceRoot,
+    'apps/api/src/scripts/implementation90-load-profile.ts',
+  );
+  const implementation90ArchitectureSource = readOptionalFile(
+    workspaceRoot,
+    'docs/architecture/implementation90-scale-security-reliability.md',
+  );
+  const implementation90ScaleRunbookSource = readOptionalFile(
+    workspaceRoot,
+    'docs/runbooks/extreme-scale-incident.md',
+  );
+  const implementation90LockdownRunbookSource = readOptionalFile(
+    workspaceRoot,
+    'docs/runbooks/security-lockdown-mode.md',
+  );
+  const implementation90ObservabilitySource = readOptionalFile(
+    workspaceRoot,
+    'apps/api/src/modules/observability/production-observability.catalog.ts',
+  );
 
   const categories: ProductionScoreCategory[] = [
     createCategory({
@@ -220,6 +240,38 @@ export function generateProductionScorecard(
       remediation: 'Publish tenant-scale load artifacts and enforce query budgets in CI.',
     }),
     createCategory({
+      id: 'implementation90-extreme-scale',
+      label: 'Implementation 90 extreme scale and security',
+      score: scoreByEvidence([
+        hasScript(scripts, 'implementation90:load-profile'),
+        /IMPLEMENTATION90_TRAFFIC_PROFILE/.test(implementation90LoadProfileSource),
+        /validateImplementation90Budgets/.test(implementation90LoadProfileSource),
+        /5000\+ users per second/i.test(implementation90ArchitectureSource),
+        /breach-resistant/i.test(implementation90ArchitectureSource),
+        /database saturation/i.test(implementation90ScaleRunbookSource),
+        /Redis degradation/i.test(implementation90ScaleRunbookSource),
+        /queue backlog/i.test(implementation90ScaleRunbookSource),
+        /Rotate suspected secrets/i.test(implementation90LockdownRunbookSource),
+        /Disable provider callbacks/i.test(implementation90LockdownRunbookSource),
+        /implementation90-extreme-scale/.test(implementation90ObservabilitySource),
+      ], 84, 1),
+      target: 95,
+      evidence: [
+        evidenceLine(hasScript(scripts, 'implementation90:load-profile'), 'Implementation 90 load-profile script exists'),
+        evidenceLine(/IMPLEMENTATION90_TRAFFIC_PROFILE/.test(implementation90LoadProfileSource), '5,000+ users/sec traffic profile exists'),
+        evidenceLine(/validateImplementation90Budgets/.test(implementation90LoadProfileSource), 'release budget validator exists'),
+        evidenceLine(/5000\+ users per second/i.test(implementation90ArchitectureSource), 'scale architecture is documented'),
+        evidenceLine(/breach-resistant/i.test(implementation90ArchitectureSource), 'breach-resistant security model is documented'),
+        evidenceLine(/database saturation/i.test(implementation90ScaleRunbookSource), 'extreme-scale runbook covers database saturation'),
+        evidenceLine(/Redis degradation/i.test(implementation90ScaleRunbookSource), 'extreme-scale runbook covers Redis degradation'),
+        evidenceLine(/queue backlog/i.test(implementation90ScaleRunbookSource), 'extreme-scale runbook covers queue backlog'),
+        evidenceLine(/Rotate suspected secrets/i.test(implementation90LockdownRunbookSource), 'security lockdown runbook covers secret rotation'),
+        evidenceLine(/Disable provider callbacks/i.test(implementation90LockdownRunbookSource), 'security lockdown runbook covers provider callback shutdown'),
+        evidenceLine(/implementation90-extreme-scale/.test(implementation90ObservabilitySource), 'Implementation 90 observability dashboard exists'),
+      ],
+      remediation: 'Run the mixed 5,000+ users/sec profile against production-like infrastructure before raising public launch traffic.',
+    }),
+    createCategory({
       id: 'observability-recovery',
       label: 'Observability and recovery',
       score: scoreByEvidence([
@@ -297,6 +349,7 @@ export function renderProductionScorecardMarkdown(scorecard: ProductionScorecard
     '3. Run authenticated pilot certification for school, finance, parent, library, support, discipline, and reporting workflows.',
     '4. Publish tenant-scale, provider-smoke, security, and backup-restore artifacts in CI.',
     '5. Complete the visual identity pass so login pages feel calm, trustworthy, and meaningful.',
+    '6. Keep Implementation 90 load-profile evidence attached to every release readiness review.',
     '',
   );
 

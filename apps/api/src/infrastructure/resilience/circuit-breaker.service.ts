@@ -31,6 +31,16 @@ const DEFAULT_CONFIG: CircuitBreakerConfig = {
   success_threshold: 2,
 };
 
+export const IMPLEMENTATION90_REQUIRED_CIRCUITS = [
+  'mpesa-api',
+  'sms-provider',
+  'email-provider',
+  'object-storage',
+  'malware-scanner',
+  'report-export',
+  'database-heavy-report',
+] as const;
+
 /**
  * In-process circuit breaker for protecting against cascading failures.
  *
@@ -47,6 +57,12 @@ export class CircuitBreakerService {
   private readonly logger = new Logger(CircuitBreakerService.name);
   private readonly circuits = new Map<string, CircuitBreakerState>();
   private readonly configs = new Map<string, CircuitBreakerConfig>();
+
+  constructor() {
+    for (const circuit of IMPLEMENTATION90_REQUIRED_CIRCUITS) {
+      this.getOrCreateCircuit(circuit);
+    }
+  }
 
   /**
    * Register a named circuit with custom configuration.

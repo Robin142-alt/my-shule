@@ -144,6 +144,22 @@ test('validateEnv rejects production database settings without PgBouncer transac
   );
 });
 
+test('validateEnv rejects unsafe Implementation 90 production security and rate-limit settings', () => {
+  assert.throws(
+    () =>
+      validateEnv({
+        ...productionEnvironment,
+        SECURITY_LOCKDOWN_BYPASS_SECRET: 'short-lockdown-secret',
+        SECURITY_PUBLIC_READ_RATE_LIMIT_MAX_REQUESTS: '0',
+        SECURITY_AUTHENTICATED_READ_RATE_LIMIT_MAX_REQUESTS: '0',
+        SECURITY_WRITE_RATE_LIMIT_MAX_REQUESTS: '0',
+        SECURITY_ADMIN_RATE_LIMIT_MAX_REQUESTS: '0',
+        IMPLEMENTATION90_TARGET_USERS_PER_SECOND: '4999',
+      }),
+    /Implementation 90 lockdown bypass secret must be at least 32 characters in production.*SECURITY_PUBLIC_READ_RATE_LIMIT_MAX_REQUESTS must be between 1 and 5000.*SECURITY_AUTHENTICATED_READ_RATE_LIMIT_MAX_REQUESTS must be between 1 and 3000.*SECURITY_WRITE_RATE_LIMIT_MAX_REQUESTS must be between 1 and 1000.*SECURITY_ADMIN_RATE_LIMIT_MAX_REQUESTS must be between 1 and 200.*IMPLEMENTATION90_TARGET_USERS_PER_SECOND must be at least 5000 in production/s,
+  );
+});
+
 test('validateEnv requires production object storage, proxy, secure-cookie, RLS audit, and M-Pesa vault controls', () => {
   assert.throws(
     () =>
@@ -402,6 +418,63 @@ test('configuration maps production transport and security hardening flags', () 
     assert.equal(config.security.kmsProvider, 'aws_kms');
     assert.equal(config.security.kmsKeyId, 'arn:aws:kms:eu-west-1:123456789012:key/example');
     assert.equal(config.mpesa.payloadVaultEnabled, true);
+  } finally {
+    for (const [key, value] of originals) {
+      if (value === undefined) {
+        delete process.env[key];
+      } else {
+        process.env[key] = value;
+      }
+    }
+  }
+});
+
+test('configuration maps Implementation 90 scale, cache, and lockdown settings', () => {
+  const keys = [
+    'IMPLEMENTATION90_TARGET_USERS_PER_SECOND',
+    'IMPLEMENTATION90_DURATION_MINUTES',
+    'IMPLEMENTATION90_MAX_API_ERROR_RATE',
+    'IMPLEMENTATION90_MAX_MONEY_FLOW_ERROR_RATE',
+    'CACHE_STALE_WHILE_REVALIDATE_TTL_SECONDS',
+    'CACHE_STAMPEDE_LOCK_TTL_SECONDS',
+    'SECURITY_LOCKDOWN_BYPASS_SECRET',
+    'SECURITY_PUBLIC_READ_RATE_LIMIT_MAX_REQUESTS',
+    'SECURITY_AUTHENTICATED_READ_RATE_LIMIT_MAX_REQUESTS',
+    'SECURITY_WRITE_RATE_LIMIT_MAX_REQUESTS',
+    'SECURITY_ADMIN_RATE_LIMIT_MAX_REQUESTS',
+  ];
+  const originals = new Map(keys.map((key) => [key, process.env[key]]));
+
+  try {
+    process.env.IMPLEMENTATION90_TARGET_USERS_PER_SECOND = '5000';
+    process.env.IMPLEMENTATION90_DURATION_MINUTES = '30';
+    process.env.IMPLEMENTATION90_MAX_API_ERROR_RATE = '0.001';
+    process.env.IMPLEMENTATION90_MAX_MONEY_FLOW_ERROR_RATE = '0.0001';
+    process.env.CACHE_STALE_WHILE_REVALIDATE_TTL_SECONDS = '60';
+    process.env.CACHE_STAMPEDE_LOCK_TTL_SECONDS = '5';
+    process.env.SECURITY_LOCKDOWN_BYPASS_SECRET =
+      'lockdown-bypass-secret-with-32-characters';
+    process.env.SECURITY_PUBLIC_READ_RATE_LIMIT_MAX_REQUESTS = '500';
+    process.env.SECURITY_AUTHENTICATED_READ_RATE_LIMIT_MAX_REQUESTS = '300';
+    process.env.SECURITY_WRITE_RATE_LIMIT_MAX_REQUESTS = '60';
+    process.env.SECURITY_ADMIN_RATE_LIMIT_MAX_REQUESTS = '20';
+
+    const config = configuration();
+
+    assert.equal(config.implementation90.targetUsersPerSecond, 5000);
+    assert.equal(config.implementation90.durationMinutes, 30);
+    assert.equal(config.implementation90.maxApiErrorRate, 0.001);
+    assert.equal(config.implementation90.maxMoneyFlowErrorRate, 0.0001);
+    assert.equal(config.cache.staleWhileRevalidateTtlSeconds, 60);
+    assert.equal(config.cache.stampedeLockTtlSeconds, 5);
+    assert.equal(
+      config.security.lockdownBypassSecret,
+      'lockdown-bypass-secret-with-32-characters',
+    );
+    assert.equal(config.security.publicReadRateLimitMaxRequests, 500);
+    assert.equal(config.security.authenticatedReadRateLimitMaxRequests, 300);
+    assert.equal(config.security.writeRateLimitMaxRequests, 60);
+    assert.equal(config.security.adminRateLimitMaxRequests, 20);
   } finally {
     for (const [key, value] of originals) {
       if (value === undefined) {

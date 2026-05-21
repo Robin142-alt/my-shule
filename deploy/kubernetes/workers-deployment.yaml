@@ -67,8 +67,10 @@ spec:
     kind: Deployment
     name: payments-worker
   minReplicas: 2
-  maxReplicas: 10
+  maxReplicas: 30
   metrics:
+    # queue-backlog custom metrics should scale this deployment before
+    # payments-mpesa oldest waiting jobs exceed the Implementation 90 budget.
     - type: Resource
       resource:
         name: cpu
@@ -156,8 +158,10 @@ spec:
     kind: Deployment
     name: events-worker
   minReplicas: 2
-  maxReplicas: 8
+  maxReplicas: 20
   metrics:
+    # queue-backlog custom metrics should scale this deployment before
+    # erp-events oldest waiting jobs exceed the Implementation 90 budget.
     - type: Resource
       resource:
         name: cpu

@@ -25,13 +25,13 @@ async function seedExperienceSession(
 }
 
 test.describe("experience separation", () => {
-  test("public root opens the school access desk instead of a workspace selector", async ({
+  test("public root opens the public MyShule overview instead of a workspace selector", async ({
     page,
   }) => {
     await page.goto("http://127.0.0.1:3005/");
     await expect(
       page.getByRole("heading", {
-        name: /sign in to your school operations workspace/i,
+        name: /from manual school operations to structured institutional intelligence/i,
       }),
     ).toBeVisible();
     await expect(page.getByText(/one premium platform/i)).toHaveCount(0);
@@ -43,15 +43,16 @@ test.describe("experience separation", () => {
   }) => {
     await page.goto("http://127.0.0.1:3005/superadmin");
     await expect(
-      page.getByRole("heading", { name: /platform control center/i }),
+      page.getByRole("heading", { name: /operate the platform with confidence/i }),
     ).toBeVisible();
 
     await page.goto("http://127.0.0.1:3005/school/principal");
-    await expect(page.getByRole("heading", { name: /welcome back/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /school workspace/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /secure admin access/i })).toBeVisible();
 
     await page.goto("http://127.0.0.1:3005/portal/parent");
     await expect(
-      page.getByRole("heading", { name: /access your school portal/i }),
+      page.getByRole("heading", { name: /school update parents wanted/i }),
     ).toBeVisible();
   });
 
@@ -91,7 +92,8 @@ test.describe("experience separation", () => {
 
     await page.goto("http://127.0.0.1:3005/school/bursar");
     await expect(page.getByRole("heading", { name: /dashboard/i })).toBeVisible();
-    await expect(page.getByText(/kiambu county school erp/i)).toBeVisible();
+    await expect(page.getByText(/school workspace/i).first()).toBeVisible();
+    await expect(page.getByText(/tenant isolated/i)).toBeVisible();
   });
 
   test("public compatibility routes open the portal dashboard when a portal session exists", async ({
@@ -151,7 +153,7 @@ test.describe("experience separation", () => {
 
     await page.goto("http://barakaacademy.localhost:3005/dashboard");
     await expect(page.getByRole("heading", { name: /dashboard/i })).toBeVisible();
-    await expect(page.getByText(/kiambu county school erp/i)).toBeVisible();
+    await expect(page.getByText(/school workspace/i).first()).toBeVisible();
     await expect(page.getByText(/active session/i)).toBeVisible();
     await expect(page.getByText(/^bursar$/i).first()).toBeVisible();
     await expect(page.getByText(/tenant isolated/i)).toBeVisible();

@@ -28,6 +28,7 @@ export class RateLimitMiddleware implements NestMiddleware {
       response.setHeader('x-ratelimit-limit', decision.limit);
       response.setHeader('x-ratelimit-remaining', decision.remaining);
       response.setHeader('x-ratelimit-reset', decision.reset_at);
+      response.setHeader('x-ratelimit-class', decision.rate_limit_class);
 
       if (!decision.allowed) {
         response.setHeader('retry-after', decision.retry_after_seconds);

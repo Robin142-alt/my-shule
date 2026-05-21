@@ -39,6 +39,8 @@ export function runMaintainabilityScan(
     checkNoInternalIdCopy(workspaceRoot, options.sourceOverrides),
     checkPublicStatusTruth(workspaceRoot, options.sourceOverrides),
     checkGeneratedArtifactHygiene(workspaceRoot, options.sourceOverrides),
+    checkImplementation90ArchitectureRunbooks(workspaceRoot, options.sourceOverrides),
+    checkImplementation90ReleaseGates(workspaceRoot, options.sourceOverrides),
   ];
 
   return {
@@ -112,6 +114,88 @@ function checkGeneratedArtifactHygiene(
     : ['.gitignore must ignore apps/web/test-results/ generated browser artifacts.'];
 
   return buildCheck('generated-artifact-hygiene', 'Generated browser artifacts are ignored.', details);
+}
+
+function checkImplementation90ArchitectureRunbooks(
+  workspaceRoot: string,
+  sourceOverrides?: Record<string, string>,
+): MaintainabilityCheck {
+  const architecture = readSource(
+    workspaceRoot,
+    'docs/architecture/implementation90-scale-security-reliability.md',
+    sourceOverrides,
+  );
+  const scaleRunbook = readSource(
+    workspaceRoot,
+    'docs/runbooks/extreme-scale-incident.md',
+    sourceOverrides,
+  );
+  const lockdownRunbook = readSource(
+    workspaceRoot,
+    'docs/runbooks/security-lockdown-mode.md',
+    sourceOverrides,
+  );
+  const details: string[] = [];
+
+  if (!/5000\+ users per second/i.test(architecture) || !/breach-resistant/i.test(architecture)) {
+    details.push('docs/architecture/implementation90-scale-security-reliability.md must document 5000+ users per second and breach-resistant architecture.');
+  }
+
+  if (!/database saturation/i.test(scaleRunbook) || !/Redis degradation/i.test(scaleRunbook) || !/queue backlog/i.test(scaleRunbook)) {
+    details.push('docs/runbooks/extreme-scale-incident.md must cover database saturation, Redis degradation, and queue backlog.');
+  }
+
+  if (!/Rotate suspected secrets/i.test(lockdownRunbook) || !/Disable provider callbacks/i.test(lockdownRunbook) || !/Preserve audit logs/i.test(lockdownRunbook)) {
+    details.push('docs/runbooks/security-lockdown-mode.md must cover secret rotation, provider callback shutdown, and audit preservation.');
+  }
+
+  return buildCheck(
+    'implementation90-architecture-runbooks',
+    'Implementation 90 architecture and runbooks are maintained.',
+    details,
+  );
+}
+
+function checkImplementation90ReleaseGates(
+  workspaceRoot: string,
+  sourceOverrides?: Record<string, string>,
+): MaintainabilityCheck {
+  const loadProfile = readSource(
+    workspaceRoot,
+    'apps/api/src/scripts/implementation90-load-profile.ts',
+    sourceOverrides,
+  );
+  const packageJson = readSource(workspaceRoot, 'package.json', sourceOverrides);
+  const productionEnv = readSource(workspaceRoot, '.env.production.example', sourceOverrides);
+  const details: string[] = [];
+
+  if (!/IMPLEMENTATION90_TRAFFIC_PROFILE/.test(loadProfile) || !/validateImplementation90Budgets/.test(loadProfile)) {
+    details.push('apps/api/src/scripts/implementation90-load-profile.ts must define the load profile and release budget validator.');
+  }
+
+  if (!/implementation90:load-profile/.test(packageJson) || !/npm run implementation90:load-profile/.test(packageJson)) {
+    details.push('package.json must expose the implementation90:load-profile package-script and include it in CI.');
+  }
+
+  if (
+    !/implementation90:full-release-gate/.test(packageJson)
+    || !/npm run perf:query-plan-review/.test(packageJson)
+    || !/npm run test:chaos/.test(packageJson)
+    || !/npm run test:gameday/.test(packageJson)
+    || !/npm run release:readiness/.test(packageJson)
+  ) {
+    details.push('package.json must expose the implementation90:full-release-gate package-script with query-plan, chaos, gameday, and readiness checks.');
+  }
+
+  if (!/IMPLEMENTATION90_TARGET_USERS_PER_SECOND=5000/.test(productionEnv) || !/SECURITY_LOCKDOWN_BYPASS_SECRET/.test(productionEnv)) {
+    details.push('.env.production.example must document every production env variable required for Implementation 90.');
+  }
+
+  return buildCheck(
+    'implementation90-release-gates',
+    'Implementation 90 load profile, package-script, and production env variable gates exist.',
+    details,
+  );
 }
 
 function buildCheck(id: string, label: string, details: string[]): MaintainabilityCheck {

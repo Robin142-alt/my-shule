@@ -96,7 +96,7 @@ services:
       PGBOUNCER_DATABASE: ${POSTGRES_DB:-my_shule}
       PGBOUNCER_PORT: "6432"
       PGBOUNCER_POOL_MODE: transaction
-      PGBOUNCER_MAX_CLIENT_CONN: "1000"
+      PGBOUNCER_MAX_CLIENT_CONN: "5000"
       PGBOUNCER_DEFAULT_POOL_SIZE: "50"
       PGBOUNCER_MIN_POOL_SIZE: "10"
       PGBOUNCER_RESERVE_POOL_SIZE: "10"
@@ -155,7 +155,7 @@ services:
       dockerfile: Dockerfile
     restart: unless-stopped
     deploy:
-      replicas: ${API_REPLICAS:-3}
+      replicas: ${API_REPLICAS:-6}
       resources:
         limits:
           memory: 512M
@@ -174,6 +174,11 @@ services:
       EVENTS_DISPATCHER_ENABLED: "false"
       EVENTS_WORKER_ENABLED: "false"
       OBSERVABILITY_SLO_BACKGROUND_ENABLED: "false"
+      IMPLEMENTATION90_TARGET_USERS_PER_SECOND: "5000"
+      SECURITY_PUBLIC_READ_RATE_LIMIT_MAX_REQUESTS: "500"
+      SECURITY_AUTHENTICATED_READ_RATE_LIMIT_MAX_REQUESTS: "300"
+      SECURITY_WRITE_RATE_LIMIT_MAX_REQUESTS: "60"
+      SECURITY_ADMIN_RATE_LIMIT_MAX_REQUESTS: "20"
     depends_on:
       pgbouncer:
         condition: service_healthy

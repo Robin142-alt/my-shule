@@ -1,6 +1,6 @@
 # PII Leak CI Scan
 
-Generated at: 2026-05-20T17:48:27.160Z
+Generated at: 2026-05-20T23:47:11.265Z
 
 Status: pass
 
@@ -9,7 +9,7 @@ Status: pass
 | Category | Files Scanned |
 | --- | ---: |
 | logs | 0 |
-| snapshots_exports | 19 |
+| snapshots_exports | 21 |
 | api_responses | 0 |
 | frontend_fixtures | 1 |
 

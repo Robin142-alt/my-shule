@@ -31,6 +31,9 @@ test('LibrarySchemaService creates tenant-scoped circulation tables with forced 
   await service.onModuleInit();
 
   assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS library_catalog_items/);
+  assert.match(schemaSql, /CREATE EXTENSION IF NOT EXISTS pg_trgm/);
+  assert.match(schemaSql, /CREATE INDEX IF NOT EXISTS ix_library_catalog_items_title_trgm/);
+  assert.match(schemaSql, /ON library_catalog_items\s+USING GIN\s+\(\s*lower\(title\) gin_trgm_ops\s*\)/);
   assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS library_circulation_ledger/);
   assert.match(schemaSql, /ALTER TABLE library_copies FORCE ROW LEVEL SECURITY/);
 });

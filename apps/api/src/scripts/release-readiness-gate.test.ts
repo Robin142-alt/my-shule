@@ -60,6 +60,7 @@ const passingPackageJsonSource = JSON.stringify({
       'dist/apps/api/src/scripts/implementation20-certification.test.js',
       'dist/apps/api/src/scripts/implementation21-certification.test.js',
       'dist/apps/api/src/scripts/implementation30-certification.test.js',
+      'dist/apps/api/src/scripts/implementation90-load-profile.test.js',
       'dist/apps/api/src/scripts/synthetic-journey-monitor.test.js',
       'dist/apps/api/src/common/uploads/streaming-upload.service.test.js',
       'dist/apps/api/src/modules/module-access/module-access.test.js',
@@ -96,7 +97,30 @@ const passingPackageJsonSource = JSON.stringify({
     'implementation20:certify': 'node apps/api/src/scripts/implementation20-certification.ts',
     'implementation21:certify': 'node apps/api/src/scripts/implementation21-certification.ts',
     'implementation30:certify': 'node apps/api/src/scripts/implementation30-certification.ts',
-    'ci:full': 'npm run build && npm run security:deps',
+    'implementation90:load-profile': 'node apps/api/src/scripts/implementation90-load-profile.ts',
+    'implementation90:full-release-gate': [
+      'npm run build',
+      'npm run web:lint',
+      'npm run web:build',
+      'npm run test',
+      'npm run test:tenant-isolation',
+      'npm run test:auth-security',
+      'npm run test:api-consistency',
+      'npm run test:observability',
+      'npm run test:chaos',
+      'npm run test:gameday',
+      'npm run test:disaster-recovery',
+      'npm run security:scan',
+      'npm run security:pii-scan',
+      'npm run security:deps',
+      'npm run tenant:isolation:audit',
+      'npm run perf:query-plan-review',
+      'npm run implementation30:load-profile',
+      'npm run implementation90:load-profile',
+      'npm run scorecard:production',
+      'npm run release:readiness',
+    ].join(' && '),
+    'ci:full': 'npm run build && npm run implementation90:load-profile && npm run security:deps',
     'monitor:create-service-account': 'node apps/api/src/scripts/create-monitoring-service-account.ts',
     'build:sms-relay': 'npm --prefix apps/sms-relay run build',
     'test:sms-relay': 'npm --prefix apps/sms-relay run test',
@@ -166,6 +190,7 @@ const passingProductionOperabilityWorkflowSource = `
         - run: npm run implementation20:certify
         - run: npm run implementation21:certify
         - run: npm run implementation30:certify
+        - run: npm run implementation90:load-profile
         - run: npm run tenant:isolation:audit
         - run: npm run security:scan
         - run: npm run security:deps
@@ -180,6 +205,9 @@ const passingProductionMonitoringRunbookSource = `
 
   ## Maintainability Gate
   Run npm run maintainability:scan before production deployments.
+
+  ## Implementation 90 Gate
+  Run npm run implementation90:load-profile before production deployments and attach the generated artifact.
 `;
 
 const passingPilotWorkflowChecklistSource = `
@@ -197,6 +225,44 @@ const passingImplementation7LiveValidationSource = `
 const passingImplementation11MaintainabilityScanSource = `
   # Implementation 11 Maintainability Scan
   Status: pass
+`;
+
+const passingImplementation90LoadProfileSource = `
+  export const IMPLEMENTATION90_TRAFFIC_PROFILE = {
+    target_users_per_second: 5000,
+    duration_minutes: 30,
+  };
+  export function validateImplementation90Budgets() {}
+  export function runImplementation90LoadProfile() {}
+`;
+
+const passingImplementation90LoadProfileArtifactSource = `
+  # Implementation 90 Load Profile
+  Status: pass
+  Target users per second: 5000
+`;
+
+const passingQueryPlanReviewArtifactSource = `
+  # Query Plan Review
+  Status: pass
+  | students-directory-search | Student directory search should use the student full-text index. | Limit, Index Scan | clear |
+  | library-catalog-search | Hidden library catalog lookup remains tenant scoped. | Bitmap Heap Scan, Bitmap Index Scan | clear |
+  | support-ticket-search | Support ticket search should use the support ticket full-text index. | Limit, Index Scan | clear |
+`;
+
+const passingImplementation90ArchitectureSource = `
+  # Implementation 90 Scale, Security, And Reliability Architecture
+  Handle 5000+ users per second with a breach-resistant security model, reliability controls, and maintainability gates.
+`;
+
+const passingExtremeScaleRunbookSource = `
+  # Extreme Scale Incident Runbook
+  Triage database saturation, Redis degradation, and queue backlog before enabling lockdown mode.
+`;
+
+const passingSecurityLockdownRunbookSource = `
+  # Security Lockdown Mode
+  Rotate suspected secrets, Disable provider callbacks that fail verification, Preserve audit logs, and keep safe read-only status online.
 `;
 
 const passingDisasterRecoveryRunbookSource = `
@@ -331,6 +397,59 @@ test('runReleaseReadinessGate fails when Implementation 11 maintainability artif
   assert.match(
     result.checks.find((check) => check.id === 'implementation11-maintainability-artifacts')?.details.join('\n') ?? '',
     /maintainability scan|maintainability gate|implementation11-maintainability-scan/i,
+  );
+});
+
+test('runReleaseReadinessGate fails when Implementation 90 extreme-scale artifacts are missing', () => {
+  const result = runGate({
+    packageJsonSource: JSON.stringify({
+      scripts: {
+        ...JSON.parse(passingPackageJsonSource).scripts,
+        'implementation90:load-profile': undefined,
+        test: 'node --test dist/apps/api/src/scripts/release-readiness-gate.test.js',
+      },
+    }),
+    productionOperabilityWorkflowSource: 'name: Production Operability',
+    productionMonitoringRunbookSource: '# Monitoring',
+    implementation90LoadProfileSource: '',
+    implementation90LoadProfileArtifactSource: '# Implementation 90 Load Profile\nStatus: fail',
+    implementation90ArchitectureSource: '',
+    extremeScaleRunbookSource: '',
+    securityLockdownRunbookSource: '',
+  });
+
+  assert.equal(result.ok, false);
+  assert.match(
+    result.checks.find((check) => check.id === 'implementation90-extreme-scale-artifacts')?.details.join('\n') ?? '',
+    /implementation90:load-profile|5000\+ users|Status: pass|security lockdown/i,
+  );
+});
+
+test('runReleaseReadinessGate fails when the Implementation 90 full release gate is incomplete', () => {
+  const scripts = {
+    ...JSON.parse(passingPackageJsonSource).scripts,
+    'implementation90:full-release-gate': 'npm run build && npm run release:readiness',
+  };
+  const result = runGate({
+    packageJsonSource: JSON.stringify({ scripts }),
+  });
+
+  assert.equal(result.ok, false);
+  assert.match(
+    result.checks.find((check) => check.id === 'implementation90-extreme-scale-artifacts')?.details.join('\n') ?? '',
+    /perf:query-plan-review|test:chaos|test:gameday/i,
+  );
+});
+
+test('runReleaseReadinessGate fails when query-plan review evidence is missing or failing', () => {
+  const result = runGate({
+    queryPlanReviewArtifactSource: '# Query Plan Review\nStatus: fail\nSequential scan on protected table library_catalog_items.',
+  });
+
+  assert.equal(result.ok, false);
+  assert.match(
+    result.checks.find((check) => check.id === 'query-plan-review-artifact')?.details.join('\n') ?? '',
+    /Status: pass|library-catalog-search|protected table/i,
   );
 });
 
@@ -533,6 +652,12 @@ function runGate(overrides: ReleaseReadinessGateOptions = {}) {
     pilotWorkflowChecklistSource: passingPilotWorkflowChecklistSource,
     implementation7LiveValidationSource: passingImplementation7LiveValidationSource,
     implementation11MaintainabilityScanSource: passingImplementation11MaintainabilityScanSource,
+    implementation90LoadProfileSource: passingImplementation90LoadProfileSource,
+    implementation90LoadProfileArtifactSource: passingImplementation90LoadProfileArtifactSource,
+    implementation90ArchitectureSource: passingImplementation90ArchitectureSource,
+    extremeScaleRunbookSource: passingExtremeScaleRunbookSource,
+    securityLockdownRunbookSource: passingSecurityLockdownRunbookSource,
+    queryPlanReviewArtifactSource: passingQueryPlanReviewArtifactSource,
     ...overrides,
   });
 }

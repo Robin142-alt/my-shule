@@ -56,6 +56,12 @@ export interface ReleaseReadinessGateOptions {
   pilotWorkflowChecklistSource?: string;
   implementation7LiveValidationSource?: string;
   implementation11MaintainabilityScanSource?: string;
+  implementation90LoadProfileSource?: string;
+  implementation90LoadProfileArtifactSource?: string;
+  implementation90ArchitectureSource?: string;
+  extremeScaleRunbookSource?: string;
+  securityLockdownRunbookSource?: string;
+  queryPlanReviewArtifactSource?: string;
   uploadControllerSources?: Record<string, string>;
   syntheticJourneys?: readonly SyntheticJourney[];
   auditCoverageRequirements?: readonly AuditCoverageRequirement[];
@@ -129,6 +135,8 @@ const REQUIRED_NPM_SCRIPTS = [
   'implementation20:certify',
   'implementation21:certify',
   'implementation30:certify',
+  'implementation90:load-profile',
+  'implementation90:full-release-gate',
   'ci:full',
   'monitor:create-service-account',
   'build:sms-relay',
@@ -139,6 +147,28 @@ const REQUIRED_NPM_SCRIPTS = [
   'test:disaster-recovery',
   'dr:backup-restore',
   'ops:incident-drill',
+];
+const REQUIRED_IMPLEMENTATION90_FULL_RELEASE_GATE_COMMANDS = [
+  'npm run build',
+  'npm run web:lint',
+  'npm run web:build',
+  'npm run test',
+  'npm run test:tenant-isolation',
+  'npm run test:auth-security',
+  'npm run test:api-consistency',
+  'npm run test:observability',
+  'npm run test:chaos',
+  'npm run test:gameday',
+  'npm run test:disaster-recovery',
+  'npm run security:scan',
+  'npm run security:pii-scan',
+  'npm run security:deps',
+  'npm run tenant:isolation:audit',
+  'npm run perf:query-plan-review',
+  'npm run implementation30:load-profile',
+  'npm run implementation90:load-profile',
+  'npm run scorecard:production',
+  'npm run release:readiness',
 ];
 const REQUIRED_DEFAULT_TEST_ARTIFACTS = [
   'app-route-permissions.test.js',
@@ -164,6 +194,7 @@ const REQUIRED_DEFAULT_TEST_ARTIFACTS = [
   'implementation20-certification.test.js',
   'implementation21-certification.test.js',
   'implementation30-certification.test.js',
+  'implementation90-load-profile.test.js',
   'report-snapshot-manifest.test.js',
   'report-snapshot.repository.test.js',
   'synthetic-journey-monitor.test.js',
@@ -297,6 +328,24 @@ export function runReleaseReadinessGate(
   const implementation11MaintainabilityScanSource =
     options.implementation11MaintainabilityScanSource
     ?? readWorkspaceFile(workspaceRoot, 'docs/validation/implementation11-maintainability-scan.md');
+  const implementation90LoadProfileSource =
+    options.implementation90LoadProfileSource
+    ?? readWorkspaceFile(workspaceRoot, 'apps/api/src/scripts/implementation90-load-profile.ts');
+  const implementation90LoadProfileArtifactSource =
+    options.implementation90LoadProfileArtifactSource
+    ?? readWorkspaceFile(workspaceRoot, 'docs/validation/implementation90-load-profile.md');
+  const implementation90ArchitectureSource =
+    options.implementation90ArchitectureSource
+    ?? readWorkspaceFile(workspaceRoot, 'docs/architecture/implementation90-scale-security-reliability.md');
+  const extremeScaleRunbookSource =
+    options.extremeScaleRunbookSource
+    ?? readWorkspaceFile(workspaceRoot, 'docs/runbooks/extreme-scale-incident.md');
+  const securityLockdownRunbookSource =
+    options.securityLockdownRunbookSource
+    ?? readWorkspaceFile(workspaceRoot, 'docs/runbooks/security-lockdown-mode.md');
+  const queryPlanReviewArtifactSource =
+    options.queryPlanReviewArtifactSource
+    ?? readWorkspaceFile(workspaceRoot, 'docs/validation/query-plan-review.md');
   const uploadControllerSources = options.uploadControllerSources ?? {
     'apps/api/src/modules/support/support.controller.ts': readWorkspaceFile(
       workspaceRoot,
@@ -312,6 +361,7 @@ export function runReleaseReadinessGate(
     checkStreamingUploadIngestion(uploadControllerSources),
     checkCoreApiLoadWorkloads(),
     checkQueryPlanReviewCoverage(),
+    checkQueryPlanReviewArtifact(queryPlanReviewArtifactSource),
     checkSyntheticJourneyCoverage(options.syntheticJourneys ?? SYNTHETIC_JOURNEYS),
     checkAuditCoverageReview(
       workspaceRoot,
@@ -335,6 +385,16 @@ export function runReleaseReadinessGate(
       productionOperabilityWorkflowSource,
       productionMonitoringRunbookSource,
       implementation11MaintainabilityScanSource,
+    }),
+    checkImplementation90ExtremeScaleArtifacts({
+      packageJsonSource,
+      productionOperabilityWorkflowSource,
+      productionMonitoringRunbookSource,
+      implementation90LoadProfileSource,
+      implementation90LoadProfileArtifactSource,
+      implementation90ArchitectureSource,
+      extremeScaleRunbookSource,
+      securityLockdownRunbookSource,
     }),
   ];
 
@@ -446,6 +506,126 @@ function checkImplementation11MaintainabilityArtifacts(input: {
   );
 }
 
+function checkImplementation90ExtremeScaleArtifacts(input: {
+  packageJsonSource: string;
+  productionOperabilityWorkflowSource: string;
+  productionMonitoringRunbookSource: string;
+  implementation90LoadProfileSource: string;
+  implementation90LoadProfileArtifactSource: string;
+  implementation90ArchitectureSource: string;
+  extremeScaleRunbookSource: string;
+  securityLockdownRunbookSource: string;
+}): ReleaseReadinessGateCheck {
+  const packageJson = JSON.parse(input.packageJsonSource) as {
+    scripts?: Record<string, string>;
+  };
+  const scripts = packageJson.scripts ?? {};
+  const defaultTestScript = scripts.test ?? '';
+  const ciFullScript = scripts['ci:full'] ?? '';
+  const details: string[] = [];
+
+  if (!scripts['implementation90:load-profile']) {
+    details.push('Missing npm script: implementation90:load-profile.');
+  }
+
+  const fullReleaseGateScript = scripts['implementation90:full-release-gate'] ?? '';
+  if (!fullReleaseGateScript) {
+    details.push('Missing npm script: implementation90:full-release-gate.');
+  }
+
+  for (const command of REQUIRED_IMPLEMENTATION90_FULL_RELEASE_GATE_COMMANDS) {
+    if (!fullReleaseGateScript.includes(command)) {
+      details.push(`implementation90:full-release-gate must run ${command}.`);
+    }
+  }
+
+  if (!defaultTestScript.includes('implementation90-load-profile.test.js')) {
+    details.push('Default npm test script must include implementation90-load-profile.test.js.');
+  }
+
+  if (!ciFullScript.includes('npm run implementation90:load-profile')) {
+    details.push('ci:full must run npm run implementation90:load-profile.');
+  }
+
+  if (!/implementation90:load-profile/i.test(input.productionOperabilityWorkflowSource)) {
+    details.push('Production operability workflow must run implementation90:load-profile.');
+  }
+
+  if (!/implementation90:load-profile/i.test(input.productionMonitoringRunbookSource)) {
+    details.push('Production monitoring runbook must document implementation90:load-profile.');
+  }
+
+  if (!/IMPLEMENTATION90_TRAFFIC_PROFILE/.test(input.implementation90LoadProfileSource)) {
+    details.push('apps/api/src/scripts/implementation90-load-profile.ts must define IMPLEMENTATION90_TRAFFIC_PROFILE.');
+  }
+
+  if (!/target_users_per_second:\s*5000/.test(input.implementation90LoadProfileSource)) {
+    details.push('Implementation 90 load profile must target 5000+ users per second.');
+  }
+
+  if (!/validateImplementation90Budgets/.test(input.implementation90LoadProfileSource)) {
+    details.push('Implementation 90 load profile must validate release budgets.');
+  }
+
+  if (!/runImplementation90LoadProfile/.test(input.implementation90LoadProfileSource)) {
+    details.push('Implementation 90 load profile must expose runImplementation90LoadProfile.');
+  }
+
+  if (!/Status:\s*pass/i.test(input.implementation90LoadProfileArtifactSource)) {
+    details.push('docs/validation/implementation90-load-profile.md must show Status: pass.');
+  }
+
+  if (!/Target users per second:\s*5000/i.test(input.implementation90LoadProfileArtifactSource)) {
+    details.push('Implementation 90 generated artifact must show Target users per second: 5000.');
+  }
+
+  if (!/5000\+ users per second/i.test(input.implementation90ArchitectureSource)) {
+    details.push('Implementation 90 architecture must document 5000+ users per second.');
+  }
+
+  if (!/breach-resistant/i.test(input.implementation90ArchitectureSource)) {
+    details.push('Implementation 90 architecture must document the breach-resistant security model.');
+  }
+
+  if (!/reliability/i.test(input.implementation90ArchitectureSource) || !/maintainability/i.test(input.implementation90ArchitectureSource)) {
+    details.push('Implementation 90 architecture must document reliability and maintainability.');
+  }
+
+  if (!/database saturation/i.test(input.extremeScaleRunbookSource)) {
+    details.push('Extreme scale runbook must cover database saturation.');
+  }
+
+  if (!/Redis degradation/i.test(input.extremeScaleRunbookSource)) {
+    details.push('Extreme scale runbook must cover Redis degradation.');
+  }
+
+  if (!/queue backlog/i.test(input.extremeScaleRunbookSource)) {
+    details.push('Extreme scale runbook must cover queue backlog.');
+  }
+
+  if (!/lockdown mode/i.test(input.extremeScaleRunbookSource)) {
+    details.push('Extreme scale runbook must hand off to security lockdown mode.');
+  }
+
+  if (!/Rotate suspected secrets/i.test(input.securityLockdownRunbookSource)) {
+    details.push('Security lockdown runbook must cover rotating suspected secrets.');
+  }
+
+  if (!/Disable provider callbacks/i.test(input.securityLockdownRunbookSource)) {
+    details.push('Security lockdown runbook must cover provider callback shutdown.');
+  }
+
+  if (!/Preserve audit logs/i.test(input.securityLockdownRunbookSource)) {
+    details.push('Security lockdown runbook must cover preserving audit logs.');
+  }
+
+  return buildCheck(
+    'implementation90-extreme-scale-artifacts',
+    details,
+    'Implementation 90 extreme-scale, security, reliability, workflow, and generated evidence are release-gated.',
+  );
+}
+
 function checkStreamingUploadIngestion(
   controllerSources: Record<string, string>,
 ): ReleaseReadinessGateCheck {
@@ -537,6 +717,34 @@ function checkQueryPlanReviewCoverage(): ReleaseReadinessGateCheck {
     'query-plan-review-coverage',
     details,
     'Query plan reviews cover active search hotspots and exclude retired attendance surfaces.',
+  );
+}
+
+function checkQueryPlanReviewArtifact(source: string): ReleaseReadinessGateCheck {
+  const details: string[] = [];
+
+  if (!/# Query Plan Review/i.test(source)) {
+    details.push('docs/validation/query-plan-review.md must be generated.');
+  }
+
+  if (!/Status:\s*pass/i.test(source)) {
+    details.push('Query-plan review artifact must show Status: pass.');
+  }
+
+  for (const reviewId of ['students-directory-search', 'library-catalog-search', 'support-ticket-search']) {
+    if (!source.includes(reviewId)) {
+      details.push(`Query-plan review artifact must include ${reviewId}.`);
+    }
+  }
+
+  if (/Sequential scan on protected table/i.test(source)) {
+    details.push('Query-plan review artifact must not include protected table sequential-scan warnings.');
+  }
+
+  return buildCheck(
+    'query-plan-review-artifact',
+    details,
+    'Query-plan review artifact is generated, passing, and includes protected search hotspots.',
   );
 }
 
@@ -711,7 +919,7 @@ function checkReleaseScripts(packageJsonSource: string): ReleaseReadinessGateChe
   return buildCheck(
     'release-scripts',
     details,
-    'Release scripts include readiness, load, query-plan, provider-smoke, route-permission, export-queue, and report-snapshot checks.',
+    'Release scripts include readiness, load, query-plan, provider-smoke, Implementation 90, route-permission, export-queue, and report-snapshot checks.',
   );
 }
 

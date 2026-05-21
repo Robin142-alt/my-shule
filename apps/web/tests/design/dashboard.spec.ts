@@ -25,14 +25,14 @@ async function seedExperienceSession(
 }
 
 test.describe("experience dashboard quality", () => {
-  test("legacy dashboard routes redirect into the retired-route recovery page", async ({
+  test("legacy dashboard routes redirect into the permission recovery page", async ({
     page,
   }) => {
     await page.goto("http://127.0.0.1:3005/dashboard/admin");
 
     await expect(page).toHaveURL(/\/forbidden$/);
     await expect(
-      page.getByRole("heading", { name: /this route is no longer available/i }),
+      page.getByRole("heading", { name: /this action needs another permission/i }),
     ).toBeVisible();
   });
 
@@ -54,7 +54,7 @@ test.describe("experience dashboard quality", () => {
     await page.setViewportSize({ width: 1440, height: 1400 });
     await page.goto("http://barakaacademy.localhost:3005/dashboard");
 
-    const kpiLabel = page.getByText(/today's collections/i).first();
+    const kpiLabel = page.getByText(/live records/i).first();
     const recordPaymentAction = page.getByRole("link", {
       name: /record payment/i,
     }).first();
