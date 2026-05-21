@@ -105,6 +105,23 @@ describe("experience routing", () => {
     });
   });
 
+  test("rewrites unauthenticated school subdomain roots to the public tenant page", () => {
+    expect(
+      evaluateExperienceRouting({
+        host: "greenfield.myshule.online",
+        pathname: "/",
+        cookies: {},
+      }),
+    ).toEqual({
+      action: "next",
+      rewrittenPath: "/school/greenfield",
+      headers: {
+        "x-platform-experience": "school",
+        "x-tenant-slug": "greenfield",
+      },
+    });
+  });
+
   test("rewrites role dashboard aliases into internal school sections once authenticated", () => {
     expect(
       evaluateExperienceRouting({

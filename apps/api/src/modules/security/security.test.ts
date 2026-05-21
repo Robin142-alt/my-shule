@@ -343,6 +343,94 @@ test('RateLimitService treats MPESA callback aliases as provider callback traffi
   assert.equal(outcomes[1].allowed, false);
 });
 
+test('RateLimitService assigns isolated Implementation 90 rate-limit classes', async () => {
+  const requestContext = new RequestContextService();
+  const redisClient = new FakeRedisClient();
+  const service = new RateLimitService(
+    {
+      get: (key: string): number | undefined => {
+        if (key === 'security.rateLimitWindowSeconds') {
+          return 60;
+        }
+
+        if (key === 'security.publicReadRateLimitMaxRequests') {
+          return 500;
+        }
+
+        if (key === 'security.authenticatedReadRateLimitMaxRequests') {
+          return 300;
+        }
+
+        if (key === 'security.writeRateLimitMaxRequests') {
+          return 60;
+        }
+
+        if (key === 'security.adminRateLimitMaxRequests') {
+          return 20;
+        }
+
+        return 100;
+      },
+    } as never,
+    requestContext,
+    {
+      getClient: () => redisClient,
+    } as never,
+  );
+
+  const decisions = await requestContext.run(
+    {
+      request_id: 'req-rate-4',
+      tenant_id: 'tenant-a',
+      user_id: '00000000-0000-0000-0000-000000000001',
+      role: 'principal',
+      session_id: 'session-1',
+      permissions: ['students:read'],
+      is_authenticated: true,
+      client_ip: '127.0.0.1',
+      user_agent: 'test-suite',
+      method: 'GET',
+      path: '/students',
+      started_at: '2026-05-21T00:00:00.000Z',
+    },
+    async () => ({
+      publicRead: await service.evaluateRequest({
+        method: 'GET',
+        path: '/support/public/system-status',
+        originalUrl: '/support/public/system-status',
+        url: '/support/public/system-status',
+      } as never),
+      authenticatedRead: await service.evaluateRequest({
+        method: 'GET',
+        path: '/students',
+        originalUrl: '/students',
+        url: '/students',
+      } as never),
+      write: await service.evaluateRequest({
+        method: 'POST',
+        path: '/support/tickets',
+        originalUrl: '/support/tickets',
+        url: '/support/tickets',
+      } as never),
+      admin: await service.evaluateRequest({
+        method: 'POST',
+        path: '/admin-command/reindex',
+        originalUrl: '/admin-command/reindex',
+        url: '/admin-command/reindex',
+      } as never),
+    }),
+  );
+
+  assert.equal(decisions.publicRead.rate_limit_class, 'public_read');
+  assert.equal(decisions.publicRead.limit, 500);
+  assert.equal(decisions.authenticatedRead.rate_limit_class, 'authenticated_read');
+  assert.equal(decisions.authenticatedRead.limit, 300);
+  assert.equal(decisions.write.rate_limit_class, 'write');
+  assert.equal(decisions.write.limit, 60);
+  assert.equal(decisions.admin.rate_limit_class, 'admin');
+  assert.equal(decisions.admin.limit, 20);
+});
+
 test('FraudDetectionService emits a high-value audit alert', async () => {
   const redisClient = new FakeRedisClient();
   let capturedAuditEvent: Record<string, unknown> | null = null;

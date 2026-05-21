@@ -6,7 +6,7 @@ const demoLikeVisibleCopy = [
   /test account/i,
   /seeded account/i,
   /seeded credential/i,
-  /login as/i,
+  /login as\s+(demo|test|sample|fake|administrator|principal|teacher|student)/i,
   /(^|[^.\w])password\s*=\s*["'][^"']+/im,
   /school-workspace-code/i,
   /orders@example\.invalid/i,

@@ -52,6 +52,7 @@ const passingPackageJsonSource = JSON.stringify({
     'load:kenyan-school': 'node apps/api/test/kenyan-school-load.ts',
     'perf:query-plan-review': 'node apps/api/src/scripts/query-plan-review.ts',
     'load:core-api': 'node apps/api/src/scripts/core-api-load.ts',
+    'implementation90:load-profile': 'node apps/api/src/scripts/implementation90-load-profile.ts',
     'monitor:synthetic': 'node apps/api/src/scripts/synthetic-journey-monitor.ts',
     'dr:backup-restore': 'npm run test:backup-integrity && npm run test:disaster-recovery',
     'ops:incident-drill': 'node apps/api/src/scripts/incident-drill.ts',
@@ -141,6 +142,7 @@ test('generateProductionScorecard produces an audit-safe scorecard with implemen
 
   assert.equal(scorecard.generated_at, '2026-05-16T00:00:00.000Z');
   assert.equal(scorecard.categories.some((category) => category.id === 'provider-integrations'), true);
+  assert.equal(scorecard.categories.some((category) => category.id === 'implementation90-extreme-scale'), true);
   assert.equal(scorecard.categories.some((category) => category.id === 'visual-brand-trust'), true);
   assert.equal(scorecard.overall_score >= 90, true);
   assert.equal(JSON.stringify(scorecard).includes('live-api-key-secret'), false);
@@ -165,6 +167,7 @@ test('renderProductionScorecardMarkdown renders category evidence for CI artifac
 
   assert.match(markdown, /Production Readiness Scorecard/);
   assert.match(markdown, /Support and operations/);
+  assert.match(markdown, /Implementation 90 extreme scale and security/);
   assert.match(markdown, /Visual design and brand trust/);
   assert.equal(markdown.includes('| Area | Score | Target | Status | Evidence | Remediation |'), true);
 });

@@ -1,33 +1,27 @@
 import type { MetadataRoute } from "next";
 
-import { absoluteUrl, SITE_URL } from "@/lib/seo";
+import { absoluteUrl, publicSeoRoutes, SITE_URL } from "@/lib/seo/public-routes";
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const lastModified = new Date();
 
   return [
-    {
-      url: SITE_URL,
+    ...publicSeoRoutes.map((route) => ({
+      url: route.path === "/" ? `${SITE_URL}/` : absoluteUrl(route.path),
       lastModified,
-      changeFrequency: "weekly",
-      priority: 1,
-    },
+      changeFrequency: route.changeFrequency,
+      priority: route.priority,
+    })),
     {
       url: absoluteUrl("/parent/login"),
       lastModified,
-      changeFrequency: "monthly",
-      priority: 0.9,
+      changeFrequency: "weekly",
+      priority: 0.8,
     },
     {
       url: absoluteUrl("/school/login"),
       lastModified,
-      changeFrequency: "monthly",
-      priority: 0.85,
-    },
-    {
-      url: absoluteUrl("/login"),
-      lastModified,
-      changeFrequency: "monthly",
+      changeFrequency: "weekly",
       priority: 0.8,
     },
   ];

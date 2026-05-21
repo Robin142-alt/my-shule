@@ -1,3 +1,5 @@
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import { Client } from 'pg';
 
 export interface QueryPlanReview {
@@ -191,7 +193,7 @@ export const QUERY_PLAN_REVIEWS: readonly QueryPlanReview[] = [
       LIMIT 50
     `,
     parameters: ['tenant-a', '%math%'],
-    protectedTables: [],
+    protectedTables: ['library_catalog_items'],
   },
   {
     id: 'timetable-slot-lookup',
@@ -340,6 +342,65 @@ export async function runQueryPlanReview(
   };
 }
 
+export function renderQueryPlanReviewMarkdown(
+  result: QueryPlanReviewRunResult,
+  generatedAt = new Date().toISOString(),
+): string {
+  const lines = [
+    '# Query Plan Review',
+    '',
+    `Generated at: ${generatedAt}`,
+    '',
+    `Status: ${result.ok ? 'pass' : 'fail'}`,
+    '',
+    '## Reviewed Plans',
+    '',
+    '| Review | Description | Node Types | Warnings |',
+    '| --- | --- | --- | --- |',
+    ...result.results.map((review) => [
+      escapeMarkdownTableCell(review.id),
+      escapeMarkdownTableCell(review.description),
+      escapeMarkdownTableCell(review.nodeTypes.join(', ') || 'none'),
+      escapeMarkdownTableCell(review.warnings.length > 0 ? review.warnings.join('; ') : 'clear'),
+    ].join(' | ')).map((row) => `| ${row} |`),
+    '',
+  ];
+
+  return `${lines.join('\n')}\n`;
+}
+
+export function writeQueryPlanReviewArtifact(
+  result: QueryPlanReviewRunResult,
+  options: { workspaceRoot?: string; generatedAt?: string } = {},
+): string {
+  const workspaceRoot = options.workspaceRoot ?? process.cwd();
+  const outputPath = join(workspaceRoot, 'docs', 'validation', 'query-plan-review.md');
+  mkdirSync(dirname(outputPath), { recursive: true });
+  writeFileSync(outputPath, renderQueryPlanReviewMarkdown(result, options.generatedAt), 'utf8');
+  return outputPath;
+}
+
+export function resolveQueryPlanSslConfig(
+  env: Record<string, string | undefined>,
+  connectionString: string,
+): { rejectUnauthorized: boolean } | undefined {
+  const sslMode = readSslMode(connectionString);
+  const sslRequested = env.DATABASE_SSL?.toLowerCase() === 'true'
+    || sslMode === 'require'
+    || sslMode === 'verify-ca'
+    || sslMode === 'verify-full';
+
+  if (!sslRequested) {
+    return undefined;
+  }
+
+  return {
+    rejectUnauthorized: env.DATABASE_SSL_REJECT_UNAUTHORIZED?.toLowerCase() === 'false'
+      ? false
+      : true,
+  };
+}
+
 function extractPlanFromRows(rows: Array<Record<string, unknown>>): unknown {
   const rawPlan = rows[0]?.['QUERY PLAN'];
   if (Array.isArray(rawPlan)) {
@@ -393,6 +454,18 @@ function findSequentialScanWarnings(
   return warnings;
 }
 
+function readSslMode(connectionString: string): string | null {
+  try {
+    return new URL(connectionString).searchParams.get('sslmode')?.toLowerCase() ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function escapeMarkdownTableCell(value: string): string {
+  return value.replace(/\|/g, '\\|').replace(/\r?\n/g, ' ');
+}
+
 async function main(): Promise<void> {
   const connectionString = process.env.DATABASE_URL;
   if (!connectionString) {
@@ -403,7 +476,7 @@ async function main(): Promise<void> {
 
   const client = new Client({
     connectionString,
-    ssl: process.env.DATABASE_SSL === 'true' ? { rejectUnauthorized: false } : undefined,
+    ssl: resolveQueryPlanSslConfig(process.env, connectionString),
   });
 
   await client.connect();
@@ -417,8 +490,10 @@ async function main(): Promise<void> {
     });
 
     await client.query('COMMIT');
+    const artifactPath = writeQueryPlanReviewArtifact(result);
 
     process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+    process.stdout.write(`Query plan review artifact written to ${artifactPath}\n`);
 
     if (!result.ok) {
       process.exitCode = 1;

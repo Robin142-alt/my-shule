@@ -2,7 +2,7 @@ import { ImageResponse } from "next/og";
 
 import { SITE_DESCRIPTION, SITE_NAME } from "@/lib/seo";
 
-export const alt = "My Shule parent login and principal dashboard preview";
+export const alt = "MyShule Parent Portal, School Portal, and Dashboard";
 export const size = {
   width: 1200,
   height: 630,
@@ -18,41 +18,34 @@ export default function Image() {
           height: "100%",
           display: "flex",
           flexDirection: "column",
-          background: "#f6f8f7",
-          color: "#0f172a",
-          padding: "56px",
+          background: "#f8fafc",
+          color: "#0b1f3a",
+          padding: "58px",
           fontFamily: "Arial, sans-serif",
         }}
       >
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            width: "100%",
-          }}
-        >
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "18px" }}>
             <div
               style={{
                 display: "flex",
-                width: 58,
-                height: 58,
+                width: 62,
+                height: 62,
                 alignItems: "center",
                 justifyContent: "center",
-                borderRadius: 12,
-                background: "#047857",
+                borderRadius: 18,
+                background: "#0b1f3a",
                 color: "white",
-                fontSize: 30,
+                fontSize: 26,
                 fontWeight: 800,
               }}
             >
-              M
+              MS
             </div>
             <div style={{ display: "flex", flexDirection: "column" }}>
-              <div style={{ fontSize: 32, fontWeight: 800 }}>{SITE_NAME}</div>
-              <div style={{ color: "#047857", fontSize: 20, fontWeight: 700 }}>
-                Parent login + principal dashboard
+              <div style={{ fontSize: 34, fontWeight: 800 }}>{SITE_NAME}</div>
+              <div style={{ color: "#c2410c", fontSize: 20, fontWeight: 700 }}>
+                Parent Portal - School Portal - Dashboard
               </div>
             </div>
           </div>
@@ -60,31 +53,23 @@ export default function Image() {
             style={{
               display: "flex",
               borderRadius: 999,
-              background: "#d1fae5",
-              color: "#065f46",
+              background: "#fff7ed",
+              color: "#c2410c",
               padding: "12px 20px",
               fontSize: 20,
               fontWeight: 700,
             }}
           >
-            M-PESA + SMS reminders
+            myshule.online
           </div>
         </div>
 
-        <div
-          style={{
-            display: "flex",
-            flex: 1,
-            width: "100%",
-            alignItems: "center",
-            gap: "42px",
-          }}
-        >
+        <div style={{ display: "flex", flex: 1, alignItems: "center", gap: "42px" }}>
           <div style={{ display: "flex", width: "48%", flexDirection: "column" }}>
-            <div style={{ fontSize: 62, lineHeight: 1.05, fontWeight: 800 }}>
-              Best school ERP in Kenya
+            <div style={{ fontSize: 58, lineHeight: 1.04, fontWeight: 800 }}>
+              Structured institutional intelligence
             </div>
-            <div style={{ marginTop: 24, color: "#475569", fontSize: 24, lineHeight: 1.35 }}>
+            <div style={{ marginTop: 24, color: "#475569", fontSize: 23, lineHeight: 1.35 }}>
               {SITE_DESCRIPTION}
             </div>
           </div>
@@ -95,38 +80,17 @@ export default function Image() {
               width: "52%",
               flexDirection: "column",
               gap: "16px",
-              borderRadius: 24,
-              border: "1px solid #dbe5df",
+              borderRadius: 22,
+              border: "1px solid #e2e8f0",
               background: "#ffffff",
               padding: "24px",
               boxShadow: "0 24px 80px rgba(15,23,42,0.14)",
             }}
           >
-            <div style={{ display: "flex", gap: "12px" }}>
-              {["Parent", "School", "Dashboard"].map((label, index) => (
-                <div
-                  key={label}
-                  style={{
-                    display: "flex",
-                    flex: 1,
-                    flexDirection: "column",
-                    borderRadius: 14,
-                    background: index === 0 ? "#ecfdf5" : index === 1 ? "#eff6ff" : "#fff7ed",
-                    padding: "18px",
-                  }}
-                >
-                  <div style={{ color: "#64748b", fontSize: 16, fontWeight: 700 }}>{label}</div>
-                  <div style={{ marginTop: 14, fontSize: 30, fontWeight: 800 }}>
-                    {index === 0 ? "Fees" : index === 1 ? "SMS" : "Live"}
-                  </div>
-                </div>
-              ))}
-            </div>
             {[
-              ["Parent portal", "Fee balance, grade, discipline"],
-              ["SMS fee reminders", "Queued before arrears grow"],
-              ["Principal insights", "Fees, CBC, clinic, discipline"],
-              ["School login", "One dashboard for decisions"],
+              ["Parent Portal", "Student life visibility"],
+              ["School Portal", "Centralized control"],
+              ["Dashboard", "Operational insights"],
             ].map(([label, value]) => (
               <div
                 key={label}
@@ -134,14 +98,14 @@ export default function Image() {
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "space-between",
-                  borderRadius: 14,
-                  border: "1px solid #e2e8f0",
-                  padding: "16px 18px",
-                  fontSize: 20,
+                  borderRadius: 16,
+                  background: "#f8fafc",
+                  padding: "22px",
+                  fontSize: 22,
                 }}
               >
-                <span style={{ color: "#0f172a", fontWeight: 700 }}>{label}</span>
-                <span style={{ color: "#047857", fontWeight: 700 }}>{value}</span>
+                <span style={{ color: "#0b1f3a", fontWeight: 800 }}>{label}</span>
+                <span style={{ color: "#c2410c", fontWeight: 700 }}>{value}</span>
               </div>
             ))}
           </div>

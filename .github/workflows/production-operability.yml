@@ -23,6 +23,7 @@ on:
           - maintainability
           - readiness
           - implementation30
+          - implementation90
           - scorecard
           - pilot
           - security
@@ -122,6 +123,10 @@ jobs:
           npm run implementation30:load-profile
           npm run module-access:certify
 
+      - name: Implementation 90 load profile
+        if: github.event.inputs.check == 'all' || github.event.inputs.check == 'implementation90' || github.event.schedule == '33 2 * * *'
+        run: npm run implementation90:load-profile > production-implementation90-load-profile.txt
+
       - name: Pilot workflow certification
         if: github.event.inputs.check == 'all' || github.event.inputs.check == 'pilot' || github.event.schedule == '33 2 * * *'
         env:
@@ -179,6 +184,8 @@ jobs:
             docs/validation/implementation30-certification.md
             docs/validation/implementation30-load-profile.md
             docs/validation/implementation30-rollout-gate.md
+            docs/validation/implementation90-load-profile.md
+            docs/validation/query-plan-review.md
             docs/validation/module-access-certification.md
             docs/security/implementation10-threat-model.md
             docs/security/implementation10-security-audit.md

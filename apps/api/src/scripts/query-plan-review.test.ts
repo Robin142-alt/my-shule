@@ -4,9 +4,15 @@ import { test } from 'node:test';
 import {
   collectPlanNodeTypes,
   QUERY_PLAN_REVIEWS,
+  renderQueryPlanReviewMarkdown,
+  resolveQueryPlanSslConfig,
   runQueryPlanReview,
   validateQueryPlanReviews,
 } from './query-plan-review';
+import {
+  buildQueryPlanReviewLocalFixtureSql,
+  QUERY_PLAN_REVIEW_LOCAL_FIXTURE_TABLES,
+} from './query-plan-review-local-fixture';
 
 test('query plan reviews cover active search hotspots and exclude retired attendance', () => {
   const reviewIds = QUERY_PLAN_REVIEWS.map((review) => review.id);
@@ -23,6 +29,10 @@ test('query plan reviews cover active search hotspots and exclude retired attend
   assert.ok(reviewIds.includes('timetable-slot-lookup'));
   assert.ok(reviewIds.includes('support-ticket-search'));
   assert.equal(reviewIds.some((id) => id.includes('attendance')), false);
+  assert.deepEqual(
+    QUERY_PLAN_REVIEWS.find((review) => review.id === 'library-catalog-search')?.protectedTables,
+    ['library_catalog_items'],
+  );
   assert.deepEqual(validateQueryPlanReviews(QUERY_PLAN_REVIEWS), []);
 });
 
@@ -134,4 +144,92 @@ test('runQueryPlanReview passes index-backed plans', async () => {
     'Bitmap Heap Scan',
     'Bitmap Index Scan',
   ]);
+});
+
+test('resolveQueryPlanSslConfig verifies database TLS by default', () => {
+  assert.deepEqual(
+    resolveQueryPlanSslConfig({ DATABASE_SSL: 'true' }, 'postgresql://db.example.test/app'),
+    { rejectUnauthorized: true },
+  );
+  assert.deepEqual(
+    resolveQueryPlanSslConfig({}, 'postgresql://db.example.test/app?sslmode=require'),
+    { rejectUnauthorized: true },
+  );
+  assert.deepEqual(
+    resolveQueryPlanSslConfig(
+      { DATABASE_SSL: 'true', DATABASE_SSL_REJECT_UNAUTHORIZED: 'false' },
+      'postgresql://localhost/app',
+    ),
+    { rejectUnauthorized: false },
+  );
+  assert.equal(
+    resolveQueryPlanSslConfig({}, 'postgresql://localhost/app'),
+    undefined,
+  );
+});
+
+test('renderQueryPlanReviewMarkdown records durable pass and warning evidence', () => {
+  const markdown = renderQueryPlanReviewMarkdown({
+    ok: false,
+    results: [
+      {
+        id: 'students-directory-search',
+        description: 'Student directory search should use the student full-text index.',
+        nodeTypes: ['Limit', 'Index Scan'],
+        warnings: [],
+      },
+      {
+        id: 'library-catalog-search',
+        description: 'Library catalog lookup remains tenant scoped.',
+        nodeTypes: ['Seq Scan'],
+        warnings: ['Sequential scan on protected table library_catalog_items.'],
+      },
+    ],
+  }, '2026-05-21T00:00:00.000Z');
+
+  assert.match(markdown, /# Query Plan Review/);
+  assert.match(markdown, /Status: fail/);
+  assert.match(markdown, /students-directory-search/);
+  assert.match(markdown, /library_catalog_items/);
+  assert.match(markdown, /Sequential scan on protected table library_catalog_items/);
+});
+
+test('local query-plan fixture creates every reviewed table and protected-table index', () => {
+  const fixtureSql = buildQueryPlanReviewLocalFixtureSql();
+  const fixtureTables = new Set(QUERY_PLAN_REVIEW_LOCAL_FIXTURE_TABLES.map((table) => table.name));
+
+  for (const tableName of [
+    'students',
+    'admission_applications',
+    'inventory_items',
+    'teacher_subject_assignments',
+    'exam_marks',
+    'student_fee_payment_allocations',
+    'support_status_subscriptions',
+    'staff_profiles',
+    'library_catalog_items',
+    'timetable_slots',
+    'support_tickets',
+    'discipline_incidents',
+    'counselling_sessions',
+  ]) {
+    assert.equal(fixtureTables.has(tableName), true, `${tableName} must be in the local fixture`);
+    assert.match(
+      fixtureSql,
+      new RegExp(`CREATE TABLE IF NOT EXISTS ${tableName}\\b`),
+      `${tableName} must be created`,
+    );
+  }
+
+  for (const review of QUERY_PLAN_REVIEWS) {
+    for (const protectedTable of review.protectedTables) {
+      assert.match(
+        fixtureSql,
+        new RegExp(`CREATE INDEX IF NOT EXISTS [\\s\\S]+${protectedTable}`),
+        `${protectedTable} must have an index in the local fixture`,
+      );
+    }
+  }
+
+  assert.doesNotMatch(fixtureSql, /attendance/i);
 });

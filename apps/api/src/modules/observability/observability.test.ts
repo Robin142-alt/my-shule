@@ -214,3 +214,14 @@ test('production observability catalog covers Kenyan school operating dashboards
   assert.equal(PRODUCTION_SYNTHETIC_CHECKS.some((check) => check.id === 'parent-report-card-download'), true);
   assert.equal(PRODUCTION_SYNTHETIC_CHECKS.some((check) => check.id === 'principal-dashboard-load'), true);
 });
+
+test('production observability catalog covers Implementation 90 extreme-scale and lockdown signals', () => {
+  assert.deepEqual(validateProductionObservabilityCatalog(), []);
+  assert.equal(PRODUCTION_OBSERVABILITY_DASHBOARDS.some((dashboard) => dashboard.id === 'implementation90-extreme-scale'), true);
+  assert.equal(PRODUCTION_OBSERVABILITY_DASHBOARDS.some((dashboard) => dashboard.id === 'implementation90-security-lockdown'), true);
+  assert.equal(PRODUCTION_ALERT_POLICIES.some((alert) => alert.id === 'implementation90-database-saturation'), true);
+  assert.equal(PRODUCTION_ALERT_POLICIES.some((alert) => alert.id === 'implementation90-redis-degradation'), true);
+  assert.equal(PRODUCTION_ALERT_POLICIES.some((alert) => alert.runbook === 'docs/runbooks/extreme-scale-incident.md'), true);
+  assert.equal(PRODUCTION_ALERT_POLICIES.some((alert) => alert.runbook === 'docs/runbooks/security-lockdown-mode.md'), true);
+  assert.equal(PRODUCTION_SYNTHETIC_CHECKS.some((check) => check.id === 'implementation90-parent-mobile-speed'), true);
+});

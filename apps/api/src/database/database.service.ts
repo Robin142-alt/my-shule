@@ -314,6 +314,8 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
           'debug',
         );
       }
+      this.recordPoolWaitingClients();
+      this.recordQueryTimeoutBudget(statementType, queryFingerprint, durationMs);
 
       return result;
     } catch (error) {
@@ -339,9 +341,55 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
         'error',
         error instanceof Error ? error.stack : undefined,
       );
+      this.recordPoolWaitingClients();
+      this.recordQueryTimeoutBudget(statementType, queryFingerprint, durationMs);
 
       throw error;
     }
+  }
+
+  private recordPoolWaitingClients(): void {
+    const waitingClients = this.pool.waitingCount;
+
+    if (waitingClients <= 0) {
+      return;
+    }
+
+    this.getStructuredLoggerService()?.logEvent(
+      'database.pool.waiting_clients',
+      {
+        waiting_clients: waitingClients,
+        ...this.getPoolMetrics(),
+      },
+      'warn',
+    );
+  }
+
+  private recordQueryTimeoutBudget(
+    statementType: string,
+    queryFingerprint: string,
+    durationMs: number,
+  ): void {
+    const statementTimeoutMs = Number(
+      this.moduleRef
+        .get(ConfigService, { strict: false })
+        ?.get<number>('database.statementTimeoutMs') ?? 5000,
+    );
+
+    if (durationMs < statementTimeoutMs) {
+      return;
+    }
+
+    this.getStructuredLoggerService()?.logEvent(
+      'database.query.timeout',
+      {
+        db_statement_type: statementType,
+        db_query_fingerprint: queryFingerprint,
+        duration_ms: Number(durationMs.toFixed(2)),
+        statementTimeoutMs,
+      },
+      'warn',
+    );
   }
 
   private getStructuredLoggerService(): StructuredLoggerService | undefined {

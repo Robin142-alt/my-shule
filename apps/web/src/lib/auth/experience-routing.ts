@@ -483,6 +483,14 @@ export function evaluateExperienceRouting(input: {
     };
   }
 
+  if (experience === "school" && input.pathname === "/" && !session && resolution.tenantSlug) {
+    return {
+      action: "next",
+      headers,
+      rewrittenPath: `/school/${resolution.tenantSlug}`,
+    };
+  }
+
   if (input.pathname === "/") {
     return {
       action: "redirect",

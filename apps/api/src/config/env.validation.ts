@@ -184,10 +184,63 @@ function validateProductionEnv(env: Record<string, unknown>): string[] {
     getString(env, 'MPESA_TRANSACTION_STATUS_SECURITY_CREDENTIAL'),
     errors,
   );
+  validateImplementation90ProductionEnv(env, errors);
   validateProductionPiiEncryption(env, errors);
   validateProductionKmsConfig(env, errors);
 
   return errors;
+}
+
+function validateImplementation90ProductionEnv(
+  env: Record<string, unknown>,
+  errors: string[],
+): void {
+  const lockdownBypassSecret = getString(env, 'SECURITY_LOCKDOWN_BYPASS_SECRET');
+
+  if (lockdownBypassSecret) {
+    validateProductionSecretWithMessages(
+      lockdownBypassSecret,
+      'Implementation 90 lockdown bypass secret must be at least 32 characters in production',
+      'Implementation 90 lockdown bypass secret must be a strong production secret',
+      errors,
+    );
+  }
+
+  validateProductionIntegerRange(
+    'SECURITY_PUBLIC_READ_RATE_LIMIT_MAX_REQUESTS',
+    getString(env, 'SECURITY_PUBLIC_READ_RATE_LIMIT_MAX_REQUESTS') || '500',
+    1,
+    5000,
+    errors,
+  );
+  validateProductionIntegerRange(
+    'SECURITY_AUTHENTICATED_READ_RATE_LIMIT_MAX_REQUESTS',
+    getString(env, 'SECURITY_AUTHENTICATED_READ_RATE_LIMIT_MAX_REQUESTS') || '300',
+    1,
+    3000,
+    errors,
+  );
+  validateProductionIntegerRange(
+    'SECURITY_WRITE_RATE_LIMIT_MAX_REQUESTS',
+    getString(env, 'SECURITY_WRITE_RATE_LIMIT_MAX_REQUESTS') || '60',
+    1,
+    1000,
+    errors,
+  );
+  validateProductionIntegerRange(
+    'SECURITY_ADMIN_RATE_LIMIT_MAX_REQUESTS',
+    getString(env, 'SECURITY_ADMIN_RATE_LIMIT_MAX_REQUESTS') || '20',
+    1,
+    200,
+    errors,
+  );
+
+  const targetUsersPerSecond = Number(
+    getString(env, 'IMPLEMENTATION90_TARGET_USERS_PER_SECOND') || '5000',
+  );
+  if (!Number.isInteger(targetUsersPerSecond) || targetUsersPerSecond < 5000) {
+    errors.push('IMPLEMENTATION90_TARGET_USERS_PER_SECOND must be at least 5000 in production');
+  }
 }
 
 function validateSupportSmsEnv(env: Record<string, unknown>): string[] {
@@ -473,6 +526,22 @@ function validateProductionSecret(
 
   if (/^(replace-with|change-me|changeme|example|default)/i.test(value)) {
     errors.push(`${name} must be a strong production secret`);
+  }
+}
+
+function validateProductionSecretWithMessages(
+  value: string,
+  shortMessage: string,
+  weakMessage: string,
+  errors: string[],
+): void {
+  if (value.length < 32) {
+    errors.push(shortMessage);
+    return;
+  }
+
+  if (/^(replace-with|change-me|changeme|example|default)/i.test(value)) {
+    errors.push(weakMessage);
   }
 }
 

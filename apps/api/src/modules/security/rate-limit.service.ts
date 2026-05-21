@@ -10,6 +10,7 @@ interface RateLimitPolicy {
   bucket: string;
   max_requests: number;
   window_seconds: number;
+  rate_limit_class: RateLimitClass;
 }
 
 export interface RateLimitDecision {
@@ -21,7 +22,17 @@ export interface RateLimitDecision {
   route_key: string;
   actor_key: string;
   total_hits: number;
+  rate_limit_class: RateLimitClass;
 }
+
+export type RateLimitClass =
+  | 'public_read'
+  | 'authenticated_read'
+  | 'write'
+  | 'auth'
+  | 'payment_callback'
+  | 'sync'
+  | 'admin';
 
 @Injectable()
 export class RateLimitService {
@@ -34,7 +45,8 @@ export class RateLimitService {
   async evaluateRequest(request: Request): Promise<RateLimitDecision> {
     const requestContext = this.requestContext.requireStore();
     const routeKey = this.resolveRouteKey(request);
-    const policy = this.resolvePolicy(routeKey);
+    const rateLimitClass = this.resolveRateLimitClass(request, routeKey);
+    const policy = this.resolvePolicy(routeKey, rateLimitClass);
     const tenantId = requestContext.tenant_id ?? 'anonymous';
     const actorKey =
       requestContext.user_id && requestContext.user_id !== AUTH_ANONYMOUS_USER_ID
@@ -71,10 +83,11 @@ export class RateLimitService {
       route_key: routeKey,
       actor_key: actorKey,
       total_hits: totalHits,
+      rate_limit_class: policy.rate_limit_class,
     };
   }
 
-  private resolvePolicy(routeKey: string): RateLimitPolicy {
+  private resolvePolicy(routeKey: string, rateLimitClass: RateLimitClass): RateLimitPolicy {
     const windowSeconds = Number(
       this.configService.get<number>('security.rateLimitWindowSeconds') ?? 60,
     );
@@ -89,6 +102,7 @@ export class RateLimitService {
           this.configService.get<number>('security.authSessionRateLimitMaxRequests') ?? 10,
         ),
         window_seconds: windowSeconds,
+        rate_limit_class: 'auth',
       };
     }
 
@@ -99,6 +113,7 @@ export class RateLimitService {
           this.configService.get<number>('security.authRecoveryRateLimitMaxRequests') ?? 5,
         ),
         window_seconds: windowSeconds,
+        rate_limit_class: 'auth',
       };
     }
 
@@ -109,6 +124,7 @@ export class RateLimitService {
           this.configService.get<number>('security.parentOtpRateLimitMaxRequests') ?? 5,
         ),
         window_seconds: windowSeconds,
+        rate_limit_class: 'auth',
       };
     }
 
@@ -119,6 +135,7 @@ export class RateLimitService {
           this.configService.get<number>('security.authRateLimitMaxRequests') ?? 20,
         ),
         window_seconds: windowSeconds,
+        rate_limit_class: 'auth',
       };
     }
 
@@ -129,6 +146,51 @@ export class RateLimitService {
           this.configService.get<number>('security.mpesaCallbackRateLimitMaxRequests') ?? 60,
         ),
         window_seconds: windowSeconds,
+        rate_limit_class: 'payment_callback',
+      };
+    }
+
+    if (rateLimitClass === 'public_read') {
+      return {
+        bucket: rateLimitClass,
+        max_requests: Number(
+          this.configService.get<number>('security.publicReadRateLimitMaxRequests') ?? 500,
+        ),
+        window_seconds: windowSeconds,
+        rate_limit_class: rateLimitClass,
+      };
+    }
+
+    if (rateLimitClass === 'authenticated_read') {
+      return {
+        bucket: rateLimitClass,
+        max_requests: Number(
+          this.configService.get<number>('security.authenticatedReadRateLimitMaxRequests') ?? 300,
+        ),
+        window_seconds: windowSeconds,
+        rate_limit_class: rateLimitClass,
+      };
+    }
+
+    if (rateLimitClass === 'write') {
+      return {
+        bucket: rateLimitClass,
+        max_requests: Number(
+          this.configService.get<number>('security.writeRateLimitMaxRequests') ?? 60,
+        ),
+        window_seconds: windowSeconds,
+        rate_limit_class: rateLimitClass,
+      };
+    }
+
+    if (rateLimitClass === 'admin') {
+      return {
+        bucket: rateLimitClass,
+        max_requests: Number(
+          this.configService.get<number>('security.adminRateLimitMaxRequests') ?? 20,
+        ),
+        window_seconds: windowSeconds,
+        rate_limit_class: rateLimitClass,
       };
     }
 
@@ -136,7 +198,45 @@ export class RateLimitService {
       bucket: routeKey,
       max_requests: defaultMaxRequests,
       window_seconds: windowSeconds,
+      rate_limit_class: rateLimitClass,
     };
+  }
+
+  private resolveRateLimitClass(request: Request, routeKey: string): RateLimitClass {
+    if (routeKey.startsWith('auth')) {
+      return 'auth';
+    }
+
+    if (routeKey === 'mpesa-callback') {
+      return 'payment_callback';
+    }
+
+    if (routeKey === 'sync') {
+      return 'sync';
+    }
+
+    const path = (request.path || request.originalUrl || request.url).toLowerCase();
+
+    if (
+      path.startsWith('/admin-command')
+      || path.startsWith('/internal')
+      || path.startsWith('/platform')
+      || path.startsWith('/superadmin')
+    ) {
+      return 'admin';
+    }
+
+    const method = (request.method ?? this.requestContext.getStore()?.method ?? '').toUpperCase();
+
+    if (method === 'GET' || method === 'HEAD') {
+      if (path.startsWith('/support/public') || path.startsWith('/health') || path.startsWith('/status')) {
+        return 'public_read';
+      }
+
+      return 'authenticated_read';
+    }
+
+    return 'write';
   }
 
   private resolveRouteKey(request: Request): string {

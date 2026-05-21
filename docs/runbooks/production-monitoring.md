@@ -1,6 +1,6 @@
 # Production Monitoring Runbook
 
-Implementation 7 uses scheduled, read-safe production probes to catch provider, workflow, query, and release-regression failures before schools report them.
+Production monitoring uses scheduled, read-safe probes to catch provider, workflow, query, scale, and release-regression failures before schools report them.
 
 ## Schedule
 
@@ -12,6 +12,8 @@ Implementation 7 uses scheduled, read-safe production probes to catch provider, 
 | Query-plan review | Nightly | `npm run perf:query-plan-review` | Production database URL |
 | Maintainability scan | Nightly and manual | `npm run maintainability:scan` | None |
 | Release readiness | Nightly and manual | `npm run release:readiness` | None |
+| Implementation 90 load profile | Nightly and manual | `npm run implementation90:load-profile` | None for static gate; production-like load evidence belongs in the release artifact |
+| Implementation 90 full release gate | Before production promotion | `npm run implementation90:full-release-gate` | Production-like DB URL for query-plan review plus integration-test dependencies |
 | Backup restore verification | Weekly and manual | `npm run dr:backup-restore` | DR database URL only |
 | Incident drill validation | Weekly and manual | `npm run ops:incident-drill -- --dry-run` | None |
 
@@ -88,11 +90,12 @@ Open the `Production Operability` workflow and run one check at a time:
 - `providers`
 - `query-plan`
 - `readiness`
+- `implementation90`
 - `all`
 - `backup-restore`
 - `incident-drill`
 
-Use `all` before production promotion. Use individual checks while triaging to avoid noisy unrelated failures.
+Use `all` before production promotion, then run `npm run implementation90:full-release-gate` locally or in the release environment to prove the full final command group. Use individual checks while triaging to avoid noisy unrelated failures.
 
 ## Alert Routing
 
@@ -102,6 +105,7 @@ Every production alert must route to a real owner before the workflow is conside
 |---|---|---|---|---:|
 | Synthetic journey failure | Support lead | GitHub Actions notification and support operations inbox | Platform owner | 15 minutes |
 | Core API load breach | Engineering owner | GitHub Actions notification and engineering operations inbox | Platform owner | 15 minutes |
+| Implementation 90 budget breach | Engineering owner | GitHub Actions notification and engineering operations inbox | Platform owner | 15 minutes |
 | Provider smoke failure | Platform owner | GitHub Actions notification and support operations inbox | Support lead | 15 minutes |
 | Query-plan regression | Engineering owner | GitHub Actions notification and engineering operations inbox | Platform owner | 1 business day |
 | Backup restore failure | Engineering owner | GitHub Actions notification and platform owner inbox | Platform owner | 30 minutes |
@@ -121,6 +125,7 @@ Manual verification:
 - Provider smoke failure: check whether the failure is email, SMS, malware scanner, or object storage. Do not disable required provider flags to hide a broken dependency.
 - Query-plan failure: review the reported query and index recommendation. Treat tenant-wide scans on operational tables as release blockers.
 - Maintainability gate failure: fix the listed source file before release. The gate blocks internal UUID copy in school workflows, public status fallback telemetry that looks unfinished, and generated browser artifacts in review scope.
+- Implementation 90 gate failure: fix the failed scale, security, reliability, or runbook evidence before release. Do not raise public launch traffic until `npm run implementation90:load-profile`, `npm run perf:query-plan-review`, and `npm run implementation90:full-release-gate` are passing with production-like evidence attached.
 - Release readiness failure: treat the missing artifact or gate failure as a code release issue, not an infrastructure incident.
 
 ## Maintainability Gate

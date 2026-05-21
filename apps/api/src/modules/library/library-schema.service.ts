@@ -23,6 +23,8 @@ export class LibrarySchemaService implements OnModuleInit {
 
   async onModuleInit(): Promise<void> {
     await this.databaseService.runSchemaBootstrap(`
+      CREATE EXTENSION IF NOT EXISTS pg_trgm;
+
       CREATE TABLE IF NOT EXISTS library_catalog_items (
         id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
         tenant_id text NOT NULL,
@@ -141,6 +143,12 @@ export class LibrarySchemaService implements OnModuleInit {
 
       CREATE INDEX IF NOT EXISTS ix_library_copies_tenant_accession
         ON library_copies (tenant_id, accession_number);
+
+      CREATE INDEX IF NOT EXISTS ix_library_catalog_items_title_trgm
+        ON library_catalog_items USING GIN (lower(title) gin_trgm_ops);
+
+      CREATE INDEX IF NOT EXISTS ix_library_catalog_items_tenant_title
+        ON library_catalog_items (tenant_id, title);
 
       CREATE INDEX IF NOT EXISTS ix_library_borrowers_tenant_scan_code
         ON library_borrowers (tenant_id, scan_code)
