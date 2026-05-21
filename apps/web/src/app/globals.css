@@ -3,28 +3,34 @@
 /* ─── Design Tokens ──────────────────────────────────────────────── */
 :root {
   /* Surfaces */
-  --background: #f8fafc;
-  --foreground: #0f172a;
+  --background: #f3f4f6;
+  --foreground: #0f2345;
   --surface: #ffffff;
   --surface-muted: #f8fafc;
-  --surface-strong: #f1f5f9;
+  --surface-strong: #e5e7eb;
 
   /* Borders */
-  --border: #e2e8f0;
-  --border-strong: #cbd5e1;
+  --border: #d9dee8;
+  --border-strong: #b9c2d3;
 
-  /* Accent — Emerald */
-  --accent: #059669;
-  --accent-hover: #047857;
-  --accent-soft: #d1fae5;
-  --accent-ghost: rgba(5, 150, 105, 0.06);
-  --accent-muted: rgba(5, 150, 105, 0.12);
+  /* Primary - Implementation 100 navy */
+  --primary: #071d49;
+  --primary-hover: #0b234f;
+  --primary-soft: rgba(7, 29, 73, 0.08);
+  --primary-muted: rgba(7, 29, 73, 0.14);
+
+  /* Accent - Implementation 100 orange */
+  --accent: #ff7a1a;
+  --accent-hover: #e8660d;
+  --accent-soft: rgba(255, 122, 26, 0.12);
+  --accent-ghost: rgba(255, 122, 26, 0.08);
+  --accent-muted: rgba(255, 122, 26, 0.2);
 
   /* Semantic */
   --danger: #dc2626;
   --danger-hover: #b91c1c;
   --danger-soft: #fee2e2;
-  --warning: #ea580c;
+  --warning: #f59e0b;
   --warning-soft: #fff7ed;
   --success: #059669;
   --success-soft: #d1fae5;
@@ -32,12 +38,12 @@
   --info-soft: #dbeafe;
 
   /* Text */
-  --muted: #64748b;
-  --muted-strong: #475569;
+  --muted: #5d6b82;
+  --muted-strong: #374761;
 
   /* Sidebar */
-  --sidebar: #ffffff;
-  --sidebar-foreground: #0f172a;
+  --sidebar: #071d49;
+  --sidebar-foreground: #ffffff;
 
   /* Elevation */
   --shadow-xs: 0 1px 2px rgba(15, 23, 42, 0.03);
@@ -93,6 +99,10 @@
   --color-surface-strong: var(--surface-strong);
   --color-border: var(--border);
   --color-border-strong: var(--border-strong);
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-soft: var(--primary-soft);
+  --color-primary-muted: var(--primary-muted);
   --color-accent: var(--accent);
   --color-accent-hover: var(--accent-hover);
   --color-accent-soft: var(--accent-soft);
@@ -153,7 +163,7 @@ textarea {
 }
 
 ::selection {
-  background: rgba(5, 150, 105, 0.15);
+  background: rgba(255, 122, 26, 0.18);
 }
 
 /* ─── Dashboard Card ──────────────────────────────────────────────── */

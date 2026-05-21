@@ -48,8 +48,18 @@ import { ModuleAccessModule } from './modules/module-access/module-access.module
 import { ModuleAccessGuard } from './modules/module-access/module-access.guard';
 import { LabsModule } from './modules/labs/labs.module';
 import { AdminCommandModule } from './modules/admin-command/admin-command.module';
+import { AiInsightsModule } from './modules/ai-insights/ai-insights.module';
+import { AssetsModule } from './modules/assets/assets.module';
 import { BiometricAttendanceModule } from './modules/biometric-attendance/biometric-attendance.module';
+import { BoardingModule } from './modules/boarding/boarding.module';
+import { CbtModule } from './modules/cbt/cbt.module';
 import { ClinicModule } from './modules/clinic/clinic.module';
+import { HostelModule } from './modules/hostel/hostel.module';
+import { IotModule } from './modules/iot/iot.module';
+import { LmsModule } from './modules/lms/lms.module';
+import { ProcurementModule } from './modules/procurement/procurement.module';
+import { TransportModule } from './modules/transport/transport.module';
+import { VisitorsModule } from './modules/visitors/visitors.module';
 
 @Module({
   imports: [
@@ -85,11 +95,21 @@ import { ClinicModule } from './modules/clinic/clinic.module';
     DisciplineModule,
     LabsModule,
     AdminCommandModule,
+    AiInsightsModule,
+    AssetsModule,
     BiometricAttendanceModule,
+    BoardingModule,
+    CbtModule,
     FinanceModule,
+    HostelModule,
+    IotModule,
+    LmsModule,
     SyncModule,
     StudentsModule,
     ClinicModule,
+    ProcurementModule,
+    TransportModule,
+    VisitorsModule,
     PaymentsModule,
     BillingModule,
     ComplianceModule,

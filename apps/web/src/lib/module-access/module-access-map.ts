@@ -27,7 +27,8 @@ export type SchoolModuleCode =
   | "lms"
   | "ai_insights"
   | "visitor_management"
-  | "asset_tracking";
+  | "asset_tracking"
+  | "iot";
 
 export type ModuleRegistryItem = {
   code: SchoolModuleCode | string;
@@ -37,6 +38,41 @@ export type ModuleRegistryItem = {
   base_price_cents?: number;
   per_student_price_cents?: number;
 };
+
+export const implementation100ModuleCodes: SchoolModuleCode[] = [
+  "students",
+  "admissions",
+  "academics",
+  "finance",
+  "exams",
+  "discipline",
+  "timetable",
+  "lab_management",
+  "teacher_biometric_attendance",
+  "parent_portal",
+  "inventory",
+  "library",
+  "transport",
+  "communication_sms",
+  "reports",
+  "staff",
+  "admin_command_centers",
+  "principal_dashboard",
+  "clinic_health",
+  "procurement",
+  "hostel",
+  "boarding",
+  "cbt_exams",
+  "lms",
+  "ai_insights",
+  "visitor_management",
+  "asset_tracking",
+];
+
+export const implementation101ModuleCodes: SchoolModuleCode[] = [
+  ...implementation100ModuleCodes,
+  "iot",
+];
 
 export const defaultOnboardingModuleCodes: SchoolModuleCode[] = [
   "students",
@@ -189,6 +225,11 @@ export const fallbackModuleCatalog: ModuleRegistryItem[] = [
     name: "Asset Tracking",
     description: "School assets, assignments, repairs, depreciation, and utilization reporting.",
   },
+  {
+    code: "iot",
+    name: "IoT and Smart Campus",
+    description: "Device registry, telemetry ingestion, smart campus alerts, and command dispatch.",
+  },
 ];
 
 const schoolSectionModuleMap: Record<string, SchoolModuleCode | null> = {
@@ -202,6 +243,16 @@ const schoolSectionModuleMap: Record<string, SchoolModuleCode | null> = {
   discipline: "discipline",
   reports: "reports",
   communication: "communication_sms",
+  transport: "transport",
+  procurement: "procurement",
+  hostel: "hostel",
+  boarding: "boarding",
+  cbt: "cbt_exams",
+  lms: "lms",
+  "ai-insights": "ai_insights",
+  visitors: "visitor_management",
+  assets: "asset_tracking",
+  iot: "iot",
   timetable: "timetable",
   staff: "staff",
   inventory: "inventory",

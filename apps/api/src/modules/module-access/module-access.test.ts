@@ -58,6 +58,7 @@ test('module registry supports clinic, procurement, principal analytics, and arb
     'ai_insights',
     'visitor_management',
     'asset_tracking',
+    'iot',
   ] as const) {
     assert.ok(codes.includes(code), `${code} missing from module registry`);
   }
