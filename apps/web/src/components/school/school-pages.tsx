@@ -9,8 +9,18 @@ import { DisciplineWorkspace } from "@/components/discipline/discipline-workspac
 import { MetricGrid } from "@/components/experience/metric-grid";
 import { QuickActionBar } from "@/components/experience/quick-action-bar";
 import { AdmissionsModuleScreen } from "@/components/modules/admissions/admissions-module-screen";
+import { AiInsightsModuleScreen } from "@/components/modules/ai-insights/ai-insights-module-screen";
+import { AssetTrackingModuleScreen } from "@/components/modules/assets/asset-tracking-module-screen";
+import { BoardingModuleScreen } from "@/components/modules/boarding/boarding-module-screen";
+import { CbtModuleScreen } from "@/components/modules/cbt/cbt-module-screen";
 import { ExamsModuleScreen } from "@/components/modules/exams/exams-module-screen";
+import { HostelModuleScreen } from "@/components/modules/hostel/hostel-module-screen";
 import { InventoryModuleScreen } from "@/components/modules/inventory/inventory-module-screen";
+import { IotModuleScreen } from "@/components/modules/iot/iot-module-screen";
+import { LmsModuleScreen } from "@/components/modules/lms/lms-module-screen";
+import { ProcurementModuleScreen } from "@/components/modules/procurement/procurement-module-screen";
+import { TransportModuleScreen } from "@/components/modules/transport/transport-module-screen";
+import { VisitorManagementModuleScreen } from "@/components/modules/visitors/visitor-management-module-screen";
 import { ErpShell } from "@/components/school/erp-shell";
 import { UserManagementPanel } from "@/components/school/user-management-panel";
 import { SupportCenterWorkspace } from "@/components/support/support-center-workspace";
@@ -5100,6 +5110,36 @@ export function SchoolPages({
       {!studentId && section === "academics" ? <SchoolAcademicsPage role={role} tenantSlug={tenantSlug} /> : null}
       {!studentId && section === "reports" ? <SchoolReportsPage role={role} tenantSlug={tenantSlug} /> : null}
       {!studentId && section === "communication" ? <SchoolCommunicationPage role={role} tenantSlug={tenantSlug} /> : null}
+      {!studentId && section === "transport" ? (
+        <TransportModuleScreen tenantSlug={tenantSlug} />
+      ) : null}
+      {!studentId && section === "procurement" ? (
+        <ProcurementModuleScreen tenantSlug={tenantSlug} />
+      ) : null}
+      {!studentId && section === "hostel" ? (
+        <HostelModuleScreen tenantSlug={tenantSlug} />
+      ) : null}
+      {!studentId && section === "boarding" ? (
+        <BoardingModuleScreen tenantSlug={tenantSlug} />
+      ) : null}
+      {!studentId && section === "cbt" ? (
+        <CbtModuleScreen tenantSlug={tenantSlug} />
+      ) : null}
+      {!studentId && section === "lms" ? (
+        <LmsModuleScreen tenantSlug={tenantSlug} />
+      ) : null}
+      {!studentId && section === "ai-insights" ? (
+        <AiInsightsModuleScreen tenantSlug={tenantSlug} />
+      ) : null}
+      {!studentId && section === "visitors" ? (
+        <VisitorManagementModuleScreen tenantSlug={tenantSlug} />
+      ) : null}
+      {!studentId && section === "assets" ? (
+        <AssetTrackingModuleScreen tenantSlug={tenantSlug} />
+      ) : null}
+      {!studentId && section === "iot" ? (
+        <IotModuleScreen tenantSlug={tenantSlug} />
+      ) : null}
       {!studentId && (
         section === "support-new-ticket"
         || section === "support-my-tickets"

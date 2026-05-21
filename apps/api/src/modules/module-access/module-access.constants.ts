@@ -256,6 +256,15 @@ export const MODULE_REGISTRY_SEED = [
     permission_scopes: ['inventory:read', 'inventory:write'],
     billing_metadata: { pricing_unit: 'asset', premium: true },
   },
+  {
+    code: 'iot',
+    name: 'IoT and Smart Campus',
+    description: 'Device registry, telemetry ingestion, smart campus alerts, and command dispatch.',
+    category: 'operations',
+    route_segment: 'iot',
+    permission_scopes: ['iot:read', 'iot:write'],
+    billing_metadata: { pricing_unit: 'device', premium: true },
+  },
 ] as const satisfies readonly ModuleRegistrySeedItem[];
 
 export type ModuleCode = (typeof MODULE_REGISTRY_SEED)[number]['code'];

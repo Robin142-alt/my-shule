@@ -65,6 +65,16 @@ const BACKEND_ROUTE_MODULE_GUARDS: Array<{
   backendRoute('principal-dashboard', 'Principal dashboard routes require the principal dashboard module', 'apps/api/src/modules/admin-command/admin-command.controller.ts', 'principal_dashboard'),
   backendRoute('clinic', 'Clinic routes require the clinic health module', 'apps/api/src/modules/clinic/clinic.controller.ts', 'clinic_health'),
   backendRoute('reports', 'Report export job routes require the reports module', 'apps/api/src/common/reports/report-export-jobs.controller.ts', 'reports'),
+  backendRoute('transport', 'Transport routes require the transport module', 'apps/api/src/modules/transport/transport.controller.ts', 'transport'),
+  backendRoute('procurement', 'Procurement routes require the procurement module', 'apps/api/src/modules/procurement/procurement.controller.ts', 'procurement'),
+  backendRoute('hostel', 'Hostel routes require the hostel module', 'apps/api/src/modules/hostel/hostel.controller.ts', 'hostel'),
+  backendRoute('boarding', 'Boarding routes require the boarding module', 'apps/api/src/modules/boarding/boarding.controller.ts', 'boarding'),
+  backendRoute('cbt', 'CBT routes require the CBT exams module', 'apps/api/src/modules/cbt/cbt.controller.ts', 'cbt_exams'),
+  backendRoute('lms', 'LMS routes require the LMS module', 'apps/api/src/modules/lms/lms.controller.ts', 'lms'),
+  backendRoute('ai-insights', 'AI Insights routes require the AI insights module', 'apps/api/src/modules/ai-insights/ai-insights.controller.ts', 'ai_insights'),
+  backendRoute('visitors', 'Visitor routes require the visitor management module', 'apps/api/src/modules/visitors/visitors.controller.ts', 'visitor_management'),
+  backendRoute('assets', 'Asset routes require the asset tracking module', 'apps/api/src/modules/assets/assets.controller.ts', 'asset_tracking'),
+  backendRoute('iot', 'IoT routes require the IoT and Smart Campus module', 'apps/api/src/modules/iot/iot.controller.ts', 'iot'),
 ];
 
 const FRONTEND_ROUTE_MODULE_GUARDS = [
@@ -85,6 +95,16 @@ const FRONTEND_ROUTE_MODULE_GUARDS = [
   frontendRoute('labs', 'lab_management'),
   frontendRoute('teacher-attendance', 'teacher_biometric_attendance'),
   frontendRoute('leadership', 'admin_command_centers'),
+  frontendRoute('transport', 'transport'),
+  frontendRoute('procurement', 'procurement'),
+  frontendRoute('hostel', 'hostel'),
+  frontendRoute('boarding', 'boarding'),
+  frontendRoute('cbt', 'cbt_exams'),
+  frontendRoute('lms', 'lms'),
+  frontendRoute('ai-insights', 'ai_insights'),
+  frontendRoute('visitors', 'visitor_management'),
+  frontendRoute('assets', 'asset_tracking'),
+  frontendRoute('iot', 'iot'),
 ];
 
 const CERTIFICATION_AREAS: CertificationArea[] = [
@@ -93,7 +113,7 @@ const CERTIFICATION_AREAS: CertificationArea[] = [
       'module-registry-seed',
       'Module registry seed includes every production school module and its permission scopes',
       'apps/api/src/modules/module-access/module-access.constants.ts',
-      /(?=.*MODULE_REGISTRY_SEED)(?=.*students)(?=.*admissions)(?=.*academics)(?=.*finance)(?=.*exams)(?=.*discipline)(?=.*timetable)(?=.*lab_management)(?=.*teacher_biometric_attendance)(?=.*parent_portal)(?=.*inventory)(?=.*library)(?=.*transport)(?=.*communication_sms)(?=.*reports)(?=.*staff)(?=.*admin_command_centers)(?=.*principal_dashboard)(?=.*clinic_health)(?=.*permission_scopes)/s,
+      /(?=.*MODULE_REGISTRY_SEED)(?=.*students)(?=.*admissions)(?=.*academics)(?=.*finance)(?=.*exams)(?=.*discipline)(?=.*timetable)(?=.*lab_management)(?=.*teacher_biometric_attendance)(?=.*parent_portal)(?=.*inventory)(?=.*library)(?=.*transport)(?=.*communication_sms)(?=.*reports)(?=.*staff)(?=.*admin_command_centers)(?=.*principal_dashboard)(?=.*clinic_health)(?=.*procurement)(?=.*hostel)(?=.*boarding)(?=.*cbt_exams)(?=.*lms)(?=.*ai_insights)(?=.*visitor_management)(?=.*asset_tracking)(?=.*iot)(?=.*permission_scopes)/s,
     ),
     check(
       'route-permission-metadata-test',
