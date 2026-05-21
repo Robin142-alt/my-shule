@@ -31,60 +31,89 @@ export class AuthorizationRepository {
   constructor(private readonly databaseService: DatabaseService) {}
 
   async ensureTenantAuthorizationBaseline(tenantId: string): Promise<void> {
-    const permissionsByKey = new Map<string, PermissionEntity>();
+    await this.databaseService.query<PermissionRow>(
+      `
+        WITH catalog AS (
+          SELECT resource, action, description
+          FROM jsonb_to_recordset($2::jsonb) AS permission(
+            resource text,
+            action text,
+            description text
+          )
+        )
+        INSERT INTO permissions (tenant_id, resource, action, description)
+        SELECT $1, resource, action, description
+        FROM catalog
+        ON CONFLICT (tenant_id, resource, action)
+        DO UPDATE SET description = EXCLUDED.description, updated_at = NOW()
+        RETURNING id, tenant_id, resource, action, description, created_at, updated_at
+      `,
+      [tenantId, JSON.stringify(DEFAULT_PERMISSION_CATALOG)],
+    );
 
-    for (const permission of DEFAULT_PERMISSION_CATALOG) {
-      const result = await this.databaseService.query<PermissionRow>(
-        `
-          INSERT INTO permissions (tenant_id, resource, action, description)
-          VALUES ($1, $2, $3, $4)
-          ON CONFLICT (tenant_id, resource, action)
-          DO UPDATE SET description = EXCLUDED.description, updated_at = NOW()
-          RETURNING id, tenant_id, resource, action, description, created_at, updated_at
-        `,
-        [tenantId, permission.resource, permission.action, permission.description],
-      );
+    await this.databaseService.query<RoleRow>(
+      `
+        WITH catalog AS (
+          SELECT code, name, description
+          FROM jsonb_to_recordset($2::jsonb) AS role(
+            code text,
+            name text,
+            description text
+          )
+        )
+        INSERT INTO roles (tenant_id, code, name, description, is_system)
+        SELECT $1, code, name, description, TRUE
+        FROM catalog
+        ON CONFLICT (tenant_id, code)
+        DO UPDATE SET
+          name = EXCLUDED.name,
+          description = EXCLUDED.description,
+          is_system = TRUE,
+          updated_at = NOW()
+        RETURNING id, tenant_id, code, name, description, is_system, created_at, updated_at
+      `,
+      [tenantId, JSON.stringify(DEFAULT_ROLE_CATALOG.map(({ code, name, description }) => ({ code, name, description })))],
+    );
 
-      const permissionEntity = this.mapPermission(result.rows[0]);
-      permissionsByKey.set(this.asPermissionKey(permissionEntity.resource, permissionEntity.action), permissionEntity);
-    }
+    const rolePermissionCatalog = DEFAULT_ROLE_CATALOG.flatMap((role) =>
+      role.permissions.map((permissionKey) => ({
+        role_code: role.code,
+        ...this.fromPermissionKey(permissionKey),
+      })),
+    );
 
-    for (const role of DEFAULT_ROLE_CATALOG) {
-      const roleResult = await this.databaseService.query<RoleRow>(
-        `
-          INSERT INTO roles (tenant_id, code, name, description, is_system)
-          VALUES ($1, $2, $3, $4, TRUE)
-          ON CONFLICT (tenant_id, code)
-          DO UPDATE SET
-            name = EXCLUDED.name,
-            description = EXCLUDED.description,
-            is_system = TRUE,
-            updated_at = NOW()
-          RETURNING id, tenant_id, code, name, description, is_system, created_at, updated_at
-        `,
-        [tenantId, role.code, role.name, role.description],
-      );
-
-      const roleEntity = this.mapRole(roleResult.rows[0]);
-
-      for (const permissionKey of role.permissions) {
-        const permissionEntity = permissionsByKey.get(permissionKey);
-
-        if (!permissionEntity) {
-          continue;
-        }
-
-        await this.databaseService.query(
-          `
-            INSERT INTO role_permissions (tenant_id, role_id, permission_id)
-            VALUES ($1, $2, $3)
-            ON CONFLICT (tenant_id, role_id, permission_id)
-            DO NOTHING
-          `,
-          [tenantId, roleEntity.id, permissionEntity.id],
-        );
-      }
-    }
+    await this.databaseService.query(
+      `
+        WITH catalog AS (
+          SELECT role_code, resource, action
+          FROM jsonb_to_recordset($2::jsonb) AS role_permission(
+            role_code text,
+            resource text,
+            action text
+          )
+        ),
+        resolved AS (
+          SELECT DISTINCT
+            $1::text AS tenant_id,
+            roles.id AS role_id,
+            permissions.id AS permission_id
+          FROM catalog
+          INNER JOIN roles
+            ON roles.tenant_id = $1
+           AND roles.code = catalog.role_code
+          INNER JOIN permissions
+            ON permissions.tenant_id = $1
+           AND permissions.resource = catalog.resource
+           AND permissions.action = catalog.action
+        )
+        INSERT INTO role_permissions (tenant_id, role_id, permission_id)
+        SELECT tenant_id, role_id, permission_id
+        FROM resolved
+        ON CONFLICT (tenant_id, role_id, permission_id)
+        DO NOTHING
+      `,
+      [tenantId, JSON.stringify(rolePermissionCatalog)],
+    );
   }
 
   async getRoleByCode(tenantId: string, code: string): Promise<RoleEntity> {
@@ -127,6 +156,19 @@ export class AuthorizationRepository {
     return `${resource}:${action}`;
   }
 
+  private fromPermissionKey(permissionKey: string): { resource: string; action: string } {
+    const separatorIndex = permissionKey.indexOf(':');
+
+    if (separatorIndex === -1) {
+      return { resource: permissionKey, action: '' };
+    }
+
+    return {
+      resource: permissionKey.slice(0, separatorIndex),
+      action: permissionKey.slice(separatorIndex + 1),
+    };
+  }
+
   private mapRole(row: RoleRow): RoleEntity {
     return Object.assign(new RoleEntity(), row);
   }
@@ -135,4 +177,3 @@ export class AuthorizationRepository {
     return Object.assign(new PermissionEntity(), row);
   }
 }
-

@@ -3,7 +3,9 @@ import test from 'node:test';
 import { ForbiddenException, UnauthorizedException } from '@nestjs/common';
 
 import { RequestContextService } from '../common/request-context/request-context.service';
+import { DEFAULT_PERMISSION_CATALOG, DEFAULT_ROLE_CATALOG } from './auth.constants';
 import { AuthService } from './auth.service';
+import { AuthorizationRepository } from './repositories/authorization.repository';
 
 test('AuthService register rejects direct self-service account creation', async () => {
   const requestContext = new RequestContextService();
@@ -50,6 +52,51 @@ test('AuthService register rejects direct self-service account creation', async 
       error instanceof ForbiddenException
       && error.message === 'Account creation requires a valid invitation.',
   );
+});
+
+test('AuthorizationRepository bootstraps default authorization with set-based queries', async () => {
+  const queries: Array<{ text: string; values: unknown[] }> = [];
+  const repository = new AuthorizationRepository({
+    query: async (text: string, values: unknown[]) => {
+      queries.push({ text, values });
+
+      if (text.includes('INSERT INTO permissions')) {
+        return {
+          rows: DEFAULT_PERMISSION_CATALOG.map((permission, index) => ({
+            id: `permission-${index}`,
+            tenant_id: values[0],
+            resource: permission.resource,
+            action: permission.action,
+            description: permission.description,
+            created_at: new Date('2026-05-21T00:00:00.000Z'),
+            updated_at: new Date('2026-05-21T00:00:00.000Z'),
+          })),
+        };
+      }
+
+      if (text.includes('INSERT INTO roles')) {
+        return {
+          rows: DEFAULT_ROLE_CATALOG.map((role, index) => ({
+            id: `role-${index}`,
+            tenant_id: values[0],
+            code: role.code,
+            name: role.name,
+            description: role.description,
+            is_system: true,
+            created_at: new Date('2026-05-21T00:00:00.000Z'),
+            updated_at: new Date('2026-05-21T00:00:00.000Z'),
+          })),
+        };
+      }
+
+      return { rows: [] };
+    },
+  } as never);
+
+  await repository.ensureTenantAuthorizationBaseline('greenhill-academy');
+
+  assert.equal(queries.length, 3);
+  assert.equal(queries.every((query) => query.text.includes('jsonb_to_recordset')), true);
 });
 
 test('AuthService authenticateAccessToken rejects access tokens when the audience does not match the session audience', async () => {
