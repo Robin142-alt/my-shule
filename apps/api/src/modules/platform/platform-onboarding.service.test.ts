@@ -347,6 +347,50 @@ test('PlatformOnboardingService reports Resend testing mode as blocked instead o
   assert.equal(markDeliveryCalls[0]?.values[4], 403);
 });
 
+test('PlatformOnboardingService unlocks stale Resend-domain failures after production sender is configured', async () => {
+  const service = new PlatformOnboardingService(
+    {
+      query: async () => ({
+        rows: [
+          {
+            tenant_id: 'green-valley',
+            name: 'Green Valley School',
+            subdomain: 'green-valley',
+            status: 'active',
+            created_at: new Date('2026-05-11T00:00:00.000Z'),
+            admin_email: 'principal@example.test',
+            invitation_status: 'failed',
+            invite_expires_at: new Date('2026-05-18T00:00:00.000Z'),
+            last_error_code: 'resend_domain_not_verified',
+            last_error_summary:
+              'Email delivery is blocked by Resend testing mode. Verify a Resend sending domain and set EMAIL_FROM to that verified domain before resending school invitations.',
+            provider_status_code: 403,
+          },
+        ],
+      }),
+    } as never,
+    { ensureTenantAuthorizationBaseline: async () => undefined } as never,
+    {
+      getTransactionalEmailStatus: () => ({
+        provider: 'resend',
+        status: 'configured',
+        api_key_configured: true,
+        sender_configured: true,
+        public_app_url_configured: true,
+      }),
+      hasLikelyProductionSenderConfigured: () => true,
+    } as never,
+    { get: () => undefined } as never,
+    { getStore: () => ({ user_id: 'platform-owner' }) } as never,
+  );
+
+  const response = await service.listSchools();
+
+  assert.equal(response[0]?.invitation_status, 'failed');
+  assert.equal(response[0]?.can_resend_invite, true);
+  assert.match(response[0]?.invitation_message ?? '', /resend it/i);
+});
+
 test('PlatformOnboardingService hard deletes an empty failed-invite school after slug confirmation', async () => {
   const queries: Array<{ text: string; values: unknown[] }> = [];
 

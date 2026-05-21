@@ -159,7 +159,7 @@ export class PlatformOnboardingService {
 
     return {
       provider: configured.provider,
-      status: failureCode === 'resend_domain_not_verified'
+      status: failureCode === 'resend_domain_not_verified' && !this.hasLikelyProductionSenderConfigured()
         ? 'blocked'
         : configured.status === 'missing'
           ? 'missing'
@@ -880,7 +880,7 @@ export class PlatformOnboardingService {
     }
 
     if (failureCode) {
-      const isBlocked = this.isNonRetryableInviteFailure(failureCode);
+      const isBlocked = this.isPersistedInviteFailureStillBlocked(failureCode);
       const status: InvitationDeliveryStatus = isBlocked ? 'blocked' : 'failed';
 
       return {
@@ -953,6 +953,20 @@ export class PlatformOnboardingService {
 
   private isNonRetryableInviteFailure(code: string): boolean {
     return code === 'email_not_configured' || code === 'resend_domain_not_verified';
+  }
+
+  private isPersistedInviteFailureStillBlocked(code: string): boolean {
+    if (code === 'resend_domain_not_verified' && this.hasLikelyProductionSenderConfigured()) {
+      return false;
+    }
+
+    return this.isNonRetryableInviteFailure(code);
+  }
+
+  private hasLikelyProductionSenderConfigured(): boolean {
+    return typeof this.emailService.hasLikelyProductionSenderConfigured === 'function'
+      ? this.emailService.hasLikelyProductionSenderConfigured()
+      : false;
   }
 
   private invitationMessageForStatus(status: InvitationDeliveryStatus): string {
