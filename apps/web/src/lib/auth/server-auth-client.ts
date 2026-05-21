@@ -53,6 +53,7 @@ function unauthorized(message: string) {
 
 const AUTH_SERVICE_UNAVAILABLE =
   "Authentication service is temporarily unavailable. Please try again shortly.";
+const AUTH_REQUEST_TIMEOUT_MS = 6_000;
 
 function buildExperienceHomePath(input: {
   audience: ExperienceAudience;
@@ -121,25 +122,51 @@ async function requestBackendAuth<T>(
     throw unauthorized(AUTH_SERVICE_UNAVAILABLE);
   }
 
-  const response = await fetch(`${baseUrl}${path}`, {
-    method: input.method,
-    headers: {
-      Accept: "application/json",
-      "x-auth-audience": input.audience,
-      ...(tenantSlug ? { "x-tenant-id": tenantSlug } : {}),
-      ...(input.body ? { "Content-Type": "application/json" } : {}),
-      ...(input.accessToken ? { Authorization: `Bearer ${input.accessToken}` } : {}),
-    },
-    body: input.body ? JSON.stringify(input.body) : undefined,
-    cache: "no-store",
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), AUTH_REQUEST_TIMEOUT_MS);
 
-  if (!response.ok) {
-    const payload = (await response.json().catch(() => null)) as { message?: string } | null;
-    throw unauthorized(payload?.message ?? "Authentication request failed.");
+  try {
+    const response = await fetch(`${baseUrl}${path}`, {
+      method: input.method,
+      headers: {
+        Accept: "application/json",
+        "x-auth-audience": input.audience,
+        ...(tenantSlug ? { "x-tenant-id": tenantSlug } : {}),
+        ...(input.body ? { "Content-Type": "application/json" } : {}),
+        ...(input.accessToken ? { Authorization: `Bearer ${input.accessToken}` } : {}),
+      },
+      body: input.body ? JSON.stringify(input.body) : undefined,
+      cache: "no-store",
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      const payload = (await response.json().catch(() => null)) as { message?: string } | null;
+      const message = payload?.message ?? "Authentication request failed.";
+
+      if (
+        response.status >= 500 ||
+        message.toLowerCase().includes("application failed to respond")
+      ) {
+        throw unauthorized(AUTH_SERVICE_UNAVAILABLE);
+      }
+
+      throw unauthorized(message);
+    }
+
+    return (await response.json()) as T;
+  } catch (error) {
+    if (
+      error instanceof TypeError ||
+      (error instanceof Error && error.name === "AbortError")
+    ) {
+      throw unauthorized(AUTH_SERVICE_UNAVAILABLE);
+    }
+
+    throw error;
+  } finally {
+    clearTimeout(timeout);
   }
-
-  return (await response.json()) as T;
 }
 
 async function loginSchoolAudience(input: LoginInput) {

@@ -104,6 +104,63 @@ describe("server auth client production gateway", () => {
     );
   });
 
+  it("normalizes backend outage responses during sign-in", async () => {
+    process.env.NEXT_PUBLIC_API_BASE_URL = "https://api.example.invalid";
+    jest.mocked(global.fetch).mockResolvedValue(
+      jsonResponse(
+        {
+          status: "error",
+          code: 502,
+          message: "Application failed to respond",
+        },
+        { status: 502 },
+      ),
+    );
+    const client = createServerAuthClient(buildRequest("localhost:3000"));
+
+    await expect(
+      client.login({
+        audience: "superadmin",
+        identifier: "system.owner@example.invalid",
+        password: "ManagedByPasswordVault!42",
+      }),
+    ).rejects.toThrow("Authentication service is temporarily unavailable.");
+  });
+
+  it("times out slow backend sign-in requests", async () => {
+    jest.useFakeTimers();
+    try {
+      process.env.NEXT_PUBLIC_API_BASE_URL = "https://api.example.invalid";
+      jest.mocked(global.fetch).mockImplementation(
+        (_url, init) =>
+          new Promise<Response>((_resolve, reject) => {
+            const signal = init && "signal" in init ? init.signal : null;
+
+            if (signal instanceof AbortSignal) {
+              signal.addEventListener("abort", () => {
+                reject(new DOMException("The operation was aborted.", "AbortError"));
+              });
+            }
+          }),
+      );
+      const client = createServerAuthClient(buildRequest("localhost:3000"));
+
+      const loginPromise = client.login({
+        audience: "superadmin",
+        identifier: "system.owner@example.invalid",
+        password: "ManagedByPasswordVault!42",
+      });
+
+      jest.advanceTimersByTime(6_000);
+
+      await expect(loginPromise).rejects.toThrow(
+        "Authentication service is temporarily unavailable.",
+      );
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
   it("lets the backend resolve the school tenant during sign-in", async () => {
     process.env.NEXT_PUBLIC_API_BASE_URL = "https://api.example.invalid";
     const fetchMock = jest.mocked(global.fetch).mockResolvedValue(
