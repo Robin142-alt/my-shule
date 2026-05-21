@@ -821,6 +821,7 @@ export class AuthSchemaService implements OnModuleInit {
       SECURITY DEFINER
       SET search_path = public, app, pg_temp
       AS $$
+      #variable_conflict use_column
       DECLARE
         request_user_id text;
         request_path text;

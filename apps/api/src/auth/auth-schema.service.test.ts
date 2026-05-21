@@ -35,6 +35,24 @@ test('AuthSchemaService links accepted parent invitations to student guardian ro
   assert.match(bootstrapSql, /status = 'active'/);
 });
 
+test('AuthSchemaService resolves invite acceptance column-name conflicts', async () => {
+  let bootstrapSql = '';
+  const service = new AuthSchemaService({
+    runSchemaBootstrap: async (sql: string) => {
+      bootstrapSql = sql;
+    },
+  } as never);
+
+  await service.onModuleInit();
+
+  const consumeInviteFunction = bootstrapSql.match(
+    /CREATE OR REPLACE FUNCTION app\.consume_invite_acceptance_action[\s\S]+?\$\$;/,
+  )?.[0] ?? '';
+
+  assert.match(consumeInviteFunction, /#variable_conflict use_column/);
+  assert.match(consumeInviteFunction, /ON CONFLICT \(tenant_id, user_id\)/);
+});
+
 test('AuthSchemaService defines email verification token functions and route policies', async () => {
   let bootstrapSql = '';
   const service = new AuthSchemaService({
