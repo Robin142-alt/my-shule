@@ -59,6 +59,8 @@ export interface ReleaseReadinessGateOptions {
   implementation90LoadProfileSource?: string;
   implementation90LoadProfileArtifactSource?: string;
   implementation90ArchitectureSource?: string;
+  implementation300CertificationSource?: string;
+  implementation300CertificationArtifactSource?: string;
   extremeScaleRunbookSource?: string;
   securityLockdownRunbookSource?: string;
   queryPlanReviewArtifactSource?: string;
@@ -136,6 +138,8 @@ const REQUIRED_NPM_SCRIPTS = [
   'implementation21:certify',
   'implementation30:certify',
   'implementation90:load-profile',
+  'implementation300:certify',
+  'test:implementation300',
   'implementation90:full-release-gate',
   'ci:full',
   'monitor:create-service-account',
@@ -172,6 +176,10 @@ const REQUIRED_IMPLEMENTATION90_FULL_RELEASE_GATE_COMMANDS = [
 ];
 const REQUIRED_DEFAULT_TEST_ARTIFACTS = [
   'app-route-permissions.test.js',
+  'deployment-topology-policy.test.js',
+  'tenant-database-policy.test.js',
+  'identity-blueprint.test.js',
+  'role-governance-policy.test.js',
   'mfa.service.test.js',
   'trusted-device.service.test.js',
   'magic-link.service.test.js',
@@ -195,21 +203,35 @@ const REQUIRED_DEFAULT_TEST_ARTIFACTS = [
   'implementation21-certification.test.js',
   'implementation30-certification.test.js',
   'implementation90-load-profile.test.js',
+  'blueprint-registry.test.js',
+  'api-category-policy.test.js',
+  'development-phase-policy.test.js',
+  'implementation300-certification.test.js',
   'report-snapshot-manifest.test.js',
   'report-snapshot.repository.test.js',
   'synthetic-journey-monitor.test.js',
   'streaming-upload.service.test.js',
   'module-access.test.js',
+  'kpi-policy.test.js',
   'academics.test.js',
+  'curriculum-policy.test.js',
   'labs.test.js',
   'admin-command.test.js',
   'biometric-attendance.test.js',
   'clinic.test.js',
+  'integration-policy.test.js',
   'exams.test.js',
+  'ai-governance-policy.test.js',
   'student-fee-payment-allocation.service.test.js',
+  'billing-contract.test.js',
   'hr.test.js',
   'library.test.js',
   'timetable.test.js',
+  'audit-monitoring-policy.test.js',
+  'automation-policy.test.js',
+  'data-protection-policy.test.js',
+  'mobile-app-policy.test.js',
+  'offline-workflow-policy.test.js',
   'support-status-subscription.service.test.js',
 ];
 const REQUIRED_SYNTHETIC_JOURNEYS = [
@@ -337,6 +359,12 @@ export function runReleaseReadinessGate(
   const implementation90ArchitectureSource =
     options.implementation90ArchitectureSource
     ?? readWorkspaceFile(workspaceRoot, 'docs/architecture/implementation90-scale-security-reliability.md');
+  const implementation300CertificationSource =
+    options.implementation300CertificationSource
+    ?? readWorkspaceFile(workspaceRoot, 'apps/api/src/scripts/implementation300-certification.ts');
+  const implementation300CertificationArtifactSource =
+    options.implementation300CertificationArtifactSource
+    ?? readWorkspaceFile(workspaceRoot, 'docs/validation/implementation300-certification.md');
   const extremeScaleRunbookSource =
     options.extremeScaleRunbookSource
     ?? readWorkspaceFile(workspaceRoot, 'docs/runbooks/extreme-scale-incident.md');
@@ -395,6 +423,11 @@ export function runReleaseReadinessGate(
       implementation90ArchitectureSource,
       extremeScaleRunbookSource,
       securityLockdownRunbookSource,
+    }),
+    checkImplementation300BlueprintCompliance({
+      packageJsonSource,
+      implementation300CertificationSource,
+      implementation300CertificationArtifactSource,
     }),
   ];
 
@@ -547,6 +580,18 @@ function checkImplementation90ExtremeScaleArtifacts(input: {
     details.push('ci:full must run npm run implementation90:load-profile.');
   }
 
+  if (!scripts['implementation300:certify']) {
+    details.push('Missing npm script: implementation300:certify.');
+  }
+
+  if (!scripts['test:implementation300']) {
+    details.push('Missing npm script: test:implementation300.');
+  }
+
+  if (!ciFullScript.includes('npm run implementation300:certify')) {
+    details.push('ci:full must run npm run implementation300:certify.');
+  }
+
   if (!/implementation90:load-profile/i.test(input.productionOperabilityWorkflowSource)) {
     details.push('Production operability workflow must run implementation90:load-profile.');
   }
@@ -623,6 +668,117 @@ function checkImplementation90ExtremeScaleArtifacts(input: {
     'implementation90-extreme-scale-artifacts',
     details,
     'Implementation 90 extreme-scale, security, reliability, workflow, and generated evidence are release-gated.',
+  );
+}
+
+function checkImplementation300BlueprintCompliance(input: {
+  packageJsonSource: string;
+  implementation300CertificationSource: string;
+  implementation300CertificationArtifactSource: string;
+}): ReleaseReadinessGateCheck {
+  const packageJson = JSON.parse(input.packageJsonSource) as {
+    scripts?: Record<string, string>;
+  };
+  const scripts = packageJson.scripts ?? {};
+  const details: string[] = [];
+  const ciFullScript = scripts['ci:full'] ?? '';
+
+  if (!scripts['implementation300:certify']) {
+    details.push('Missing npm script: implementation300:certify.');
+  }
+
+  if (!scripts['test:implementation300']) {
+    details.push('Missing npm script: test:implementation300.');
+  }
+
+  if (!ciFullScript.includes('npm run implementation300:certify')) {
+    details.push('ci:full must run npm run implementation300:certify.');
+  }
+
+  if (!/runImplementation300Certification/.test(input.implementation300CertificationSource)) {
+    details.push('apps/api/src/scripts/implementation300-certification.ts must expose runImplementation300Certification.');
+  }
+
+  if (!/renderImplementation300CertificationMarkdown/.test(input.implementation300CertificationSource)) {
+    details.push('apps/api/src/scripts/implementation300-certification.ts must expose renderImplementation300CertificationMarkdown.');
+  }
+
+  if (!/Status:\s*pass/i.test(input.implementation300CertificationArtifactSource)) {
+    details.push('docs/validation/implementation300-certification.md must show Status: pass.');
+  }
+
+  if (!/1000\+ schools/i.test(input.implementation300CertificationArtifactSource)) {
+    details.push('Implementation 300 certification must show the 1000+ schools scale target.');
+  }
+
+  if (!/Blueprint Sections/i.test(input.implementation300CertificationArtifactSource)) {
+    details.push('Implementation 300 certification must include Blueprint Sections.');
+  }
+
+  if (!/AI Insights/i.test(input.implementation300CertificationArtifactSource)) {
+    details.push('Implementation 300 certification must include AI Insights.');
+  }
+
+  if (!/AI governance policy/i.test(input.implementation300CertificationArtifactSource)) {
+    details.push('Implementation 300 certification must include the AI governance policy.');
+  }
+
+  if (!/Data protection policy/i.test(input.implementation300CertificationArtifactSource)) {
+    details.push('Implementation 300 certification must include the Kenyan data protection policy.');
+  }
+
+  if (!/Automation policy/i.test(input.implementation300CertificationArtifactSource)) {
+    details.push('Implementation 300 certification must include the automation policy.');
+  }
+
+  if (!/Integration policy/i.test(input.implementation300CertificationArtifactSource)) {
+    details.push('Implementation 300 certification must include the integration policy.');
+  }
+
+  if (!/API category policy/i.test(input.implementation300CertificationArtifactSource)) {
+    details.push('Implementation 300 certification must include the API category policy.');
+  }
+
+  if (!/Mobile app policy/i.test(input.implementation300CertificationArtifactSource)) {
+    details.push('Implementation 300 certification must include the mobile app policy.');
+  }
+
+  if (!/Deployment topology policy/i.test(input.implementation300CertificationArtifactSource)) {
+    details.push('Implementation 300 certification must include the deployment topology policy.');
+  }
+
+  if (!/Academic curriculum policy/i.test(input.implementation300CertificationArtifactSource)) {
+    details.push('Implementation 300 certification must include the academic curriculum policy.');
+  }
+
+  if (!/KPI policy/i.test(input.implementation300CertificationArtifactSource)) {
+    details.push('Implementation 300 certification must include the KPI policy.');
+  }
+
+  if (!/Tenant database policy/i.test(input.implementation300CertificationArtifactSource)) {
+    details.push('Implementation 300 certification must include the tenant database policy.');
+  }
+
+  if (!/Audit monitoring policy/i.test(input.implementation300CertificationArtifactSource)) {
+    details.push('Implementation 300 certification must include the audit monitoring policy.');
+  }
+
+  if (!/Role governance policy/i.test(input.implementation300CertificationArtifactSource)) {
+    details.push('Implementation 300 certification must include the role governance policy.');
+  }
+
+  if (!/Development phase policy/i.test(input.implementation300CertificationArtifactSource)) {
+    details.push('Implementation 300 certification must include the development phase policy.');
+  }
+
+  if (!/IoT and Smart Campus/i.test(input.implementation300CertificationArtifactSource)) {
+    details.push('Implementation 300 certification must include IoT and Smart Campus.');
+  }
+
+  return buildCheck(
+    'implementation300-blueprint-compliance',
+    details,
+    'Implementation 300 blueprint compliance is certified, generated, and release-gated.',
   );
 }
 

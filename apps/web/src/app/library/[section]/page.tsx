@@ -62,7 +62,7 @@ function LibraryModuleDisabledPage({
           Signed in as <span className="font-semibold text-foreground">{userLabel}</span>.
         </div>
         <Link
-          className="mt-5 inline-flex h-9 items-center rounded-[var(--radius-sm)] bg-slate-950 px-3 text-[13px] font-semibold text-white transition hover:bg-slate-800"
+          className="mt-5 inline-flex h-9 items-center rounded-[var(--radius-sm)] bg-[#071D49] px-3 text-[13px] font-semibold text-white transition hover:bg-[#0F2345]"
           href="/school/librarian"
         >
           Back to school workspace

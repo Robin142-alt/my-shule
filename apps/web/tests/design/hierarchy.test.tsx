@@ -30,7 +30,7 @@ describe("STEP 2: Hierarchy tests", () => {
       name: /students with balances/i,
     });
 
-    expect(firstKpiValue.className).toContain("text-[1.875rem]");
+    expect(firstKpiValue.className).toContain("text-3xl");
     expect(screen.queryAllByTestId("alert-card")).toHaveLength(0);
     expect(mpesaHeading.className).toContain("text-lg");
     expect(defaultersHeading.className).toContain("text-lg");

@@ -25,21 +25,21 @@ export default function ParentLoginPage() {
   return (
     <AuthShell
       eyebrow="Parent portal login"
-      heroTitle="See fees, grades, discipline and health updates without calling the school."
-      heroDescription="Parent login saves families from office queues and repeated calls. Check fee balance, M-PESA guidance, grades, discipline score, medical notes, notices, downloads, and SMS reminders from your phone."
+      heroTitle="Stay connected to your child in real time."
+      heroDescription="Parent login brings fees, attendance, progress, discipline, clinic notes, transport status, notices, and teacher communication into one secure family workspace."
       badge="Family access"
       logoMark="PT"
       helper="Parent sessions are linked only to verified learners, so each family sees the records, balances, and school updates meant for them."
       highlights={[
         {
           id: "payments",
-          title: "No fee-balance trips",
+          title: "Fee summaries with confidence",
           description: "Balances, recent payments, SMS reminders, and M-PESA instructions stay easy to understand on phones.",
         },
         {
           id: "progress",
-          title: "Progress before report day",
-          description: "Grades, discipline score, and learner updates are visible before a small concern becomes stress.",
+          title: "Attendance and progress snapshots",
+          description: "Grades, attendance, discipline score, and learner updates are visible before a small concern becomes stress.",
         },
         {
           id: "care",

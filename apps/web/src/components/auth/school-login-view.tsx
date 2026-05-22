@@ -125,12 +125,12 @@ export function SchoolLoginView({
       <form className="space-y-6" onSubmit={submit}>
         <div className="space-y-4">
           <div className="flex items-center gap-3">
-            <span className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-sm font-bold text-emerald-800">
+            <span className="inline-flex h-12 w-12 items-center justify-center rounded-[var(--radius)] bg-accent text-sm font-bold text-white shadow-[0_0_24px_rgba(255,122,26,0.26)]">
               {resolution.branding.logoMark}
             </span>
             <div>
-              <p className="text-sm font-bold text-slate-950">{resolution.branding.name}</p>
-              <p className="text-sm text-slate-500">{resolution.branding.county}</p>
+              <p className="text-sm font-bold text-foreground">{resolution.branding.name}</p>
+              <p className="text-sm text-muted">{resolution.branding.county}</p>
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -139,11 +139,11 @@ export function SchoolLoginView({
             <SecurityBadge label="Email verified" />
           </div>
           <div>
-            <h2 className="text-3xl font-bold leading-tight text-slate-950">
-              Secure admin access
+            <h2 className="text-3xl font-bold leading-tight text-foreground">
+              Run your school with operational clarity.
             </h2>
-            <p className="mt-2 text-sm leading-6 text-slate-600">
-              Sign in to manage finance, academics, CBC reporting, and school operations.
+            <p className="mt-2 text-sm leading-6 text-muted">
+              Visibility across departments, accountable payments, traceable incidents, and responsible student monitoring.
             </p>
           </div>
         </div>
@@ -188,7 +188,7 @@ export function SchoolLoginView({
           />
           <Link
             href="/school/forgot-password"
-            className="text-sm font-bold text-slate-700 underline-offset-4 hover:text-emerald-700 hover:underline"
+            className="text-sm font-bold text-muted underline-offset-4 hover:text-accent hover:underline"
           >
             Forgot password?
           </Link>
@@ -220,20 +220,20 @@ export function SchoolLoginView({
           {mfaRequired ? "Verify and continue" : "Sign in securely"}
         </AuthSubmitButton>
 
-        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+        <div className="rounded-2xl border border-border bg-surface-muted/80 p-4">
           <div className="flex items-start gap-3">
-            <ShieldCheck className="mt-0.5 h-4 w-4 text-emerald-600" />
-            <p className="text-sm leading-6 text-slate-600">
+            <ShieldCheck className="mt-0.5 h-4 w-4 text-accent" />
+            <p className="text-sm leading-6 text-muted">
               Need account help? Contact your school administrator or call My Shule on 0769622589.
             </p>
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm">
-          <span className="font-semibold text-emerald-900">Looking for the main dashboard route?</span>
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-accent/25 bg-accent-soft px-4 py-3 text-sm">
+          <span className="font-semibold text-foreground">Looking for the main dashboard route?</span>
           <Link
             href="/login"
-            className="font-bold text-emerald-700 underline-offset-4 hover:underline"
+            className="font-bold text-accent underline-offset-4 hover:underline"
           >
             My Shule dashboard
           </Link>

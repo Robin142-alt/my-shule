@@ -40,9 +40,9 @@ const portalCopy: Record<
 > = {
   family: {
     badge: "Family portal",
-    title: "Access your school portal",
+    title: "Stay connected to your child in real time.",
     description:
-      "Check fees, exam results, notices, and downloads from a friendly mobile-first workspace.",
+      "Securely review fees, attendance, clinic updates, teacher messages, and academic progress from one calm family workspace.",
     identifierLabel: "Portal email address",
     secretLabel: "Password",
     submitLabel: "Open portal",
@@ -51,9 +51,9 @@ const portalCopy: Record<
   },
   parent: {
     badge: "Parent access",
-    title: "Follow progress and payments",
+    title: "Follow progress with confidence.",
     description:
-      "A secure parent login for fee balances, M-PESA guidance, announcements, and learner progress.",
+      "A secure parent login for fee balances, attendance snapshots, clinic records, transport status, and learner progress.",
     identifierLabel: "Parent email address",
     secretLabel: "Password",
     submitLabel: "Continue as parent",
@@ -62,7 +62,7 @@ const portalCopy: Record<
   },
   student: {
     badge: "Student access",
-    title: "Open your learning portal",
+    title: "Open your learning command space.",
     description:
       "A focused student login for assignments, results, timetable, notices, and academic downloads.",
     identifierLabel: "Student email address",
@@ -165,10 +165,10 @@ export function PortalLoginView({ mode = "family" }: { mode?: PortalMode }) {
             <SecurityBadge label="M-PESA ready" />
           </div>
           <div>
-            <h2 className="text-3xl font-bold leading-tight text-slate-950">
+            <h2 className="text-3xl font-bold leading-tight text-foreground">
               {copy.title}
             </h2>
-            <p className="mt-2 text-sm leading-6 text-slate-600">
+            <p className="mt-2 text-sm leading-6 text-muted">
               {copy.description}
             </p>
           </div>
@@ -182,10 +182,10 @@ export function PortalLoginView({ mode = "family" }: { mode?: PortalMode }) {
           description={loginMode === "otp" ? "Parents can receive a one-time code by SMS where a phone number is linked by the school." : copy.message}
         />
 
-        <div className="grid grid-cols-2 gap-2 rounded-2xl bg-slate-100 p-1 text-sm font-bold text-slate-600">
+        <div className="grid grid-cols-2 gap-2 rounded-2xl border border-border bg-surface-muted/80 p-1 text-sm font-bold text-muted">
           <button
             type="button"
-            className={`rounded-xl px-3 py-2 transition ${loginMode === "password" ? "bg-white text-slate-950 shadow-sm" : "hover:text-slate-950"}`}
+            className={`rounded-xl px-3 py-2 transition ${loginMode === "password" ? "bg-accent text-white shadow-[0_0_18px_rgba(255,122,26,0.22)]" : "hover:text-foreground"}`}
             onClick={() => {
               setLoginMode("password");
               setChallengeId(null);
@@ -197,7 +197,7 @@ export function PortalLoginView({ mode = "family" }: { mode?: PortalMode }) {
           </button>
           <button
             type="button"
-            className={`rounded-xl px-3 py-2 transition ${loginMode === "otp" ? "bg-white text-slate-950 shadow-sm" : "hover:text-slate-950"}`}
+            className={`rounded-xl px-3 py-2 transition ${loginMode === "otp" ? "bg-accent text-white shadow-[0_0_18px_rgba(255,122,26,0.22)]" : "hover:text-foreground"}`}
             onClick={() => {
               setLoginMode("otp");
               setChallengeId(null);
@@ -243,30 +243,30 @@ export function PortalLoginView({ mode = "family" }: { mode?: PortalMode }) {
         <div className="flex items-center justify-between gap-3 text-sm">
           <Link
             href="/portal/forgot-password"
-            className="font-bold text-slate-700 underline-offset-4 hover:text-emerald-700 hover:underline"
+            className="font-bold text-muted underline-offset-4 hover:text-accent hover:underline"
           >
             Forgot password?
           </Link>
           <Link
             href="/login"
-            className="font-bold text-slate-700 underline-offset-4 hover:text-emerald-700 hover:underline"
+            className="font-bold text-muted underline-offset-4 hover:text-accent hover:underline"
           >
             My Shule dashboard
           </Link>
         </div>
 
-        <div className="flex items-center justify-between gap-3 rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm">
-          <span className="font-semibold text-emerald-900">Need the school side?</span>
+        <div className="flex items-center justify-between gap-3 rounded-2xl border border-accent/25 bg-accent-soft px-4 py-3 text-sm">
+          <span className="font-semibold text-foreground">Need the school side?</span>
           <Link
             href="/school/login"
-            className="font-bold text-emerald-700 underline-offset-4 hover:underline"
+            className="font-bold text-accent underline-offset-4 hover:underline"
           >
             School login
           </Link>
         </div>
 
         <div className="flex items-center justify-end text-sm">
-          <span className="inline-flex items-center gap-2 text-slate-500">
+          <span className="inline-flex items-center gap-2 text-muted">
             <Smartphone className="h-4 w-4" />
             Mobile optimized
           </span>

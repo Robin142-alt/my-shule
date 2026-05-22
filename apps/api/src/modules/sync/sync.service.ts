@@ -14,6 +14,7 @@ import {
   SYNC_DEFAULT_PULL_LIMIT,
   SYNC_SUPPORTED_ENTITIES,
 } from './sync.constants';
+import { AttendanceSyncConflictResolverService } from './conflict-resolvers/attendance-sync-conflict-resolver.service';
 import { FinanceSyncConflictResolverService } from './conflict-resolvers/finance-sync-conflict-resolver.service';
 import { SyncEntity, SyncOperationLog, SyncPushOperationInput } from './sync.types';
 import { SyncCursorsRepository } from './repositories/sync-cursors.repository';
@@ -30,6 +31,7 @@ export class SyncService {
     private readonly syncCursorsRepository: SyncCursorsRepository,
     private readonly syncOperationLogsRepository: SyncOperationLogsRepository,
     private readonly syncOperationLogService: SyncOperationLogService,
+    private readonly attendanceResolver: AttendanceSyncConflictResolverService,
     private readonly financeResolver: FinanceSyncConflictResolverService,
     @Optional() private readonly sloMetrics?: SloMetricsService,
   ) {}
@@ -108,11 +110,21 @@ export class SyncService {
             version: operation.version,
           };
 
-          results.push(
-            await this.financeResolver.applyOperation(
-              operationInput as SyncPushOperationInput<'finance'>,
-            ),
-          );
+          if (operation.entity === 'attendance') {
+            results.push(
+              await this.attendanceResolver.applyOperation(
+                tenantId,
+                device.device_id,
+                operationInput as SyncPushOperationInput<'attendance'>,
+              ),
+            );
+          } else {
+            results.push(
+              await this.financeResolver.applyOperation(
+                operationInput as SyncPushOperationInput<'finance'>,
+              ),
+            );
+          }
         }
 
         await this.syncDevicesRepository.markPush(tenantId, dto.device_id);
@@ -176,24 +188,15 @@ export class SyncService {
         }
 
         const limit = dto.limit ?? SYNC_DEFAULT_PULL_LIMIT;
-        const operationSets = await Promise.all(
-          entities.map(async (entity) =>
-            this.syncOperationLogsRepository.fetchByEntitySinceVersion(
-              tenantId,
-              entity,
-              effectiveCursorMap.get(entity) ?? '0',
-              limit + 1,
-            ),
-          ),
-        );
-
-        const mergedOperations = operationSets
-          .flat()
-          .sort((left, right) => this.compareVersions(left.version, right.version));
-        const hasMore =
-          mergedOperations.length > limit ||
-          operationSets.some((operationSet) => operationSet.length > limit);
-        const operations = mergedOperations.slice(0, limit);
+        const fetchedOperations =
+          await this.syncOperationLogsRepository.fetchByEntitiesAfterCursors(
+            tenantId,
+            entities,
+            effectiveCursorMap,
+            limit + 1,
+          );
+        const hasMore = fetchedOperations.length > limit;
+        const operations = fetchedOperations.slice(0, limit);
         const nextCursorMap = new Map(effectiveCursorMap);
 
         for (const operation of operations) {

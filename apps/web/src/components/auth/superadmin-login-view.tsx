@@ -127,10 +127,10 @@ export function SuperadminLoginView({
             <SecurityBadge label="Audit logged" />
           </div>
           <div>
-            <h2 className="text-3xl font-bold leading-tight text-slate-950">
+            <h2 className="text-3xl font-bold leading-tight text-foreground">
               {copy.title}
             </h2>
-            <p className="mt-2 text-sm leading-6 text-slate-600">
+            <p className="mt-2 text-sm leading-6 text-muted">
               {copy.description}
             </p>
           </div>
@@ -201,7 +201,7 @@ export function SuperadminLoginView({
             />
             <Link
               href="/superadmin/forgot-password"
-              className="text-sm font-bold text-slate-700 underline-offset-4 hover:text-emerald-700 hover:underline"
+              className="text-sm font-bold text-accent underline-offset-4 hover:text-orange-300 hover:underline"
             >
               Forgot password?
             </Link>
@@ -229,7 +229,7 @@ export function SuperadminLoginView({
           </AuthSubmitButton>
         </form>
 
-        <p className="text-xs leading-6 text-slate-500">
+        <p className="text-xs leading-6 text-muted-strong">
           My Shule never asks users to share passwords or verification codes.
         </p>
       </div>

@@ -1,16 +1,13 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useState } from "react";
 import { motion } from "framer-motion";
 import {
   Activity,
   CheckCircle2,
   LockKeyhole,
-  Moon,
   ShieldCheck,
   Sparkles,
-  SunMedium,
   Wifi,
 } from "lucide-react";
 
@@ -44,25 +41,25 @@ function AnimatedBackground({ dark }: { dark: boolean }) {
       <div
         className={`absolute inset-0 ${
           dark
-            ? "bg-[linear-gradient(135deg,#020617_0%,#0f172a_44%,#064e3b_100%)]"
-            : "bg-[linear-gradient(135deg,#ecfdf5_0%,#ffffff_48%,#e0f2fe_100%)]"
+            ? "bg-[linear-gradient(135deg,var(--navy)_0%,var(--darkblue)_100%)]"
+            : "bg-[linear-gradient(135deg,var(--navy)_0%,var(--darkblue)_100%)]"
         }`}
       />
       <div
         className={`absolute inset-0 ${
           dark
-            ? "bg-[linear-gradient(90deg,rgba(16,185,129,0.14)_0%,transparent_36%,rgba(14,165,233,0.12)_100%)]"
-            : "bg-[linear-gradient(90deg,rgba(16,185,129,0.10)_0%,transparent_42%,rgba(14,165,233,0.10)_100%)]"
+            ? "bg-[linear-gradient(90deg,rgba(255,122,26,0.18)_0%,transparent_42%,rgba(255,255,255,0.08)_100%)]"
+            : "bg-[linear-gradient(90deg,rgba(255,122,26,0.12)_0%,transparent_42%,rgba(255,255,255,0.08)_100%)]"
         }`}
       />
       <div
         className={`absolute inset-0 ${
           dark
             ? "bg-[linear-gradient(180deg,rgba(255,255,255,0.08)_0%,transparent_34%,rgba(2,6,23,0.18)_100%)]"
-            : "bg-[linear-gradient(180deg,rgba(255,255,255,0.72)_0%,transparent_40%,rgba(236,253,245,0.55)_100%)]"
+            : "bg-[linear-gradient(180deg,rgba(148,163,184,0.12)_0%,transparent_40%,rgba(7,27,59,0.55)_100%)]"
         }`}
       />
-      <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.08)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.08)_1px,transparent_1px)] bg-[size:44px_44px] opacity-40" />
+      <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.07)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.07)_1px,transparent_1px)] bg-[size:44px_44px] opacity-35" />
     </div>
   );
 }
@@ -84,11 +81,11 @@ function TrustIndicators({
             key={note.id}
             className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-semibold ${
               dark
-                ? "border-white/10 bg-white/[0.08] text-emerald-50"
-                : "border-slate-200 bg-white/80 text-slate-700"
+                ? "border-white/10 bg-white/[0.08] text-orange-50"
+                : "border-border bg-surface-muted text-muted"
             } shadow-sm backdrop-blur`}
           >
-            <Icon className={dark ? "h-3.5 w-3.5 text-emerald-300" : "h-3.5 w-3.5 text-emerald-600"} />
+            <Icon className="h-3.5 w-3.5 text-accent" />
             {note.label}
           </span>
         );
@@ -115,10 +112,10 @@ function SecurityStrip({ dark }: { dark: boolean }) {
             className={`rounded-2xl border px-4 py-3 ${
               dark
                 ? "border-white/10 bg-white/[0.06] text-slate-200"
-                : "border-slate-200 bg-white/70 text-slate-700"
+                : "border-border bg-surface-muted text-muted"
             }`}
           >
-            <Icon className="h-4 w-4 text-emerald-500" />
+            <Icon className="h-4 w-4 text-accent" />
             <p className="mt-2 text-xs font-semibold">{item.label}</p>
           </div>
         );
@@ -149,14 +146,14 @@ function AuthHero({
   dark: boolean;
 }) {
   return (
-    <section className="relative isolate hidden overflow-hidden p-8 text-slate-950 lg:flex lg:min-h-[calc(100vh-32px)] lg:flex-col lg:justify-between xl:p-10">
+    <section className="relative isolate hidden overflow-hidden p-8 text-foreground lg:flex lg:min-h-[calc(100vh-32px)] lg:flex-col lg:justify-between xl:p-10">
       <AnimatedBackground dark={dark} />
       <div className="relative z-10 space-y-8">
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <span
               className={`inline-flex h-12 w-12 items-center justify-center rounded-2xl text-sm font-bold shadow-sm ${
-                dark ? "bg-white text-slate-950" : "bg-slate-950 text-white"
+                dark ? "bg-accent text-white shadow-[0_0_28px_rgba(255,122,26,0.26)]" : "bg-primary text-white"
               }`}
             >
               {logoMark}
@@ -173,11 +170,11 @@ function AuthHero({
           <div
             className={`inline-flex items-center gap-2 rounded-full px-3 py-2 text-xs font-semibold ${
               dark
-                ? "border border-white/10 bg-white/[0.08] text-emerald-100"
-                : "border border-slate-200 bg-white/80 text-slate-700"
+                ? "border border-white/10 bg-white/[0.08] text-orange-100"
+                : "border border-border bg-surface-muted text-muted"
             }`}
           >
-            <Sparkles className="h-3.5 w-3.5 text-emerald-500" />
+            <Sparkles className="h-3.5 w-3.5 text-accent" />
             {eyebrow}
           </div>
         </div>
@@ -210,7 +207,7 @@ function AuthHero({
               className={`rounded-2xl border px-4 py-3 ${
                 dark
                   ? "border-white/10 bg-white/[0.07] text-slate-200"
-                  : "border-white/70 bg-white/80 text-slate-700"
+                  : "border-border bg-surface-muted text-muted"
               } shadow-sm backdrop-blur`}
             >
               <p className={dark ? "text-sm font-bold text-white" : "text-sm font-bold text-slate-950"}>
@@ -253,21 +250,14 @@ export function AuthShell({
   trustNotes: AuthTrustNote[];
   children: ReactNode;
 }) {
-  const [theme, setTheme] = useState<"light" | "dark">("light");
-  const dark = theme === "dark";
+  const dark = true;
 
   return (
     <main
-      className={`min-h-screen px-3 py-3 transition-colors duration-300 md:px-4 md:py-4 ${
-        dark ? "bg-slate-950 text-white" : "bg-slate-100 text-slate-950"
-      }`}
+      className="command-background min-h-screen px-3 py-3 text-foreground transition-colors duration-300 md:px-4 md:py-4"
     >
       <div
-        className={`mx-auto grid min-h-[calc(100vh-24px)] max-w-[1500px] overflow-hidden rounded-[32px] border shadow-2xl lg:grid-cols-[1.1fr_0.9fr] ${
-          dark
-            ? "border-white/10 bg-slate-950 shadow-emerald-950/30"
-            : "border-white bg-white shadow-slate-300/40"
-        }`}
+        className="mx-auto grid min-h-[calc(100vh-24px)] max-w-[1500px] overflow-hidden rounded-[var(--radius-xl)] border border-border bg-white shadow-[var(--shadow-lg)] lg:grid-cols-[1.1fr_0.9fr]"
       >
         <AuthHero
           eyebrow={eyebrow}
@@ -282,32 +272,12 @@ export function AuthShell({
         />
 
         <section
-          className={`relative flex min-h-[calc(100vh-24px)] items-center justify-center overflow-hidden px-4 py-6 transition-colors duration-300 sm:px-6 md:px-8 lg:min-h-full ${
-            dark
-              ? "bg-slate-950"
-              : "bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)]"
-          }`}
+          className="relative flex min-h-[calc(100vh-24px)] items-center justify-center overflow-hidden bg-white px-4 py-6 transition-colors duration-300 sm:px-6 md:px-8 lg:min-h-full"
         >
           <div
             aria-hidden="true"
-            className={`absolute inset-x-0 top-0 h-40 lg:hidden ${
-              dark
-                ? "bg-[linear-gradient(180deg,rgba(16,185,129,0.22),transparent_72%)]"
-                : "bg-[linear-gradient(180deg,rgba(16,185,129,0.16),transparent_72%)]"
-            }`}
+            className="absolute inset-x-0 top-0 h-40 bg-[linear-gradient(180deg,rgba(255,122,26,0.12),transparent_72%)] lg:hidden"
           />
-          <button
-            type="button"
-            onClick={() => setTheme((value) => (value === "light" ? "dark" : "light"))}
-            className={`absolute right-4 top-4 z-20 inline-flex h-10 w-10 items-center justify-center rounded-full border transition hover:scale-[1.03] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-500 ${
-              dark
-                ? "border-white/10 bg-white/[0.08] text-white hover:bg-white/[0.12]"
-                : "border-slate-200 bg-white text-slate-700 shadow-sm hover:bg-slate-50"
-            }`}
-            aria-label={dark ? "Use light theme" : "Use dark theme"}
-          >
-            {dark ? <SunMedium className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-          </button>
           <motion.div
             className="relative z-10 w-full max-w-[480px]"
             initial={{ opacity: 0, y: 12 }}

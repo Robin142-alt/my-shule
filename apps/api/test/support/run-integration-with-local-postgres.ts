@@ -281,16 +281,13 @@ const initializeCluster = async (binDir: string | null): Promise<StartedCluster>
       `-p ${port} -h 127.0.0.1`,
     ]);
   } catch (error) {
-    if (
-      process.platform !== 'win32'
-      || (
-        !isWin32RestrictedTokenBootstrapError(error)
-        && !isSpawnPermissionError(error)
-      )
-    ) {
+    if (process.platform !== 'win32') {
       throw error;
     }
 
+    // pg_ctl can fail under the Codex Windows sandbox before surfacing the
+    // underlying restricted-token text to Node. Starting postgres.exe directly
+    // keeps the disposable local database path usable for integration tests.
     postgresProcess = await startPostgresProcess(binDir, dataDir, logFile, port);
   }
 

@@ -80,8 +80,8 @@ export function ForgotPasswordView({
             <SecurityBadge label="Secure recovery" tone="success" />
             <SecurityBadge label="Short-lived link" />
           </div>
-          <h2 className="text-3xl font-bold leading-tight text-slate-950">{title}</h2>
-          <p className="text-sm leading-6 text-slate-600">{subtitle}</p>
+          <h2 className="text-3xl font-bold leading-tight text-foreground">{title}</h2>
+          <p className="text-sm leading-6 text-muted">{subtitle}</p>
         </div>
 
         {success ? (
@@ -108,7 +108,7 @@ export function ForgotPasswordView({
 
         <SessionWarning mode="normal" />
 
-        <Link href={backHref} className="inline-flex text-sm font-bold text-slate-700 underline-offset-4 hover:text-emerald-700 hover:underline">
+        <Link href={backHref} className="inline-flex text-sm font-bold text-accent underline-offset-4 hover:text-orange-300 hover:underline">
           Back to login
         </Link>
       </div>
@@ -199,8 +199,8 @@ export function ResetPasswordView({
             <SecurityBadge label="Password policy" tone="success" />
             <SecurityBadge label="Verified code" />
           </div>
-          <h2 className="text-3xl font-bold leading-tight text-slate-950">{title}</h2>
-          <p className="text-sm leading-6 text-slate-600">{subtitle}</p>
+          <h2 className="text-3xl font-bold leading-tight text-foreground">{title}</h2>
+          <p className="text-sm leading-6 text-muted">{subtitle}</p>
         </div>
 
         {success ? (
@@ -243,7 +243,7 @@ export function ResetPasswordView({
 
         <SessionWarning mode="normal" />
 
-        <Link href={backHref} className="inline-flex text-sm font-bold text-slate-700 underline-offset-4 hover:text-emerald-700 hover:underline">
+        <Link href={backHref} className="inline-flex text-sm font-bold text-accent underline-offset-4 hover:text-orange-300 hover:underline">
           Back to login
         </Link>
       </div>

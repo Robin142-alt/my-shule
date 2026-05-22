@@ -22,7 +22,7 @@ export function Tabs({
     <div className="space-y-5">
       <div
         role="tablist"
-        className="flex flex-wrap gap-1 rounded-[var(--radius-sm)] border border-border bg-surface-muted p-1"
+        className="flex flex-wrap gap-1 rounded-[var(--radius-sm)] border border-border bg-white p-1 shadow-sm"
       >
         {items.map((item) => {
           const active = item.id === activeTab;
@@ -36,8 +36,8 @@ export function Tabs({
               onClick={() => setActiveTab(item.id)}
               className={`rounded-[var(--radius-xs)] px-3.5 py-1.5 text-[13px] font-semibold transition-all duration-150 ${
                 active
-                  ? "bg-surface text-foreground shadow-sm"
-                  : "text-muted hover:text-foreground"
+                  ? "bg-accent text-white shadow-[0_10px_22px_rgba(255,122,26,0.22)]"
+                  : "text-muted hover:bg-surface-strong hover:text-foreground"
               }`}
             >
               {item.label}

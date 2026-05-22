@@ -164,10 +164,77 @@ function hasForcedRlsForTable(source: string, tableName: string): boolean {
     return true;
   }
 
-  return new RegExp(
+  if (new RegExp(
     `ALTER\\s+TABLE\\s+(?:IF\\s+EXISTS\\s+)?${escapeRegExp(tableName)}\\s+FORCE\\s+ROW\\s+LEVEL\\s+SECURITY`,
     'i',
-  ).test(source);
+  ).test(source)) {
+    return true;
+  }
+
+  return isCoveredBySimpleOperationsSchema(source, tableName);
+}
+
+function isCoveredBySimpleOperationsSchema(source: string, tableName: string): boolean {
+  if (!/buildSimpleOperationsSchema\s*\(/.test(source)) {
+    return false;
+  }
+
+  return collectSimpleOperationsSchemaTables(source).has(tableName);
+}
+
+function collectSimpleOperationsSchemaTables(source: string): Set<string> {
+  const tableConstants = new Map<string, Set<string>>();
+  const configuredTables = new Set<string>();
+  const constantPattern = /const\s+([A-Za-z_$][A-Za-z0-9_$]*)\s*=\s*\[([\s\S]*?)\]\s+as\s+const/g;
+  const tablesReferencePattern = /\btables\s*:\s*([A-Za-z_$][A-Za-z0-9_$]*)/g;
+  const inlineTablesPattern = /\btables\s*:\s*\[([\s\S]*?)\]/g;
+  let match: RegExpExecArray | null;
+
+  while ((match = constantPattern.exec(source)) !== null) {
+    const [, constantName, arrayBody] = match;
+
+    if (!constantName || !arrayBody) {
+      continue;
+    }
+
+    tableConstants.set(constantName, extractSqlTableLiterals(arrayBody));
+  }
+
+  while ((match = tablesReferencePattern.exec(source)) !== null) {
+    const tableSet = match[1] ? tableConstants.get(match[1]) : undefined;
+
+    if (!tableSet) {
+      continue;
+    }
+
+    for (const table of tableSet) {
+      configuredTables.add(table);
+    }
+  }
+
+  while ((match = inlineTablesPattern.exec(source)) !== null) {
+    const inlineTables = match[1] ? extractSqlTableLiterals(match[1]) : new Set<string>();
+
+    for (const table of inlineTables) {
+      configuredTables.add(table);
+    }
+  }
+
+  return configuredTables;
+}
+
+function extractSqlTableLiterals(source: string): Set<string> {
+  const tables = new Set<string>();
+  const stringLiteralPattern = /['"`]([a-z][a-z0-9_]*)['"`]/g;
+  let match: RegExpExecArray | null;
+
+  while ((match = stringLiteralPattern.exec(source)) !== null) {
+    if (match[1]) {
+      tables.add(match[1]);
+    }
+  }
+
+  return tables;
 }
 
 function escapeRegExp(value: string): string {

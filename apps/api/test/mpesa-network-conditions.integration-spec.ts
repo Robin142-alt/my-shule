@@ -285,17 +285,20 @@ describe('MPESA network conditions integration', () => {
     runInTenantContext(tenantId, async () => {
       await ensureMpesaLedgerAccounts(tenantId);
 
-      const response = await mpesaService.createPaymentIntent({
-        idempotency_key: `itest:${tenantId}:${randomUUID()}`,
-        amount_minor: overrides.amount_minor,
-        phone_number: overrides.phone_number,
-        account_reference: overrides.account_reference,
-        transaction_desc: 'Network condition integration payment',
-        external_reference: overrides.external_reference,
-        metadata: {
-          source: 'mpesa-network-conditions-tests',
+      const response = await mpesaService.createPaymentIntent(
+        {
+          idempotency_key: `itest:${tenantId}:${randomUUID()}`,
+          amount_minor: overrides.amount_minor,
+          phone_number: overrides.phone_number,
+          account_reference: overrides.account_reference,
+          transaction_desc: 'Network condition integration payment',
+          external_reference: overrides.external_reference,
+          metadata: {
+            source: 'mpesa-network-conditions-tests',
+          },
         },
-      });
+        { payment_owner: 'platform' },
+      );
 
       return queryRow<PaymentIntentEntity>(
         `
@@ -328,7 +331,7 @@ describe('MPESA network conditions integration', () => {
           metadata
         )
         VALUES
-          ($1::uuid, $2, '1100-MPESA-CLEARING', 'MPESA Clearing', 'asset', 'debit', 'KES', TRUE, TRUE, '{}'::jsonb),
+          ($1::uuid, $2, '1110-MPESA-CLEARING', 'MPESA Clearing', 'asset', 'debit', 'KES', TRUE, TRUE, '{}'::jsonb),
           ($3::uuid, $2, '2100-CUSTOMER-DEPOSITS', 'Customer Deposits', 'liability', 'credit', 'KES', TRUE, TRUE, '{}'::jsonb)
         ON CONFLICT (tenant_id, code)
         DO NOTHING
@@ -518,6 +521,17 @@ describe('MPESA network conditions integration', () => {
       await client.query('BEGIN');
 
       try {
+        await client.query(`DELETE FROM finance_approval_requests WHERE tenant_id = ANY($1::text[])`, [
+          values,
+        ]);
+        await client.query(
+          `DELETE FROM mpesa_reconciliation_discrepancies WHERE tenant_id = ANY($1::text[])`,
+          [values],
+        );
+        await client.query(
+          `DELETE FROM mpesa_reconciliation_batches WHERE tenant_id = ANY($1::text[])`,
+          [values],
+        );
         await client.query(`DELETE FROM mpesa_transactions WHERE tenant_id = ANY($1::text[])`, [values]);
         await client.query(`DELETE FROM callback_logs WHERE tenant_id = ANY($1::text[])`, [values]);
         await client.query(`DELETE FROM payment_intents WHERE tenant_id = ANY($1::text[])`, [values]);

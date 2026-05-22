@@ -1,4 +1,4 @@
-import { fireEvent, screen, within } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createElement } from "react";
 
@@ -56,12 +56,42 @@ const enabledSchoolModules = [
 ];
 
 describe("experience actions", () => {
+  beforeEach(() => {
+    global.fetch = jest.fn((input: RequestInfo | URL) => {
+      const url = typeof input === "string" ? input : input.toString();
+
+      if (url.includes("/api/school/modules/me")) {
+        return Promise.resolve(jsonResponse({ data: enabledSchoolModules }));
+      }
+
+      if (url.includes("/api/billing/reconciliation")) {
+        return Promise.resolve(jsonResponse(emptyReconciliationReport()));
+      }
+
+      if (
+        url.includes("/api/billing/finance-activity")
+        || url.includes("/api/billing/student-balances")
+        || url.includes("/api/billing/fee-structures")
+        || url.includes("/api/billing/manual-fee-payments")
+        || url.includes("/api/payments/mpesa/c2b/payments")
+        || url.includes("/api/platform/schools")
+      ) {
+        return Promise.resolve(jsonResponse([]));
+      }
+
+      return Promise.resolve(jsonResponse({}));
+    }) as unknown as typeof fetch;
+  });
+
   it("supports shell search and notifications inside the hosted school workspace", async () => {
     const user = userEvent.setup();
     renderWithProviders(
       createElement(SchoolPages, { role: "bursar", tenantSlug: "barakaacademy" }),
     );
 
+    await waitFor(() =>
+      expect(screen.getByRole("link", { name: /fees \/ payments/i })).toBeVisible(),
+    );
     const searchInput = screen.getByLabelText("Workspace search");
     await user.click(searchInput);
     await user.type(searchInput, "fees");
@@ -91,7 +121,7 @@ describe("experience actions", () => {
       }),
     );
 
-    await user.click(screen.getByRole("button", { name: /add student/i }));
+    await user.click(await screen.findByRole("button", { name: /add student/i }));
 
     const dialog = await screen.findByRole("dialog", { name: /add student/i });
     fireEvent.change(within(dialog).getByLabelText(/learner name/i), {
@@ -205,7 +235,7 @@ describe("experience actions", () => {
         }),
       );
 
-      await user.click(screen.getByRole("button", { name: /record payment/i }));
+      await user.click(await screen.findByRole("button", { name: /record payment/i }));
 
       const dialog = await screen.findByRole("dialog", { name: /record payment/i });
       await user.type(within(dialog).getByLabelText(/payment student/i), "Mercy");
@@ -244,7 +274,7 @@ describe("experience actions", () => {
       }),
     );
 
-    await user.click(screen.getByRole("button", { name: /manual reconcile/i }));
+    await user.click(await screen.findByRole("button", { name: /manual reconcile/i }));
 
     const dialog = await screen.findByRole("dialog", { name: /manual reconcile/i });
     const receiptInput = within(dialog).getByLabelText(/^receipt code$/i);

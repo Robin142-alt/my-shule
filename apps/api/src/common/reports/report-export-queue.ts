@@ -1,4 +1,10 @@
-import { BadRequestException, ForbiddenException, Injectable, Optional } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  Optional,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import type { JobsOptions } from 'bullmq';
 
 import { ModuleCode } from '../../modules/module-access/module-access.constants';
@@ -213,7 +219,8 @@ export async function assertReportExportModuleEnabled(
 @Injectable()
 export class ReportExportQueueService {
   constructor(
-    private readonly queueService: QueueService,
+    @Optional()
+    private readonly queueService: QueueService | undefined,
     private readonly requestContextService: RequestContextService,
     @Optional()
     private readonly moduleAccessService?: ModuleAccessService,
@@ -233,6 +240,10 @@ export class ReportExportQueueService {
   }
 
   async enqueueReportExport(input: ReportExportJobInput): Promise<ReportExportJobResponse> {
+    if (!this.queueService) {
+      throw new ServiceUnavailableException('Report export queue is not configured.');
+    }
+
     const queuedAt = new Date().toISOString();
     const payload: ReportExportJobPayload = {
       tenant_id: input.tenant_id,

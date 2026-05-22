@@ -16,12 +16,12 @@ exports[`STEP 1: Layout tests matches the dashboard regression snapshots 1`] = `
       data-testid="kpi-strip"
     >
       <a
-        class="group dashboard-card rounded-[var(--radius)] p-4 transition-all duration-150 hover:border-accent/20 hover:shadow-md widget-enter widget-enter-delay-1"
+        class="dashboard-card block rounded-[var(--radius)] p-4 transition hover:-translate-y-0.5 widget-enter widget-enter-delay-1"
         data-testid="kpi-card"
         href="/dashboard/admin/finance"
       >
         <div
-          class="flex items-start justify-between gap-2"
+          class="flex items-start justify-between gap-3"
         >
           <p
             class="eyebrow"
@@ -29,7 +29,7 @@ exports[`STEP 1: Layout tests matches the dashboard regression snapshots 1`] = `
             Fees Collected Today
           </p>
           <span
-            class="inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-[11px] font-semibold bg-success-soft text-success"
+            class="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold border-success/25 bg-success-soft text-success"
           >
             <svg
               aria-hidden="true"
@@ -55,18 +55,18 @@ exports[`STEP 1: Layout tests matches the dashboard regression snapshots 1`] = `
           </span>
         </div>
         <p
-          class="mt-2 text-[1.875rem] font-bold leading-none text-foreground finance-number"
+          class="mt-3 text-3xl font-bold leading-none text-foreground finance-number"
           data-testid="kpi-value"
         >
           Ksh 0
         </p>
         <p
-          class="mt-2 text-xs text-muted line-clamp-1"
+          class="mt-2 min-h-8 text-xs leading-5 text-muted"
         >
           No live receipts have been posted yet.
         </p>
         <div
-          class="mt-2.5"
+          class="mt-3"
         >
           <svg
             aria-hidden="true"
@@ -76,12 +76,12 @@ exports[`STEP 1: Layout tests matches the dashboard regression snapshots 1`] = `
           >
             <polygon
               fill="currentColor"
-              opacity="0.08"
-              points="0,100  100,100"
+              opacity="0.1"
+              points="0,100 0,100 50,100 100,100 100,100"
             />
             <polyline
               fill="none"
-              points=""
+              points="0,100 50,100 100,100"
               stroke="currentColor"
               stroke-linecap="round"
               stroke-linejoin="round"
@@ -91,12 +91,12 @@ exports[`STEP 1: Layout tests matches the dashboard regression snapshots 1`] = `
         </div>
       </a>
       <a
-        class="group dashboard-card rounded-[var(--radius)] p-4 transition-all duration-150 hover:border-accent/20 hover:shadow-md widget-enter widget-enter-delay-2"
+        class="dashboard-card block rounded-[var(--radius)] p-4 transition hover:-translate-y-0.5 widget-enter widget-enter-delay-2"
         data-testid="kpi-card"
         href="/dashboard/admin/finance"
       >
         <div
-          class="flex items-start justify-between gap-2"
+          class="flex items-start justify-between gap-3"
         >
           <p
             class="eyebrow"
@@ -104,7 +104,7 @@ exports[`STEP 1: Layout tests matches the dashboard regression snapshots 1`] = `
             Total Fees This Term
           </p>
           <span
-            class="inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-[11px] font-semibold bg-success-soft text-success"
+            class="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold border-success/25 bg-success-soft text-success"
           >
             <svg
               aria-hidden="true"
@@ -130,18 +130,18 @@ exports[`STEP 1: Layout tests matches the dashboard regression snapshots 1`] = `
           </span>
         </div>
         <p
-          class="mt-2 text-[1.875rem] font-bold leading-none text-foreground finance-number"
+          class="mt-3 text-3xl font-bold leading-none text-foreground finance-number"
           data-testid="kpi-value"
         >
           Ksh 0
         </p>
         <p
-          class="mt-2 text-xs text-muted line-clamp-1"
+          class="mt-2 min-h-8 text-xs leading-5 text-muted"
         >
           No live invoices have been created yet.
         </p>
         <div
-          class="mt-2.5"
+          class="mt-3"
         >
           <svg
             aria-hidden="true"
@@ -151,12 +151,12 @@ exports[`STEP 1: Layout tests matches the dashboard regression snapshots 1`] = `
           >
             <polygon
               fill="currentColor"
-              opacity="0.08"
-              points="0,100  100,100"
+              opacity="0.1"
+              points="0,100 0,100 50,100 100,100 100,100"
             />
             <polyline
               fill="none"
-              points=""
+              points="0,100 50,100 100,100"
               stroke="currentColor"
               stroke-linecap="round"
               stroke-linejoin="round"
@@ -166,12 +166,12 @@ exports[`STEP 1: Layout tests matches the dashboard regression snapshots 1`] = `
         </div>
       </a>
       <a
-        class="group dashboard-card rounded-[var(--radius)] p-4 transition-all duration-150 hover:border-accent/20 hover:shadow-md widget-enter widget-enter-delay-3"
+        class="dashboard-card block rounded-[var(--radius)] p-4 transition hover:-translate-y-0.5 widget-enter widget-enter-delay-3"
         data-testid="kpi-card"
         href="/dashboard/admin/finance"
       >
         <div
-          class="flex items-start justify-between gap-2"
+          class="flex items-start justify-between gap-3"
         >
           <p
             class="eyebrow"
@@ -179,7 +179,7 @@ exports[`STEP 1: Layout tests matches the dashboard regression snapshots 1`] = `
             Outstanding Balance
           </p>
           <span
-            class="inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-[11px] font-semibold bg-warning-soft text-warning"
+            class="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold border-warning/25 bg-warning-soft text-warning"
           >
             <svg
               aria-hidden="true"
@@ -205,18 +205,18 @@ exports[`STEP 1: Layout tests matches the dashboard regression snapshots 1`] = `
           </span>
         </div>
         <p
-          class="mt-2 text-[1.875rem] font-bold leading-none text-foreground finance-number"
+          class="mt-3 text-3xl font-bold leading-none text-foreground finance-number"
           data-testid="kpi-value"
         >
           Ksh 0
         </p>
         <p
-          class="mt-2 text-xs text-muted line-clamp-1"
+          class="mt-2 min-h-8 text-xs leading-5 text-muted"
         >
           No outstanding balances exist yet.
         </p>
         <div
-          class="mt-2.5"
+          class="mt-3"
         >
           <svg
             aria-hidden="true"
@@ -226,12 +226,12 @@ exports[`STEP 1: Layout tests matches the dashboard regression snapshots 1`] = `
           >
             <polygon
               fill="currentColor"
-              opacity="0.08"
-              points="0,100  100,100"
+              opacity="0.1"
+              points="0,100 0,100 50,100 100,100 100,100"
             />
             <polyline
               fill="none"
-              points=""
+              points="0,100 50,100 100,100"
               stroke="currentColor"
               stroke-linecap="round"
               stroke-linejoin="round"
@@ -241,12 +241,12 @@ exports[`STEP 1: Layout tests matches the dashboard regression snapshots 1`] = `
         </div>
       </a>
       <a
-        class="group dashboard-card rounded-[var(--radius)] p-4 transition-all duration-150 hover:border-accent/20 hover:shadow-md widget-enter widget-enter-delay-4"
+        class="dashboard-card block rounded-[var(--radius)] p-4 transition hover:-translate-y-0.5 widget-enter widget-enter-delay-4"
         data-testid="kpi-card"
         href="/dashboard/admin/students"
       >
         <div
-          class="flex items-start justify-between gap-2"
+          class="flex items-start justify-between gap-3"
         >
           <p
             class="eyebrow"
@@ -254,7 +254,7 @@ exports[`STEP 1: Layout tests matches the dashboard regression snapshots 1`] = `
             Students with Balance
           </p>
           <span
-            class="inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-[11px] font-semibold bg-warning-soft text-warning"
+            class="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold border-warning/25 bg-warning-soft text-warning"
           >
             <svg
               aria-hidden="true"
@@ -280,18 +280,18 @@ exports[`STEP 1: Layout tests matches the dashboard regression snapshots 1`] = `
           </span>
         </div>
         <p
-          class="mt-2 text-[1.875rem] font-bold leading-none text-foreground finance-number"
+          class="mt-3 text-3xl font-bold leading-none text-foreground finance-number"
           data-testid="kpi-value"
         >
           0
         </p>
         <p
-          class="mt-2 text-xs text-muted line-clamp-1"
+          class="mt-2 min-h-8 text-xs leading-5 text-muted"
         >
           No students have been onboarded yet.
         </p>
         <div
-          class="mt-2.5"
+          class="mt-3"
         >
           <svg
             aria-hidden="true"
@@ -301,12 +301,12 @@ exports[`STEP 1: Layout tests matches the dashboard regression snapshots 1`] = `
           >
             <polygon
               fill="currentColor"
-              opacity="0.08"
-              points="0,100  100,100"
+              opacity="0.1"
+              points="0,100 0,100 50,100 100,100 100,100"
             />
             <polyline
               fill="none"
-              points=""
+              points="0,100 50,100 100,100"
               stroke="currentColor"
               stroke-linecap="round"
               stroke-linejoin="round"
@@ -554,7 +554,7 @@ exports[`STEP 1: Layout tests matches the dashboard regression snapshots 1`] = `
           class="dashboard-card  overflow-hidden"
         >
           <div
-            class="border-b border-border px-5 py-3.5"
+            class="border-b border-border bg-primary-soft/40 px-5 py-3.5"
           >
             <div
               class="flex items-center justify-between gap-4"
@@ -579,10 +579,10 @@ exports[`STEP 1: Layout tests matches the dashboard regression snapshots 1`] = `
             class="px-5 py-10"
           >
             <div
-              class="rounded-[var(--radius)] border border-dashed border-border bg-surface-muted/50 px-6 py-10 text-center"
+              class="rounded-[var(--radius)] border border-dashed border-border bg-primary-soft/35 px-6 py-10 text-center backdrop-blur"
             >
               <div
-                class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-surface-strong"
+                class="mx-auto flex h-12 w-12 items-center justify-center rounded-full border border-border bg-surface-strong/80"
               >
                 <svg
                   aria-hidden="true"
@@ -684,7 +684,7 @@ exports[`STEP 1: Layout tests matches the dashboard regression snapshots 1`] = `
             </span>
           </div>
           <div
-            class="space-y-0.5"
+            class="space-y-1"
           />
         </section>
       </div>
@@ -699,12 +699,12 @@ exports[`STEP 1: Layout tests matches the dashboard regression snapshots 2`] = `
   data-testid="kpi-strip"
 >
   <a
-    class="group dashboard-card rounded-[var(--radius)] p-4 transition-all duration-150 hover:border-accent/20 hover:shadow-md widget-enter widget-enter-delay-1"
+    class="dashboard-card block rounded-[var(--radius)] p-4 transition hover:-translate-y-0.5 widget-enter widget-enter-delay-1"
     data-testid="kpi-card"
     href="/dashboard/admin/finance"
   >
     <div
-      class="flex items-start justify-between gap-2"
+      class="flex items-start justify-between gap-3"
     >
       <p
         class="eyebrow"
@@ -712,7 +712,7 @@ exports[`STEP 1: Layout tests matches the dashboard regression snapshots 2`] = `
         Fees Collected Today
       </p>
       <span
-        class="inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-[11px] font-semibold bg-success-soft text-success"
+        class="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold border-success/25 bg-success-soft text-success"
       >
         <svg
           aria-hidden="true"
@@ -738,18 +738,18 @@ exports[`STEP 1: Layout tests matches the dashboard regression snapshots 2`] = `
       </span>
     </div>
     <p
-      class="mt-2 text-[1.875rem] font-bold leading-none text-foreground finance-number"
+      class="mt-3 text-3xl font-bold leading-none text-foreground finance-number"
       data-testid="kpi-value"
     >
       Ksh 0
     </p>
     <p
-      class="mt-2 text-xs text-muted line-clamp-1"
+      class="mt-2 min-h-8 text-xs leading-5 text-muted"
     >
       No live receipts have been posted yet.
     </p>
     <div
-      class="mt-2.5"
+      class="mt-3"
     >
       <svg
         aria-hidden="true"
@@ -759,12 +759,12 @@ exports[`STEP 1: Layout tests matches the dashboard regression snapshots 2`] = `
       >
         <polygon
           fill="currentColor"
-          opacity="0.08"
-          points="0,100  100,100"
+          opacity="0.1"
+          points="0,100 0,100 50,100 100,100 100,100"
         />
         <polyline
           fill="none"
-          points=""
+          points="0,100 50,100 100,100"
           stroke="currentColor"
           stroke-linecap="round"
           stroke-linejoin="round"
@@ -774,12 +774,12 @@ exports[`STEP 1: Layout tests matches the dashboard regression snapshots 2`] = `
     </div>
   </a>
   <a
-    class="group dashboard-card rounded-[var(--radius)] p-4 transition-all duration-150 hover:border-accent/20 hover:shadow-md widget-enter widget-enter-delay-2"
+    class="dashboard-card block rounded-[var(--radius)] p-4 transition hover:-translate-y-0.5 widget-enter widget-enter-delay-2"
     data-testid="kpi-card"
     href="/dashboard/admin/finance"
   >
     <div
-      class="flex items-start justify-between gap-2"
+      class="flex items-start justify-between gap-3"
     >
       <p
         class="eyebrow"
@@ -787,7 +787,7 @@ exports[`STEP 1: Layout tests matches the dashboard regression snapshots 2`] = `
         Total Fees This Term
       </p>
       <span
-        class="inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-[11px] font-semibold bg-success-soft text-success"
+        class="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold border-success/25 bg-success-soft text-success"
       >
         <svg
           aria-hidden="true"
@@ -813,18 +813,18 @@ exports[`STEP 1: Layout tests matches the dashboard regression snapshots 2`] = `
       </span>
     </div>
     <p
-      class="mt-2 text-[1.875rem] font-bold leading-none text-foreground finance-number"
+      class="mt-3 text-3xl font-bold leading-none text-foreground finance-number"
       data-testid="kpi-value"
     >
       Ksh 0
     </p>
     <p
-      class="mt-2 text-xs text-muted line-clamp-1"
+      class="mt-2 min-h-8 text-xs leading-5 text-muted"
     >
       No live invoices have been created yet.
     </p>
     <div
-      class="mt-2.5"
+      class="mt-3"
     >
       <svg
         aria-hidden="true"
@@ -834,12 +834,12 @@ exports[`STEP 1: Layout tests matches the dashboard regression snapshots 2`] = `
       >
         <polygon
           fill="currentColor"
-          opacity="0.08"
-          points="0,100  100,100"
+          opacity="0.1"
+          points="0,100 0,100 50,100 100,100 100,100"
         />
         <polyline
           fill="none"
-          points=""
+          points="0,100 50,100 100,100"
           stroke="currentColor"
           stroke-linecap="round"
           stroke-linejoin="round"
@@ -849,12 +849,12 @@ exports[`STEP 1: Layout tests matches the dashboard regression snapshots 2`] = `
     </div>
   </a>
   <a
-    class="group dashboard-card rounded-[var(--radius)] p-4 transition-all duration-150 hover:border-accent/20 hover:shadow-md widget-enter widget-enter-delay-3"
+    class="dashboard-card block rounded-[var(--radius)] p-4 transition hover:-translate-y-0.5 widget-enter widget-enter-delay-3"
     data-testid="kpi-card"
     href="/dashboard/admin/finance"
   >
     <div
-      class="flex items-start justify-between gap-2"
+      class="flex items-start justify-between gap-3"
     >
       <p
         class="eyebrow"
@@ -862,7 +862,7 @@ exports[`STEP 1: Layout tests matches the dashboard regression snapshots 2`] = `
         Outstanding Balance
       </p>
       <span
-        class="inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-[11px] font-semibold bg-warning-soft text-warning"
+        class="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold border-warning/25 bg-warning-soft text-warning"
       >
         <svg
           aria-hidden="true"
@@ -888,18 +888,18 @@ exports[`STEP 1: Layout tests matches the dashboard regression snapshots 2`] = `
       </span>
     </div>
     <p
-      class="mt-2 text-[1.875rem] font-bold leading-none text-foreground finance-number"
+      class="mt-3 text-3xl font-bold leading-none text-foreground finance-number"
       data-testid="kpi-value"
     >
       Ksh 0
     </p>
     <p
-      class="mt-2 text-xs text-muted line-clamp-1"
+      class="mt-2 min-h-8 text-xs leading-5 text-muted"
     >
       No outstanding balances exist yet.
     </p>
     <div
-      class="mt-2.5"
+      class="mt-3"
     >
       <svg
         aria-hidden="true"
@@ -909,12 +909,12 @@ exports[`STEP 1: Layout tests matches the dashboard regression snapshots 2`] = `
       >
         <polygon
           fill="currentColor"
-          opacity="0.08"
-          points="0,100  100,100"
+          opacity="0.1"
+          points="0,100 0,100 50,100 100,100 100,100"
         />
         <polyline
           fill="none"
-          points=""
+          points="0,100 50,100 100,100"
           stroke="currentColor"
           stroke-linecap="round"
           stroke-linejoin="round"
@@ -924,12 +924,12 @@ exports[`STEP 1: Layout tests matches the dashboard regression snapshots 2`] = `
     </div>
   </a>
   <a
-    class="group dashboard-card rounded-[var(--radius)] p-4 transition-all duration-150 hover:border-accent/20 hover:shadow-md widget-enter widget-enter-delay-4"
+    class="dashboard-card block rounded-[var(--radius)] p-4 transition hover:-translate-y-0.5 widget-enter widget-enter-delay-4"
     data-testid="kpi-card"
     href="/dashboard/admin/students"
   >
     <div
-      class="flex items-start justify-between gap-2"
+      class="flex items-start justify-between gap-3"
     >
       <p
         class="eyebrow"
@@ -937,7 +937,7 @@ exports[`STEP 1: Layout tests matches the dashboard regression snapshots 2`] = `
         Students with Balance
       </p>
       <span
-        class="inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-[11px] font-semibold bg-warning-soft text-warning"
+        class="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold border-warning/25 bg-warning-soft text-warning"
       >
         <svg
           aria-hidden="true"
@@ -963,18 +963,18 @@ exports[`STEP 1: Layout tests matches the dashboard regression snapshots 2`] = `
       </span>
     </div>
     <p
-      class="mt-2 text-[1.875rem] font-bold leading-none text-foreground finance-number"
+      class="mt-3 text-3xl font-bold leading-none text-foreground finance-number"
       data-testid="kpi-value"
     >
       0
     </p>
     <p
-      class="mt-2 text-xs text-muted line-clamp-1"
+      class="mt-2 min-h-8 text-xs leading-5 text-muted"
     >
       No students have been onboarded yet.
     </p>
     <div
-      class="mt-2.5"
+      class="mt-3"
     >
       <svg
         aria-hidden="true"
@@ -984,12 +984,12 @@ exports[`STEP 1: Layout tests matches the dashboard regression snapshots 2`] = `
       >
         <polygon
           fill="currentColor"
-          opacity="0.08"
-          points="0,100  100,100"
+          opacity="0.1"
+          points="0,100 0,100 50,100 100,100 100,100"
         />
         <polyline
           fill="none"
-          points=""
+          points="0,100 50,100 100,100"
           stroke="currentColor"
           stroke-linecap="round"
           stroke-linejoin="round"

@@ -135,10 +135,10 @@ export function PublicSchoolLoginView({
             <SecurityBadge label="Secure session" />
           </div>
           <div>
-            <h2 className="text-3xl font-bold leading-tight text-slate-950">
+            <h2 className="text-3xl font-bold leading-tight text-foreground">
               {copy.title}
             </h2>
-            <p className="mt-2 text-sm leading-6 text-slate-600">
+            <p className="mt-2 text-sm leading-6 text-muted">
               {copy.description}
             </p>
           </div>
@@ -185,7 +185,7 @@ export function PublicSchoolLoginView({
           />
           <Link
             href="/school/forgot-password"
-            className="text-sm font-bold text-slate-700 underline-offset-4 hover:text-emerald-700 hover:underline"
+            className="text-sm font-bold text-accent underline-offset-4 hover:text-orange-300 hover:underline"
           >
             Forgot password?
           </Link>
@@ -214,20 +214,20 @@ export function PublicSchoolLoginView({
           {mfaRequired ? "Verify and continue" : "Sign in securely"}
         </AuthSubmitButton>
 
-        <div className="grid gap-2 rounded-2xl border border-emerald-100 bg-emerald-50 p-4 text-sm sm:grid-cols-2">
+        <div className="grid gap-2 rounded-2xl border border-accent/20 bg-surface-muted/70 p-4 text-sm sm:grid-cols-2">
           <Link
             href="/parent/login"
-            className="font-bold text-emerald-800 underline-offset-4 hover:underline"
+            className="font-bold text-accent underline-offset-4 hover:text-orange-300 hover:underline"
           >
             Parent login
           </Link>
           <Link
             href="/school/login"
-            className="font-bold text-emerald-800 underline-offset-4 hover:underline sm:text-right"
+            className="font-bold text-accent underline-offset-4 hover:text-orange-300 hover:underline sm:text-right"
           >
             School login
           </Link>
-          <p className="text-emerald-900 sm:col-span-2">
+          <p className="text-muted sm:col-span-2">
             Need setup help? Call My Shule on 0769622589.
           </p>
         </div>

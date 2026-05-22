@@ -22,21 +22,21 @@ export function AuthMessage({
 
   const toneClasses =
     tone === "success"
-      ? "border-emerald-200 bg-emerald-50 text-emerald-950"
+      ? "border-success/25 bg-success-soft text-foreground"
       : tone === "error"
-        ? "border-red-200 bg-red-50 text-red-950"
+        ? "border-danger/25 bg-danger-soft text-foreground"
         : tone === "warning"
-          ? "border-amber-200 bg-amber-50 text-amber-950"
-          : "border-slate-200 bg-slate-50 text-slate-950";
+          ? "border-warning/25 bg-warning-soft text-foreground"
+          : "border-accent/25 bg-accent-soft text-foreground";
 
   const iconClasses =
     tone === "success"
-      ? "text-emerald-600"
+      ? "text-success"
       : tone === "error"
-        ? "text-red-600"
+        ? "text-danger"
         : tone === "warning"
-          ? "text-amber-600"
-          : "text-slate-500";
+          ? "text-warning"
+          : "text-accent";
 
   return (
     <div className={`rounded-2xl border px-4 py-4 ${toneClasses}`} role={tone === "error" ? "alert" : "status"}>
@@ -44,7 +44,7 @@ export function AuthMessage({
         <Icon className={`mt-0.5 h-4 w-4 shrink-0 ${iconClasses}`} />
         <div>
           <p className="text-sm font-bold">{title}</p>
-          <p className="mt-1 text-sm leading-6 text-slate-600">{description}</p>
+          <p className="mt-1 text-sm leading-6 text-muted">{description}</p>
         </div>
       </div>
     </div>

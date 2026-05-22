@@ -19,19 +19,19 @@ export function buttonClasses({
 
   const variantClasses: Record<ButtonVariant, string> = {
     primary:
-      "bg-accent text-white hover:bg-accent-hover active:scale-[0.98] shadow-sm hover:shadow",
+      "ui-button-primary hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98]",
     secondary:
-      "border border-border bg-surface text-foreground hover:bg-surface-strong hover:border-border-strong active:scale-[0.98]",
+      "ui-button-secondary shadow-sm hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98]",
     danger:
-      "bg-danger text-white hover:bg-danger-hover active:scale-[0.98] shadow-sm",
+      "bg-danger text-white hover:bg-danger-hover active:scale-[0.98] shadow-[0_10px_28px_rgba(220,38,38,0.16)]",
     ghost:
-      "bg-transparent text-muted-strong hover:bg-surface-strong hover:text-foreground",
+      "bg-transparent text-muted hover:bg-primary-soft hover:text-primary",
   };
 
   const sizeClasses: Record<ButtonSize, string> = {
-    sm: "h-7 px-2.5 text-[12px]",
-    md: "h-8 px-3.5 text-[13px]",
-    lg: "h-9 px-4 text-[13px]",
+    sm: "h-8 px-3 text-[12px]",
+    md: "h-10 px-4 text-[13px]",
+    lg: "h-11 px-5 text-sm",
   };
 
   return [base, variantClasses[variant], sizeClasses[size], block ? "w-full" : "", className]

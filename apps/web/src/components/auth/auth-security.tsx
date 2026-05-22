@@ -29,7 +29,7 @@ export function OTPInput({
 
   return (
     <div className="space-y-3">
-      <label className="block text-sm font-bold text-slate-900" htmlFor="auth-otp">
+      <label className="block text-sm font-bold text-foreground" htmlFor="auth-otp">
         {label}
       </label>
       <input
@@ -47,15 +47,15 @@ export function OTPInput({
             key={`${index}-${digit}`}
             type="button"
             onClick={() => document.getElementById("auth-otp")?.focus()}
-            className={`h-12 rounded-2xl border bg-white text-center text-lg font-bold text-slate-950 transition ${
-              error ? "border-red-300" : "border-slate-200 hover:border-emerald-400"
+            className={`h-12 rounded-2xl border bg-surface-muted text-center text-lg font-bold text-foreground transition ${
+              error ? "border-danger" : "border-border hover:border-accent/45"
             }`}
           >
             {digit || " "}
           </button>
         ))}
       </div>
-      {error ? <p className="text-sm font-medium text-red-600">{error}</p> : null}
+      {error ? <p className="text-sm font-medium text-danger">{error}</p> : null}
     </div>
   );
 }
@@ -69,10 +69,10 @@ export function SecurityBadge({
 }) {
   const classes =
     tone === "success"
-      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+      ? "border-success/25 bg-success-soft text-success"
       : tone === "warning"
-        ? "border-amber-200 bg-amber-50 text-amber-700"
-        : "border-slate-200 bg-slate-50 text-slate-600";
+        ? "border-warning/25 bg-warning-soft text-warning"
+        : "border-border bg-surface-muted/80 text-muted";
 
   return (
     <span className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-bold ${classes}`}>
@@ -90,29 +90,29 @@ export function DeviceVerificationCard({
   onTrustedChange: (trusted: boolean) => void;
 }) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+    <div className="rounded-2xl border border-border bg-surface-muted/80 p-4">
       <div className="flex items-start gap-3">
-        <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white text-emerald-700 shadow-sm">
+        <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-accent-soft text-accent shadow-sm">
           <Laptop className="h-4 w-4" />
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="text-sm font-bold text-slate-950">Device context</p>
+            <p className="text-sm font-bold text-foreground">Device context</p>
             <SecurityBadge label="Audit ready" tone="success" />
           </div>
-          <p className="mt-2 text-sm leading-6 text-slate-600">
+          <p className="mt-2 text-sm leading-6 text-muted">
             This sign-in will be associated with the current browser and device profile. Review sessions after login if anything looks unfamiliar.
           </p>
-          <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-2xl border border-slate-200 bg-white p-3">
+          <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-2xl border border-border bg-surface p-3">
             <input
               type="checkbox"
               checked={trusted}
               onChange={(event) => onTrustedChange(event.target.checked)}
-              className="mt-1 h-4 w-4 rounded border-slate-300 text-emerald-600"
+              className="mt-1 h-4 w-4 rounded border-border bg-surface-muted text-accent"
             />
             <span>
-              <span className="block text-sm font-bold text-slate-900">Use this device context</span>
-              <span className="mt-1 block text-sm leading-5 text-slate-500">
+              <span className="block text-sm font-bold text-foreground">Use this device context</span>
+              <span className="mt-1 block text-sm leading-5 text-muted">
                 Use only on a managed school or personal device.
               </span>
             </span>
@@ -149,12 +149,12 @@ export function SessionWarning({
   const Icon = copy.icon;
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+    <div className="rounded-2xl border border-border bg-surface-muted/80 p-4 shadow-sm">
       <div className="flex items-start gap-3">
-        <Icon className="mt-0.5 h-4 w-4 text-emerald-600" />
+        <Icon className="mt-0.5 h-4 w-4 text-accent" />
         <div>
-          <p className="text-sm font-bold text-slate-950">{copy.title}</p>
-          <p className="mt-1 text-sm leading-6 text-slate-500">{copy.detail}</p>
+          <p className="text-sm font-bold text-foreground">{copy.title}</p>
+          <p className="mt-1 text-sm leading-6 text-muted">{copy.detail}</p>
         </div>
       </div>
     </div>
@@ -187,26 +187,26 @@ export function TenantSelector({
           onBlur={() => window.setTimeout(() => setFocused(false), 120)}
           autoComplete="organization"
           placeholder=" "
-          className={`peer h-14 w-full rounded-2xl border bg-white px-4 pb-2 pt-5 text-sm font-medium text-slate-950 outline-none transition placeholder:text-transparent hover:border-slate-300 focus:border-emerald-500 focus:shadow-[0_0_0_4px_rgba(16,185,129,0.12)] ${
-            error ? "border-red-400" : "border-slate-200"
+          className={`peer h-14 w-full rounded-[var(--radius)] border bg-white px-4 pb-2 pt-5 text-sm font-medium text-foreground outline-none transition placeholder:text-transparent hover:border-accent/35 focus:border-accent focus:shadow-[var(--shadow-focus)] ${
+            error ? "border-danger" : "border-border"
           }`}
           aria-invalid={Boolean(error)}
         />
-        <span className="pointer-events-none absolute left-4 top-2 text-[11px] font-semibold text-slate-500 transition-all duration-200 peer-placeholder-shown:top-[18px] peer-placeholder-shown:text-sm peer-placeholder-shown:font-medium peer-focus:top-2 peer-focus:text-[11px] peer-focus:font-semibold peer-focus:text-emerald-700">
+        <span className="pointer-events-none absolute left-4 top-2 text-[11px] font-semibold text-muted-strong transition-all duration-200 peer-placeholder-shown:top-[18px] peer-placeholder-shown:text-sm peer-placeholder-shown:font-medium peer-focus:top-2 peer-focus:text-[11px] peer-focus:font-semibold peer-focus:text-accent">
           School email domain
         </span>
       </label>
 
       {focused ? (
-        <div className="grid gap-2 rounded-2xl border border-slate-200 bg-white p-2 shadow-lg">
-          <div className="flex items-start gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold text-slate-700">
-            <CheckCircle2 className="mt-0.5 h-4 w-4 text-emerald-500" />
+        <div className="grid gap-2 rounded-2xl border border-border bg-surface p-2 shadow-lg">
+          <div className="flex items-start gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold text-muted">
+            <CheckCircle2 className="mt-0.5 h-4 w-4 text-accent" />
             The system resolves the correct workspace from the signed-in account.
           </div>
         </div>
       ) : null}
 
-      {error ? <p className="text-sm font-medium text-red-600">{error}</p> : null}
+      {error ? <p className="text-sm font-medium text-danger">{error}</p> : null}
     </div>
   );
 }
@@ -221,9 +221,9 @@ export function MobileTrustRow() {
       ].map((item) => {
         const Icon = item.icon;
         return (
-          <div key={item.label} className="rounded-2xl border border-slate-200 bg-white px-3 py-3 text-center">
-            <Icon className="mx-auto h-4 w-4 text-emerald-600" />
-            <p className="mt-2 text-xs font-bold text-slate-700">{item.label}</p>
+          <div key={item.label} className="rounded-2xl border border-border bg-surface-muted/80 px-3 py-3 text-center">
+            <Icon className="mx-auto h-4 w-4 text-accent" />
+            <p className="mt-2 text-xs font-bold text-muted">{item.label}</p>
           </div>
         );
       })}

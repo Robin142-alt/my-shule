@@ -1,7 +1,7 @@
 export function SkeletonCard({ className = "" }: { className?: string }) {
   return (
     <div
-      className={`skeleton-shimmer rounded-[var(--radius)] border border-border ${className}`}
+      className={`skeleton-shimmer rounded-[var(--radius)] border border-border shadow-sm ${className}`}
     />
   );
 }

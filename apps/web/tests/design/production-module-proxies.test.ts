@@ -41,11 +41,14 @@ describe("production module live API proxies", () => {
 
   it("keeps principal insight event streams as streaming responses through the proxy", () => {
     const proxySource = readFileSync(join(process.cwd(), "src", "lib", "dashboard", "server-api-proxy.ts"), "utf8");
-    const schoolPageSource = readFileSync(join(process.cwd(), "src", "components", "school", "school-pages.tsx"), "utf8");
+    const principalCommandCenterSource = readFileSync(
+      join(process.cwd(), "src", "components", "school", "principal-command-center.tsx"),
+      "utf8",
+    );
 
     expect(proxySource).toContain("text/event-stream");
     expect(proxySource).toContain("upstreamResponse.body");
-    expect(schoolPageSource).toContain("new EventSource");
-    expect(schoolPageSource).toContain("principal.dashboard");
+    expect(principalCommandCenterSource).toContain("new EventSource");
+    expect(principalCommandCenterSource).toContain("principal.dashboard");
   });
 });

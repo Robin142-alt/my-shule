@@ -5,15 +5,15 @@ import type { StatusTone, SyncState } from "@/lib/dashboard/types";
 const toneMap: Record<StatusTone, { icon: typeof ShieldAlert; className: string }> = {
   critical: {
     icon: ShieldAlert,
-    className: "bg-danger/10 text-danger",
+    className: "border border-danger/25 bg-danger-soft text-danger shadow-[0_0_18px_rgba(248,113,113,0.08)]",
   },
   warning: {
     icon: AlertTriangle,
-    className: "bg-warning/10 text-warning",
+    className: "border border-warning/25 bg-warning-soft text-warning shadow-[0_0_18px_rgba(251,191,36,0.08)]",
   },
   ok: {
     icon: CheckCircle2,
-    className: "bg-success/10 text-success",
+    className: "border border-success/25 bg-success-soft text-success shadow-[0_0_18px_rgba(52,211,153,0.08)]",
   },
 };
 

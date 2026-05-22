@@ -39,7 +39,7 @@ const emptyDashboard: Implementation100Dashboard = {
 };
 
 const fieldClassName =
-  "w-full rounded-[var(--radius-sm)] border border-border bg-white px-3 py-2 text-sm text-foreground outline-none transition focus:border-accent/50 focus:bg-surface";
+  "w-full rounded-[var(--radius-sm)] border border-border bg-white px-3 py-2 text-sm text-foreground outline-none transition focus:border-accent/50 focus:shadow-[var(--shadow-focus)]";
 
 function normalizeDashboard(payload: unknown): Implementation100Dashboard {
   const source = payload && typeof payload === "object" && "data" in payload
@@ -241,7 +241,7 @@ export function Implementation100LiveModuleScreen({
 
   return (
     <div className="space-y-6">
-      <section className="rounded-[var(--radius)] border border-border bg-white px-5 py-5 shadow-sm">
+      <section className="rounded-[var(--radius)] border border-border bg-surface px-5 py-5 shadow-[0_18px_50px_rgba(2,6,23,0.24)]">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <div className="flex flex-wrap items-center gap-2">

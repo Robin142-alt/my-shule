@@ -100,12 +100,21 @@ const modules: Array<{
 
 describe("Implementation 100 live module workspaces", () => {
   beforeEach(() => {
-    global.fetch = jest.fn(() =>
+    global.fetch = jest.fn((input: RequestInfo | URL) => {
+      if (String(input).includes("/api/school/modules/me")) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => modules.map((module) => module.moduleCode),
+        } as Response);
+      }
+
+      return (
       Promise.resolve({
         ok: true,
         json: async () => ({ data: liveDashboard }),
-      } as Response),
-    ) as unknown as typeof fetch;
+      } as Response)
+      );
+    }) as unknown as typeof fetch;
   });
 
   it.each(modules)(
@@ -130,12 +139,26 @@ describe("Implementation 100 live module workspaces", () => {
 
   it("registers every remaining Implementation 100 module as a production-ready school section", () => {
     const principalNav = getSchoolWorkspace("principal").navItems.map((item) => item.id);
+    const adminNav = getSchoolWorkspace("admin").navItems.map((item) => item.id);
+    const deputyNav = getSchoolWorkspace("deputy-principal").navItems.map((item) => item.id);
 
     for (const { section, moduleCode } of modules) {
       expect(isSchoolSection(section)).toBe(true);
       expect(isProductionReadyModule(section)).toBe(true);
       expect(isSchoolSectionEnabled(section, [moduleCode])).toBe(true);
-      expect(principalNav).toContain(section);
+      const operationalNav =
+        section === "ai-insights"
+          ? principalNav
+          : section === "cbt" || section === "lms"
+            ? deputyNav
+            : adminNav;
+
+      if (section === "ai-insights") {
+        expect(principalNav).toContain(section);
+      } else {
+        expect(principalNav).not.toContain(section);
+      }
+      expect(operationalNav).toContain(section);
     }
   });
 
@@ -145,7 +168,7 @@ describe("Implementation 100 live module workspaces", () => {
       await act(async () => {
         renderWithProviders(
           createElement(SchoolPages, {
-            role: "principal",
+            role: "admin",
             section,
             tenantSlug: "barakaacademy",
           }),

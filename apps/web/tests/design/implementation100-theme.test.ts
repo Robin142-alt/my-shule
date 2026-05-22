@@ -1,16 +1,19 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-describe("Implementation 100 theme tokens", () => {
+describe("Implementation 100/400 theme tokens", () => {
   const globalsCss = readFileSync(join(process.cwd(), "src", "app", "globals.css"), "utf8");
 
-  it("uses the required navy, orange, off-white, and dark text blue palette", () => {
-    expect(globalsCss).toContain("--background: #f3f4f6;");
-    expect(globalsCss).toContain("--foreground: #0f2345;");
-    expect(globalsCss).toContain("--primary: #071d49;");
-    expect(globalsCss).toContain("--primary-hover: #0b234f;");
-    expect(globalsCss).toContain("--accent: #ff7a1a;");
-    expect(globalsCss).toContain("--accent-hover: #e8660d;");
+  it("uses the Implementation 400 enterprise school ERP palette", () => {
+    expect(globalsCss).toContain("--navy: #071D49;");
+    expect(globalsCss).toContain("--orange: #FF7A1A;");
+    expect(globalsCss).toContain("--lightgray: #F3F4F6;");
+    expect(globalsCss).toContain("--darkblue: #0F2345;");
+    expect(globalsCss).toContain("--white: #FFFFFF;");
+    expect(globalsCss).toContain("--background: #F3F4F6;");
+    expect(globalsCss).toContain("--foreground: #0F2345;");
+    expect(globalsCss).toContain("--primary: #071D49;");
+    expect(globalsCss).toContain("--accent: #FF7A1A;");
   });
 
   it("does not keep emerald as the global accent color", () => {
@@ -19,6 +22,10 @@ describe("Implementation 100 theme tokens", () => {
   });
 
   it("maps primary tokens into Tailwind theme variables", () => {
+    expect(globalsCss).toContain("--color-navy: var(--navy);");
+    expect(globalsCss).toContain("--color-orange: var(--orange);");
+    expect(globalsCss).toContain("--color-lightgray: var(--lightgray);");
+    expect(globalsCss).toContain("--color-darkblue: var(--darkblue);");
     expect(globalsCss).toContain("--color-primary: var(--primary);");
     expect(globalsCss).toContain("--color-primary-hover: var(--primary-hover);");
     expect(globalsCss).toContain("--color-primary-soft: var(--primary-soft);");

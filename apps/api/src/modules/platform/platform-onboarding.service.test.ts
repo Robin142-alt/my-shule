@@ -82,6 +82,108 @@ test('PlatformOnboardingService creates a school and sends an invite without exp
   assert.doesNotMatch(String(outboxInsert?.values[3] ?? ''), /token=|invite_url/);
 });
 
+test('PlatformOnboardingService persists the full blueprint onboarding profile and tenant domain', async () => {
+  const queries: Array<{ text: string; values: unknown[] }> = [];
+
+  const service = new PlatformOnboardingService(
+    {
+      withRequestTransaction: async (callback: () => Promise<unknown>) => callback(),
+      query: async (text: string, values: unknown[]) => {
+        queries.push({ text, values });
+
+        if (text.includes('INSERT INTO tenants')) {
+          return {
+            rows: [
+              {
+                tenant_id: 'nairobi-international',
+                name: 'Nairobi International Academy',
+                subdomain: 'nairobi-international',
+                status: 'active',
+                metadata: JSON.parse(String(values[4])),
+                created_at: new Date('2026-05-11T00:00:00.000Z'),
+              },
+            ],
+          };
+        }
+
+        if (text.includes('INSERT INTO auth_action_tokens')) {
+          return { rows: [{ id: '00000000-0000-0000-0000-000000000803' }] };
+        }
+
+        if (text.includes('INSERT INTO auth_email_outbox')) {
+          return { rows: [{ id: '00000000-0000-0000-0000-000000000903' }] };
+        }
+
+        return { rows: [] };
+      },
+    } as never,
+    {
+      ensureTenantAuthorizationBaseline: async () => undefined,
+    } as never,
+    {
+      assertTransactionalEmailConfigured: () => undefined,
+      sendInvitationEmail: async () => undefined,
+    } as never,
+    { get: (key: string) => (key === 'email.publicAppUrl' ? 'https://my-shule-erp.vercel.app' : undefined) } as never,
+    {
+      getStore: () => ({
+        user_id: 'platform-owner',
+      }),
+    } as never,
+  );
+
+  const response = await service.createSchool({
+    school_name: 'Nairobi International Academy',
+    tenant_id: 'Nairobi International',
+    admin_email: 'principal@example.test',
+    admin_name: 'Principal User',
+    registration_number: 'REG-2026-001',
+    knec_code: 'KNEC-473821',
+    county: 'Nairobi',
+    location: 'Westlands',
+    contacts: {
+      phone: '+254700000000',
+      email: 'office@nairobi-international.test',
+    },
+    curriculum: 'cambridge',
+    institution_category: 'international_school',
+    campuses: [{ name: 'Main Campus', code: 'MAIN' }],
+    academic_calendar: { academic_year: '2026', terms: ['Term 1', 'Term 2', 'Term 3'] },
+    fee_categories: ['tuition', 'transport', 'boarding'],
+    sms_sender_id: 'MYSHULE',
+    domain: 'nairobi-international.myshule.africa',
+    module_codes: ['students', 'finance', 'exams', 'parent_portal'],
+    quotas: { students: 1200, staff: 160, storage_gb: 200, sms_per_term: 50000, devices: 24 },
+    import_plan: ['students', 'staff', 'fees', 'results', 'inventory'],
+    service_activation: ['sms', 'parent_portal', 'mobile_apps', 'cbt', 'biometrics'],
+    training_status: 'scheduled',
+    audit_verification_status: 'pending',
+  });
+
+  const tenantInsert = queries.find((query) => query.text.includes('INSERT INTO tenants'));
+  const tenantMetadata = JSON.parse(String(tenantInsert?.values[4]));
+  const domainInsert = queries.find((query) => query.text.includes('INSERT INTO tenant_domains'));
+
+  assert.equal(tenantMetadata.registration_number, 'REG-2026-001');
+  assert.equal(tenantMetadata.curriculum, 'cambridge');
+  assert.equal(tenantMetadata.institution_category, 'international_school');
+  assert.equal(tenantMetadata.sms_sender_id, 'MYSHULE');
+  assert.equal(tenantMetadata.domain, 'nairobi-international.myshule.africa');
+  assert.deepEqual(tenantMetadata.quotas, {
+    students: 1200,
+    staff: 160,
+    storage_gb: 200,
+    sms_per_term: 50000,
+    devices: 24,
+  });
+  assert.equal(tenantMetadata.onboarding_steps.go_live, 'blocked');
+  assert.deepEqual(response.enabled_modules, ['students', 'finance', 'exams', 'parent_portal']);
+  assert.equal(response.onboarding_profile?.curriculum, 'cambridge');
+  assert.equal(response.onboarding_profile?.domain, 'nairobi-international.myshule.africa');
+  assert.equal(response.onboarding_profile?.onboarding_steps.go_live, 'blocked');
+  assert.equal(domainInsert?.values[1], 'nairobi-international.myshule.africa');
+});
+
 test('PlatformOnboardingService rejects duplicate school URL slugs without sending an invite', async () => {
   const queries: Array<{ text: string; values: unknown[] }> = [];
   const baselines: string[] = [];

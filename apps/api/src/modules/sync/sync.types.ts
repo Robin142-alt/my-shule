@@ -1,6 +1,17 @@
-export type SyncEntity = 'finance';
-export type SyncConflictPolicy = 'server-authoritative';
+export type SyncEntity = 'attendance' | 'finance';
+export type SyncConflictPolicy = 'last-write-wins' | 'server-authoritative';
 export type SyncPushOperationStatus = 'applied' | 'duplicate' | 'rejected';
+
+export interface AttendanceSyncPayload extends Record<string, unknown> {
+  action: 'upsert';
+  record_id: string;
+  student_id: string;
+  attendance_date: string;
+  status: 'present' | 'absent' | 'late' | 'excused';
+  last_modified_at: string;
+  notes?: string | null;
+  metadata?: Record<string, unknown>;
+}
 
 export interface FinanceSyncPayload extends Record<string, unknown> {
   action: 'posted';
@@ -16,6 +27,7 @@ export interface FinanceSyncPayload extends Record<string, unknown> {
 }
 
 export interface SyncPayloadMap {
+  attendance: AttendanceSyncPayload;
   finance: FinanceSyncPayload;
 }
 

@@ -52,13 +52,13 @@ export function SuperAdminShell({
   const [profileOpen, setProfileOpen] = useState(false);
 
   return (
-    <div className="sa-shell min-h-screen bg-[#0b0f1a]">
+    <div className="sa-shell min-h-screen bg-[#F3F4F6]">
       {/* ── Desktop Sidebar ── */}
-      <aside className="sa-sidebar fixed inset-y-0 left-0 z-30 hidden w-[260px] flex-col border-r border-white/[0.06] bg-[#0e1225] lg:flex">
+      <aside className="sa-sidebar fixed inset-y-0 left-0 z-30 hidden w-[260px] flex-col border-r border-white/10 bg-[#071D49] lg:flex">
         {/* Brand */}
         <div className="border-b border-white/[0.06] px-5 py-5">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 shadow-lg shadow-indigo-500/20">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#FF7A1A] shadow-lg shadow-orange/20">
               <span className="text-sm font-bold text-white">SH</span>
             </div>
             <div>
@@ -84,12 +84,12 @@ export function SuperAdminShell({
                   href={item.href}
                   className={`group flex items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-[13px] font-medium transition-all duration-150 ${
                     isActive
-                      ? "bg-indigo-500/12 text-indigo-400 shadow-sm shadow-indigo-500/5"
-                      : "text-white/50 hover:bg-white/[0.04] hover:text-white/80"
+                      ? "bg-white/10 text-white shadow-[inset_4px_0_0_#FF7A1A]"
+                      : "text-white/60 hover:bg-white/10 hover:text-white"
                   }`}
                 >
                   <span className="flex items-center gap-3">
-                    <Icon className={`h-[18px] w-[18px] shrink-0 ${isActive ? "text-indigo-400" : "text-white/30 group-hover:text-white/60"}`} />
+                    <Icon className={`h-[18px] w-[18px] shrink-0 ${isActive ? "text-[#FF7A1A]" : "text-white/35 group-hover:text-white/70"}`} />
                     <span>{item.label}</span>
                   </span>
                 </Link>
@@ -101,7 +101,7 @@ export function SuperAdminShell({
         {/* Bottom profile */}
         <div className="border-t border-white/[0.06] px-4 py-4">
           <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-indigo-400 to-violet-500 text-xs font-bold text-white">
+            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#FF7A1A] text-xs font-bold text-white">
               {(userName ?? "RM").slice(0, 2).toUpperCase()}
             </div>
             <div className="min-w-0 flex-1">
@@ -123,8 +123,8 @@ export function SuperAdminShell({
       {/* ── Mobile Overlay ── */}
       {mobileOpen && (
         <div className="fixed inset-0 z-40 lg:hidden">
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setMobileOpen(false)} />
-          <aside className="slide-in-sidebar absolute inset-y-0 left-0 w-[280px] border-r border-white/[0.06] bg-[#0e1225] shadow-2xl">
+          <div className="absolute inset-0 bg-[#071D49]/55 backdrop-blur-sm" onClick={() => setMobileOpen(false)} />
+          <aside className="slide-in-sidebar absolute inset-y-0 left-0 w-[280px] border-r border-white/10 bg-[#071D49] shadow-2xl">
             <div className="flex items-center justify-between border-b border-white/[0.06] px-5 py-4">
               <p className="text-sm font-semibold text-white">Navigation</p>
               <button
@@ -146,7 +146,7 @@ export function SuperAdminShell({
                       href={item.href}
                       onClick={() => setMobileOpen(false)}
                       className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-medium transition ${
-                        isActive ? "bg-indigo-500/12 text-indigo-400" : "text-white/50 hover:text-white/80"
+                        isActive ? "bg-white/10 text-white shadow-[inset_4px_0_0_#FF7A1A]" : "text-white/60 hover:text-white"
                       }`}
                     >
                       <Icon className="h-[18px] w-[18px] shrink-0" />
@@ -163,7 +163,7 @@ export function SuperAdminShell({
       {/* ── Main Content ── */}
       <div className="lg:pl-[260px]">
         {/* Topbar */}
-        <header className="sticky top-0 z-20 border-b border-white/[0.06] bg-[#0b0f1a]/90 backdrop-blur-xl">
+        <header className="sticky top-0 z-20 border-b border-border bg-white/95 shadow-sm backdrop-blur-xl">
           <div className="mx-auto flex h-[60px] max-w-[1400px] items-center justify-between gap-4 px-4 md:px-6 lg:px-8">
             <div className="flex items-center gap-3">
               <button
@@ -174,25 +174,25 @@ export function SuperAdminShell({
                 <Menu className="h-4 w-4" />
               </button>
               <div className="hidden items-center gap-2 md:flex">
-                <div className="h-2 w-2 rounded-full bg-emerald-400 pulse-indicator" />
-                <span className="text-[11px] font-semibold uppercase tracking-[0.15em] text-white/30">
+                <div className="h-2 w-2 rounded-full bg-[#FF7A1A] pulse-indicator" />
+                <span className="text-[11px] font-semibold uppercase tracking-[0.15em] text-muted">
                   Platform healthy
                 </span>
               </div>
             </div>
 
             <div className="flex items-center gap-3">
-              <label className="hidden items-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.03] px-3.5 py-2 md:flex">
-                <Search className="h-4 w-4 text-white/30" />
+              <label className="hidden items-center gap-2 rounded-xl border border-border bg-surface-muted px-3.5 py-2 md:flex">
+                <Search className="h-4 w-4 text-muted" />
                 <input
                   type="search"
                   placeholder="Search tenants, tickets, logs…"
-                  className="w-[220px] bg-transparent text-sm text-white/80 outline-none placeholder:text-white/25"
+                  className="w-[220px] bg-transparent text-sm text-foreground outline-none placeholder:text-muted"
                 />
               </label>
-              <button type="button" className="relative rounded-xl border border-white/[0.08] p-2.5 text-white/40 transition hover:text-white/70">
+              <button type="button" className="relative rounded-xl border border-border bg-surface-muted p-2.5 text-primary transition hover:border-accent/50 hover:text-accent">
                 <Bell className="h-4 w-4" />
-                <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-indigo-500 text-[9px] font-bold text-white">
+                <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-[#FF7A1A] text-[9px] font-bold text-white">
                   6
                 </span>
               </button>
@@ -200,13 +200,13 @@ export function SuperAdminShell({
                 <button
                   type="button"
                   onClick={() => setProfileOpen(!profileOpen)}
-                  className="flex items-center gap-2 rounded-xl border border-white/[0.08] px-3 py-2 text-sm text-white/60 transition hover:text-white/90"
+                  className="flex items-center gap-2 rounded-xl border border-border bg-white px-3 py-2 text-sm text-primary transition hover:border-accent/50 hover:text-accent"
                 >
                   <span className="hidden md:inline">{userName ?? "Robin M."}</span>
                   <ChevronDown className="h-3.5 w-3.5" />
                 </button>
                 {profileOpen && (
-                  <div className="fade-in-panel absolute right-0 top-12 w-48 rounded-xl border border-white/[0.08] bg-[#151a30] p-2 shadow-xl">
+                  <div className="fade-in-panel absolute right-0 top-12 w-48 rounded-xl border border-border bg-white p-2 shadow-xl">
                     <button
                       type="button"
                       onClick={() => { setProfileOpen(false); onLogout?.(); }}

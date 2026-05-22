@@ -89,10 +89,38 @@ export class StudentsSchemaService implements OnModuleInit {
           ON DELETE SET NULL
       );
 
+      CREATE TABLE IF NOT EXISTS attendance_records (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        tenant_id text NOT NULL,
+        student_id uuid NOT NULL,
+        attendance_date date NOT NULL,
+        status text NOT NULL,
+        notes text,
+        metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+        source_device_id text,
+        last_modified_at timestamptz NOT NULL DEFAULT NOW(),
+        last_operation_id uuid,
+        sync_version bigint,
+        created_at timestamptz NOT NULL DEFAULT NOW(),
+        updated_at timestamptz NOT NULL DEFAULT NOW(),
+        CONSTRAINT ck_attendance_records_status CHECK (status IN ('present', 'absent', 'late', 'excused')),
+        CONSTRAINT uq_attendance_records_tenant_id_id UNIQUE (tenant_id, id),
+        CONSTRAINT uq_attendance_records_student_date UNIQUE (tenant_id, student_id, attendance_date),
+        CONSTRAINT fk_attendance_records_student
+          FOREIGN KEY (tenant_id, student_id)
+          REFERENCES students (tenant_id, id)
+          ON DELETE CASCADE
+      );
+
       CREATE INDEX IF NOT EXISTS ix_students_status_created_at
         ON students (tenant_id, status, created_at DESC);
       CREATE INDEX IF NOT EXISTS ix_students_name_lookup
         ON students (tenant_id, last_name, first_name, admission_number);
+      CREATE INDEX IF NOT EXISTS ix_attendance_records_student_date
+        ON attendance_records (tenant_id, student_id, attendance_date DESC);
+      CREATE INDEX IF NOT EXISTS ix_attendance_records_sync_version
+        ON attendance_records (tenant_id, sync_version)
+        WHERE sync_version IS NOT NULL;
       CREATE INDEX IF NOT EXISTS ix_students_search_vector
         ON students
         USING GIN (
@@ -126,6 +154,8 @@ export class StudentsSchemaService implements OnModuleInit {
       ALTER TABLE students FORCE ROW LEVEL SECURITY;
       ALTER TABLE student_guardians ENABLE ROW LEVEL SECURITY;
       ALTER TABLE student_guardians FORCE ROW LEVEL SECURITY;
+      ALTER TABLE attendance_records ENABLE ROW LEVEL SECURITY;
+      ALTER TABLE attendance_records FORCE ROW LEVEL SECURITY;
 
       DROP POLICY IF EXISTS students_rls_policy ON students;
       CREATE POLICY students_rls_policy ON students
@@ -145,6 +175,12 @@ export class StudentsSchemaService implements OnModuleInit {
         OR COALESCE(NULLIF(current_setting('app.path', true), ''), '') LIKE '%/auth/invitations/accept%'
       );
 
+      DROP POLICY IF EXISTS attendance_records_rls_policy ON attendance_records;
+      CREATE POLICY attendance_records_rls_policy ON attendance_records
+      FOR ALL
+      USING (tenant_id = current_setting('app.tenant_id', true))
+      WITH CHECK (tenant_id = current_setting('app.tenant_id', true));
+
       DROP TRIGGER IF EXISTS trg_students_set_updated_at ON students;
       CREATE TRIGGER trg_students_set_updated_at
       BEFORE UPDATE ON students
@@ -154,6 +190,12 @@ export class StudentsSchemaService implements OnModuleInit {
       DROP TRIGGER IF EXISTS trg_student_guardians_set_updated_at ON student_guardians;
       CREATE TRIGGER trg_student_guardians_set_updated_at
       BEFORE UPDATE ON student_guardians
+      FOR EACH ROW
+      EXECUTE FUNCTION set_updated_at();
+
+      DROP TRIGGER IF EXISTS trg_attendance_records_set_updated_at ON attendance_records;
+      CREATE TRIGGER trg_attendance_records_set_updated_at
+      BEFORE UPDATE ON attendance_records
       FOR EACH ROW
       EXECUTE FUNCTION set_updated_at();
     `);

@@ -157,6 +157,7 @@ const main = async (): Promise<void> => {
 
   try {
     const runtimeRoleName = getRuntimeRoleName();
+    await bootstrapTenantScaleSchema(client, runtimeRoleName);
     await client.query('BEGIN');
     await client.query('SET LOCAL statement_timeout = 0');
 
@@ -245,6 +246,256 @@ const createPool = (): Pool =>
       ? { rejectUnauthorized: false }
       : undefined,
   });
+
+const TENANT_SCALE_TABLES = [
+  'accounts',
+  'students',
+  'library_catalog_items',
+  'library_copies',
+  'idempotency_keys',
+  'transactions',
+  'ledger_entries',
+  'payment_intents',
+  'callback_logs',
+  'mpesa_transactions',
+] as const;
+
+const bootstrapTenantScaleSchema = async (
+  client: PoolClient,
+  runtimeRoleName: string | null,
+): Promise<void> => {
+  await client.query('CREATE EXTENSION IF NOT EXISTS pgcrypto');
+
+  if (runtimeRoleName) {
+    await client.query(format(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = %L) THEN
+          CREATE ROLE %I;
+        END IF;
+      END
+      $$;
+    `, runtimeRoleName, runtimeRoleName));
+  }
+
+  await client.query(`
+    CREATE TABLE IF NOT EXISTS accounts (
+      id uuid PRIMARY KEY,
+      tenant_id text NOT NULL,
+      code text NOT NULL,
+      name text NOT NULL,
+      category text NOT NULL,
+      normal_balance text NOT NULL,
+      currency_code text NOT NULL,
+      allow_manual_entries boolean NOT NULL DEFAULT FALSE,
+      is_active boolean NOT NULL DEFAULT TRUE,
+      metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+      created_at timestamptz NOT NULL DEFAULT NOW(),
+      updated_at timestamptz NOT NULL DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS students (
+      id uuid PRIMARY KEY,
+      tenant_id text NOT NULL,
+      admission_number text NOT NULL,
+      first_name text NOT NULL,
+      last_name text NOT NULL,
+      middle_name text,
+      status text NOT NULL DEFAULT 'active',
+      date_of_birth date,
+      gender text,
+      primary_guardian_name text,
+      primary_guardian_phone text,
+      metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+      created_by_user_id uuid,
+      created_at timestamptz NOT NULL DEFAULT NOW(),
+      updated_at timestamptz NOT NULL DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS library_catalog_items (
+      id uuid PRIMARY KEY,
+      tenant_id text NOT NULL,
+      isbn text NOT NULL,
+      title text NOT NULL,
+      author text NOT NULL,
+      category text NOT NULL,
+      created_at timestamptz NOT NULL DEFAULT NOW(),
+      updated_at timestamptz NOT NULL DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS library_copies (
+      id uuid PRIMARY KEY,
+      tenant_id text NOT NULL,
+      catalog_item_id uuid NOT NULL,
+      accession_number text NOT NULL,
+      status text NOT NULL,
+      barcode text,
+      qr_code text,
+      shelf_location text,
+      created_at timestamptz NOT NULL DEFAULT NOW(),
+      updated_at timestamptz NOT NULL DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS idempotency_keys (
+      id uuid PRIMARY KEY,
+      tenant_id text NOT NULL,
+      user_id uuid,
+      scope text NOT NULL,
+      idempotency_key text NOT NULL,
+      request_method text NOT NULL,
+      request_path text NOT NULL,
+      request_hash text NOT NULL,
+      status text NOT NULL,
+      response_status_code integer,
+      response_headers jsonb NOT NULL DEFAULT '{}'::jsonb,
+      response_body jsonb,
+      locked_at timestamptz,
+      completed_at timestamptz,
+      expires_at timestamptz NOT NULL,
+      created_at timestamptz NOT NULL DEFAULT NOW(),
+      updated_at timestamptz NOT NULL DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS transactions (
+      id uuid PRIMARY KEY,
+      tenant_id text NOT NULL,
+      idempotency_key_id uuid,
+      reference text NOT NULL,
+      description text NOT NULL,
+      currency_code text NOT NULL,
+      total_amount_minor bigint NOT NULL,
+      entry_count integer NOT NULL,
+      effective_at timestamptz NOT NULL,
+      posted_at timestamptz NOT NULL,
+      created_by_user_id uuid,
+      request_id text,
+      metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+      created_at timestamptz NOT NULL DEFAULT NOW(),
+      updated_at timestamptz NOT NULL DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS ledger_entries (
+      id uuid PRIMARY KEY,
+      tenant_id text NOT NULL,
+      transaction_id uuid NOT NULL,
+      account_id uuid NOT NULL,
+      line_number integer NOT NULL,
+      direction text NOT NULL,
+      amount_minor bigint NOT NULL,
+      currency_code text NOT NULL,
+      description text,
+      metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+      created_at timestamptz NOT NULL DEFAULT NOW(),
+      updated_at timestamptz NOT NULL DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS payment_intents (
+      id uuid PRIMARY KEY,
+      tenant_id text NOT NULL,
+      idempotency_key_id uuid,
+      user_id uuid,
+      request_id text,
+      external_reference text,
+      account_reference text,
+      transaction_desc text,
+      phone_number text NOT NULL,
+      amount_minor bigint NOT NULL,
+      currency_code text NOT NULL,
+      status text NOT NULL,
+      merchant_request_id text,
+      checkout_request_id text,
+      response_code text,
+      response_description text,
+      customer_message text,
+      ledger_transaction_id uuid,
+      failure_reason text,
+      stk_requested_at timestamptz,
+      callback_received_at timestamptz,
+      completed_at timestamptz,
+      expires_at timestamptz,
+      metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+      created_at timestamptz NOT NULL DEFAULT NOW(),
+      updated_at timestamptz NOT NULL DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS callback_logs (
+      id uuid PRIMARY KEY,
+      tenant_id text NOT NULL,
+      merchant_request_id text,
+      checkout_request_id text,
+      delivery_id text,
+      request_fingerprint text,
+      event_timestamp timestamptz,
+      signature text,
+      signature_verified boolean NOT NULL DEFAULT FALSE,
+      headers jsonb NOT NULL DEFAULT '{}'::jsonb,
+      raw_body jsonb,
+      raw_payload jsonb NOT NULL DEFAULT '{}'::jsonb,
+      source_ip text,
+      processing_status text NOT NULL,
+      queue_job_id text,
+      failure_reason text,
+      queued_at timestamptz,
+      processed_at timestamptz,
+      created_at timestamptz NOT NULL DEFAULT NOW(),
+      updated_at timestamptz NOT NULL DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS mpesa_transactions (
+      id uuid PRIMARY KEY,
+      tenant_id text NOT NULL,
+      payment_intent_id uuid,
+      callback_log_id uuid,
+      checkout_request_id text,
+      merchant_request_id text,
+      result_code integer NOT NULL,
+      result_desc text,
+      status text NOT NULL,
+      mpesa_receipt_number text,
+      amount_minor bigint NOT NULL,
+      phone_number text NOT NULL,
+      transaction_occurred_at timestamptz,
+      ledger_transaction_id uuid,
+      processed_at timestamptz,
+      metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+      created_at timestamptz NOT NULL DEFAULT NOW(),
+      updated_at timestamptz NOT NULL DEFAULT NOW()
+    );
+
+    CREATE INDEX IF NOT EXISTS ix_students_status_created_at
+      ON students (tenant_id, status, created_at DESC);
+    CREATE INDEX IF NOT EXISTS ix_library_catalog_items_tenant_id_id
+      ON library_catalog_items (tenant_id, id);
+    CREATE INDEX IF NOT EXISTS ix_library_copies_tenant_status_created
+      ON library_copies (tenant_id, status, created_at DESC);
+    CREATE INDEX IF NOT EXISTS ix_library_copies_tenant_accession
+      ON library_copies (tenant_id, accession_number);
+    CREATE INDEX IF NOT EXISTS ix_payment_intents_status_created_at
+      ON payment_intents (tenant_id, status, created_at DESC);
+    CREATE INDEX IF NOT EXISTS ix_payment_intents_phone_number
+      ON payment_intents (tenant_id, phone_number);
+  `);
+
+  for (const table of TENANT_SCALE_TABLES) {
+    await client.query(format(`
+      ALTER TABLE %I ENABLE ROW LEVEL SECURITY;
+      ALTER TABLE %I FORCE ROW LEVEL SECURITY;
+      DROP POLICY IF EXISTS tenant_scale_policy ON %I;
+      CREATE POLICY tenant_scale_policy ON %I
+      FOR ALL
+      USING (tenant_id = current_setting('app.tenant_id', true))
+      WITH CHECK (tenant_id = current_setting('app.tenant_id', true));
+    `, table, table, table, table));
+  }
+
+  if (runtimeRoleName) {
+    await client.query(format('GRANT USAGE ON SCHEMA public TO %I', runtimeRoleName));
+
+    for (const table of TENANT_SCALE_TABLES) {
+      await client.query(format('GRANT SELECT ON %I TO %I', table, runtimeRoleName));
+    }
+  }
+};
 
 const seedScaleDataset = async (
   client: PoolClient,
@@ -1321,9 +1572,18 @@ const applyTenantQueryContext = async (
   await client.query(format('SET LOCAL app.session_id = %L', ''));
 };
 
-const getRuntimeRoleName = (harness: RaceTestHarness): string | null => {
-  const databaseSecurityService = harness.testingModule.get(DatabaseSecurityService);
-  return databaseSecurityService.getRuntimeRoleName();
+const getRuntimeRoleName = (): string | null => {
+  const runtimeRoleName = process.env.DATABASE_RUNTIME_ROLE?.trim();
+
+  if (!runtimeRoleName) {
+    return null;
+  }
+
+  if (!/^[a-z_][a-z0-9_]*$/.test(runtimeRoleName)) {
+    throw new Error(`Invalid DATABASE_RUNTIME_ROLE "${runtimeRoleName}"`);
+  }
+
+  return runtimeRoleName;
 };
 
 const buildTenantIds = (tenantCount: number): string[] =>

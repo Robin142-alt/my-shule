@@ -643,6 +643,8 @@ export class AuthService {
       if (currentMembership) {
         return currentMembership;
       }
+
+      throw new UnauthorizedException('User does not have access to this tenant');
     }
 
     const memberships = await this.tenantMembershipsRepository.findActiveMembershipsByUser(userId);

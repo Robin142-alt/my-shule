@@ -1,4 +1,4 @@
-import { screen } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import { createElement } from "react";
 
 import { PortalPages } from "@/components/portal/portal-pages";
@@ -8,7 +8,19 @@ import { SuperadminPages } from "@/components/platform/superadmin-pages";
 import { renderWithProviders } from "./test-utils";
 
 describe("experience shells", () => {
-  it("keeps platform, school, and portal navigation visibly separated", () => {
+  const fetchMock = jest.fn();
+
+  beforeEach(() => {
+    fetchMock.mockReset();
+    global.fetch = fetchMock as unknown as typeof fetch;
+  });
+
+  it("keeps platform, school, and portal navigation visibly separated", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ["students", "finance", "reports", "parent_portal"],
+    } as Response);
+
     const platformRender = renderWithProviders(createElement(SuperadminPages));
     expect(screen.getByText(/platform owner workspace/i)).toBeVisible();
     expect(screen.getByRole("link", { name: /^schools \/ tenants$/i })).toBeVisible();
@@ -20,7 +32,9 @@ describe("experience shells", () => {
       createElement(SchoolPages, { role: "bursar" }),
     );
     expect(screen.getByText(/school workspace school erp/i)).toBeVisible();
-    expect(screen.getByRole("link", { name: /^students$/i })).toBeVisible();
+    await waitFor(() =>
+      expect(screen.getByRole("link", { name: /^students$/i })).toBeVisible(),
+    );
     expect(screen.queryByRole("link", { name: /^support$/i })).toBeNull();
 
     schoolRender.unmount();

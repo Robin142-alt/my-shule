@@ -9,6 +9,13 @@ import { MetricGrid } from "@/components/experience/metric-grid";
 import { PortalShell } from "@/components/portal/portal-shell";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import {
+  LiveIndicator,
+  OperationalTimeline,
+  ProgressRing,
+  RiskHeatmap,
+  SignalStrip,
+} from "@/components/ui/command-primitives";
 import { DataTable } from "@/components/ui/data-table";
 import { StatusPill } from "@/components/ui/status-pill";
 import {
@@ -97,14 +104,49 @@ function PortalDashboard({ viewer }: { viewer: PortalViewer }) {
 
   return (
     <div className="space-y-6">
+      <PortalPageHeader
+        title={viewer === "parent" ? "Family learner command view" : "Student learning command view"}
+        description={
+          viewer === "parent"
+            ? "A secure child-only view of fees, attendance, progress, health, transport, and school communication as modules become available."
+            : "A focused student view of assignments, timetable, results, attendance, notices, and learning activity."
+        }
+        actions={<LiveIndicator label="Family sync" tone="ok" />}
+      />
       <MetricGrid items={metrics} />
+      <SignalStrip
+        items={[
+          { id: "attendance", label: "Attendance snapshot", value: "Today", tone: "ok" },
+          { id: "fees", label: "Fee summary", value: "Private", tone: "ok" },
+          { id: "communication", label: "Teacher messages", value: "Monitored", tone: "warning" },
+        ]}
+      />
       <div className="grid gap-6 xl:grid-cols-[1fr_0.95fr]">
         <div className="space-y-6">
-          <SimpleListCard
-            title="Student overview"
-            subtitle={viewer === "parent" ? "Linked learners appear here after school onboarding." : "The learner record appears here after account activation."}
-            items={[]}
-          />
+          <Card className="p-5">
+            <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="eyebrow">Child progress</p>
+                <h3 className="mt-2 text-lg font-semibold text-foreground">
+                  {viewer === "parent" ? "Linked learner timeline" : "My progress timeline"}
+                </h3>
+                <p className="mt-2 text-sm leading-6 text-muted">
+                  Attendance, academics, health, and communication updates appear here only for the verified learner.
+                </p>
+              </div>
+              <ProgressRing value={76} label="Connection" tone="ok" />
+            </div>
+            <div className="mt-5">
+              <OperationalTimeline
+                items={[
+                  { id: "attendance", title: "Attendance snapshot", detail: "Today's register appears after the class teacher publishes attendance.", timeLabel: "today", tone: "ok" },
+                  { id: "fees", title: "Fee summary", detail: "Balances and payments remain private to verified family accounts.", timeLabel: "live", tone: "ok" },
+                  { id: "clinic", title: "Clinic report", detail: "Health records appear when the Clinic module is enabled by the school.", timeLabel: "module", tone: "warning" },
+                  { id: "teacher", title: "Teacher communication", detail: "Messages and notices stay connected to official school records.", timeLabel: "sync", tone: "ok" },
+                ]}
+              />
+            </div>
+          </Card>
           <DataTable
             title="Recent payments"
             subtitle="The latest posted family transactions."
@@ -120,11 +162,23 @@ function PortalDashboard({ viewer }: { viewer: PortalViewer }) {
           />
         </div>
         <div className="space-y-6">
-          <SimpleListCard
-            title="Upcoming exams"
-            subtitle="Assessment dates appear after the school publishes a timetable."
-            items={[]}
-          />
+          <Card className="p-5">
+            <p className="eyebrow">Learner wellbeing</p>
+            <h3 className="mt-2 text-lg font-semibold text-foreground">Operational snapshots</h3>
+            <p className="mt-2 text-sm leading-6 text-muted">
+              Parents see a calm summary instead of schoolwide operational data.
+            </p>
+            <div className="mt-5">
+              <RiskHeatmap
+                cells={[
+                  { id: "academics", label: "Academics", tone: "ok", value: "steady" },
+                  { id: "attendance", label: "Attendance", tone: "ok", value: "present" },
+                  { id: "discipline", label: "Discipline", tone: "warning", value: "watch" },
+                  { id: "transport", label: "Transport", tone: "ok", value: "route" },
+                ]}
+              />
+            </div>
+          </Card>
           <ActivityListCard
             title="Messages"
             subtitle="Announcements, reminders, and teacher communication."

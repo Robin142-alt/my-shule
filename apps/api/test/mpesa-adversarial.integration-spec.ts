@@ -371,17 +371,20 @@ describe('MPESA adversarial integration', () => {
       async () => {
         await ensureMpesaLedgerAccounts(tenantId);
 
-        const response = await mpesaService.createPaymentIntent({
-          idempotency_key: `itest:${tenantId}:${randomUUID()}`,
-          amount_minor: overrides.amount_minor,
-          phone_number: overrides.phone_number,
-          account_reference: overrides.account_reference,
-          transaction_desc: 'Integration test payment',
-          external_reference: overrides.external_reference,
-          metadata: {
-            source: 'mpesa-adversarial-tests',
+        const response = await mpesaService.createPaymentIntent(
+          {
+            idempotency_key: `itest:${tenantId}:${randomUUID()}`,
+            amount_minor: overrides.amount_minor,
+            phone_number: overrides.phone_number,
+            account_reference: overrides.account_reference,
+            transaction_desc: 'Integration test payment',
+            external_reference: overrides.external_reference,
+            metadata: {
+              source: 'mpesa-adversarial-tests',
+            },
           },
-        });
+          { payment_owner: 'platform' },
+        );
 
         const row = await queryRow<PaymentIntentEntity>(
           `
@@ -417,7 +420,7 @@ describe('MPESA adversarial integration', () => {
           metadata
         )
         VALUES
-          ($1::uuid, $2, '1100-MPESA-CLEARING', 'MPESA Clearing', 'asset', 'debit', 'KES', TRUE, TRUE, '{}'::jsonb),
+          ($1::uuid, $2, '1110-MPESA-CLEARING', 'MPESA Clearing', 'asset', 'debit', 'KES', TRUE, TRUE, '{}'::jsonb),
           ($3::uuid, $2, '2100-CUSTOMER-DEPOSITS', 'Customer Deposits', 'liability', 'credit', 'KES', TRUE, TRUE, '{}'::jsonb)
         ON CONFLICT (tenant_id, code)
         DO NOTHING

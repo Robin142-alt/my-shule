@@ -13,6 +13,7 @@ import { EventPublisherService } from '../../src/modules/events/event-publisher.
 import { FinanceSchemaService } from '../../src/modules/finance/finance-schema.service';
 import { LedgerService } from '../../src/modules/finance/ledger.service';
 import { TransactionService } from '../../src/modules/finance/transaction.service';
+import { TenantFinanceSchemaService } from '../../src/modules/tenant-finance/tenant-finance-schema.service';
 import { AccountsRepository } from '../../src/modules/finance/repositories/accounts.repository';
 import { IdempotencyKeysRepository } from '../../src/modules/finance/repositories/idempotency-keys.repository';
 import { LedgerEntriesRepository } from '../../src/modules/finance/repositories/ledger-entries.repository';
@@ -42,6 +43,7 @@ import { SyncOperationLogService } from '../../src/modules/sync/sync-operation-l
   providers: [
     AuthSchemaService,
     FinanceSchemaService,
+    TenantFinanceSchemaService,
     PaymentsSchemaService,
     SyncSchemaService,
     PiiEncryptionService,

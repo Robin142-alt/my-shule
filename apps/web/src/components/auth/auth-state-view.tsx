@@ -193,22 +193,22 @@ export function AuthStateView({ kind }: { kind: AuthStateKind }) {
   return (
     <AuthCard>
       <div className="space-y-6 text-center">
-        <span className="mx-auto inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700">
+        <span className="mx-auto inline-flex h-14 w-14 items-center justify-center rounded-[var(--radius)] border border-accent/30 bg-accent/15 text-accent shadow-[0_0_28px_rgba(255,122,26,0.18)]">
           <Icon className="h-6 w-6" />
         </span>
         <div>
-          <p className="text-sm font-bold text-emerald-700">{copy.label}</p>
-          <h1 className="mt-3 text-3xl font-bold leading-tight text-slate-950">
+          <p className="text-sm font-bold text-accent">{copy.label}</p>
+          <h1 className="mt-3 text-3xl font-bold leading-tight text-foreground">
             {copy.title}
           </h1>
-          <p className="mt-3 text-sm leading-7 text-slate-600">
+          <p className="mt-3 text-sm leading-7 text-muted">
             {copy.description}
           </p>
         </div>
-        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-left">
+        <div className="rounded-2xl border border-border bg-surface-muted/70 p-4 text-left">
           <div className="flex items-start gap-3">
-            <CheckCircle2 className="mt-0.5 h-4 w-4 text-emerald-600" />
-            <p className="text-sm leading-6 text-slate-600">
+            <CheckCircle2 className="mt-0.5 h-4 w-4 text-accent" />
+            <p className="text-sm leading-6 text-muted">
               This flow uses secure cookies, CSRF checks, tenant-aware routing, and audit-friendly messaging.
             </p>
           </div>
@@ -216,14 +216,14 @@ export function AuthStateView({ kind }: { kind: AuthStateKind }) {
         <div className="flex flex-col gap-3 sm:flex-row">
           <Link
             href={copy.primaryHref}
-            className="inline-flex h-12 flex-1 items-center justify-center rounded-2xl bg-slate-950 px-4 text-sm font-bold text-white transition hover:bg-emerald-700"
+            className="inline-flex h-12 flex-1 items-center justify-center rounded-[var(--radius)] bg-primary px-4 text-sm font-bold text-white transition hover:bg-primary-hover"
           >
             {copy.primaryLabel}
           </Link>
           {copy.secondaryHref && copy.secondaryLabel ? (
             <Link
               href={copy.secondaryHref}
-              className="inline-flex h-12 flex-1 items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 transition hover:bg-slate-50"
+              className="inline-flex h-12 flex-1 items-center justify-center rounded-2xl border border-border bg-surface-muted px-4 text-sm font-bold text-muted transition hover:border-accent/50 hover:bg-surface-strong hover:text-foreground"
             >
               {copy.secondaryLabel}
             </Link>

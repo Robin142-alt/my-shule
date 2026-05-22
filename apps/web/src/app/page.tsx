@@ -85,8 +85,8 @@ function IntelligencePreview() {
   ];
 
   return (
-    <div className="rounded-xl border border-[#dbeafe] bg-white p-4 shadow-[0_20px_70px_rgba(15,23,42,0.12)]">
-      <div className="rounded-xl bg-[#0b1f3a] p-5 text-white">
+    <div className="rounded-xl border border-white/10 bg-surface/80 p-4 shadow-[0_20px_70px_rgba(2,6,23,0.26)] backdrop-blur">
+      <div className="rounded-xl bg-[#071D49] p-5 text-white">
         <div className="flex items-center justify-between gap-4">
           <div>
             <p className="text-sm font-semibold text-white">MyShule command view</p>
@@ -110,9 +110,9 @@ function IntelligencePreview() {
       </div>
       <div className="mt-4 grid gap-3 sm:grid-cols-3">
         {["Parent Portal", "School Portal", "Dashboard"].map((label) => (
-          <div key={label} className="rounded-xl border border-[#e2e8f0] bg-[#f8fafc] p-3">
-            <p className="text-xs font-semibold text-[#64748b]">{label}</p>
-            <p className="mt-2 text-sm font-semibold text-[#0b1f3a]">Structured visibility</p>
+          <div key={label} className="rounded-xl border border-white/10 bg-white/[0.06] p-3">
+            <p className="text-xs font-semibold text-muted-strong">{label}</p>
+            <p className="mt-2 text-sm font-semibold text-foreground">Structured visibility</p>
           </div>
         ))}
       </div>
@@ -133,7 +133,7 @@ export default function PublicLandingPage() {
         visual={<IntelligencePreview />}
       />
 
-      <section className="border-y border-[#e2e8f0] bg-white">
+      <section className="border-y border-white/10 bg-[#071D49]/90">
         <div className="mx-auto grid w-full max-w-7xl gap-4 px-5 py-8 sm:px-8 md:grid-cols-3 lg:px-10">
           <InfoCard
             title="Parent Portal"
@@ -158,14 +158,14 @@ export default function PublicLandingPage() {
       <BeforeAfterComparison before={before} after={after} />
       <ModuleGrid layers={layers} />
 
-      <section className="bg-white">
+      <section className="bg-transparent">
         <div className="mx-auto w-full max-w-7xl px-5 py-14 sm:px-8 lg:px-10">
           <div className="grid gap-8 lg:grid-cols-[0.8fr_1.2fr] lg:items-start">
             <div>
-              <h2 className="text-3xl font-semibold leading-tight text-[#0b1f3a]">
+              <h2 className="text-3xl font-semibold leading-tight text-foreground">
                 Built for accountable Kenyan institutions
               </h2>
-              <p className="mt-4 text-base leading-7 text-[#475569]">
+              <p className="mt-4 text-base leading-7 text-muted">
                 MyShule is designed for schools that need clearer records, traceable communication, and shared visibility across departments.
               </p>
               <div className="mt-6 flex flex-col gap-3 sm:flex-row">
@@ -183,9 +183,9 @@ export default function PublicLandingPage() {
                 ].map((item) => {
                   const Icon = item.icon;
                   return (
-                    <div key={item.title} className="rounded-xl border border-[#e2e8f0] bg-[#f8fafc] p-4">
+                    <div key={item.title} className="rounded-xl border border-white/10 bg-surface/80 p-4 shadow-[0_18px_60px_rgba(2,6,23,0.18)]">
                       <Icon className="h-5 w-5 text-[#f97316]" aria-hidden="true" />
-                      <p className="mt-3 text-sm font-semibold text-[#0b1f3a]">{item.title}</p>
+                      <p className="mt-3 text-sm font-semibold text-foreground">{item.title}</p>
                     </div>
                   );
                 })}

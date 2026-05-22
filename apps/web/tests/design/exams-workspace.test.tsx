@@ -1,5 +1,5 @@
 import { createElement } from "react";
-import { screen } from "@testing-library/react";
+import { act, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { ExamsModuleScreen } from "@/components/modules/exams/exams-module-screen";
@@ -290,6 +290,19 @@ function buildInitialLiveExamsWorkspace() {
 describe("exams workspace", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    global.fetch = jest.fn((input: RequestInfo | URL) => {
+      if (String(input).includes("/api/school/modules/me")) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ["exams"],
+        } as Response);
+      }
+
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({}),
+      } as Response);
+    }) as unknown as typeof fetch;
     mockUseLiveTenantSession.mockReturnValue({
       apiConfigured: false,
       session: null,
@@ -303,14 +316,18 @@ describe("exams workspace", () => {
     } as never);
   });
 
-  it("opens the implemented exams command center from the school workspace", () => {
-    renderWithProviders(
-      createElement(SchoolPages, {
-        role: "teacher",
-        section: "exams",
-        tenantSlug: "barakaacademy",
-      }),
-    );
+  it("opens the implemented exams command center from the school workspace", async () => {
+    await act(async () => {
+      renderWithProviders(
+        createElement(SchoolPages, {
+          role: "teacher",
+          section: "exams",
+          tenantSlug: "barakaacademy",
+        }),
+      );
+      await Promise.resolve();
+      await Promise.resolve();
+    });
 
     expect(
       screen.getByRole("heading", { name: /exams & results command center/i }),

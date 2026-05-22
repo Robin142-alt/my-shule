@@ -6,6 +6,9 @@ import { randomUUID } from 'node:crypto';
 import request from 'supertest';
 
 import { REDIS_CLIENT } from '../src/infrastructure/redis/redis.constants';
+import { PasswordService } from '../src/auth/password.service';
+import { AuthorizationRepository } from '../src/auth/repositories/authorization.repository';
+import { TrustedDeviceService } from '../src/auth/trusted-device.service';
 import { InMemoryRedis } from './support/in-memory-redis';
 import { ComplianceTestModule } from './support/compliance-test.module';
 
@@ -72,8 +75,18 @@ describe('Data compliance workflows', () => {
     const sharedEmail = `privacy+${seedSuffix()}@example.test`;
     const sharedPassword = `SecurePass!${seedSuffix().slice(-4)}`;
 
-    tenantAUser = await registerTenantUser(app, `privacy-a-${seedSuffix()}`, sharedEmail, sharedPassword);
-    tenantBUser = await registerTenantUser(app, `privacy-b-${seedSuffix()}`, sharedEmail, sharedPassword);
+    tenantAUser = await registerTenantUser(
+      { app, testingModule, pool },
+      `privacy-a-${seedSuffix()}`,
+      sharedEmail,
+      sharedPassword,
+    );
+    tenantBUser = await registerTenantUser(
+      { app, testingModule, pool },
+      `privacy-b-${seedSuffix()}`,
+      sharedEmail,
+      sharedPassword,
+    );
 
     tenantIds.add(tenantAUser.tenant_id);
     tenantIds.add(tenantBUser.tenant_id);
@@ -295,21 +308,97 @@ const createDatabasePool = (): Pool => {
 };
 
 const registerTenantUser = async (
-  app: INestApplication,
+  context: {
+    app: INestApplication;
+    testingModule: TestingModule;
+    pool: Pool;
+  },
   tenantId: string,
   email: string,
   password: string,
 ): Promise<RegisteredTenantUser> => {
+  const { app, testingModule, pool } = context;
   const host = `${tenantId}.${process.env.APP_BASE_DOMAIN ?? 'integration.test'}`;
+  const authorizationRepository = testingModule.get(AuthorizationRepository);
+  const passwordService = testingModule.get(PasswordService);
+  const trustedDeviceService = testingModule.get(TrustedDeviceService);
+
+  await authorizationRepository.ensureTenantAuthorizationBaseline(tenantId);
+
+  const existingMembers = await pool.query<{ total: string }>(
+    `
+      SELECT COUNT(*)::text AS total
+      FROM tenant_memberships
+      WHERE tenant_id = $1
+        AND status = 'active'
+    `,
+    [tenantId],
+  );
+  const roleCode = Number(existingMembers.rows[0]?.total ?? '0') === 0 ? 'owner' : 'member';
+  const role = await authorizationRepository.getRoleByCode(tenantId, roleCode);
+  const passwordHash = await passwordService.hash(password);
+  const userResult = await pool.query<{ id: string }>(
+    `
+      INSERT INTO users (
+        tenant_id,
+        email,
+        password_hash,
+        display_name,
+        status,
+        email_verified_at,
+        password_changed_at
+      )
+      VALUES ('global', lower($1), $2, $3, 'active', NOW(), NOW())
+      ON CONFLICT (lower(email))
+      DO UPDATE SET
+        password_hash = EXCLUDED.password_hash,
+        display_name = EXCLUDED.display_name,
+        status = 'active',
+        email_verified_at = COALESCE(users.email_verified_at, NOW()),
+        password_changed_at = NOW(),
+        updated_at = NOW()
+      RETURNING id
+    `,
+    [email, passwordHash, `User ${tenantId}`],
+  );
+  const userId = userResult.rows[0].id;
+
+  await pool.query(
+    `
+      INSERT INTO tenant_memberships (tenant_id, user_id, role_id, status)
+      VALUES ($1, $2::uuid, $3::uuid, 'active')
+      ON CONFLICT (tenant_id, user_id)
+      DO UPDATE SET
+        role_id = EXCLUDED.role_id,
+        status = 'active',
+        updated_at = NOW()
+    `,
+    [tenantId, userId, role.id],
+  );
+  const trustedDeviceToken = `trusted-device-token-${userId}-${tenantId}`;
+  await trustedDeviceService.trustDevice({
+    userId,
+    rawToken: trustedDeviceToken,
+    ipAddress: '127.0.0.1',
+    userAgent: 'compliance.integration-spec',
+  });
+
   const response = await request(app.getHttpServer())
-    .post('/auth/register')
+    .post('/auth/login')
     .set('host', host)
     .send({
       email,
       password,
-      display_name: `User ${tenantId}`,
+      audience: 'school',
+      trusted_device_token: trustedDeviceToken,
     })
-    .expect(201);
+    .expect((loginResponse) => {
+      if (loginResponse.status !== 201) {
+        throw new Error(
+          `Expected seeded compliance login to return 201, got ${loginResponse.status}: ${JSON.stringify(loginResponse.body)}`,
+        );
+      }
+    });
 
   return {
     tenant_id: tenantId,

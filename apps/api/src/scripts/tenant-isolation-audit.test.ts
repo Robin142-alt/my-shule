@@ -69,6 +69,46 @@ test('findTenantTablesWithoutForcedRls flags tenant tables missing forced RLS', 
   ]);
 });
 
+test('findTenantTablesWithoutForcedRls recognizes simple operations schema table lists', () => {
+  const missing = findTenantTablesWithoutForcedRls([
+    {
+      file: 'apps/api/src/modules/example/example-schema.service.ts',
+      source: `
+        import { buildSimpleOperationsSchema } from '../implementation100/simple-operations';
+
+        const EXAMPLE_TABLES = [
+          'example_records',
+          'example_child_records',
+        ] as const;
+
+        buildSimpleOperationsSchema({
+          tables: EXAMPLE_TABLES,
+          mainTable: 'example_records',
+          auditTable: 'example_audit_logs',
+          relatedTablesSql: \`
+            CREATE TABLE IF NOT EXISTS example_child_records (
+              id uuid PRIMARY KEY,
+              tenant_id text NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS omitted_child_records (
+              id uuid PRIMARY KEY,
+              tenant_id text NOT NULL
+            );
+          \`,
+        });
+      `,
+    },
+  ]);
+
+  assert.deepEqual(missing, [
+    {
+      file: 'apps/api/src/modules/example/example-schema.service.ts',
+      table: 'omitted_child_records',
+    },
+  ]);
+});
+
 test('runTenantIsolationAudit includes a forced-RLS source audit in workspace mode', () => {
   const result = runTenantIsolationAudit({
     generatedAt: '2026-05-16T00:00:00.000Z',

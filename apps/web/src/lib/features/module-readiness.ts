@@ -2,6 +2,11 @@ import type { ExperienceNavItem } from "@/lib/experiences/types";
 
 const productionReadyModules = new Set([
   "dashboard",
+  "executive-analytics",
+  "alerts-risks",
+  "approvals",
+  "users-staff",
+  "audit-logs",
   "students",
   "admissions",
   "finance",

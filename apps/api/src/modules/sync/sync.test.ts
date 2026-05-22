@@ -1,34 +1,14 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { existsSync } from 'node:fs';
-import { join } from 'node:path';
-import { BadRequestException } from '@nestjs/common';
 
+import { AttendanceSyncConflictResolverService } from './conflict-resolvers/attendance-sync-conflict-resolver.service';
 import { FinanceSyncConflictResolverService } from './conflict-resolvers/finance-sync-conflict-resolver.service';
 import { SYNC_SUPPORTED_ENTITIES } from './sync.constants';
-import { SyncOperationLogService } from './sync-operation-log.service';
 import { SyncService } from './sync.service';
 import { RequestContextService } from '../../common/request-context/request-context.service';
 
-test('attendance is retired from client sync entities', () => {
-  assert.deepEqual([...SYNC_SUPPORTED_ENTITIES], ['finance']);
-
-  const operationLogService = new SyncOperationLogService({} as never, {} as never);
-
-  assert.throws(
-    () => operationLogService.ensureSupportedEntity('attendance'),
-    BadRequestException,
-  );
-});
-
-test('retired attendance sync source files are removed from the active API tree', () => {
-  for (const relativePath of [
-    'apps/api/src/modules/sync/conflict-resolvers/attendance-sync-conflict-resolver.service.ts',
-    'apps/api/src/modules/sync/entities/attendance-record.entity.ts',
-    'apps/api/src/modules/sync/repositories/attendance-records.repository.ts',
-  ]) {
-    assert.equal(existsSync(join(process.cwd(), relativePath)), false, `${relativePath} should be removed`);
-  }
+test('attendance and finance are active offline sync entities', () => {
+  assert.deepEqual([...SYNC_SUPPORTED_ENTITIES], ['attendance', 'finance']);
 });
 
 test('FinanceSyncConflictResolverService rejects client finance mutations', async () => {
@@ -53,7 +33,7 @@ test('FinanceSyncConflictResolverService rejects client finance mutations', asyn
   assert.equal(result.conflict_policy, 'server-authoritative');
 });
 
-test('SyncService pull returns ordered finance operations after attendance retirement', async () => {
+test('SyncService pull returns ordered finance operations', async () => {
   const requestContext = new RequestContextService();
   const service = new SyncService(
     requestContext,
@@ -83,7 +63,16 @@ test('SyncService pull returns ordered finance operations after attendance retir
     } as never,
     {
       findByOpId: async (): Promise<null> => null,
-      fetchByEntitySinceVersion: async () => [
+      fetchByEntitiesAfterCursors: async (
+        tenantId: string,
+        entities: string[],
+        cursorMap: Map<string, string>,
+      ) => {
+        assert.equal(tenantId, 'tenant-a');
+        assert.deepEqual(entities, ['finance']);
+        assert.equal(cursorMap.get('finance'), '2');
+
+        return [
         {
           op_id: '00000000-0000-0000-0000-000000000602',
           tenant_id: 'tenant-a',
@@ -94,13 +83,15 @@ test('SyncService pull returns ordered finance operations after attendance retir
           created_at: new Date('2026-04-26T09:00:00.000Z').toISOString(),
           updated_at: new Date('2026-04-26T09:00:00.000Z').toISOString(),
         },
-      ],
+        ];
+      },
       getLatestVersionByEntities: async () => new Map(),
     } as never,
     {
       getLatestCursors: async () => [],
       ensureSupportedEntity: (): void => undefined,
     } as never,
+    {} as AttendanceSyncConflictResolverService,
     {} as never,
   );
 
