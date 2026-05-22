@@ -20,14 +20,14 @@ export function PublicSiteShell({ children }: { children: React.ReactNode }) {
             <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent text-sm font-bold text-white shadow-[0_0_24px_rgba(255,122,26,0.26)]">
               MS
             </span>
-            <span className="text-lg font-semibold text-foreground">{SITE_NAME}</span>
+            <span className="text-lg font-semibold text-white">{SITE_NAME}</span>
           </Link>
           <nav className="hidden items-center gap-1 text-sm font-semibold lg:flex" aria-label="Primary navigation">
             {primaryLinks.map((link) => (
               <Link
                 key={link.href}
                 href={link.href}
-                className="rounded-xl px-3 py-2 text-muted transition hover:bg-white/10 hover:text-foreground"
+                className="rounded-xl px-3 py-2 text-white/75 transition hover:bg-white/10 hover:text-white"
               >
                 {link.label}
               </Link>
@@ -36,7 +36,7 @@ export function PublicSiteShell({ children }: { children: React.ReactNode }) {
           <div className="hidden items-center gap-3 sm:flex">
             <a
               href={`tel:${SITE_CONTACT_PHONE}`}
-              className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.06] px-3 text-sm font-semibold text-foreground transition hover:border-accent/50 hover:bg-white/[0.1]"
+              className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.08] px-3 text-sm font-semibold text-white transition hover:border-accent/50 hover:bg-white/[0.14]"
             >
               <PhoneCall className="h-4 w-4 text-[#f97316]" aria-hidden="true" />
               {SITE_CONTACT_PHONE}
@@ -51,7 +51,7 @@ export function PublicSiteShell({ children }: { children: React.ReactNode }) {
             <Link
               key={link.href}
               href={link.href}
-              className="rounded-xl bg-white/[0.06] px-3 py-2 text-center text-muted"
+              className="rounded-xl bg-white/[0.08] px-3 py-2 text-center text-white/80"
             >
               {link.label}
             </Link>
@@ -62,8 +62,8 @@ export function PublicSiteShell({ children }: { children: React.ReactNode }) {
       <footer className="border-t border-white/10 bg-[#071D49]/95">
         <div className="mx-auto grid w-full max-w-7xl gap-8 px-5 py-10 sm:px-8 lg:grid-cols-[1.1fr_1fr] lg:px-10">
           <div>
-            <p className="text-xl font-semibold text-foreground">{SITE_NAME}</p>
-            <p className="mt-2 max-w-xl text-sm leading-6 text-muted">
+            <p className="text-xl font-semibold text-white">{SITE_NAME}</p>
+            <p className="mt-2 max-w-xl text-sm leading-6 text-white/75">
               Structured visibility for Kenyan schools across academic, financial, operational, welfare, communication, governance, security, and intelligence layers.
             </p>
             <p className="mt-4 text-sm font-semibold text-accent">{SITE_CONTACT_PHONE}</p>
@@ -75,7 +75,7 @@ export function PublicSiteShell({ children }: { children: React.ReactNode }) {
               { label: "Login to Dashboard", href: "/school/login" },
               { label: "Request Demo", href: "/school-portal" },
             ].map((link) => (
-              <Link key={`${link.href}-${link.label}`} href={link.href} className="text-muted hover:text-accent">
+              <Link key={`${link.href}-${link.label}`} href={link.href} className="text-white/75 hover:text-accent">
                 {link.label}
               </Link>
             ))}
