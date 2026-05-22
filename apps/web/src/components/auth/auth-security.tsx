@@ -213,7 +213,7 @@ export function TenantSelector({
 
 export function MobileTrustRow() {
   return (
-    <div className="grid grid-cols-3 gap-2 lg:hidden">
+    <div className="hidden grid-cols-3 gap-2 min-[480px]:grid lg:hidden">
       {[
         { icon: ShieldCheck, label: "CSRF" },
         { icon: Smartphone, label: "Mobile" },
@@ -221,9 +221,9 @@ export function MobileTrustRow() {
       ].map((item) => {
         const Icon = item.icon;
         return (
-          <div key={item.label} className="rounded-2xl border border-border bg-surface-muted/80 px-3 py-3 text-center">
+          <div key={item.label} className="min-w-0 rounded-2xl border border-border bg-surface-muted/80 px-3 py-3 text-center">
             <Icon className="mx-auto h-4 w-4 text-accent" />
-            <p className="mt-2 text-xs font-bold text-muted">{item.label}</p>
+            <p className="mt-2 truncate text-xs font-bold text-muted">{item.label}</p>
           </div>
         );
       })}

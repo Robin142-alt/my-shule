@@ -39,12 +39,12 @@ export function AuthMessage({
           : "text-accent";
 
   return (
-    <div className={`rounded-2xl border px-4 py-4 ${toneClasses}`} role={tone === "error" ? "alert" : "status"}>
+    <div className={`min-w-0 rounded-2xl border px-4 py-4 ${toneClasses}`} role={tone === "error" ? "alert" : "status"}>
       <div className="flex items-start gap-3">
         <Icon className={`mt-0.5 h-4 w-4 shrink-0 ${iconClasses}`} />
-        <div>
+        <div className="min-w-0">
           <p className="text-sm font-bold">{title}</p>
-          <p className="mt-1 text-sm leading-6 text-muted">{description}</p>
+          <p className="mt-1 break-words text-sm leading-6 text-muted">{description}</p>
         </div>
       </div>
     </div>
