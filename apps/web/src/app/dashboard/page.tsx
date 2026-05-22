@@ -25,8 +25,8 @@ function DashboardPreview() {
   ];
 
   return (
-    <div className="rounded-xl border border-[#e2e8f0] bg-white p-4 shadow-[0_20px_70px_rgba(15,23,42,0.12)]">
-      <div className="rounded-xl bg-[#0b1f3a] p-5 text-white">
+    <div className="rounded-xl border border-white/10 bg-surface/80 p-4 shadow-[0_20px_70px_rgba(2,6,23,0.26)] backdrop-blur">
+      <div className="rounded-xl bg-[#071D49] p-5 text-white">
         <div className="flex items-start justify-between gap-4">
           <div>
             <p className="text-sm font-semibold">Dashboard</p>
@@ -70,13 +70,13 @@ export default function PublicDashboardPage() {
         </div>
       </section>
 
-      <section className="bg-white">
+      <section className="bg-transparent">
         <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-5 py-12 sm:px-8 lg:flex-row lg:items-center lg:justify-between lg:px-10">
           <div className="max-w-2xl">
-            <h2 className="text-3xl font-semibold leading-tight text-[#0b1f3a]">
+            <h2 className="text-3xl font-semibold leading-tight text-foreground">
               See the three most important entry points
             </h2>
-            <p className="mt-3 text-base leading-7 text-[#475569]">
+            <p className="mt-3 text-base leading-7 text-muted">
               MyShule keeps Parent Portal, School Portal, and Dashboard visible because those are the routes users need most.
             </p>
           </div>

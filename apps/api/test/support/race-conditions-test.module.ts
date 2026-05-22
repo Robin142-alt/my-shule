@@ -6,10 +6,16 @@ import { CommonModule } from '../../src/common/common.module';
 import configuration from '../../src/config/configuration';
 import { DatabaseModule } from '../../src/database/database.module';
 import { BillingAccessService } from '../../src/modules/billing/billing-access.service';
+import { BillingLifecycleService } from '../../src/modules/billing/billing-lifecycle.service';
+import { BillingNotificationService } from '../../src/modules/billing/billing-notification.service';
 import { BillingSchemaService } from '../../src/modules/billing/billing-schema.service';
 import { BillingService } from '../../src/modules/billing/billing.service';
+import { StudentFeePaymentAllocationService } from '../../src/modules/billing/student-fee-payment-allocation.service';
 import { UsageMeterService } from '../../src/modules/billing/usage-meter.service';
+import { BillingNotificationsRepository } from '../../src/modules/billing/repositories/billing-notifications.repository';
+import { FeeStructuresRepository } from '../../src/modules/billing/repositories/fee-structures.repository';
 import { InvoicesRepository } from '../../src/modules/billing/repositories/invoices.repository';
+import { ManualFeePaymentsRepository } from '../../src/modules/billing/repositories/manual-fee-payments.repository';
 import { SubscriptionsRepository } from '../../src/modules/billing/repositories/subscriptions.repository';
 import { UsageRecordsRepository } from '../../src/modules/billing/repositories/usage-records.repository';
 import { FinanceSchemaService } from '../../src/modules/finance/finance-schema.service';
@@ -20,6 +26,7 @@ import { IdempotencyKeysRepository } from '../../src/modules/finance/repositorie
 import { LedgerEntriesRepository } from '../../src/modules/finance/repositories/ledger-entries.repository';
 import { TransactionsRepository } from '../../src/modules/finance/repositories/transactions.repository';
 import { AuditLogService } from '../../src/modules/observability/audit-log.service';
+import { StructuredLoggerService } from '../../src/modules/observability/structured-logger.service';
 import { StudentsSchemaService } from '../../src/modules/students/students-schema.service';
 import { AttendanceService } from '../../src/modules/students/attendance.service';
 import { StudentsService } from '../../src/modules/students/students.service';
@@ -62,9 +69,15 @@ import { StudentEventsService } from '../../src/modules/events/student-events.se
     IdempotencyKeysRepository,
     BillingService,
     BillingAccessService,
+    BillingLifecycleService,
+    BillingNotificationService,
+    StudentFeePaymentAllocationService,
     UsageMeterService,
     SubscriptionsRepository,
     InvoicesRepository,
+    FeeStructuresRepository,
+    ManualFeePaymentsRepository,
+    BillingNotificationsRepository,
     UsageRecordsRepository,
     StudentsService,
     AttendanceService,
@@ -81,6 +94,14 @@ import { StudentEventsService } from '../../src/modules/events/student-events.se
       provide: AuditLogService,
       useValue: {
         async recordFinanceTransactionPosted(): Promise<void> {
+          return undefined;
+        },
+      },
+    },
+    {
+      provide: StructuredLoggerService,
+      useValue: {
+        logEvent(): void {
           return undefined;
         },
       },

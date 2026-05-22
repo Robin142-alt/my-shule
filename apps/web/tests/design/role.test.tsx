@@ -1,4 +1,4 @@
-import { screen } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import { createElement } from "react";
 
 import { SchoolPages } from "@/components/school/school-pages";
@@ -6,6 +6,29 @@ import { SchoolPages } from "@/components/school/school-pages";
 import { renderDashboardScreen, renderWithProviders } from "./test-utils";
 
 describe("STEP 4: Role tests", () => {
+  beforeEach(() => {
+    global.fetch = jest.fn(() =>
+      Promise.resolve({
+        ok: true,
+        json: async () => ({
+          data: [
+            "students",
+            "admissions",
+            "academics",
+            "finance",
+            "communication_sms",
+            "reports",
+            "staff",
+            "timetable",
+            "inventory",
+            "library",
+            "parent_portal",
+          ],
+        }),
+      } as Response),
+    ) as unknown as typeof fetch;
+  });
+
   it("shows finance and all core widgets for admin", () => {
     renderDashboardScreen({ role: "admin" });
 
@@ -60,38 +83,41 @@ describe("STEP 4: Role tests", () => {
     expect(screen.getByPlaceholderText(/search students, payments, or modules/i)).toBeVisible();
   });
 
-  it("shows finance visibility for bursar without exposing superadmin modules", () => {
+  it("shows finance visibility for bursar without exposing superadmin modules", async () => {
     renderWithProviders(createElement(SchoolPages, { role: "bursar" }));
 
     expect(screen.getByRole("heading", { name: /mpesa transactions/i })).toBeVisible();
+    await waitFor(() =>
+      expect(screen.getByRole("link", { name: /fees \/ payments/i })).toBeVisible(),
+    );
     expect(screen.queryByText(/tenant control/i)).not.toBeInTheDocument();
   });
 
-  it("opens a public storekeeper school workspace with inventory navigation", () => {
+  it("opens a public storekeeper school workspace with inventory navigation", async () => {
     renderWithProviders(createElement(SchoolPages, { role: "storekeeper" }));
 
     expect(screen.getAllByText(/Storekeeper/i).length).toBeGreaterThan(0);
-    expect(screen.getByRole("link", { name: /Inventory/i })).toHaveAttribute(
+    expect(await screen.findByRole("link", { name: /Inventory/i })).toHaveAttribute(
       "href",
       "/inventory",
     );
   });
 
-  it("opens a public admissions school workspace with admissions navigation", () => {
+  it("opens a public admissions school workspace with admissions navigation", async () => {
     renderWithProviders(createElement(SchoolPages, { role: "admissions" }));
 
     expect(screen.getByText(/Admissions officer/i)).toBeVisible();
-    expect(screen.getByRole("link", { name: /Admissions/i })).toHaveAttribute(
+    expect(await screen.findByRole("link", { name: /Admissions/i })).toHaveAttribute(
       "href",
       "/admissions",
     );
   });
 
-  it("opens a public librarian school workspace with library-only navigation", () => {
+  it("opens a public librarian school workspace with library-only navigation", async () => {
     renderWithProviders(createElement(SchoolPages, { role: "librarian" }));
 
     expect(screen.getByText(/Librarian/i)).toBeVisible();
-    expect(screen.getByRole("link", { name: /Library/i })).toHaveAttribute(
+    expect(await screen.findByRole("link", { name: /Library/i })).toHaveAttribute(
       "href",
       "/library",
     );

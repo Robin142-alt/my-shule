@@ -132,7 +132,7 @@ export function Modal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center bg-[#0f172a]/40 px-4 pt-[10vh] pb-8 backdrop-blur-[2px] overflow-y-auto"
+      className="fixed inset-0 z-50 flex items-start justify-center bg-[#071D49]/55 px-4 pt-[10vh] pb-8 backdrop-blur-sm overflow-y-auto"
       onClick={(event) => {
         if (event.target === event.currentTarget) {
           onClose();
@@ -145,9 +145,9 @@ export function Modal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="modal-title"
-        className={`fade-in-panel w-full ${sizeClass} rounded-[var(--radius-lg)] border border-border bg-surface shadow-lg outline-none`}
+        className={`fade-in-panel glass-panel w-full ${sizeClass} rounded-[var(--radius-lg)] outline-none`}
       >
-        <div className="flex items-start justify-between gap-4 border-b border-border px-5 py-3.5">
+        <div className="flex items-start justify-between gap-4 border-b border-border bg-white px-5 py-3.5">
           <div className="min-w-0">
             <h3 id="modal-title" className="text-[15px] font-semibold text-foreground">
               {title}
@@ -168,7 +168,7 @@ export function Modal({
         </div>
         <div className="px-5 py-4 custom-scrollbar max-h-[60vh] overflow-y-auto">{children}</div>
         {footer ? (
-          <div className="flex flex-wrap items-center justify-end gap-2 border-t border-border px-5 py-3">
+          <div className="flex flex-wrap items-center justify-end gap-2 border-t border-border bg-surface-muted px-5 py-3">
             {footer}
           </div>
         ) : null}

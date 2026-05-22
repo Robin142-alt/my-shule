@@ -68,8 +68,8 @@ export function VerifyEmailView({
             <SecurityBadge label="Email ownership" tone="success" />
             <SecurityBadge label="Single-use token" />
           </div>
-          <h2 className="text-3xl font-bold leading-tight text-slate-950">Verify your email</h2>
-          <p className="text-sm leading-6 text-slate-600">
+          <h2 className="text-3xl font-bold leading-tight text-foreground">Verify your email</h2>
+          <p className="text-sm leading-6 text-muted">
             Use the secure link from your message or paste the verification token below.
           </p>
         </div>
@@ -98,7 +98,7 @@ export function VerifyEmailView({
 
         <SessionWarning mode="normal" />
 
-        <Link href={backHref} className="inline-flex text-sm font-bold text-slate-700 underline-offset-4 hover:text-emerald-700 hover:underline">
+        <Link href={backHref} className="inline-flex text-sm font-bold text-accent underline-offset-4 hover:text-orange-300 hover:underline">
           Back to login
         </Link>
       </div>

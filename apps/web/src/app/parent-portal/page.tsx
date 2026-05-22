@@ -33,8 +33,8 @@ const visibleItems = [
 
 function ParentVisibilityPreview() {
   return (
-    <div className="rounded-xl border border-[#e2e8f0] bg-white p-4 shadow-[0_20px_70px_rgba(15,23,42,0.12)]">
-      <div className="rounded-xl bg-[#0b1f3a] p-5 text-white">
+    <div className="rounded-xl border border-white/10 bg-surface/80 p-4 shadow-[0_20px_70px_rgba(2,6,23,0.26)] backdrop-blur">
+      <div className="rounded-xl bg-[#071D49] p-5 text-white">
         <div className="flex items-start justify-between gap-4">
           <div>
             <p className="text-sm font-semibold">Parent visibility record</p>
@@ -57,9 +57,9 @@ function ParentVisibilityPreview() {
           ))}
         </div>
       </div>
-      <div className="mt-4 rounded-xl border border-[#e2e8f0] bg-[#f8fafc] p-4">
-        <p className="text-sm font-semibold text-[#0b1f3a]">Official announcement</p>
-        <p className="mt-1 text-sm leading-6 text-[#475569]">
+      <div className="mt-4 rounded-xl border border-white/10 bg-white/[0.06] p-4">
+        <p className="text-sm font-semibold text-foreground">Official announcement</p>
+        <p className="mt-1 text-sm leading-6 text-muted">
           Parent meeting moved to Friday. Attendance and fee statement will be available through the portal.
         </p>
       </div>
@@ -83,7 +83,7 @@ export default function ParentPortalPage() {
       <VisibilityGapCards title="Visibility gaps parents live with" items={visibilityGaps} />
       <VisibilityGapCards title="What becomes visible" items={visibleItems} mode="visible" />
 
-      <section className="bg-white">
+      <section className="bg-transparent">
         <div className="mx-auto w-full max-w-7xl px-5 py-14 sm:px-8 lg:px-10">
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <InfoCard
@@ -109,12 +109,12 @@ export default function ParentPortalPage() {
               icon={<MessageSquareText className="h-5 w-5" aria-hidden="true" />}
             />
           </div>
-          <div className="mt-8 rounded-xl border border-[#e2e8f0] bg-[#f8fafc] p-6">
+          <div className="mt-8 rounded-xl border border-white/10 bg-surface/80 p-6 shadow-[0_18px_60px_rgba(2,6,23,0.18)] backdrop-blur">
             <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
               <div className="max-w-2xl">
                 <ShieldCheck className="h-6 w-6 text-[#f97316]" aria-hidden="true" />
-                <h2 className="mt-3 text-2xl font-semibold text-[#0b1f3a]">Parent access should feel clear and official</h2>
-                <p className="mt-2 text-sm leading-6 text-[#475569]">
+                <h2 className="mt-3 text-2xl font-semibold text-foreground">Parent access should feel clear and official</h2>
+                <p className="mt-2 text-sm leading-6 text-muted">
                   The Parent Portal gives families a structured place to check what the school has published, reducing delayed updates and fragmented communication.
                 </p>
               </div>

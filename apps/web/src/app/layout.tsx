@@ -84,7 +84,7 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   maximumScale: 5,
-  themeColor: "#0f172a",
+  themeColor: "#071D49",
 };
 
 export default function RootLayout({
@@ -97,7 +97,7 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full`}
     >
-      <body className="min-h-screen bg-background text-foreground">
+      <body className="min-h-screen text-foreground" style={{ backgroundColor: "#F3F4F6" }}>
         <AppProviders>{children}</AppProviders>
       </body>
     </html>

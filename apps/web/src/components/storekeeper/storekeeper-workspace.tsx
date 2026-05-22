@@ -1579,7 +1579,7 @@ export function StorekeeperWorkspace({
   return (
     <main className="min-h-screen bg-[#edf3ef] text-foreground">
       <div className="flex min-h-screen flex-col lg:flex-row">
-        <aside className="border-b border-slate-800 bg-slate-950 text-white lg:w-[260px] lg:border-b-0 lg:border-r">
+        <aside className="border-b border-white/10 bg-[#071D49] text-white lg:w-[260px] lg:border-b-0 lg:border-r">
           <div className="sticky top-0 p-4">
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-[var(--radius-sm)] bg-emerald-500/15 text-emerald-300">
@@ -1608,7 +1608,7 @@ export function StorekeeperWorkspace({
                     href={item.href}
                     className={`rounded-[var(--radius-sm)] px-3 py-2 text-[13px] font-semibold transition ${
                       isActive
-                        ? "bg-emerald-400 text-slate-950"
+                        ? "bg-[#FF7A1A] text-white"
                         : "text-slate-300 hover:bg-slate-900 hover:text-white"
                     }`}
                   >

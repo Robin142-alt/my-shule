@@ -41,7 +41,7 @@ test('ComplianceService runs data subject request workflow with SLA countdown, a
   const queries: string[] = [];
   const auditActions: string[] = [];
   let currentStatus = 'submitted';
-  const dueAt = new Date('2026-06-19T00:00:00.000Z');
+  const dueAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
   const createdAt = new Date('2026-05-20T00:00:00.000Z');
   const updatedAt = new Date('2026-05-20T00:00:00.000Z');
 

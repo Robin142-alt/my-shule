@@ -96,7 +96,7 @@ const emptyDashboard: TransportDashboard = {
 };
 
 const fieldClassName =
-  "w-full rounded-[var(--radius-sm)] border border-border bg-white px-3 py-2 text-sm text-foreground outline-none transition focus:border-accent/50 focus:bg-surface";
+  "w-full rounded-[var(--radius-sm)] border border-border bg-white px-3 py-2 text-sm text-foreground outline-none transition focus:border-accent/50 focus:shadow-[var(--shadow-focus)]";
 
 function normalizeDashboard(payload: unknown): TransportDashboard {
   const source = payload && typeof payload === "object" && "data" in payload
@@ -578,7 +578,7 @@ export function TransportModuleScreen({
 
   return (
     <div className="space-y-6">
-      <section className="rounded-[var(--radius)] border border-border bg-white px-5 py-5 shadow-sm">
+      <section className="rounded-[var(--radius)] border border-border bg-surface px-5 py-5 shadow-[0_18px_50px_rgba(2,6,23,0.24)]">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <div className="flex flex-wrap items-center gap-2">
@@ -621,7 +621,7 @@ export function TransportModuleScreen({
             className={`rounded-[var(--radius-sm)] border px-4 py-3 text-left text-sm font-semibold transition ${
               activeAction === action
                 ? "border-accent/30 bg-accent-soft text-accent"
-                : "border-border bg-white text-foreground hover:border-accent/20"
+                : "border-border bg-surface-muted text-foreground hover:border-accent/20"
             }`}
           >
             {formatStatus(action)}

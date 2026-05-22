@@ -18,8 +18,8 @@ export default function Image() {
           height: "100%",
           display: "flex",
           flexDirection: "column",
-          background: "#f8fafc",
-          color: "#0b1f3a",
+          background: "#071D49",
+          color: "#FFFFFF",
           padding: "58px",
           fontFamily: "Arial, sans-serif",
         }}
@@ -34,7 +34,7 @@ export default function Image() {
                 alignItems: "center",
                 justifyContent: "center",
                 borderRadius: 18,
-                background: "#0b1f3a",
+                background: "#FF7A1A",
                 color: "white",
                 fontSize: 26,
                 fontWeight: 800,
@@ -44,7 +44,7 @@ export default function Image() {
             </div>
             <div style={{ display: "flex", flexDirection: "column" }}>
               <div style={{ fontSize: 34, fontWeight: 800 }}>{SITE_NAME}</div>
-              <div style={{ color: "#c2410c", fontSize: 20, fontWeight: 700 }}>
+              <div style={{ color: "#FFB072", fontSize: 20, fontWeight: 700 }}>
                 Parent Portal - School Portal - Dashboard
               </div>
             </div>
@@ -53,8 +53,8 @@ export default function Image() {
             style={{
               display: "flex",
               borderRadius: 999,
-              background: "#fff7ed",
-              color: "#c2410c",
+              background: "rgba(255,122,26,0.18)",
+              color: "#FFB072",
               padding: "12px 20px",
               fontSize: 20,
               fontWeight: 700,
@@ -69,7 +69,7 @@ export default function Image() {
             <div style={{ fontSize: 58, lineHeight: 1.04, fontWeight: 800 }}>
               Structured institutional intelligence
             </div>
-            <div style={{ marginTop: 24, color: "#475569", fontSize: 23, lineHeight: 1.35 }}>
+            <div style={{ marginTop: 24, color: "#D9E1EC", fontSize: 23, lineHeight: 1.35 }}>
               {SITE_DESCRIPTION}
             </div>
           </div>
@@ -81,10 +81,10 @@ export default function Image() {
               flexDirection: "column",
               gap: "16px",
               borderRadius: 22,
-              border: "1px solid #e2e8f0",
-              background: "#ffffff",
+              border: "1px solid rgba(255,255,255,0.12)",
+              background: "#0F2345",
               padding: "24px",
-              boxShadow: "0 24px 80px rgba(15,23,42,0.14)",
+              boxShadow: "0 24px 80px rgba(2,6,23,0.32)",
             }}
           >
             {[
@@ -99,13 +99,13 @@ export default function Image() {
                   alignItems: "center",
                   justifyContent: "space-between",
                   borderRadius: 16,
-                  background: "#f8fafc",
+                  background: "rgba(255,255,255,0.06)",
                   padding: "22px",
                   fontSize: 22,
                 }}
               >
-                <span style={{ color: "#0b1f3a", fontWeight: 800 }}>{label}</span>
-                <span style={{ color: "#c2410c", fontWeight: 700 }}>{value}</span>
+                <span style={{ color: "#FFFFFF", fontWeight: 800 }}>{label}</span>
+                <span style={{ color: "#FFB072", fontWeight: 700 }}>{value}</span>
               </div>
             ))}
           </div>

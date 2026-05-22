@@ -13,7 +13,8 @@ const passingSources: Record<string, string> = {
   'apps/api/src/modules/admin-command/admin-command-schema.service.ts': 'principal_dashboard_snapshots principal_alerts FORCE ROW LEVEL SECURITY',
   'apps/api/src/modules/admin-command/repositories/admin-command.repository.ts': 'findPrincipalDashboardSnapshot upsertPrincipalDashboardSnapshot enabled_module_hash filter_hash case \'clinic_health\' medicine_consumption_cost_minor wastage_due_to_expiry_minor emergency_supply_ready_rate most_used_medicine case \'ai_insights\' fee_default_risk_alerts medicine_shortage_predictions attendance_irregularities budget_overrun_alerts performance_decline_warnings',
   'apps/api/src/modules/admin-command/admin-command.controller.ts': 'principal/dashboard principal_dashboard @Sse(\'principal/dashboard/stream\') principal_dashboard',
-  'apps/web/src/components/school/school-pages.tsx': 'PrincipalExecutiveDashboardPage Notifications center enabled_modules new EventSource principal.dashboard ClinicOperationsPage Medicine batches Readiness medicine_consumption_cost_minor wastage_due_to_expiry_minor emergency_supply_ready_rate most_used_medicine',
+  'apps/web/src/components/school/principal-command-center.tsx': 'PrincipalCommandCenter Alerts and risk center enabled_modules new EventSource principal.dashboard',
+  'apps/web/src/components/school/school-pages.tsx': 'ClinicOperationsPage Medicine batches Readiness medicine_consumption_cost_minor wastage_due_to_expiry_minor emergency_supply_ready_rate most_used_medicine',
   'apps/web/src/lib/dashboard/server-api-proxy.ts': 'text/event-stream upstreamResponse.body',
   'apps/web/src/app/api/admin-command/[...path]/route.ts': 'proxySchoolApiRequest "/admin-command"',
   'apps/api/src/modules/module-access/module-access.constants.ts': 'principal_dashboard clinic_health procurement ai_insights',
@@ -110,7 +111,7 @@ test('Implementation 21 certification fails when clinic medicine finance analyti
     sourceOverrides: {
       ...passingSources,
       'apps/api/src/modules/clinic/repositories/clinic.repository.ts': 'withRequestTransaction quantity_available = quantity_available - clinic_medicine_dispenses dispensed medicines_dispensed medicine_name dosage',
-      'apps/web/src/components/school/school-pages.tsx': 'PrincipalExecutiveDashboardPage Notifications center enabled_modules new EventSource principal.dashboard ClinicOperationsPage Medicine batches Readiness',
+      'apps/web/src/components/school/school-pages.tsx': 'ClinicOperationsPage Medicine batches Readiness',
     },
   });
 

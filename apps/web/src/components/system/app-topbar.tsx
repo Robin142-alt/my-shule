@@ -20,9 +20,9 @@ const searchPlaceholderByVariant: Record<TopbarVariant, string> = {
 
 const shellStyles: Record<TopbarVariant, string> = {
   platform:
-    "bg-white lg:border-slate-900/10 lg:bg-white lg:shadow-[0_1px_2px_rgba(15,23,42,0.10)]",
-  school: "bg-white",
-  portal: "bg-white",
+    "enterprise-topbar",
+  school: "enterprise-topbar",
+  portal: "enterprise-topbar",
 };
 
 export function AppTopbar({
@@ -73,29 +73,29 @@ export function AppTopbar({
 
   return (
     <header
-      className={`sticky top-4 z-20 mb-6 rounded-2xl border border-border px-4 py-3 shadow-sm md:px-5 ${shellStyles[variant]}`}
+      className={`sticky top-3 z-20 mb-5 rounded-[var(--radius)] px-4 py-3 md:px-5 ${shellStyles[variant]}`}
     >
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex min-w-0 items-start gap-3">
           <button
             type="button"
             onClick={onOpenSidebar}
-            className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-surface lg:hidden"
+            className="inline-flex h-10 w-10 items-center justify-center rounded-[var(--radius-sm)] border border-border bg-surface-muted text-primary lg:hidden"
           >
-            <Menu className="h-4 w-4 text-foreground" />
+            <Menu className="h-4 w-4" />
           </button>
           <div className="min-w-0">
             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted">
               {topLabel}
             </p>
-            <h1 className="mt-1 text-2xl font-bold text-foreground">{title}</h1>
-            <p className="mt-1 max-w-3xl text-sm leading-6 text-muted">{subtitle}</p>
+              <h1 className="mt-1 text-2xl font-bold text-foreground">{title}</h1>
+              <p className="mt-1 max-w-3xl text-sm leading-6 text-muted">{subtitle}</p>
           </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-2 lg:justify-end">
           <div className="relative min-w-[240px]">
-            <label className="flex items-center gap-2 rounded-xl border border-border bg-surface-muted px-3 py-2 transition duration-150 focus-within:border-border-strong focus-within:bg-white">
+            <label className="flex items-center gap-2 rounded-[var(--radius-sm)] border border-border bg-surface-muted px-3 py-2 transition duration-150 focus-within:border-border-strong focus-within:shadow-[var(--shadow-focus)]">
               <Search className="h-4 w-4 text-muted" />
               <input
                 type="search"
@@ -122,7 +122,7 @@ export function AppTopbar({
             {showSearchPanel && normalizedSearchTerm ? (
               <div
                 data-testid="workspace-search-panel"
-                className="fade-in-panel absolute left-0 right-0 top-[calc(100%+6px)] z-30 rounded-2xl border border-border bg-surface p-2 shadow-lg"
+                className="fade-in-panel glass-panel absolute left-0 right-0 top-[calc(100%+6px)] z-30 rounded-[var(--radius)] p-2"
               >
                 {filteredSearchItems.length > 0 ? (
                   filteredSearchItems.map((item) => (
@@ -131,7 +131,7 @@ export function AppTopbar({
                       type="button"
                       onMouseDown={(event) => event.preventDefault()}
                       onClick={() => runNavigation(item.href)}
-                      className="flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left transition duration-150 hover:bg-surface-muted"
+                      className="flex w-full items-center justify-between gap-3 rounded-[var(--radius-sm)] px-3 py-2 text-left transition duration-150 hover:bg-surface-strong"
                     >
                       <div className="min-w-0">
                         <p className="text-sm font-semibold text-foreground">{item.label}</p>
@@ -160,14 +160,19 @@ export function AppTopbar({
                 setShowNotificationsPanel((value) => !value);
                 setShowSearchPanel(false);
               }}
-              className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-surface transition duration-150 hover:border-border-strong hover:bg-surface-muted"
+              className="relative inline-flex h-10 w-10 items-center justify-center rounded-[var(--radius-sm)] border border-border bg-surface-muted transition duration-150 hover:border-border-strong hover:bg-surface-strong"
             >
-              <Bell className="h-4 w-4 text-foreground" />
+              <Bell className="h-4 w-4 text-primary" />
+              {notifications.length > 0 ? (
+                <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-[10px] font-bold text-white">
+                  {notifications.length}
+                </span>
+              ) : null}
             </button>
             {showNotificationsPanel ? (
               <div
                 data-testid="workspace-notifications-panel"
-                className="fade-in-panel absolute right-0 top-[calc(100%+6px)] z-30 w-[320px] rounded-2xl border border-border bg-surface p-2 shadow-lg"
+                className="fade-in-panel glass-panel absolute right-0 top-[calc(100%+6px)] z-30 w-[320px] rounded-[var(--radius)] p-2"
               >
                 <div className="flex items-center justify-between gap-3 px-2 py-1">
                   <p className="text-sm font-semibold text-foreground">Notifications</p>
@@ -191,7 +196,7 @@ export function AppTopbar({
 
                           setShowNotificationsPanel(false);
                         }}
-                        className="flex w-full items-start justify-between gap-3 rounded-xl px-3 py-2 text-left transition duration-150 hover:bg-surface-muted"
+                        className="flex w-full items-start justify-between gap-3 rounded-[var(--radius-sm)] px-3 py-2 text-left transition duration-150 hover:bg-surface-strong"
                       >
                         <div className="min-w-0">
                           <p className="text-sm font-semibold text-foreground">{item.title}</p>

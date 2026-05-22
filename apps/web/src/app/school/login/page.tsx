@@ -33,26 +33,26 @@ export default async function SchoolLoginPage() {
   return (
     <AuthShell
       eyebrow="School staff login"
-      heroTitle={resolution.branding.name}
-      heroDescription={`${resolution.branding.heroMessage} Save the school from scattered reports, repeated fee calls, missing payment proof, and slow leadership decisions.`}
+      heroTitle="Run your school with operational clarity."
+      heroDescription="Visibility across departments. Every payment accountable. Every incident traceable. Every student monitored responsibly."
       badge={`${resolution.branding.county} school ERP`}
       logoMark={resolution.branding.logoMark}
-      helper="Staff sign-in opens the right dashboard for principals, bursars, teachers, and office teams, with role-safe access to the work they repeat every day."
+      helper="Staff sign-in opens a tenant-isolated command surface where modules, workflows, approvals, reports, and alerts appear only when the school has enabled them."
       highlights={[
         {
-          id: "collections",
-          title: "Collections without chasing",
-          description: "Fee balances, M-PESA matches, receipts, and SMS reminders reduce calls and payment confusion.",
+          id: "visibility",
+          title: "Visibility across departments",
+          description: "Leadership sees fee, academic, attendance, discipline, clinic, transport, and inventory signals in one controlled operating system.",
         },
         {
-          id: "academics",
-          title: "Reports before pressure",
-          description: "Academics, CBC reports, discipline, clinic, and class follow-ups stay close to leadership.",
+          id: "accountability",
+          title: "Every action accountable",
+          description: "Approvals, releases, write-offs, overrides, and sensitive updates are guarded by role policy and audit evidence.",
         },
         {
           id: "tenant-security",
-          title: "One school, one truth",
-          description: "Each school enters its own workspace, branding, operational data, and principal insights.",
+          title: "One school, one tenant",
+          description: "Each school enters its own workspace, branding, modules, workflows, analytics, and role-safe permissions.",
         },
       ]}
       trustNotes={[

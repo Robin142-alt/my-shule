@@ -54,12 +54,21 @@ const procurementDashboard = {
 
 describe("procurement module workspace", () => {
   beforeEach(() => {
-    global.fetch = jest.fn(() =>
+    global.fetch = jest.fn((input: RequestInfo | URL) => {
+      if (String(input).includes("/api/school/modules/me")) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ["procurement"],
+        } as Response);
+      }
+
+      return (
       Promise.resolve({
         ok: true,
         json: async () => ({ data: procurementDashboard }),
-      } as Response),
-    ) as unknown as typeof fetch;
+      } as Response)
+      );
+    }) as unknown as typeof fetch;
   });
 
   it("renders live procurement requests, suppliers, purchase orders, invoices, and budget linkage", async () => {
@@ -84,12 +93,13 @@ describe("procurement module workspace", () => {
     expect(isSchoolSection("procurement")).toBe(true);
     expect(isProductionReadyModule("procurement")).toBe(true);
     expect(isSchoolSectionEnabled("procurement", ["procurement"])).toBe(true);
-    expect(getSchoolWorkspace("principal").navItems.map((item) => item.id)).toContain("procurement");
+    expect(getSchoolWorkspace("principal").navItems.map((item) => item.id)).not.toContain("procurement");
+    expect(getSchoolWorkspace("admin").navItems.map((item) => item.id)).toContain("procurement");
 
     await act(async () => {
       renderWithProviders(
         createElement(SchoolPages, {
-          role: "principal",
+          role: "admin",
           section: "procurement",
           tenantSlug: "barakaacademy",
         }),

@@ -2,11 +2,59 @@ import {
   IsArray,
   IsBoolean,
   IsEmail,
+  IsIn,
+  IsObject,
   IsOptional,
   IsString,
   MaxLength,
   MinLength,
 } from 'class-validator';
+
+export type SchoolInstitutionCategory =
+  | 'international_school'
+  | 'primary_school'
+  | 'junior_school'
+  | 'secondary_high_school';
+
+export type SchoolCurriculum =
+  | 'cbc'
+  | 'cbe'
+  | '8-4-4'
+  | 'cambridge'
+  | 'igcse'
+  | 'international';
+
+export type SchoolOnboardingStepStatus = 'pending' | 'planned' | 'complete' | 'blocked';
+
+export type SchoolOnboardingProfileDto = {
+  registration_number?: string;
+  knec_code?: string;
+  county?: string;
+  location?: string;
+  contacts?: Record<string, string>;
+  curriculum?: SchoolCurriculum;
+  institution_category?: SchoolInstitutionCategory;
+  campuses: Array<{ name: string; code: string }>;
+  academic_calendar?: Record<string, unknown>;
+  fee_categories: string[];
+  sms_sender_id?: string;
+  domain?: string;
+  quotas?: {
+    students?: number;
+    staff?: number;
+    storage_gb?: number;
+    sms_per_term?: number;
+    devices?: number;
+  };
+  import_plan: string[];
+  service_activation: string[];
+  training_status: 'pending' | 'scheduled' | 'complete';
+  audit_verification_status: 'pending' | 'verified' | 'failed';
+  onboarding_steps: Record<
+    'create_school' | 'select_modules' | 'configure_structure' | 'import_data' | 'activate_services' | 'go_live',
+    SchoolOnboardingStepStatus
+  >;
+};
 
 export class CreateSchoolDto {
   @IsString()
@@ -31,6 +79,78 @@ export class CreateSchoolDto {
   @IsString()
   @MaxLength(80)
   county?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  registration_number?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  knec_code?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(160)
+  location?: string;
+
+  @IsOptional()
+  @IsObject()
+  contacts?: Record<string, string>;
+
+  @IsOptional()
+  @IsIn(['cbc', 'cbe', '8-4-4', 'cambridge', 'igcse', 'international'])
+  curriculum?: SchoolCurriculum;
+
+  @IsOptional()
+  @IsIn(['international_school', 'primary_school', 'junior_school', 'secondary_high_school'])
+  institution_category?: SchoolInstitutionCategory;
+
+  @IsOptional()
+  @IsArray()
+  campuses?: Array<{ name: string; code: string }>;
+
+  @IsOptional()
+  @IsObject()
+  academic_calendar?: Record<string, unknown>;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  fee_categories?: string[];
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(32)
+  sms_sender_id?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(180)
+  domain?: string;
+
+  @IsOptional()
+  @IsObject()
+  quotas?: SchoolOnboardingProfileDto['quotas'];
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  import_plan?: string[];
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  service_activation?: string[];
+
+  @IsOptional()
+  @IsIn(['pending', 'scheduled', 'complete'])
+  training_status?: SchoolOnboardingProfileDto['training_status'];
+
+  @IsOptional()
+  @IsIn(['pending', 'verified', 'failed'])
+  audit_verification_status?: SchoolOnboardingProfileDto['audit_verification_status'];
 
   @IsOptional()
   @IsArray()
@@ -82,6 +202,7 @@ export type PlatformSchoolResponseDto = {
   admin_email: string;
   created_at: string;
   enabled_modules: string[];
+  onboarding_profile?: SchoolOnboardingProfileDto;
 };
 
 export type PlatformSchoolUsageSummaryDto = {

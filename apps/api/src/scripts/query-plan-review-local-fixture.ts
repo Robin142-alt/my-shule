@@ -1,6 +1,6 @@
 import { Client } from 'pg';
 
-import { runQueryPlanReview } from './query-plan-review';
+import { runQueryPlanReview, writeQueryPlanReviewArtifact } from './query-plan-review';
 
 export interface QueryPlanReviewLocalFixtureTable {
   name: string;
@@ -380,7 +380,9 @@ async function main(): Promise<void> {
     });
 
     await client.query('COMMIT');
+    const artifactPath = writeQueryPlanReviewArtifact(result);
     process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+    process.stdout.write(`Query plan review artifact written to ${artifactPath}\n`);
 
     if (!result.ok) {
       process.exitCode = 1;

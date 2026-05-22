@@ -20,14 +20,14 @@ export function TrustBadges({
         return (
           <div
             key={badge.label}
-            className="flex min-h-20 items-center gap-3 rounded-xl border border-[#e2e8f0] bg-white px-4 py-3 shadow-sm"
+            className="flex min-h-20 items-center gap-3 rounded-xl border border-white/10 bg-surface/80 px-4 py-3 shadow-[0_18px_60px_rgba(2,6,23,0.2)] backdrop-blur"
           >
             {Icon ? (
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#eff6ff] text-[#0b1f3a]">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-accent/15 text-accent">
                 <Icon className="h-4 w-4" aria-hidden />
               </span>
             ) : null}
-            <p className="text-sm font-semibold leading-5 text-[#0b1f3a]">{badge.label}</p>
+            <p className="text-sm font-semibold leading-5 text-foreground">{badge.label}</p>
           </div>
         );
       })}

@@ -14,14 +14,16 @@ export function AppFrame({
   children: ReactNode;
 }) {
   return (
-    <div className="min-h-screen bg-background">
-      <div className="mx-auto grid min-h-screen max-w-[1400px] gap-6 px-4 py-4 md:px-6 lg:grid-cols-[240px_minmax(0,1fr)] lg:px-8">
+    <div className="enterprise-shell min-h-screen">
+      <div className="min-h-screen">
+      <div className="mx-auto grid min-h-screen max-w-[var(--content-max-width)] gap-4 px-3 py-3 md:px-5 lg:grid-cols-[260px_minmax(0,1fr)] lg:gap-6 lg:px-6">
         {sidebar}
         {backdrop}
         <div className="min-w-0">
           {topbar}
-          <main className="space-y-6">{children}</main>
+          <main className="space-y-6 pb-8">{children}</main>
         </div>
+      </div>
       </div>
     </div>
   );

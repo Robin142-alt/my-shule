@@ -47,7 +47,7 @@ export function DataTable<T>({
   return (
     <Card className="overflow-hidden">
       {title || subtitle ? (
-        <div className="border-b border-border px-5 py-3.5">
+        <div className="border-b border-border bg-surface px-5 py-3.5">
           <div className="flex items-center justify-between gap-4">
             <div className="min-w-0">
               {title ? (
@@ -81,18 +81,18 @@ export function DataTable<T>({
           <div className="hidden overflow-x-auto md:block">
             <table className="min-w-full table-auto border-collapse">
               <thead>
-                <tr className="border-b border-border bg-surface-muted/50">
+                <tr className="border-b border-border bg-surface-strong">
                   {columns.map((column) => (
                     <th
                       key={column.id}
-                      className={`sticky top-0 z-10 bg-surface-muted/50 px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-[0.06em] text-muted select-none ${column.headerClassName ?? ""}`}
+                      className={`sticky top-0 z-10 bg-surface-strong px-4 py-2.5 text-left text-[11px] font-bold uppercase tracking-[0.06em] text-primary select-none ${column.headerClassName ?? ""}`}
                     >
                       {column.header}
                     </th>
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-border/50">
+              <tbody className="divide-y divide-border/60">
                 {paginatedRows.map((row) => (
                   <tr
                     key={getRowKey(row)}
@@ -113,11 +113,11 @@ export function DataTable<T>({
           </div>
 
           {/* Mobile Cards */}
-          <div className="space-y-2 p-3 md:hidden">
+            <div className="space-y-2 p-3 md:hidden">
             {paginatedRows.map((row) => (
               <div
                 key={getRowKey(row)}
-                className="rounded-[var(--radius-sm)] border border-border bg-surface-muted/50 px-4 py-3"
+                className="rounded-[var(--radius-sm)] border border-border bg-white px-4 py-3 shadow-sm"
               >
                 <div className="space-y-2">
                   {columns.map((column) => (
@@ -137,7 +137,7 @@ export function DataTable<T>({
 
           {/* Pagination */}
           {totalPages > 1 ? (
-            <div className="flex items-center justify-between border-t border-border px-4 py-2.5">
+            <div className="flex items-center justify-between border-t border-border bg-surface-muted px-4 py-2.5">
               <p className="text-[13px] text-muted">
                 <span className="font-medium text-foreground">
                   {safeCurrentPage * pageSize + 1}
@@ -154,7 +154,7 @@ export function DataTable<T>({
                   type="button"
                   disabled={safeCurrentPage === 0}
                   onClick={() => setCurrentPage(0)}
-                  className="inline-flex h-7 w-7 items-center justify-center rounded-[var(--radius-xs)] text-muted transition-colors hover:bg-surface-strong disabled:cursor-not-allowed disabled:opacity-30"
+                  className="inline-flex h-7 w-7 items-center justify-center rounded-[var(--radius-xs)] text-muted transition-colors hover:bg-white hover:text-accent disabled:cursor-not-allowed disabled:opacity-30"
                   aria-label="First page"
                 >
                   <ChevronsLeft className="h-3.5 w-3.5" />
@@ -165,7 +165,7 @@ export function DataTable<T>({
                   onClick={() =>
                     setCurrentPage((page) => Math.max(0, Math.min(page, totalPages - 1) - 1))
                   }
-                  className="inline-flex h-7 w-7 items-center justify-center rounded-[var(--radius-xs)] text-muted transition-colors hover:bg-surface-strong disabled:cursor-not-allowed disabled:opacity-30"
+                  className="inline-flex h-7 w-7 items-center justify-center rounded-[var(--radius-xs)] text-muted transition-colors hover:bg-white hover:text-accent disabled:cursor-not-allowed disabled:opacity-30"
                   aria-label="Previous page"
                 >
                   <ChevronLeft className="h-3.5 w-3.5" />
@@ -179,7 +179,7 @@ export function DataTable<T>({
                   onClick={() =>
                     setCurrentPage((page) => Math.min(totalPages - 1, Math.min(page, totalPages - 1) + 1))
                   }
-                  className="inline-flex h-7 w-7 items-center justify-center rounded-[var(--radius-xs)] text-muted transition-colors hover:bg-surface-strong disabled:cursor-not-allowed disabled:opacity-30"
+                  className="inline-flex h-7 w-7 items-center justify-center rounded-[var(--radius-xs)] text-muted transition-colors hover:bg-white hover:text-accent disabled:cursor-not-allowed disabled:opacity-30"
                   aria-label="Next page"
                 >
                   <ChevronRight className="h-3.5 w-3.5" />
@@ -188,7 +188,7 @@ export function DataTable<T>({
                   type="button"
                   disabled={safeCurrentPage >= totalPages - 1}
                   onClick={() => setCurrentPage(totalPages - 1)}
-                  className="inline-flex h-7 w-7 items-center justify-center rounded-[var(--radius-xs)] text-muted transition-colors hover:bg-surface-strong disabled:cursor-not-allowed disabled:opacity-30"
+                  className="inline-flex h-7 w-7 items-center justify-center rounded-[var(--radius-xs)] text-muted transition-colors hover:bg-white hover:text-accent disabled:cursor-not-allowed disabled:opacity-30"
                   aria-label="Last page"
                 >
                   <ChevronsRight className="h-3.5 w-3.5" />

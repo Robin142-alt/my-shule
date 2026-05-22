@@ -27,6 +27,7 @@ import {
   DeleteSchoolDto,
   PlatformEmailReadinessResponseDto,
   PlatformSchoolDeleteResponseDto,
+  SchoolOnboardingProfileDto,
   PlatformSchoolResponseDto,
   PlatformTenantAnonymizeResponseDto,
   PlatformTenantOffboardingManifestDto,
@@ -45,6 +46,7 @@ type TenantRow = {
   last_error_code?: string | null;
   last_error_summary?: string | null;
   provider_status_code?: number | string | null;
+  metadata?: Record<string, unknown> | string | null;
 };
 
 type InvitationDeliveryStatus = PlatformSchoolResponseDto['invitation_status'];
@@ -191,7 +193,7 @@ export class PlatformOnboardingService {
       const tenant = await this.createTenant({
         tenantId,
         schoolName,
-        county: dto.county?.trim() || null,
+        dto,
         invitedByUserId,
       });
 
@@ -208,6 +210,12 @@ export class PlatformOnboardingService {
         adminEmail,
         adminName,
         invitedByUserId,
+      });
+
+      await this.persistTenantDomain({
+        tenantId,
+        domain: dto.domain,
+        createdByUserId: invitedByUserId,
       });
 
       return { tenant, invitation, enabledModules };
@@ -409,22 +417,30 @@ export class PlatformOnboardingService {
   private async createTenant(input: {
     tenantId: string;
     schoolName: string;
-    county: string | null;
+    dto: CreateSchoolDto;
     invitedByUserId: string | null;
   }): Promise<TenantRow> {
+    const onboardingProfile = this.buildBlueprintOnboardingProfile(input.dto);
     const result = await this.databaseService.query<TenantRow>(
       `
         INSERT INTO tenants (tenant_id, name, subdomain, status, settings, metadata)
-        VALUES ($1, $2, $3, 'active', '{}'::jsonb, $4::jsonb)
+        VALUES ($1, $2, $3, 'active', $4::jsonb, $5::jsonb)
         ON CONFLICT (tenant_id) DO NOTHING
-        RETURNING tenant_id, name, subdomain, status, created_at
+        RETURNING tenant_id, name, subdomain, status, metadata, created_at
       `,
       [
         input.tenantId,
         input.schoolName,
         input.tenantId,
         JSON.stringify({
-          county: input.county,
+          curriculum: onboardingProfile.curriculum ?? null,
+          institution_category: onboardingProfile.institution_category ?? null,
+          sms_sender_id: onboardingProfile.sms_sender_id ?? null,
+          domain: onboardingProfile.domain ?? null,
+          onboarding_status: onboardingProfile.onboarding_steps.go_live,
+        }),
+        JSON.stringify({
+          ...onboardingProfile,
           onboarded_by_user_id: input.invitedByUserId,
           onboarding_source: SUPERADMIN_ROLE_OWNER,
         }),
@@ -437,6 +453,38 @@ export class PlatformOnboardingService {
     }
 
     return tenant;
+  }
+
+  private async persistTenantDomain(input: {
+    tenantId: string;
+    domain: string | undefined;
+    createdByUserId: string | null;
+  }): Promise<void> {
+    const domain = input.domain?.trim().toLowerCase();
+    if (!domain) {
+      return;
+    }
+
+    await this.databaseService.query(
+      `
+        INSERT INTO tenant_domains (tenant_id, domain, domain_type, status, created_by_user_id, metadata)
+        VALUES ($1, $2, 'custom', 'pending_verification', $3, $4::jsonb)
+        ON CONFLICT (tenant_id, domain) DO UPDATE
+        SET status = EXCLUDED.status,
+            created_by_user_id = EXCLUDED.created_by_user_id,
+            metadata = tenant_domains.metadata || EXCLUDED.metadata,
+            updated_at = NOW()
+      `,
+      [
+        input.tenantId,
+        domain,
+        input.createdByUserId,
+        JSON.stringify({
+          source: 'platform_onboarding',
+          go_live_dependency: true,
+        }),
+      ],
+    );
   }
 
   private async findInvitationContext(tenantId: string): Promise<InvitationContextRow> {
@@ -840,7 +888,108 @@ export class PlatformOnboardingService {
       admin_email: override?.adminEmail ?? tenant.admin_email ?? '',
       created_at: new Date(tenant.created_at).toISOString(),
       enabled_modules: override?.enabledModules ?? [],
+      onboarding_profile: this.extractBlueprintOnboardingProfile(tenant.metadata),
     };
+  }
+
+  private buildBlueprintOnboardingProfile(dto: CreateSchoolDto): SchoolOnboardingProfileDto {
+    const campuses = this.normalizeCampuses(dto.campuses);
+    const importPlan = this.normalizeStringArray(dto.import_plan);
+    const serviceActivation = this.normalizeStringArray(dto.service_activation);
+    const feeCategories = this.normalizeStringArray(dto.fee_categories);
+    const hasStructure = campuses.length > 0
+      || feeCategories.length > 0
+      || Object.keys(dto.academic_calendar ?? {}).length > 0;
+
+    return {
+      registration_number: this.optionalTrim(dto.registration_number),
+      knec_code: this.optionalTrim(dto.knec_code),
+      county: this.optionalTrim(dto.county),
+      location: this.optionalTrim(dto.location),
+      contacts: this.normalizeStringRecord(dto.contacts),
+      curriculum: dto.curriculum,
+      institution_category: dto.institution_category,
+      campuses,
+      academic_calendar: dto.academic_calendar,
+      fee_categories: feeCategories,
+      sms_sender_id: this.optionalTrim(dto.sms_sender_id),
+      domain: this.optionalTrim(dto.domain)?.toLowerCase(),
+      quotas: dto.quotas,
+      import_plan: importPlan,
+      service_activation: serviceActivation,
+      training_status: dto.training_status ?? 'pending',
+      audit_verification_status: dto.audit_verification_status ?? 'pending',
+      onboarding_steps: {
+        create_school: 'complete',
+        select_modules: 'complete',
+        configure_structure: hasStructure ? 'complete' : 'pending',
+        import_data: importPlan.length > 0 ? 'planned' : 'pending',
+        activate_services: serviceActivation.length > 0 ? 'planned' : 'pending',
+        go_live: 'blocked',
+      },
+    };
+  }
+
+  private extractBlueprintOnboardingProfile(
+    value: TenantRow['metadata'],
+  ): SchoolOnboardingProfileDto | undefined {
+    const metadata = this.parseJsonObject(value);
+    if (!metadata || !('onboarding_steps' in metadata)) {
+      return undefined;
+    }
+
+    return metadata as unknown as SchoolOnboardingProfileDto;
+  }
+
+  private parseJsonObject(value: Record<string, unknown> | string | null | undefined): Record<string, unknown> | undefined {
+    if (!value) {
+      return undefined;
+    }
+
+    if (typeof value === 'string') {
+      try {
+        const parsed = JSON.parse(value) as unknown;
+        return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+          ? parsed as Record<string, unknown>
+          : undefined;
+      } catch {
+        return undefined;
+      }
+    }
+
+    return value;
+  }
+
+  private normalizeCampuses(value: CreateSchoolDto['campuses']): Array<{ name: string; code: string }> {
+    return (value ?? [])
+      .map((campus) => ({
+        name: this.optionalTrim(campus.name) ?? '',
+        code: (this.optionalTrim(campus.code) ?? '').toUpperCase(),
+      }))
+      .filter((campus) => campus.name && campus.code);
+  }
+
+  private normalizeStringArray(value: string[] | undefined): string[] {
+    return (value ?? [])
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+
+  private normalizeStringRecord(value: Record<string, string> | undefined): Record<string, string> | undefined {
+    if (!value) {
+      return undefined;
+    }
+
+    return Object.fromEntries(
+      Object.entries(value)
+        .map(([key, item]) => [key.trim(), item.trim()])
+        .filter(([key, item]) => key && item),
+    );
+  }
+
+  private optionalTrim(value: string | undefined): string | undefined {
+    const trimmed = value?.trim();
+    return trimmed || undefined;
   }
 
   private async assignInitialModules(input: {

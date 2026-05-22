@@ -60,12 +60,21 @@ const iotDashboard = {
 
 describe("IoT and Smart Campus module workspace", () => {
   beforeEach(() => {
-    global.fetch = jest.fn(() =>
+    global.fetch = jest.fn((input: RequestInfo | URL) => {
+      if (String(input).includes("/api/school/modules/me")) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ["iot"],
+        } as Response);
+      }
+
+      return (
       Promise.resolve({
         ok: true,
         json: async () => ({ data: iotDashboard }),
-      } as Response),
-    ) as unknown as typeof fetch;
+      } as Response)
+      );
+    }) as unknown as typeof fetch;
   });
 
   it("renders live IoT devices, telemetry, commands, and alerts", async () => {
@@ -93,12 +102,13 @@ describe("IoT and Smart Campus module workspace", () => {
     expect(isSchoolSection("iot")).toBe(true);
     expect(isProductionReadyModule("iot")).toBe(true);
     expect(isSchoolSectionEnabled("iot", ["iot"])).toBe(true);
-    expect(getSchoolWorkspace("principal").navItems.map((item) => item.id)).toContain("iot");
+    expect(getSchoolWorkspace("principal").navItems.map((item) => item.id)).not.toContain("iot");
+    expect(getSchoolWorkspace("admin").navItems.map((item) => item.id)).toContain("iot");
 
     await act(async () => {
       renderWithProviders(
         createElement(SchoolPages, {
-          role: "principal",
+          role: "admin",
           section: "iot",
           tenantSlug: "barakaacademy",
         }),

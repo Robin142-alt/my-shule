@@ -5,11 +5,11 @@ type CtaVariant = "primary" | "secondary" | "dark" | "ghost";
 
 const variantClasses: Record<CtaVariant, string> = {
   primary:
-    "bg-[#f97316] text-white shadow-[0_14px_32px_rgba(249,115,22,0.24)] hover:bg-[#ea580c]",
+    "bg-[#FF7A1A] text-white shadow-[0_14px_32px_rgba(255,122,26,0.24)] hover:bg-[#E8670C] hover:shadow-[0_18px_42px_rgba(255,122,26,0.3)]",
   secondary:
-    "border border-[#cbd5e1] bg-white text-[#0b1f3a] shadow-sm hover:border-[#f97316] hover:text-[#c2410c]",
-  dark: "bg-[#0b1f3a] text-white shadow-[0_14px_32px_rgba(11,31,58,0.20)] hover:bg-[#12345f]",
-  ghost: "bg-transparent text-[#0b1f3a] hover:bg-[#e2e8f0]",
+    "border border-white/10 bg-white/[0.06] text-foreground shadow-sm hover:border-accent/50 hover:bg-white/[0.1] hover:text-accent",
+  dark: "bg-[#071D49] text-white shadow-[0_14px_32px_rgba(7,29,73,0.28)] hover:bg-[#0F2345]",
+  ghost: "bg-transparent text-foreground hover:bg-white/[0.08]",
 };
 
 export function CTAButton({

@@ -1,43 +1,28 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { existsSync } from 'node:fs';
-import { join } from 'node:path';
 import 'reflect-metadata';
 import { MODULE_METADATA } from '@nestjs/common/constants';
 
 import { BillingAccessService } from '../billing/billing-access.service';
 import { RequestContextService } from '../../common/request-context/request-context.service';
+import { AttendanceService } from './attendance.service';
 import { StudentsModule } from './students.module';
 import { StudentsRepository } from './repositories/students.repository';
 import { StudentsSchemaService } from './students-schema.service';
 import { StudentsService } from './students.service';
 
-test('StudentsModule does not expose retired attendance controllers or providers', () => {
-  const controllers =
-    (Reflect.getMetadata(MODULE_METADATA.CONTROLLERS, StudentsModule) as Array<{ name?: string }> | undefined) ?? [];
+test('StudentsModule exposes student lifecycle and attendance providers', () => {
   const providers =
     (Reflect.getMetadata(MODULE_METADATA.PROVIDERS, StudentsModule) as Array<{ name?: string }> | undefined) ?? [];
 
   assert.equal(
-    controllers.some((controller) => controller?.name === 'AttendanceController'),
-    false,
-  );
-  assert.equal(
     providers.some((provider) => provider?.name === 'AttendanceService'),
-    false,
+    true,
   );
 });
 
-test('retired attendance API controller, service, and DTO source files are removed', () => {
-  for (const relativePath of [
-    'apps/api/src/modules/students/attendance.controller.ts',
-    'apps/api/src/modules/students/attendance.service.ts',
-    'apps/api/src/modules/students/dto/attendance-record-response.dto.ts',
-    'apps/api/src/modules/students/dto/list-attendance-query.dto.ts',
-    'apps/api/src/modules/students/dto/upsert-attendance-record.dto.ts',
-  ]) {
-    assert.equal(existsSync(join(process.cwd(), relativePath)), false, `${relativePath} should be removed`);
-  }
+test('AttendanceService is available for offline student attendance sync', () => {
+  assert.equal(typeof AttendanceService, 'function');
 });
 
 test('StudentsSchemaService adds a full-text index for active student directory search', async () => {
@@ -62,7 +47,9 @@ test('StudentsSchemaService adds a full-text index for active student directory 
   assert.match(schemaSql, /primary_guardian_phone/);
   assert.match(schemaSql, /ALTER TABLE student_guardians ADD COLUMN IF NOT EXISTS email text/);
   assert.match(schemaSql, /ALTER TABLE student_guardians ADD COLUMN IF NOT EXISTS invitation_id uuid/);
-  assert.doesNotMatch(schemaSql, /attendance/i);
+  assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS attendance_records/);
+  assert.match(schemaSql, /source_device_id/);
+  assert.match(schemaSql, /sync_version/);
 });
 
 test('StudentsService creates a student and publishes student.created', async () => {

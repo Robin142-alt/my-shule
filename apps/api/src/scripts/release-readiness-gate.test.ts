@@ -36,6 +36,10 @@ const passingPackageJsonSource = JSON.stringify({
     test: [
       'node --test',
       'dist/apps/api/src/app-route-permissions.test.js',
+      'dist/apps/api/src/infrastructure/deployment-topology-policy.test.js',
+      'dist/apps/api/src/database/tenant-database-policy.test.js',
+      'dist/apps/api/src/auth/identity-blueprint.test.js',
+      'dist/apps/api/src/auth/role-governance-policy.test.js',
       'dist/apps/api/src/auth/mfa.service.test.js',
       'dist/apps/api/src/auth/trusted-device.service.test.js',
       'dist/apps/api/src/auth/magic-link.service.test.js',
@@ -61,19 +65,33 @@ const passingPackageJsonSource = JSON.stringify({
       'dist/apps/api/src/scripts/implementation21-certification.test.js',
       'dist/apps/api/src/scripts/implementation30-certification.test.js',
       'dist/apps/api/src/scripts/implementation90-load-profile.test.js',
+      'dist/apps/api/src/modules/implementation300/blueprint-registry.test.js',
+      'dist/apps/api/src/modules/implementation300/api-category-policy.test.js',
+      'dist/apps/api/src/modules/implementation300/development-phase-policy.test.js',
+      'dist/apps/api/src/scripts/implementation300-certification.test.js',
       'dist/apps/api/src/scripts/synthetic-journey-monitor.test.js',
       'dist/apps/api/src/common/uploads/streaming-upload.service.test.js',
       'dist/apps/api/src/modules/module-access/module-access.test.js',
+      'dist/apps/api/src/modules/analytics/kpi-policy.test.js',
       'dist/apps/api/src/modules/academics/academics.test.js',
+      'dist/apps/api/src/modules/academics/curriculum-policy.test.js',
       'dist/apps/api/src/modules/labs/labs.test.js',
       'dist/apps/api/src/modules/admin-command/admin-command.test.js',
       'dist/apps/api/src/modules/biometric-attendance/biometric-attendance.test.js',
       'dist/apps/api/src/modules/clinic/clinic.test.js',
+      'dist/apps/api/src/modules/integrations/integration-policy.test.js',
       'dist/apps/api/src/modules/exams/exams.test.js',
       'dist/apps/api/src/modules/billing/student-fee-payment-allocation.service.test.js',
+      'dist/apps/api/src/modules/billing/billing-contract.test.js',
       'dist/apps/api/src/modules/hr/hr.test.js',
       'dist/apps/api/src/modules/library/library.test.js',
       'dist/apps/api/src/modules/timetable/timetable.test.js',
+      'dist/apps/api/src/modules/ai-insights/ai-governance-policy.test.js',
+      'dist/apps/api/src/modules/compliance/data-protection-policy.test.js',
+      'dist/apps/api/src/modules/automation/automation-policy.test.js',
+      'dist/apps/api/src/modules/observability/audit-monitoring-policy.test.js',
+      'dist/apps/api/src/modules/mobile/mobile-app-policy.test.js',
+      'dist/apps/api/src/modules/sync/offline-workflow-policy.test.js',
       'dist/apps/api/src/modules/support/support-status-subscription.service.test.js',
     ].join(' '),
     'web:test:design': 'npm --prefix apps/web run test:design',
@@ -98,6 +116,8 @@ const passingPackageJsonSource = JSON.stringify({
     'implementation21:certify': 'node apps/api/src/scripts/implementation21-certification.ts',
     'implementation30:certify': 'node apps/api/src/scripts/implementation30-certification.ts',
     'implementation90:load-profile': 'node apps/api/src/scripts/implementation90-load-profile.ts',
+    'implementation300:certify': 'node apps/api/src/scripts/implementation300-certification.ts',
+    'test:implementation300': 'npm run build && node --test dist/apps/api/src/modules/implementation300/blueprint-registry.test.js dist/apps/api/src/modules/implementation300/api-category-policy.test.js dist/apps/api/src/modules/implementation300/development-phase-policy.test.js dist/apps/api/src/scripts/implementation300-certification.test.js dist/apps/api/src/modules/ai-insights/ai-governance-policy.test.js dist/apps/api/src/modules/compliance/data-protection-policy.test.js dist/apps/api/src/modules/automation/automation-policy.test.js dist/apps/api/src/modules/integrations/integration-policy.test.js dist/apps/api/src/modules/mobile/mobile-app-policy.test.js dist/apps/api/src/modules/academics/curriculum-policy.test.js dist/apps/api/src/infrastructure/deployment-topology-policy.test.js dist/apps/api/src/modules/analytics/kpi-policy.test.js dist/apps/api/src/database/tenant-database-policy.test.js dist/apps/api/src/modules/observability/audit-monitoring-policy.test.js dist/apps/api/src/auth/role-governance-policy.test.js',
     'implementation90:full-release-gate': [
       'npm run build',
       'npm run web:lint',
@@ -120,7 +140,7 @@ const passingPackageJsonSource = JSON.stringify({
       'npm run scorecard:production',
       'npm run release:readiness',
     ].join(' && '),
-    'ci:full': 'npm run build && npm run implementation90:load-profile && npm run security:deps',
+    'ci:full': 'npm run build && npm run implementation90:load-profile && npm run implementation300:certify && npm run security:deps',
     'monitor:create-service-account': 'node apps/api/src/scripts/create-monitoring-service-account.ts',
     'build:sms-relay': 'npm --prefix apps/sms-relay run build',
     'test:sms-relay': 'npm --prefix apps/sms-relay run test',
@@ -253,6 +273,37 @@ const passingQueryPlanReviewArtifactSource = `
 const passingImplementation90ArchitectureSource = `
   # Implementation 90 Scale, Security, And Reliability Architecture
   Handle 5000+ users per second with a breach-resistant security model, reliability controls, and maintainability gates.
+`;
+
+const passingImplementation300CertificationSource = `
+  export function runImplementation300Certification() {}
+  export function renderImplementation300CertificationMarkdown() {}
+  const title = 'Implementation 300 Blueprint Compliance Certification';
+`;
+
+const passingImplementation300CertificationArtifactSource = `
+  # Implementation 300 Blueprint Compliance Certification
+  Status: pass
+  Scale target: 1000+ schools; tens_of_thousands_of_concurrent_features
+  ## Blueprint Sections
+  | School onboarding workflow | pass |
+  | Authentication and identity | pass | pass: Role governance policy enforces global roles, school roles, tenant boundaries, MFA, module-bound roles, and permission inheritance |
+  | AI and analytics layer | pass | pass: AI governance policy enforces tenant-scoped auditable recommendations |
+  | Security and compliance | pass | pass: Data protection policy covers Kenyan consent, retention, encryption, and DPIA controls |
+  | Notifications and automation | pass | pass: Automation policy covers fee reminders, low stock, attendance, discipline, timetable, exams, and clinic triggers |
+  | Integration layer | pass | pass: Integration policy covers Kenyan and external tenant provider activation |
+  | Recommended API categories | pass | pass: API category policy covers public, internal, and third-party APIs |
+  | Mobile strategy | pass | pass: Mobile app policy covers parent, teacher, student, and admin app access |
+  | Technical architecture | pass | pass: Deployment topology policy covers cloud, hybrid, and dedicated enterprise modes |
+  | Multi-tenant database strategy | pass | pass: Tenant database policy validates tenant identifiers, forced RLS, module activation tables, and tenant-level encryption |
+  | Audit and monitoring | pass | pass: Audit monitoring policy covers user activity, login history, record changes, approvals, financial trails, device logs, uptime, errors, resources, tenant monitoring, and usage analytics |
+  | Recommended development phases | pass | pass: Development phase policy enforces Phase 1 core ERP, Phase 2 operations, Phase 3 advanced, and Phase 4 enterprise intelligence rollout order |
+  | Recommended user roles | pass | pass: Role governance policy covers global and school ERP role assignment rules |
+  | Recommended KPIs | pass | pass: KPI policy covers financial, academic, operational, and executive metrics |
+  ## Modules
+  | Academic Structure | pass | pass: Academic curriculum policy covers CBC, CBE, 8-4-4, Cambridge, IGCSE, and international structures |
+  | AI Insights | pass |
+  | IoT and Smart Campus | pass |
 `;
 
 const passingExtremeScaleRunbookSource = `
@@ -438,6 +489,92 @@ test('runReleaseReadinessGate fails when the Implementation 90 full release gate
   assert.match(
     result.checks.find((check) => check.id === 'implementation90-extreme-scale-artifacts')?.details.join('\n') ?? '',
     /perf:query-plan-review|test:chaos|test:gameday/i,
+  );
+});
+
+test('runReleaseReadinessGate fails when Implementation 300 certification is not release-gated', () => {
+  const scripts = {
+    ...JSON.parse(passingPackageJsonSource).scripts,
+    'implementation300:certify': undefined,
+    'test:implementation300': undefined,
+    'ci:full': 'npm run build && npm run implementation90:load-profile && npm run security:deps',
+  };
+  const result = runGate({
+    packageJsonSource: JSON.stringify({ scripts }),
+  });
+
+  assert.equal(result.ok, false);
+  assert.match(
+    [
+      result.checks.find((check) => check.id === 'release-scripts')?.details.join('\n') ?? '',
+      result.checks.find((check) => check.id === 'implementation90-extreme-scale-artifacts')?.details.join('\n') ?? '',
+    ].join('\n'),
+    /implementation300:certify|test:implementation300|ci:full/i,
+  );
+});
+
+test('runReleaseReadinessGate fails when Implementation 300 certification artifact is missing or failing', () => {
+  const result = runGate({
+    implementation300CertificationSource: '',
+    implementation300CertificationArtifactSource: '# Implementation 300\nStatus: fail',
+  });
+
+  assert.equal(result.ok, false);
+  assert.match(
+    result.checks.find((check) => check.id === 'implementation300-blueprint-compliance')?.details.join('\n') ?? '',
+    /implementation300-certification|Status: pass|1000\+ schools|AI Insights|AI governance policy|Data protection policy|Automation policy|Integration policy|API category policy|Mobile app policy|Deployment topology policy|Tenant database policy|Academic curriculum policy|KPI policy|IoT and Smart Campus/i,
+  );
+});
+
+test('runReleaseReadinessGate fails when Implementation 300 omits the tenant database policy', () => {
+  const result = runGate({
+    implementation300CertificationArtifactSource: passingImplementation300CertificationArtifactSource
+      .replace(/\n  \| Multi-tenant database strategy \| pass \|[^\n]+/, ''),
+  });
+
+  assert.equal(result.ok, false);
+  assert.match(
+    result.checks.find((check) => check.id === 'implementation300-blueprint-compliance')?.details.join('\n') ?? '',
+    /tenant database policy/i,
+  );
+});
+
+test('runReleaseReadinessGate fails when Implementation 300 omits the audit monitoring policy', () => {
+  const result = runGate({
+    implementation300CertificationArtifactSource: passingImplementation300CertificationArtifactSource
+      .replace(/\n  \| Audit and monitoring \| pass \|[^\n]+/, ''),
+  });
+
+  assert.equal(result.ok, false);
+  assert.match(
+    result.checks.find((check) => check.id === 'implementation300-blueprint-compliance')?.details.join('\n') ?? '',
+    /audit monitoring policy/i,
+  );
+});
+
+test('runReleaseReadinessGate fails when Implementation 300 omits the role governance policy', () => {
+  const result = runGate({
+    implementation300CertificationArtifactSource: passingImplementation300CertificationArtifactSource
+      .replace(/Role governance policy/g, 'Role catalog'),
+  });
+
+  assert.equal(result.ok, false);
+  assert.match(
+    result.checks.find((check) => check.id === 'implementation300-blueprint-compliance')?.details.join('\n') ?? '',
+    /role governance policy/i,
+  );
+});
+
+test('runReleaseReadinessGate fails when Implementation 300 omits the development phase policy', () => {
+  const result = runGate({
+    implementation300CertificationArtifactSource: passingImplementation300CertificationArtifactSource
+      .replace(/\n  \| Recommended development phases \| pass \|[^\n]+/, ''),
+  });
+
+  assert.equal(result.ok, false);
+  assert.match(
+    result.checks.find((check) => check.id === 'implementation300-blueprint-compliance')?.details.join('\n') ?? '',
+    /development phase policy/i,
   );
 });
 
@@ -655,6 +792,8 @@ function runGate(overrides: ReleaseReadinessGateOptions = {}) {
     implementation90LoadProfileSource: passingImplementation90LoadProfileSource,
     implementation90LoadProfileArtifactSource: passingImplementation90LoadProfileArtifactSource,
     implementation90ArchitectureSource: passingImplementation90ArchitectureSource,
+    implementation300CertificationSource: passingImplementation300CertificationSource,
+    implementation300CertificationArtifactSource: passingImplementation300CertificationArtifactSource,
     extremeScaleRunbookSource: passingExtremeScaleRunbookSource,
     securityLockdownRunbookSource: passingSecurityLockdownRunbookSource,
     queryPlanReviewArtifactSource: passingQueryPlanReviewArtifactSource,

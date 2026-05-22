@@ -86,8 +86,8 @@ const blindSpotGroups = [
 
 function SchoolControlPreview() {
   return (
-    <div className="rounded-xl border border-[#e2e8f0] bg-white p-4 shadow-[0_20px_70px_rgba(15,23,42,0.12)]">
-      <div className="rounded-xl bg-[#0b1f3a] p-5 text-white">
+    <div className="rounded-xl border border-white/10 bg-surface/80 p-4 shadow-[0_20px_70px_rgba(2,6,23,0.26)] backdrop-blur">
+      <div className="rounded-xl bg-[#071D49] p-5 text-white">
         <div className="flex items-start justify-between gap-4">
           <div>
             <p className="text-sm font-semibold">School Portal</p>
@@ -127,18 +127,18 @@ export default function SchoolPortalPage() {
 
       <section className="mx-auto w-full max-w-7xl px-5 py-14 sm:px-8 lg:px-10">
         <div className="max-w-3xl">
-          <h2 className="text-3xl font-semibold leading-tight text-[#0b1f3a]">Operational blind spots covered across the school</h2>
-          <p className="mt-3 text-base leading-7 text-[#475569]">
+          <h2 className="text-3xl font-semibold leading-tight text-foreground">Operational blind spots covered across the school</h2>
+          <p className="mt-3 text-base leading-7 text-muted">
             MyShule connects modules to visibility outcomes, so each department contributes to a clearer institutional record.
           </p>
         </div>
         <div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {blindSpotGroups.map((group) => (
-            <article key={group.title} className="rounded-xl border border-[#e2e8f0] bg-white p-5 shadow-sm">
-              <h3 className="text-lg font-semibold text-[#0b1f3a]">{group.title}</h3>
+            <article key={group.title} className="rounded-xl border border-white/10 bg-surface/80 p-5 shadow-[0_18px_60px_rgba(2,6,23,0.18)] backdrop-blur">
+              <h3 className="text-lg font-semibold text-foreground">{group.title}</h3>
               <ul className="mt-4 space-y-2">
                 {group.items.map((item) => (
-                  <li key={item} className="rounded-lg bg-[#f8fafc] px-3 py-2 text-sm leading-6 text-[#334155]">
+                  <li key={item} className="rounded-lg border border-white/10 bg-white/[0.06] px-3 py-2 text-sm leading-6 text-muted">
                     {item}
                   </li>
                 ))}
@@ -148,14 +148,14 @@ export default function SchoolPortalPage() {
         </div>
       </section>
 
-      <section className="bg-white">
+      <section className="bg-transparent">
         <div className="mx-auto w-full max-w-7xl px-5 py-14 sm:px-8 lg:px-10">
           <div className="grid gap-8 lg:grid-cols-[0.85fr_1.15fr] lg:items-start">
             <div>
-              <h2 className="text-3xl font-semibold leading-tight text-[#0b1f3a]">
+              <h2 className="text-3xl font-semibold leading-tight text-foreground">
                 From fragmented reporting to unified school visibility
               </h2>
-              <p className="mt-4 text-base leading-7 text-[#475569]">
+              <p className="mt-4 text-base leading-7 text-muted">
                 The School Portal organizes daily records into a control layer that supports department heads and school leadership.
               </p>
               <div className="mt-6 flex flex-col gap-3 sm:flex-row">

@@ -90,10 +90,9 @@ describe("production module readiness", () => {
       expect(isProductionReadyHref(`/school/principal/${moduleId}`)).toBe(true);
     }
 
-    expect(getSchoolWorkspace("principal").navItems.map((item) => item.id)).toContain("exams");
     expect(getSchoolWorkspace("teacher").navItems.map((item) => item.id)).toContain("exams");
-    expect(getSchoolWorkspace("principal").navItems.map((item) => item.id)).toContain("leadership");
-    expect(getSchoolWorkspace("principal").navItems.map((item) => item.id)).toContain("teacher-attendance");
+    expect(getSchoolWorkspace("principal").navItems.map((item) => item.id)).toContain("executive-analytics");
+    expect(getSchoolWorkspace("principal").navItems.map((item) => item.id)).toContain("approvals");
     expect(getSchoolWorkspace("teacher").navItems.map((item) => item.id)).toContain("labs");
     expect(getSchoolWorkspace("librarian").navItems.map((item) => item.id)).toContain("library");
   });
@@ -109,5 +108,27 @@ describe("production module readiness", () => {
 
       expect(kpiModules.filter((module) => inactiveModules.has(module))).toEqual([]);
     }
+  });
+
+  it("keeps principal navigation executive-only", () => {
+    const principalNavIds = getSchoolWorkspace("principal").navItems.map((item) => item.id);
+
+    expect(principalNavIds).toEqual(
+      expect.arrayContaining([
+        "dashboard",
+        "executive-analytics",
+        "alerts-risks",
+        "approvals",
+        "users-staff",
+        "reports",
+        "ai-insights",
+        "audit-logs",
+        "settings",
+      ]),
+    );
+    expect(principalNavIds).not.toContain("students");
+    expect(principalNavIds).not.toContain("finance");
+    expect(principalNavIds).not.toContain("transport");
+    expect(principalNavIds).not.toContain("procurement");
   });
 });

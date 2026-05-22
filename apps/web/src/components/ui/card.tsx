@@ -13,7 +13,7 @@ export function Card({
   return (
     <section
       {...props}
-      className={`dashboard-card ${hover ? "hover:border-accent/20 hover:shadow-md cursor-pointer" : ""} ${className}`}
+      className={`dashboard-card ${hover ? "enterprise-card-hover cursor-pointer" : ""} ${className}`}
     >
       {children}
     </section>

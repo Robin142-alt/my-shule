@@ -2,6 +2,7 @@ import { MessageSquare, ReceiptText, UserPlus } from "lucide-react";
 import Link from "next/link";
 
 import { Card } from "@/components/ui/card";
+import { OperationalTimeline } from "@/components/ui/command-primitives";
 import type { ActivityItem } from "@/lib/dashboard/types";
 
 const iconMap = {
@@ -22,33 +23,23 @@ export function ActivityFeed({ items }: { items: ActivityItem[] }) {
         </span>
       </div>
 
-      <div className="space-y-0.5">
-        {items.map((item) => {
+      <OperationalTimeline
+        items={items.map((item) => {
           const Icon = iconMap[item.category];
 
-          return (
-            <Link
-              key={item.id}
-              href={item.href}
-              data-testid="activity-item"
-              className="flex items-start gap-3 rounded-[var(--radius-sm)] px-3 py-2 transition-colors hover:bg-surface-muted"
-            >
-              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[var(--radius-xs)] bg-surface-strong">
+          return {
+            id: item.id,
+            title: item.title,
+            detail: `${item.detail} - ${item.actor}`,
+            timeLabel: item.timeLabel,
+            icon: (
+              <Link href={item.href} data-testid="activity-item" aria-label={item.title}>
                 <Icon className="h-3.5 w-3.5 text-accent" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="truncate text-[13px] font-medium text-foreground">{item.title}</p>
-                  <p className="shrink-0 text-[11px] text-muted">
-                    {item.timeLabel}
-                  </p>
-                </div>
-                <p className="mt-0.5 truncate text-[11px] text-muted">{item.detail}</p>
-              </div>
-            </Link>
-          );
+              </Link>
+            ),
+          };
         })}
-      </div>
+      />
     </Card>
   );
 }

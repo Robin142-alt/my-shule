@@ -110,13 +110,57 @@ export class SyncOperationLogsRepository {
         WHERE tenant_id = $1
           AND entity = $2
           AND version > $3::bigint
-        ORDER BY version ASC
+        ORDER BY sync_operation_logs.version ASC
         LIMIT $4
       `,
       [tenantId, entity, afterVersion, limit],
     );
 
     return result.rows.map((row) => this.mapRow(row));
+  }
+
+  async fetchByEntitiesAfterCursors(
+    tenantId: string,
+    entities: SyncEntity[],
+    cursorMap: Map<SyncEntity, string>,
+    limit: number,
+  ): Promise<SyncOperationLog[]> {
+    if (entities.length === 0) {
+      return [];
+    }
+
+    const cursorValues = entities.map((entity) => BigInt(cursorMap.get(entity) ?? '0'));
+    const floorVersion = cursorValues.reduce((minimum, value) =>
+      value < minimum ? value : minimum,
+    );
+    const scanLimit = Math.max(limit * Math.max(entities.length, 1) * 4, limit + 1);
+    const result = await this.databaseService.query<SyncOperationLogRow>(
+      `
+        SELECT
+          op_id,
+          tenant_id,
+          device_id,
+          entity,
+          payload,
+          version::text,
+          created_at,
+          updated_at
+        FROM sync_operation_logs
+        WHERE tenant_id = $1
+          AND entity = ANY($2::text[])
+          AND version > $3::bigint
+        ORDER BY sync_operation_logs.version ASC
+        LIMIT $4
+      `,
+      [tenantId, entities, floorVersion.toString(), scanLimit],
+    );
+
+    return result.rows
+      .map((row) => this.mapRow(row))
+      .filter((operation) =>
+        BigInt(operation.version) > BigInt(cursorMap.get(operation.entity) ?? '0'),
+      )
+      .slice(0, limit);
   }
 
   async getLatestVersionByEntities(

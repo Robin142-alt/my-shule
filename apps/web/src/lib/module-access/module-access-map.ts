@@ -234,6 +234,11 @@ export const fallbackModuleCatalog: ModuleRegistryItem[] = [
 
 const schoolSectionModuleMap: Record<string, SchoolModuleCode | null> = {
   dashboard: null,
+  "executive-analytics": "principal_dashboard",
+  "alerts-risks": "principal_dashboard",
+  approvals: "admin_command_centers",
+  "users-staff": "staff",
+  "audit-logs": "admin_command_centers",
   students: "students",
   admissions: "admissions",
   finance: "finance",

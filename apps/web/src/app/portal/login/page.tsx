@@ -25,26 +25,26 @@ export default function PortalLoginPage() {
   return (
     <AuthShell
       eyebrow="Parent and student portal"
-      heroTitle="The school update parents wanted before they made the call."
-      heroDescription="Open fees, grades, discipline notes, health updates, notices, downloads, and SMS fee reminders from one calm mobile portal."
+      heroTitle="Stay connected to your child in real time."
+      heroDescription="Attendance, fees, progress, clinic notes, teacher messages, and school notices appear in a secure family workspace when the school enables those modules."
       badge="Portal access"
       logoMark="PT"
       helper="Parents only see linked learners, and students only see their own records, balances, comments, notices, and messages."
       highlights={[
         {
+          id: "progress",
+          title: "Child progress timeline",
+          description: "Attendance snapshots, performance changes, and teacher communication stay connected to the verified learner profile.",
+        },
+        {
           id: "fees",
-          title: "Fees without office queues",
-          description: "Current balance, recent payments, M-PESA instructions, and reminders stay simple and visible.",
+          title: "Fees with context",
+          description: "Balances, recent payments, M-PESA instructions, and reminders stay private to the verified family account.",
         },
         {
-          id: "updates",
-          title: "Daily visibility",
-          description: "Families can check results, discipline score, health notes, and school updates without calling first.",
-        },
-        {
-          id: "friendly",
-          title: "Friendly by default",
-          description: "The portal is designed for phones first, with language non-technical users can trust immediately.",
+          id: "care",
+          title: "Care signals in one place",
+          description: "Clinic, discipline, transport, notices, and downloads appear only when the school has enabled those modules.",
         },
       ]}
       trustNotes={[

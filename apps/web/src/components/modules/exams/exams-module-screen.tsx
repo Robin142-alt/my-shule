@@ -152,7 +152,7 @@ function PageIntro({
   saveState: SaveState;
 }) {
   return (
-    <section className="overflow-hidden rounded-[var(--radius)] border border-border bg-white shadow-sm">
+    <section className="overflow-hidden rounded-[var(--radius)] border border-border bg-surface shadow-[0_18px_50px_rgba(2,6,23,0.24)]">
       <div className="grid gap-0 xl:grid-cols-[minmax(0,1fr)_360px]">
         <div className="px-5 py-5 md:px-6">
           <div className="flex flex-wrap items-center gap-2">
@@ -196,7 +196,7 @@ function PageIntro({
               ["Governance", "Teacher to HOD to deputy to principal"],
               ["Publishing", "Immutable results after approval lock"],
             ].map(([label, value]) => (
-              <div key={label} className="rounded-[var(--radius-sm)] border border-border bg-white px-4 py-3">
+              <div key={label} className="rounded-[var(--radius-sm)] border border-border bg-surface-muted px-4 py-3">
                 <p className="text-sm font-semibold text-foreground">{label}</p>
                 <p className="mt-1 text-[13px] leading-5 text-muted">{value}</p>
               </div>
@@ -266,7 +266,7 @@ function DashboardPanel({
                 </div>
                 <StatusPill label={queue.value} tone={queue.tone} />
               </div>
-              <div className="mt-3 h-2 overflow-hidden rounded-full bg-white">
+              <div className="mt-3 h-2 overflow-hidden rounded-full bg-surface-muted">
                 <div
                   className="h-full rounded-full bg-info"
                   style={{ width: `${queue.progress}%` }}
@@ -285,7 +285,7 @@ function DashboardPanel({
               <button
                 key={item}
                 type="button"
-                className="flex w-full items-center justify-between rounded-[var(--radius-sm)] border border-border bg-white px-3 py-2.5 text-left text-sm font-semibold text-foreground transition hover:border-info/30 hover:bg-info-soft/50"
+                className="flex w-full items-center justify-between rounded-[var(--radius-sm)] border border-border bg-surface-muted px-3 py-2.5 text-left text-sm font-semibold text-foreground transition hover:border-info/30 hover:bg-info-soft/50"
               >
                 {item}
                 <BookOpenCheck className="h-4 w-4 text-muted" />
@@ -564,7 +564,7 @@ function MarksEntryGrid({
             <button
               type="button"
               onClick={() => setDensity((current) => (current === "compact" ? "comfortable" : "compact"))}
-              className="rounded-[var(--radius-sm)] border border-border bg-white px-3 py-2 text-[12px] font-semibold text-muted-strong transition hover:bg-surface-strong"
+              className="rounded-[var(--radius-sm)] border border-border bg-surface-muted px-3 py-2 text-[12px] font-semibold text-muted-strong transition hover:bg-surface-strong"
             >
               {density === "compact" ? "Compact density" : "Comfort density"}
             </button>
@@ -589,23 +589,23 @@ function MarksEntryGrid({
       <div className="max-h-[560px] overflow-auto">
         <table className="min-w-[980px] border-collapse">
           <thead>
-            <tr className="bg-white">
-              <th className="sticky left-0 top-0 z-30 w-[128px] border-b border-r border-border bg-white px-3 py-3 text-left text-[11px] font-semibold uppercase tracking-[0.06em] text-muted">
+            <tr className="bg-surface-muted">
+              <th className="sticky left-0 top-0 z-30 w-[128px] border-b border-r border-border bg-surface-muted px-3 py-3 text-left text-[11px] font-semibold uppercase tracking-[0.06em] text-muted">
                 Admission
               </th>
-              <th className="sticky left-[128px] top-0 z-30 w-[220px] border-b border-r border-border bg-white px-3 py-3 text-left text-[11px] font-semibold uppercase tracking-[0.06em] text-muted">
+              <th className="sticky left-[128px] top-0 z-30 w-[220px] border-b border-r border-border bg-surface-muted px-3 py-3 text-left text-[11px] font-semibold uppercase tracking-[0.06em] text-muted">
                 Student
               </th>
               {fields.map((field) => (
                 <th
                   key={field.id}
-                  className="sticky top-0 z-20 min-w-[148px] border-b border-r border-border bg-white px-3 py-3 text-left text-[11px] font-semibold uppercase tracking-[0.06em] text-muted"
+                  className="sticky top-0 z-20 min-w-[148px] border-b border-r border-border bg-surface-muted px-3 py-3 text-left text-[11px] font-semibold uppercase tracking-[0.06em] text-muted"
                 >
                   {field.shortLabel}
                   <span className="ml-1 font-medium text-muted">/{field.maxScore}</span>
                 </th>
               ))}
-              <th className="sticky top-0 z-20 min-w-[136px] border-b border-border bg-white px-3 py-3 text-left text-[11px] font-semibold uppercase tracking-[0.06em] text-muted">
+              <th className="sticky top-0 z-20 min-w-[136px] border-b border-border bg-surface-muted px-3 py-3 text-left text-[11px] font-semibold uppercase tracking-[0.06em] text-muted">
                 Status
               </th>
             </tr>
@@ -616,10 +616,10 @@ function MarksEntryGrid({
 
               return (
                 <tr key={row.id} className="group border-b border-border/60 hover:bg-info-soft/30">
-                  <td className="sticky left-0 z-10 border-r border-border bg-white px-3 py-3 text-[13px] font-semibold text-muted-strong group-hover:bg-info-soft/80">
+                  <td className="sticky left-0 z-10 border-r border-border bg-surface px-3 py-3 text-[13px] font-semibold text-muted-strong group-hover:bg-info-soft/80">
                     {row.admissionNumber}
                   </td>
-                  <td className="sticky left-[128px] z-10 border-r border-border bg-white px-3 py-3 group-hover:bg-info-soft/80">
+                  <td className="sticky left-[128px] z-10 border-r border-border bg-surface px-3 py-3 group-hover:bg-info-soft/80">
                     <p className="text-sm font-semibold text-foreground">{row.student}</p>
                     <p className="text-[12px] text-muted">{row.stream}</p>
                   </td>
@@ -649,7 +649,7 @@ function MarksEntryGrid({
                           onChange={(event) => handleScoreChange(row.id, field.id, event.target.value)}
                           onKeyDown={(event) => handleCellKeyDown(event, rowIndex, fieldIndex)}
                           onPaste={(event) => handlePaste(event, rowIndex, fieldIndex)}
-                          className={`h-9 w-full rounded-[var(--radius-xs)] border px-2 text-sm font-semibold tabular-nums outline-none transition focus:border-info focus:bg-white focus:shadow-[0_0_0_3px_rgba(37,99,235,0.12)] ${
+                          className={`h-9 w-full rounded-[var(--radius-xs)] border px-2 text-sm font-semibold tabular-nums outline-none transition focus:border-info focus:bg-surface-strong focus:shadow-[0_0_0_3px_rgba(37,99,235,0.12)] ${
                             validation.valid
                               ? "border-border bg-surface-muted text-foreground"
                               : validation.tone === "critical"
@@ -929,7 +929,7 @@ function ApprovalPanel({
         {approvals.map((step, index) => (
           <div key={step.id} className="relative rounded-[var(--radius-sm)] border border-border bg-surface-muted px-4 py-4">
             <div className="flex items-start justify-between gap-3">
-              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-sm font-bold text-foreground">
+              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-surface-muted text-sm font-bold text-foreground">
                 {index + 1}
               </span>
               <StatusPill label={step.status} tone={step.tone} />

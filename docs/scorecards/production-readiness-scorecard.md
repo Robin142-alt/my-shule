@@ -1,6 +1,6 @@
 # Production Readiness Scorecard
 
-Generated at: 2026-05-20T23:47:26.814Z
+Generated at: 2026-05-22T15:17:42.992Z
 
 Overall score: 96/95
 
@@ -8,7 +8,7 @@ Status: pass
 
 | Area | Score | Target | Status | Evidence | Remediation |
 | --- | ---: | ---: | --- | --- | --- |
-| Release readiness gate | 96 | 96 | pass | release readiness gate passes; 15/15 checks passing | Run npm run release:readiness and resolve every failing check before deployment. |
+| Release readiness gate | 96 | 96 | pass | release readiness gate passes; 16/16 checks passing | Run npm run release:readiness and resolve every failing check before deployment. |
 | Authentication and session UX | 99 | 95 | pass | present: production auth verification script exists; present: owner password rotation script exists; present: auth security integration test script exists; present: pilot certification script exists; login plan preserves email/password workspace auto-resolution | Complete authenticated pilot login, recovery, invite, and session-expiry certification. |
 | Tenant isolation | 98 | 96 | pass | present: tenant isolation test script exists; present: tenant isolation audit script exists; present: security scan script exists; present: dependency vulnerability scan script exists; present: API consistency test script exists; present: implementation10 requires tenant isolation audit | Add the tenant isolation audit runner and require it in CI for finance, support, library, discipline, reports, and files. |
 | Finance and payments | 96 | 95 | pass | present: finance integrity test script exists; present: financial reconciliation test script exists; present: MPESA adversarial test script exists; present: finance certification script exists | Run finance certification against real tenant workflows: cheque, MPESA callback, reversal, receipts, balances, and exports. |

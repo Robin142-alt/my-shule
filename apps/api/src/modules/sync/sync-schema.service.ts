@@ -55,7 +55,7 @@ export class SyncSchemaService implements OnModuleInit {
         last_version bigint NOT NULL DEFAULT 0,
         created_at timestamptz NOT NULL DEFAULT NOW(),
         updated_at timestamptz NOT NULL DEFAULT NOW(),
-        CONSTRAINT ck_sync_cursors_entity CHECK (entity IN ('finance')),
+        CONSTRAINT ck_sync_cursors_entity CHECK (entity IN ('attendance', 'finance')),
         CONSTRAINT ck_sync_cursors_last_version_non_negative CHECK (last_version >= 0),
         CONSTRAINT uq_sync_cursors_tenant_id_id UNIQUE (tenant_id, id),
         CONSTRAINT uq_sync_cursors_tenant_device_entity UNIQUE (tenant_id, device_id, entity)
@@ -70,7 +70,7 @@ export class SyncSchemaService implements OnModuleInit {
         version bigint GENERATED ALWAYS AS IDENTITY,
         created_at timestamptz NOT NULL DEFAULT NOW(),
         updated_at timestamptz NOT NULL DEFAULT NOW(),
-        CONSTRAINT ck_sync_operation_logs_entity CHECK (entity IN ('finance')),
+        CONSTRAINT ck_sync_operation_logs_entity CHECK (entity IN ('attendance', 'finance')),
         CONSTRAINT uq_sync_operation_logs_tenant_version UNIQUE (tenant_id, version)
       );
 
@@ -79,12 +79,12 @@ export class SyncSchemaService implements OnModuleInit {
         ALTER TABLE sync_cursors
         DROP CONSTRAINT IF EXISTS ck_sync_cursors_entity;
         ALTER TABLE sync_cursors
-        ADD CONSTRAINT ck_sync_cursors_entity CHECK (entity IN ('finance')) NOT VALID;
+        ADD CONSTRAINT ck_sync_cursors_entity CHECK (entity IN ('attendance', 'finance')) NOT VALID;
 
         ALTER TABLE sync_operation_logs
         DROP CONSTRAINT IF EXISTS ck_sync_operation_logs_entity;
         ALTER TABLE sync_operation_logs
-        ADD CONSTRAINT ck_sync_operation_logs_entity CHECK (entity IN ('finance')) NOT VALID;
+        ADD CONSTRAINT ck_sync_operation_logs_entity CHECK (entity IN ('attendance', 'finance')) NOT VALID;
 
         IF NOT EXISTS (
           SELECT 1

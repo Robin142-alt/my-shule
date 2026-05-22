@@ -21,6 +21,11 @@ export const SUPERADMIN_SECTIONS = [
 
 export const SCHOOL_SECTIONS = [
   "dashboard",
+  "executive-analytics",
+  "alerts-risks",
+  "approvals",
+  "users-staff",
+  "audit-logs",
   "students",
   "admissions",
   "finance",

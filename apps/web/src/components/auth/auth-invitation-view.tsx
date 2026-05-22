@@ -84,10 +84,10 @@ export function InviteAcceptanceView({
             <SecurityBadge label="Verified invitation" tone="success" />
             <SecurityBadge label="Tenant scoped" />
           </div>
-          <h2 className="text-3xl font-bold leading-tight text-slate-950">
+          <h2 className="text-3xl font-bold leading-tight text-foreground">
             Accept your invitation
           </h2>
-          <p className="text-sm leading-6 text-slate-600">
+          <p className="text-sm leading-6 text-muted">
             Set your first password for the school workspace issued by My Shule.
           </p>
         </div>
@@ -101,7 +101,7 @@ export function InviteAcceptanceView({
             />
             <Link
               href="/login"
-              className="inline-flex h-12 w-full items-center justify-center rounded-2xl bg-slate-950 px-4 text-sm font-bold text-white transition hover:bg-emerald-700"
+              className="inline-flex h-12 w-full items-center justify-center rounded-[var(--radius)] bg-accent px-4 text-sm font-bold text-white shadow-[0_16px_36px_rgba(255,122,26,0.24)] transition hover:bg-accent-hover hover:shadow-[0_18px_42px_rgba(255,122,26,0.3)]"
             >
               Continue to login
             </Link>

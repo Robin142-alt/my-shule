@@ -37,20 +37,20 @@ export const SecureInput = forwardRef<
           aria-invalid={Boolean(error)}
           aria-describedby={error || hint ? helperId : undefined}
           placeholder={props.placeholder ?? " "}
-          className={`peer h-14 w-full rounded-2xl border bg-white px-4 pb-2 pt-5 text-sm font-medium text-slate-950 outline-none transition duration-200 placeholder:text-transparent hover:border-slate-300 focus:border-emerald-500 focus:shadow-[0_0_0_4px_rgba(16,185,129,0.12)] disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500 ${
-            error ? "border-red-400" : "border-slate-200"
+          className={`peer h-14 w-full rounded-[var(--radius)] border bg-white px-4 pb-2 pt-5 text-sm font-medium text-foreground outline-none transition duration-200 placeholder:text-transparent hover:border-accent/35 focus:border-accent focus:shadow-[var(--shadow-focus)] disabled:cursor-not-allowed disabled:bg-surface-muted disabled:text-muted-strong ${
+            error ? "border-danger" : "border-border"
           } ${className}`}
         />
-        <span className="pointer-events-none absolute left-4 top-2 text-[11px] font-semibold text-slate-500 transition-all duration-200 peer-placeholder-shown:top-[18px] peer-placeholder-shown:text-sm peer-placeholder-shown:font-medium peer-focus:top-2 peer-focus:text-[11px] peer-focus:font-semibold peer-focus:text-emerald-700">
+        <span className="pointer-events-none absolute left-4 top-2 text-[11px] font-semibold text-muted-strong transition-all duration-200 peer-placeholder-shown:top-[18px] peer-placeholder-shown:text-sm peer-placeholder-shown:font-medium peer-focus:top-2 peer-focus:text-[11px] peer-focus:font-semibold peer-focus:text-accent">
           {label}
         </span>
       </label>
       {error ? (
-        <p id={helperId} className="text-sm font-medium text-red-600">
+        <p id={helperId} className="text-sm font-medium text-danger">
           {error}
         </p>
       ) : hint ? (
-        <p id={helperId} className="text-sm leading-6 text-slate-500">
+        <p id={helperId} className="text-sm leading-6 text-muted">
           {hint}
         </p>
       ) : null}

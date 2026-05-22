@@ -152,7 +152,7 @@ describe("enterprise authentication flows", () => {
       />,
     );
 
-    expect(screen.getByText(/secure admin access/i)).toBeVisible();
+    expect(screen.getByText(/run your school with operational clarity/i)).toBeVisible();
     expect(screen.queryByText(/finance\.admin@example\.invalid/i)).toBeNull();
     expect(screen.queryByText(/managed-by-vault/i)).toBeNull();
 
@@ -195,7 +195,7 @@ describe("enterprise authentication flows", () => {
 
     renderWithProviders(<PortalLoginView />);
 
-    expect(screen.getByText(/access your school portal/i)).toBeVisible();
+    expect(screen.getByText(/stay connected to your child in real time/i)).toBeVisible();
     expect(screen.queryByText(/student@example\.invalid/i)).toBeNull();
     expect(screen.queryByText(/managed-by-vault/i)).toBeNull();
 

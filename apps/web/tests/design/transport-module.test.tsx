@@ -64,12 +64,21 @@ const transportDashboard = {
 
 describe("transport module workspace", () => {
   beforeEach(() => {
-    global.fetch = jest.fn(() =>
+    global.fetch = jest.fn((input: RequestInfo | URL) => {
+      if (String(input).includes("/api/school/modules/me")) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ["transport"],
+        } as Response);
+      }
+
+      return (
       Promise.resolve({
         ok: true,
         json: async () => ({ data: transportDashboard }),
-      } as Response),
-    ) as unknown as typeof fetch;
+      } as Response)
+      );
+    }) as unknown as typeof fetch;
   });
 
   it("renders live transport routes, vehicles, manifests, trips, and alerts", async () => {
@@ -96,12 +105,13 @@ describe("transport module workspace", () => {
     expect(isSchoolSection("transport")).toBe(true);
     expect(isProductionReadyModule("transport")).toBe(true);
     expect(isSchoolSectionEnabled("transport", ["transport"])).toBe(true);
-    expect(getSchoolWorkspace("principal").navItems.map((item) => item.id)).toContain("transport");
+    expect(getSchoolWorkspace("principal").navItems.map((item) => item.id)).not.toContain("transport");
+    expect(getSchoolWorkspace("admin").navItems.map((item) => item.id)).toContain("transport");
 
     await act(async () => {
       renderWithProviders(
         createElement(SchoolPages, {
-          role: "principal",
+          role: "admin",
           section: "transport",
           tenantSlug: "barakaacademy",
         }),

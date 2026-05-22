@@ -13,23 +13,23 @@ export default async function InternalSchoolLoginPage() {
   return (
     <AuthShell
       eyebrow="School staff login"
-      heroTitle={resolution.branding.name}
-      heroDescription={resolution.branding.heroMessage}
+      heroTitle="Run your school with operational clarity."
+      heroDescription="Visibility across departments. Every payment accountable. Every incident traceable. Every student monitored responsibly."
       badge={`${resolution.branding.county} school ERP`}
       logoMark={resolution.branding.logoMark}
-      helper="Staff sign-in stays tenant aware, school branded, and easy enough for principals, bursars, teachers, and office teams to use every day."
+      helper="Staff sign-in stays tenant aware, module-aware, school branded, and governed by role-safe approvals and audit trails."
       highlights={[
         {
           id: "collections",
-          title: "Collections and M-PESA",
+          title: "Collections under control",
           description:
-            "See fee collection tools and payment workflows in a familiar, trustworthy space.",
+            "Fee collection, payment matching, receipts, and finance approvals stay visible without exposing other schools.",
         },
         {
           id: "academics",
-          title: "Academics and classroom operations",
+          title: "Academics with oversight",
           description:
-            "Classroom operations stay one or two clicks away for non-technical school teams.",
+            "Performance, lesson coverage, exam releases, and class operations are governed by assigned permissions.",
         },
         {
           id: "tenant-security",

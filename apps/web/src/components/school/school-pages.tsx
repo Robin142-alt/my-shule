@@ -22,6 +22,7 @@ import { ProcurementModuleScreen } from "@/components/modules/procurement/procur
 import { TransportModuleScreen } from "@/components/modules/transport/transport-module-screen";
 import { VisitorManagementModuleScreen } from "@/components/modules/visitors/visitor-management-module-screen";
 import { ErpShell } from "@/components/school/erp-shell";
+import { PrincipalCommandCenter } from "@/components/school/principal-command-center";
 import { UserManagementPanel } from "@/components/school/user-management-panel";
 import { SupportCenterWorkspace } from "@/components/support/support-center-workspace";
 import { LearnerPicker } from "@/components/common/learner-picker";
@@ -225,56 +226,6 @@ type BillableFeeStudentResponse = {
   grade_level: string;
   class_name: string | null;
   guardian_phone: string | null;
-};
-
-type PrincipalDashboardWidget = {
-  id: string;
-  title: string;
-  value: number | string;
-  unit?: string;
-  status: "normal" | "warning" | "critical";
-};
-
-type PrincipalDashboardSection = {
-  id: string;
-  module_code: string;
-  title: string;
-  category: string;
-  confidentiality?: "summary_only" | "restricted" | "standard";
-  widgets: PrincipalDashboardWidget[];
-  alerts: Array<{
-    id: string;
-    title: string;
-    message: string;
-    severity: "warning" | "critical";
-  }>;
-  reports: string[];
-};
-
-type PrincipalDashboardResponse = {
-  tenant_id: string;
-  generated_at: string;
-  enabled_modules: string[];
-  overview: {
-    total_students: number;
-    total_teachers: number;
-    total_support_staff: number;
-    active_classes_streams: number;
-    student_attendance_today: number;
-    teacher_attendance_today: number;
-    parent_engagement_rate: number;
-    active_users_online: number;
-  };
-  sections: PrincipalDashboardSection[];
-  alerts: Array<{
-    id: string;
-    module_code: string;
-    title: string;
-    message: string;
-    severity: "warning" | "critical";
-  }>;
-  realtime_channels: string[];
-  report_exports: string[];
 };
 
 type ClinicAnalyticsResponse = {
@@ -4401,6 +4352,37 @@ function ModuleDisabledPanel({
   );
 }
 
+function ModuleAccessVerifyingPanel({
+  section,
+}: {
+  section: string;
+}) {
+  const requiredModule = getModuleCodeForSchoolSection(section);
+
+  return (
+    <div className="space-y-6">
+      <SchoolPageHeader
+        eyebrow="Access control"
+        title="Verifying module access"
+        description="MyShule is confirming tenant isolation, enabled modules, assigned permissions, and workflow visibility before rendering this workspace."
+      />
+      <Card className="p-5">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-sm font-semibold text-foreground">
+              {schoolSectionLabels[section] ?? "Requested workspace"}
+            </p>
+            <p className="mt-1 text-sm text-muted">
+              Required module code: {requiredModule ?? "core workspace"}
+            </p>
+          </div>
+          <StatusPill label="Access sync" tone="warning" />
+        </div>
+      </Card>
+    </div>
+  );
+}
+
 type LabsAttendanceRow = {
   id: string;
   student: string;
@@ -4599,201 +4581,6 @@ function formatInsightValue(value: number | string | undefined, unit?: string) {
   }
 
   return value ?? "0";
-}
-
-function widgetTone(status: PrincipalDashboardWidget["status"]) {
-  return status === "critical" ? "critical" : status === "warning" ? "warning" : "ok";
-}
-
-function InsightMiniBar({ value, status }: { value: number | string; status: PrincipalDashboardWidget["status"] }) {
-  const numeric = Math.max(0, Math.min(100, metricNumber(value)));
-  const colorClass =
-    status === "critical"
-      ? "bg-danger"
-      : status === "warning"
-        ? "bg-warning"
-        : "bg-success";
-
-  return (
-    <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-surface-muted">
-      <div className={`h-full rounded-full ${colorClass}`} style={{ width: `${numeric}%` }} />
-    </div>
-  );
-}
-
-function PrincipalExecutiveDashboardPage({ tenantSlug }: { tenantSlug?: string | null }) {
-  const [dashboard, setDashboard] = useState<PrincipalDashboardResponse | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    let eventSource: EventSource | null = null;
-    const query = tenantSlug ? `?tenantSlug=${encodeURIComponent(tenantSlug)}` : "";
-
-    async function loadDashboard(showLoading = true) {
-      if (showLoading) {
-        setLoading(true);
-      }
-      setError(null);
-
-      try {
-        const response = await fetch(`/api/admin-command/principal/dashboard${query}`, {
-          method: "GET",
-          credentials: "same-origin",
-          cache: "no-store",
-        });
-
-        if (!response.ok) {
-          throw new Error("Principal dashboard is not available.");
-        }
-
-        const payload = await response.json() as PrincipalDashboardResponse;
-
-        if (!cancelled) {
-          setDashboard(payload);
-        }
-      } catch (loadError) {
-        if (!cancelled) {
-          setError(loadError instanceof Error ? loadError.message : "Principal dashboard is not available.");
-        }
-      } finally {
-        if (!cancelled && showLoading) {
-          setLoading(false);
-        }
-      }
-    }
-
-    void loadDashboard();
-    const refreshTimer = window.setInterval(() => {
-      void loadDashboard(false);
-    }, 45_000);
-
-    if (typeof EventSource !== "undefined") {
-      eventSource = new EventSource(`/api/admin-command/principal/dashboard/stream${query}`, {
-        withCredentials: true,
-      });
-      eventSource.addEventListener("principal.dashboard", (event) => {
-        try {
-          const payload = JSON.parse((event as MessageEvent<string>).data) as PrincipalDashboardResponse;
-
-          if (!cancelled) {
-            setDashboard(payload);
-            setError(null);
-            setLoading(false);
-          }
-        } catch {
-          if (!cancelled) {
-            setError("Principal dashboard stream sent an unreadable update.");
-          }
-        }
-      });
-      eventSource.addEventListener("principal.error", (event) => {
-        if (!cancelled) {
-          const message = (event as MessageEvent<string>).data || "Principal dashboard stream is unavailable.";
-          setError(message);
-        }
-      });
-    }
-
-    return () => {
-      cancelled = true;
-      window.clearInterval(refreshTimer);
-      eventSource?.close();
-    };
-  }, [tenantSlug]);
-
-  const overview = dashboard?.overview;
-  const overviewMetrics = [
-    { id: "students", label: "Students", value: formatInsightValue(overview?.total_students), helper: "Active learner population" },
-    { id: "teachers", label: "Teachers", value: formatInsightValue(overview?.total_teachers), helper: "Active teaching staff" },
-    { id: "classes", label: "Classes", value: formatInsightValue(overview?.active_classes_streams), helper: "Active classes and streams" },
-    { id: "parent-engagement", label: "Parent engagement", value: formatInsightValue(overview?.parent_engagement_rate, "%"), helper: "Linked active guardians" },
-  ];
-  const sections = dashboard?.sections ?? [];
-  const alerts = dashboard?.alerts ?? [];
-
-  return (
-    <div className="space-y-6">
-      <SchoolPageHeader
-        eyebrow="Principal"
-        title="Executive dashboard"
-        description="Module-aware oversight across the active school stack."
-        actions={
-          <div className="flex flex-wrap items-center gap-2">
-            <StatusPill label={loading ? "Loading" : "Live refresh"} tone={loading ? "warning" : "ok"} />
-            <StatusPill label={`${dashboard?.enabled_modules.length ?? 0} modules`} tone="ok" />
-          </div>
-        }
-      />
-      {error ? (
-        <Card className="border-warning/20 bg-warning/5 p-4">
-          <p className="text-sm font-semibold text-foreground">{error}</p>
-        </Card>
-      ) : null}
-      <MetricGrid items={overviewMetrics} />
-      <div className="grid gap-4 xl:grid-cols-3">
-        {sections.slice(0, 12).map((section) => (
-          <Card key={section.id} className="p-5">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-xs font-semibold uppercase text-muted">{section.category}</p>
-                <h3 className="mt-2 text-lg font-semibold text-foreground">{section.title}</h3>
-              </div>
-              <StatusPill
-                label={section.confidentiality === "summary_only" ? "Summary" : "Active"}
-                tone={section.alerts.length > 0 ? "warning" : "ok"}
-              />
-            </div>
-            <div className="mt-5 grid gap-3 sm:grid-cols-2">
-              {section.widgets.slice(0, 4).map((widget) => (
-                <div key={widget.id} className="rounded-lg border border-border bg-surface-muted p-3">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-xs font-semibold text-muted">{widget.title}</p>
-                    <StatusPill label={widget.status === "normal" ? "OK" : widget.status} tone={widgetTone(widget.status)} compact />
-                  </div>
-                  <p className="mt-2 text-2xl font-bold text-foreground">
-                    {formatInsightValue(widget.value, widget.unit)}
-                  </p>
-                  <InsightMiniBar value={widget.value} status={widget.status} />
-                </div>
-              ))}
-            </div>
-            <div className="mt-4 flex flex-wrap gap-2">
-              {section.reports.slice(0, 3).map((report) => (
-                <span key={report} className="rounded-full border border-border px-2.5 py-1 text-xs font-semibold text-muted">
-                  {report}
-                </span>
-              ))}
-            </div>
-          </Card>
-        ))}
-      </div>
-      <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
-        <DataTable
-          title="Notifications center"
-          subtitle="Critical and warning alerts from active modules."
-          columns={[
-            { id: "title", header: "Alert", render: (row) => row.title },
-            { id: "module", header: "Module", render: (row) => row.module_code },
-            { id: "severity", header: "Severity", render: (row) => <StatusPill label={row.severity} tone={row.severity} /> },
-          ]}
-          rows={alerts.length > 0 ? alerts : [{ id: "none", title: "No critical alerts", module_code: "all", message: "", severity: "warning" as const }]}
-          getRowKey={(row) => row.id}
-        />
-        <SimpleListCard
-          title="Real-time channels"
-          subtitle="Live dashboard streams refresh automatically for executive updates."
-          items={(dashboard?.realtime_channels ?? ["principal.alerts"]).map((channel) => ({
-            id: channel,
-            title: channel,
-            subtitle: "Subscribed for executive updates.",
-            value: "Live",
-          }))}
-        />
-      </div>
-    </div>
-  );
 }
 
 function ClinicOperationsPage({ tenantSlug }: { tenantSlug?: string | null }) {
@@ -4998,11 +4785,15 @@ export function SchoolPages({
           method: "GET",
           credentials: "same-origin",
           cache: "no-store",
-        });
+            });
 
-        if (!response.ok) {
-          return;
-        }
+            if (!response.ok) {
+              if (!cancelled) {
+                setEnabledModuleCodes(new Set());
+              }
+
+              return;
+            }
 
         const payload = (await response.json().catch(() => null)) as string[] | { data?: string[] } | null;
         const moduleCodes = Array.isArray(payload)
@@ -5014,12 +4805,12 @@ export function SchoolPages({
         if (!cancelled && moduleCodes) {
           setEnabledModuleCodes(new Set(moduleCodes));
         }
-      } catch {
-        if (!cancelled) {
-          setEnabledModuleCodes(null);
+          } catch {
+            if (!cancelled) {
+              setEnabledModuleCodes(new Set());
+            }
+          }
         }
-      }
-    }
 
     void loadModuleAccess();
 
@@ -5028,12 +4819,15 @@ export function SchoolPages({
     };
   }, []);
 
-  const scopedNavItems = filterNavItemsByEnabledModules(navItems, enabledModuleCodes)
+  const accessLoading = enabledModuleCodes === null;
+  const visibleModuleCodes = enabledModuleCodes ?? new Set<string>();
+  const requiredModuleCode = getModuleCodeForSchoolSection(section);
+  const principalDashboardRequiresModule = role === "principal" && section === "dashboard";
+  const scopedNavItems = filterNavItemsByEnabledModules(navItems, visibleModuleCodes)
     .filter((item) => !(
       role === "principal"
       && item.id === "dashboard"
-      && enabledModuleCodes
-      && !enabledModuleCodes.has("principal_dashboard")
+      && !visibleModuleCodes.has("principal_dashboard")
     ))
     .map((item) => ({
       ...item,
@@ -5042,11 +4836,12 @@ export function SchoolPages({
   const principalDashboardEnabled =
     role !== "principal"
     || section !== "dashboard"
-    || !enabledModuleCodes
-    || enabledModuleCodes.has("principal_dashboard");
+    || visibleModuleCodes.has("principal_dashboard");
+  const requiresAccessSync =
+    accessLoading && (Boolean(requiredModuleCode) || principalDashboardRequiresModule);
   const canOpenSection = studentId
     ? true
-    : isSchoolSectionEnabled(section, enabledModuleCodes) && principalDashboardEnabled;
+    : !requiresAccessSync && isSchoolSectionEnabled(section, visibleModuleCodes) && principalDashboardEnabled;
   const subscriptionNotifications: ExperienceNotificationItem[] =
     workspace.subscription.state === "ACTIVE"
       ? []
@@ -5095,13 +4890,30 @@ export function SchoolPages({
         />
       }
     >
-      {!canOpenSection ? (
+      {requiresAccessSync ? (
+        <ModuleAccessVerifyingPanel section={section} />
+      ) : !canOpenSection ? (
         <ModuleDisabledPanel section={section} role={role} routeMode={routeMode} />
       ) : (
         <>
       {studentId ? <StudentProfilePage role={role} tenantSlug={tenantSlug} studentId={studentId} /> : null}
       {!studentId && section === "dashboard" && role === "principal" ? (
-        <PrincipalExecutiveDashboardPage tenantSlug={tenantSlug} />
+        <PrincipalCommandCenter tenantSlug={tenantSlug} view="dashboard" />
+      ) : null}
+      {!studentId && section === "executive-analytics" && role === "principal" ? (
+        <PrincipalCommandCenter tenantSlug={tenantSlug} view="analytics" />
+      ) : null}
+      {!studentId && section === "alerts-risks" && role === "principal" ? (
+        <PrincipalCommandCenter tenantSlug={tenantSlug} view="risks" />
+      ) : null}
+      {!studentId && section === "approvals" && role === "principal" ? (
+        <PrincipalCommandCenter tenantSlug={tenantSlug} view="approvals" />
+      ) : null}
+      {!studentId && section === "users-staff" && role === "principal" ? (
+        <PrincipalCommandCenter tenantSlug={tenantSlug} view="staff" />
+      ) : null}
+      {!studentId && section === "audit-logs" && role === "principal" ? (
+        <PrincipalCommandCenter tenantSlug={tenantSlug} view="audit" />
       ) : null}
       {!studentId && section === "dashboard" && role !== "principal" ? <SchoolDashboardHome role={role} tenantSlug={tenantSlug} routeMode={routeMode} /> : null}
       {!studentId && section === "students" ? <SchoolStudentsPage role={role} tenantSlug={tenantSlug} routeMode={routeMode} /> : null}
