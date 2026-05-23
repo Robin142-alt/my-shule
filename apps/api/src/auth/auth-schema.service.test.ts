@@ -19,6 +19,25 @@ test('AuthSchemaService qualifies password recovery token columns inside the con
   );
 });
 
+test('AuthSchemaService allows school password recovery to resolve one active tenant user without a usable tenant slug', async () => {
+  let bootstrapSql = '';
+  const service = new AuthSchemaService({
+    runSchemaBootstrap: async (sql: string) => {
+      bootstrapSql = sql;
+    },
+  } as never);
+
+  await service.onModuleInit();
+
+  const recoveryLookupFunction = bootstrapSql.match(
+    /CREATE OR REPLACE FUNCTION app\.find_user_for_password_recovery[\s\S]+?\$\$;/,
+  )?.[0] ?? '';
+
+  assert.match(recoveryLookupFunction, /matching_recovery_users/);
+  assert.match(recoveryLookupFunction, /u\.tenant_id <> 'global'/);
+  assert.match(recoveryLookupFunction, /count\(\*\)[\s\S]+=\s*1/i);
+});
+
 test('AuthSchemaService links accepted parent invitations to student guardian rows', async () => {
   let bootstrapSql = '';
   const service = new AuthSchemaService({
