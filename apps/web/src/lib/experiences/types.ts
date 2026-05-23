@@ -11,6 +11,9 @@ export type SchoolExperienceRole =
   | "admin"
   | "storekeeper"
   | "librarian"
+  | "nurse"
+  | "boarding-master"
+  | "security-officer"
   | "admissions";
 export type PortalViewer = "parent" | "student";
 

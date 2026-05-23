@@ -1,10 +1,8 @@
-import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 import { validateCsrfRequest } from "@/lib/auth/csrf";
-import { readAccessCookie, readAudienceCookie, readTenantCookie } from "@/lib/auth/server-session";
-import { getDashboardApiBaseUrl } from "@/lib/dashboard/api-client";
+import { proxySchoolApiRequest } from "@/lib/auth/school-api-proxy";
 
 type RouteContext = {
   params: Promise<{ membershipId: string }> | { membershipId: string };
@@ -23,45 +21,15 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     );
   }
 
-  const session = await getTenantUserSession();
-
-  if (!session) {
-    return NextResponse.json(
-      { message: unavailableMessage },
-      { status: 503 },
-    );
-  }
-
   const params = await context.params;
   const membershipId = encodeURIComponent(params.membershipId);
   const body = await request.json();
-  const response = await fetch(`${session.baseUrl}/auth/tenant-users/${membershipId}/status`, {
+
+  return proxySchoolApiRequest({
+    request,
+    path: `/auth/tenant-users/${membershipId}/status`,
     method: "PATCH",
-    headers: {
-      Accept: "application/json",
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${session.accessToken}`,
-      "x-auth-audience": "school",
-      "x-tenant-id": session.tenantSlug,
-    },
-    body: JSON.stringify(body),
-    cache: "no-store",
+    body,
+    unavailableMessage,
   });
-  const payload = await response.json().catch(() => null);
-
-  return NextResponse.json(payload ?? {}, { status: response.status });
-}
-
-async function getTenantUserSession() {
-  const cookieStore = await cookies();
-  const tenantSlug = readTenantCookie(cookieStore);
-  const audience = readAudienceCookie(cookieStore);
-  const accessToken = readAccessCookie(cookieStore);
-  const baseUrl = tenantSlug ? getDashboardApiBaseUrl(tenantSlug) : null;
-
-  if (!tenantSlug || !baseUrl || !accessToken || audience !== "school") {
-    return null;
-  }
-
-  return { accessToken, baseUrl, tenantSlug };
 }

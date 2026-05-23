@@ -19,12 +19,16 @@ export const DEFAULT_ROLE_STAFF = 'staff';
 export const DEFAULT_ROLE_PRINCIPAL = 'principal';
 export const DEFAULT_ROLE_DEPUTY_PRINCIPAL = 'deputy_principal';
 export const DEFAULT_ROLE_SECRETARY = 'secretary';
+export const DEFAULT_ROLE_BURSAR = 'bursar';
 export const DEFAULT_ROLE_PARENT = 'parent';
 export const DEFAULT_ROLE_STUDENT = 'student';
 export const DEFAULT_ROLE_LIBRARIAN = 'librarian';
+export const DEFAULT_ROLE_NURSE = 'nurse';
 export const DEFAULT_ROLE_CLINIC_STAFF = 'clinic_staff';
 export const DEFAULT_ROLE_COUNSELLOR = 'school_counsellor';
 export const DEFAULT_ROLE_DISCIPLINE_MASTER = 'discipline_master';
+export const DEFAULT_ROLE_BOARDING_MASTER = 'boarding_master';
+export const DEFAULT_ROLE_SECURITY_OFFICER = 'security_officer';
 export const DEFAULT_ROLE_SUPPORT_AGENT = 'support_agent';
 export const DEFAULT_ROLE_SUPPORT_LEAD = 'support_lead';
 export const SUPERADMIN_ROLE_OWNER = 'platform_owner';
@@ -296,6 +300,11 @@ export const DEFAULT_ROLE_CATALOG = [
     description: 'Strategic school leadership access with governance and read-only finance oversight',
     permissions: [
       'auth:read',
+      'users:read',
+      'users:write',
+      'tenant_memberships:read',
+      'tenant_memberships:write',
+      'roles:read',
       'principal:read',
       'principal:write',
       'deputy:read',
@@ -385,6 +394,31 @@ export const DEFAULT_ROLE_CATALOG = [
     ],
   },
   {
+    code: DEFAULT_ROLE_BURSAR,
+    name: 'Bursar',
+    description: 'School finance, fee reconciliation, payments, billing, and SMS balance oversight',
+    permissions: [
+      'auth:read',
+      'students:read',
+      'finance:read',
+      'finance:write',
+      'billing:read',
+      'billing:write',
+      'payments:create',
+      'school_sms:read',
+      'school_sms:send',
+      'school_sms:purchase',
+      'daraja:read',
+      'daraja:write',
+      'daraja:test',
+      'reports:read',
+      'procurement:read',
+      'support:view',
+      'support:create',
+      'support:reply',
+    ],
+  },
+  {
     code: DEFAULT_ROLE_PARENT,
     name: 'Parent',
     description: 'Parent portal access for invited guardians',
@@ -418,6 +452,25 @@ export const DEFAULT_ROLE_CATALOG = [
       'auth:read',
       'library:read',
       'library:write',
+      'support:view',
+      'support:create',
+      'support:reply',
+    ],
+  },
+  {
+    code: DEFAULT_ROLE_NURSE,
+    name: 'Nurse',
+    description: 'School clinic, student health notes, medicine dispensing, and health follow-up access',
+    permissions: [
+      'auth:read',
+      'students:read',
+      'clinic:read',
+      'clinic:write',
+      'clinic:inventory',
+      'clinic:dispense',
+      'clinic:reports',
+      'clinic:confidential',
+      'procurement:read',
       'support:view',
       'support:create',
       'support:reply',
@@ -489,6 +542,41 @@ export const DEFAULT_ROLE_CATALOG = [
       'transfers:write',
       'labs:read',
       'labs:inventory',
+      'support:view',
+      'support:create',
+      'support:reply',
+    ],
+  },
+  {
+    code: DEFAULT_ROLE_BOARDING_MASTER,
+    name: 'Boarding Master',
+    description: 'Boarding, hostel, welfare, evening movement, and dorm incident operations access',
+    permissions: [
+      'auth:read',
+      'students:read',
+      'discipline:read',
+      'discipline:write',
+      'hostel:read',
+      'hostel:write',
+      'boarding:read',
+      'boarding:write',
+      'school_sms:send',
+      'reports:read',
+      'support:view',
+      'support:create',
+      'support:reply',
+    ],
+  },
+  {
+    code: DEFAULT_ROLE_SECURITY_OFFICER,
+    name: 'Security Officer',
+    description: 'Visitor logs, gate records, movement visibility, and incident reporting access',
+    permissions: [
+      'auth:read',
+      'students:read',
+      'visitors:read',
+      'visitors:write',
+      'transport:read',
       'support:view',
       'support:create',
       'support:reply',

@@ -1,15 +1,18 @@
 import { IsEmail, IsIn, IsString, MaxLength, MinLength } from 'class-validator';
 
 export const TENANT_INVITABLE_ROLE_CODES = [
-  'admin',
+  'principal',
+  'deputy_principal',
+  'secretary',
+  'bursar',
   'teacher',
-  'accountant',
-  'staff',
+  'nurse',
+  'librarian',
   'parent',
   'student',
   'storekeeper',
-  'librarian',
-  'member',
+  'boarding_master',
+  'security_officer',
 ] as const;
 
 export type TenantInvitableRoleCode = (typeof TENANT_INVITABLE_ROLE_CODES)[number];

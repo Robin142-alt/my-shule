@@ -283,7 +283,7 @@ describe("server auth client production gateway", () => {
     );
   });
 
-  it("routes backend school owner accounts to the protected admin workspace", async () => {
+  it("routes backend school owner accounts to the principal command workspace", async () => {
     process.env.NEXT_PUBLIC_API_BASE_URL = "https://api.example.invalid";
     jest.mocked(global.fetch).mockResolvedValue(
       jsonResponse({
@@ -311,9 +311,9 @@ describe("server auth client production gateway", () => {
       password: "ManagedByPasswordVault!42",
     });
 
-    expect(session.homePath).toBe("/school/admin");
-    expect(session.redirectTo).toBe("/school/admin");
-    expect(session.role).toBe("admin");
+    expect(session.homePath).toBe("/school/principal");
+    expect(session.redirectTo).toBe("/school/principal");
+    expect(session.role).toBe("principal");
     expect(session.user.role).toBe("owner");
   });
 

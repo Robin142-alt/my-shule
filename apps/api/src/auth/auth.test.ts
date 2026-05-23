@@ -5,6 +5,7 @@ import { ForbiddenException, UnauthorizedException } from '@nestjs/common';
 import { RequestContextService } from '../common/request-context/request-context.service';
 import { DEFAULT_PERMISSION_CATALOG, DEFAULT_ROLE_CATALOG } from './auth.constants';
 import { AuthService } from './auth.service';
+import { TENANT_INVITABLE_ROLE_CODES } from './dto/tenant-invitation.dto';
 import { AuthorizationRepository } from './repositories/authorization.repository';
 
 test('AuthService register rejects direct self-service account creation', async () => {
@@ -97,6 +98,42 @@ test('AuthorizationRepository bootstraps default authorization with set-based qu
 
   assert.equal(queries.length, 3);
   assert.equal(queries.every((query) => query.text.includes('jsonb_to_recordset')), true);
+});
+
+test('Default school invite catalog exposes the required school operating roles', () => {
+  const requiredSchoolRoles = [
+    'principal',
+    'deputy_principal',
+    'secretary',
+    'bursar',
+    'teacher',
+    'nurse',
+    'librarian',
+    'parent',
+    'student',
+    'storekeeper',
+    'boarding_master',
+    'security_officer',
+  ];
+
+  assert.deepEqual(TENANT_INVITABLE_ROLE_CODES, requiredSchoolRoles);
+
+  const catalogByCode = new Map<string, (typeof DEFAULT_ROLE_CATALOG)[number]>(
+    DEFAULT_ROLE_CATALOG.map((role) => [role.code, role]),
+  );
+
+  for (const roleCode of requiredSchoolRoles) {
+    assert.ok(catalogByCode.has(roleCode), `${roleCode} role should be bootstrapped`);
+  }
+
+  const principal = catalogByCode.get('principal');
+  assert.ok(principal, 'principal role should be present');
+  const principalPermissions = principal.permissions as readonly string[];
+  assert.ok(principalPermissions.includes('users:read'));
+  assert.ok(principalPermissions.includes('users:write'));
+  assert.ok(principalPermissions.includes('tenant_memberships:read'));
+  assert.ok(principalPermissions.includes('tenant_memberships:write'));
+  assert.ok(principalPermissions.includes('roles:read'));
 });
 
 test('AuthService authenticateAccessToken rejects access tokens when the audience does not match the session audience', async () => {
@@ -255,6 +292,247 @@ test('AuthService authenticateAccessToken allows platform sessions without a ten
   assert.equal(principal.user_id, 'user-platform');
   assert.equal(principal.tenant_id, null);
   assert.equal(principal.role, 'platform_owner');
+});
+
+test('AuthService authenticateAccessToken lets default-domain requests use the signed session tenant', async () => {
+  const requestContext = new RequestContextService();
+  let synchronizedTenantId: string | null = null;
+  const sessionRecord = {
+    user_id: 'user-principal',
+    tenant_id: 'greenhill-academy',
+    role: 'principal',
+    audience: 'school',
+    permissions: ['users:write'],
+    session_id: 'session-principal',
+    is_authenticated: true,
+    email_verified_at: '2026-05-14T00:00:00.000Z',
+    refresh_token_id: 'refresh-principal',
+    created_at: '2026-05-14T00:00:00.000Z',
+    updated_at: '2026-05-14T00:00:00.000Z',
+    refresh_expires_at: '2026-06-13T00:00:00.000Z',
+    ip_address: '127.0.0.1',
+    user_agent: 'test-suite',
+  };
+  const service = new AuthService(
+    requestContext,
+    {
+      findByEmail: async () => null,
+      createGlobalUserFromInvitation: async () => {
+        throw new Error('not used');
+      },
+      findById: async () => null,
+    } as never,
+    {} as never,
+    {} as never,
+    {} as never,
+    {
+      verifyAccessToken: async () => ({
+        sub: 'user-principal',
+        user_id: 'user-principal',
+        tenant_id: 'greenhill-academy',
+        role: 'principal',
+        audience: 'school',
+        session_id: 'session-principal',
+        token_id: 'token-principal',
+        type: 'access' as const,
+      }),
+      issueTokenPair: async () => {
+        throw new Error('not used');
+      },
+      verifyRefreshToken: async () => {
+        throw new Error('not used');
+      },
+    } as never,
+    {
+      getSession: async () => sessionRecord,
+      createSession: async () => undefined,
+      invalidateSession: async () => undefined,
+      rotateRefreshToken: async () => {
+        throw new Error('not used');
+      },
+      toPrincipal: (session: typeof sessionRecord) => ({
+        user_id: session.user_id,
+        tenant_id: session.tenant_id,
+        role: session.role,
+        audience: session.audience,
+        permissions: session.permissions,
+        session_id: session.session_id,
+        is_authenticated: session.is_authenticated,
+      }),
+    } as never,
+    { get: () => undefined } as never,
+    undefined,
+    undefined,
+    {
+      synchronizeRequestSession: async (context: { tenant_id?: string | null }) => {
+        synchronizedTenantId = context.tenant_id ?? null;
+      },
+    } as never,
+  );
+
+  const principal = await requestContext.run(
+    {
+      request_id: 'req-default-domain-access-token',
+      tenant_id: 'default-school',
+      tenant_source: 'base_domain_default',
+      user_id: 'anonymous',
+      role: 'guest',
+      session_id: null,
+      permissions: [],
+      is_authenticated: false,
+      client_ip: '127.0.0.1',
+      user_agent: 'test-suite',
+      method: 'POST',
+      path: '/auth/invitations',
+      started_at: '2026-05-14T00:00:00.000Z',
+    },
+    async () => {
+      const resolvedPrincipal = await service.authenticateAccessToken(
+        'access-token',
+        'default-school',
+        'school',
+      );
+      assert.equal(requestContext.requireStore().tenant_id, 'greenhill-academy');
+      return resolvedPrincipal;
+    },
+  );
+
+  assert.equal(principal.tenant_id, 'greenhill-academy');
+  assert.equal(synchronizedTenantId, 'greenhill-academy');
+});
+
+test('AuthService refresh lets default-domain requests use the signed refresh tenant', async () => {
+  const requestContext = new RequestContextService();
+  let membershipTenantId: string | null = null;
+  let synchronizedTenantId: string | null = null;
+  const sessionRecord = {
+    user_id: 'user-principal',
+    tenant_id: 'greenhill-academy',
+    role: 'principal',
+    audience: 'school',
+    permissions: ['users:write'],
+    session_id: 'session-principal',
+    is_authenticated: true,
+    email_verified_at: '2026-05-14T00:00:00.000Z',
+    refresh_token_id: 'refresh-principal',
+    created_at: '2026-05-14T00:00:00.000Z',
+    updated_at: '2026-05-14T00:00:00.000Z',
+    refresh_expires_at: '2026-06-13T00:00:00.000Z',
+    ip_address: '127.0.0.1',
+    user_agent: 'test-suite',
+  };
+  const service = new AuthService(
+    requestContext,
+    {
+      findByEmail: async () => null,
+      createGlobalUserFromInvitation: async () => {
+        throw new Error('not used');
+      },
+      findById: async () => ({
+        id: 'user-principal',
+        tenant_id: 'global',
+        email: 'principal@greenhillacademy.sc.ke',
+        password_hash: 'hashed-password',
+        display_name: 'School Principal',
+        status: 'active',
+        email_verified_at: '2026-05-14T00:00:00.000Z',
+      }),
+    } as never,
+    {
+      findActiveMembership: async (_userId: string, tenantId: string) => {
+        membershipTenantId = tenantId;
+        return {
+          id: 'membership-principal',
+          tenant_id: tenantId,
+          user_id: 'user-principal',
+          role_id: 'role-principal',
+          role_code: 'principal',
+          role_name: 'Principal',
+          status: 'active',
+          created_at: new Date(),
+          updated_at: new Date(),
+        };
+      },
+    } as never,
+    {
+      getPermissionsByRoleId: async () => ['users:write'],
+    } as never,
+    {} as never,
+    {
+      verifyAccessToken: async () => {
+        throw new Error('not used');
+      },
+      verifyRefreshToken: async () => ({
+        sub: 'user-principal',
+        user_id: 'user-principal',
+        tenant_id: 'greenhill-academy',
+        role: 'principal',
+        audience: 'school',
+        session_id: 'session-principal',
+        token_id: 'refresh-principal',
+        type: 'refresh' as const,
+      }),
+      issueTokenPair: async (payload: { tenant_id: string | null; session_id: string }) => {
+        assert.equal(payload.tenant_id, 'greenhill-academy');
+        return {
+          access_token: 'next-access-token',
+          refresh_token: 'next-refresh-token',
+          token_type: 'Bearer' as const,
+          access_expires_in: 900,
+          refresh_expires_in: 2592000,
+          access_expires_at: '2026-05-14T00:15:00.000Z',
+          refresh_expires_at: '2026-06-13T00:00:00.000Z',
+          access_token_id: 'next-access-id',
+          refresh_token_id: 'next-refresh-id',
+          session_id: payload.session_id,
+        };
+      },
+    } as never,
+    {
+      getSession: async () => sessionRecord,
+      createSession: async () => undefined,
+      invalidateSession: async () => undefined,
+      rotateRefreshToken: async () => undefined,
+      toPrincipal: () => {
+        throw new Error('not used');
+      },
+    } as never,
+    { get: () => undefined } as never,
+    undefined,
+    undefined,
+    {
+      synchronizeRequestSession: async (context: { tenant_id?: string | null }) => {
+        synchronizedTenantId = context.tenant_id ?? null;
+      },
+    } as never,
+  );
+
+  const response = await requestContext.run(
+    {
+      request_id: 'req-default-domain-refresh-token',
+      tenant_id: 'default-school',
+      tenant_source: 'base_domain_default',
+      user_id: 'anonymous',
+      role: 'guest',
+      session_id: null,
+      permissions: [],
+      is_authenticated: false,
+      client_ip: '127.0.0.1',
+      user_agent: 'test-suite',
+      method: 'POST',
+      path: '/auth/refresh',
+      started_at: '2026-05-14T00:00:00.000Z',
+    },
+    () =>
+      service.refresh(
+        { refresh_token: 'refresh-token' },
+        { ip_address: '127.0.0.1', user_agent: 'test-suite' },
+      ),
+  );
+
+  assert.equal(response.user.tenant_id, 'greenhill-academy');
+  assert.equal(membershipTenantId, 'greenhill-academy');
+  assert.equal(synchronizedTenantId, 'greenhill-academy');
 });
 
 test('AuthService authenticateAccessToken blocks existing unverified sensitive sessions', async () => {

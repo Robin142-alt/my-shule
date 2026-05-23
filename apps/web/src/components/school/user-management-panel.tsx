@@ -35,15 +35,18 @@ type InvitationResponse = ManagedUserApi & {
 };
 
 const roleOptions = [
-  { value: "admin", label: "School admin" },
+  { value: "principal", label: "Principal" },
+  { value: "deputy_principal", label: "Deputy Principal" },
+  { value: "secretary", label: "Secretary" },
+  { value: "bursar", label: "Bursar" },
   { value: "teacher", label: "Teacher" },
-  { value: "accountant", label: "Accountant" },
-  { value: "staff", label: "Staff" },
+  { value: "nurse", label: "Nurse" },
+  { value: "librarian", label: "Librarian" },
   { value: "parent", label: "Parent" },
   { value: "student", label: "Student" },
   { value: "storekeeper", label: "Storekeeper" },
-  { value: "librarian", label: "Librarian" },
-  { value: "member", label: "Member" },
+  { value: "boarding_master", label: "Boarding Master" },
+  { value: "security_officer", label: "Security Officer" },
 ];
 
 function roleLabel(roleCode: string) {
@@ -347,6 +350,9 @@ export function UserManagementPanel() {
                   disabled={actionId === row.id}
                   onChange={(event) => void updateMembershipRole(row, event.target.value)}
                 >
+                  {roleOptions.some((option) => option.value === row.roleCode) ? null : (
+                    <option value={row.roleCode}>{row.role}</option>
+                  )}
                   {roleOptions.map((option) => (
                     <option key={option.value} value={option.value}>
                       {option.label}

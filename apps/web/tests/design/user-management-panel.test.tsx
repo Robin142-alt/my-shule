@@ -1,5 +1,5 @@
 import { createElement } from "react";
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { SchoolPages } from "@/components/school/school-pages";
@@ -21,6 +21,49 @@ describe("school user management", () => {
   beforeEach(() => {
     fetchMock.mockReset();
     global.fetch = fetchMock as unknown as typeof fetch;
+  });
+
+  it("offers the full school operating team as invitation roles", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ users: [] }));
+
+    renderWithProviders(<UserManagementPanel />);
+
+    const roleSelect = await screen.findByLabelText(/role/i);
+    const labels = within(roleSelect)
+      .getAllByRole("option")
+      .map((option) => option.textContent);
+    const values = within(roleSelect)
+      .getAllByRole("option")
+      .map((option) => option.getAttribute("value"));
+
+    expect(labels).toEqual([
+      "Principal",
+      "Deputy Principal",
+      "Secretary",
+      "Bursar",
+      "Teacher",
+      "Nurse",
+      "Librarian",
+      "Parent",
+      "Student",
+      "Storekeeper",
+      "Boarding Master",
+      "Security Officer",
+    ]);
+    expect(values).toEqual([
+      "principal",
+      "deputy_principal",
+      "secretary",
+      "bursar",
+      "teacher",
+      "nurse",
+      "librarian",
+      "parent",
+      "student",
+      "storekeeper",
+      "boarding_master",
+      "security_officer",
+    ]);
   });
 
   it("submits tenant invitations with CSRF and the backend role_code contract", async () => {

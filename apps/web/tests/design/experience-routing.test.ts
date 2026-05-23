@@ -312,7 +312,7 @@ describe("experience routing", () => {
     });
   });
 
-  test("normalizes stale school owner sessions away from public tenant routes", () => {
+  test("normalizes stale school owner sessions into the principal command route", () => {
     expect(
       evaluateExperienceRouting({
         host: "barakaacademy.myshule.test",
@@ -329,7 +329,7 @@ describe("experience routing", () => {
       }),
     ).toEqual({
       action: "redirect",
-      location: "/school/admin",
+      location: "/school/principal",
       headers: {
         "x-platform-experience": "school",
         "x-tenant-slug": "barakaacademy",

@@ -9,14 +9,21 @@ const schoolExperienceRoles = new Set<string>([
   "admin",
   "storekeeper",
   "librarian",
+  "nurse",
+  "boarding-master",
+  "security-officer",
   "admissions",
 ]);
 
 const schoolRoleAliases: Record<string, SchoolExperienceRole> = {
-  owner: "admin",
+  owner: "principal",
   "school-admin": "admin",
-  "school-owner": "admin",
-  "tenant-owner": "admin",
+  "school-owner": "principal",
+  "tenant-owner": "principal",
+  "deputy-principal": "deputy-principal",
+  "boarding-master": "boarding-master",
+  "security-officer": "security-officer",
+  "clinic-staff": "nurse",
 };
 
 function normalizeSchoolRoleKey(role: string | null | undefined) {

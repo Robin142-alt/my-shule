@@ -17,7 +17,20 @@ import {
   tenantSlugToName,
 } from "@/lib/seo/tenant-routes";
 
-const allowedRoles = ["principal", "deputy-principal", "secretary", "bursar", "teacher", "admin", "storekeeper", "admissions", "librarian"] as const;
+const allowedRoles = [
+  "principal",
+  "deputy-principal",
+  "secretary",
+  "bursar",
+  "teacher",
+  "admin",
+  "storekeeper",
+  "admissions",
+  "librarian",
+  "nurse",
+  "boarding-master",
+  "security-officer",
+] as const;
 
 function isAllowedRole(value: string): value is SchoolExperienceRole {
   return allowedRoles.includes(value as SchoolExperienceRole);

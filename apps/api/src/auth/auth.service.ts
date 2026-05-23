@@ -86,7 +86,12 @@ export class AuthService {
       throw new UnauthorizedException('Access token does not belong to this audience');
     }
 
-    if (payload.tenant_id !== expectedTenantId) {
+    const resolvedExpectedTenantId = await this.resolveTokenTenantContext(
+      payload.tenant_id,
+      expectedTenantId,
+    );
+
+    if (payload.tenant_id !== resolvedExpectedTenantId) {
       throw new UnauthorizedException('Access token does not belong to this tenant');
     }
 
@@ -156,8 +161,16 @@ export class AuthService {
       return this.refreshPlatformOwner(dto.refresh_token, metadata);
     }
 
-    const tenantId = this.requireTenantId();
     const audience = this.requireTenantScopedAudience(payload.audience);
+    const requestTenantId = this.requestContext.requireStore().tenant_id;
+    const tenantId = await this.resolveTokenTenantContext(
+      payload.tenant_id,
+      requestTenantId,
+    );
+
+    if (!tenantId) {
+      throw new UnauthorizedException('Tenant context is required');
+    }
 
     if (payload.tenant_id !== tenantId) {
       throw new UnauthorizedException('Refresh token does not belong to this tenant');
@@ -664,6 +677,32 @@ export class AuthService {
 
   private requiresCurrentTenantMembership(tenantSource: string | null | undefined): boolean {
     return tenantSource !== 'localhost_default' && tenantSource !== 'base_domain_default';
+  }
+
+  private async resolveTokenTenantContext(
+    payloadTenantId: string | null,
+    currentTenantId: string | null,
+  ): Promise<string | null> {
+    if (payloadTenantId === currentTenantId) {
+      return currentTenantId;
+    }
+
+    if (payloadTenantId && this.canUseTokenTenantForDefaultContext(currentTenantId)) {
+      await this.activateResolvedTenantContext(payloadTenantId);
+      return payloadTenantId;
+    }
+
+    return currentTenantId;
+  }
+
+  private canUseTokenTenantForDefaultContext(currentTenantId: string | null): boolean {
+    const requestContext = this.requestContext.getStore();
+
+    if (!requestContext) {
+      return false;
+    }
+
+    return !currentTenantId || !this.requiresCurrentTenantMembership(requestContext.tenant_source);
   }
 
   private async activateResolvedTenantContext(tenantId: string): Promise<void> {

@@ -179,6 +179,32 @@ const schoolNavMap: Record<SchoolExperienceRole, ExperienceNavItem[]> = {
   librarian: [
     { id: "library", label: "Library", href: "/library", icon: BookOpenCheck, group: "Library" },
   ],
+  nurse: [
+    { id: "dashboard", label: "Dashboard", href: toSchoolPath("dashboard"), icon: LayoutGrid, group: "Overview" },
+    { id: "clinic", label: "Clinic", href: toSchoolPath("clinic"), icon: Stethoscope, group: "Student welfare" },
+    { id: "students", label: "Students", href: toSchoolPath("students"), icon: Users, group: "Student welfare" },
+    { id: "reports", label: "Reports", href: toSchoolPath("reports"), icon: FileSpreadsheet, group: "Student welfare" },
+    { id: "communication", label: "Communication", href: toSchoolPath("communication"), icon: MessageSquareText, group: "Student welfare" },
+    ...supportSidebarItems,
+  ],
+  "boarding-master": [
+    { id: "dashboard", label: "Dashboard", href: toSchoolPath("dashboard"), icon: LayoutGrid, group: "Overview" },
+    { id: "boarding", label: "Boarding", href: toSchoolPath("boarding"), icon: Building2, group: "Boarding" },
+    { id: "hostel", label: "Hostel", href: toSchoolPath("hostel"), icon: Building2, group: "Boarding" },
+    { id: "students", label: "Students", href: toSchoolPath("students"), icon: Users, group: "Student welfare" },
+    { id: "discipline", label: "Discipline", href: toSchoolPath("discipline"), icon: ShieldAlert, group: "Student welfare" },
+    { id: "reports", label: "Reports", href: toSchoolPath("reports"), icon: FileSpreadsheet, group: "Boarding" },
+    { id: "communication", label: "Communication", href: toSchoolPath("communication"), icon: MessageSquareText, group: "Boarding" },
+    ...supportSidebarItems,
+  ],
+  "security-officer": [
+    { id: "dashboard", label: "Dashboard", href: toSchoolPath("dashboard"), icon: LayoutGrid, group: "Overview" },
+    { id: "visitors", label: "Visitors", href: toSchoolPath("visitors"), icon: ClipboardList, group: "Gate records" },
+    { id: "transport", label: "Transport", href: toSchoolPath("transport"), icon: BusFront, group: "Movement" },
+    { id: "students", label: "Students", href: toSchoolPath("students"), icon: Users, group: "Movement" },
+    { id: "reports", label: "Reports", href: toSchoolPath("reports"), icon: FileSpreadsheet, group: "Gate records" },
+    ...supportSidebarItems,
+  ],
 };
 
 const roleToDashboardRole: Record<SchoolExperienceRole, DashboardRole> = {
@@ -190,6 +216,9 @@ const roleToDashboardRole: Record<SchoolExperienceRole, DashboardRole> = {
   admin: "admin",
   storekeeper: "storekeeper",
   librarian: "librarian",
+  nurse: "admin",
+  "boarding-master": "admin",
+  "security-officer": "admin",
   admissions: "admissions",
 };
 
@@ -273,6 +302,21 @@ function buildSchoolProfile(role: SchoolExperienceRole, schoolName: string): Exp
     librarian: {
       name: "Library workspace",
       roleLabel: "Librarian",
+      contextLabel: schoolName,
+    },
+    nurse: {
+      name: "Clinic workspace",
+      roleLabel: "Nurse",
+      contextLabel: schoolName,
+    },
+    "boarding-master": {
+      name: "Boarding workspace",
+      roleLabel: "Boarding master",
+      contextLabel: schoolName,
+    },
+    "security-officer": {
+      name: "Security workspace",
+      roleLabel: "Security officer",
       contextLabel: schoolName,
     },
     admissions: {
