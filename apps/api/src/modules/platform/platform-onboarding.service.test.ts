@@ -608,6 +608,11 @@ test('PlatformOnboardingService lets Superadmin manually set school billing stat
   );
 
   assert.ok(subscriptionQuery);
+  assert.equal(
+    subscriptionQuery?.text.includes('ON CONFLICT'),
+    false,
+    'manual billing saves must not require a production conflict index',
+  );
   assert.equal(subscriptionQuery?.values[0], 'green-valley');
   assert.equal(subscriptionQuery?.values[2], 'past_due');
   assert.match(String(subscriptionQuery?.values.at(-1)), /manual_billing_state/);
@@ -625,7 +630,7 @@ test('PlatformOnboardingService expires the current mutable subscription for man
       query: async (text: string, values: unknown[]) => {
         queries.push({ text, values });
 
-        if (text.includes('UPDATE subscriptions') && text.includes("status = 'expired'")) {
+        if (text.includes('UPDATE subscriptions') && values?.[2] === 'expired') {
           return { rowCount: 1, rows: [] };
         }
 
@@ -676,7 +681,7 @@ test('PlatformOnboardingService expires the current mutable subscription for man
   assert.equal(
     queries.some((query) =>
       query.text.includes('UPDATE subscriptions')
-      && query.text.includes("status = 'expired'")
+      && query.values[2] === 'expired'
       && query.values[0] === 'green-valley',
     ),
     true,

@@ -768,49 +768,59 @@ export class PlatformOnboardingService {
       manual_billing_effective_until: input.effectiveUntil?.toISOString() ?? null,
     };
 
-    if (input.state === 'expired') {
-      const updateResult = await this.databaseService.query(
-        `
-          UPDATE subscriptions
-          SET
-            plan_code = $2,
-            status = 'expired',
-            billing_phone_number = NULL,
-            currency_code = 'KES',
-            features = $3::jsonb,
-            limits = $4::jsonb,
-            seats_allocated = 1,
-            current_period_start = $5::timestamptz,
-            current_period_end = $6::timestamptz,
-            trial_ends_at = NULL,
-            grace_period_ends_at = NULL,
-            restricted_at = NULL,
-            suspended_at = $7::timestamptz,
-            suspension_reason = $8,
-            activated_at = NULL,
-            canceled_at = $9::timestamptz,
-            metadata = COALESCE(metadata, '{}'::jsonb) || $10::jsonb,
-            updated_at = NOW()
-          WHERE tenant_id = $1
-            AND status IN ('trialing', 'active', 'past_due', 'restricted', 'suspended')
-        `,
-        [
-          input.tenantId,
-          'enterprise',
-          JSON.stringify(['*']),
-          JSON.stringify({}),
-          lifecycleDates.currentPeriodStart.toISOString(),
-          lifecycleDates.currentPeriodEnd.toISOString(),
-          lifecycleDates.suspendedAt?.toISOString() ?? now.toISOString(),
-          lifecycleDates.suspensionReason,
-          lifecycleDates.canceledAt?.toISOString() ?? now.toISOString(),
-          JSON.stringify(metadata),
-        ],
-      );
+    const subscriptionValues = [
+      input.tenantId,
+      'enterprise',
+      subscriptionStatus,
+      JSON.stringify(['*']),
+      JSON.stringify({}),
+      lifecycleDates.currentPeriodStart.toISOString(),
+      lifecycleDates.currentPeriodEnd.toISOString(),
+      lifecycleDates.gracePeriodEndsAt?.toISOString() ?? null,
+      lifecycleDates.restrictedAt?.toISOString() ?? null,
+      lifecycleDates.suspendedAt?.toISOString() ?? null,
+      lifecycleDates.suspensionReason,
+      lifecycleDates.activatedAt?.toISOString() ?? null,
+      lifecycleDates.canceledAt?.toISOString() ?? null,
+      JSON.stringify(metadata),
+    ];
 
-      if ((updateResult.rowCount ?? 0) > 0) {
-        return;
-      }
+    // Serialize manual saves per tenant without depending on a production-only conflict index.
+    await this.databaseService.query(
+      'SELECT pg_advisory_xact_lock(hashtext($1::text), 702101)',
+      [input.tenantId],
+    );
+
+    const updateResult = await this.databaseService.query(
+      `
+        UPDATE subscriptions
+        SET
+          plan_code = $2,
+          status = $3,
+          billing_phone_number = NULL,
+          currency_code = 'KES',
+          features = $4::jsonb,
+          limits = $5::jsonb,
+          seats_allocated = 1,
+          current_period_start = $6::timestamptz,
+          current_period_end = $7::timestamptz,
+          trial_ends_at = NULL,
+          grace_period_ends_at = $8::timestamptz,
+          restricted_at = $9::timestamptz,
+          suspended_at = $10::timestamptz,
+          suspension_reason = $11,
+          activated_at = $12::timestamptz,
+          canceled_at = $13::timestamptz,
+          metadata = COALESCE(metadata, '{}'::jsonb) || $14::jsonb,
+          updated_at = NOW()
+        WHERE tenant_id = $1
+          AND status IN ('trialing', 'active', 'past_due', 'restricted', 'suspended')
+      `,
+      subscriptionValues,
+    );
+
+    if ((updateResult.rowCount ?? 0) > 0) {
+      return;
     }
 
     await this.databaseService.query(
@@ -855,44 +865,8 @@ export class PlatformOnboardingService {
           $13::timestamptz,
           $14::jsonb
         )
-        ON CONFLICT (tenant_id)
-          WHERE status IN ('trialing', 'active', 'past_due', 'restricted', 'suspended')
-        DO UPDATE SET
-          plan_code = EXCLUDED.plan_code,
-          status = EXCLUDED.status,
-          billing_phone_number = NULL,
-          currency_code = EXCLUDED.currency_code,
-          features = EXCLUDED.features,
-          limits = EXCLUDED.limits,
-          seats_allocated = EXCLUDED.seats_allocated,
-          current_period_start = EXCLUDED.current_period_start,
-          current_period_end = EXCLUDED.current_period_end,
-          trial_ends_at = NULL,
-          grace_period_ends_at = EXCLUDED.grace_period_ends_at,
-          restricted_at = EXCLUDED.restricted_at,
-          suspended_at = EXCLUDED.suspended_at,
-          suspension_reason = EXCLUDED.suspension_reason,
-          activated_at = EXCLUDED.activated_at,
-          canceled_at = EXCLUDED.canceled_at,
-          metadata = COALESCE(subscriptions.metadata, '{}'::jsonb) || EXCLUDED.metadata,
-          updated_at = NOW()
       `,
-      [
-        input.tenantId,
-        'enterprise',
-        subscriptionStatus,
-        JSON.stringify(['*']),
-        JSON.stringify({}),
-        lifecycleDates.currentPeriodStart.toISOString(),
-        lifecycleDates.currentPeriodEnd.toISOString(),
-        lifecycleDates.gracePeriodEndsAt?.toISOString() ?? null,
-        lifecycleDates.restrictedAt?.toISOString() ?? null,
-        lifecycleDates.suspendedAt?.toISOString() ?? null,
-        lifecycleDates.suspensionReason,
-        lifecycleDates.activatedAt?.toISOString() ?? null,
-        lifecycleDates.canceledAt?.toISOString() ?? null,
-        JSON.stringify(metadata),
-      ],
+      subscriptionValues,
     );
   }
 
