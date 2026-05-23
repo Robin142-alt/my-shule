@@ -9,6 +9,21 @@ export type SubscriptionStatus =
   | 'canceled'
   | 'expired';
 
+export type ManualBillingState =
+  | 'active'
+  | 'grace_period'
+  | 'restricted'
+  | 'suspended'
+  | 'expired';
+
+export const MANUAL_BILLING_STATES: readonly ManualBillingState[] = [
+  'active',
+  'grace_period',
+  'restricted',
+  'suspended',
+  'expired',
+];
+
 export type SubscriptionLifecycleState =
   | 'ACTIVE'
   | 'TRIAL'

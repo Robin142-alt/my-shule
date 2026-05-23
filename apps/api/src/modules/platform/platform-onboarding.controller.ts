@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post } from '@nestjs/common';
 
 import { Roles } from '../../auth/decorators/roles.decorator';
 import { SUPERADMIN_ROLE_OWNER } from '../../auth/auth.constants';
@@ -11,6 +11,7 @@ import {
   PlatformSchoolResponseDto,
   PlatformTenantAnonymizeResponseDto,
   PlatformTenantOffboardingManifestDto,
+  UpdateSchoolBillingDto,
 } from './dto/create-school.dto';
 import { PlatformOnboardingService } from './platform-onboarding.service';
 
@@ -39,6 +40,14 @@ export class PlatformOnboardingController {
     @Param('tenantId') tenantId: string,
   ): Promise<PlatformSchoolResponseDto> {
     return this.onboardingService.resendSchoolAdminInvite(tenantId);
+  }
+
+  @Patch('schools/:tenantId/billing')
+  updateSchoolBilling(
+    @Param('tenantId') tenantId: string,
+    @Body() dto: UpdateSchoolBillingDto,
+  ): Promise<PlatformSchoolResponseDto> {
+    return this.onboardingService.updateSchoolBilling(tenantId, dto);
   }
 
   @Get('schools/:tenantId/offboarding/export')

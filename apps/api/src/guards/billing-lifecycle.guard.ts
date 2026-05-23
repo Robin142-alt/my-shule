@@ -35,7 +35,11 @@ export class BillingLifecycleGuard implements CanActivate {
 
     const access = store.billing;
 
-    if (!access?.subscription_id || access.access_mode === 'billing_only') {
+    if (!access?.subscription_id) {
+      return true;
+    }
+
+    if (access.access_mode === 'billing_only') {
       throw new HttpException(
         'Your subscription is suspended. Billing, renewal, support, and data export are still available.',
         HttpStatus.PAYMENT_REQUIRED,

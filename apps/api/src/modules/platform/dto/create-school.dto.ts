@@ -3,6 +3,7 @@ import {
   IsBoolean,
   IsEmail,
   IsIn,
+  IsISO8601,
   IsObject,
   IsOptional,
   IsString,
@@ -25,6 +26,33 @@ export type SchoolCurriculum =
   | 'international';
 
 export type SchoolOnboardingStepStatus = 'pending' | 'planned' | 'complete' | 'blocked';
+
+export type PlatformManualBillingState =
+  | 'not_configured'
+  | 'active'
+  | 'grace_period'
+  | 'restricted'
+  | 'suspended'
+  | 'expired';
+
+export const PLATFORM_CONFIGURABLE_BILLING_STATES = [
+  'active',
+  'grace_period',
+  'restricted',
+  'suspended',
+  'expired',
+] as const;
+
+export type PlatformSchoolBillingDto = {
+  state: PlatformManualBillingState;
+  label: string;
+  access_mode: 'full' | 'read_only' | 'billing_only' | null;
+  plan_code: string | null;
+  effective_until?: string | null;
+  configured_at?: string | null;
+  configured_by_user_id?: string | null;
+  note?: string | null;
+};
 
 export type SchoolOnboardingProfileDto = {
   registration_number?: string;
@@ -186,6 +214,20 @@ export class AnonymizeTenantOffboardingDto {
   reason!: string;
 }
 
+export class UpdateSchoolBillingDto {
+  @IsIn(PLATFORM_CONFIGURABLE_BILLING_STATES)
+  state!: (typeof PLATFORM_CONFIGURABLE_BILLING_STATES)[number];
+
+  @IsOptional()
+  @IsISO8601()
+  effective_until?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(240)
+  note?: string;
+}
+
 export type PlatformSchoolResponseDto = {
   tenant_id: string;
   school_name: string;
@@ -202,6 +244,7 @@ export type PlatformSchoolResponseDto = {
   admin_email: string;
   created_at: string;
   enabled_modules: string[];
+  billing?: PlatformSchoolBillingDto;
   onboarding_profile?: SchoolOnboardingProfileDto;
 };
 

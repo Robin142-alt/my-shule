@@ -62,7 +62,10 @@ import {
   fetchPlatformModules,
   fetchPlatformSchoolModules,
   resendPlatformSchoolAdminInvite,
+  updatePlatformSchoolBilling,
   updatePlatformSchoolModules,
+  type PlatformConfigurableBillingState,
+  type PlatformManualBillingState,
   type PlatformSchool,
   type PlatformSchoolModuleAccess,
 } from "@/lib/platform/school-onboarding-client";
@@ -190,6 +193,11 @@ function unwrapPlatformPayload<T>(payload: T | ApiEnvelope<T> | null): T | null 
 type PlatformTenantRow = Omit<(typeof tenantRows)[number], "invitationStatus"> & {
   adminEmail?: string;
   enabledModules?: string[];
+  billingState?: PlatformManualBillingState;
+  billingAccessMode?: "full" | "read_only" | "billing_only" | null;
+  billingEffectiveUntil?: string | null;
+  billingNote?: string | null;
+  billingTone?: "ok" | "warning" | "critical";
   invitationStatus?: PlatformSchool["invitation_status"];
   invitationMessage?: string;
   invitationFailureCode?: string;
@@ -197,6 +205,26 @@ type PlatformTenantRow = Omit<(typeof tenantRows)[number], "invitationStatus"> &
   invitationActionRequired?: string;
   canResendInvite?: boolean;
   inviteExpiresAt?: string;
+};
+
+const billingStateOptions: Array<{
+  value: PlatformConfigurableBillingState;
+  label: string;
+}> = [
+  { value: "active", label: "Active" },
+  { value: "grace_period", label: "Grace period" },
+  { value: "restricted", label: "Restricted" },
+  { value: "suspended", label: "Suspended" },
+  { value: "expired", label: "Expired" },
+];
+
+const billingToneByState: Record<PlatformManualBillingState, "ok" | "warning" | "critical"> = {
+  not_configured: "warning",
+  active: "ok",
+  grace_period: "warning",
+  restricted: "warning",
+  suspended: "critical",
+  expired: "critical",
 };
 
 function mapPlatformSchoolToTenantRow(row: PlatformSchool): PlatformTenantRow {
@@ -208,18 +236,24 @@ function mapPlatformSchoolToTenantRow(row: PlatformSchool): PlatformTenantRow {
         : row.invitation_status === "blocked"
           ? "Email setup required"
           : "Invite delivery failed";
+  const billingState = row.billing?.state ?? "not_configured";
 
   return {
     id: row.tenant_id,
     schoolName: row.school_name,
     status: row.status === "active" ? "Active" : "Suspended",
     statusTone: row.status === "active" ? "ok" : "critical",
-    subscription: "Not configured",
+    subscription: row.billing?.label ?? "Not configured",
     studentCount: "0",
     lastActive: invitationLabel,
     revenue: "KES 0",
     adminEmail: row.admin_email,
     enabledModules: row.enabled_modules ?? [],
+    billingState,
+    billingAccessMode: row.billing?.access_mode ?? null,
+    billingEffectiveUntil: row.billing?.effective_until ?? null,
+    billingNote: row.billing?.note ?? null,
+    billingTone: billingToneByState[billingState],
     invitationStatus: row.invitation_status,
     invitationMessage: row.invitation_message,
     invitationFailureCode: row.invitation_failure_code,
@@ -468,6 +502,9 @@ function TenantsTable() {
   const [resetMessage, setResetMessage] = useState<string | null>(null);
   const [resendMessage, setResendMessage] = useState<string | null>(null);
   const [resendingTenantId, setResendingTenantId] = useState<string | null>(null);
+  const [billingMessage, setBillingMessage] = useState<string | null>(null);
+  const [billingError, setBillingError] = useState<string | null>(null);
+  const [updatingBillingTenantId, setUpdatingBillingTenantId] = useState<string | null>(null);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [schoolForm, setSchoolForm] = useState(emptySchoolForm);
   const [moduleCatalog, setModuleCatalog] = useState<ModuleRegistryItem[]>(fallbackModuleCatalog);
@@ -634,6 +671,41 @@ function TenantsTable() {
     );
   }
 
+  async function updateTenantBilling(
+    tenantId: string,
+    state: PlatformConfigurableBillingState,
+  ) {
+    const tenant = rows.find((row) => row.id === tenantId);
+    const label = billingStateOptions.find((option) => option.value === state)?.label ?? "billing";
+
+    setUpdatingBillingTenantId(tenantId);
+    setBillingMessage(null);
+    setBillingError(null);
+
+    try {
+      const updatedSchool = await updatePlatformSchoolBilling({
+        tenantId,
+        state,
+        note: `Manual Superadmin billing state: ${label}`,
+      });
+      const updatedRow = mapPlatformSchoolToTenantRow(updatedSchool);
+
+      setRows((currentRows) =>
+        currentRows.map((row) => (row.id === updatedRow.id ? updatedRow : row)),
+      );
+      setCreatedTenantForInvite((currentTenant) =>
+        currentTenant?.id === updatedRow.id ? updatedRow : currentTenant,
+      );
+      setBillingMessage(`${tenant?.schoolName ?? updatedRow.schoolName} billing set to ${updatedRow.subscription}.`);
+    } catch (error) {
+      setBillingError(
+        error instanceof Error ? error.message : "Unable to update this school's billing state.",
+      );
+    } finally {
+      setUpdatingBillingTenantId(null);
+    }
+  }
+
   async function resendInviteForTenant(tenantId: string) {
     const tenant = rows.find((row) => row.id === tenantId) ?? createdTenantForInvite;
 
@@ -740,7 +812,40 @@ function TenantsTable() {
       header: "Status",
       render: (row) => <StatusPill label={row.status} tone={row.statusTone} />,
     },
-    { id: "subscription", header: "Subscription", render: (row) => row.subscription },
+    {
+      id: "subscription",
+      header: "Billing",
+      render: (row) => (
+        <div className="flex min-w-40 flex-col gap-2">
+          <StatusPill
+            label={row.subscription}
+            tone={row.billingTone ?? "warning"}
+          />
+          <select
+            className="input-base h-9 min-w-40 text-xs"
+            aria-label={`Set billing state for ${row.schoolName}`}
+            value={row.billingState === "not_configured" ? "" : row.billingState}
+            disabled={updatingBillingTenantId === row.id}
+            onChange={(event) => {
+              const nextState = event.target.value as PlatformConfigurableBillingState | "";
+
+              if (nextState) {
+                void updateTenantBilling(row.id, nextState);
+              }
+            }}
+          >
+            <option value="">
+              {updatingBillingTenantId === row.id ? "Saving..." : "Set billing"}
+            </option>
+            {billingStateOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </div>
+      ),
+    },
     {
       id: "modules",
       header: "Modules",
@@ -843,6 +948,16 @@ function TenantsTable() {
       {deleteMessage ? (
         <div className="mb-4 rounded-[var(--radius-sm)] border border-success/20 bg-success/10 px-4 py-3 text-sm text-foreground">
           {deleteMessage}
+        </div>
+      ) : null}
+      {billingMessage ? (
+        <div className="mb-4 rounded-[var(--radius-sm)] border border-success/20 bg-success/10 px-4 py-3 text-sm text-foreground">
+          {billingMessage}
+        </div>
+      ) : null}
+      {billingError ? (
+        <div className="mb-4 rounded-[var(--radius-sm)] border border-warning/20 bg-warning/10 px-4 py-3 text-sm text-foreground">
+          {billingError}
         </div>
       ) : null}
       {blockedInviteRows.length > 0 ? (
@@ -1149,9 +1264,36 @@ function TenantsTable() {
               </div>
               <div className="rounded-xl border border-border bg-surface-muted px-4 py-3">
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted">
-                  Subscription
+                  Billing
                 </p>
-                <p className="mt-2 text-sm text-foreground">{selectedTenant.subscription}</p>
+                <div className="mt-2 flex flex-col gap-2">
+                  <StatusPill
+                    label={selectedTenant.subscription}
+                    tone={selectedTenant.billingTone ?? "warning"}
+                  />
+                  <select
+                    className="input-base h-9 text-xs"
+                    aria-label={`Set billing state for ${selectedTenant.schoolName}`}
+                    value={selectedTenant.billingState === "not_configured" ? "" : selectedTenant.billingState}
+                    disabled={updatingBillingTenantId === selectedTenant.id}
+                    onChange={(event) => {
+                      const nextState = event.target.value as PlatformConfigurableBillingState | "";
+
+                      if (nextState) {
+                        void updateTenantBilling(selectedTenant.id, nextState);
+                      }
+                    }}
+                  >
+                    <option value="">
+                      {updatingBillingTenantId === selectedTenant.id ? "Saving..." : "Set billing"}
+                    </option>
+                    {billingStateOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
               <div className="rounded-xl border border-border bg-surface-muted px-4 py-3">
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted">

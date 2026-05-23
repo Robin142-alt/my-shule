@@ -12,6 +12,8 @@ import {
   BILLING_RESTRICTED_PERIOD_DAYS,
 } from './billing.constants';
 import {
+  MANUAL_BILLING_STATES,
+  ManualBillingState,
   SubscriptionAccessMode,
   SubscriptionLifecycleOverview,
   SubscriptionLifecycleState,
@@ -96,6 +98,12 @@ export class BillingLifecycleService {
     subscription: SubscriptionEntity,
     now = new Date(),
   ): SubscriptionLifecycleOverview {
+    const manualBillingState = this.getManualBillingState(subscription);
+
+    if (manualBillingState) {
+      return this.buildManualOverview(subscription, manualBillingState, now);
+    }
+
     const renewalBoundary = this.getRenewalBoundary(subscription);
     const warningStartsAt = addDays(renewalBoundary, -BILLING_EXPIRING_WINDOW_DAYS);
     const gracePeriodEndsAt =
@@ -238,6 +246,13 @@ export class BillingLifecycleService {
     suspended_at?: string | null;
     suspension_reason?: string | null;
   } {
+    if (this.getManualBillingState(subscription)) {
+      return {
+        should_transition: false,
+        status: subscription.status,
+      };
+    }
+
     const renewalBoundary = this.getRenewalBoundary(subscription);
     const computedGracePeriodEndsAt =
       subscription.grace_period_ends_at ?? addDays(renewalBoundary, BILLING_GRACE_PERIOD_DAYS);
@@ -299,6 +314,88 @@ export class BillingLifecycleService {
     return subscription.status === 'trialing' && subscription.trial_ends_at
       ? subscription.trial_ends_at
       : subscription.current_period_end;
+  }
+
+  private getManualBillingState(subscription: SubscriptionEntity): ManualBillingState | null {
+    const value = subscription.metadata?.manual_billing_state;
+
+    return typeof value === 'string' && MANUAL_BILLING_STATES.includes(value as ManualBillingState)
+      ? value as ManualBillingState
+      : null;
+  }
+
+  private buildManualOverview(
+    subscription: SubscriptionEntity,
+    manualBillingState: ManualBillingState,
+    now: Date,
+  ): SubscriptionLifecycleOverview {
+    const effectiveUntil = this.parseOptionalMetadataDate(
+      subscription.metadata?.manual_billing_effective_until,
+    );
+    const manualReason = `manual_${manualBillingState}`;
+
+    if (manualBillingState === 'active') {
+      return {
+        lifecycle_state: 'ACTIVE',
+        access_mode: BILLING_FULL_ACCESS_MODE,
+        warning_starts_at: null,
+        grace_period_ends_at: null,
+        restricted_at: null,
+        suspended_at: null,
+        suspension_reason: null,
+        renewal_required: false,
+      };
+    }
+
+    if (manualBillingState === 'grace_period') {
+      return {
+        lifecycle_state: 'GRACE_PERIOD',
+        access_mode: BILLING_FULL_ACCESS_MODE,
+        warning_starts_at: null,
+        grace_period_ends_at:
+          effectiveUntil?.toISOString()
+          ?? subscription.grace_period_ends_at?.toISOString()
+          ?? null,
+        restricted_at: null,
+        suspended_at: null,
+        suspension_reason: manualReason,
+        renewal_required: true,
+      };
+    }
+
+    if (manualBillingState === 'restricted') {
+      return {
+        lifecycle_state: 'RESTRICTED',
+        access_mode: BILLING_READ_ONLY_ACCESS_MODE,
+        warning_starts_at: null,
+        grace_period_ends_at: null,
+        restricted_at: (subscription.restricted_at ?? now).toISOString(),
+        suspended_at: null,
+        suspension_reason: manualReason,
+        renewal_required: true,
+      };
+    }
+
+    return {
+      lifecycle_state: 'SUSPENDED',
+      access_mode: BILLING_BILLING_ONLY_ACCESS_MODE,
+      warning_starts_at: null,
+      grace_period_ends_at: null,
+      restricted_at: null,
+      suspended_at: (subscription.suspended_at ?? now).toISOString(),
+      suspension_reason: manualReason,
+      renewal_required: true,
+    };
+  }
+
+  private parseOptionalMetadataDate(value: unknown): Date | null {
+    if (typeof value !== 'string' || !value.trim()) {
+      return null;
+    }
+
+    const parsed = new Date(value);
+
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
   }
 
   private createOverview(
