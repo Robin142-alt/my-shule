@@ -51,4 +51,22 @@ describe("session refreshing fetch", () => {
     expect(refreshSession).not.toHaveBeenCalled();
     expect(send).toHaveBeenCalledTimes(1);
   });
+
+  it("marks the browser session expired when refresh cannot recover an auth failure", async () => {
+    const send = jest.fn().mockResolvedValue(
+      jsonResponse({ message: "Token validation failed" }, { status: 401 }),
+    );
+    const refreshSession = jest.fn().mockRejectedValue(new Error("Session has expired"));
+
+    const result = await fetchWithSessionRefresh({
+      accessToken: "expired-access-token",
+      refreshSession,
+      send,
+    });
+
+    expect(result.response.status).toBe(401);
+    expect(result.sessionExpired).toBe(true);
+    expect(refreshSession).toHaveBeenCalledTimes(1);
+    expect(send).toHaveBeenCalledTimes(1);
+  });
 });

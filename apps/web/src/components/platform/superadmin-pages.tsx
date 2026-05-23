@@ -28,6 +28,7 @@ import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
 import { Modal } from "@/components/ui/modal";
 import { StatusPill } from "@/components/ui/status-pill";
 import { getCsrfToken } from "@/lib/auth/csrf-client";
+import { redirectOnExpiredSessionError } from "@/lib/auth/session-expiry-client";
 import {
   fetchApiObservabilityAlerts,
   fetchApiObservabilityHealth,
@@ -342,6 +343,7 @@ function ModuleAllocationEditor({
   catalog: ModuleRegistryItem[];
   onSaved: (tenantId: string, moduleCodes: string[]) => void;
 }) {
+  const router = useRouter();
   const [rows, setRows] = useState<PlatformSchoolModuleAccess[]>([]);
   const [selectedCodes, setSelectedCodes] = useState<string[]>(tenant.enabledModules ?? []);
   const [isLoading, setIsLoading] = useState(true);
@@ -365,6 +367,10 @@ function ModuleAllocationEditor({
           setSelectedCodes(accessRows.filter((row) => row.enabled).map((row) => row.code));
         }
       } catch (loadError) {
+        if (redirectOnExpiredSessionError(loadError, "superadmin", (href) => router.replace(href))) {
+          return;
+        }
+
         if (!cancelled) {
           setRows(
             catalog.map((moduleItem) => ({
@@ -391,7 +397,7 @@ function ModuleAllocationEditor({
     return () => {
       cancelled = true;
     };
-  }, [catalog, tenant.enabledModules, tenant.id]);
+  }, [catalog, router, tenant.enabledModules, tenant.id]);
 
   function toggleModule(moduleCode: string) {
     setSelectedCodes((currentCodes) =>
@@ -425,6 +431,10 @@ function ModuleAllocationEditor({
       onSaved(tenant.id, enabledCodes);
       setNotice("Module allocation updated. Disabled module data remains preserved.");
     } catch (saveError) {
+      if (redirectOnExpiredSessionError(saveError, "superadmin", (href) => router.replace(href))) {
+        return;
+      }
+
       setError(saveError instanceof Error ? saveError.message : "Unable to update module allocation.");
     } finally {
       setIsSaving(false);
@@ -496,6 +506,7 @@ function ModuleAllocationEditor({
 }
 
 function TenantsTable() {
+  const router = useRouter();
   const [rows, setRows] = useState<PlatformTenantRow[]>(tenantRows);
   const [loadSchoolsError, setLoadSchoolsError] = useState<string | null>(null);
   const [selectedTenantId, setSelectedTenantId] = useState<string | null>(null);
@@ -539,6 +550,10 @@ function TenantsTable() {
           setLoadSchoolsError(null);
         }
       } catch (error) {
+        if (redirectOnExpiredSessionError(error, "superadmin", (href) => router.replace(href))) {
+          return;
+        }
+
         if (!cancelled) {
           setRows((currentRows) => (currentRows.length > 0 ? currentRows : tenantRows));
           setLoadSchoolsError(
@@ -559,7 +574,7 @@ function TenantsTable() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [router]);
 
   useEffect(() => {
     let cancelled = false;
@@ -571,7 +586,11 @@ function TenantsTable() {
         if (!cancelled) {
           setModuleCatalog(registry);
         }
-      } catch {
+      } catch (error) {
+        if (redirectOnExpiredSessionError(error, "superadmin", (href) => router.replace(href))) {
+          return;
+        }
+
         if (!cancelled) {
           setModuleCatalog(sortModuleCatalog(fallbackModuleCatalog));
         }
@@ -583,7 +602,7 @@ function TenantsTable() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [router]);
 
   async function submitSchoolCreate() {
     if (
@@ -625,6 +644,10 @@ function TenantsTable() {
       setSchoolForm(emptySchoolForm);
       setSelectedModuleCodes(defaultOnboardingModuleCodes);
     } catch (error) {
+      if (redirectOnExpiredSessionError(error, "superadmin", (href) => router.replace(href))) {
+        return;
+      }
+
       setCreateError(
         error instanceof Error
           ? error.message
@@ -698,6 +721,10 @@ function TenantsTable() {
       );
       setBillingMessage(`${tenant?.schoolName ?? updatedRow.schoolName} billing set to ${updatedRow.subscription}.`);
     } catch (error) {
+      if (redirectOnExpiredSessionError(error, "superadmin", (href) => router.replace(href))) {
+        return;
+      }
+
       setBillingError(
         error instanceof Error ? error.message : "Unable to update this school's billing state.",
       );
@@ -743,6 +770,10 @@ function TenantsTable() {
         createdTenantForInvite?.id === updatedRow.id ? updatedSchool.invitation_message : currentMessage,
       );
     } catch (error) {
+      if (redirectOnExpiredSessionError(error, "superadmin", (href) => router.replace(href))) {
+        return;
+      }
+
       setResendMessage(
         error instanceof Error
           ? error.message
@@ -793,6 +824,10 @@ function TenantsTable() {
       setDeleteConfirmation("");
       setDeleteReason("");
     } catch (error) {
+      if (redirectOnExpiredSessionError(error, "superadmin", (href) => router.replace(href))) {
+        return;
+      }
+
       setDeleteError(
         error instanceof Error ? error.message : "Unable to delete or deprovision this school.",
       );
@@ -2243,6 +2278,7 @@ function SettingsPage({ routeMode }: { routeMode: SuperadminRouteMode }) {
 }
 
 function SuperadminOverview({ routeMode }: { routeMode: SuperadminRouteMode }) {
+  const router = useRouter();
   const [metrics, setMetrics] = useState(superadminKpis);
   const quickActions = superadminQuickActions.map((action) => ({
     ...action,
@@ -2259,7 +2295,11 @@ function SuperadminOverview({ routeMode }: { routeMode: SuperadminRouteMode }) {
         if (!cancelled) {
           setMetrics(buildLiveSuperadminKpis(liveRows));
         }
-      } catch {
+      } catch (error) {
+        if (redirectOnExpiredSessionError(error, "superadmin", (href) => router.replace(href))) {
+          return;
+        }
+
         if (!cancelled) {
           setMetrics(superadminKpis);
         }
@@ -2271,7 +2311,7 @@ function SuperadminOverview({ routeMode }: { routeMode: SuperadminRouteMode }) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [router]);
 
   return (
     <div className="space-y-6">

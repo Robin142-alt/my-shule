@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 
 import { validateCsrfRequest } from "@/lib/auth/csrf";
 import {
+  clearExperienceSessionCookies,
   readAccessCookie,
   readExperienceSessionCookie,
   readTenantCookie,
@@ -37,10 +38,12 @@ async function proxyBillingRequest(request: NextRequest, context: RouteContext) 
   const accessToken = readAccessCookie(cookieStore);
 
   if (!session || session.experience !== "school" || !accessToken) {
-    return NextResponse.json(
+    const response = NextResponse.json(
       { message: "A signed-in school finance session is required." },
       { status: 401 },
     );
+    clearExperienceSessionCookies(response);
+    return response;
   }
 
   const requestUrl = new URL(request.url);
@@ -74,10 +77,17 @@ async function proxyBillingRequest(request: NextRequest, context: RouteContext) 
   });
   const responseBody = await upstreamResponse.text();
 
-  return new NextResponse(responseBody, {
+  const response = new NextResponse(responseBody, {
     status: upstreamResponse.status,
     headers: {
       "content-type": upstreamResponse.headers.get("content-type") ?? "application/json",
     },
   });
+
+  if (upstreamResponse.status === 401) {
+    clearExperienceSessionCookies(response);
+    response.headers.set("x-myshule-session-expired", "1");
+  }
+
+  return response;
 }

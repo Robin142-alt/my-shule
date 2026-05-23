@@ -6,7 +6,7 @@ import { PortalPages } from "@/components/portal/portal-pages";
 import { SchoolPages } from "@/components/school/school-pages";
 import { SuperadminPages } from "@/components/platform/superadmin-pages";
 
-import { routerPushMock } from "./router-mock";
+import { routerPushMock, routerReplaceMock } from "./router-mock";
 import { renderWithProviders } from "./test-utils";
 
 jest.setTimeout(20_000);
@@ -81,6 +81,32 @@ describe("experience actions", () => {
 
       return Promise.resolve(jsonResponse({}));
     }) as unknown as typeof fetch;
+  });
+
+  it("routes expired school sessions back to login instead of showing module-disabled state", async () => {
+    global.fetch = jest.fn((input: RequestInfo | URL) => {
+      const url = typeof input === "string" ? input : input.toString();
+
+      if (url.includes("/api/school/modules/me")) {
+        return Promise.resolve(
+          jsonResponse({ message: "Session has expired" }, { status: 401 }),
+        );
+      }
+
+      return Promise.resolve(jsonResponse({}));
+    }) as unknown as typeof fetch;
+
+    renderWithProviders(
+      createElement(SchoolPages, {
+        role: "principal",
+        tenantSlug: "mangu-high",
+      }),
+    );
+
+    await waitFor(() =>
+      expect(routerReplaceMock).toHaveBeenCalledWith("/school/login?expired=1"),
+    );
+    expect(screen.queryByText(/module not enabled for your school/i)).not.toBeInTheDocument();
   });
 
   it("supports shell search and notifications inside the hosted school workspace", async () => {

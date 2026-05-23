@@ -3,7 +3,10 @@ import { NextResponse } from "next/server";
 
 import { isExperienceAudience } from "@/lib/auth/experience-audience";
 import { createServerAuthClient } from "@/lib/auth/server-auth-client";
-import { toPublicExperienceGatewaySession } from "@/lib/auth/server-session";
+import {
+  clearExperienceSessionCookies,
+  toPublicExperienceGatewaySession,
+} from "@/lib/auth/server-session";
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -26,7 +29,7 @@ export async function GET(request: Request) {
       user: session.user,
     });
   } catch (error) {
-    return NextResponse.json(
+    const response = NextResponse.json(
       {
         message:
           error instanceof Error
@@ -35,5 +38,7 @@ export async function GET(request: Request) {
       },
       { status: 401 },
     );
+    clearExperienceSessionCookies(response);
+    return response;
   }
 }

@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { ArrowRight, BookOpenCheck, FileSpreadsheet, Printer, Send, UserPlus } from "lucide-react";
 
 import { ActivityListCard, SimpleListCard } from "@/components/experience/activity-list-card";
@@ -38,6 +39,7 @@ import {
   openPrintDocument,
 } from "@/lib/dashboard/export";
 import { getCsrfToken } from "@/lib/auth/csrf-client";
+import { redirectOnExpiredSessionResponse } from "@/lib/auth/session-expiry-client";
 import type { ExperienceNotificationItem } from "@/lib/experiences/types";
 import { getSchoolKpiSummary, getSchoolWorkspace, schoolSectionLabels, type SchoolExperienceRole, type SchoolSubscriptionView } from "@/lib/experiences/school-data";
 import {
@@ -4764,6 +4766,7 @@ export function SchoolPages({
   tenantSlug?: string | null;
   routeMode?: SchoolRouteMode;
 }) {
+  const router = useRouter();
   const workspace = getSchoolWorkspace(role, tenantSlug);
   const [enabledModuleCodes, setEnabledModuleCodes] = useState<Set<string> | null>(null);
   const { navItems, profile, branding } = workspace;
@@ -4786,6 +4789,10 @@ export function SchoolPages({
           credentials: "same-origin",
           cache: "no-store",
             });
+
+            if (redirectOnExpiredSessionResponse(response, "school", (href) => router.replace(href))) {
+              return;
+            }
 
             if (!response.ok) {
               if (!cancelled) {
@@ -4817,7 +4824,7 @@ export function SchoolPages({
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [router]);
 
   const accessLoading = enabledModuleCodes === null;
   const visibleModuleCodes = enabledModuleCodes ?? new Set<string>();

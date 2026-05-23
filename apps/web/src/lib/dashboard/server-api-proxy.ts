@@ -5,6 +5,7 @@ import { NextResponse } from "next/server";
 import { validateCsrfRequest } from "@/lib/auth/csrf";
 import { createServerAuthClient } from "@/lib/auth/server-auth-client";
 import {
+  clearExperienceSessionCookies,
   readAccessCookie,
   readExperienceSessionCookie,
   readTenantCookie,
@@ -84,10 +85,12 @@ export async function proxySchoolApiRequest(
   const accessToken = readAccessCookie(cookieStore);
 
   if ((options?.requireSchoolSession ?? true) && (!session || !accessToken)) {
-    return NextResponse.json(
+    const response = NextResponse.json(
       { message: "A signed-in session is required." },
       { status: 401 },
     );
+    clearExperienceSessionCookies(response);
+    return response;
   }
 
   const requestUrl = new URL(request.url);
@@ -142,7 +145,7 @@ export async function proxySchoolApiRequest(
     });
   }
 
-  const { response: upstreamResponse, body: responseBody, refreshedSession } =
+  const { response: upstreamResponse, body: responseBody, refreshedSession, sessionExpired } =
     await fetchWithSessionRefresh({
       accessToken,
       send: sendUpstream,
@@ -165,6 +168,11 @@ export async function proxySchoolApiRequest(
 
   if (refreshedSession) {
     setExperienceSessionCookies(response, refreshedSession);
+  }
+
+  if (sessionExpired) {
+    clearExperienceSessionCookies(response);
+    response.headers.set("x-myshule-session-expired", "1");
   }
 
   return response;

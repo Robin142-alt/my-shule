@@ -1,4 +1,5 @@
 import { getCsrfToken } from "@/lib/auth/csrf-client";
+import { ExpiredSessionError } from "@/lib/auth/session-expiry-client";
 import {
   fallbackModuleCatalog,
   sortModuleCatalog,
@@ -94,6 +95,10 @@ async function parsePlatformResponse<T>(
     | null;
 
   if (!response.ok) {
+    if (response.status === 401) {
+      throw new ExpiredSessionError("superadmin");
+    }
+
     const message =
       payload &&
       typeof payload === "object" &&
