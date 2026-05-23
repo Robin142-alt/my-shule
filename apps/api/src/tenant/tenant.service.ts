@@ -1,7 +1,10 @@
 import { BadRequestException, Injectable, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createHmac, timingSafeEqual } from 'node:crypto';
-import { TenantTrustBoundaryService } from './tenant-trust-boundary.service';
+import {
+  ResolvedTenantContext,
+  TenantTrustBoundaryService,
+} from './tenant-trust-boundary.service';
 
 @Injectable()
 export class TenantService {
@@ -15,17 +18,29 @@ export class TenantService {
     forwardedTenantId?: string | string[],
     forwardedTenantSignature?: string | string[],
   ): Promise<string> {
+    const resolved = await this.resolveTenantContextForRequest(
+      hostHeader,
+      forwardedTenantId,
+      forwardedTenantSignature,
+    );
+
+    return resolved.tenant_id;
+  }
+
+  async resolveTenantContextForRequest(
+    hostHeader?: string,
+    forwardedTenantId?: string | string[],
+    forwardedTenantSignature?: string | string[],
+  ): Promise<ResolvedTenantContext> {
     if (this.tenantTrustBoundaryService) {
-      const resolved = await this.tenantTrustBoundaryService.resolveTenantContext({
+      return this.tenantTrustBoundaryService.resolveTenantContext({
         host_header: hostHeader,
         forwarded_tenant_id: forwardedTenantId,
         forwarded_tenant_signature: forwardedTenantSignature,
       });
-
-      return resolved.tenant_id;
     }
 
-    return this.resolveTenantId(hostHeader, forwardedTenantId, forwardedTenantSignature);
+    return this.resolveTenantContext(hostHeader, forwardedTenantId, forwardedTenantSignature);
   }
 
   resolveTenantId(
@@ -33,13 +48,28 @@ export class TenantService {
     forwardedTenantId?: string | string[],
     forwardedTenantSignature?: string | string[],
   ): string {
+    return this.resolveTenantContext(
+      hostHeader,
+      forwardedTenantId,
+      forwardedTenantSignature,
+    ).tenant_id;
+  }
+
+  resolveTenantContext(
+    hostHeader?: string,
+    forwardedTenantId?: string | string[],
+    forwardedTenantSignature?: string | string[],
+  ): ResolvedTenantContext {
     const explicitTenantId = this.normalizeForwardedTenantId(forwardedTenantId);
 
     if (explicitTenantId) {
       this.assertTenantId(explicitTenantId);
 
       if (this.isTrustedForwardedTenantId(explicitTenantId, forwardedTenantSignature)) {
-        return explicitTenantId;
+        return {
+          tenant_id: explicitTenantId,
+          source: 'signed_header',
+        };
       }
     }
 
@@ -49,7 +79,10 @@ export class TenantService {
 
     if (host === 'localhost') {
       if (defaultTenantId) {
-        return defaultTenantId;
+        return {
+          tenant_id: defaultTenantId,
+          source: 'localhost_default',
+        };
       }
 
       throw new BadRequestException('DEFAULT_TENANT_ID must be configured for localhost requests');
@@ -57,7 +90,10 @@ export class TenantService {
 
     if (host === baseDomain) {
       if (defaultTenantId) {
-        return defaultTenantId;
+        return {
+          tenant_id: defaultTenantId,
+          source: 'base_domain_default',
+        };
       }
 
       throw new BadRequestException('No tenant subdomain was provided for this request');
@@ -66,17 +102,26 @@ export class TenantService {
     if (host.endsWith(`.${baseDomain}`)) {
       const subdomain = host.slice(0, -(baseDomain.length + 1));
       this.assertTenantId(subdomain);
-      return subdomain;
+      return {
+        tenant_id: subdomain,
+        source: 'subdomain',
+      };
     }
 
     if (host.endsWith('.localhost')) {
       const subdomain = host.replace(/\.localhost$/, '');
       this.assertTenantId(subdomain);
-      return subdomain;
+      return {
+        tenant_id: subdomain,
+        source: 'subdomain',
+      };
     }
 
     if (defaultTenantId) {
-      return defaultTenantId;
+      return {
+        tenant_id: defaultTenantId,
+        source: 'base_domain_default',
+      };
     }
 
     throw new BadRequestException(`Unable to derive tenant from host "${host}"`);

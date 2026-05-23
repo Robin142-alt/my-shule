@@ -1,6 +1,13 @@
 import type { AuthAudience } from '../../auth/auth.interfaces';
 import type { PoolClient } from 'pg';
 
+export type TenantResolutionSource =
+  | 'signed_header'
+  | 'subdomain'
+  | 'custom_domain'
+  | 'localhost_default'
+  | 'base_domain_default';
+
 export interface BillingAccessContextState {
   subscription_id: string | null;
   plan_code: string | null;
@@ -26,6 +33,7 @@ export interface RequestContextState {
   span_id: string;
   parent_span_id: string | null;
   tenant_id: string | null;
+  tenant_source: TenantResolutionSource | null;
   audience: AuthAudience | null;
   user_id: string;
   role: string | null;
@@ -43,10 +51,11 @@ export interface RequestContextState {
 
 export type RequestContextSeed = Omit<
   RequestContextState,
-  'trace_id' | 'span_id' | 'parent_span_id' | 'audience'
+  'trace_id' | 'span_id' | 'parent_span_id' | 'audience' | 'tenant_source'
 > & {
   trace_id?: string;
   span_id?: string;
   parent_span_id?: string | null;
   audience?: AuthAudience | null;
+  tenant_source?: TenantResolutionSource | null;
 };

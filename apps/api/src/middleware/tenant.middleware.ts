@@ -21,18 +21,21 @@ export class TenantMiddleware implements NestMiddleware {
 
     try {
       const requestContext = this.requestContext.requireStore();
-      const tenantId = await this.tenantService.resolveTenantIdForRequest(
+      const resolvedTenant = await this.tenantService.resolveTenantContextForRequest(
         request.headers.host,
         request.headers['x-tenant-id'],
         request.headers['x-tenant-signature'],
       );
+      const tenantId = resolvedTenant.tenant_id;
 
       this.requestContext.setTenantId(tenantId);
+      this.requestContext.setTenantSource(resolvedTenant.source);
 
       client = await this.databaseService.acquireClient();
       await this.databaseService.initializeRequestSession(client, {
         ...requestContext,
         tenant_id: tenantId,
+        tenant_source: resolvedTenant.source,
       });
 
       this.requestContext.setDatabaseClient(client);

@@ -632,9 +632,11 @@ export class AuthService {
   }
 
   private async resolveLoginMembership(userId: string): Promise<TenantMembershipEntity> {
-    const currentTenantId = this.requestContext.getStore()?.tenant_id;
+    const requestContext = this.requestContext.getStore();
+    const currentTenantId = requestContext?.tenant_id;
+    const tenantSource = requestContext?.tenant_source;
 
-    if (currentTenantId) {
+    if (currentTenantId && this.requiresCurrentTenantMembership(tenantSource)) {
       const currentMembership = await this.tenantMembershipsRepository.findActiveMembership(
         userId,
         currentTenantId,
@@ -658,6 +660,10 @@ export class AuthService {
     }
 
     throw new UnauthorizedException('User does not have access to an active school workspace');
+  }
+
+  private requiresCurrentTenantMembership(tenantSource: string | null | undefined): boolean {
+    return tenantSource !== 'localhost_default' && tenantSource !== 'base_domain_default';
   }
 
   private async activateResolvedTenantContext(tenantId: string): Promise<void> {

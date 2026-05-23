@@ -7,6 +7,7 @@ import {
   BillingAccessContextState,
   RequestContextSeed,
   RequestContextState,
+  TenantResolutionSource,
 } from './request-context.types';
 
 @Injectable()
@@ -18,6 +19,7 @@ export class RequestContextService {
     const normalizedContext: RequestContextState = {
       ...context,
       audience: context.audience ?? parentContext?.audience ?? null,
+      tenant_source: context.tenant_source ?? parentContext?.tenant_source ?? null,
       trace_id: context.trace_id ?? parentContext?.trace_id ?? context.request_id,
       span_id: context.span_id ?? generateSpanId(),
       parent_span_id: context.parent_span_id ?? parentContext?.span_id ?? null,
@@ -42,6 +44,10 @@ export class RequestContextService {
 
   setTenantId(tenantId: string): void {
     this.requireStore().tenant_id = tenantId;
+  }
+
+  setTenantSource(source: TenantResolutionSource | null): void {
+    this.requireStore().tenant_source = source;
   }
 
   setAudience(audience: AuthAudience | null): void {
