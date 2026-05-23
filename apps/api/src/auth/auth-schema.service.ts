@@ -609,7 +609,7 @@ export class AuthSchemaService implements OnModuleInit {
 
         IF request_path NOT LIKE '%/auth/password-recovery/request%'
           AND request_path NOT LIKE '%/auth/email-verification/request%'
-          AND request_path NOT LIKE '%/auth/invitations/accept%'
+          AND request_path NOT LIKE '%/auth/invitations%'
           AND request_path NOT LIKE '%/platform/schools%'
         THEN
           RAISE EXCEPTION 'Email outbox delivery status can only be updated by auth email routes'

@@ -133,8 +133,14 @@ export class PlatformOnboardingService {
       `,
     );
 
+    const enabledModulesByTenantId = await this.getEnabledModulesByTenantId(
+      result.rows.map((row) => row.tenant_id),
+    );
+
     return result.rows.map((row) =>
-      this.toPlatformSchoolResponse(row, this.deliveryResultForOutboxRow(row)),
+      this.toPlatformSchoolResponse(row, this.deliveryResultForOutboxRow(row), {
+        enabledModules: enabledModulesByTenantId.get(row.tenant_id) ?? [],
+      }),
     );
   }
 
@@ -263,10 +269,12 @@ export class PlatformOnboardingService {
     });
 
     const delivery = await this.deliverInvitation(transactionResult.invitation);
+    const enabledModules = await this.getEnabledModulesForTenant(tenantId);
 
     return this.toPlatformSchoolResponse(transactionResult.tenant, delivery, {
       adminEmail: transactionResult.adminEmail,
       inviteExpiresAt: transactionResult.invitation.expiresAt,
+      enabledModules,
     });
   }
 
@@ -1014,6 +1022,36 @@ export class PlatformOnboardingService {
     });
 
     return moduleCodes;
+  }
+
+  private async getEnabledModulesForTenant(tenantId: string): Promise<string[]> {
+    if (!this.moduleAccessService) {
+      return [];
+    }
+
+    return this.moduleAccessService.listEnabledModulesForTenant(tenantId);
+  }
+
+  private async getEnabledModulesByTenantId(tenantIds: string[]): Promise<Map<string, string[]>> {
+    const enabledModulesByTenantId = new Map<string, string[]>();
+
+    if (!this.moduleAccessService || tenantIds.length === 0) {
+      return enabledModulesByTenantId;
+    }
+
+    const uniqueTenantIds = Array.from(new Set(tenantIds));
+    const rows = await Promise.all(
+      uniqueTenantIds.map(async (tenantId) => [
+        tenantId,
+        await this.moduleAccessService!.listEnabledModulesForTenant(tenantId),
+      ] as const),
+    );
+
+    for (const [tenantId, moduleCodes] of rows) {
+      enabledModulesByTenantId.set(tenantId, moduleCodes);
+    }
+
+    return enabledModulesByTenantId;
   }
 
   private deliveryResultForOutboxRow(row: TenantRow): InvitationDeliveryResult {

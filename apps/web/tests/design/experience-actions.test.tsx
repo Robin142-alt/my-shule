@@ -152,6 +152,73 @@ describe("experience actions", () => {
     expect(screen.queryByRole("button", { name: /open tenant/i })).not.toBeInTheDocument();
   });
 
+  it("keeps a visible logout button on the superadmin dashboard", () => {
+    renderWithProviders(createElement(SuperadminPages, { section: "overview" }));
+
+    expect(screen.getByRole("button", { name: /logout/i })).toBeVisible();
+  });
+
+  it("shows persisted live school and module totals on the superadmin dashboard after reload", async () => {
+    const originalFetch = global.fetch;
+    const fetchMock = jest.fn((input: RequestInfo | URL) => {
+      const url = typeof input === "string" ? input : input.toString();
+
+      if (url.includes("/api/platform/schools")) {
+        return Promise.resolve(jsonResponse([
+          {
+            tenant_id: "green-valley",
+            school_name: "Green Valley School",
+            subdomain: "green-valley",
+            status: "active",
+            invitation_sent: true,
+            invitation_status: "sent",
+            invitation_message: "Invitation sent.",
+            can_resend_invite: false,
+            invite_expires_at: "2026-05-18T00:00:00.000Z",
+            admin_email: "principal@example.test",
+            created_at: "2026-05-11T00:00:00.000Z",
+            enabled_modules: ["students", "finance", "communication_sms"],
+          },
+          {
+            tenant_id: "lake-view",
+            school_name: "Lake View School",
+            subdomain: "lake-view",
+            status: "active",
+            invitation_sent: true,
+            invitation_status: "sent",
+            invitation_message: "Invitation sent.",
+            can_resend_invite: false,
+            invite_expires_at: "2026-05-19T00:00:00.000Z",
+            admin_email: "admin@example.test",
+            created_at: "2026-05-12T00:00:00.000Z",
+            enabled_modules: ["students", "exams"],
+          },
+        ]));
+      }
+
+      if (url.includes("/api/platform/modules")) {
+        return Promise.resolve(jsonResponse([]));
+      }
+
+      return Promise.resolve(jsonResponse({}));
+    });
+
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    try {
+      renderWithProviders(createElement(SuperadminPages, { section: "overview" }));
+
+      await waitFor(() =>
+        expect(screen.getAllByTestId("kpi-value")[0]).toHaveTextContent("2"),
+      );
+      expect(screen.getAllByTestId("kpi-value")[1]).toHaveTextContent("2");
+      expect(screen.getByText(/5 enabled modules across live schools/i)).toBeVisible();
+      expect(screen.getAllByText(/3 enabled/i).length).toBeGreaterThan(0);
+    } finally {
+      global.fetch = originalFetch;
+    }
+  });
+
   it("shares a portal fee statement through a real copy flow", async () => {
     const user = userEvent.setup();
     const writeText = jest.fn().mockResolvedValue(undefined);

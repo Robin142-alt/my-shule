@@ -84,6 +84,7 @@ test('AuthSchemaService persists safe email outbox delivery diagnostics for plat
   assert.match(bootstrapSql, /provider_status_code integer/);
   assert.match(bootstrapSql, /input_error_code text DEFAULT NULL/);
   assert.match(bootstrapSql, /input_provider_status_code integer DEFAULT NULL/);
+  assert.match(bootstrapSql, /request_path NOT LIKE '%\/auth\/invitations%'/);
   assert.match(bootstrapSql, /\/platform\/schools/);
   assert.match(bootstrapSql, /ck_auth_email_outbox_provider_status_code/);
 });

@@ -493,6 +493,59 @@ test('PlatformOnboardingService unlocks stale Resend-domain failures after produ
   assert.match(response[0]?.invitation_message ?? '', /resend it/i);
 });
 
+test('PlatformOnboardingService lists schools with persisted enabled module codes', async () => {
+  const moduleLookups: string[] = [];
+  const service = new PlatformOnboardingService(
+    {
+      query: async () => ({
+        rows: [
+          {
+            tenant_id: 'green-valley',
+            name: 'Green Valley School',
+            subdomain: 'green-valley',
+            status: 'active',
+            created_at: new Date('2026-05-11T00:00:00.000Z'),
+            admin_email: 'principal@example.test',
+            invitation_status: 'sent',
+            invite_expires_at: new Date('2026-05-18T00:00:00.000Z'),
+          },
+          {
+            tenant_id: 'lake-view',
+            name: 'Lake View School',
+            subdomain: 'lake-view',
+            status: 'active',
+            created_at: new Date('2026-05-12T00:00:00.000Z'),
+            admin_email: 'admin@example.test',
+            invitation_status: 'sent',
+            invite_expires_at: new Date('2026-05-19T00:00:00.000Z'),
+          },
+        ],
+      }),
+    } as never,
+    { ensureTenantAuthorizationBaseline: async () => undefined } as never,
+    {
+      getTransactionalEmailStatus: () => ({ provider: 'resend', status: 'configured' }),
+      hasLikelyProductionSenderConfigured: () => true,
+    } as never,
+    { get: () => undefined } as never,
+    { getStore: () => ({ user_id: 'platform-owner' }) } as never,
+    {
+      listEnabledModulesForTenant: async (tenantId: string) => {
+        moduleLookups.push(tenantId);
+        return tenantId === 'green-valley'
+          ? ['students', 'finance', 'communication_sms']
+          : ['students', 'exams'];
+      },
+    } as never,
+  );
+
+  const response = await service.listSchools();
+
+  assert.deepEqual(moduleLookups, ['green-valley', 'lake-view']);
+  assert.deepEqual(response[0]?.enabled_modules, ['students', 'finance', 'communication_sms']);
+  assert.deepEqual(response[1]?.enabled_modules, ['students', 'exams']);
+});
+
 test('PlatformOnboardingService hard deletes an empty failed-invite school after slug confirmation', async () => {
   const queries: Array<{ text: string; values: unknown[] }> = [];
 

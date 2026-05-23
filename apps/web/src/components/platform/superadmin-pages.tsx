@@ -2,10 +2,12 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   AlertTriangle,
   ArrowRight,
   ExternalLink,
+  LogOut,
   MailCheck,
   Plus,
   RotateCcw,
@@ -228,6 +230,75 @@ function mapPlatformSchoolToTenantRow(row: PlatformSchool): PlatformTenantRow {
   };
 }
 
+function buildLiveSuperadminKpis(schools: PlatformSchool[]) {
+  const totalSchools = schools.length;
+  const activeSchools = schools.filter((school) => school.status === "active").length;
+  const enabledModuleCount = schools.reduce(
+    (total, school) => total + (school.enabled_modules?.length ?? 0),
+    0,
+  );
+  const uniqueModuleCount = new Set(schools.flatMap((school) => school.enabled_modules ?? [])).size;
+
+  return superadminKpis.map((metric) => {
+    if (metric.id === "schools") {
+      return {
+        ...metric,
+        value: String(totalSchools),
+        helper:
+          totalSchools > 0
+            ? "Loaded from live platform schools after the latest refresh."
+            : "No schools have been onboarded yet.",
+        trend: `${totalSchools}`,
+      };
+    }
+
+    if (metric.id === "active-schools") {
+      return {
+        ...metric,
+        value: String(activeSchools),
+        helper:
+          enabledModuleCount > 0
+            ? `${enabledModuleCount} enabled modules across live schools (${uniqueModuleCount} unique).`
+            : "No enabled school modules have been assigned yet.",
+        trend: `${activeSchools}`,
+      };
+    }
+
+    return metric;
+  });
+}
+
+function SuperadminLogoutButton() {
+  const router = useRouter();
+  const [isSigningOut, setIsSigningOut] = useState(false);
+
+  async function signOut() {
+    setIsSigningOut(true);
+
+    try {
+      await fetch("/api/auth/logout", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-myshule-csrf": await getCsrfToken(),
+        },
+        credentials: "same-origin",
+        body: JSON.stringify({ audience: "superadmin" }),
+      });
+    } finally {
+      router.push("/superadmin/login");
+      setIsSigningOut(false);
+    }
+  }
+
+  return (
+    <Button variant="secondary" disabled={isSigningOut} onClick={() => void signOut()}>
+      <LogOut className="h-4 w-4" />
+      {isSigningOut ? "Logging out" : "Logout"}
+    </Button>
+  );
+}
+
 function ModuleAllocationEditor({
   tenant,
   catalog,
@@ -392,6 +463,7 @@ function ModuleAllocationEditor({
 
 function TenantsTable() {
   const [rows, setRows] = useState<PlatformTenantRow[]>(tenantRows);
+  const [loadSchoolsError, setLoadSchoolsError] = useState<string | null>(null);
   const [selectedTenantId, setSelectedTenantId] = useState<string | null>(null);
   const [resetMessage, setResetMessage] = useState<string | null>(null);
   const [resendMessage, setResendMessage] = useState<string | null>(null);
@@ -427,10 +499,16 @@ function TenantsTable() {
 
         if (!cancelled) {
           setRows(liveRows.map(mapPlatformSchoolToTenantRow));
+          setLoadSchoolsError(null);
         }
-      } catch {
+      } catch (error) {
         if (!cancelled) {
-          setRows(tenantRows);
+          setRows((currentRows) => (currentRows.length > 0 ? currentRows : tenantRows));
+          setLoadSchoolsError(
+            error instanceof Error
+              ? error.message
+              : "Live platform schools could not be loaded.",
+          );
         }
       } finally {
         if (!cancelled) {
@@ -755,6 +833,11 @@ function TenantsTable() {
       {resendMessage && !selectedTenant ? (
         <div className="mb-4 rounded-[var(--radius-sm)] border border-warning/20 bg-warning/10 px-4 py-3 text-sm text-foreground">
           {resendMessage}
+        </div>
+      ) : null}
+      {loadSchoolsError ? (
+        <div className="mb-4 rounded-[var(--radius-sm)] border border-warning/20 bg-warning/10 px-4 py-3 text-sm text-foreground">
+          {loadSchoolsError}
         </div>
       ) : null}
       {deleteMessage ? (
@@ -2018,14 +2101,39 @@ function SettingsPage({ routeMode }: { routeMode: SuperadminRouteMode }) {
 }
 
 function SuperadminOverview({ routeMode }: { routeMode: SuperadminRouteMode }) {
+  const [metrics, setMetrics] = useState(superadminKpis);
   const quickActions = superadminQuickActions.map((action) => ({
     ...action,
     href: mapSuperadminHref(action.href, routeMode),
   }));
 
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadOverviewMetrics() {
+      try {
+        const liveRows = await fetchPlatformSchools();
+
+        if (!cancelled) {
+          setMetrics(buildLiveSuperadminKpis(liveRows));
+        }
+      } catch {
+        if (!cancelled) {
+          setMetrics(superadminKpis);
+        }
+      }
+    }
+
+    void loadOverviewMetrics();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   return (
     <div className="space-y-6">
-      <MetricGrid items={superadminKpis} columns="three" />
+      <MetricGrid items={metrics} columns="three" />
       <QuickActionBar actions={quickActions} />
       <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
         <div className="space-y-6">
@@ -2137,12 +2245,15 @@ export function SuperadminPages({
       profile={superadminProfile}
       notifications={notifications}
       actions={
-        <Link href={buildSuperadminHref("infrastructure", routeMode)}>
-          <Button variant="secondary">
-            <ExternalLink className="h-4 w-4" />
-            Platform status
-          </Button>
-        </Link>
+        <>
+          <Link href={buildSuperadminHref("infrastructure", routeMode)}>
+            <Button variant="secondary">
+              <ExternalLink className="h-4 w-4" />
+              Platform status
+            </Button>
+          </Link>
+          <SuperadminLogoutButton />
+        </>
       }
     >
       {normalizedSection === "overview" ? <SuperadminOverview routeMode={routeMode} /> : null}
