@@ -180,6 +180,44 @@ describe("enterprise authentication flows", () => {
     );
   });
 
+  test("generic school login lets the backend resolve the invited school membership", async () => {
+    const user = userEvent.setup();
+
+    mockSecureLogin({
+        redirectTo: "/school/admin",
+        session: {
+          audience: "school",
+          homePath: "/school/admin",
+          role: "admin",
+          tenantSlug: "school-alpha",
+          userLabel: "school.admin@example.invalid",
+        },
+    });
+
+    renderWithProviders(
+      <SchoolLoginView
+        resolution={resolveSchoolBranding("myshule.online")}
+      />,
+    );
+
+    await user.type(
+      screen.getByLabelText(/email address/i),
+      "school.admin@example.invalid",
+    );
+    await user.type(screen.getByLabelText(/^password$/i), "managed-by-vault");
+    await user.click(screen.getByRole("button", { name: /sign in securely/i }));
+
+    await waitFor(() =>
+      expect(routerPushMock).toHaveBeenCalledWith("/school/admin"),
+    );
+
+    const loginCall = fetchMock.mock.calls.find(([url]) => url === "/api/auth/login");
+    expect(JSON.parse(String(loginCall?.[1]?.body))).toMatchObject({
+      audience: "school",
+      tenantSlug: null,
+    });
+  });
+
   test("does not expose portal credentials and signs a student in", async () => {
     const user = userEvent.setup();
 

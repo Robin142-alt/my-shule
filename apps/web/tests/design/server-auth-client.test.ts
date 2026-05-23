@@ -200,6 +200,45 @@ describe("server auth client production gateway", () => {
     );
   });
 
+  it("does not infer the public apex domain as a school tenant during sign-in", async () => {
+    process.env.NEXT_PUBLIC_API_BASE_URL = "https://api.example.invalid";
+    const fetchMock = jest.mocked(global.fetch).mockResolvedValue(
+      jsonResponse({
+        tokens: {
+          access_token: "access-token",
+          refresh_token: "refresh-token",
+        },
+        user: {
+          user_id: "user-school-admin",
+          tenant_id: "school-alpha",
+          role: "admin",
+          audience: "school",
+          email: "admin@example.invalid",
+          display_name: "School Admin",
+          permissions: ["students:read"],
+          session_id: "session-school-admin",
+        },
+      }),
+    );
+    const client = createServerAuthClient(buildRequest("myshule.online"));
+
+    const session = await client.login({
+      audience: "school",
+      identifier: "admin@example.invalid",
+      password: "ManagedByPasswordVault!42",
+    });
+
+    expect(session.tenantSlug).toBe("school-alpha");
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://api.example.invalid/auth/login",
+      expect.objectContaining({
+        headers: expect.not.objectContaining({
+          "x-tenant-id": expect.any(String),
+        }),
+      }),
+    );
+  });
+
   it("routes school staff to the backend tenant context and role home", async () => {
     process.env.NEXT_PUBLIC_API_BASE_URL = "https://api.example.invalid";
     const fetchMock = jest.mocked(global.fetch).mockResolvedValue(

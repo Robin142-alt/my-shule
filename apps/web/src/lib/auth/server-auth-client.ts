@@ -1,6 +1,7 @@
 import type { LiveAuthUser } from "@/lib/dashboard/api-client";
 import { getDashboardApiBaseUrl } from "@/lib/dashboard/api-client";
 import type { ExperienceAudience } from "@/lib/auth/experience-audience";
+import { resolveExperienceHost } from "@/lib/auth/experience-routing";
 import { normalizeMfaCode } from "@/lib/auth/mfa-challenge";
 import { normalizeSchoolExperienceRole } from "@/lib/auth/school-role-normalization";
 import {
@@ -40,12 +41,8 @@ type CookieReader = {
 function inferTenantSlug(request: Request) {
   const host = request.headers.get("host")?.split(":")[0].trim().toLowerCase() ?? null;
 
-  if (!host || host === "localhost" || host === "127.0.0.1") {
-    return null;
-  }
-
-  const parts = host.split(".");
-  return parts.length > 1 ? (parts[0] ?? null) : null;
+  const resolution = resolveExperienceHost(host);
+  return resolution.experience === "school" ? resolution.tenantSlug : null;
 }
 
 function unauthorized(message: string) {

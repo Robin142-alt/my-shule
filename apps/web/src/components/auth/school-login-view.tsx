@@ -45,8 +45,9 @@ export function SchoolLoginView({
 }) {
   const router = useRouter();
   const [rememberMe, setRememberMe] = useState(true);
+  const resolvedTenantSlug = resolution.status === "resolved" ? resolution.requestedSlug : null;
   const authSession = useExperienceSession("school", {
-    tenantSlug: resolution.requestedSlug ?? resolution.branding.slug,
+    tenantSlug: resolvedTenantSlug,
   });
   const {
     register,
@@ -106,7 +107,7 @@ export function SchoolLoginView({
         identifier: values.identifier.trim(),
         password: values.password,
         verificationCode: mfaRequired ? normalizedVerificationCode : undefined,
-        tenantSlug: resolution.requestedSlug ?? resolution.branding.slug,
+        tenantSlug: resolvedTenantSlug,
       });
       void router.push(result.redirectTo ?? "/dashboard");
     } catch (error) {
