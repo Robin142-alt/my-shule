@@ -34,6 +34,7 @@ export type DashboardRepairPatchType =
   | 'inject_exception_layer'
   | 'inject_workflow_entry'
   | 'repair_locked_state'
+  | 'relocate_widget'
   | 'transform_widget';
 
 export const requiredRepairWidgetStates = ['ACTIVE', 'EMPTY', 'LOCKED', 'DEGRADED', 'FAILED', 'LOADING'] as const;
@@ -602,6 +603,40 @@ function repairDashboardUxHealth(
           before: null,
           after: emptyStateAction,
           reason: 'Empty widget needs a start-here workflow instead of a dead end',
+          triggerSource: `${state.uiDashboardState.dashboardId}:${widget.widgetId}`,
+        }));
+      }
+    }
+
+    if (entry.classification === 'DEAD_WEIGHT' && widget.relocationTarget) {
+      const issueId = `dead_weight_${widget.widgetId}`;
+      const relocation = {
+        widgetId: widget.widgetId,
+        target: widget.relocationTarget,
+        reason: entry.reason,
+      };
+      const dataLayerEntry = `${widget.widgetId}: Relocate to ${widget.relocationTarget}`;
+      const hasEquivalentRelocation = existingUx.dataLayer.includes(dataLayerEntry)
+        || existingUx.relocations.some((existingRelocation) =>
+          existingRelocation.widgetId === relocation.widgetId
+          && existingRelocation.target === relocation.target,
+        );
+
+      if (!existingUx.dataLayer.includes(dataLayerEntry)) {
+        addUniqueString(proposedDataLayer, dataLayerEntry);
+      }
+
+      if (!hasEquivalentRelocation) {
+        addUniqueString(issuesDetected, issueId);
+        addUniqueString(repairsApplied.relocatedWidgets, widget.widgetId);
+        addDashboardRepairPatch(repairPatches, createDashboardRepairPatch({
+          patchId: `${issueId}.relocate_widget`,
+          issueId,
+          patchType: 'relocate_widget',
+          path: dashboardWidgetRecoveryPath(widget.widgetId, 'relocation'),
+          before: null,
+          after: relocation,
+          reason: 'Dead-weight widget should move to a reporting, analytics, or drill-down surface',
           triggerSource: `${state.uiDashboardState.dashboardId}:${widget.widgetId}`,
         }));
       }

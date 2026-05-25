@@ -427,6 +427,92 @@ test('AutoRepairAgent emits patch plans for LOCKED and EMPTY widget operational 
   assert.equal(report.systemStateAfterFix.uiDashboardState.ux, undefined);
 });
 
+test('AutoRepairAgent emits relocation patches for dead-weight widgets without deleting them', () => {
+  const report = repairMyShuleSnapshot(snapshot({
+    moduleAssignments: {
+      finance: 'ENABLED',
+    },
+    capabilityMap: {
+      'finance:read': true,
+    },
+    widgetRegistry: {
+      version: '2026.05',
+      widgets: [
+        {
+          widgetId: 'finance.monthlyTrend',
+          name: 'Monthly Trend',
+          moduleSource: 'finance',
+          capabilitiesRequired: ['finance:read'],
+          eventSubscriptions: [],
+          states: {
+            ACTIVE: { label: 'Active', visibility: 'VISIBLE' },
+            EMPTY: { label: 'Empty', visibility: 'VISIBLE' },
+            LOCKED: { label: 'Locked', visibility: 'DISABLED' },
+            DEGRADED: { label: 'Degraded', visibility: 'READONLY', retryable: true },
+            FAILED: { label: 'Failed', visibility: 'VISIBLE', retryable: true },
+            LOADING: { label: 'Loading', visibility: 'VISIBLE' },
+          },
+          actions: [],
+        },
+      ],
+    },
+    uiDashboardState: {
+      dashboardId: 'finance-analytics-dashboard',
+      role: 'bursar',
+      staticLayout: true,
+      widgets: [
+        {
+          widgetId: 'finance.monthlyTrend',
+          state: 'ACTIVE',
+          visible: true,
+          moduleSource: 'finance',
+          capabilitiesRequired: ['finance:read'],
+          eventSubscriptions: [],
+          relocationTarget: 'REPORTS',
+        },
+      ],
+      operationalIntent: 'Bursar can act on finance exceptions, not browse static trend reports',
+    },
+    eventBindings: {},
+    eventLogs: [],
+    failedActionsLog: [],
+  }));
+
+  assert.deepEqual(report.dashboardHealth.widgetClassifications, [
+    {
+      widgetId: 'finance.monthlyTrend',
+      classification: 'DEAD_WEIGHT',
+      reason: 'Widget has no action, decision, exception, or workflow contribution',
+    },
+  ]);
+  assert.deepEqual(report.dashboardHealth.repairsApplied.relocatedWidgets, ['finance.monthlyTrend']);
+  assert.ok(report.dashboardHealth.issuesDetected.includes('dead_weight_finance.monthlyTrend'));
+  assert.deepEqual(
+    report.dashboardHealth.dashboardStructure.dataLayer,
+    ['finance.monthlyTrend: Relocate to REPORTS'],
+  );
+
+  const relocationPatch = report.dashboardHealth.repairPatches.find(
+    (patch) => patch.patchId === 'dead_weight_finance.monthlyTrend.relocate_widget',
+  );
+
+  assert.equal(relocationPatch?.patchType, 'relocate_widget');
+  assert.equal(relocationPatch?.issueId, 'dead_weight_finance.monthlyTrend');
+  assert.equal(relocationPatch?.operation.path, 'dashboard.widgets.finance.monthlyTrend.relocation');
+  assert.deepEqual(relocationPatch?.operation.after, {
+    widgetId: 'finance.monthlyTrend',
+    target: 'REPORTS',
+    reason: 'Widget has no action, decision, exception, or workflow contribution',
+  });
+  assert.equal(relocationPatch?.confidence, 0.95);
+  assert.equal(relocationPatch?.reversible, true);
+  assert.equal(relocationPatch?.requiresReview, false);
+
+  assert.equal(report.systemStateAfterFix.uiDashboardState.widgets[0].visible, true);
+  assert.equal(report.systemStateAfterFix.uiDashboardState.widgets[0].primarySurface, undefined);
+  assert.equal(report.systemStateAfterFix.uiDashboardState.ux, undefined);
+});
+
 test('AutoRepairAgent recognizes semantically equivalent dashboard repair actions with different ids', () => {
   const input = kpiOnlyDashboardSnapshot();
   input.uiDashboardState.ux = {
