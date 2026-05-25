@@ -31,6 +31,7 @@ export type DashboardRepairPatchType =
   | 'inject_action_layer'
   | 'inject_decision_layer'
   | 'inject_exception_layer'
+  | 'inject_workflow_entry'
   | 'transform_widget';
 
 export const requiredRepairWidgetStates = ['ACTIVE', 'EMPTY', 'LOCKED', 'DEGRADED', 'FAILED', 'LOADING'] as const;
@@ -85,17 +86,24 @@ export interface AutoRepairDashboardUxState {
   relocations: AutoRepairDashboardRelocation[];
 }
 
+export interface AutoRepairDashboardPatchOperation {
+  path: string;
+  before: unknown;
+  after: unknown;
+}
+
 export interface AutoRepairDashboardRepairPatch {
   patchId: string;
-  issueId: string;
   patchType: DashboardRepairPatchType;
   target: string;
+  issueId: string;
+  operation: AutoRepairDashboardPatchOperation;
+  inverse: AutoRepairDashboardPatchOperation;
+  confidence: number;
   reason: string;
-  beforeState: string;
-  afterState: string;
-  reversible: boolean;
-  trace: string[];
-  auditLog: string[];
+  triggerSource: string;
+  reversible: true;
+  requiresReview: boolean;
 }
 
 export interface AutoRepairWidgetDefinition {
@@ -514,7 +522,12 @@ function repairDashboardUxHealth(
   const repairsApplied = emptyDashboardRepairsApplied();
   const issuesDetected: string[] = [];
   const repairPatches: AutoRepairDashboardRepairPatch[] = [];
-  const ux = ensureDashboardUx(state.uiDashboardState);
+  const existingUx = state.uiDashboardState.ux ?? emptyDashboardUxState();
+  const proposedActionLayer = unique([...existingUx.actionLayer]);
+  const proposedDecisionLayer = unique([...existingUx.decisionLayer]);
+  const proposedExceptionLayer = unique([...existingUx.exceptionLayer]);
+  const proposedDataLayer = unique([...existingUx.dataLayer]);
+  const proposedWorkflowEntries = existingUx.workflowEntries.map((entry) => ({ ...entry }));
   const registryById = new Map(state.widgetRegistry.widgets.map((widget) => [widget.widgetId, widget]));
   const widgetClassifications = state.uiDashboardState.widgets.map((widget) =>
     classifyDashboardWidget(widget, registryById.get(widget.widgetId)),
@@ -528,96 +541,117 @@ function repairDashboardUxHealth(
 
     if (entry.classification === 'PASSIVE' && (widget.intents ?? []).includes('METRIC')) {
       const issueId = `passive_${widget.widgetId}`;
-      issuesDetected.push(issueId);
-      addUniqueString(repairsApplied.convertedKpisToActions, widget.widgetId);
-      addDashboardRepairPatch(repairPatches, {
-        patchId: `${issueId}.transform_widget`,
-        issueId,
-        patchType: 'transform_widget',
-        target: widget.widgetId,
-        reason: 'KPI widget must expose an operational recovery path',
-        beforeState: 'passive_metric_widget',
-        afterState: 'actionable_operational_widget',
-        reversible: true,
-        trace: [state.uiDashboardState.dashboardId, widget.widgetId, 'dashboard_health'],
-        auditLog: [`Planned reversible transform for ${widget.widgetId}`],
-      });
-      addUniqueString(ux.actionLayer, `${widget.widgetId}: Trigger recovery action`);
-      addDashboardRepairPatch(repairPatches, {
-        patchId: `${issueId}.action_layer`,
-        issueId,
-        patchType: 'inject_action_layer',
-        target: `${state.uiDashboardState.dashboardId}.actionLayer`,
-        reason: 'Provide a triggerable recovery action from the KPI',
-        beforeState: 'missing_action_layer_entry',
-        afterState: `${widget.widgetId}: Trigger recovery action`,
-        reversible: true,
-        trace: [state.uiDashboardState.dashboardId, widget.widgetId, 'action_layer'],
-        auditLog: [`Planned action layer injection for ${widget.widgetId}`],
-      });
-      addUniqueString(ux.decisionLayer, `${widget.widgetId}: Recommended next step`);
-      addDashboardRepairPatch(repairPatches, {
-        patchId: `${issueId}.decision_layer`,
-        issueId,
-        patchType: 'inject_decision_layer',
-        target: `${state.uiDashboardState.dashboardId}.decisionLayer`,
-        reason: 'Attach a decision prompt to the KPI context',
-        beforeState: 'missing_decision_layer_entry',
-        afterState: `${widget.widgetId}: Recommended next step`,
-        reversible: true,
-        trace: [state.uiDashboardState.dashboardId, widget.widgetId, 'decision_layer'],
-        auditLog: [`Planned decision layer injection for ${widget.widgetId}`],
-      });
-      addUniqueString(ux.exceptionLayer, `${widget.widgetId}: Review overdue or risky item`);
-      addDashboardRepairPatch(repairPatches, {
-        patchId: `${issueId}.exception_layer`,
-        issueId,
-        patchType: 'inject_exception_layer',
-        target: `${state.uiDashboardState.dashboardId}.exceptionLayer`,
-        reason: 'Expose the exception requiring operational resolution',
-        beforeState: 'missing_exception_layer_entry',
-        afterState: `${widget.widgetId}: Review overdue or risky item`,
-        reversible: true,
-        trace: [state.uiDashboardState.dashboardId, widget.widgetId, 'exception_layer'],
-        auditLog: [`Planned exception layer injection for ${widget.widgetId}`],
-      });
-      addDashboardAction(ux.actions, {
+      const actionLayerEntry = `${widget.widgetId}: Trigger recovery action`;
+      const decisionLayerEntry = `${widget.widgetId}: Recommended next step`;
+      const exceptionLayerEntry = `${widget.widgetId}: Review overdue or risky item`;
+      const action = {
         actionId: `${widget.widgetId}.trigger-action`,
         label: 'Trigger recovery action',
-        kind: 'TRIGGER_ACTION',
+        kind: 'TRIGGER_ACTION' as const,
         sourceWidgetId: widget.widgetId,
         target: `${widget.moduleSource}.workflow.create`,
-      });
+      };
+      const actionPath = dashboardPath('ux', 'actions', action.actionId);
+
+      if (!existingUx.actions.some((existingAction) => existingAction.actionId === action.actionId)) {
+        addUniqueString(issuesDetected, issueId);
+        addUniqueString(repairsApplied.convertedKpisToActions, widget.widgetId);
+        addDashboardRepairPatch(repairPatches, createDashboardRepairPatch({
+          patchId: `${issueId}.transform_widget`,
+          issueId,
+          patchType: 'transform_widget',
+          path: actionPath,
+          before: null,
+          after: action,
+          reason: 'KPI widget must expose an operational recovery path',
+          triggerSource: `${state.uiDashboardState.dashboardId}:${widget.widgetId}`,
+        }));
+      }
+
+      if (!existingUx.actionLayer.includes(actionLayerEntry)) {
+        addUniqueString(issuesDetected, issueId);
+        addUniqueString(proposedActionLayer, actionLayerEntry);
+        addDashboardRepairPatch(repairPatches, createDashboardRepairPatch({
+          patchId: `${issueId}.action_layer`,
+          issueId,
+          patchType: 'inject_action_layer',
+          path: dashboardPath('ux', 'actionLayer', widget.widgetId),
+          before: null,
+          after: actionLayerEntry,
+          reason: 'Provide a triggerable recovery action from the KPI',
+          triggerSource: `${state.uiDashboardState.dashboardId}:${widget.widgetId}`,
+        }));
+      }
+
+      if (!existingUx.decisionLayer.includes(decisionLayerEntry)) {
+        addUniqueString(issuesDetected, issueId);
+        addUniqueString(proposedDecisionLayer, decisionLayerEntry);
+        addDashboardRepairPatch(repairPatches, createDashboardRepairPatch({
+          patchId: `${issueId}.decision_layer`,
+          issueId,
+          patchType: 'inject_decision_layer',
+          path: dashboardPath('ux', 'decisionLayer', widget.widgetId),
+          before: null,
+          after: decisionLayerEntry,
+          reason: 'Attach a decision prompt to the KPI context',
+          triggerSource: `${state.uiDashboardState.dashboardId}:${widget.widgetId}`,
+        }));
+      }
+
+      if (!existingUx.exceptionLayer.includes(exceptionLayerEntry)) {
+        addUniqueString(issuesDetected, issueId);
+        addUniqueString(proposedExceptionLayer, exceptionLayerEntry);
+        addDashboardRepairPatch(repairPatches, createDashboardRepairPatch({
+          patchId: `${issueId}.exception_layer`,
+          issueId,
+          patchType: 'inject_exception_layer',
+          path: dashboardPath('ux', 'exceptionLayer', widget.widgetId),
+          before: null,
+          after: exceptionLayerEntry,
+          reason: 'Expose the exception requiring operational resolution',
+          triggerSource: `${state.uiDashboardState.dashboardId}:${widget.widgetId}`,
+        }));
+      }
     }
   }
 
   for (const kind of requiredWorkflowKinds) {
-    if (!ux.workflowEntries.some((entry) => entry.kind === kind)) {
+    if (!existingUx.workflowEntries.some((entry) => entry.kind === kind)) {
       const workflowId = `${state.uiDashboardState.dashboardId}.${kind.toLowerCase()}-workflow`;
       const issueId = `missing_workflow_${kind.toLowerCase()}`;
-      issuesDetected.push(issueId);
-      addDashboardWorkflowEntry(ux.workflowEntries, {
+      const workflowEntry = {
         workflowId,
         label: `${kind[0]}${kind.slice(1).toLowerCase()} workflow`,
         kind,
-      });
+      };
+      addUniqueString(issuesDetected, issueId);
+      proposedWorkflowEntries.push(workflowEntry);
       addUniqueString(repairsApplied.addedWorkflows, workflowId);
-      addDashboardRepairPatch(repairPatches, {
+      addDashboardRepairPatch(repairPatches, createDashboardRepairPatch({
         patchId: `${issueId}.workflow_entry`,
         issueId,
-        patchType: 'inject_action_layer',
-        target: `${state.uiDashboardState.dashboardId}.workflowEntries.${kind.toLowerCase()}`,
+        patchType: 'inject_workflow_entry',
+        path: dashboardPath('ux', 'workflowEntries', workflowId),
+        before: null,
+        after: workflowEntry,
         reason: `Ensure ${kind.toLowerCase()} workflow continuity is available`,
-        beforeState: 'missing_workflow_entry',
-        afterState: workflowId,
-        reversible: true,
-        trace: [state.uiDashboardState.dashboardId, workflowId, 'workflow_continuity'],
-        auditLog: [`Planned ${kind.toLowerCase()} workflow continuity injection for ${workflowId}`],
-      });
+        triggerSource: `${state.uiDashboardState.dashboardId}:workflow_continuity`,
+      }));
     }
   }
 
-  const scores = scoreDashboardHealth(state.uiDashboardState, widgetClassifications);
+  const dashboardStructure = {
+    actionLayer: proposedActionLayer,
+    decisionLayer: proposedDecisionLayer,
+    exceptionLayer: proposedExceptionLayer,
+    dataLayer: proposedDataLayer,
+  };
+  const scores = scoreDashboardHealth(
+    state.uiDashboardState,
+    widgetClassifications,
+    dashboardStructure,
+    proposedWorkflowEntries,
+  );
   if (scores.actionabilityScore < 70 || scores.dataDumpRiskScore > 30) {
     diagnosis.push({
       issueType: 'UI',
@@ -644,48 +678,14 @@ function repairDashboardUxHealth(
     repairPatches,
     widgetClassifications,
     repairsApplied,
-    dashboardStructure: {
-      actionLayer: [...ux.actionLayer],
-      decisionLayer: [...ux.decisionLayer],
-      exceptionLayer: [...ux.exceptionLayer],
-      dataLayer: [...ux.dataLayer],
-    },
+    dashboardStructure,
     finalStateDescription: `The ${state.uiDashboardState.role} dashboard now enables immediate recovery action, decision review, and exception resolution.`,
   };
-}
-
-function ensureDashboardUx(dashboard: AutoRepairDashboardState): AutoRepairDashboardUxState {
-  if (!dashboard.ux) {
-    dashboard.ux = emptyDashboardUxState();
-  }
-
-  dashboard.ux.actionLayer = unique([...dashboard.ux.actionLayer]);
-  dashboard.ux.decisionLayer = unique([...dashboard.ux.decisionLayer]);
-  dashboard.ux.exceptionLayer = unique([...dashboard.ux.exceptionLayer]);
-  dashboard.ux.dataLayer = unique([...dashboard.ux.dataLayer]);
-  dashboard.ux.actions = uniqueBy(dashboard.ux.actions, (action) => action.actionId);
-  dashboard.ux.workflowEntries = uniqueBy(dashboard.ux.workflowEntries, (entry) => entry.kind);
-  return dashboard.ux;
 }
 
 function addUniqueString(target: string[], value: string) {
   if (!target.includes(value)) {
     target.push(value);
-  }
-}
-
-function addDashboardAction(target: AutoRepairDashboardAction[], action: AutoRepairDashboardAction) {
-  if (!target.some((existing) => existing.actionId === action.actionId)) {
-    target.push(action);
-  }
-}
-
-function addDashboardWorkflowEntry(
-  target: AutoRepairDashboardWorkflowEntry[],
-  entry: AutoRepairDashboardWorkflowEntry,
-) {
-  if (!target.some((existing) => existing.kind === entry.kind)) {
-    target.push(entry);
   }
 }
 
@@ -696,6 +696,43 @@ function addDashboardRepairPatch(
   if (!target.some((existing) => existing.patchId === patch.patchId)) {
     target.push(patch);
   }
+}
+
+function createDashboardRepairPatch(input: {
+  patchId: string;
+  issueId: string;
+  patchType: DashboardRepairPatchType;
+  path: string;
+  before: unknown;
+  after: unknown;
+  reason: string;
+  triggerSource: string;
+}): AutoRepairDashboardRepairPatch {
+  return {
+    patchId: input.patchId,
+    patchType: input.patchType,
+    target: input.path,
+    issueId: input.issueId,
+    operation: {
+      path: input.path,
+      before: input.before,
+      after: input.after,
+    },
+    inverse: {
+      path: input.path,
+      before: input.after,
+      after: input.before,
+    },
+    confidence: 0.95,
+    reason: input.reason,
+    triggerSource: input.triggerSource,
+    reversible: true,
+    requiresReview: false,
+  };
+}
+
+function dashboardPath(...parts: string[]): string {
+  return `/uiDashboardState/${parts.map((part) => encodeURIComponent(part)).join('/')}`;
 }
 
 function classifyDashboardWidget(
@@ -747,16 +784,18 @@ function classifyDashboardWidget(
 function scoreDashboardHealth(
   dashboard: AutoRepairDashboardState,
   classifications: AutoRepairDashboardWidgetHealth[],
+  dashboardStructure: AutoRepairDashboardStructure,
+  workflowEntries: AutoRepairDashboardWorkflowEntry[],
 ) {
   const totalWidgets = Math.max(classifications.length, 1);
   const actionableCount = classifications.filter((entry) => entry.classification === 'ACTIONABLE').length;
   const passiveCount = classifications.filter((entry) => entry.classification === 'PASSIVE').length;
   const deadWeightCount = classifications.filter((entry) => entry.classification === 'DEAD_WEIGHT').length;
   const workflowCoverage = requiredWorkflowKinds.filter((kind) =>
-    dashboard.ux?.workflowEntries.some((entry) => entry.kind === kind),
+    workflowEntries.some((entry) => entry.kind === kind),
   ).length / requiredWorkflowKinds.length;
-  const hasDecisionLayer = (dashboard.ux?.decisionLayer.length ?? 0) > 0;
-  const hasExceptionLayer = (dashboard.ux?.exceptionLayer.length ?? 0) > 0;
+  const hasDecisionLayer = dashboardStructure.decisionLayer.length > 0;
+  const hasExceptionLayer = dashboardStructure.exceptionLayer.length > 0;
   const hasRoleIntent = Boolean(dashboard.operationalIntent?.trim());
 
   const actionabilityScore = Math.round(
@@ -832,21 +871,6 @@ function fallbackHandlerFor(action: AutoRepairFailedActionLog): AutoRepairAction
 
 function unique(values: string[]): string[] {
   return [...new Set(values)];
-}
-
-function uniqueBy<T>(values: T[], keyFor: (value: T) => string): T[] {
-  const seen = new Set<string>();
-  const result: T[] = [];
-
-  for (const value of values) {
-    const key = keyFor(value);
-    if (!seen.has(key)) {
-      seen.add(key);
-      result.push(value);
-    }
-  }
-
-  return result;
 }
 
 function cloneSnapshot(snapshot: AutoRepairSystemSnapshot): AutoRepairSystemSnapshot {

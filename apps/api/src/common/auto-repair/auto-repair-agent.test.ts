@@ -238,31 +238,82 @@ test('AutoRepairAgent scores KPI-only dashboards as unhealthy and injects operat
     ['finance.unpaidFees: Review overdue or risky item'],
   );
   assert.deepEqual(
-    report.systemStateAfterFix.uiDashboardState.ux?.workflowEntries.map((entry) => entry.kind),
-    ['CREATE', 'CONTINUE', 'RESOLVE'],
+    report.dashboardHealth.repairPatches
+      .filter((patch) => patch.patchType === 'inject_workflow_entry')
+      .map((patch) => patch.issueId),
+    ['missing_workflow_create', 'missing_workflow_continue', 'missing_workflow_resolve'],
   );
+  assert.equal(report.systemStateAfterFix.uiDashboardState.ux, undefined);
   assert.equal(
     report.dashboardHealth.finalStateDescription,
     'The bursar dashboard now enables immediate recovery action, decision review, and exception resolution.',
   );
 });
 
-test('AutoRepairAgent dashboard UX repair is idempotent across repeated repair passes', () => {
-  const firstReport = repairMyShuleSnapshot(kpiOnlyDashboardSnapshot());
-  const secondReport = repairMyShuleSnapshot(firstReport.systemStateAfterFix);
-  const ux = secondReport.systemStateAfterFix.uiDashboardState.ux;
+test('AutoRepairAgent skips dashboard repair patches for existing equivalent UX and preserves workflow entries', () => {
+  const input = kpiOnlyDashboardSnapshot();
+  input.uiDashboardState.ux = {
+    actionLayer: ['finance.unpaidFees: Trigger recovery action'],
+    decisionLayer: ['finance.unpaidFees: Recommended next step'],
+    exceptionLayer: ['finance.unpaidFees: Review overdue or risky item'],
+    dataLayer: [],
+    actions: [
+      {
+        actionId: 'finance.unpaidFees.trigger-action',
+        label: 'Trigger recovery action',
+        kind: 'TRIGGER_ACTION',
+        sourceWidgetId: 'finance.unpaidFees',
+        target: 'finance.workflow.create',
+      },
+    ],
+    workflowEntries: [
+      {
+        workflowId: 'bursar-dashboard.create-workflow',
+        label: 'Create workflow',
+        kind: 'CREATE',
+      },
+      {
+        workflowId: 'bursar-dashboard.create-workflow-secondary',
+        label: 'Secondary create workflow',
+        kind: 'CREATE',
+      },
+      {
+        workflowId: 'bursar-dashboard.continue-workflow',
+        label: 'Continue workflow',
+        kind: 'CONTINUE',
+      },
+      {
+        workflowId: 'bursar-dashboard.resolve-workflow',
+        label: 'Resolve workflow',
+        kind: 'RESOLVE',
+      },
+    ],
+    relocations: [],
+  };
 
-  assert.deepEqual(secondReport.dashboardHealth.dashboardStructure.actionLayer, [
+  const report = repairMyShuleSnapshot(input);
+
+  assert.deepEqual(report.dashboardHealth.issuesDetected, []);
+  assert.deepEqual(report.dashboardHealth.repairsApplied.convertedKpisToActions, []);
+  assert.deepEqual(report.dashboardHealth.repairPatches, []);
+  assert.deepEqual(report.dashboardHealth.dashboardStructure.actionLayer, [
     'finance.unpaidFees: Trigger recovery action',
   ]);
-  assert.deepEqual(secondReport.dashboardHealth.dashboardStructure.decisionLayer, [
+  assert.deepEqual(report.dashboardHealth.dashboardStructure.decisionLayer, [
     'finance.unpaidFees: Recommended next step',
   ]);
-  assert.deepEqual(secondReport.dashboardHealth.dashboardStructure.exceptionLayer, [
+  assert.deepEqual(report.dashboardHealth.dashboardStructure.exceptionLayer, [
     'finance.unpaidFees: Review overdue or risky item',
   ]);
-  assert.deepEqual(ux?.actions.map((action) => action.actionId), ['finance.unpaidFees.trigger-action']);
-  assert.deepEqual(ux?.workflowEntries.map((entry) => entry.kind), ['CREATE', 'CONTINUE', 'RESOLVE']);
+  assert.deepEqual(
+    report.systemStateAfterFix.uiDashboardState.ux?.workflowEntries.map((entry) => entry.workflowId),
+    [
+      'bursar-dashboard.create-workflow',
+      'bursar-dashboard.create-workflow-secondary',
+      'bursar-dashboard.continue-workflow',
+      'bursar-dashboard.resolve-workflow',
+    ],
+  );
 });
 
 test('AutoRepairAgent does not alias cloned action handler objects back to the input snapshot', () => {
@@ -300,15 +351,25 @@ test('AutoRepairAgent reports dashboard repair patch intelligence for KPI-only d
       'inject_action_layer',
       'inject_decision_layer',
       'inject_exception_layer',
-      'inject_action_layer',
-      'inject_action_layer',
-      'inject_action_layer',
+      'inject_workflow_entry',
+      'inject_workflow_entry',
+      'inject_workflow_entry',
     ],
   );
-  assert.ok(report.dashboardHealth.repairPatches.every((patch) => patch.reversible));
+  assert.ok(report.dashboardHealth.repairPatches.every((patch) => patch.patchId.length > 0));
+  assert.ok(report.dashboardHealth.repairPatches.every((patch) => patch.target.length > 0));
+  assert.ok(report.dashboardHealth.repairPatches.every((patch) => patch.issueId.length > 0));
+  assert.ok(report.dashboardHealth.repairPatches.every((patch) => patch.operation.path.length > 0));
+  assert.ok(report.dashboardHealth.repairPatches.every((patch) => 'before' in patch.operation));
+  assert.ok(report.dashboardHealth.repairPatches.every((patch) => 'after' in patch.operation));
+  assert.ok(report.dashboardHealth.repairPatches.every((patch) => patch.inverse.path.length > 0));
+  assert.ok(report.dashboardHealth.repairPatches.every((patch) => 'before' in patch.inverse));
+  assert.ok(report.dashboardHealth.repairPatches.every((patch) => 'after' in patch.inverse));
+  assert.ok(report.dashboardHealth.repairPatches.every((patch) => patch.confidence >= 0.9));
   assert.ok(report.dashboardHealth.repairPatches.every((patch) => patch.reason.length > 0));
-  assert.ok(report.dashboardHealth.repairPatches.every((patch) => patch.trace.length > 0));
-  assert.ok(report.dashboardHealth.repairPatches.every((patch) => patch.auditLog.length > 0));
+  assert.ok(report.dashboardHealth.repairPatches.every((patch) => patch.triggerSource.length > 0));
+  assert.ok(report.dashboardHealth.repairPatches.every((patch) => patch.reversible));
+  assert.ok(report.dashboardHealth.repairPatches.every((patch) => patch.requiresReview === false));
 });
 
 test('AutoRepairAgent classifies decision widgets as decisional dashboard contributors', () => {
