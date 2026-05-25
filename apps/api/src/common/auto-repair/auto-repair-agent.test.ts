@@ -316,6 +316,71 @@ test('AutoRepairAgent skips dashboard repair patches for existing equivalent UX 
   );
 });
 
+test('AutoRepairAgent recognizes semantically equivalent dashboard repair actions with different ids', () => {
+  const input = kpiOnlyDashboardSnapshot();
+  input.uiDashboardState.ux = {
+    actionLayer: ['finance.unpaidFees: Trigger recovery action'],
+    decisionLayer: ['finance.unpaidFees: Recommended next step'],
+    exceptionLayer: ['finance.unpaidFees: Review overdue or risky item'],
+    dataLayer: [],
+    actions: [
+      {
+        actionId: 'custom-recovery-action',
+        label: 'Trigger recovery action',
+        kind: 'TRIGGER_ACTION',
+        sourceWidgetId: 'finance.unpaidFees',
+        target: 'finance.workflow.create',
+      },
+    ],
+    workflowEntries: [
+      {
+        workflowId: 'bursar-dashboard.create-workflow',
+        label: 'Create workflow',
+        kind: 'CREATE',
+      },
+      {
+        workflowId: 'bursar-dashboard.create-workflow-secondary',
+        label: 'Secondary create workflow',
+        kind: 'CREATE',
+      },
+      {
+        workflowId: 'bursar-dashboard.continue-workflow',
+        label: 'Continue workflow',
+        kind: 'CONTINUE',
+      },
+      {
+        workflowId: 'bursar-dashboard.resolve-workflow',
+        label: 'Resolve workflow',
+        kind: 'RESOLVE',
+      },
+    ],
+    relocations: [],
+  };
+
+  const report = repairMyShuleSnapshot(input);
+
+  assert.ok(!report.dashboardHealth.issuesDetected.includes('passive_finance.unpaidFees'));
+  assert.deepEqual(
+    report.dashboardHealth.repairPatches
+      .filter((patch) => patch.issueId === 'passive_finance.unpaidFees')
+      .map((patch) => patch.patchType),
+    [],
+  );
+  assert.deepEqual(
+    report.systemStateAfterFix.uiDashboardState.ux?.actions.map((action) => action.actionId),
+    ['custom-recovery-action'],
+  );
+  assert.deepEqual(
+    report.systemStateAfterFix.uiDashboardState.ux?.workflowEntries.map((entry) => entry.workflowId),
+    [
+      'bursar-dashboard.create-workflow',
+      'bursar-dashboard.create-workflow-secondary',
+      'bursar-dashboard.continue-workflow',
+      'bursar-dashboard.resolve-workflow',
+    ],
+  );
+});
+
 test('AutoRepairAgent does not alias cloned action handler objects back to the input snapshot', () => {
   const input = snapshot({
     actionHandlers: {

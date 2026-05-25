@@ -553,7 +553,7 @@ function repairDashboardUxHealth(
       };
       const actionPath = dashboardPath('ux', 'actions', action.actionId);
 
-      if (!existingUx.actions.some((existingAction) => existingAction.actionId === action.actionId)) {
+      if (!existingUx.actions.some((existingAction) => isEquivalentDashboardAction(existingAction, action))) {
         addUniqueString(issuesDetected, issueId);
         addUniqueString(repairsApplied.convertedKpisToActions, widget.widgetId);
         addDashboardRepairPatch(repairPatches, createDashboardRepairPatch({
@@ -696,6 +696,20 @@ function addDashboardRepairPatch(
   if (!target.some((existing) => existing.patchId === patch.patchId)) {
     target.push(patch);
   }
+}
+
+function isEquivalentDashboardAction(
+  existingAction: AutoRepairDashboardAction,
+  expectedAction: AutoRepairDashboardAction,
+): boolean {
+  return existingAction.kind === expectedAction.kind
+    && existingAction.sourceWidgetId === expectedAction.sourceWidgetId
+    && existingAction.target === expectedAction.target
+    && normalizeActionLabel(existingAction.label) === normalizeActionLabel(expectedAction.label);
+}
+
+function normalizeActionLabel(label: string): string {
+  return label.trim().toLowerCase();
 }
 
 function createDashboardRepairPatch(input: {
