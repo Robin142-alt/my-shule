@@ -12,6 +12,7 @@ type FetchWithSessionRefreshResult<TSession extends RefreshableSession> = {
   response: Response;
   body: string;
   refreshedSession?: TSession;
+  sessionExpired?: boolean;
 };
 
 function readMessage(responseBody: string) {
@@ -64,6 +65,7 @@ export async function fetchWithSessionRefresh<TSession extends RefreshableSessio
     return {
       response: firstResponse,
       body: firstBody,
+      sessionExpired: true,
     };
   }
 }

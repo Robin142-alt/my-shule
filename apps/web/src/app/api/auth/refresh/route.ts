@@ -6,6 +6,7 @@ import { validateCsrfRequest } from "@/lib/auth/csrf";
 import { isExperienceAudience } from "@/lib/auth/experience-audience";
 import { createServerAuthClient } from "@/lib/auth/server-auth-client";
 import {
+  clearExperienceSessionCookies,
   setExperienceSessionCookies,
   toPublicExperienceGatewaySession,
 } from "@/lib/auth/server-session";
@@ -53,7 +54,7 @@ export async function POST(request: NextRequest) {
 
     return response;
   } catch (error) {
-    return NextResponse.json(
+    const response = NextResponse.json(
       {
         message:
           error instanceof Error
@@ -62,5 +63,7 @@ export async function POST(request: NextRequest) {
       },
       { status: 401 },
     );
+    clearExperienceSessionCookies(response);
+    return response;
   }
 }

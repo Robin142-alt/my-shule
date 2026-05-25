@@ -20,10 +20,12 @@ import {
 } from "@/components/auth/auth-security";
 import { AuthSubmitButton } from "@/components/auth/auth-submit-button";
 import {
-  MFA_CHALLENGE_HELP_TEXT,
   isMfaChallengeRequiredError,
-  normalizeMfaCode,
 } from "@/lib/auth/mfa-challenge";
+import {
+  buildMfaVerificationPath,
+  storeMfaLoginChallenge,
+} from "@/lib/auth/mfa-login-challenge";
 import type { SchoolBrandingResolution } from "@/lib/auth/school-branding";
 import { useExperienceSession } from "@/lib/auth/use-experience-session";
 
@@ -33,7 +35,6 @@ const staffLoginSchema = z.object({
     .trim()
     .email("Enter a valid work email address."),
   password: z.string().min(8, "Enter your password."),
-  verificationCode: z.string().optional(),
 });
 
 type StaffLoginForm = z.infer<typeof staffLoginSchema>;
@@ -52,7 +53,6 @@ export function SchoolLoginView({
   const {
     register,
     handleSubmit,
-    setError,
     clearErrors,
     formState: { errors, isSubmitting },
   } = useForm<StaffLoginForm>({
@@ -60,10 +60,8 @@ export function SchoolLoginView({
     defaultValues: {
       identifier: "",
       password: "",
-      verificationCode: "",
     },
   });
-  const [mfaRequired, setMfaRequired] = useState(false);
   const isTenantUnavailable = resolution.status === "unknown";
 
   const tenantMessage =
@@ -93,28 +91,25 @@ export function SchoolLoginView({
       return;
     }
 
-    const normalizedVerificationCode = normalizeMfaCode(values.verificationCode);
-
-    if (mfaRequired && normalizedVerificationCode.length !== 6) {
-      setError("verificationCode", {
-        message: "Enter the verification code from your email.",
-      });
-      return;
-    }
-
     try {
       const result = await authSession.login({
         identifier: values.identifier.trim(),
         password: values.password,
-        verificationCode: mfaRequired ? normalizedVerificationCode : undefined,
         tenantSlug: resolvedTenantSlug,
       });
       void router.push(result.redirectTo ?? "/dashboard");
     } catch (error) {
       if (isMfaChallengeRequiredError(error)) {
-        setMfaRequired(true);
-        clearErrors("verificationCode");
+        storeMfaLoginChallenge({
+          audience: "school",
+          identifier: values.identifier.trim(),
+          password: values.password,
+          tenantSlug: resolvedTenantSlug,
+          redirectFallback: "/dashboard",
+        });
+        clearErrors();
         authSession.clearError();
+        void router.push(buildMfaVerificationPath("school"));
         return;
       }
       // useExperienceSession exposes the safe message.
@@ -170,15 +165,6 @@ export function SchoolLoginView({
             {...register("password")}
             error={errors.password?.message}
           />
-          {mfaRequired ? (
-            <AuthField
-              label="Verification code"
-              inputMode="numeric"
-              autoComplete="one-time-code"
-              {...register("verificationCode")}
-              error={errors.verificationCode?.message}
-            />
-          ) : null}
         </div>
 
         <div className="flex items-center justify-between gap-3">
@@ -197,14 +183,6 @@ export function SchoolLoginView({
 
         <SessionWarning mode="normal" />
 
-        {mfaRequired ? (
-          <AuthMessage
-            tone="warning"
-            title="Verification required"
-            description={MFA_CHALLENGE_HELP_TEXT}
-          />
-        ) : null}
-
         {authSession.error ? (
           <AuthMessage
             tone="error"
@@ -218,7 +196,7 @@ export function SchoolLoginView({
           type="submit"
           disabled={isTenantUnavailable}
         >
-          {mfaRequired ? "Verify and continue" : "Sign in securely"}
+          Sign in securely
         </AuthSubmitButton>
 
         <div className="rounded-2xl border border-border bg-surface-muted/80 p-4">

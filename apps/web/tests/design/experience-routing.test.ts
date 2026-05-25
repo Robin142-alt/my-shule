@@ -7,6 +7,14 @@ import {
   SUPERADMIN_SESSION_COOKIE,
 } from "@/lib/auth/experience-routing";
 
+function unsignedJwt(payload: Record<string, unknown>) {
+  return [
+    Buffer.from(JSON.stringify({ alg: "none", typ: "JWT" })).toString("base64url"),
+    Buffer.from(JSON.stringify(payload)).toString("base64url"),
+    "signature",
+  ].join(".");
+}
+
 describe("experience routing", () => {
   test("resolves superadmin hosts into the platform experience", () => {
     expect(resolveExperienceHost("superadmin.myshule.test")).toEqual({
@@ -308,6 +316,32 @@ describe("experience routing", () => {
       headers: {
         "x-platform-experience": "school",
         "x-tenant-slug": "barakaacademy",
+      },
+    });
+  });
+
+  test("treats stale school sessions with expired refresh tokens as logged out", () => {
+    expect(
+      evaluateExperienceRouting({
+        host: "greenfield.myshule.test",
+        pathname: "/dashboard",
+        refreshToken: unsignedJwt({ exp: Math.floor(Date.now() / 1000) - 60 }),
+        cookies: {
+          [SCHOOL_SESSION_COOKIE]: serializeExperienceSession({
+            experience: "school",
+            homePath: "/dashboard",
+            role: "principal",
+            tenantSlug: "greenfield",
+            userLabel: "Principal",
+          }),
+        },
+      }),
+    ).toEqual({
+      action: "redirect",
+      location: "/login",
+      headers: {
+        "x-platform-experience": "school",
+        "x-tenant-slug": "greenfield",
       },
     });
   });

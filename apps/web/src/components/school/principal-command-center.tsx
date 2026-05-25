@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Activity, BrainCircuit, RadioTower, ShieldCheck } from "lucide-react";
 
 import { MetricGrid } from "@/components/experience/metric-grid";
@@ -17,6 +18,7 @@ import {
 import { DataTable } from "@/components/ui/data-table";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatusPill } from "@/components/ui/status-pill";
+import { redirectOnExpiredSessionResponse } from "@/lib/auth/session-expiry-client";
 import { getVisibleApprovalWorkflows, isModuleCodeEnabled } from "@/lib/workflows/workflow-catalog";
 
 type PrincipalCommandView = "dashboard" | "analytics" | "risks" | "approvals" | "staff" | "audit";
@@ -150,6 +152,7 @@ export function PrincipalCommandCenter({
   tenantSlug?: string | null;
   view?: PrincipalCommandView;
 }) {
+  const router = useRouter();
   const [dashboard, setDashboard] = useState<PrincipalDashboardResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -171,6 +174,10 @@ export function PrincipalCommandCenter({
           credentials: "same-origin",
           cache: "no-store",
         });
+
+        if (redirectOnExpiredSessionResponse(response, "school", (href) => router.replace(href))) {
+          return;
+        }
 
         if (!response.ok) {
           throw new Error("Principal dashboard is not available.");
@@ -228,7 +235,7 @@ export function PrincipalCommandCenter({
       window.clearInterval(refreshTimer);
       eventSource?.close();
     };
-  }, [tenantSlug]);
+  }, [router, tenantSlug]);
 
   const enabledModuleCodes = useMemo(
     () => new Set(dashboard?.enabled_modules ?? []),

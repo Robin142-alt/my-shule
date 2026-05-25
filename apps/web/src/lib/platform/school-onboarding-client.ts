@@ -1,4 +1,5 @@
 import { getCsrfToken } from "@/lib/auth/csrf-client";
+import { ExpiredSessionError } from "@/lib/auth/session-expiry-client";
 import {
   fallbackModuleCatalog,
   sortModuleCatalog,
@@ -21,6 +22,31 @@ export type PlatformSchool = {
   admin_email: string;
   created_at: string;
   enabled_modules?: string[];
+  billing?: PlatformSchoolBilling;
+};
+
+export type PlatformManualBillingState =
+  | "not_configured"
+  | "active"
+  | "grace_period"
+  | "restricted"
+  | "suspended"
+  | "expired";
+
+export type PlatformConfigurableBillingState = Exclude<
+  PlatformManualBillingState,
+  "not_configured"
+>;
+
+export type PlatformSchoolBilling = {
+  state: PlatformManualBillingState;
+  label: string;
+  access_mode: "full" | "read_only" | "billing_only" | null;
+  plan_code: string | null;
+  effective_until?: string | null;
+  configured_at?: string | null;
+  configured_by_user_id?: string | null;
+  note?: string | null;
 };
 
 export type PlatformSchoolModuleAccess = ModuleRegistryItem & {
@@ -69,6 +95,10 @@ async function parsePlatformResponse<T>(
     | null;
 
   if (!response.ok) {
+    if (response.status === 401) {
+      throw new ExpiredSessionError("superadmin");
+    }
+
     const message =
       payload &&
       typeof payload === "object" &&
@@ -202,6 +232,36 @@ export async function updatePlatformSchoolModules(input: {
   );
 
   return Array.isArray(payload) ? sortModuleCatalog(payload) as PlatformSchoolModuleAccess[] : [];
+}
+
+export async function updatePlatformSchoolBilling(input: {
+  tenantId: string;
+  state: PlatformConfigurableBillingState;
+  effectiveUntil?: string;
+  note?: string;
+}) {
+  const response = await fetchWithTimeout(
+    `/api/platform/schools/${encodeURIComponent(input.tenantId)}/billing`,
+    {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        "x-myshule-csrf": await getCsrfToken(),
+      },
+      credentials: "same-origin",
+      body: JSON.stringify({
+        state: input.state,
+        effective_until: input.effectiveUntil,
+        note: input.note,
+      }),
+    },
+  );
+  const payload = await parsePlatformResponse<PlatformSchool>(
+    response,
+    "Unable to update school billing.",
+  );
+
+  return payload as PlatformSchool;
 }
 
 export async function resendPlatformSchoolAdminInvite(tenantId: string) {

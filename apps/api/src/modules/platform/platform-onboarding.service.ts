@@ -27,11 +27,13 @@ import {
   DeleteSchoolDto,
   PlatformEmailReadinessResponseDto,
   PlatformSchoolDeleteResponseDto,
+  PlatformManualBillingState,
   SchoolOnboardingProfileDto,
   PlatformSchoolResponseDto,
   PlatformTenantAnonymizeResponseDto,
   PlatformTenantOffboardingManifestDto,
   PlatformSchoolUsageSummaryDto,
+  UpdateSchoolBillingDto,
 } from './dto/create-school.dto';
 
 type TenantRow = {
@@ -47,6 +49,12 @@ type TenantRow = {
   last_error_summary?: string | null;
   provider_status_code?: number | string | null;
   metadata?: Record<string, unknown> | string | null;
+  subscription_status?: string | null;
+  subscription_plan_code?: string | null;
+  subscription_metadata?: Record<string, unknown> | string | null;
+  subscription_grace_period_ends_at?: Date | string | null;
+  subscription_restricted_at?: Date | string | null;
+  subscription_suspended_at?: Date | string | null;
 };
 
 type InvitationDeliveryStatus = PlatformSchoolResponseDto['invitation_status'];
@@ -79,7 +87,17 @@ type AuditAction =
   | 'platform.school.deleted'
   | 'platform.school.deprovisioned'
   | 'platform.school.offboarding_exported'
-  | 'platform.school.legal_offboarding_anonymized';
+  | 'platform.school.legal_offboarding_anonymized'
+  | 'platform.school.billing_state_updated';
+
+const manualBillingLabels: Record<PlatformManualBillingState, string> = {
+  not_configured: 'Not configured',
+  active: 'Active',
+  grace_period: 'Grace period',
+  restricted: 'Restricted',
+  suspended: 'Suspended',
+  expired: 'Expired',
+};
 
 @Injectable()
 export class PlatformOnboardingService {
@@ -106,7 +124,13 @@ export class PlatformOnboardingService {
           latest_email.last_error_code,
           latest_email.last_error_summary,
           latest_email.provider_status_code,
-          latest_token.expires_at AS invite_expires_at
+          latest_token.expires_at AS invite_expires_at,
+          current_subscription.status AS subscription_status,
+          current_subscription.plan_code AS subscription_plan_code,
+          current_subscription.metadata AS subscription_metadata,
+          current_subscription.grace_period_ends_at AS subscription_grace_period_ends_at,
+          current_subscription.restricted_at AS subscription_restricted_at,
+          current_subscription.suspended_at AS subscription_suspended_at
         FROM tenants
         LEFT JOIN LATERAL (
           SELECT
@@ -129,12 +153,40 @@ export class PlatformOnboardingService {
           ORDER BY created_at DESC
           LIMIT 1
         ) latest_token ON TRUE
+        LEFT JOIN LATERAL (
+          SELECT
+            status,
+            plan_code,
+            metadata,
+            grace_period_ends_at,
+            restricted_at,
+            suspended_at
+          FROM subscriptions
+          WHERE tenant_id = tenants.tenant_id
+          ORDER BY
+            CASE status
+              WHEN 'active' THEN 1
+              WHEN 'trialing' THEN 2
+              WHEN 'past_due' THEN 3
+              WHEN 'restricted' THEN 4
+              WHEN 'suspended' THEN 5
+              ELSE 6
+            END ASC,
+            created_at DESC
+          LIMIT 1
+        ) current_subscription ON TRUE
         ORDER BY tenants.created_at DESC, tenants.name ASC
       `,
     );
 
+    const enabledModulesByTenantId = await this.getEnabledModulesByTenantId(
+      result.rows.map((row) => row.tenant_id),
+    );
+
     return result.rows.map((row) =>
-      this.toPlatformSchoolResponse(row, this.deliveryResultForOutboxRow(row)),
+      this.toPlatformSchoolResponse(row, this.deliveryResultForOutboxRow(row), {
+        enabledModules: enabledModulesByTenantId.get(row.tenant_id) ?? [],
+      }),
     );
   }
 
@@ -263,10 +315,48 @@ export class PlatformOnboardingService {
     });
 
     const delivery = await this.deliverInvitation(transactionResult.invitation);
+    const enabledModules = await this.getEnabledModulesForTenant(tenantId);
 
     return this.toPlatformSchoolResponse(transactionResult.tenant, delivery, {
       adminEmail: transactionResult.adminEmail,
       inviteExpiresAt: transactionResult.invitation.expiresAt,
+      enabledModules,
+    });
+  }
+
+  async updateSchoolBilling(
+    tenantIdInput: string,
+    dto: UpdateSchoolBillingDto,
+  ): Promise<PlatformSchoolResponseDto> {
+    const tenantId = this.normalizeTenantId(tenantIdInput);
+    const state = dto.state;
+    const note = dto.note?.trim() || null;
+    const effectiveUntil = this.parseEffectiveUntil(dto.effective_until);
+    const actorUserId = this.requestContext.getStore()?.user_id ?? null;
+
+    const tenant = await this.databaseService.withRequestTransaction(async () => {
+      await this.scopeTenantForLifecycleMutation(tenantId);
+      const existingTenant = await this.findPlatformSchoolRow(tenantId);
+      await this.upsertManualBillingState({
+        tenantId,
+        state,
+        note,
+        effectiveUntil,
+        actorUserId,
+      });
+      await this.writeSchoolLifecycleAudit(
+        'platform.school.billing_state_updated',
+        existingTenant,
+        await this.getTenantUsageSummary(tenantId),
+        `Billing state set to ${manualBillingLabels[state]}`,
+      );
+
+      return this.findPlatformSchoolRow(tenantId);
+    });
+    const enabledModules = await this.getEnabledModulesForTenant(tenantId);
+
+    return this.toPlatformSchoolResponse(tenant, this.deliveryResultForOutboxRow(tenant), {
+      enabledModules,
     });
   }
 
@@ -521,6 +611,86 @@ export class PlatformOnboardingService {
     return context;
   }
 
+  private async findPlatformSchoolRow(tenantId: string): Promise<TenantRow> {
+    const result = await this.databaseService.query<TenantRow>(
+      `
+        SELECT
+          tenants.tenant_id,
+          tenants.name,
+          tenants.subdomain,
+          tenants.status,
+          tenants.created_at,
+          tenants.metadata,
+          latest_email.recipient_email AS admin_email,
+          latest_email.status AS invitation_status,
+          latest_email.last_error_code,
+          latest_email.last_error_summary,
+          latest_email.provider_status_code,
+          latest_token.expires_at AS invite_expires_at,
+          current_subscription.status AS subscription_status,
+          current_subscription.plan_code AS subscription_plan_code,
+          current_subscription.metadata AS subscription_metadata,
+          current_subscription.grace_period_ends_at AS subscription_grace_period_ends_at,
+          current_subscription.restricted_at AS subscription_restricted_at,
+          current_subscription.suspended_at AS subscription_suspended_at
+        FROM tenants
+        LEFT JOIN LATERAL (
+          SELECT
+            recipient_email,
+            status,
+            last_error_code,
+            last_error_summary,
+            provider_status_code
+          FROM auth_email_outbox
+          WHERE tenant_id = tenants.tenant_id
+            AND template = 'school_invitation'
+          ORDER BY created_at DESC
+          LIMIT 1
+        ) latest_email ON TRUE
+        LEFT JOIN LATERAL (
+          SELECT expires_at
+          FROM auth_action_tokens
+          WHERE tenant_id = tenants.tenant_id
+            AND purpose = 'invite_acceptance'
+          ORDER BY created_at DESC
+          LIMIT 1
+        ) latest_token ON TRUE
+        LEFT JOIN LATERAL (
+          SELECT
+            status,
+            plan_code,
+            metadata,
+            grace_period_ends_at,
+            restricted_at,
+            suspended_at
+          FROM subscriptions
+          WHERE tenant_id = tenants.tenant_id
+          ORDER BY
+            CASE status
+              WHEN 'active' THEN 1
+              WHEN 'trialing' THEN 2
+              WHEN 'past_due' THEN 3
+              WHEN 'restricted' THEN 4
+              WHEN 'suspended' THEN 5
+              ELSE 6
+            END ASC,
+            created_at DESC
+          LIMIT 1
+        ) current_subscription ON TRUE
+        WHERE tenants.tenant_id = $1
+        LIMIT 1
+      `,
+      [tenantId],
+    );
+    const tenant = result.rows[0];
+
+    if (!tenant) {
+      throw new NotFoundException('School workspace was not found.');
+    }
+
+    return tenant;
+  }
+
   private async findTenantForDelete(tenantId: string): Promise<TenantRow> {
     const result = await this.databaseService.query<TenantRow>(
       `
@@ -578,10 +748,181 @@ export class PlatformOnboardingService {
     };
   }
 
+  private async upsertManualBillingState(input: {
+    tenantId: string;
+    state: Exclude<PlatformManualBillingState, 'not_configured'>;
+    note: string | null;
+    effectiveUntil: Date | null;
+    actorUserId: string | null;
+  }): Promise<void> {
+    const now = new Date();
+    const subscriptionStatus = this.subscriptionStatusForManualBillingState(input.state);
+    const lifecycleDates = this.lifecycleDatesForManualBillingState(input.state, now, input.effectiveUntil);
+    const metadata = {
+      billing_control: 'manual_superadmin',
+      manual_billing_state: input.state,
+      manual_billing_label: manualBillingLabels[input.state],
+      manual_billing_note: input.note,
+      manual_billing_configured_at: now.toISOString(),
+      manual_billing_configured_by_user_id: input.actorUserId,
+      manual_billing_effective_until: input.effectiveUntil?.toISOString() ?? null,
+    };
+
+    const subscriptionValues = [
+      input.tenantId,
+      'enterprise',
+      subscriptionStatus,
+      JSON.stringify(['*']),
+      JSON.stringify({}),
+      lifecycleDates.currentPeriodStart.toISOString(),
+      lifecycleDates.currentPeriodEnd.toISOString(),
+      lifecycleDates.gracePeriodEndsAt?.toISOString() ?? null,
+      lifecycleDates.restrictedAt?.toISOString() ?? null,
+      lifecycleDates.suspendedAt?.toISOString() ?? null,
+      lifecycleDates.suspensionReason,
+      lifecycleDates.activatedAt?.toISOString() ?? null,
+      lifecycleDates.canceledAt?.toISOString() ?? null,
+      JSON.stringify(metadata),
+    ];
+
+    // Serialize manual saves per tenant without depending on a production-only conflict index.
+    await this.databaseService.query(
+      'SELECT pg_advisory_xact_lock(hashtext($1::text), 702101)',
+      [input.tenantId],
+    );
+
+    const updateResult = await this.databaseService.query(
+      `
+        UPDATE subscriptions
+        SET
+          plan_code = $2,
+          status = $3,
+          billing_phone_number = NULL,
+          currency_code = 'KES',
+          features = $4::jsonb,
+          limits = $5::jsonb,
+          seats_allocated = 1,
+          current_period_start = $6::timestamptz,
+          current_period_end = $7::timestamptz,
+          trial_ends_at = NULL,
+          grace_period_ends_at = $8::timestamptz,
+          restricted_at = $9::timestamptz,
+          suspended_at = $10::timestamptz,
+          suspension_reason = $11,
+          activated_at = $12::timestamptz,
+          canceled_at = $13::timestamptz,
+          metadata = COALESCE(metadata, '{}'::jsonb) || $14::jsonb,
+          updated_at = NOW()
+        WHERE tenant_id = $1
+          AND status IN ('trialing', 'active', 'past_due', 'restricted', 'suspended')
+      `,
+      subscriptionValues,
+    );
+
+    if ((updateResult.rowCount ?? 0) > 0) {
+      return;
+    }
+
+    await this.databaseService.query(
+      `
+        INSERT INTO subscriptions (
+          tenant_id,
+          plan_code,
+          status,
+          billing_phone_number,
+          currency_code,
+          features,
+          limits,
+          seats_allocated,
+          current_period_start,
+          current_period_end,
+          trial_ends_at,
+          grace_period_ends_at,
+          restricted_at,
+          suspended_at,
+          suspension_reason,
+          activated_at,
+          canceled_at,
+          metadata
+        )
+        VALUES (
+          $1,
+          $2,
+          $3,
+          NULL,
+          'KES',
+          $4::jsonb,
+          $5::jsonb,
+          1,
+          $6::timestamptz,
+          $7::timestamptz,
+          NULL,
+          $8::timestamptz,
+          $9::timestamptz,
+          $10::timestamptz,
+          $11,
+          $12::timestamptz,
+          $13::timestamptz,
+          $14::jsonb
+        )
+      `,
+      subscriptionValues,
+    );
+  }
+
+  private subscriptionStatusForManualBillingState(
+    state: Exclude<PlatformManualBillingState, 'not_configured'>,
+  ): 'active' | 'past_due' | 'restricted' | 'suspended' | 'expired' {
+    if (state === 'grace_period') {
+      return 'past_due';
+    }
+
+    return state === 'expired' ? 'expired' : state;
+  }
+
+  private lifecycleDatesForManualBillingState(
+    state: Exclude<PlatformManualBillingState, 'not_configured'>,
+    now: Date,
+    effectiveUntil: Date | null,
+  ): {
+    currentPeriodStart: Date;
+    currentPeriodEnd: Date;
+    gracePeriodEndsAt: Date | null;
+    restrictedAt: Date | null;
+    suspendedAt: Date | null;
+    suspensionReason: string | null;
+    activatedAt: Date | null;
+    canceledAt: Date | null;
+  } {
+    const longRunningEnd = effectiveUntil ?? new Date(Date.UTC(now.getUTCFullYear() + 10, now.getUTCMonth(), now.getUTCDate()));
+    const periodEnd = state === 'grace_period'
+      ? now
+      : longRunningEnd;
+
+    return {
+      currentPeriodStart: now,
+      currentPeriodEnd: periodEnd,
+      gracePeriodEndsAt: state === 'grace_period' ? effectiveUntil : null,
+      restrictedAt: state === 'restricted' ? now : null,
+      suspendedAt: state === 'suspended' || state === 'expired' ? now : null,
+      suspensionReason: state === 'active' ? null : `manual_${state}`,
+      activatedAt: ['active', 'grace_period', 'restricted'].includes(state) ? now : null,
+      canceledAt: state === 'expired' ? now : null,
+    };
+  }
+
   private async deleteTenantShell(tenantId: string): Promise<void> {
     const cleanupStatements = [
+      'DELETE FROM module_usage_events WHERE tenant_id = $1',
+      'DELETE FROM school_module_access WHERE tenant_id = $1',
+      'DELETE FROM usage_records WHERE tenant_id = $1',
+      'DELETE FROM billing_notifications WHERE tenant_id = $1',
+      'DELETE FROM invoices WHERE tenant_id = $1',
+      'DELETE FROM subscriptions WHERE tenant_id = $1',
       'DELETE FROM auth_email_outbox WHERE tenant_id = $1',
       'DELETE FROM auth_action_tokens WHERE tenant_id = $1',
+      'DELETE FROM auth_mfa_challenges WHERE user_id IN (SELECT id FROM users WHERE tenant_id = $1)',
+      'DELETE FROM auth_trusted_devices WHERE user_id IN (SELECT id FROM users WHERE tenant_id = $1)',
       'DELETE FROM sms_purchase_requests WHERE tenant_id = $1',
       'DELETE FROM sms_wallet_transactions WHERE tenant_id = $1',
       'DELETE FROM sms_logs WHERE tenant_id = $1',
@@ -592,7 +933,9 @@ export class PlatformOnboardingService {
       'DELETE FROM tenant_bank_accounts WHERE tenant_id = $1',
       'DELETE FROM tenant_mpesa_configs WHERE tenant_id = $1',
       'DELETE FROM tenant_financial_accounts WHERE tenant_id = $1',
+      'DELETE FROM tenant_domains WHERE tenant_id = $1',
       'DELETE FROM tenant_memberships WHERE tenant_id = $1',
+      'DELETE FROM users WHERE tenant_id = $1',
       'DELETE FROM role_permissions WHERE tenant_id = $1',
       'DELETE FROM roles WHERE tenant_id = $1',
       'DELETE FROM permissions WHERE tenant_id = $1',
@@ -888,8 +1231,95 @@ export class PlatformOnboardingService {
       admin_email: override?.adminEmail ?? tenant.admin_email ?? '',
       created_at: new Date(tenant.created_at).toISOString(),
       enabled_modules: override?.enabledModules ?? [],
+      billing: this.buildPlatformSchoolBilling(tenant),
       onboarding_profile: this.extractBlueprintOnboardingProfile(tenant.metadata),
     };
+  }
+
+  private buildPlatformSchoolBilling(
+    tenant: TenantRow,
+  ): PlatformSchoolResponseDto['billing'] {
+    const metadata = this.parseJsonObject(tenant.subscription_metadata);
+    const manualState = metadata?.manual_billing_state;
+    const state: PlatformManualBillingState =
+      typeof manualState === 'string' && manualState in manualBillingLabels
+        ? manualState as PlatformManualBillingState
+        : tenant.subscription_status
+          ? this.manualBillingStateForSubscriptionStatus(tenant.subscription_status)
+          : 'not_configured';
+
+    return {
+      state,
+      label: manualBillingLabels[state],
+      access_mode: this.accessModeForManualBillingState(state),
+      plan_code: tenant.subscription_plan_code ?? null,
+      effective_until:
+        typeof metadata?.manual_billing_effective_until === 'string'
+          ? metadata.manual_billing_effective_until
+          : this.billingDateForState(tenant, state),
+      configured_at:
+        typeof metadata?.manual_billing_configured_at === 'string'
+          ? metadata.manual_billing_configured_at
+          : null,
+      configured_by_user_id:
+        typeof metadata?.manual_billing_configured_by_user_id === 'string'
+          ? metadata.manual_billing_configured_by_user_id
+          : null,
+      note:
+        typeof metadata?.manual_billing_note === 'string'
+          ? metadata.manual_billing_note
+          : null,
+    };
+  }
+
+  private manualBillingStateForSubscriptionStatus(status: string): PlatformManualBillingState {
+    if (status === 'active' || status === 'trialing') {
+      return 'active';
+    }
+
+    if (status === 'past_due') {
+      return 'grace_period';
+    }
+
+    if (status === 'restricted' || status === 'suspended' || status === 'expired') {
+      return status;
+    }
+
+    return 'not_configured';
+  }
+
+  private accessModeForManualBillingState(
+    state: PlatformManualBillingState,
+  ): 'full' | 'read_only' | 'billing_only' | null {
+    if (state === 'active' || state === 'grace_period') {
+      return 'full';
+    }
+
+    if (state === 'restricted') {
+      return 'read_only';
+    }
+
+    if (state === 'suspended' || state === 'expired') {
+      return 'billing_only';
+    }
+
+    return null;
+  }
+
+  private billingDateForState(
+    tenant: TenantRow,
+    state: PlatformManualBillingState,
+  ): string | null {
+    const dateValue =
+      state === 'grace_period'
+        ? tenant.subscription_grace_period_ends_at
+        : state === 'restricted'
+          ? tenant.subscription_restricted_at
+          : state === 'suspended' || state === 'expired'
+            ? tenant.subscription_suspended_at
+            : null;
+
+    return dateValue ? new Date(dateValue).toISOString() : null;
   }
 
   private buildBlueprintOnboardingProfile(dto: CreateSchoolDto): SchoolOnboardingProfileDto {
@@ -992,6 +1422,22 @@ export class PlatformOnboardingService {
     return trimmed || undefined;
   }
 
+  private parseEffectiveUntil(value: string | undefined): Date | null {
+    const trimmed = value?.trim();
+
+    if (!trimmed) {
+      return null;
+    }
+
+    const parsed = new Date(trimmed);
+
+    if (Number.isNaN(parsed.getTime())) {
+      throw new BadRequestException('Use a valid billing effective-until date.');
+    }
+
+    return parsed;
+  }
+
   private async assignInitialModules(input: {
     tenantId: string;
     moduleCodes: string[] | undefined;
@@ -1014,6 +1460,36 @@ export class PlatformOnboardingService {
     });
 
     return moduleCodes;
+  }
+
+  private async getEnabledModulesForTenant(tenantId: string): Promise<string[]> {
+    if (!this.moduleAccessService) {
+      return [];
+    }
+
+    return this.moduleAccessService.listEnabledModulesForTenant(tenantId);
+  }
+
+  private async getEnabledModulesByTenantId(tenantIds: string[]): Promise<Map<string, string[]>> {
+    const enabledModulesByTenantId = new Map<string, string[]>();
+
+    if (!this.moduleAccessService || tenantIds.length === 0) {
+      return enabledModulesByTenantId;
+    }
+
+    const uniqueTenantIds = Array.from(new Set(tenantIds));
+    const rows = await Promise.all(
+      uniqueTenantIds.map(async (tenantId) => [
+        tenantId,
+        await this.moduleAccessService!.listEnabledModulesForTenant(tenantId),
+      ] as const),
+    );
+
+    for (const [tenantId, moduleCodes] of rows) {
+      enabledModulesByTenantId.set(tenantId, moduleCodes);
+    }
+
+    return enabledModulesByTenantId;
   }
 
   private deliveryResultForOutboxRow(row: TenantRow): InvitationDeliveryResult {

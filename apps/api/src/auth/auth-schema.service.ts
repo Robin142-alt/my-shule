@@ -394,16 +394,35 @@ export class AuthSchemaService implements OnModuleInit {
           RETURN;
         END IF;
 
-        IF input_tenant_id IS NULL OR length(input_tenant_id) = 0 THEN
-          RETURN;
+        IF input_tenant_id IS NOT NULL AND length(input_tenant_id) > 0 THEN
+          RETURN QUERY
+          SELECT u.id, u.tenant_id, u.email, u.display_name
+          FROM users u
+          WHERE lower(u.email) = normalized_email
+            AND u.tenant_id = input_tenant_id
+            AND u.status = 'active'
+          LIMIT 1;
+
+          IF FOUND THEN
+            RETURN;
+          END IF;
         END IF;
 
         RETURN QUERY
-        SELECT u.id, u.tenant_id, u.email, u.display_name
-        FROM users u
-        WHERE lower(u.email) = normalized_email
-          AND u.tenant_id = input_tenant_id
-          AND u.status = 'active'
+        WITH matching_recovery_users AS (
+          SELECT u.id, u.tenant_id, u.email, u.display_name
+          FROM users u
+          WHERE lower(u.email) = normalized_email
+            AND u.tenant_id <> 'global'
+            AND u.status = 'active'
+        )
+        SELECT
+          matching_recovery_users.id,
+          matching_recovery_users.tenant_id,
+          matching_recovery_users.email,
+          matching_recovery_users.display_name
+        FROM matching_recovery_users
+        WHERE (SELECT count(*) FROM matching_recovery_users) = 1
         LIMIT 1;
       END;
       $$;
@@ -609,7 +628,7 @@ export class AuthSchemaService implements OnModuleInit {
 
         IF request_path NOT LIKE '%/auth/password-recovery/request%'
           AND request_path NOT LIKE '%/auth/email-verification/request%'
-          AND request_path NOT LIKE '%/auth/invitations/accept%'
+          AND request_path NOT LIKE '%/auth/invitations%'
           AND request_path NOT LIKE '%/platform/schools%'
         THEN
           RAISE EXCEPTION 'Email outbox delivery status can only be updated by auth email routes'

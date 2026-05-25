@@ -17,10 +17,12 @@ import {
 } from "@/components/auth/auth-security";
 import { AuthSubmitButton } from "@/components/auth/auth-submit-button";
 import {
-  MFA_CHALLENGE_HELP_TEXT,
   isMfaChallengeRequiredError,
-  normalizeMfaCode,
 } from "@/lib/auth/mfa-challenge";
+import {
+  buildMfaVerificationPath,
+  storeMfaLoginChallenge,
+} from "@/lib/auth/mfa-login-challenge";
 import { useExperienceSession } from "@/lib/auth/use-experience-session";
 
 const credentialsSchema = z.object({
@@ -36,8 +38,6 @@ export function SuperadminLoginView({
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [verificationCode, setVerificationCode] = useState("");
-  const [mfaRequired, setMfaRequired] = useState(false);
   const [rememberSession, setRememberSession] = useState(true);
   const [generalError, setGeneralError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -86,26 +86,23 @@ export function SuperadminLoginView({
     setFieldErrors({});
     setGeneralError(null);
 
-    const normalizedVerificationCode = normalizeMfaCode(verificationCode);
-
-    if (mfaRequired && normalizedVerificationCode.length !== 6) {
-      setFieldErrors({
-        verificationCode: "Enter the verification code from your email.",
-      });
-      return;
-    }
-
     try {
       const result = await authSession.login({
         identifier: nextEmail,
         password: nextPassword,
-        verificationCode: mfaRequired ? normalizedVerificationCode : undefined,
       });
       void router.push(result.redirectTo ?? "/superadmin");
     } catch (loginError) {
       if (isMfaChallengeRequiredError(loginError)) {
-        setMfaRequired(true);
+        storeMfaLoginChallenge({
+          audience: "superadmin",
+          identifier: nextEmail,
+          password: nextPassword,
+          tenantSlug: null,
+          redirectFallback: "/superadmin",
+        });
         setGeneralError(null);
+        void router.push(buildMfaVerificationPath("superadmin"));
         return;
       }
 
@@ -160,8 +157,6 @@ export function SuperadminLoginView({
               value={email}
               onChange={(event) => {
                 setEmail(event.target.value);
-                setMfaRequired(false);
-                setVerificationCode("");
               }}
               error={fieldErrors.email || undefined}
             />
@@ -172,25 +167,9 @@ export function SuperadminLoginView({
               value={password}
               onChange={(event) => {
                 setPassword(event.target.value);
-                setMfaRequired(false);
-                setVerificationCode("");
               }}
               error={fieldErrors.password || undefined}
             />
-            {mfaRequired ? (
-              <AuthField
-                label="Verification code"
-                name="verificationCode"
-                type="text"
-                inputMode="numeric"
-                autoComplete="one-time-code"
-                value={verificationCode}
-                onChange={(event) =>
-                  setVerificationCode(normalizeMfaCode(event.target.value))
-                }
-                error={fieldErrors.verificationCode || undefined}
-              />
-            ) : null}
           </div>
 
           <div className="flex items-center justify-between gap-3">
@@ -209,14 +188,6 @@ export function SuperadminLoginView({
 
           <SessionWarning mode="normal" />
 
-          {mfaRequired ? (
-            <AuthMessage
-              tone="warning"
-              title="Verification required"
-              description={MFA_CHALLENGE_HELP_TEXT}
-            />
-          ) : null}
-
           {generalError ? (
             <AuthMessage tone="error" title="Sign-in blocked" description={generalError} />
           ) : null}
@@ -225,7 +196,7 @@ export function SuperadminLoginView({
             busy={authSession.isSubmitting}
             type="submit"
           >
-            {mfaRequired ? "Verify and continue" : "Continue securely"}
+            Continue securely
           </AuthSubmitButton>
         </form>
 

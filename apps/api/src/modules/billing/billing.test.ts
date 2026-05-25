@@ -2238,3 +2238,98 @@ test('BillingLifecycleGuard blocks writes in restricted mode but allows billing 
 
   assert.equal(opsAllowed, true);
 });
+
+test('BillingLifecycleGuard allows active tenant workspaces while subscription is not configured', async () => {
+  const requestContext = new RequestContextService();
+  const guard = new BillingLifecycleGuard(requestContext);
+
+  const allowed = requestContext.run(
+    {
+      request_id: 'req-bill-unconfigured',
+      tenant_id: 'tenant-a',
+      user_id: '00000000-0000-0000-0000-000000000001',
+      role: 'principal',
+      session_id: 'session-1',
+      permissions: ['auth:read'],
+      is_authenticated: true,
+      client_ip: '127.0.0.1',
+      user_agent: 'test-suite',
+      method: 'GET',
+      path: '/school/modules/me',
+      started_at: '2026-04-26T00:00:00.000Z',
+      billing: {
+        subscription_id: null,
+        plan_code: null,
+        status: null,
+        lifecycle_state: null,
+        access_mode: null,
+        features: [],
+        limits: {},
+        current_period_start: null,
+        current_period_end: null,
+        warning_starts_at: null,
+        grace_period_ends_at: null,
+        restricted_at: null,
+        suspended_at: null,
+        suspension_reason: null,
+        renewal_required: false,
+        is_active: false,
+      },
+    },
+    () =>
+      guard.canActivate({
+        switchToHttp: () => ({
+          getRequest: () => ({
+            method: 'GET',
+            path: '/school/modules/me',
+          }),
+        }),
+      } as never),
+  );
+
+  assert.equal(allowed, true);
+});
+
+test('BillingLifecycleService honors a manual active state without date-based expiry', () => {
+  const service = new BillingLifecycleService(
+    {} as never,
+    {} as never,
+    {} as never,
+    { logEvent: () => undefined } as never,
+  );
+
+  const overview = service.buildOverview(
+    {
+      id: '00000000-0000-0000-0000-000000000901',
+      tenant_id: 'tenant-a',
+      plan_code: 'enterprise',
+      status: 'active',
+      billing_phone_number: null,
+      currency_code: 'KES',
+      features: ['*'],
+      limits: {},
+      seats_allocated: 1,
+      current_period_start: new Date('2026-01-01T00:00:00.000Z'),
+      current_period_end: new Date('2026-01-31T00:00:00.000Z'),
+      trial_ends_at: null,
+      grace_period_ends_at: null,
+      restricted_at: null,
+      suspended_at: null,
+      suspension_reason: null,
+      activated_at: new Date('2026-01-01T00:00:00.000Z'),
+      canceled_at: null,
+      last_invoice_at: null,
+      metadata: {
+        manual_billing_state: 'active',
+        manual_billing_configured_at: '2026-05-23T00:00:00.000Z',
+      },
+      created_at: new Date('2026-01-01T00:00:00.000Z'),
+      updated_at: new Date('2026-05-23T00:00:00.000Z'),
+    } as never,
+    new Date('2026-05-23T00:00:00.000Z'),
+  );
+
+  assert.equal(overview.lifecycle_state, 'ACTIVE');
+  assert.equal(overview.access_mode, 'full');
+  assert.equal(overview.renewal_required, false);
+});

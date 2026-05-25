@@ -6,6 +6,7 @@ import {
   SCHOOL_SESSION_COOKIE,
   SUPERADMIN_SESSION_COOKIE,
 } from "@/lib/auth/experience-routing";
+import { REFRESH_COOKIE } from "@/lib/auth/session-cookies";
 
 export function proxy(request: NextRequest) {
   const decision = evaluateExperienceRouting({
@@ -13,6 +14,7 @@ export function proxy(request: NextRequest) {
       request.headers.get("x-forwarded-host") ??
       request.headers.get("host"),
     pathname: request.nextUrl.pathname,
+    refreshToken: request.cookies.get(REFRESH_COOKIE)?.value ?? null,
     cookies: {
       [SUPERADMIN_SESSION_COOKIE]:
         request.cookies.get(SUPERADMIN_SESSION_COOKIE)?.value,

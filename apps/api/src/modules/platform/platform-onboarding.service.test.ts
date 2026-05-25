@@ -493,6 +493,203 @@ test('PlatformOnboardingService unlocks stale Resend-domain failures after produ
   assert.match(response[0]?.invitation_message ?? '', /resend it/i);
 });
 
+test('PlatformOnboardingService lists schools with persisted enabled module codes', async () => {
+  const moduleLookups: string[] = [];
+  const service = new PlatformOnboardingService(
+    {
+      query: async () => ({
+        rows: [
+          {
+            tenant_id: 'green-valley',
+            name: 'Green Valley School',
+            subdomain: 'green-valley',
+            status: 'active',
+            created_at: new Date('2026-05-11T00:00:00.000Z'),
+            admin_email: 'principal@example.test',
+            invitation_status: 'sent',
+            invite_expires_at: new Date('2026-05-18T00:00:00.000Z'),
+          },
+          {
+            tenant_id: 'lake-view',
+            name: 'Lake View School',
+            subdomain: 'lake-view',
+            status: 'active',
+            created_at: new Date('2026-05-12T00:00:00.000Z'),
+            admin_email: 'admin@example.test',
+            invitation_status: 'sent',
+            invite_expires_at: new Date('2026-05-19T00:00:00.000Z'),
+          },
+        ],
+      }),
+    } as never,
+    { ensureTenantAuthorizationBaseline: async () => undefined } as never,
+    {
+      getTransactionalEmailStatus: () => ({ provider: 'resend', status: 'configured' }),
+      hasLikelyProductionSenderConfigured: () => true,
+    } as never,
+    { get: () => undefined } as never,
+    { getStore: () => ({ user_id: 'platform-owner' }) } as never,
+    {
+      listEnabledModulesForTenant: async (tenantId: string) => {
+        moduleLookups.push(tenantId);
+        return tenantId === 'green-valley'
+          ? ['students', 'finance', 'communication_sms']
+          : ['students', 'exams'];
+      },
+    } as never,
+  );
+
+  const response = await service.listSchools();
+
+  assert.deepEqual(moduleLookups, ['green-valley', 'lake-view']);
+  assert.deepEqual(response[0]?.enabled_modules, ['students', 'finance', 'communication_sms']);
+  assert.deepEqual(response[1]?.enabled_modules, ['students', 'exams']);
+});
+
+test('PlatformOnboardingService lets Superadmin manually set school billing state', async () => {
+  const queries: Array<{ text: string; values: unknown[] }> = [];
+  const configuredAt = '2026-05-23T10:00:00.000Z';
+
+  const service = new PlatformOnboardingService(
+    {
+      withRequestTransaction: async (callback: () => Promise<unknown>) => callback(),
+      query: async (text: string, values: unknown[]) => {
+        queries.push({ text, values });
+
+        if (text.includes('INSERT INTO subscriptions')) {
+          return { rows: [] };
+        }
+
+        if (text.includes('FROM tenants') && text.includes('WHERE tenants.tenant_id = $1')) {
+          return {
+            rows: [
+              {
+                tenant_id: 'green-valley',
+                name: 'Green Valley School',
+                subdomain: 'green-valley',
+                status: 'active',
+                created_at: new Date('2026-05-11T00:00:00.000Z'),
+                admin_email: 'principal@example.test',
+                invitation_status: 'sent',
+                invite_expires_at: new Date('2026-05-18T00:00:00.000Z'),
+                subscription_status: 'past_due',
+                subscription_plan_code: 'enterprise',
+                subscription_metadata: {
+                  manual_billing_state: 'grace_period',
+                  manual_billing_configured_at: configuredAt,
+                  manual_billing_note: 'Principal asked for extra onboarding time',
+                },
+                subscription_grace_period_ends_at: new Date('2026-05-30T00:00:00.000Z'),
+              },
+            ],
+          };
+        }
+
+        return { rows: [] };
+      },
+    } as never,
+    { ensureTenantAuthorizationBaseline: async () => undefined } as never,
+    { getTransactionalEmailStatus: () => ({ provider: 'resend', status: 'configured' }) } as never,
+    { get: () => undefined } as never,
+    { getStore: () => ({ user_id: 'platform-owner' }) } as never,
+    {
+      listEnabledModulesForTenant: async () => ['students', 'finance'],
+    } as never,
+  );
+
+  const response = await service.updateSchoolBilling('green-valley', {
+    state: 'grace_period',
+    note: 'Principal asked for extra onboarding time',
+    effective_until: '2026-05-30T00:00:00.000Z',
+  });
+
+  const subscriptionQuery = queries.find((query) =>
+    query.text.includes('INSERT INTO subscriptions'),
+  );
+
+  assert.ok(subscriptionQuery);
+  assert.equal(
+    subscriptionQuery?.text.includes('ON CONFLICT'),
+    false,
+    'manual billing saves must not require a production conflict index',
+  );
+  assert.equal(subscriptionQuery?.values[0], 'green-valley');
+  assert.equal(subscriptionQuery?.values[2], 'past_due');
+  assert.match(String(subscriptionQuery?.values.at(-1)), /manual_billing_state/);
+  assert.equal(response.billing?.state, 'grace_period');
+  assert.equal(response.billing?.label, 'Grace period');
+  assert.deepEqual(response.enabled_modules, ['students', 'finance']);
+});
+
+test('PlatformOnboardingService expires the current mutable subscription for manual expired billing', async () => {
+  const queries: Array<{ text: string; values: unknown[] }> = [];
+
+  const service = new PlatformOnboardingService(
+    {
+      withRequestTransaction: async (callback: () => Promise<unknown>) => callback(),
+      query: async (text: string, values: unknown[]) => {
+        queries.push({ text, values });
+
+        if (text.includes('UPDATE subscriptions') && values?.[2] === 'expired') {
+          return { rowCount: 1, rows: [] };
+        }
+
+        if (text.includes('INSERT INTO subscriptions')) {
+          throw new Error('expired state should update the current mutable subscription before inserting');
+        }
+
+        if (text.includes('FROM tenants') && text.includes('WHERE tenants.tenant_id = $1')) {
+          return {
+            rows: [
+              {
+                tenant_id: 'green-valley',
+                name: 'Green Valley School',
+                subdomain: 'green-valley',
+                status: 'active',
+                created_at: new Date('2026-05-11T00:00:00.000Z'),
+                admin_email: 'principal@example.test',
+                invitation_status: 'sent',
+                invite_expires_at: new Date('2026-05-18T00:00:00.000Z'),
+                subscription_status: 'expired',
+                subscription_plan_code: 'enterprise',
+                subscription_metadata: {
+                  manual_billing_state: 'expired',
+                  manual_billing_configured_at: '2026-05-23T10:00:00.000Z',
+                },
+                subscription_suspended_at: new Date('2026-05-23T10:00:00.000Z'),
+              },
+            ],
+          };
+        }
+
+        return { rows: [] };
+      },
+    } as never,
+    { ensureTenantAuthorizationBaseline: async () => undefined } as never,
+    { getTransactionalEmailStatus: () => ({ provider: 'resend', status: 'configured' }) } as never,
+    { get: () => undefined } as never,
+    { getStore: () => ({ user_id: 'platform-owner' }) } as never,
+    {
+      listEnabledModulesForTenant: async () => ['students', 'finance'],
+    } as never,
+  );
+
+  const response = await service.updateSchoolBilling('green-valley', {
+    state: 'expired',
+  });
+
+  assert.equal(
+    queries.some((query) =>
+      query.text.includes('UPDATE subscriptions')
+      && query.values[2] === 'expired'
+      && query.values[0] === 'green-valley',
+    ),
+    true,
+  );
+  assert.equal(response.billing?.state, 'expired');
+  assert.equal(response.billing?.access_mode, 'billing_only');
+});
+
 test('PlatformOnboardingService hard deletes an empty failed-invite school after slug confirmation', async () => {
   const queries: Array<{ text: string; values: unknown[] }> = [];
 
@@ -556,6 +753,14 @@ test('PlatformOnboardingService hard deletes an empty failed-invite school after
   assert.equal(response.deprovisioned, false);
   assert.equal(
     queries.some((query) => query.text.includes('DELETE FROM tenants') && query.values[0] === 'green-valley'),
+    true,
+  );
+  assert.equal(
+    queries.some((query) => query.text.includes('DELETE FROM school_module_access') && query.values[0] === 'green-valley'),
+    true,
+  );
+  assert.equal(
+    queries.some((query) => query.text.includes('DELETE FROM users') && query.values[0] === 'green-valley'),
     true,
   );
   assert.equal(

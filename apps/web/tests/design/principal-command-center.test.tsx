@@ -3,6 +3,7 @@ import { screen, waitFor } from "@testing-library/react";
 import { PrincipalCommandCenter } from "@/components/school/principal-command-center";
 import { getVisibleApprovalWorkflows } from "@/lib/workflows/workflow-catalog";
 
+import { routerReplaceMock } from "./router-mock";
 import { renderWithProviders } from "./test-utils";
 
 function jsonResponse(body: unknown, init?: ResponseInit) {
@@ -100,5 +101,17 @@ describe("principal command center", () => {
     expect(screen.getByText("Institutional performance intelligence")).toBeVisible();
     expect(screen.getByText("AI insights")).toBeVisible();
     expect(screen.getByText("Audited")).toBeVisible();
+  });
+
+  it("routes expired principal dashboard sessions back to school login", async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({ message: "Session has expired" }, { status: 401 }),
+    );
+
+    renderWithProviders(<PrincipalCommandCenter />);
+
+    await waitFor(() =>
+      expect(routerReplaceMock).toHaveBeenCalledWith("/school/login?expired=1"),
+    );
   });
 });

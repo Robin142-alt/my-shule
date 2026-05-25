@@ -4,9 +4,11 @@ import userEvent from "@testing-library/user-event";
 import { PublicSchoolLoginView } from "@/components/auth/public-school-login-view";
 import { ForgotPasswordView } from "@/components/auth/auth-recovery-view";
 import { VerifyEmailView } from "@/components/auth/email-verification-view";
+import { MfaVerificationView } from "@/components/auth/mfa-verification-view";
 import { PortalLoginView } from "@/components/auth/portal-login-view";
 import { SchoolLoginView } from "@/components/auth/school-login-view";
 import { SuperadminLoginView } from "@/components/auth/superadmin-login-view";
+import { MFA_LOGIN_CHALLENGE_STORAGE_KEY } from "@/lib/auth/mfa-login-challenge";
 import { resolveSchoolBranding } from "@/lib/auth/school-branding";
 
 import { routerPushMock } from "./router-mock";
@@ -20,6 +22,7 @@ describe("enterprise authentication flows", () => {
   beforeEach(() => {
     fetchMock.mockReset();
     global.fetch = fetchMock as unknown as typeof fetch;
+    sessionStorage.clear();
   });
 
   function mockSecureLogin(payload: unknown) {
@@ -81,7 +84,7 @@ describe("enterprise authentication flows", () => {
     );
   });
 
-  test("super admin sign-in opens an MFA step when the backend requires a challenge", async () => {
+  test("super admin sign-in moves MFA code entry to the dedicated verification page", async () => {
     const user = userEvent.setup();
 
     fetchMock
@@ -92,7 +95,42 @@ describe("enterprise authentication flows", () => {
       .mockResolvedValueOnce({
         ok: false,
         json: async () => ({ message: "MFA challenge required for this role" }),
-      })
+      });
+
+    renderWithProviders(<SuperadminLoginView />);
+
+    await user.type(screen.getByLabelText(/^email$/i), "owner@example.invalid");
+    await user.type(screen.getByLabelText(/^password$/i), "ManagedByVault!2026");
+    await user.click(screen.getByRole("button", { name: /continue securely/i }));
+
+    await waitFor(() =>
+      expect(routerPushMock).toHaveBeenCalledWith("/verify-code?audience=superadmin"),
+    );
+    expect(screen.queryByLabelText(/verification code/i)).not.toBeInTheDocument();
+    expect(JSON.parse(sessionStorage.getItem(MFA_LOGIN_CHALLENGE_STORAGE_KEY) ?? "{}")).toMatchObject({
+      audience: "superadmin",
+      identifier: "owner@example.invalid",
+      password: "ManagedByVault!2026",
+      tenantSlug: null,
+      redirectFallback: "/superadmin",
+    });
+  });
+
+  test("dedicated MFA verification page submits the stored pending login with the code", async () => {
+    const user = userEvent.setup();
+    sessionStorage.setItem(
+      MFA_LOGIN_CHALLENGE_STORAGE_KEY,
+      JSON.stringify({
+        audience: "superadmin",
+        identifier: "owner@example.invalid",
+        password: "ManagedByVault!2026",
+        tenantSlug: null,
+        redirectFallback: "/superadmin",
+        createdAt: Date.now(),
+      }),
+    );
+
+    fetchMock
       .mockResolvedValueOnce({
         ok: true,
         json: async () => ({ token: "csrf-second-token" }),
@@ -109,15 +147,9 @@ describe("enterprise authentication flows", () => {
         }),
       });
 
-    renderWithProviders(<SuperadminLoginView />);
+    renderWithProviders(<MfaVerificationView />);
 
-    await user.type(screen.getByLabelText(/^email$/i), "owner@example.invalid");
-    await user.type(screen.getByLabelText(/^password$/i), "ManagedByVault!2026");
-    await user.click(screen.getByRole("button", { name: /continue securely/i }));
-
-    expect(await screen.findByText(/verification required/i)).toBeVisible();
-    expect(screen.queryByText(/sign-in blocked/i)).not.toBeInTheDocument();
-
+    expect(screen.getByRole("heading", { name: /enter verification code/i })).toBeVisible();
     await user.type(screen.getByLabelText(/verification code/i), "123 456");
     await user.click(screen.getByRole("button", { name: /verify and continue/i }));
 
@@ -130,6 +162,7 @@ describe("enterprise authentication flows", () => {
         body: expect.stringContaining('"verificationCode":"123456"'),
       }),
     );
+    expect(sessionStorage.getItem(MFA_LOGIN_CHALLENGE_STORAGE_KEY)).toBeNull();
   });
 
   test("does not expose school staff credentials and routes bursar access", async () => {

@@ -362,6 +362,43 @@ export function parseExperienceSession(
   }
 }
 
+function decodeBase64Url(value: string) {
+  const normalized = value.replace(/-/g, "+").replace(/_/g, "/");
+  const padding = "=".repeat((4 - (normalized.length % 4)) % 4);
+
+  return globalThis.atob(`${normalized}${padding}`);
+}
+
+function readJwtExpirySeconds(token: string) {
+  try {
+    const payload = token.split(".")[1];
+
+    if (!payload) {
+      return null;
+    }
+
+    const parsed = JSON.parse(decodeBase64Url(payload)) as { exp?: unknown };
+
+    return typeof parsed.exp === "number" ? parsed.exp : null;
+  } catch {
+    return null;
+  }
+}
+
+function isRefreshTokenUsable(refreshToken: string | null | undefined) {
+  if (refreshToken === undefined) {
+    return true;
+  }
+
+  if (!refreshToken) {
+    return false;
+  }
+
+  const expirySeconds = readJwtExpirySeconds(refreshToken);
+
+  return typeof expirySeconds === "number" && expirySeconds * 1000 > Date.now();
+}
+
 export function writeExperienceSession(session: ExperienceSession) {
   if (typeof document === "undefined") {
     return;
@@ -465,6 +502,7 @@ export function resolveExperienceHost(
 export function evaluateExperienceRouting(input: {
   host: string | null | undefined;
   pathname: string;
+  refreshToken?: string | null;
   cookies: Record<string, string | undefined>;
 }): ExperienceRoutingDecision {
   const resolution = resolveExperienceHost(input.host);
@@ -479,7 +517,8 @@ export function evaluateExperienceRouting(input: {
 
   const experience = resolution.experience;
   const cookieName = getSessionCookieName(experience);
-  const session = parseExperienceSession(experience, input.cookies[cookieName] ?? null);
+  const parsedSession = parseExperienceSession(experience, input.cookies[cookieName] ?? null);
+  const session = isRefreshTokenUsable(input.refreshToken) ? parsedSession : null;
 
   if (
     experience === "school" &&
