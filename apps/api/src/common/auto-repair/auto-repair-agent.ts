@@ -19,7 +19,7 @@ export type DashboardWidgetIntent =
   | 'ACTION';
 export type DashboardWorkflowKind = 'CREATE' | 'CONTINUE' | 'RESOLVE';
 export type DashboardRelocationTarget = 'REPORTS' | 'ANALYTICS' | 'DRILL_DOWN';
-export type DashboardWidgetClassification = 'ACTIONABLE' | 'SUPPORTIVE' | 'PASSIVE' | 'DEAD_WEIGHT';
+export type DashboardWidgetClassification = 'ACTIONABLE' | 'DECISIONAL' | 'SUPPORTIVE' | 'PASSIVE' | 'DEAD_WEIGHT';
 export type DashboardRepairActionKind =
   | 'TRIGGER_ACTION'
   | 'TRIGGER_WORKFLOW'
@@ -27,6 +27,11 @@ export type DashboardRepairActionKind =
   | 'TRIGGER_ALERT'
   | 'REQUEST_ACTIVATION'
   | 'START_HERE';
+export type DashboardRepairPatchType =
+  | 'inject_action_layer'
+  | 'inject_decision_layer'
+  | 'inject_exception_layer'
+  | 'transform_widget';
 
 export const requiredRepairWidgetStates = ['ACTIVE', 'EMPTY', 'LOCKED', 'DEGRADED', 'FAILED', 'LOADING'] as const;
 
@@ -78,6 +83,19 @@ export interface AutoRepairDashboardUxState {
   actions: AutoRepairDashboardAction[];
   workflowEntries: AutoRepairDashboardWorkflowEntry[];
   relocations: AutoRepairDashboardRelocation[];
+}
+
+export interface AutoRepairDashboardRepairPatch {
+  patchId: string;
+  issueId: string;
+  patchType: DashboardRepairPatchType;
+  target: string;
+  reason: string;
+  beforeState: string;
+  afterState: string;
+  reversible: boolean;
+  trace: string[];
+  auditLog: string[];
 }
 
 export interface AutoRepairWidgetDefinition {
@@ -187,7 +205,10 @@ export interface AutoRepairDashboardStructure {
 export interface AutoRepairDashboardHealth {
   healthScore: number;
   actionabilityScore: number;
+  workflowContinuityScore: number;
   dataDumpRiskScore: number;
+  issuesDetected: string[];
+  repairPatches: AutoRepairDashboardRepairPatch[];
   widgetClassifications: AutoRepairDashboardWidgetHealth[];
   repairsApplied: AutoRepairDashboardRepairsApplied;
   dashboardStructure: AutoRepairDashboardStructure;
@@ -238,8 +259,6 @@ export function repairMyShuleSnapshot(snapshot: AutoRepairSystemSnapshot): AutoR
   const fixesApplied: AutoRepairFix[] = [];
   const driftPreventionNotes: AutoRepairDriftPreventionNote[] = [];
   const state = cloneSnapshot(snapshot);
-
-  state.actionHandlers = { ...(snapshot.actionHandlers ?? {}) };
 
   repairCapabilities(state, diagnosis, fixesApplied, driftPreventionNotes);
   repairWidgets(state, diagnosis, fixesApplied, driftPreventionNotes);
@@ -493,6 +512,8 @@ function repairDashboardUxHealth(
   driftPreventionNotes: AutoRepairDriftPreventionNote[],
 ): AutoRepairDashboardHealth {
   const repairsApplied = emptyDashboardRepairsApplied();
+  const issuesDetected: string[] = [];
+  const repairPatches: AutoRepairDashboardRepairPatch[] = [];
   const ux = ensureDashboardUx(state.uiDashboardState);
   const registryById = new Map(state.widgetRegistry.widgets.map((widget) => [widget.widgetId, widget]));
   const widgetClassifications = state.uiDashboardState.widgets.map((widget) =>
@@ -506,11 +527,61 @@ function repairDashboardUxHealth(
     }
 
     if (entry.classification === 'PASSIVE' && (widget.intents ?? []).includes('METRIC')) {
-      repairsApplied.convertedKpisToActions.push(widget.widgetId);
-      ux.actionLayer.push(`${widget.widgetId}: Trigger recovery action`);
-      ux.decisionLayer.push(`${widget.widgetId}: Recommended next step`);
-      ux.exceptionLayer.push(`${widget.widgetId}: Review overdue or risky item`);
-      ux.actions.push({
+      const issueId = `passive_${widget.widgetId}`;
+      issuesDetected.push(issueId);
+      addUniqueString(repairsApplied.convertedKpisToActions, widget.widgetId);
+      addDashboardRepairPatch(repairPatches, {
+        patchId: `${issueId}.transform_widget`,
+        issueId,
+        patchType: 'transform_widget',
+        target: widget.widgetId,
+        reason: 'KPI widget must expose an operational recovery path',
+        beforeState: 'passive_metric_widget',
+        afterState: 'actionable_operational_widget',
+        reversible: true,
+        trace: [state.uiDashboardState.dashboardId, widget.widgetId, 'dashboard_health'],
+        auditLog: [`Planned reversible transform for ${widget.widgetId}`],
+      });
+      addUniqueString(ux.actionLayer, `${widget.widgetId}: Trigger recovery action`);
+      addDashboardRepairPatch(repairPatches, {
+        patchId: `${issueId}.action_layer`,
+        issueId,
+        patchType: 'inject_action_layer',
+        target: `${state.uiDashboardState.dashboardId}.actionLayer`,
+        reason: 'Provide a triggerable recovery action from the KPI',
+        beforeState: 'missing_action_layer_entry',
+        afterState: `${widget.widgetId}: Trigger recovery action`,
+        reversible: true,
+        trace: [state.uiDashboardState.dashboardId, widget.widgetId, 'action_layer'],
+        auditLog: [`Planned action layer injection for ${widget.widgetId}`],
+      });
+      addUniqueString(ux.decisionLayer, `${widget.widgetId}: Recommended next step`);
+      addDashboardRepairPatch(repairPatches, {
+        patchId: `${issueId}.decision_layer`,
+        issueId,
+        patchType: 'inject_decision_layer',
+        target: `${state.uiDashboardState.dashboardId}.decisionLayer`,
+        reason: 'Attach a decision prompt to the KPI context',
+        beforeState: 'missing_decision_layer_entry',
+        afterState: `${widget.widgetId}: Recommended next step`,
+        reversible: true,
+        trace: [state.uiDashboardState.dashboardId, widget.widgetId, 'decision_layer'],
+        auditLog: [`Planned decision layer injection for ${widget.widgetId}`],
+      });
+      addUniqueString(ux.exceptionLayer, `${widget.widgetId}: Review overdue or risky item`);
+      addDashboardRepairPatch(repairPatches, {
+        patchId: `${issueId}.exception_layer`,
+        issueId,
+        patchType: 'inject_exception_layer',
+        target: `${state.uiDashboardState.dashboardId}.exceptionLayer`,
+        reason: 'Expose the exception requiring operational resolution',
+        beforeState: 'missing_exception_layer_entry',
+        afterState: `${widget.widgetId}: Review overdue or risky item`,
+        reversible: true,
+        trace: [state.uiDashboardState.dashboardId, widget.widgetId, 'exception_layer'],
+        auditLog: [`Planned exception layer injection for ${widget.widgetId}`],
+      });
+      addDashboardAction(ux.actions, {
         actionId: `${widget.widgetId}.trigger-action`,
         label: 'Trigger recovery action',
         kind: 'TRIGGER_ACTION',
@@ -523,12 +594,26 @@ function repairDashboardUxHealth(
   for (const kind of requiredWorkflowKinds) {
     if (!ux.workflowEntries.some((entry) => entry.kind === kind)) {
       const workflowId = `${state.uiDashboardState.dashboardId}.${kind.toLowerCase()}-workflow`;
-      ux.workflowEntries.push({
+      const issueId = `missing_workflow_${kind.toLowerCase()}`;
+      issuesDetected.push(issueId);
+      addDashboardWorkflowEntry(ux.workflowEntries, {
         workflowId,
         label: `${kind[0]}${kind.slice(1).toLowerCase()} workflow`,
         kind,
       });
-      repairsApplied.addedWorkflows.push(workflowId);
+      addUniqueString(repairsApplied.addedWorkflows, workflowId);
+      addDashboardRepairPatch(repairPatches, {
+        patchId: `${issueId}.workflow_entry`,
+        issueId,
+        patchType: 'inject_action_layer',
+        target: `${state.uiDashboardState.dashboardId}.workflowEntries.${kind.toLowerCase()}`,
+        reason: `Ensure ${kind.toLowerCase()} workflow continuity is available`,
+        beforeState: 'missing_workflow_entry',
+        afterState: workflowId,
+        reversible: true,
+        trace: [state.uiDashboardState.dashboardId, workflowId, 'workflow_continuity'],
+        auditLog: [`Planned ${kind.toLowerCase()} workflow continuity injection for ${workflowId}`],
+      });
     }
   }
 
@@ -553,7 +638,10 @@ function repairDashboardUxHealth(
   return {
     healthScore: Math.max(0, 100 - scores.dataDumpRiskScore),
     actionabilityScore: scores.actionabilityScore,
+    workflowContinuityScore: scores.workflowContinuityScore,
     dataDumpRiskScore: scores.dataDumpRiskScore,
+    issuesDetected,
+    repairPatches,
     widgetClassifications,
     repairsApplied,
     dashboardStructure: {
@@ -575,7 +663,39 @@ function ensureDashboardUx(dashboard: AutoRepairDashboardState): AutoRepairDashb
   dashboard.ux.decisionLayer = unique([...dashboard.ux.decisionLayer]);
   dashboard.ux.exceptionLayer = unique([...dashboard.ux.exceptionLayer]);
   dashboard.ux.dataLayer = unique([...dashboard.ux.dataLayer]);
+  dashboard.ux.actions = uniqueBy(dashboard.ux.actions, (action) => action.actionId);
+  dashboard.ux.workflowEntries = uniqueBy(dashboard.ux.workflowEntries, (entry) => entry.kind);
   return dashboard.ux;
+}
+
+function addUniqueString(target: string[], value: string) {
+  if (!target.includes(value)) {
+    target.push(value);
+  }
+}
+
+function addDashboardAction(target: AutoRepairDashboardAction[], action: AutoRepairDashboardAction) {
+  if (!target.some((existing) => existing.actionId === action.actionId)) {
+    target.push(action);
+  }
+}
+
+function addDashboardWorkflowEntry(
+  target: AutoRepairDashboardWorkflowEntry[],
+  entry: AutoRepairDashboardWorkflowEntry,
+) {
+  if (!target.some((existing) => existing.kind === entry.kind)) {
+    target.push(entry);
+  }
+}
+
+function addDashboardRepairPatch(
+  target: AutoRepairDashboardRepairPatch[],
+  patch: AutoRepairDashboardRepairPatch,
+) {
+  if (!target.some((existing) => existing.patchId === patch.patchId)) {
+    target.push(patch);
+  }
 }
 
 function classifyDashboardWidget(
@@ -593,11 +713,19 @@ function classifyDashboardWidget(
     };
   }
 
-  if (intents.includes('DECISION') || intents.includes('ALERT')) {
+  if (intents.includes('DECISION')) {
+    return {
+      widgetId: widget.widgetId,
+      classification: 'DECISIONAL',
+      reason: 'Widget contributes to the decision layer',
+    };
+  }
+
+  if (intents.includes('ALERT')) {
     return {
       widgetId: widget.widgetId,
       classification: 'SUPPORTIVE',
-      reason: 'Widget supports a decision or exception layer',
+      reason: 'Widget supports an exception layer',
     };
   }
 
@@ -649,6 +777,7 @@ function scoreDashboardHealth(
 
   return {
     actionabilityScore,
+    workflowContinuityScore: Math.round(workflowCoverage * 100),
     dataDumpRiskScore,
   };
 }
@@ -703,6 +832,21 @@ function fallbackHandlerFor(action: AutoRepairFailedActionLog): AutoRepairAction
 
 function unique(values: string[]): string[] {
   return [...new Set(values)];
+}
+
+function uniqueBy<T>(values: T[], keyFor: (value: T) => string): T[] {
+  const seen = new Set<string>();
+  const result: T[] = [];
+
+  for (const value of values) {
+    const key = keyFor(value);
+    if (!seen.has(key)) {
+      seen.add(key);
+      result.push(value);
+    }
+  }
+
+  return result;
 }
 
 function cloneSnapshot(snapshot: AutoRepairSystemSnapshot): AutoRepairSystemSnapshot {
