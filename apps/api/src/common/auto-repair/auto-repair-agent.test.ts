@@ -513,6 +513,113 @@ test('AutoRepairAgent emits relocation patches for dead-weight widgets without d
   assert.equal(report.systemStateAfterFix.uiDashboardState.ux, undefined);
 });
 
+test('AutoRepairAgent preserves healthy operational dashboards without unnecessary UX repairs', () => {
+  const report = repairMyShuleSnapshot(snapshot({
+    moduleAssignments: {
+      discipline: 'ENABLED',
+    },
+    capabilityMap: {
+      'discipline:read': true,
+      'discipline:resolve': true,
+    },
+    widgetRegistry: {
+      version: '2026.05',
+      widgets: [
+        {
+          widgetId: 'discipline.escalations',
+          name: 'Discipline Escalations',
+          moduleSource: 'discipline',
+          capabilitiesRequired: ['discipline:read'],
+          eventSubscriptions: ['discipline.case.escalated'],
+          states: {
+            ACTIVE: { label: 'Active', visibility: 'VISIBLE' },
+            EMPTY: { label: 'Empty', visibility: 'VISIBLE' },
+            LOCKED: { label: 'Locked', visibility: 'DISABLED' },
+            DEGRADED: { label: 'Degraded', visibility: 'READONLY', retryable: true },
+            FAILED: { label: 'Failed', visibility: 'VISIBLE', retryable: true },
+            LOADING: { label: 'Loading', visibility: 'VISIBLE' },
+          },
+          actions: [
+            {
+              actionId: 'resolve-case',
+              label: 'Resolve Case',
+              capabilityRequired: 'discipline:resolve',
+              failurePolicy: 'RETRY',
+            },
+          ],
+        },
+      ],
+    },
+    uiDashboardState: {
+      dashboardId: 'discipline-dashboard',
+      role: 'discipline-master',
+      staticLayout: true,
+      widgets: [
+        {
+          widgetId: 'discipline.escalations',
+          state: 'ACTIVE',
+          visible: true,
+          moduleSource: 'discipline',
+          capabilitiesRequired: ['discipline:read'],
+          eventSubscriptions: ['discipline.case.escalated'],
+          intents: ['ACTION', 'WORKFLOW', 'ALERT'],
+        },
+      ],
+      operationalIntent: 'Discipline master can resolve escalated cases immediately',
+      ux: {
+        actionLayer: ['discipline.escalations: Resolve case'],
+        decisionLayer: ['discipline.escalations: Review severity and next step'],
+        exceptionLayer: ['discipline.escalations: Escalated case requires action'],
+        dataLayer: ['discipline.escalations: Case context'],
+        actions: [
+          {
+            actionId: 'discipline.escalations.resolve',
+            label: 'Resolve case',
+            kind: 'TRIGGER_ACTION',
+            sourceWidgetId: 'discipline.escalations',
+            target: 'discipline.case.resolve',
+          },
+        ],
+        workflowEntries: [
+          {
+            workflowId: 'discipline.create-workflow',
+            label: 'Create case workflow',
+            kind: 'CREATE',
+          },
+          {
+            workflowId: 'discipline.continue-workflow',
+            label: 'Continue case workflow',
+            kind: 'CONTINUE',
+          },
+          {
+            workflowId: 'discipline.resolve-workflow',
+            label: 'Resolve case workflow',
+            kind: 'RESOLVE',
+          },
+        ],
+        relocations: [],
+      },
+    },
+    eventBindings: {},
+    eventLogs: [],
+    failedActionsLog: [],
+  }));
+
+  assert.equal(report.dashboardHealth.actionabilityScore, 100);
+  assert.equal(report.dashboardHealth.dataDumpRiskScore, 0);
+  assert.equal(report.dashboardHealth.workflowContinuityScore, 100);
+  assert.deepEqual(report.dashboardHealth.issuesDetected, []);
+  assert.deepEqual(report.dashboardHealth.repairPatches, []);
+  assert.deepEqual(report.dashboardHealth.repairsApplied, {
+    convertedKpisToActions: [],
+    addedWorkflows: [],
+    relocatedWidgets: [],
+    fixedLockedStates: [],
+    fixedEmptyStates: [],
+  });
+  assert.ok(!report.diagnosis.some((entry) => entry.message.includes('data-heavy')));
+});
+
 test('AutoRepairAgent recognizes semantically equivalent dashboard repair actions with different ids', () => {
   const input = kpiOnlyDashboardSnapshot();
   input.uiDashboardState.ux = {
