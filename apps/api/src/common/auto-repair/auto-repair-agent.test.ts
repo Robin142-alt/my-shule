@@ -316,6 +316,117 @@ test('AutoRepairAgent skips dashboard repair patches for existing equivalent UX 
   );
 });
 
+test('AutoRepairAgent emits patch plans for LOCKED and EMPTY widget operational recovery', () => {
+  const report = repairMyShuleSnapshot(snapshot({
+    moduleAssignments: {
+      exams: 'DISABLED',
+      library: 'ENABLED',
+    },
+    capabilityMap: {
+      'exams:review': true,
+      'library:returns': true,
+    },
+    widgetRegistry: {
+      version: '2026.05',
+      widgets: [
+        {
+          widgetId: 'exams.pendingReviews',
+          name: 'Pending Reviews',
+          moduleSource: 'exams',
+          capabilitiesRequired: ['exams:review'],
+          eventSubscriptions: ['exam.submitted'],
+          states: {
+            ACTIVE: { label: 'Active', visibility: 'VISIBLE' },
+            EMPTY: { label: 'Empty', visibility: 'VISIBLE' },
+            LOCKED: { label: 'Locked', visibility: 'DISABLED' },
+            DEGRADED: { label: 'Degraded', visibility: 'READONLY', retryable: true },
+            FAILED: { label: 'Failed', visibility: 'VISIBLE', retryable: true },
+            LOADING: { label: 'Loading', visibility: 'VISIBLE' },
+          },
+          actions: [],
+        },
+        {
+          widgetId: 'library.returns',
+          name: 'Returns Desk',
+          moduleSource: 'library',
+          capabilitiesRequired: ['library:returns'],
+          eventSubscriptions: ['library.return.created'],
+          states: {
+            ACTIVE: { label: 'Active', visibility: 'VISIBLE' },
+            EMPTY: { label: 'Empty', visibility: 'VISIBLE' },
+            LOCKED: { label: 'Locked', visibility: 'DISABLED' },
+            DEGRADED: { label: 'Degraded', visibility: 'READONLY', retryable: true },
+            FAILED: { label: 'Failed', visibility: 'VISIBLE', retryable: true },
+            LOADING: { label: 'Loading', visibility: 'VISIBLE' },
+          },
+          actions: [],
+        },
+      ],
+    },
+    uiDashboardState: {
+      dashboardId: 'operations-dashboard',
+      role: 'principal',
+      staticLayout: true,
+      widgets: [
+        {
+          widgetId: 'exams.pendingReviews',
+          state: 'ACTIVE',
+          visible: true,
+          moduleSource: 'exams',
+          capabilitiesRequired: ['exams:review'],
+          eventSubscriptions: ['exam.submitted'],
+          intents: ['WORKFLOW'],
+        },
+        {
+          widgetId: 'library.returns',
+          state: 'EMPTY',
+          visible: true,
+          moduleSource: 'library',
+          capabilitiesRequired: ['library:returns'],
+          eventSubscriptions: ['library.return.created'],
+          intents: ['TABLE'],
+        },
+      ],
+      operationalIntent: 'Principal can unblock locked modules and start empty workflows',
+    },
+    eventBindings: {},
+    eventLogs: [],
+    failedActionsLog: [],
+  }));
+
+  assert.equal(report.systemStateAfterFix.uiDashboardState.widgets[0].state, 'LOCKED');
+  assert.deepEqual(report.dashboardHealth.repairsApplied.fixedLockedStates, ['exams.pendingReviews']);
+  assert.deepEqual(report.dashboardHealth.repairsApplied.fixedEmptyStates, ['library.returns']);
+  assert.deepEqual(
+    report.dashboardHealth.dashboardStructure.exceptionLayer,
+    ['exams.pendingReviews: Activation or permission required'],
+  );
+  assert.ok(report.dashboardHealth.dashboardStructure.actionLayer.includes('library.returns: Start guided workflow'));
+
+  const lockedPatch = report.dashboardHealth.repairPatches.find(
+    (patch) => patch.patchId === 'locked_exams.pendingReviews.repair_locked_state',
+  );
+  const emptyPatch = report.dashboardHealth.repairPatches.find(
+    (patch) => patch.patchId === 'empty_library.returns.enrich_empty_state',
+  );
+
+  assert.equal(lockedPatch?.patchType, 'repair_locked_state');
+  assert.equal(lockedPatch?.issueId, 'locked_exams.pendingReviews');
+  assert.equal(lockedPatch?.operation.path, 'dashboard.widgets.exams.pendingReviews.lockedRecoveryAction');
+  assert.equal(lockedPatch?.confidence, 0.95);
+  assert.equal(lockedPatch?.reversible, true);
+  assert.equal(lockedPatch?.requiresReview, false);
+
+  assert.equal(emptyPatch?.patchType, 'enrich_empty_state');
+  assert.equal(emptyPatch?.issueId, 'empty_library.returns');
+  assert.equal(emptyPatch?.operation.path, 'dashboard.widgets.library.returns.emptyStateAction');
+  assert.equal(emptyPatch?.confidence, 0.95);
+  assert.equal(emptyPatch?.reversible, true);
+  assert.equal(emptyPatch?.requiresReview, false);
+
+  assert.equal(report.systemStateAfterFix.uiDashboardState.ux, undefined);
+});
+
 test('AutoRepairAgent recognizes semantically equivalent dashboard repair actions with different ids', () => {
   const input = kpiOnlyDashboardSnapshot();
   input.uiDashboardState.ux = {

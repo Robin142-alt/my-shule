@@ -28,10 +28,12 @@ export type DashboardRepairActionKind =
   | 'REQUEST_ACTIVATION'
   | 'START_HERE';
 export type DashboardRepairPatchType =
+  | 'enrich_empty_state'
   | 'inject_action_layer'
   | 'inject_decision_layer'
   | 'inject_exception_layer'
   | 'inject_workflow_entry'
+  | 'repair_locked_state'
   | 'transform_widget';
 
 export const requiredRepairWidgetStates = ['ACTIVE', 'EMPTY', 'LOCKED', 'DEGRADED', 'FAILED', 'LOADING'] as const;
@@ -539,6 +541,72 @@ function repairDashboardUxHealth(
       continue;
     }
 
+    if (widget.state === 'LOCKED') {
+      const issueId = `locked_${widget.widgetId}`;
+      const exceptionLayerEntry = `${widget.widgetId}: Activation or permission required`;
+      const lockedRecoveryAction = {
+        actionId: `${widget.widgetId}.request-activation`,
+        label: 'Activation or permission required',
+        kind: 'REQUEST_ACTIVATION' as const,
+        sourceWidgetId: widget.widgetId,
+        target: `${widget.moduleSource}.activation.request`,
+      };
+      const hasEquivalentLockedRecovery = existingUx.exceptionLayer.includes(exceptionLayerEntry)
+        || existingUx.actions.some((action) => isEquivalentDashboardAction(action, lockedRecoveryAction));
+
+      if (!existingUx.exceptionLayer.includes(exceptionLayerEntry)) {
+        addUniqueString(proposedExceptionLayer, exceptionLayerEntry);
+      }
+
+      if (!hasEquivalentLockedRecovery) {
+        addUniqueString(issuesDetected, issueId);
+        addUniqueString(repairsApplied.fixedLockedStates, widget.widgetId);
+        addDashboardRepairPatch(repairPatches, createDashboardRepairPatch({
+          patchId: `${issueId}.repair_locked_state`,
+          issueId,
+          patchType: 'repair_locked_state',
+          path: dashboardWidgetRecoveryPath(widget.widgetId, 'lockedRecoveryAction'),
+          before: null,
+          after: lockedRecoveryAction,
+          reason: 'Locked widget needs an explicit activation or permission recovery path',
+          triggerSource: `${state.uiDashboardState.dashboardId}:${widget.widgetId}`,
+        }));
+      }
+    }
+
+    if (widget.state === 'EMPTY') {
+      const issueId = `empty_${widget.widgetId}`;
+      const actionLayerEntry = `${widget.widgetId}: Start guided workflow`;
+      const emptyStateAction = {
+        actionId: `${widget.widgetId}.start-guided-workflow`,
+        label: 'Start guided workflow',
+        kind: 'START_HERE' as const,
+        sourceWidgetId: widget.widgetId,
+        target: `${widget.moduleSource}.workflow.start`,
+      };
+      const hasEquivalentEmptyRecovery = existingUx.actionLayer.includes(actionLayerEntry)
+        || existingUx.actions.some((action) => isEquivalentDashboardAction(action, emptyStateAction));
+
+      if (!existingUx.actionLayer.includes(actionLayerEntry)) {
+        addUniqueString(proposedActionLayer, actionLayerEntry);
+      }
+
+      if (!hasEquivalentEmptyRecovery) {
+        addUniqueString(issuesDetected, issueId);
+        addUniqueString(repairsApplied.fixedEmptyStates, widget.widgetId);
+        addDashboardRepairPatch(repairPatches, createDashboardRepairPatch({
+          patchId: `${issueId}.enrich_empty_state`,
+          issueId,
+          patchType: 'enrich_empty_state',
+          path: dashboardWidgetRecoveryPath(widget.widgetId, 'emptyStateAction'),
+          before: null,
+          after: emptyStateAction,
+          reason: 'Empty widget needs a start-here workflow instead of a dead end',
+          triggerSource: `${state.uiDashboardState.dashboardId}:${widget.widgetId}`,
+        }));
+      }
+    }
+
     if (entry.classification === 'PASSIVE' && (widget.intents ?? []).includes('METRIC')) {
       const issueId = `passive_${widget.widgetId}`;
       const actionLayerEntry = `${widget.widgetId}: Trigger recovery action`;
@@ -747,6 +815,10 @@ function createDashboardRepairPatch(input: {
 
 function dashboardPath(...parts: string[]): string {
   return `/uiDashboardState/${parts.map((part) => encodeURIComponent(part)).join('/')}`;
+}
+
+function dashboardWidgetRecoveryPath(widgetId: string, recoveryField: string): string {
+  return `dashboard.widgets.${widgetId}.${recoveryField}`;
 }
 
 function classifyDashboardWidget(
