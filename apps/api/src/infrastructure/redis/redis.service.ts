@@ -84,6 +84,24 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   }
 
   private isRedisRequired(): boolean {
-    return this.configService.get<boolean>('redis.required') ?? true;
+    const configured = this.configService.get<boolean | string>('redis.required');
+
+    if (typeof configured === 'boolean') {
+      return configured;
+    }
+
+    if (typeof configured === 'string') {
+      const normalized = configured.trim().toLowerCase();
+
+      if (['0', 'false', 'no', 'off'].includes(normalized)) {
+        return false;
+      }
+
+      if (['1', 'true', 'yes', 'on'].includes(normalized)) {
+        return true;
+      }
+    }
+
+    return true;
   }
 }
