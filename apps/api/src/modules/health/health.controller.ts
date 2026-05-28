@@ -67,6 +67,7 @@ export class HealthController {
     return {
       status:
         this.isSloReadinessDegraded(realtimeHealth)
+        || redis !== 'up'
         || corsStatus.status === 'invalid'
         || supportNotificationDegraded
         || this.isOperationalReadinessDegraded(objectStorageStatus.status)

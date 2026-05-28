@@ -442,6 +442,7 @@ test('configuration maps production transport and security hardening flags', () 
     'AUTH_COOKIE_SAME_SITE',
     'DATABASE_SSL',
     'DATABASE_RLS_AUDIT_ENABLED',
+    'REDIS_REQUIRED',
     'REDIS_TLS_ENABLED',
     'SECURITY_KMS_PROVIDER',
     'SECURITY_KMS_KEY_ID',
@@ -455,6 +456,7 @@ test('configuration maps production transport and security hardening flags', () 
     process.env.AUTH_COOKIE_SAME_SITE = 'strict';
     process.env.DATABASE_SSL = 'true';
     process.env.DATABASE_RLS_AUDIT_ENABLED = 'true';
+    process.env.REDIS_REQUIRED = 'false';
     process.env.REDIS_TLS_ENABLED = 'true';
     process.env.SECURITY_KMS_PROVIDER = 'aws_kms';
     process.env.SECURITY_KMS_KEY_ID = 'arn:aws:kms:eu-west-1:123456789012:key/example';
@@ -467,6 +469,7 @@ test('configuration maps production transport and security hardening flags', () 
     assert.equal(config.auth.cookieSameSite, 'strict');
     assert.equal(config.database.ssl, true);
     assert.equal(config.database.rlsAuditEnabled, true);
+    assert.equal(config.redis.required, false);
     assert.equal(config.redis.tlsEnabled, true);
     assert.equal(config.security.kmsProvider, 'aws_kms');
     assert.equal(config.security.kmsKeyId, 'arn:aws:kms:eu-west-1:123456789012:key/example');

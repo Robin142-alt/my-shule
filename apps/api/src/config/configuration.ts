@@ -87,6 +87,7 @@ export default () => ({
   },
   redis: {
     url: process.env.REDIS_URL ?? 'redis://127.0.0.1:6379',
+    required: parseBoolean(process.env.REDIS_REQUIRED, !isServerlessRuntime),
     tlsEnabled: parseBoolean(process.env.REDIS_TLS_ENABLED, false),
     connectTimeoutMs: parseNumber(process.env.REDIS_CONNECT_TIMEOUT_MS, isServerlessRuntime ? 1500 : 10000),
   },

@@ -294,6 +294,31 @@ test('HealthController readiness keeps warning SLO telemetry visible without fai
   assert.equal(readiness.slo?.active_alert_count, 1);
 });
 
+test('HealthController readiness reports optional Redis degradation without throwing', async () => {
+  const controller = new HealthController(
+    {
+      requireStore: () => ({
+        request_id: 'req-redis-degraded',
+        tenant_id: 'green-valley',
+        user_id: 'system',
+        role: 'system',
+        session_id: null,
+        is_authenticated: false,
+      }),
+    } as never,
+    {
+      ping: async () => 'up',
+      getPoolMetrics: () => ({ totalCount: 1, idleCount: 1, waitingCount: 0 }),
+    } as never,
+    { ping: async () => 'degraded' } as never,
+  );
+
+  const readiness = await controller.getReadiness();
+
+  assert.equal(readiness.status, 'degraded');
+  assert.equal(readiness.services.redis, 'degraded');
+});
+
 test('HealthController readiness is degraded by critical SLO telemetry', async () => {
   const controller = new HealthController(
     {
