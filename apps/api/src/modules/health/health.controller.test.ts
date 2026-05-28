@@ -362,6 +362,27 @@ test('HealthController readiness converts dependency failures into degraded stat
   assert.equal(readiness.slo?.overall_status, 'degraded');
 });
 
+test('HealthController readiness falls back instead of throwing when context is unavailable', async () => {
+  const controller = new HealthController(
+    {
+      requireStore: () => {
+        throw new Error('request context unavailable');
+      },
+    } as never,
+    {
+      ping: async () => 'up',
+      getPoolMetrics: () => ({ totalCount: 0, idleCount: 0, waitingCount: 0 }),
+    } as never,
+    { ping: async () => 'degraded' } as never,
+  );
+
+  const readiness = await controller.getReadiness();
+
+  assert.equal(readiness.status, 'degraded');
+  assert.equal(readiness.services.redis, 'degraded');
+  assert.equal(readiness.request_context.is_authenticated, false);
+});
+
 test('HealthController readiness is degraded by critical SLO telemetry', async () => {
   const controller = new HealthController(
     {

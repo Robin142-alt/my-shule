@@ -1,4 +1,4 @@
-import { Controller, Get, Optional } from '@nestjs/common';
+import { Controller, Get, HttpCode, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
 import { resolveCorsOriginPolicy } from '../../app-cors-policy';
@@ -39,8 +39,17 @@ export class HealthController {
 
   @Public()
   @Get('ready')
+  @HttpCode(200)
   @SkipResponseEnvelope()
-  async getReadiness() {
+  async getReadiness(): Promise<any> {
+    try {
+      return await this.buildReadiness();
+    } catch {
+      return this.getFallbackReadiness();
+    }
+  }
+
+  private async buildReadiness(): Promise<any> {
     const [databaseResult, redisResult] = await Promise.allSettled([
       this.databaseService.ping(),
       this.redisService.ping(),
@@ -105,6 +114,38 @@ export class HealthController {
         is_authenticated: requestContext.is_authenticated,
       },
     };
+  }
+
+  private getFallbackReadiness() {
+    return {
+      status: 'degraded',
+      services: {
+        postgres: 'unknown',
+        redis: 'degraded',
+        bullmq: 'degraded',
+        transactional_email: 'unknown',
+        cors: 'unknown',
+        support_notifications: 'unknown',
+        object_storage: 'unknown',
+        malware_scanning: 'unknown',
+      },
+      request_context: this.tryGetRequestContext(),
+    };
+  }
+
+  private tryGetRequestContext() {
+    try {
+      return this.requestContext.requireStore();
+    } catch {
+      return {
+        request_id: null,
+        tenant_id: null,
+        user_id: null,
+        role: null,
+        session_id: null,
+        is_authenticated: false,
+      };
+    }
   }
 
   private getCorsReadiness() {
