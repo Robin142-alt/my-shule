@@ -319,6 +319,49 @@ test('HealthController readiness reports optional Redis degradation without thro
   assert.equal(readiness.services.redis, 'degraded');
 });
 
+test('HealthController readiness converts dependency failures into degraded status', async () => {
+  const controller = new HealthController(
+    {
+      requireStore: () => ({
+        request_id: 'req-dependency-failure',
+        tenant_id: 'green-valley',
+        user_id: 'system',
+        role: 'system',
+        session_id: null,
+        is_authenticated: false,
+      }),
+    } as never,
+    {
+      ping: async () => {
+        throw new Error('database unavailable');
+      },
+      getPoolMetrics: () => ({ totalCount: 0, idleCount: 0, waitingCount: 0 }),
+    } as never,
+    { ping: async () => 'degraded' } as never,
+    undefined,
+    {
+      getRealtimeHealth: async () => {
+        throw new Error('slo unavailable');
+      },
+    } as never,
+    undefined,
+    undefined,
+    {
+      getProviderStatus: async () => {
+        throw new Error('support provider unavailable');
+      },
+    } as never,
+  );
+
+  const readiness = await controller.getReadiness();
+
+  assert.equal(readiness.status, 'degraded');
+  assert.equal(readiness.services.postgres, 'down');
+  assert.equal(readiness.services.redis, 'degraded');
+  assert.equal(readiness.services.support_notifications, 'degraded');
+  assert.equal(readiness.slo?.overall_status, 'degraded');
+});
+
 test('HealthController readiness is degraded by critical SLO telemetry', async () => {
   const controller = new HealthController(
     {
