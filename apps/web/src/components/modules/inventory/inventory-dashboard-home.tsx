@@ -31,7 +31,7 @@ export function InventoryDashboardHome() {
           </h3>
           <div className="mt-6 space-y-3">
             <Link href="/dashboard/storekeeper/inventory" className={buttonClasses({ variant: "secondary", size: "md" })}>
-              Open Inventory Workspace
+              Open Inventory Desk
             </Link>
             <Link href="/dashboard/storekeeper/inventory" className={buttonClasses({ variant: "primary", size: "md" })}>
               Adjust Stock

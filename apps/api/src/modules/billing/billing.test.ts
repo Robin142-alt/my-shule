@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import test from 'node:test';
 
+import { resolveApiCapabilityEnforcement } from '../../common/capability-engine/capability-engine';
 import { RequestContextService } from '../../common/request-context/request-context.service';
 import { BillingLifecycleGuard } from '../../guards/billing-lifecycle.guard';
 import { BillingLifecycleService } from './billing-lifecycle.service';
@@ -2115,6 +2116,60 @@ test('BillingLifecycleService computes restricted access after grace period laps
   assert.equal(overview.renewal_required, true);
 });
 
+test('Capability engine translates billing lifecycle into progressive API enforcement', () => {
+  assert.deepEqual(
+    resolveApiCapabilityEnforcement({
+      lifecycle_state: 'GRACE_PERIOD',
+      access_mode: 'full',
+    }),
+    {
+      level: 'GRACE_WARNING',
+      canLogin: true,
+      writeMode: 'full',
+      message: 'Payment grace warning is active',
+    },
+  );
+
+  assert.deepEqual(
+    resolveApiCapabilityEnforcement({
+      lifecycle_state: 'PAYMENT_OVERDUE',
+      access_mode: 'full',
+    }),
+    {
+      level: 'FUNCTIONAL_LIMITATION',
+      canLogin: true,
+      writeMode: 'limited',
+      message: 'School access is functionally limited',
+    },
+  );
+
+  assert.deepEqual(
+    resolveApiCapabilityEnforcement({
+      lifecycle_state: 'RESTRICTED',
+      access_mode: 'read_only',
+    }),
+    {
+      level: 'OPERATIONAL_LOCKDOWN',
+      canLogin: true,
+      writeMode: 'read_only',
+      message: 'School is in read-only operational lockdown',
+    },
+  );
+
+  assert.deepEqual(
+    resolveApiCapabilityEnforcement({
+      lifecycle_state: 'SUSPENDED',
+      access_mode: 'billing_only',
+    }),
+    {
+      level: 'SUSPENSION',
+      canLogin: false,
+      writeMode: 'blocked',
+      message: 'School access is suspended',
+    },
+  );
+});
+
 test('BillingLifecycleGuard blocks writes in restricted mode but allows billing routes', async () => {
   const requestContext = new RequestContextService();
   const guard = new BillingLifecycleGuard(requestContext);
@@ -2273,6 +2328,57 @@ test('BillingLifecycleGuard allows active tenant workspaces while subscription i
         suspended_at: null,
         suspension_reason: null,
         renewal_required: false,
+        is_active: false,
+      },
+    },
+    () =>
+      guard.canActivate({
+        switchToHttp: () => ({
+          getRequest: () => ({
+            method: 'GET',
+            path: '/school/modules/me',
+          }),
+        }),
+      } as never),
+  );
+
+  assert.equal(allowed, true);
+});
+
+test('BillingLifecycleGuard allows module discovery when a school is billing-only', async () => {
+  const requestContext = new RequestContextService();
+  const guard = new BillingLifecycleGuard(requestContext);
+
+  const allowed = requestContext.run(
+    {
+      request_id: 'req-bill-modules',
+      tenant_id: 'tenant-a',
+      user_id: '00000000-0000-0000-0000-000000000001',
+      role: 'principal',
+      session_id: 'session-1',
+      permissions: ['auth:read'],
+      is_authenticated: true,
+      client_ip: '127.0.0.1',
+      user_agent: 'test-suite',
+      method: 'GET',
+      path: '/school/modules/me',
+      started_at: '2026-04-26T00:00:00.000Z',
+      billing: {
+        subscription_id: '00000000-0000-0000-0000-000000000201',
+        plan_code: 'starter',
+        status: 'suspended',
+        lifecycle_state: 'SUSPENDED',
+        access_mode: 'billing_only' as const,
+        features: ['students'],
+        limits: {},
+        current_period_start: '2026-04-01T00:00:00.000Z',
+        current_period_end: '2026-05-01T00:00:00.000Z',
+        warning_starts_at: null,
+        grace_period_ends_at: null,
+        restricted_at: null,
+        suspended_at: '2026-05-16T00:00:00.000Z',
+        suspension_reason: 'manual_suspended',
+        renewal_required: true,
         is_active: false,
       },
     },

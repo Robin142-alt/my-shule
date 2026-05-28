@@ -37,7 +37,7 @@ export default async function VerifyEmailPage({
       trustNotes={[
         { id: "secure", label: "Secure link", icon: "lock" },
         { id: "verified", label: "Verified email", icon: "check" },
-        { id: "tenant", label: "Tenant aware", icon: "shield" },
+        { id: "school", label: "School aware", icon: "shield" },
       ]}
     >
       <VerifyEmailView initialToken={initialToken} />

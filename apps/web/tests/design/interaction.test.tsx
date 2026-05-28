@@ -75,7 +75,7 @@ describe("STEP 5: Interaction tests", () => {
     const searchInput = screen.getByLabelText("Global search");
     const termSelector = screen.getByLabelText("Select term");
     const yearSelector = screen.getByLabelText("Select academic year");
-    const tenantSelector = screen.getByLabelText("Switch tenant");
+    const tenantSelector = screen.getByLabelText("Switch school");
     const syncButton = screen.getByRole("button", {
       name: /current sync status/i,
     });
@@ -105,7 +105,8 @@ describe("STEP 5: Interaction tests", () => {
   it("keeps the portal focused on self-service sections without school admin actions", () => {
     renderWithProviders(createElement(PortalPages, { viewer: "parent" }));
 
-    expect(screen.getByRole("heading", { name: /recent payments/i })).toBeVisible();
+    expect(screen.getByRole("heading", { name: /family dashboard/i })).toBeVisible();
+    expect(screen.getByRole("heading", { name: /fees & finance tracking/i })).toBeVisible();
     expect(screen.getByRole("link", { name: /^fees$/i })).toBeVisible();
     expect(
       screen.queryByRole("button", { name: /record payment/i }),

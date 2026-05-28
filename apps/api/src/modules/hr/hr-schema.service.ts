@@ -128,6 +128,8 @@ export class HrSchemaService implements OnModuleInit {
       CREATE UNIQUE INDEX IF NOT EXISTS ux_staff_departments_tenant_lower_name
         ON staff_departments (tenant_id, lower(name));
 
+      ALTER TABLE staff_profiles ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'active';
+
       ${HR_TABLES.map((table) => `
         ALTER TABLE ${table} ENABLE ROW LEVEL SECURITY;
         ALTER TABLE ${table} FORCE ROW LEVEL SECURITY;

@@ -23,10 +23,10 @@ export default async function InternalSchoolResetPasswordPage({
       heroDescription="Reset access in a way that feels safe, familiar, and easy for non-technical school teams."
       badge="Secure school reset"
       logoMark={resolution.branding.logoMark}
-      helper="New passwords return staff directly to their school's isolated workspace."
+      helper="New passwords return staff directly to their school's protected account."
       highlights={[
         { id: "simple-reset", title: "Simple reset", description: "Straightforward steps without exposing families or staff to confusing recovery UX." },
-        { id: "school-aware", title: "School aware", description: "Reset actions stay inside the correct school tenant from start to finish." },
+        { id: "school-aware", title: "School aware", description: "Reset actions stay inside the correct school from start to finish." },
         { id: "support", title: "Support ready", description: "Admins can still help staff if they get locked out or lose access." },
       ]}
       trustNotes={[
@@ -36,7 +36,7 @@ export default async function InternalSchoolResetPasswordPage({
     >
       <ResetPasswordView
         title="Create your new school password"
-        subtitle="Enter the recovery code from your school message, then choose a new password for your workspace."
+        subtitle="Enter the recovery code from your school message, then choose a new password for your account."
         secretLabel="New password"
         secretPlaceholder="Create a new school password"
         backHref="/login"

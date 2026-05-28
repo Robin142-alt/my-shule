@@ -71,6 +71,7 @@ export function ErpShell({
           subtitle={subtitle}
           actions={actions}
           status={status}
+          profile={profile}
           onOpenSidebar={() => setMobileOpen(true)}
         />
       }

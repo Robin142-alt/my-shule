@@ -49,8 +49,61 @@ const productionEnvironment = {
   UPLOAD_OBJECT_STORAGE_SECRET_ACCESS_KEY: 'object-secret-key-with-32-characters',
 };
 
+function restoreEnv(values: Record<string, string | undefined>): void {
+  for (const [key, value] of Object.entries(values)) {
+    if (value === undefined) {
+      delete process.env[key];
+    } else {
+      process.env[key] = value;
+    }
+  }
+}
+
+function loadConfigurationWithEnv(overrides: Record<string, string | undefined>): ReturnType<typeof configuration> {
+  const original = Object.fromEntries(
+    Object.keys(overrides).map((key) => [key, process.env[key]]),
+  ) as Record<string, string | undefined>;
+
+  try {
+    restoreEnv(overrides);
+    delete require.cache[require.resolve('./configuration')];
+    const freshModule = require('./configuration') as typeof import('./configuration');
+
+    return freshModule.default();
+  } finally {
+    restoreEnv(original);
+    delete require.cache[require.resolve('./configuration')];
+  }
+}
+
 test('validateEnv allows startup when upload object storage is disabled', () => {
   assert.equal(validateEnv(requiredEnvironment), requiredEnvironment);
+});
+
+test('configuration treats Railway as a long-running worker runtime even when generic serverless flags are present', () => {
+  const serverlessConfig = loadConfigurationWithEnv({
+    APP_RUNTIME: 'serverless',
+    VERCEL: '1',
+    RAILWAY_ENVIRONMENT_ID: undefined,
+    EVENTS_DISPATCHER_ENABLED: undefined,
+    EVENTS_WORKER_ENABLED: undefined,
+  });
+
+  assert.equal(serverlessConfig.app.isServerlessRuntime, true);
+  assert.equal(serverlessConfig.events.dispatcherEnabled, false);
+  assert.equal(serverlessConfig.events.workerEnabled, false);
+
+  const railwayConfig = loadConfigurationWithEnv({
+    APP_RUNTIME: 'serverless',
+    VERCEL: '1',
+    RAILWAY_ENVIRONMENT_ID: 'railway-production',
+    EVENTS_DISPATCHER_ENABLED: undefined,
+    EVENTS_WORKER_ENABLED: undefined,
+  });
+
+  assert.equal(railwayConfig.app.isServerlessRuntime, false);
+  assert.equal(railwayConfig.events.dispatcherEnabled, true);
+  assert.equal(railwayConfig.events.workerEnabled, true);
 });
 
 test('validateEnv requires a trusted tenant header signing secret', () => {

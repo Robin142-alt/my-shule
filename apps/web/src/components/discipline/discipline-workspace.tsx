@@ -688,7 +688,7 @@ export function DisciplineWorkspace({
       <SectionHeader
         eyebrow="Discipline and counselling"
         title="Student behavior operations"
-        description="Track incidents, actions, parent notices, counselling referrals, behavior points, and confidential follow-up in one tenant-isolated workspace."
+        description="Track incidents, actions, parent notices, counselling referrals, behavior points, and confidential follow-up with secure school access."
         actions={
           <>
             <Button variant="secondary" onClick={() => void loadOperationalData()} disabled={loading}>
@@ -939,12 +939,12 @@ export function DisciplineWorkspace({
                     <button key={format} type="button" onClick={() => void queueReport(format)} className="rounded-xl border border-border bg-surface-muted px-4 py-5 text-left transition hover:border-primary/40">
                       <FileText className="h-5 w-5 text-muted" />
                       <p className="mt-3 font-semibold text-foreground">{format.toUpperCase()} incident export</p>
-                      <p className="mt-1 text-sm text-muted">Queues a tenant-scoped discipline report without confidential counselling notes.</p>
+                      <p className="mt-1 text-sm text-muted">Prepares a school discipline report without confidential counselling notes.</p>
                     </button>
                   ))}
                 </div>
                 <div className="mt-5 rounded-xl border border-border bg-surface-muted px-4 py-4 text-sm text-muted">
-                  Report exports are scoped to the current school workspace and exclude private counselling notes unless a counsellor grants explicit visibility.
+                  Report exports are linked to the current school and exclude private counselling notes unless a counsellor grants explicit visibility.
                 </div>
               </Card>
             ),

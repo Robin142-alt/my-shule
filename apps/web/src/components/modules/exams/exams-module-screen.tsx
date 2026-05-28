@@ -161,7 +161,7 @@ function PageIntro({
               tone={saveState === "saving" ? "pending" : "synced"}
             />
             <span className="badge badge-info">Draft recovered locally</span>
-            <span className="badge badge-neutral">Tenant isolated</span>
+            <span className="badge badge-neutral">School protected</span>
           </div>
           <h2 className="mt-4 text-2xl font-bold leading-tight text-foreground md:text-3xl">
             Exams & Results command center
@@ -769,7 +769,7 @@ function AllocationPanel({
         <div className="mt-4 space-y-2 text-[13px] text-muted-strong">
           <p className="rounded-[var(--radius-sm)] bg-surface-muted px-3 py-2">3 active departments</p>
           <p className="rounded-[var(--radius-sm)] bg-surface-muted px-3 py-2">136 learners covered</p>
-          <p className="rounded-[var(--radius-sm)] bg-surface-muted px-3 py-2">No cross-tenant allocations</p>
+          <p className="rounded-[var(--radius-sm)] bg-surface-muted px-3 py-2">No cross-school allocations</p>
         </div>
       </Card>
     </div>
@@ -780,7 +780,7 @@ function BulkUploadPanel() {
   const uploadChecks: Array<[string, string, StatusTone]> = [
     ["Template match", "Grade 8 Unity template recognized", "ok"],
     ["Duplicate guard", "2 duplicate admission numbers blocked", "warning"],
-    ["Tenant boundary", "Upload scoped to Baraka Academy only", "ok"],
+    ["School boundary", "Upload scoped to Baraka Academy only", "ok"],
     ["Partial recovery", "Last interrupted import can resume", "ok"],
   ];
 
@@ -1492,13 +1492,13 @@ export function ExamsModuleScreen({
       subject_id: selectedMarkSheet.subjectId,
       student_id: selectedPreview?.studentId ?? "student-1",
       score,
-      remarks: "Saved from the live exams workspace.",
+      remarks: "Saved from the live exams desk.",
     };
   }
 
   async function runLiveAction(actionId: string, action: () => Promise<string>) {
     if (!liveSession.session) {
-      setModuleError("Connect a live tenant session before changing exam records.");
+        setModuleError("Connect a live school session before changing exam records.");
       return;
     }
 
@@ -1552,7 +1552,7 @@ export function ExamsModuleScreen({
       await correctLockedExamMarkLive(liveSession.session!, {
         mark_id: "mark-1",
         score: 86,
-        reason: "Correction approved from the exams workspace.",
+        reason: "Correction approved from the exams desk.",
         first_approver_user_id: liveSession.user?.user_id ?? "officer-1",
         second_approver_user_id: role === "principal" ? "deputy-1" : "principal-1",
       });
@@ -1748,7 +1748,7 @@ export function ExamsModuleScreen({
           {
             icon: ShieldCheck,
             title: "Academic integrity",
-            value: "Tenant isolation, role scoping, immutable publishing, complete edit history",
+      value: "School data isolation, role scoping, immutable publishing, complete edit history",
           },
         ].map((item) => {
           const Icon = item.icon;

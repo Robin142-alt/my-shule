@@ -228,6 +228,8 @@ export class AcademicsSchemaService implements OnModuleInit {
       CREATE INDEX IF NOT EXISTS ix_teacher_subject_assignments_teacher
         ON teacher_subject_assignments (tenant_id, teacher_user_id, academic_term_id);
 
+      ALTER TABLE subjects ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'active';
+
       ALTER TABLE academic_years ENABLE ROW LEVEL SECURITY;
       ALTER TABLE academic_years FORCE ROW LEVEL SECURITY;
       ALTER TABLE academic_terms ENABLE ROW LEVEL SECURITY;

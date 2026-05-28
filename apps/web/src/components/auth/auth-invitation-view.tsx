@@ -82,7 +82,7 @@ export function InviteAcceptanceView({
         <div className="space-y-3">
           <div className="flex flex-wrap gap-2">
             <SecurityBadge label="Verified invitation" tone="success" />
-            <SecurityBadge label="Tenant scoped" />
+            <SecurityBadge label="School linked" />
           </div>
           <h2 className="text-3xl font-bold leading-tight text-foreground">
             Accept your invitation
@@ -97,7 +97,7 @@ export function InviteAcceptanceView({
             <AuthMessage
               tone="success"
               title="Invitation accepted"
-              description={`Your account is active for ${acceptedInvite.tenantId ?? "your school workspace"}.`}
+              description="Your account is active for your school."
             />
             <Link
               href="/login"

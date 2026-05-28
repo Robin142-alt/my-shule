@@ -48,17 +48,17 @@ export const librarySidebarItems: Array<{
   label: string;
   href: string;
 }> = [
-  { id: "dashboard", label: "Dashboard", href: "/library/dashboard" },
-  { id: "catalog", label: "Catalog", href: "/library/catalog" },
-  { id: "borrowing", label: "Borrowing", href: "/library/borrowing" },
-  { id: "scan-issue", label: "Scan Issue", href: "/library/scan-issue" },
-  { id: "scan-return", label: "Scan Return", href: "/library/scan-return" },
-  { id: "returns", label: "Returns", href: "/library/returns" },
-  { id: "overdue", label: "Overdue", href: "/library/overdue" },
-  { id: "members", label: "Members", href: "/library/members" },
-  { id: "fines", label: "Fines", href: "/library/fines" },
-  { id: "reports", label: "Reports", href: "/library/reports" },
-  { id: "activity-log", label: "Activity Log", href: "/library/activity-log" },
+  { id: "dashboard", label: "Dashboard", href: "/school/librarian" },
+  { id: "catalog", label: "Catalog", href: "/school/librarian/library?section=catalog" },
+  { id: "borrowing", label: "Borrowing", href: "/school/librarian/library?section=borrowing" },
+  { id: "scan-issue", label: "Scan Issue", href: "/school/librarian/library?section=scan-issue" },
+  { id: "scan-return", label: "Scan Return", href: "/school/librarian/library?section=scan-return" },
+  { id: "returns", label: "Returns", href: "/school/librarian/library?section=returns" },
+  { id: "overdue", label: "Overdue", href: "/school/librarian/library?section=overdue" },
+  { id: "members", label: "Members", href: "/school/librarian/library?section=members" },
+  { id: "fines", label: "Fines", href: "/school/librarian/library?section=fines" },
+  { id: "reports", label: "Reports", href: "/school/librarian/reports?source=library" },
+  { id: "activity-log", label: "Activity Log", href: "/school/librarian/audit-logs?source=library" },
 ];
 
 export const schoolLibraryCategories = [

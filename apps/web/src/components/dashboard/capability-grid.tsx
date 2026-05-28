@@ -77,7 +77,7 @@ export function CapabilityGrid({
               </p>
               <div className="mt-4 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-muted">
                 <ShieldCheck className="h-3.5 w-3.5" />
-                Tenant-scoped capability
+                School-linked access
               </div>
             </Link>
           );

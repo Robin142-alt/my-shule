@@ -44,12 +44,12 @@ const portalNavBase = {
 
 const portalProfiles: Record<PortalViewer, ExperienceProfile> = {
   parent: {
-    name: "Parent portal",
+    name: "Mrs. Wanjiku",
     roleLabel: "Parent account",
     contextLabel: "No linked learners yet",
   },
   student: {
-    name: "Student portal",
+    name: "Brian Otieno",
     roleLabel: "Student account",
     contextLabel: "No learner profile linked yet",
   },

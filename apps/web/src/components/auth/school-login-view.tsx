@@ -131,7 +131,7 @@ export function SchoolLoginView({
           </div>
           <div className="flex flex-wrap gap-2">
             <SecurityBadge label="School admin" tone="success" />
-            <SecurityBadge label="Tenant protected" />
+            <SecurityBadge label="School protected" />
             <SecurityBadge label="Email verified" />
           </div>
           <div>

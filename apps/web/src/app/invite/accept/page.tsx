@@ -13,14 +13,14 @@ export default async function InviteAcceptancePage({
     <AuthShell
       eyebrow="Invite acceptance"
       heroTitle="Secure school onboarding starts from a verified invitation."
-      heroDescription="New administrators create their own password from a signed, short-lived invitation link before entering a tenant workspace."
+      heroDescription="New administrators create their own password from a signed, short-lived invitation link before entering a school workspace."
       badge="User onboarding"
       logoMark="SH"
       helper="Invitation links bind the school, role, email address, and first password setup without exposing credentials."
       highlights={[
         {
-          id: "tenant",
-          title: "Tenant bound",
+          id: "school",
+          title: "School bound",
           description: "The invitation activates access only for the school selected by the platform owner.",
         },
         {
@@ -36,7 +36,7 @@ export default async function InviteAcceptancePage({
       ]}
       trustNotes={[
         { id: "secure", label: "Signed token", icon: "lock" },
-        { id: "scoped", label: "Tenant scoped", icon: "shield" },
+        { id: "scoped", label: "School linked", icon: "shield" },
         { id: "verified", label: "Email verified", icon: "check" },
       ]}
     >

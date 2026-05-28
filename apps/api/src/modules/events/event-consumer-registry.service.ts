@@ -1,5 +1,8 @@
 import { Injectable } from '@nestjs/common';
 
+import { OperationalWorkflowCompletedConsumer } from './consumers/operational-workflow-completed.consumer';
+import { OperationalWorkflowDispatchedConsumer } from './consumers/operational-workflow-dispatched.consumer';
+import { OperationalWorkflowExecutionConsumer } from './consumers/operational-workflow-execution.consumer';
 import { PaymentCompletedConsumer } from './consumers/payment-completed.consumer';
 import { StudentCreatedConsumer } from './consumers/student-created.consumer';
 import { EventConsumerDescriptor, SupportedDomainEventName } from './events.types';
@@ -14,9 +17,15 @@ export class EventConsumerRegistryService {
   constructor(
     studentCreatedConsumer: StudentCreatedConsumer,
     paymentCompletedConsumer: PaymentCompletedConsumer,
+    operationalWorkflowDispatchedConsumer: OperationalWorkflowDispatchedConsumer,
+    operationalWorkflowExecutionConsumer: OperationalWorkflowExecutionConsumer,
+    operationalWorkflowCompletedConsumer: OperationalWorkflowCompletedConsumer,
   ) {
     this.register(studentCreatedConsumer);
     this.register(paymentCompletedConsumer);
+    this.register(operationalWorkflowDispatchedConsumer);
+    this.register(operationalWorkflowExecutionConsumer);
+    this.register(operationalWorkflowCompletedConsumer);
   }
 
   getConsumersForEvent(eventName: SupportedDomainEventName): EventConsumerDescriptor[] {

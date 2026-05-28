@@ -228,7 +228,7 @@ export function Topbar({
         </div>
       </div>
 
-      {/* Mobile: tenant name only */}
+      {/* Mobile: school name only */}
       <p className="text-[13px] font-semibold text-foreground truncate md:hidden">{tenantName}</p>
 
       {/* Spacer */}
@@ -327,10 +327,10 @@ export function Topbar({
         </select>
       </div>
 
-      {/* Tenant selector — single line */}
+      {/* School selector - single line */}
       <label className="hidden items-center rounded-[var(--radius-sm)] border border-border bg-surface-muted px-2 py-1.5 lg:flex">
         <select
-          aria-label="Switch tenant"
+          aria-label="Switch school"
           value={tenantId}
           onChange={(event) => onTenantChange(event.target.value)}
           className="bg-transparent text-[12px] font-medium text-foreground outline-none"
@@ -479,7 +479,7 @@ export function Topbar({
               <div>
                 <p className="section-title">Production service</p>
                 <p className="mt-0.5 text-[11px] text-muted">
-                  Tenant-scoped live data
+                  School-linked live data
                 </p>
               </div>
               <StatusPill

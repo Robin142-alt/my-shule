@@ -48,7 +48,7 @@ export function SuperadminLoginView({
           primaryBadge: "Support staff",
           title: "Support operations access",
           description:
-            "Open the internal support control center for tickets, SLA queues, tenant incidents, and customer replies.",
+            "Open the internal support control center for tickets, SLA queues, school incidents, and customer replies.",
           messageTitle: "Internal support workspace",
           message:
             "Support sessions are protected with CSRF validation, device context, and audit-ready action trails.",

@@ -109,16 +109,16 @@ describe("experience actions", () => {
     expect(screen.queryByText(/module not enabled for your school/i)).not.toBeInTheDocument();
   });
 
-  it("supports shell search and notifications inside the hosted school workspace", async () => {
+  it("supports shell search and notifications inside live module workspaces", async () => {
     const user = userEvent.setup();
     renderWithProviders(
-      createElement(SchoolPages, { role: "bursar", tenantSlug: "barakaacademy" }),
+      createElement(SchoolPages, { role: "bursar", section: "finance", tenantSlug: "barakaacademy" }),
     );
 
     await waitFor(() =>
       expect(screen.getByRole("link", { name: /fees \/ payments/i })).toBeVisible(),
     );
-    const searchInput = screen.getByLabelText("Workspace search");
+    const searchInput = screen.getByLabelText("Search");
     await user.click(searchInput);
     await user.type(searchInput, "fees");
 
@@ -173,9 +173,9 @@ describe("experience actions", () => {
   it("keeps the superadmin schools surface empty until real schools are onboarded", () => {
     renderWithProviders(createElement(SuperadminPages, { section: "schools" }));
 
-    expect(screen.getByRole("heading", { name: /tenant control/i })).toBeVisible();
+    expect(screen.getByRole("heading", { name: /school control/i })).toBeVisible();
     expect(screen.getByRole("heading", { name: /nothing to show yet/i })).toBeVisible();
-    expect(screen.queryByRole("button", { name: /open tenant/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /open school/i })).not.toBeInTheDocument();
   });
 
   it("keeps a visible logout button on the superadmin dashboard", () => {

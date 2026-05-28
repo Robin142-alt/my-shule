@@ -609,6 +609,8 @@ export class AuthSchemaService implements OnModuleInit {
       END;
       $$;
 
+      DROP FUNCTION IF EXISTS app.mark_auth_email_outbox_delivery(uuid, text);
+      DROP FUNCTION IF EXISTS app.mark_auth_email_outbox_delivery(text, text);
       CREATE OR REPLACE FUNCTION app.mark_auth_email_outbox_delivery(
         input_outbox_id uuid,
         input_status text,

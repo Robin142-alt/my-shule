@@ -1,0 +1,209 @@
+import { screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+
+import {
+  MYSHULE_OPERATIONAL_ROLE_BLUEPRINTS,
+  MYSHULE_OPERATIONAL_ROLE_IDS,
+  getOperationalRoleBlueprint,
+} from "@/lib/operational/myshule-extreme-operating-system";
+import { SchoolPages } from "@/components/school/school-pages";
+
+import { renderWithProviders } from "./test-utils";
+
+describe("role dashboard operational structure", () => {
+  it("gives every role a complete first-viewport, sidebar, queue, action, form, table, state, mobile, and recovery contract", () => {
+    expect(MYSHULE_OPERATIONAL_ROLE_BLUEPRINTS).toHaveLength(MYSHULE_OPERATIONAL_ROLE_IDS.length);
+
+    for (const roleId of MYSHULE_OPERATIONAL_ROLE_IDS) {
+      const blueprint = getOperationalRoleBlueprint(roleId);
+
+      expect(blueprint).toBeDefined();
+      expect(blueprint?.searchMode).toMatch(/GLOBAL|SCOPED|SELF|PLATFORM/);
+      expect(blueprint?.searchEntities.length).toBeGreaterThanOrEqual(1);
+      expect(blueprint?.forbiddenEntities).toBeDefined();
+      expect(blueprint?.sidebar.length).toBeGreaterThanOrEqual(6);
+      expect(blueprint?.firstViewport.length).toBeGreaterThanOrEqual(5);
+      expect(blueprint?.queues.length).toBeGreaterThanOrEqual(1);
+      expect(blueprint?.primaryActions.length).toBeGreaterThanOrEqual(5);
+      expect(blueprint?.forms.length).toBeGreaterThanOrEqual(1);
+      expect(blueprint?.tables.length).toBeGreaterThanOrEqual(1);
+      expect(blueprint?.printOutputs.length).toBeGreaterThanOrEqual(1);
+      expect(blueprint?.states).toEqual(expect.arrayContaining(["LOADING", "EMPTY", "DEGRADED", "FAILED", "LOCKED"]));
+      expect(blueprint?.mobileBehavior).toEqual(
+        expect.arrayContaining(["collapse sidebar into drawer", "keep urgent actions first"]),
+      );
+      expect(blueprint?.lowBandwidthBehavior).toEqual(
+        expect.arrayContaining(["show cached queue", "allow offline draft", "retry sync visibly"]),
+      );
+
+      for (const queue of blueprint?.queues ?? []) {
+        expect(queue.title).toMatch(/\S/);
+        expect(queue.workflow).toMatch(/->/);
+        expect(queue.actions.length).toBeGreaterThanOrEqual(3);
+        expect(queue.auditEvent).toMatch(/[A-Z_]+/);
+        expect(queue.sla).toMatch(/\S/);
+      }
+    }
+  });
+
+  it("limits full global search to principal, deputy, secretary, and accountant while keeping other users scoped", () => {
+    expect(getOperationalRoleBlueprint("principal")?.searchMode).toBe("GLOBAL_EXECUTIVE");
+    expect(getOperationalRoleBlueprint("deputy-principal")?.searchMode).toBe("GLOBAL_OPERATIONS");
+    expect(getOperationalRoleBlueprint("secretary")?.searchMode).toBe("GLOBAL_FRONT_OFFICE");
+    expect(getOperationalRoleBlueprint("accountant")?.searchMode).toBe("GLOBAL_FINANCE");
+
+    for (const role of MYSHULE_OPERATIONAL_ROLE_IDS.filter(
+      (roleId) => !["principal", "deputy-principal", "secretary", "accountant", "superadmin", "system-monitor"].includes(roleId),
+    )) {
+      expect(getOperationalRoleBlueprint(role)?.searchMode).not.toMatch(/^GLOBAL/);
+    }
+  });
+
+  it("keeps first-viewpoint language action-first instead of metric-only", () => {
+    for (const blueprint of MYSHULE_OPERATIONAL_ROLE_BLUEPRINTS) {
+      expect(blueprint.firstViewport.join(" ")).toMatch(
+        /pending|urgent|missing|failed|unresolved|alerts|approvals|follow|exceptions|queue|action|review|requests|overdue|risk/i,
+      );
+      expect(blueprint.queues[0]?.actions).toEqual(
+        expect.arrayContaining(["View Action History"]),
+      );
+    }
+  });
+
+  it("renders the operational role blueprint on actual school dashboard routes", async () => {
+    const user = userEvent.setup();
+
+    renderWithProviders(<SchoolPages role="class-teacher" tenantSlug="kisumu-boys" />);
+
+    expect(await screen.findByTestId("role-operational-command-center")).toBeVisible();
+    expect(screen.getByTestId("role-operational-command-center").textContent ?? "").not.toMatch(
+      /tenant-wide|event-backed|workspace isolated|state machine|capability governed|workflow dispatch|execution timeline|generated audit extract|repair triggered|demo fabric|operational fabric|synthetic workflow|command surface|observability layer|workflow state machines|widget count|state machine bound|governed capability|audit extract|trigger repair|tenant protected|tenant isolated|tenant aware/i,
+    );
+    expect(screen.getByRole("heading", { name: /class teacher desk/i })).toBeVisible();
+    expect(screen.getByText(/What requires action right now/i)).toBeVisible();
+    expect(screen.getByText(/Kisumu Boys High live updates/i)).toBeVisible();
+    expect(screen.getAllByText(/Attendance absence synced/i).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText(/Today['’]s Work/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/View Action History/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("button", { name: /Ready/i }).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/Visible recovery states/i)).not.toBeInTheDocument();
+
+    await user.click(screen.getAllByRole("button", { name: /Attendance/i })[0]);
+    await user.click(screen.getByRole("button", { name: /^Action History$/i }));
+
+    expect(screen.getAllByText(/Action history/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Task progress/i).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/Visible recovery states/i)).not.toBeInTheDocument();
+  }, 30000);
+
+  it("keeps executive role sidebar routes inside one operational workspace instead of mixing old dashboards", async () => {
+    const principalFinance = renderWithProviders(<SchoolPages role="principal" section="finance" tenantSlug="kisumu-boys" />);
+
+    expect(await screen.findByTestId("role-operational-command-center")).toBeVisible();
+    expect(screen.getByTestId("principal-practical-command-center")).toBeVisible();
+    expect(screen.getByRole("heading", { name: /^Fees$/i })).toBeVisible();
+    expect(screen.getAllByText(/KSh 248,500 collected today/i).length).toBeGreaterThan(0);
+    expect(screen.queryByRole("link", { name: /fees \/ payments/i })).not.toBeInTheDocument();
+    principalFinance.unmount();
+
+    const principalAttendance = renderWithProviders(<SchoolPages role="principal" section="attendance" tenantSlug="kisumu-boys" />);
+
+    expect(await screen.findByTestId("role-operational-command-center")).toBeVisible();
+    expect(screen.getByRole("heading", { name: /^Attendance$/i })).toBeVisible();
+    expect(screen.getByText(/18 students absent, 12 late/i)).toBeVisible();
+    principalAttendance.unmount();
+
+    const deputyDiscipline = renderWithProviders(<SchoolPages role="deputy-principal" section="discipline" tenantSlug="kisumu-boys" />);
+
+    expect(await screen.findByTestId("role-operational-command-center")).toBeVisible();
+    expect(screen.getByRole("heading", { name: /deputy principal operations/i })).toBeVisible();
+    expect(screen.getAllByText(/Discipline/i).length).toBeGreaterThan(0);
+    deputyDiscipline.unmount();
+  }, 30000);
+
+  it("shows practical Kisumu Boys school data on hosted principal dashboards even when no tenant slug is present", async () => {
+    renderWithProviders(<SchoolPages role="principal" />);
+
+    expect(await screen.findByTestId("role-operational-command-center")).toBeVisible();
+    expect(screen.getByTestId("principal-practical-command-center")).toBeVisible();
+    expect(screen.getAllByText(/Kisumu Boys High School/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Students Present/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Fees Collected Today/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Visitors Inside/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Sick Bay Cases/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/KSh 248,500/i).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText(/From: Accountant dashboard and M-Pesa confirmations/i)).toBeVisible();
+    expect(screen.getByText(/From: Teacher and Class Teacher dashboards/i)).toBeVisible();
+  }, 30000);
+
+  it("keeps the command center short and makes sidebar workspaces render independent practical data", async () => {
+    const user = userEvent.setup();
+
+    renderWithProviders(<SchoolPages role="principal" />);
+
+    expect(await screen.findByTestId("role-operational-command-center")).toBeVisible();
+    expect(screen.queryByText(/Audit trail ready for this workflow item/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Workflow state machines/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Kisumu Boys High live demo fabric/i)).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /^Fees 1$/i }));
+
+    expect(screen.getByRole("heading", { name: /^Fees$/i })).toBeVisible();
+    expect(screen.getByText(/Fees items needing attention/i)).toBeVisible();
+    expect(screen.getAllByText(/Print Defaulters List/i).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/Two exeat requests pending/i)).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /^Attendance 7$/i }));
+
+    expect(screen.getByRole("heading", { name: /^Attendance$/i })).toBeVisible();
+    expect(screen.getByText(/Attendance items needing attention/i)).toBeVisible();
+    expect(screen.getAllByText(/Send Absence SMS/i).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/1 failed M-Pesa callback/i)).not.toBeInTheDocument();
+  }, 30000);
+
+  it("renders principal first screen as a practical Kenyan school command center with working actions", async () => {
+    const user = userEvent.setup();
+
+    renderWithProviders(<SchoolPages role="principal" tenantSlug="kisumu-boys" />);
+
+    const commandCenter = await screen.findByTestId("role-operational-command-center");
+
+    expect(within(commandCenter).getAllByText(/Students Present/i).length).toBeGreaterThan(0);
+    expect(within(commandCenter).getAllByText(/Fees Collected Today/i).length).toBeGreaterThan(0);
+    expect(within(commandCenter).getAllByText(/Visitors Inside/i).length).toBeGreaterThan(0);
+    expect(within(commandCenter).getAllByText(/Sick Bay Cases/i).length).toBeGreaterThan(0);
+    expect(within(commandCenter).getAllByText(/Pending Approvals/i).length).toBeGreaterThan(0);
+    expect(within(commandCenter).getAllByText(/System Alerts/i).length).toBeGreaterThan(0);
+    expect(within(commandCenter).getAllByText(/^Attendance$/i).length).toBeGreaterThan(0);
+    expect(within(commandCenter).getAllByText(/^Fees$/i).length).toBeGreaterThan(0);
+    expect(within(commandCenter).getAllByText(/^Discipline$/i).length).toBeGreaterThan(0);
+    expect(within(commandCenter).getAllByText(/Parents & Visitors/i).length).toBeGreaterThan(0);
+    expect(within(commandCenter).getAllByText(/Sick Bay/i).length).toBeGreaterThan(0);
+    expect(within(commandCenter).getAllByText(/^Boarding$/i).length).toBeGreaterThan(0);
+    expect(within(commandCenter).getAllByText(/^Academics$/i).length).toBeGreaterThan(0);
+    expect(within(commandCenter).getAllByText(/^Staff$/i).length).toBeGreaterThan(0);
+    expect(within(commandCenter).getAllByText(/^Transport$/i).length).toBeGreaterThan(0);
+    expect(within(commandCenter).getByText(/From: Nurse dashboard and medicine stock records/i)).toBeVisible();
+    expect(within(commandCenter).getByText(/From: Security and Secretary dashboards|From: Secretary and Security dashboards/i)).toBeVisible();
+
+    for (const forbidden of [
+      /tenant-wide/i,
+      /demo fabric/i,
+      /state machine/i,
+      /event-backed/i,
+      /workspace isolated/i,
+      /capability governed/i,
+      /workflow dispatch/i,
+      /execution timeline/i,
+      /generated audit extract/i,
+      /repair triggered/i,
+      /widget count/i,
+    ]) {
+      expect(within(commandCenter).queryByText(forbidden)).not.toBeInTheDocument();
+    }
+
+    await user.click(within(commandCenter).getByRole("button", { name: /Send Absence SMS/i }));
+
+    expect(await within(commandCenter).findByText(/Send Absence SMS sent from Attendance/i)).toBeVisible();
+  }, 30000);
+});

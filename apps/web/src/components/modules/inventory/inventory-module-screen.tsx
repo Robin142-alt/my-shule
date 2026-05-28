@@ -1754,8 +1754,8 @@ export function InventoryModuleScreen({
     <>
       <ModuleShell
         eyebrow="Inventory Module"
-        title="Inventory and procurement workspace"
-        description="Operational stock control for Kenyan schools: items, approvals, requests, transfers, damages, and school-facing reports in one dense workspace."
+        title="Inventory and procurement desk"
+        description="Operational stock control for Kenyan schools: items, approvals, requests, transfers, damages, and school-facing reports in one focused section."
         sections={sections}
         activeSection={activeSection}
         onSectionChange={(sectionId) => updateSection(sectionId as InventorySectionId)}
@@ -1767,7 +1767,7 @@ export function InventoryModuleScreen({
                   ? "Live store ledger"
                   : liveSession.apiConfigured
                     ? "Preview data until live sign-in"
-                    : "Review workspace"
+                    : "Review desk"
               }
               tone={isLiveMode ? "ok" : "warning"}
             />
@@ -1794,7 +1794,7 @@ export function InventoryModuleScreen({
             <p className="mt-2 text-sm font-semibold text-foreground">
               {isLiveMode
                 ? `Signed in as ${liveSession.user?.display_name ?? "store staff"} for live inventory operations.`
-                : "Procurement and stock valuation stay visible together in the review workspace until a live tenant session is active."}
+          : "Procurement and stock valuation stay visible together in the review desk until a live school session is active."}
             </p>
             <p className="mt-2 text-sm leading-6 text-muted">
               {moduleError ?? liveSession.error ?? "This keeps store decisions aligned to budget pressure, not just quantity on shelf."}

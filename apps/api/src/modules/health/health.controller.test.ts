@@ -257,3 +257,74 @@ test('HealthController readiness is degraded when required upload security provi
   assert.deepEqual(readiness.object_storage.missing, ['bucket', 'access_key', 'secret_key']);
   assert.deepEqual(readiness.malware_scanning.missing, ['api_url', 'api_token']);
 });
+
+test('HealthController readiness keeps warning SLO telemetry visible without failing readiness', async () => {
+  const controller = new HealthController(
+    {
+      requireStore: () => ({
+        request_id: 'req-slo-warning',
+        tenant_id: 'green-valley',
+        user_id: 'system',
+        role: 'system',
+        session_id: null,
+        is_authenticated: false,
+      }),
+    } as never,
+    {
+      ping: async () => 'up',
+      getPoolMetrics: () => ({ totalCount: 1, idleCount: 1, waitingCount: 0 }),
+    } as never,
+    { ping: async () => 'up' } as never,
+    undefined,
+    {
+      getRealtimeHealth: async () => ({
+        generated_at: '2026-05-26T20:35:00.000Z',
+        overall_status: 'degraded',
+        active_alert_count: 1,
+        critical_alert_count: 0,
+        subsystem_statuses: [{ subsystem: 'api', status: 'degraded' }],
+      }),
+    } as never,
+  );
+
+  const readiness = await controller.getReadiness();
+
+  assert.equal(readiness.status, 'ok');
+  assert.equal(readiness.slo?.overall_status, 'degraded');
+  assert.equal(readiness.slo?.active_alert_count, 1);
+});
+
+test('HealthController readiness is degraded by critical SLO telemetry', async () => {
+  const controller = new HealthController(
+    {
+      requireStore: () => ({
+        request_id: 'req-slo-critical',
+        tenant_id: 'green-valley',
+        user_id: 'system',
+        role: 'system',
+        session_id: null,
+        is_authenticated: false,
+      }),
+    } as never,
+    {
+      ping: async () => 'up',
+      getPoolMetrics: () => ({ totalCount: 1, idleCount: 1, waitingCount: 0 }),
+    } as never,
+    { ping: async () => 'up' } as never,
+    undefined,
+    {
+      getRealtimeHealth: async () => ({
+        generated_at: '2026-05-26T20:35:00.000Z',
+        overall_status: 'critical',
+        active_alert_count: 1,
+        critical_alert_count: 1,
+        subsystem_statuses: [{ subsystem: 'api', status: 'critical' }],
+      }),
+    } as never,
+  );
+
+  const readiness = await controller.getReadiness();
+
+  assert.equal(readiness.status, 'degraded');
+  assert.equal(readiness.slo?.overall_status, 'critical');
+});

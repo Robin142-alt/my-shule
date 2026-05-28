@@ -19,9 +19,11 @@ import {
   X,
 } from "lucide-react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useState, type ReactNode } from "react";
 import { isProductionReadyModule } from "@/lib/features/module-readiness";
+import type { OperationalSearchAction } from "@/lib/search/operational-search-registry";
+import { resolveOperationalSearch } from "@/lib/search/operational-search-resolver";
 
 const schoolNavItems = [
   { id: "dashboard", label: "Dashboard", href: "", icon: LayoutDashboard },
@@ -35,6 +37,17 @@ const schoolNavItems = [
   { id: "communication", label: "Communication", href: "/communication", icon: MessageSquare },
   { id: "settings", label: "Settings", href: "/settings", icon: Settings },
 ];
+
+const globalSearchRoles = new Set(["principal", "deputy-principal", "secretary", "accountant"]);
+
+type SchoolShellSearchResult = {
+  id: string;
+  label: string;
+  detail: string;
+  href: string;
+  tag: string;
+  actions?: OperationalSearchAction[];
+};
 
 export function SchoolShell({
   role,
@@ -54,11 +67,87 @@ export function SchoolShell({
   children: ReactNode;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
   const basePath = `/school/${role}`;
   const visibleSchoolNavItems = schoolNavItems.filter((item) => isProductionReadyModule(item.id));
   const mainItems = visibleSchoolNavItems.filter((i) => i.id !== "settings");
   const bottomItems = visibleSchoolNavItems.filter((i) => i.id === "settings");
+  const canUseGlobalSearch = globalSearchRoles.has(role);
+  const normalizedSearchTerm = searchTerm.trim().toLowerCase();
+
+  function toRoleHref(href: string) {
+    const [rawPath, rawQuery] = href.split("?");
+    const normalizedPath = rawPath.startsWith("/") ? rawPath : `/${rawPath}`;
+    const schoolPath = normalizedPath.startsWith("/finance/mpesa")
+      ? "/mpesa"
+      : normalizedPath;
+
+    return `${basePath}${schoolPath}${rawQuery ? `?${rawQuery}` : ""}`;
+  }
+
+  function openSearchResult(href: string) {
+    setSearchTerm("");
+    setSearchOpen(false);
+    setNotificationsOpen(false);
+    router.push(href);
+  }
+
+  function defaultResultHref(type: string) {
+    const deskByType: Record<string, string> = {
+      student: "/students",
+      parent: "/students",
+      receipt: "/finance",
+      invoice: "/finance",
+      mpesa: "/mpesa",
+      visitor: "/visitors",
+      admission: "/admissions",
+      disciplineCase: "/discipline",
+      healthCase: "/clinic",
+      book: "/library",
+      inventory: "/inventory",
+      route: "/transport",
+      bus: "/transport",
+      assignment: "/academics",
+      exam: "/exams",
+      document: "/reports",
+    };
+
+    return `${basePath}${deskByType[type] ?? ""}`;
+  }
+
+  const navigationSearchResults: SchoolShellSearchResult[] = visibleSchoolNavItems.map((item) => ({
+      id: `nav-${item.id}`,
+      label: item.label,
+      detail: `Open ${item.label.toLowerCase()} desk`,
+      href: item.href ? `${basePath}${item.href}` : basePath,
+      tag: "Section",
+  }));
+  const operationalSearchResults: SchoolShellSearchResult[] = canUseGlobalSearch && normalizedSearchTerm
+    ? resolveOperationalSearch(searchTerm, { role })
+      .map((record) => ({
+        id: record.id,
+        label: record.title,
+        detail: record.detail,
+        href: defaultResultHref(record.type),
+        tag: record.typeLabel,
+        actions: record.actions.slice(0, 3),
+      }))
+    : [];
+  const searchResults = [...navigationSearchResults, ...operationalSearchResults];
+  const visibleSearchResults = normalizedSearchTerm
+    ? searchResults
+        .filter((item) => `${item.label} ${item.detail} ${item.tag}`.toLowerCase().includes(normalizedSearchTerm))
+        .slice(0, 6)
+    : [];
+
+  function openRoleNotifications() {
+    setSearchOpen(false);
+    setNotificationsOpen((value) => !value);
+  }
 
   return (
     <div className="min-h-screen bg-[#f7f8fa]">
@@ -70,8 +159,8 @@ export function SchoolShell({
               <span className="text-sm font-bold text-white">{(schoolName ?? "GF").slice(0, 2).toUpperCase()}</span>
             </div>
             <div className="min-w-0">
-              <p className="truncate text-[14px] font-semibold text-[#1a1d26]">{schoolName ?? "School workspace"}</p>
-              <p className="text-[11px] text-[#8b8f9a]">{schoolCounty ?? "Secure tenant access"}</p>
+              <p className="truncate text-[14px] font-semibold text-[#1a1d26]">{schoolName ?? "School portal"}</p>
+              <p className="text-[11px] text-[#8b8f9a]">{schoolCounty ?? "Secure school access"}</p>
             </div>
           </div>
         </div>
@@ -128,7 +217,7 @@ export function SchoolShell({
           <div className="absolute inset-0 bg-[#1a1d26]/40 backdrop-blur-sm" onClick={() => setMobileOpen(false)} />
           <aside className="slide-in-sidebar absolute inset-y-0 left-0 w-[280px] border-r border-[#e8eaed] bg-white shadow-2xl">
             <div className="flex items-center justify-between border-b border-[#e8eaed] px-5 py-4">
-              <p className="text-sm font-semibold text-[#1a1d26]">{schoolName ?? "School workspace"}</p>
+              <p className="text-sm font-semibold text-[#1a1d26]">{schoolName ?? "School desk"}</p>
               <button type="button" onClick={() => setMobileOpen(false)} className="rounded-lg border border-[#e8eaed] p-2 text-[#8b8f9a]"><X className="h-4 w-4" /></button>
             </div>
             <nav className="px-3 py-3">
@@ -161,15 +250,123 @@ export function SchoolShell({
               </div>
             </div>
             <div className="flex items-center gap-3">
-              <label className="hidden items-center gap-2 rounded-xl border border-[#e8eaed] bg-[#f7f8fa] px-3.5 py-2 md:flex">
-                <Search className="h-4 w-4 text-[#9ca0ab]" />
-                <input type="search" placeholder="Search students, payments…" className="w-[200px] bg-transparent text-sm text-[#1a1d26] outline-none placeholder:text-[#b0b4be]" />
-              </label>
-              <button type="button" className="relative rounded-xl border border-[#e8eaed] p-2.5 text-[#5a5e6a] transition hover:bg-[#f3f4f6]">
-                <Bell className="h-4 w-4" />
-                <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-emerald-500 text-[9px] font-bold text-white">4</span>
-              </button>
-              <button type="button" className="hidden items-center gap-2 rounded-xl border border-[#e8eaed] px-3 py-2 text-sm text-[#5a5e6a] md:flex">
+              {canUseGlobalSearch ? (
+                <div className="relative hidden md:block">
+                  <label className="flex items-center gap-2 rounded-xl border border-[#e8eaed] bg-[#f7f8fa] px-3.5 py-2">
+                    <Search className="h-4 w-4 text-[#9ca0ab]" />
+                    <input
+                      type="search"
+                      aria-label="School search"
+                      value={searchTerm}
+                      onChange={(event) => {
+                        setSearchTerm(event.target.value);
+                        setSearchOpen(true);
+                      }}
+                      onFocus={() => setSearchOpen(true)}
+                      onBlur={() => {
+                        window.setTimeout(() => setSearchOpen(false), 120);
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" && visibleSearchResults[0]) {
+                          event.preventDefault();
+                          openSearchResult(visibleSearchResults[0].href);
+                        }
+                      }}
+                      placeholder="Search students, payments, visitors"
+                      className="w-[240px] bg-transparent text-sm text-[#1a1d26] outline-none placeholder:text-[#b0b4be]"
+                    />
+                  </label>
+                  {searchOpen && normalizedSearchTerm ? (
+                    <div className="absolute right-0 top-[calc(100%+8px)] z-30 w-[340px] rounded-xl border border-[#e8eaed] bg-white p-2 shadow-xl">
+                      {visibleSearchResults.length > 0 ? (
+                        visibleSearchResults.map((result) => (
+                          <div
+                            key={result.id}
+                            className="rounded-lg px-3 py-2 transition hover:bg-[#f3f4f6]"
+                          >
+                            <button
+                              type="button"
+                              onMouseDown={(event) => event.preventDefault()}
+                              onClick={() => openSearchResult(result.href)}
+                              className="flex w-full items-start justify-between gap-3 text-left"
+                            >
+                              <span className="min-w-0">
+                                <span className="block text-sm font-bold text-[#1a1d26]">{result.label}</span>
+                                <span className="mt-0.5 block text-xs leading-5 text-[#5a5e6a]">{result.detail}</span>
+                              </span>
+                              <span className="shrink-0 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.12em] text-emerald-700">
+                                {result.tag}
+                              </span>
+                            </button>
+                            {result.actions?.length ? (
+                              <div className="mt-2 flex flex-wrap gap-1.5">
+                                {result.actions.map((action) => (
+                                  <button
+                                    key={`${result.id}-${action.label}`}
+                                    type="button"
+                                    onMouseDown={(event) => event.preventDefault()}
+                                    onClick={() => openSearchResult(toRoleHref(action.href))}
+                                    className="rounded-full border border-emerald-100 bg-emerald-50 px-2.5 py-1 text-[10px] font-bold text-emerald-700 transition hover:border-emerald-200 hover:bg-emerald-100"
+                                  >
+                                    {action.label}
+                                  </button>
+                                ))}
+                              </div>
+                            ) : null}
+                          </div>
+                        ))
+                      ) : (
+                        <div className="rounded-lg px-3 py-3 text-sm text-[#5a5e6a]">
+                          No school records found for &ldquo;{searchTerm}&rdquo;.
+                        </div>
+                      )}
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+              <div className="relative">
+                <button
+                  type="button"
+                  aria-label="Open school notifications"
+                  aria-expanded={notificationsOpen}
+                  onClick={openRoleNotifications}
+                  className="relative rounded-xl border border-[#e8eaed] p-2.5 text-[#5a5e6a] transition hover:bg-[#f3f4f6]"
+                >
+                  <Bell className="h-4 w-4" />
+                  <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-emerald-500 text-[9px] font-bold text-white">4</span>
+                </button>
+                {notificationsOpen ? (
+                  <div className="absolute right-0 top-[calc(100%+8px)] z-30 w-[320px] rounded-xl border border-[#e8eaed] bg-white p-2 shadow-xl">
+                    {[
+                      ["Attendance registers", "7 registers still need submission before 9:00 AM", `${basePath}/students`],
+                      ["Fee reminders", "42 students need balance follow-up", `${basePath}/finance`],
+                      ["Visitor log", "6 visitors are currently inside school", `${basePath}/visitors`],
+                      ["Approval queue", "5 requests need a decision today", `${basePath}/reports`],
+                    ].map(([title, detail, href]) => (
+                      <button
+                        key={title}
+                        type="button"
+                        onClick={() => {
+                          setNotificationsOpen(false);
+                          router.push(href);
+                        }}
+                        className="flex w-full items-start justify-between gap-3 rounded-lg px-3 py-2 text-left transition hover:bg-[#f3f4f6]"
+                      >
+                        <span>
+                          <span className="block text-sm font-bold text-[#1a1d26]">{title}</span>
+                          <span className="mt-0.5 block text-xs leading-5 text-[#5a5e6a]">{detail}</span>
+                        </span>
+                        <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-emerald-700">Open</span>
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+              <button
+                type="button"
+                onClick={() => router.push(`${basePath}/settings`)}
+                className="hidden items-center gap-2 rounded-xl border border-[#e8eaed] px-3 py-2 text-sm text-[#5a5e6a] md:flex"
+              >
                 <span>{userName ?? "Account"}</span>
                 <ChevronDown className="h-3.5 w-3.5" />
               </button>

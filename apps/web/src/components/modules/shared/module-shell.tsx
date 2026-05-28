@@ -57,7 +57,7 @@ export function ModuleShell({
             </p>
             <p className="mt-2 text-sm leading-6 text-muted">
               Move between daily queues, controls, and school-facing records without leaving
-              the workspace.
+              this section.
             </p>
           </div>
 

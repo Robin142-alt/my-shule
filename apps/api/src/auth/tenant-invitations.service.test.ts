@@ -83,6 +83,8 @@ test('TenantInvitationsService sends a tenant-scoped role invitation without exp
   assert.match(String(tokenInsert?.values[3]), /^[a-f0-9]{64}$/);
   assert.equal(String(tokenInsert?.values[2]), 'teacher@example.test');
   const outboxInsert = queries.find((query) => query.text.includes('INSERT INTO auth_email_outbox'));
+  const markDeliveryQuery = queries.find((query) => query.text.includes('app.mark_auth_email_outbox_delivery'));
+  assert.match(markDeliveryQuery?.text ?? '', /\$1::uuid,\s*\$2::text/);
   assert.doesNotMatch(String(outboxInsert?.values[3] ?? ''), /token=|invite_url/);
 });
 
@@ -141,6 +143,8 @@ test('TenantInvitationsService lists active users and pending tenant invitations
         assert.deepEqual(values, ['green-valley']);
         assert.match(text, /tenant_memberships/);
         assert.match(text, /auth_action_tokens/);
+        assert.match(text, /FROM\s+\(\s*SELECT \* FROM pending_invitations[\s\S]+UNION ALL[\s\S]+SELECT \* FROM current_members[\s\S]+\)\s+managed_users/);
+        assert.match(text, /ORDER BY\s+CASE managed_users\.kind WHEN 'invitation' THEN 0 ELSE 1 END/);
 
         return {
           rows: [
@@ -263,8 +267,10 @@ test('TenantInvitationsService resends a pending invitation with a rotated token
   assert.equal(sentInvites[0]?.to, 'parent@example.test');
   assert.match(sentInvites[0]?.inviteUrl ?? '', /^https:\/\/my-shule-erp\.vercel\.app\/invite\/accept\?token=/);
   const tokenUpdate = queries.find((query) => query.text.includes('UPDATE auth_action_tokens'));
+  const markDeliveryQuery = queries.find((query) => query.text.includes('app.mark_auth_email_outbox_delivery'));
   assert.equal(tokenUpdate?.values[0], 'invite-1');
   assert.match(String(tokenUpdate?.values[2]), /^[a-f0-9]{64}$/);
+  assert.match(markDeliveryQuery?.text ?? '', /\$1::uuid,\s*\$2::text/);
 });
 
 test('TenantInvitationsService revokes only pending tenant invitations for the current tenant', async () => {

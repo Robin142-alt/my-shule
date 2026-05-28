@@ -9,6 +9,8 @@ type ProxyExpectation = {
 
 const productionModuleProxies: ProxyExpectation[] = [
   { route: "admin-command", upstream: "/admin-command", methods: ["GET", "POST"] },
+  { route: "events", upstream: "/events", methods: ["GET"] },
+  { route: "operational-workflows", upstream: "/operational-workflows", methods: ["GET", "POST"] },
   { route: "academics", upstream: "/academics", methods: ["GET", "POST"] },
   { route: "reports", upstream: "/reports", methods: ["GET", "POST"] },
   { route: "staff", upstream: "/hr", methods: ["GET", "POST", "PATCH"] },
@@ -49,6 +51,7 @@ describe("production module live API proxies", () => {
     expect(proxySource).toContain("text/event-stream");
     expect(proxySource).toContain("upstreamResponse.body");
     expect(principalCommandCenterSource).toContain("new EventSource");
-    expect(principalCommandCenterSource).toContain("principal.dashboard");
+    expect(principalCommandCenterSource).toContain("/api/events/dashboard/stream");
+    expect(principalCommandCenterSource).toContain("dashboard.events");
   });
 });

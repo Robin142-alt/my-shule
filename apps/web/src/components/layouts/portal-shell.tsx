@@ -12,7 +12,7 @@ import {
   X,
 } from "lucide-react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useState, type ReactNode } from "react";
 
 const portalNavItems = [
@@ -40,7 +40,9 @@ export function PortalShell({
   children: ReactNode;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
   const basePath = `/portal/${viewer}`;
 
   return (
@@ -146,9 +148,42 @@ export function PortalShell({
               <p className="text-sm font-semibold text-[#1a1d26] lg:hidden">{schoolName ?? "School workspace"}</p>
             </div>
             <div className="flex items-center gap-2">
-              <button type="button" className="relative rounded-xl border border-blue-100 p-2.5 text-[#5a5e6a] transition hover:bg-blue-50">
-                <Bell className="h-4 w-4" />
-              </button>
+              <div className="relative">
+                <button
+                  type="button"
+                  aria-label="Open portal notifications"
+                  aria-expanded={notificationsOpen}
+                  onClick={() => setNotificationsOpen((value) => !value)}
+                  className="relative rounded-xl border border-blue-100 p-2.5 text-[#5a5e6a] transition hover:bg-blue-50"
+                >
+                  <Bell className="h-4 w-4" />
+                </button>
+                {notificationsOpen ? (
+                  <div className="absolute right-0 top-[calc(100%+8px)] z-30 w-[300px] rounded-2xl border border-blue-100 bg-white p-2 shadow-xl">
+                    {[
+                      ["Fee statement ready", "Download the latest school fee statement.", `${basePath}/fees`],
+                      ["Attendance update", "Today’s attendance has been posted.", `${basePath}`],
+                      ["School message", "A new message from the class teacher is available.", `${basePath}/messages`],
+                    ].map(([title, detail, href]) => (
+                      <button
+                        key={title}
+                        type="button"
+                        onClick={() => {
+                          setNotificationsOpen(false);
+                          router.push(href);
+                        }}
+                        className="flex w-full items-start justify-between gap-3 rounded-xl px-3 py-2 text-left transition hover:bg-blue-50"
+                      >
+                        <span>
+                          <span className="block text-sm font-bold text-[#1a1d26]">{title}</span>
+                          <span className="mt-0.5 block text-xs leading-5 text-[#5a5e6a]">{detail}</span>
+                        </span>
+                        <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-blue-700">Open</span>
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
             </div>
           </div>
         </header>

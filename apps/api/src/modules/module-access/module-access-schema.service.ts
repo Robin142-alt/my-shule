@@ -78,6 +78,18 @@ export class ModuleAccessSchemaService implements OnModuleInit {
         ADD COLUMN IF NOT EXISTS feature_flags jsonb NOT NULL DEFAULT '{}'::jsonb,
         ADD COLUMN IF NOT EXISTS activation_reason text;
 
+      UPDATE school_module_access
+      SET access_level = 'standard',
+          trial_ends_at = NULL,
+          expires_at = NULL,
+          billing_plan_code = NULL,
+          updated_at = NOW()
+      WHERE enabled = true
+        AND (
+          expires_at <= NOW()
+          OR (access_level = 'trial' AND trial_ends_at <= NOW())
+        );
+
       CREATE TABLE IF NOT EXISTS module_packages (
         id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
         code text NOT NULL UNIQUE,

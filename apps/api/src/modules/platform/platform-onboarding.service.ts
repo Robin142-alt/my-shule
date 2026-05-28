@@ -1192,7 +1192,7 @@ export class PlatformOnboardingService {
     }
 
     await this.databaseService.query(
-      'SELECT app.mark_auth_email_outbox_delivery($1, $2, $3, $4, $5)',
+      'SELECT app.mark_auth_email_outbox_delivery($1::uuid, $2::text, $3::text, $4::text, $5::integer)',
       [
         outboxId,
         status,

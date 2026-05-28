@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 
 import { RequestContextService } from '../common/request-context/request-context.service';
+import { resolveApiCapabilityEnforcement } from '../common/capability-engine/capability-engine';
 import {
   BILLING_ALLOWED_BILLING_PATH_PREFIXES,
   BILLING_ALLOWED_EXPORT_PATH_PREFIXES,
@@ -34,12 +35,9 @@ export class BillingLifecycleGuard implements CanActivate {
     }
 
     const access = store.billing;
+    const capability = resolveApiCapabilityEnforcement(access);
 
-    if (!access?.subscription_id) {
-      return true;
-    }
-
-    if (access.access_mode === 'billing_only') {
+    if (capability.writeMode === 'blocked') {
       throw new HttpException(
         'Your subscription is suspended. Billing, renewal, support, and data export are still available.',
         HttpStatus.PAYMENT_REQUIRED,
@@ -47,7 +45,7 @@ export class BillingLifecycleGuard implements CanActivate {
     }
 
     if (
-      access.access_mode === 'read_only'
+      capability.writeMode === 'read_only'
       && !BILLING_ALLOWED_READ_ONLY_METHODS.includes(
         method as (typeof BILLING_ALLOWED_READ_ONLY_METHODS)[number],
       )

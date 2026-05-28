@@ -1,4 +1,9 @@
 import type { ExperienceNavItem } from "@/lib/experiences/types";
+import {
+  buildCapabilitySidebar,
+  isModuleEntitled,
+  type ModuleEntitlementInput,
+} from "@/lib/capability-engine/school-capability-engine";
 
 export type SchoolModuleCode =
   | "students"
@@ -21,6 +26,19 @@ export type SchoolModuleCode =
   | "principal_dashboard"
   | "clinic_health"
   | "procurement"
+  | "school_administration"
+  | "hr_payroll"
+  | "timetable_builder"
+  | "communication_center"
+  | "school_calendar"
+  | "meals_canteen"
+  | "co_curricular"
+  | "data_security"
+  | "setup_wizard"
+  | "ict_assets"
+  | "document_printing"
+  | "reports_analytics"
+  | "universal_approvals"
   | "hostel"
   | "boarding"
   | "cbt_exams"
@@ -60,6 +78,19 @@ export const implementation100ModuleCodes: SchoolModuleCode[] = [
   "principal_dashboard",
   "clinic_health",
   "procurement",
+  "school_administration",
+  "hr_payroll",
+  "timetable_builder",
+  "communication_center",
+  "school_calendar",
+  "meals_canteen",
+  "co_curricular",
+  "data_security",
+  "setup_wizard",
+  "ict_assets",
+  "document_printing",
+  "reports_analytics",
+  "universal_approvals",
   "hostel",
   "boarding",
   "cbt_exams",
@@ -191,6 +222,71 @@ export const fallbackModuleCatalog: ModuleRegistryItem[] = [
     description: "Purchase requests, supplier tracking, approvals, and budget linkage.",
   },
   {
+    code: "school_administration",
+    name: "School Administration",
+    description: "Front-office records, appointments, parent service, letters, and governed document handling.",
+  },
+  {
+    code: "hr_payroll",
+    name: "HR and Payroll",
+    description: "Staff records, leave, payroll exceptions, duty coverage, payslips, and HR approvals.",
+  },
+  {
+    code: "timetable_builder",
+    name: "Timetable Builder",
+    description: "Teacher, class, room, substitute, and conflict resolution workflows.",
+  },
+  {
+    code: "communication_center",
+    name: "Communication Center",
+    description: "SMS, email, WhatsApp, emergency broadcasts, delivery retries, templates, and read receipts.",
+  },
+  {
+    code: "school_calendar",
+    name: "School Calendar",
+    description: "Events, deadlines, trips, parent meetings, consent workflows, and reminders.",
+  },
+  {
+    code: "meals_canteen",
+    name: "Canteen and Meals",
+    description: "Meal planning, kitchen stock, supplier deliveries, special diets, and meal counts.",
+  },
+  {
+    code: "co_curricular",
+    name: "Co-curricular Activities",
+    description: "Clubs, sports, trips, competitions, consent forms, transport, equipment, and attendance.",
+  },
+  {
+    code: "data_security",
+    name: "Data Security and Backup",
+    description: "Backups, deleted record recovery, sessions, suspicious activity, exports, and audit controls.",
+  },
+  {
+    code: "setup_wizard",
+    name: "First-Time Setup Wizard",
+    description: "Guided onboarding for profile, terms, classes, users, imports, fees, SMS, M-Pesa, and launch.",
+  },
+  {
+    code: "ict_assets",
+    name: "ICT and Digital Assets",
+    description: "Computer labs, devices, software licenses, printers, repairs, issue and return workflows.",
+  },
+  {
+    code: "document_printing",
+    name: "Document and Printing Center",
+    description: "Central templates, previews, PDF generation, printing, archiving, and delivery recovery.",
+  },
+  {
+    code: "reports_analytics",
+    name: "Reports and Analytics Center",
+    description: "Operational reports, filters, exports, schedules, drilldowns, and role-aware analytics.",
+  },
+  {
+    code: "universal_approvals",
+    name: "Universal Approval Center",
+    description: "Cross-module approval inbox for waivers, reversals, admissions, procurement, leave, trips, and reports.",
+  },
+  {
     code: "hostel",
     name: "Hostel",
     description: "Hostel occupancy, dormitory issues, boarding incidents, and meal analytics.",
@@ -250,6 +346,19 @@ const schoolSectionModuleMap: Record<string, SchoolModuleCode | null> = {
   communication: "communication_sms",
   transport: "transport",
   procurement: "procurement",
+  "school-admin": "school_administration",
+  "hr-payroll": "hr_payroll",
+  "timetable-builder": "timetable_builder",
+  "communication-center": "communication_center",
+  "school-calendar": "school_calendar",
+  "canteen-meals": "meals_canteen",
+  "co-curricular": "co_curricular",
+  "data-security": "data_security",
+  "setup-wizard": "setup_wizard",
+  "ict-assets": "ict_assets",
+  "document-printing": "document_printing",
+  "reports-analytics": "reports_analytics",
+  "universal-approvals": "universal_approvals",
   hostel: "hostel",
   boarding: "boarding",
   cbt: "cbt_exams",
@@ -273,30 +382,37 @@ const schoolSectionModuleMap: Record<string, SchoolModuleCode | null> = {
   "support-system-status": null,
 };
 
-export function getModuleCodeForSchoolSection(section: string) {
+export function getModuleCodeForSchoolSection(section: string, role?: string | null) {
+  if (section === "dashboard" && role === "principal") {
+    return "principal_dashboard";
+  }
+
   return schoolSectionModuleMap[section] ?? null;
 }
 
 export function isSchoolSectionEnabled(
   section: string,
-  enabledModuleCodes: ReadonlySet<string> | string[] | null | undefined,
+  enabledModuleCodes: ModuleEntitlementInput,
 ) {
   const requiredModuleCode = getModuleCodeForSchoolSection(section);
 
-  if (!requiredModuleCode || !enabledModuleCodes) {
-    return true;
-  }
-
-  return Array.isArray(enabledModuleCodes)
-    ? enabledModuleCodes.includes(requiredModuleCode)
-    : enabledModuleCodes.has(requiredModuleCode);
+  return isModuleEntitled(requiredModuleCode, enabledModuleCodes);
 }
 
 export function filterNavItemsByEnabledModules<T extends Pick<ExperienceNavItem, "id">>(
   items: T[],
-  enabledModuleCodes: ReadonlySet<string> | string[] | null | undefined,
+  enabledModuleCodes: ModuleEntitlementInput,
 ) {
-  return items.filter((item) => isSchoolSectionEnabled(item.id, enabledModuleCodes));
+  const visibleItems = buildCapabilitySidebar({
+    items: items.map((item) => ({
+      ...item,
+      moduleCode: getModuleCodeForSchoolSection(item.id),
+    })),
+    moduleEntitlements: enabledModuleCodes,
+  });
+  const visibleIds = new Set(visibleItems.map((item) => item.id));
+
+  return items.filter((item) => visibleIds.has(item.id));
 }
 
 export function sortModuleCatalog(items: ModuleRegistryItem[]) {

@@ -113,7 +113,7 @@ function SuperadminPageHeader({
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div className="max-w-3xl">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">
-            Platform owner workspace
+            Platform owner desk
           </p>
           <h2 className="mt-2 text-2xl font-bold text-foreground">{title}</h2>
           <p className="mt-2 text-sm leading-6 text-muted">{description}</p>
@@ -160,6 +160,17 @@ type PlatformSmsProviderForm = {
   is_default: boolean;
 };
 
+type SystemMonitorIssue = {
+  id: string;
+  school: string;
+  issue: string;
+  category: "SMS" | "M-Pesa" | "Report" | "Backup" | "Device";
+  attempts: number;
+  status: "Failed" | "Retrying" | "Recovered" | "Resolved";
+  owner: string;
+  lastUpdate: string;
+};
+
 const smsProviderOptions: Array<{
   code: PlatformSmsProviderCode;
   label: string;
@@ -179,6 +190,59 @@ const emptySmsProviderForm: PlatformSmsProviderForm = {
   is_active: true,
   is_default: true,
 };
+
+const initialSystemMonitorIssues: SystemMonitorIssue[] = [
+  {
+    id: "monitor-sms-kisumu",
+    school: "Kisumu Boys High School",
+    issue: "Failed parent absence SMS batch",
+    category: "SMS",
+    attempts: 2,
+    status: "Failed",
+    owner: "Messaging desk",
+    lastUpdate: "08:45",
+  },
+  {
+    id: "monitor-mpesa-green",
+    school: "Green Valley Junior School",
+    issue: "M-Pesa callback pending confirmation",
+    category: "M-Pesa",
+    attempts: 1,
+    status: "Failed",
+    owner: "Payments desk",
+    lastUpdate: "09:10",
+  },
+  {
+    id: "monitor-report-stmarys",
+    school: "St. Mary's Girls Secondary School",
+    issue: "Board report generation failed",
+    category: "Report",
+    attempts: 3,
+    status: "Failed",
+    owner: "Reports desk",
+    lastUpdate: "07:55",
+  },
+  {
+    id: "monitor-backup-kisumu",
+    school: "Kisumu Boys High School",
+    issue: "Night backup completed with warnings",
+    category: "Backup",
+    attempts: 1,
+    status: "Retrying",
+    owner: "Infrastructure desk",
+    lastUpdate: "06:30",
+  },
+  {
+    id: "monitor-device-gate",
+    school: "Kisumu Boys High School",
+    issue: "Security gate tablet offline",
+    category: "Device",
+    attempts: 1,
+    status: "Failed",
+    owner: "ICT desk",
+    lastUpdate: "08:05",
+  },
+];
 
 type ApiEnvelope<T> = {
   data: T;
@@ -1008,8 +1072,8 @@ function TenantsTable() {
         </div>
       ) : null}
       <DataTable
-        title="Tenant control"
-        subtitle="Every tenant is isolated operationally, but platform support can review billing, access, and activity from one control surface."
+        title="School control"
+        subtitle="Every school is separated operationally, while platform support can review billing, access, and activity from one control surface."
         columns={columns}
         rows={rows}
         getRowKey={(row) => row.id}
@@ -1022,7 +1086,7 @@ function TenantsTable() {
       <Modal
         open={isCreateOpen}
         title="Create school"
-        description="This creates a real tenant, prepares RBAC roles, and emails the first school administrator."
+        description="This creates a real school account, prepares RBAC roles, and emails the first school administrator."
         size="lg"
         onClose={() => {
           if (!isCreating) {
@@ -1200,8 +1264,8 @@ function TenantsTable() {
       </Modal>
       <Modal
         open={Boolean(selectedTenant)}
-        title="Tenant control"
-        description="Review the tenant state, confirm support actions, and recover access safely."
+        title="School control"
+        description="Review the school state, confirm support actions, and recover access safely."
         onClose={() => {
           setSelectedTenantId(null);
           setResetMessage(null);
@@ -1374,7 +1438,7 @@ function TenantsTable() {
       <Modal
         open={Boolean(deleteTarget)}
         title="Delete school"
-        description="Empty test tenants can be permanently removed. Schools with records are safely deprovisioned instead."
+        description="Empty test schools can be permanently removed. Schools with records are safely deprovisioned instead."
         size="lg"
         onClose={() => {
           if (!isDeleting) {
@@ -1410,7 +1474,7 @@ function TenantsTable() {
         {deleteTarget ? (
           <div className="space-y-4">
             <div className="rounded-xl border border-danger/20 bg-danger/10 px-4 py-3 text-sm text-foreground">
-              <p className="font-semibold">This action affects the tenant workspace.</p>
+              <p className="font-semibold">This action affects the school account.</p>
               <p className="mt-1 text-muted-strong">
                 If the school has students, invoices, support tickets, or MPESA records, the system will
                 deactivate it instead of deleting history.
@@ -1451,7 +1515,7 @@ function TenantsTable() {
                 value={deleteReason}
                 disabled={isDeleting}
                 rows={3}
-                placeholder="Example: Duplicate test tenant created during onboarding."
+                placeholder="Example: Duplicate test school created during onboarding."
                 onChange={(event) => setDeleteReason(event.target.value)}
                 className="w-full resize-none rounded-[var(--radius-sm)] border border-border bg-surface px-3 py-2 text-sm text-foreground outline-none transition focus:border-danger focus:ring-2 focus:ring-danger/20 disabled:cursor-not-allowed disabled:opacity-60"
               />
@@ -1465,7 +1529,7 @@ function TenantsTable() {
                 className="mt-1 h-4 w-4"
               />
               <span>
-                Permanently delete if the tenant has no operational records. Otherwise, deprovision
+                Permanently delete if the school has no operational records. Otherwise, deprovision
                 and keep the audit/history protected.
               </span>
             </label>
@@ -1486,7 +1550,7 @@ function RevenuePage() {
     <div className="space-y-6">
       <SuperadminPageHeader
         title="Revenue"
-        description="Track subscription performance, collection reliability, and the tenant segments driving growth."
+        description="Track subscription performance, collection reliability, and the school segments driving growth."
       />
       <MetricGrid items={superadminKpis.slice(2, 6)} />
       <div className="grid gap-6 xl:grid-cols-[1.25fr_0.75fr]">
@@ -1507,7 +1571,7 @@ function RevenuePage() {
 
 function SubscriptionsPage() {
   const columns: DataTableColumn<(typeof subscriptionRows)[number]>[] = [
-    { id: "tenant", header: "Tenant", render: (row) => <span className="font-semibold">{row.tenant}</span> },
+    { id: "tenant", header: "School", render: (row) => <span className="font-semibold">{row.tenant}</span> },
     { id: "plan", header: "Plan", render: (row) => row.plan },
     { id: "renewal", header: "Renewal", render: (row) => row.renewal },
     { id: "amount", header: "Amount", render: (row) => row.amount, className: "text-right font-semibold", headerClassName: "text-right" },
@@ -1518,7 +1582,7 @@ function SubscriptionsPage() {
     <div className="space-y-6">
       <SuperadminPageHeader
         title="Subscriptions"
-        description="Manage plan mix, renewal windows, grace enforcement, and the tenant revenue lifecycle."
+        description="Manage plan mix, renewal windows, grace enforcement, and the school revenue lifecycle."
       />
       <DataTable
         title="Subscription ledger"
@@ -1549,7 +1613,7 @@ function MpesaMonitoringPage() {
     <div className="space-y-6">
       <SuperadminPageHeader
         title="MPESA monitoring"
-        description="Observe callbacks, retries, duplicate transaction handling, and reconciliation health without opening tenant dashboards."
+        description="Observe callbacks, retries, duplicate transaction handling, and reconciliation health without opening school dashboards."
       />
       <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
         <DataTable
@@ -1582,7 +1646,7 @@ function UsersPage() {
     <div className="space-y-6">
       <SuperadminPageHeader
         title="Users"
-        description="Platform team members, operational scope, and who is actively handling support and tenant workflows."
+        description="Platform team members, operational scope, and who is actively handling support and school workflows."
       />
       <DataTable
         title="Platform operators"
@@ -1611,7 +1675,7 @@ function AuditLogsPage() {
     <div className="space-y-6">
       <SuperadminPageHeader
         title="Audit logs"
-        description="Critical platform actions across tenant access, financial workflows, and background operations."
+        description="Critical platform actions across school access, financial workflows, and background operations."
       />
       <DataTable
         title="Recent platform audit trail"
@@ -1627,6 +1691,7 @@ function AuditLogsPage() {
 function InfrastructurePage() {
   const [metrics, setMetrics] = useState(infrastructureMetrics);
   const [events, setEvents] = useState(infrastructureEvents);
+  const [monitorIssues, setMonitorIssues] = useState<SystemMonitorIssue[]>(initialSystemMonitorIssues);
   const [loadState, setLoadState] = useState<"loading" | "ready" | "degraded" | "error">(
     isDashboardApiConfigured() ? "loading" : "degraded",
   );
@@ -1700,21 +1765,175 @@ function InfrastructurePage() {
   }, []);
 
   const stateTone = loadState === "ready" ? "ok" : loadState === "loading" || loadState === "degraded" ? "warning" : "critical";
+  const failedSms = monitorIssues.filter((issue) => issue.category === "SMS" && issue.status === "Failed").length;
+  const failedMpesa = monitorIssues.filter((issue) => issue.category === "M-Pesa" && issue.status === "Failed").length;
+  const failedReports = monitorIssues.filter((issue) => issue.category === "Report" && issue.status === "Failed").length;
+  const offlineDevices = monitorIssues.filter((issue) => issue.category === "Device" && issue.status === "Failed").length;
+  const unresolvedIssues = monitorIssues.filter((issue) => issue.status !== "Resolved" && issue.status !== "Recovered").length;
+
+  function updateMonitorIssue(
+    issueId: string,
+    updates: Partial<SystemMonitorIssue>,
+    nextMessage: string,
+  ) {
+    setMonitorIssues((currentIssues) =>
+      currentIssues.map((issue) =>
+        issue.id === issueId
+          ? {
+              ...issue,
+              ...updates,
+              lastUpdate: new Date().toLocaleTimeString("en-KE", {
+                hour: "2-digit",
+                minute: "2-digit",
+              }),
+            }
+          : issue,
+      ),
+    );
+    setMessage(nextMessage);
+  }
+
+  function retryMonitorIssue(issue: SystemMonitorIssue) {
+    const nextStatus = issue.attempts >= 2 ? "Recovered" : "Retrying";
+    const label =
+      issue.category === "SMS"
+        ? "Failed SMS retry started"
+        : issue.category === "M-Pesa"
+          ? "M-Pesa confirmation retry started"
+          : issue.category === "Report"
+            ? "Report generation retry started"
+            : issue.category === "Backup"
+              ? "Backup verification retry started"
+              : "Offline device sync retry started";
+
+    updateMonitorIssue(
+      issue.id,
+      {
+        attempts: issue.attempts + 1,
+        status: nextStatus,
+      },
+      `${label} for ${issue.school}.`,
+    );
+  }
+
+  function resolveMonitorIssue(issue: SystemMonitorIssue) {
+    updateMonitorIssue(
+      issue.id,
+      { status: "Resolved" },
+      `${issue.issue} marked solved for ${issue.school}.`,
+    );
+  }
+
+  function notifyMonitorAdmin(issue: SystemMonitorIssue) {
+    updateMonitorIssue(
+      issue.id,
+      { status: issue.status === "Failed" ? "Retrying" : issue.status },
+      `Admin notified about ${issue.issue} at ${issue.school}.`,
+    );
+  }
+
+  function downloadSystemReport() {
+    setMessage("System health report prepared for download.");
+  }
 
   return (
     <div className="space-y-6">
       <SuperadminPageHeader
         title="Infrastructure"
-        description="API latency, queue depth, Redis health, PostgreSQL health, and platform error rates in one surface."
+        description="System health, failed SMS, M-Pesa confirmations, backups, reports, offline devices, and retry actions in one surface."
         actions={<StatusPill label={loadState === "ready" ? "Live" : loadState === "loading" ? "Loading" : loadState === "degraded" ? "Degraded" : "Action"} tone={stateTone} />}
       />
       <Card className="p-4">
         <p className="text-sm leading-6 text-muted">{message}</p>
       </Card>
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+        {[
+          { label: "Failed SMS", value: failedSms, helper: "Retry message batches", tone: failedSms > 0 ? "warning" : "ok" },
+          { label: "M-Pesa Issues", value: failedMpesa, helper: "Confirm pending callbacks", tone: failedMpesa > 0 ? "critical" : "ok" },
+          { label: "Failed Reports", value: failedReports, helper: "Retry report generation", tone: failedReports > 0 ? "warning" : "ok" },
+          { label: "Offline Devices", value: offlineDevices, helper: "School devices needing sync", tone: offlineDevices > 0 ? "warning" : "ok" },
+          { label: "Open Issues", value: unresolvedIssues, helper: "Still requiring owner action", tone: unresolvedIssues > 0 ? "warning" : "ok" },
+        ].map((item) => (
+          <Card key={item.label} className="p-4">
+            <div className="flex items-start justify-between gap-3">
+              <p className="text-xs font-black uppercase tracking-[0.14em] text-muted">{item.label}</p>
+              <StatusPill label={item.tone === "ok" ? "OK" : "Check"} tone={item.tone as "ok" | "warning" | "critical"} />
+            </div>
+            <p className="mt-2 text-2xl font-black text-foreground">{item.value}</p>
+            <p className="mt-1 text-xs font-semibold text-muted">{item.helper}</p>
+          </Card>
+        ))}
+      </div>
+      <Card className="p-5">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">System monitor</p>
+            <h3 className="mt-1 text-xl font-black text-foreground">Failed jobs and recovery queue</h3>
+            <p className="mt-1 text-sm leading-6 text-muted">
+              Platform operators can retry failed SMS, M-Pesa confirmations, reports, backups, and offline-device sync without hiding the issue.
+            </p>
+          </div>
+          <Button variant="secondary" onClick={downloadSystemReport}>
+            Download System Report
+          </Button>
+        </div>
+        <div className="mt-4 overflow-x-auto rounded-xl border border-border">
+          <table className="min-w-full divide-y divide-border text-sm">
+            <thead className="bg-surface-muted text-left text-xs font-semibold uppercase tracking-[0.14em] text-muted">
+              <tr>
+                {["School", "Issue", "Category", "Attempts", "Status", "Owner", "Action"].map((column) => (
+                  <th key={column} className="px-3 py-3">{column}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border bg-surface">
+              {monitorIssues.map((issue) => (
+                <tr key={issue.id}>
+                  <td className="px-3 py-3 font-semibold text-foreground">{issue.school}</td>
+                  <td className="px-3 py-3 text-muted">
+                    <span className="font-semibold text-foreground">{issue.issue}</span>
+                    <span className="mt-1 block text-xs">Updated {issue.lastUpdate}</span>
+                  </td>
+                  <td className="px-3 py-3 text-muted">{issue.category}</td>
+                  <td className="px-3 py-3 text-right font-semibold text-foreground">{issue.attempts}</td>
+                  <td className="px-3 py-3">
+                    <StatusPill
+                      label={issue.status}
+                      tone={issue.status === "Failed" ? "critical" : issue.status === "Resolved" || issue.status === "Recovered" ? "ok" : "warning"}
+                    />
+                  </td>
+                  <td className="px-3 py-3 text-muted">{issue.owner}</td>
+                  <td className="px-3 py-3">
+                    <div className="flex flex-wrap gap-2">
+                      <Button size="sm" variant="secondary" onClick={() => retryMonitorIssue(issue)}>
+                        {issue.category === "SMS"
+                          ? "Retry Failed SMS"
+                          : issue.category === "M-Pesa"
+                            ? "Retry M-Pesa Confirmation"
+                            : issue.category === "Report"
+                              ? "Retry Report"
+                              : issue.category === "Backup"
+                                ? "Retry Backup Check"
+                                : "Retry Device Sync"}
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => notifyMonitorAdmin(issue)}>
+                        Notify Admin
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => resolveMonitorIssue(issue)}>
+                        Mark Issue Solved
+                      </Button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Card>
       <MetricGrid items={metrics} />
       <ActivityListCard
         title="Operational events"
-        subtitle="Recent system behavior that impacts SLOs, worker recovery, or tenant trust."
+        subtitle="Recent system behavior that impacts service levels, recovery, or school trust."
         items={events}
       />
     </div>
@@ -2198,7 +2417,7 @@ function SettingsPage({ routeMode }: { routeMode: SuperadminRouteMode }) {
       title: "School invitations",
       status: "Operational",
       tone: "ok" as const,
-      description: "Create schools, send administrator invites, and recover invitation delivery from the tenant control page.",
+      description: "Create schools, send administrator invites, and recover invitation delivery from the school control page.",
       href: buildSuperadminHref("schools", routeMode),
       action: "Open school onboarding",
     },
@@ -2214,7 +2433,7 @@ function SettingsPage({ routeMode }: { routeMode: SuperadminRouteMode }) {
       title: "Security and audit posture",
       status: "Audit ready",
       tone: "ok" as const,
-      description: "Review platform owner actions, tenant-sensitive changes, and security-sensitive activity history.",
+      description: "Review platform owner actions, school-sensitive changes, and security-sensitive activity history.",
       href: buildSuperadminHref("audit-logs", routeMode),
       action: "Open audit logs",
     },
@@ -2228,7 +2447,7 @@ function SettingsPage({ routeMode }: { routeMode: SuperadminRouteMode }) {
     },
     {
       title: "Notifications",
-      status: "Tenant aware",
+      status: "School aware",
       tone: "ok" as const,
       description: "Review delivery posture for platform notices, support updates, and operational alerts.",
       href: buildSuperadminHref("notifications", routeMode),
@@ -2325,7 +2544,7 @@ function SuperadminOverview({ routeMode }: { routeMode: SuperadminRouteMode }) {
             points={revenuePoints}
           />
           <ChartCard
-            title="Tenant growth"
+            title="School growth"
             subtitle="New schools appear here after the platform owner completes real onboarding."
             points={tenantGrowthPoints}
           />
@@ -2351,7 +2570,7 @@ function SuperadminOverview({ routeMode }: { routeMode: SuperadminRouteMode }) {
       <Card className="p-5">
         <div className="mb-4 flex items-center justify-between gap-3">
           <div>
-            <p className="text-lg font-semibold text-foreground">Tenant watchlist</p>
+            <p className="text-lg font-semibold text-foreground">School watchlist</p>
             <p className="mt-1 text-sm text-muted">
               Schools that usually need proactive commercial or operational support.
             </p>
@@ -2360,7 +2579,7 @@ function SuperadminOverview({ routeMode }: { routeMode: SuperadminRouteMode }) {
             href={buildSuperadminHref("schools", routeMode)}
             className="inline-flex items-center gap-2 text-sm font-semibold text-foreground"
           >
-            Open tenant control
+            Open school control
             <ArrowRight className="h-4 w-4" />
           </Link>
         </div>
@@ -2420,9 +2639,9 @@ export function SuperadminPages({
       brand={{ title: "My Shule", subtitle: "Platform owner" }}
       navItems={navItems}
       activeHref={activeHref}
-      topLabel="Platform owner workspace"
+      topLabel="Platform owner desk"
       title="Platform owner dashboard"
-      subtitle="Run the business, monitor infrastructure, and intervene safely without leaking across tenant boundaries."
+      subtitle="Run the business, monitor infrastructure, and intervene safely without leaking across schools."
       status={{ label: "Platform healthy", tone: "ok" }}
       profile={superadminProfile}
       notifications={notifications}

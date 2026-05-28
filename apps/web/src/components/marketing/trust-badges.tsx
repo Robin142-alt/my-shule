@@ -3,7 +3,7 @@ import { BadgeCheck, Building2, Layers3, ShieldCheck } from "lucide-react";
 const defaultBadges = [
   { label: "Built for Kenyan schools", icon: Building2 },
   { label: "Designed for accountability", icon: BadgeCheck },
-  { label: "Multi-tenant architecture", icon: Layers3 },
+  { label: "Separate school data", icon: Layers3 },
   { label: "Public and private institutions", icon: ShieldCheck },
 ];
 

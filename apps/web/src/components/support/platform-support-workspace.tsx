@@ -68,7 +68,7 @@ type SupportViewConfig = {
 const supportViewConfig: Record<PlatformSupportView, SupportViewConfig> = {
   support: {
     title: "All support tickets",
-    subtitle: "Monitor every tenant conversation, escalation, and customer reply.",
+    subtitle: "Monitor every school conversation, escalation, and customer reply.",
     queueTitle: "Global support queue",
     queueSubtitle: "Search globally by ticket ID, school, module, subject, user, priority, or status.",
     emptyMessage: "Tickets will appear here when schools contact support.",
@@ -91,26 +91,26 @@ const supportViewConfig: Record<PlatformSupportView, SupportViewConfig> = {
     title: "Escalated incidents",
     subtitle: "Critical issues requiring senior support, engineering, or management visibility.",
     queueTitle: "Escalated ticket queue",
-    queueSubtitle: "Watch high-visibility tenant issues, escalation owners, and time-sensitive risk.",
+    queueSubtitle: "Watch high-visibility school issues, escalation owners, and time-sensitive risk.",
     emptyMessage: "No escalated tickets. Critical escalations will appear here with SLA and owner visibility.",
   },
   "support-resolved": {
     title: "Resolved tickets",
     subtitle: "Recently resolved support conversations and closure quality checks.",
     queueTitle: "Resolved ticket history",
-    queueSubtitle: "Review closure notes, reopening risk, and tenant outcomes after support resolution.",
+    queueSubtitle: "Review closure notes, reopening risk, and school outcomes after support resolution.",
     emptyMessage: "No resolved tickets yet. Closed support outcomes will appear here for audit and reporting.",
   },
   "support-sla": {
     title: "SLA monitoring",
     subtitle: "Track response risk, overdue tickets, and support service health.",
     queueTitle: "Tickets at SLA risk",
-    queueSubtitle: "Focus on first response deadlines, resolution deadlines, and overdue tenant impact.",
+    queueSubtitle: "Focus on first response deadlines, resolution deadlines, and overdue school impact.",
     emptyMessage: "No SLA breaches. Overdue and at-risk tickets will appear here.",
   },
   "support-analytics": {
     title: "Support analytics",
-    subtitle: "Understand ticket volume, recurring issues, tenant friction, and support performance.",
+    subtitle: "Understand ticket volume, recurring issues, school friction, and support performance.",
     queueTitle: "Recurring issue patterns",
     queueSubtitle: "Analyze modules, schools, and workloads that repeatedly create support demand.",
     emptyMessage: "Support analytics will populate after live ticket activity.",
@@ -122,7 +122,7 @@ const supportViewPanels: Record<
   Array<{ title: string; description: string; status: string; tone: "ok" | "warning" | "critical" }>
 > = {
   support: [
-    { title: "Global visibility", description: "All tickets across tenants stay visible to platform support.", status: "All queues", tone: "ok" },
+  { title: "Global visibility", description: "All tickets across schools stay visible to platform support.", status: "All queues", tone: "ok" },
     { title: "Recurring issues", description: "Repeated module complaints are grouped for product follow-up.", status: "Tracked", tone: "warning" },
     { title: "Notification dead letters", description: "Failed support notices surface before customers are left waiting.", status: "Watched", tone: "ok" },
   ],
@@ -138,8 +138,8 @@ const supportViewPanels: Record<
   ],
   "support-escalated": [
     { title: "Senior visibility", description: "Critical incidents require owners, context, and executive-level clarity.", status: "Escalated", tone: "critical" },
-    { title: "Engineering handoff", description: "Product defects should carry request IDs, logs, and tenant impact.", status: "Required", tone: "warning" },
-    { title: "Tenant impact", description: "Escalations track affected schools before communication becomes reactive.", status: "High", tone: "critical" },
+  { title: "Engineering handoff", description: "Product defects should carry request IDs, logs, and school impact.", status: "Required", tone: "warning" },
+  { title: "School impact", description: "Escalations track affected schools before communication becomes reactive.", status: "High", tone: "critical" },
   ],
   "support-resolved": [
     { title: "Closure quality", description: "Resolved tickets should include a clear outcome and school-visible answer.", status: "Review", tone: "ok" },
@@ -149,11 +149,11 @@ const supportViewPanels: Record<
   "support-sla": [
     { title: "First response SLA", description: "New and critical tickets are checked against response commitments.", status: "Live", tone: "warning" },
     { title: "Resolution SLA", description: "Long-running issues are surfaced before service levels are breached.", status: "Live", tone: "warning" },
-    { title: "Overdue tenant impact", description: "Breaches are treated as customer-impacting operational incidents.", status: "Guarded", tone: "critical" },
+  { title: "Overdue school impact", description: "Breaches are treated as customer-impacting operational incidents.", status: "Guarded", tone: "critical" },
   ],
   "support-analytics": [
     { title: "Module heatmap", description: "Recurring issues by module identify where product fixes reduce support load.", status: "Insights", tone: "ok" },
-    { title: "Tenant friction", description: "Repeated tickets from a school identify onboarding or reliability gaps.", status: "Tracked", tone: "warning" },
+  { title: "School friction", description: "Repeated tickets from a school identify onboarding or reliability gaps.", status: "Tracked", tone: "warning" },
     { title: "Agent workload", description: "Ticket distribution helps the platform owner balance support capacity.", status: "Measured", tone: "ok" },
   ],
 };

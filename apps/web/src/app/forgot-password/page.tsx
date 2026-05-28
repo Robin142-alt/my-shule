@@ -22,9 +22,9 @@ export default function ForgotPasswordPage() {
           description: "Parents, teachers, and administrators can complete recovery on phones.",
         },
         {
-          id: "tenant",
-          title: "Tenant scoped",
-          description: "School recovery remains bound to the correct institution workspace.",
+          id: "school",
+          title: "School linked",
+          description: "School recovery remains bound to the correct institution.",
         },
       ]}
       trustNotes={[

@@ -31,7 +31,7 @@ export function AdmissionsDashboardHome() {
           </h3>
           <div className="mt-6 space-y-3">
             <Link href="/dashboard/admissions/admissions" className={buttonClasses({ variant: "secondary", size: "md" })}>
-              Open Admissions Workspace
+              Open Admissions Desk
             </Link>
             <Link href="/dashboard/admissions/admissions" className={buttonClasses({ variant: "primary", size: "md" })}>
               New Registration

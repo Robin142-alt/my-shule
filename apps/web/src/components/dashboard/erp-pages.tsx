@@ -131,6 +131,15 @@ function PrintableSheet({
   );
 }
 
+function parseKenyanMoney(value: string) {
+  const parsed = Number(value.replace(/[^\d.-]/g, ""));
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function formatKenyanMoney(value: number) {
+  return `KSh ${value.toLocaleString("en-KE")}`;
+}
+
 function MpesaFeedCard({
   rows,
 }: {
@@ -476,8 +485,30 @@ export function StudentsPage({
   const [search, setSearch] = useState("");
   const [classFilter, setClassFilter] = useState("all");
   const [showModal, setShowModal] = useState(false);
+  const [studentRows, setStudentRows] = useState<StudentRow[]>(() => model.students.rows);
+  const [studentForm, setStudentForm] = useState({
+    name: "",
+    admissionNumber: "",
+    className: "",
+    parentPhone: "",
+  });
+  const [studentError, setStudentError] = useState("");
+  const [studentNotice, setStudentNotice] = useState("");
 
-  const filteredRows = model.students.rows.filter((row) => {
+  const studentMetrics = model.students.metrics.map((item) => {
+    if (item.id === "students-count") {
+      return { ...item, value: `${studentRows.length}` };
+    }
+    if (item.id === "students-balances") {
+      return { ...item, value: `${studentRows.filter((row) => row.balanceTone !== "ok").length}` };
+    }
+    if (item.id === "students-clear") {
+      return { ...item, value: `${studentRows.filter((row) => row.balanceTone === "ok").length}` };
+    }
+    return item;
+  });
+
+  const filteredRows = studentRows.filter((row) => {
     const matchesSearch =
       row.name.toLowerCase().includes(search.toLowerCase()) ||
       row.admissionNumber.toLowerCase().includes(search.toLowerCase()) ||
@@ -486,6 +517,43 @@ export function StudentsPage({
 
     return matchesSearch && matchesClass;
   });
+
+  function closeStudentModal() {
+    setShowModal(false);
+    setStudentError("");
+    setStudentForm({
+      name: "",
+      admissionNumber: "",
+      className: "",
+      parentPhone: "",
+    });
+  }
+
+  function saveStudent() {
+    if (
+      !studentForm.name.trim() ||
+      !studentForm.admissionNumber.trim() ||
+      !studentForm.className.trim() ||
+      !studentForm.parentPhone.trim()
+    ) {
+      setStudentError("Enter the learner name, admission number, class, and parent phone.");
+      return;
+    }
+
+    const newStudent: StudentRow = {
+      id: `student-${Date.now()}`,
+      name: studentForm.name.trim(),
+      admissionNumber: studentForm.admissionNumber.trim(),
+      className: studentForm.className.trim(),
+      parent: studentForm.parentPhone.trim(),
+      balance: "KSh 0",
+      balanceTone: "ok",
+    };
+
+    setStudentRows((current) => [newStudent, ...current]);
+    setStudentNotice(`${newStudent.name} added to the student register.`);
+    closeStudentModal();
+  }
 
   const columns: DataTableColumn<StudentRow>[] = [
     {
@@ -534,7 +602,13 @@ export function StudentsPage({
         }
       />
 
-      <SummaryCards items={model.students.metrics} />
+      <SummaryCards items={studentMetrics} />
+
+      {studentNotice ? (
+        <Card className="border-success/25 bg-success-soft/70 p-4 text-sm font-semibold text-success">
+          {studentNotice}
+        </Card>
+      ) : null}
 
       <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
         <div className="space-y-6">
@@ -573,7 +647,7 @@ export function StudentsPage({
                   className="w-full bg-transparent text-sm outline-none"
                 >
                   <option value="all">All classes</option>
-                  {Array.from(new Set(model.students.rows.map((row) => row.className))).map(
+                  {Array.from(new Set(studentRows.map((row) => row.className))).map(
                     (className) => (
                       <option key={className} value={className}>
                         {className}
@@ -661,23 +735,55 @@ export function StudentsPage({
         onClose={() => setShowModal(false)}
         footer={
           <>
-            <Button variant="secondary" onClick={() => setShowModal(false)}>
+            <Button variant="secondary" onClick={closeStudentModal}>
               Cancel
             </Button>
-            <Button onClick={() => setShowModal(false)}>Save Student</Button>
+            <Button onClick={saveStudent}>Save Student</Button>
           </>
         }
       >
+        {studentError ? (
+          <div className="mb-4 rounded-[var(--radius-sm)] border border-danger/25 bg-danger-soft px-3 py-2 text-sm font-semibold text-danger">
+            {studentError}
+          </div>
+        ) : null}
         <div className="grid gap-4 md:grid-cols-2">
-          {["Full name", "Admission number", "Class", "Parent phone"].map((label) => (
-            <label key={label} className="space-y-2">
-              <span className="text-sm font-semibold text-foreground">{label}</span>
-              <input
-                className="input-base"
-                placeholder={label}
-              />
-            </label>
-          ))}
+          <label className="space-y-2">
+            <span className="text-sm font-semibold text-foreground">Full name</span>
+            <input
+              value={studentForm.name}
+              onChange={(event) => setStudentForm((current) => ({ ...current, name: event.target.value }))}
+              className="input-base"
+              placeholder="Faith Akinyi"
+            />
+          </label>
+          <label className="space-y-2">
+            <span className="text-sm font-semibold text-foreground">Admission number</span>
+            <input
+              value={studentForm.admissionNumber}
+              onChange={(event) => setStudentForm((current) => ({ ...current, admissionNumber: event.target.value }))}
+              className="input-base"
+              placeholder="KBS/2026/118"
+            />
+          </label>
+          <label className="space-y-2">
+            <span className="text-sm font-semibold text-foreground">Class</span>
+            <input
+              value={studentForm.className}
+              onChange={(event) => setStudentForm((current) => ({ ...current, className: event.target.value }))}
+              className="input-base"
+              placeholder="Form 1 North"
+            />
+          </label>
+          <label className="space-y-2">
+            <span className="text-sm font-semibold text-foreground">Parent phone</span>
+            <input
+              value={studentForm.parentPhone}
+              onChange={(event) => setStudentForm((current) => ({ ...current, parentPhone: event.target.value }))}
+              className="input-base"
+              placeholder="0712 345 678"
+            />
+          </label>
         </div>
       </Modal>
     </div>
@@ -711,7 +817,7 @@ export function StudentProfilePage({
           Student not found
         </h2>
         <p className="mt-3 text-[13px] leading-relaxed text-muted">
-          The learner profile could not be opened for this role and tenant.
+          The learner profile could not be opened for this role and school.
         </p>
         <Link
           href={`/dashboard/${role}/students`}
@@ -1112,6 +1218,19 @@ export function FinancePage({
   const [showReverseModal, setShowReverseModal] = useState(false);
   const [search, setSearch] = useState("");
   const [methodFilter, setMethodFilter] = useState("all");
+  const [paymentRows, setPaymentRows] = useState<FinancePaymentRow[]>(() => model.finance.rows);
+  const [paymentForm, setPaymentForm] = useState({
+    student: "",
+    amount: "",
+    method: "M-Pesa",
+    reference: "",
+  });
+  const [reverseForm, setReverseForm] = useState({
+    reference: "",
+    reason: "",
+  });
+  const [financeError, setFinanceError] = useState("");
+  const [financeNotice, setFinanceNotice] = useState("");
 
   const columns: DataTableColumn<FinancePaymentRow>[] = [
     { id: "student", header: "Student", render: (row) => <span className="font-semibold">{row.student}</span> },
@@ -1131,7 +1250,7 @@ export function FinancePage({
       render: (row) => <StatusPill label={row.status} tone={row.statusTone} />,
     },
   ];
-  const filteredRows = model.finance.rows.filter((row) => {
+  const filteredRows = paymentRows.filter((row) => {
     const normalizedSearch = search.trim().toLowerCase();
     const matchesSearch =
       normalizedSearch.length === 0 ||
@@ -1141,6 +1260,86 @@ export function FinancePage({
 
     return matchesSearch && matchesMethod;
   });
+  const financeSummary = model.finance.summary.map((item) => {
+    if (item.id === "collected") {
+      return {
+        ...item,
+        value: formatKenyanMoney(
+          paymentRows
+            .filter((row) => row.statusTone === "ok")
+            .reduce((sum, row) => sum + parseKenyanMoney(row.amount), 0),
+        ),
+      };
+    }
+    return item;
+  });
+
+  function closePaymentModal() {
+    setShowPaymentModal(false);
+    setFinanceError("");
+    setPaymentForm({
+      student: "",
+      amount: "",
+      method: "M-Pesa",
+      reference: "",
+    });
+  }
+
+  function postPayment() {
+    if (!paymentForm.student.trim() || !paymentForm.amount.trim() || !paymentForm.reference.trim()) {
+      setFinanceError("Enter the learner, amount, and payment reference before posting.");
+      return;
+    }
+
+    const newPayment: FinancePaymentRow = {
+      id: `payment-${Date.now()}`,
+      student: paymentForm.student.trim(),
+      amount: paymentForm.amount.trim().startsWith("KSh")
+        ? paymentForm.amount.trim()
+        : `KSh ${paymentForm.amount.trim()}`,
+      method: paymentForm.method,
+      date: "Today",
+      reference: paymentForm.reference.trim(),
+      status: "Posted",
+      statusTone: "ok",
+    };
+
+    setPaymentRows((current) => [newPayment, ...current]);
+    setFinanceNotice(`${newPayment.amount} posted for ${newPayment.student}. Receipt is ready to print or send by SMS.`);
+    closePaymentModal();
+  }
+
+  function closeReverseModal() {
+    setShowReverseModal(false);
+    setFinanceError("");
+    setReverseForm({ reference: "", reason: "" });
+  }
+
+  function reversePayment() {
+    if (!reverseForm.reference.trim() || !reverseForm.reason.trim()) {
+      setFinanceError("Enter the payment reference and reason before reversing.");
+      return;
+    }
+
+    const reference = reverseForm.reference.trim();
+    const matched = paymentRows.some((row) => row.reference.toLowerCase() === reference.toLowerCase());
+    if (!matched) {
+      setFinanceError("That reference was not found in the visible payment list.");
+      return;
+    }
+
+    setPaymentRows((current) =>
+      current.map((row) => {
+        if (row.reference.toLowerCase() !== reference.toLowerCase()) {
+          return row;
+        }
+        return { ...row, status: "Reversal requested", statusTone: "warning" };
+      }),
+    );
+
+    setFinanceNotice(`Reversal request captured for ${reference}. Approval is pending.`);
+    closeReverseModal();
+  }
 
   return (
     <div className="space-y-6">
@@ -1165,7 +1364,13 @@ export function FinancePage({
         }
       />
 
-      <SummaryCards items={model.finance.summary} />
+      <SummaryCards items={financeSummary} />
+
+      {financeNotice ? (
+        <Card className="border-success/25 bg-success-soft/70 p-4 text-sm font-semibold text-success">
+          {financeNotice}
+        </Card>
+      ) : null}
 
       <Card className="p-5">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
@@ -1205,7 +1410,7 @@ export function FinancePage({
                   className="w-full bg-transparent text-sm outline-none"
                 >
                   <option value="all">All methods</option>
-                  {Array.from(new Set(model.finance.rows.map((row) => row.method))).map((method) => (
+                  {Array.from(new Set(paymentRows.map((row) => row.method))).map((method) => (
                     <option key={method} value={method}>
                       {method}
                     </option>
@@ -1283,25 +1488,61 @@ export function FinancePage({
         onClose={() => setShowPaymentModal(false)}
         footer={
           <>
-            <Button variant="secondary" onClick={() => setShowPaymentModal(false)}>
+            <Button variant="secondary" onClick={closePaymentModal}>
               Cancel
             </Button>
-            <Button disabled={!online} onClick={() => setShowPaymentModal(false)}>
+            <Button disabled={!online} onClick={postPayment}>
               Post Payment
             </Button>
           </>
         }
       >
+        {financeError ? (
+          <div className="mb-4 rounded-[var(--radius-sm)] border border-danger/25 bg-danger-soft px-3 py-2 text-sm font-semibold text-danger">
+            {financeError}
+          </div>
+        ) : null}
         <div className="grid gap-4 md:grid-cols-2">
-          {["Student", "Amount", "Method", "Reference"].map((label) => (
-            <label key={label} className="space-y-2">
-              <span className="text-sm font-semibold text-foreground">{label}</span>
-              <input
-                className="input-base"
-                placeholder={label}
-              />
-            </label>
-          ))}
+          <label className="space-y-2">
+            <span className="text-sm font-semibold text-foreground">Student</span>
+            <input
+              value={paymentForm.student}
+              onChange={(event) => setPaymentForm((current) => ({ ...current, student: event.target.value }))}
+              className="input-base"
+              placeholder="Brian Otieno"
+            />
+          </label>
+          <label className="space-y-2">
+            <span className="text-sm font-semibold text-foreground">Amount</span>
+            <input
+              value={paymentForm.amount}
+              onChange={(event) => setPaymentForm((current) => ({ ...current, amount: event.target.value }))}
+              className="input-base"
+              placeholder="248500"
+            />
+          </label>
+          <label className="space-y-2">
+            <span className="text-sm font-semibold text-foreground">Method</span>
+            <select
+              value={paymentForm.method}
+              onChange={(event) => setPaymentForm((current) => ({ ...current, method: event.target.value }))}
+              className="input-base"
+            >
+              <option>M-Pesa</option>
+              <option>Cash</option>
+              <option>Bank</option>
+              <option>Bursary</option>
+            </select>
+          </label>
+          <label className="space-y-2">
+            <span className="text-sm font-semibold text-foreground">Reference</span>
+            <input
+              value={paymentForm.reference}
+              onChange={(event) => setPaymentForm((current) => ({ ...current, reference: event.target.value }))}
+              className="input-base"
+              placeholder="QEX7ABC123"
+            />
+          </label>
         </div>
       </Modal>
 
@@ -1312,10 +1553,10 @@ export function FinancePage({
         onClose={() => setShowReverseModal(false)}
         footer={
           <>
-            <Button variant="secondary" onClick={() => setShowReverseModal(false)}>
+            <Button variant="secondary" onClick={closeReverseModal}>
               Keep Payment
             </Button>
-            <Button variant="danger" disabled={!online} onClick={() => setShowReverseModal(false)}>
+            <Button variant="danger" disabled={!online} onClick={reversePayment}>
               Reverse Posted Payment
             </Button>
           </>
@@ -1324,6 +1565,31 @@ export function FinancePage({
         <p className="text-[13px] leading-relaxed text-muted">
           Confirm the reference, choose the reason, and continue only if the ledger entry truly needs reversal.
         </p>
+        {financeError ? (
+          <div className="mt-4 rounded-[var(--radius-sm)] border border-danger/25 bg-danger-soft px-3 py-2 text-sm font-semibold text-danger">
+            {financeError}
+          </div>
+        ) : null}
+        <div className="mt-4 grid gap-4">
+          <label className="space-y-2">
+            <span className="text-sm font-semibold text-foreground">Payment reference</span>
+            <input
+              value={reverseForm.reference}
+              onChange={(event) => setReverseForm((current) => ({ ...current, reference: event.target.value }))}
+              className="input-base"
+              placeholder="QEX7ABC123"
+            />
+          </label>
+          <label className="space-y-2">
+            <span className="text-sm font-semibold text-foreground">Reason</span>
+            <textarea
+              value={reverseForm.reason}
+              onChange={(event) => setReverseForm((current) => ({ ...current, reason: event.target.value }))}
+              className="min-h-24 input-base"
+              placeholder="Duplicate payment, wrong learner, or parent refund request"
+            />
+          </label>
+        </div>
       </Modal>
     </div>
   );
@@ -1345,6 +1611,14 @@ export function MpesaPage({
   const [showMatchModal, setShowMatchModal] = useState(false);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [mpesaRows, setMpesaRows] = useState<MpesaTransactionRow[]>(() => model.mpesa.rows);
+  const [activeMatchId, setActiveMatchId] = useState<string | null>(null);
+  const [matchForm, setMatchForm] = useState({
+    student: "",
+    note: "",
+  });
+  const [matchError, setMatchError] = useState("");
+  const [matchNotice, setMatchNotice] = useState("");
 
   const columns: DataTableColumn<MpesaTransactionRow>[] = [
     { id: "phone", header: "Phone", render: (row) => row.phone },
@@ -1367,7 +1641,16 @@ export function MpesaPage({
       header: "Action",
       render: (row) =>
         row.statusTone === "warning" ? (
-          <Button size="sm" disabled={!online} onClick={() => setShowMatchModal(true)}>
+          <Button
+            size="sm"
+            disabled={!online}
+            onClick={() => {
+              setActiveMatchId(row.id);
+              setMatchForm({ student: row.matchedStudent === "Unmatched" ? "" : row.matchedStudent, note: "" });
+              setMatchError("");
+              setShowMatchModal(true);
+            }}
+          >
             Manual Match
           </Button>
         ) : (
@@ -1375,7 +1658,7 @@ export function MpesaPage({
         ),
     },
   ];
-  const filteredRows = model.mpesa.rows.filter((row) => {
+  const filteredRows = mpesaRows.filter((row) => {
     const normalizedSearch = search.trim().toLowerCase();
     const matchesSearch =
       normalizedSearch.length === 0 ||
@@ -1388,6 +1671,44 @@ export function MpesaPage({
     return matchesSearch && matchesStatus;
   });
 
+  const mpesaSummary = model.mpesa.summary.map((item) => {
+    if (item.id === "matched-today") {
+      return { ...item, value: `${mpesaRows.filter((row) => row.statusTone === "ok").length}` };
+    }
+    if (item.id === "pending-match") {
+      return { ...item, value: `${mpesaRows.filter((row) => row.statusTone === "warning").length}` };
+    }
+    if (item.id === "failed-callbacks") {
+      return { ...item, value: `${mpesaRows.filter((row) => row.statusTone === "critical").length}` };
+    }
+    return item;
+  });
+
+  function closeMatchModal() {
+    setShowMatchModal(false);
+    setActiveMatchId(null);
+    setMatchError("");
+    setMatchForm({ student: "", note: "" });
+  }
+
+  function confirmManualMatch() {
+    if (!activeMatchId || !matchForm.student.trim() || !matchForm.note.trim()) {
+      setMatchError("Enter the learner and confirmation note before saving the match.");
+      return;
+    }
+
+    const transaction = mpesaRows.find((row) => row.id === activeMatchId);
+    setMpesaRows((current) =>
+      current.map((row) =>
+        row.id === activeMatchId
+          ? { ...row, matchedStudent: matchForm.student.trim(), status: "Matched", statusTone: "ok" }
+          : row,
+      ),
+    );
+    setMatchNotice(`${transaction?.code ?? "M-Pesa transaction"} matched to ${matchForm.student.trim()}.`);
+    closeMatchModal();
+  }
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -1396,7 +1717,13 @@ export function MpesaPage({
         description="Keep the mobile money queue simple: matched, pending, or failed, with manual intervention only when needed."
       />
 
-      <SummaryCards items={model.mpesa.summary} />
+      <SummaryCards items={mpesaSummary} />
+
+      {matchNotice ? (
+        <Card className="border-success/25 bg-success-soft/70 p-4 text-sm font-semibold text-success">
+          {matchNotice}
+        </Card>
+      ) : null}
 
       <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
         <div className="space-y-6">
@@ -1428,7 +1755,7 @@ export function MpesaPage({
                   className="w-full bg-transparent text-sm outline-none"
                 >
                   <option value="all">All statuses</option>
-                  {Array.from(new Set(model.mpesa.rows.map((row) => row.status.toLowerCase()))).map((status) => (
+                  {Array.from(new Set(mpesaRows.map((row) => row.status.toLowerCase()))).map((status) => (
                     <option key={status} value={status}>
                       {status}
                     </option>
@@ -1476,7 +1803,7 @@ export function MpesaPage({
               Transactions waiting on review
             </h3>
             <div className="mt-4 space-y-3">
-              {model.mpesa.rows
+              {mpesaRows
                 .filter((row) => row.statusTone === "warning")
                 .slice(0, 4)
                 .map((row) => (
@@ -1502,23 +1829,38 @@ export function MpesaPage({
         onClose={() => setShowMatchModal(false)}
         footer={
           <>
-            <Button variant="secondary" onClick={() => setShowMatchModal(false)}>
+            <Button variant="secondary" onClick={closeMatchModal}>
               Cancel
             </Button>
-            <Button disabled={!online} onClick={() => setShowMatchModal(false)}>
+            <Button disabled={!online} onClick={confirmManualMatch}>
               Confirm Match
             </Button>
           </>
         }
       >
+        {matchError ? (
+          <div className="mb-4 rounded-[var(--radius-sm)] border border-danger/25 bg-danger-soft px-3 py-2 text-sm font-semibold text-danger">
+            {matchError}
+          </div>
+        ) : null}
         <div className="space-y-4">
           <label className="space-y-2">
             <span className="text-sm font-semibold text-foreground">Student</span>
-            <input className="input-base" placeholder="Search learner" />
+            <input
+              value={matchForm.student}
+              onChange={(event) => setMatchForm((current) => ({ ...current, student: event.target.value }))}
+              className="input-base"
+              placeholder="Search learner"
+            />
           </label>
           <label className="space-y-2">
             <span className="text-sm font-semibold text-foreground">Confirmation note</span>
-            <textarea className="min-h-28 input-base" placeholder="Why this match is valid" />
+            <textarea
+              value={matchForm.note}
+              onChange={(event) => setMatchForm((current) => ({ ...current, note: event.target.value }))}
+              className="min-h-28 input-base"
+              placeholder="Parent confirmed phone number and learner"
+            />
           </label>
         </div>
       </Modal>
@@ -1540,6 +1882,15 @@ export function AcademicsPage({
     [online, role, snapshot.tenant],
   );
   const [showMarksModal, setShowMarksModal] = useState(false);
+  const [marksRows, setMarksRows] = useState<MarksEntryRow[]>(() => model.academics.marks);
+  const [marksForm, setMarksForm] = useState({
+    learner: "",
+    className: "",
+    subject: "English",
+    score: "",
+  });
+  const [marksError, setMarksError] = useState("");
+  const [marksNotice, setMarksNotice] = useState("");
 
   const subjectColumns: DataTableColumn<SchoolErpModel["academics"]["subjects"][number]>[] = [
     { id: "subject", header: "Subject", render: (row) => <span className="font-semibold">{row.subject}</span> },
@@ -1567,6 +1918,39 @@ export function AcademicsPage({
     },
   ];
 
+  const academicSummary = model.academics.summary.map((item) => {
+    if (item.id === "marks-pending") {
+      return { ...item, value: `${marksRows.length}` };
+    }
+    return item;
+  });
+
+  function closeMarksModal() {
+    setShowMarksModal(false);
+    setMarksError("");
+    setMarksForm({ learner: "", className: "", subject: "English", score: "" });
+  }
+
+  function saveMarks() {
+    if (!marksForm.learner.trim() || !marksForm.className.trim() || !marksForm.score.trim()) {
+      setMarksError("Enter the learner, class, and score before saving marks.");
+      return;
+    }
+
+    const newRow: MarksEntryRow = {
+      id: `mark-${Date.now()}`,
+      student: marksForm.learner.trim(),
+      english: marksForm.subject === "English" ? marksForm.score.trim() : "-",
+      maths: marksForm.subject === "Maths" ? marksForm.score.trim() : "-",
+      science: marksForm.subject === "Science" ? marksForm.score.trim() : "-",
+      socialStudies: marksForm.subject === "Social Studies" ? marksForm.score.trim() : "-",
+    };
+
+    setMarksRows((current) => [newRow, ...current]);
+    setMarksNotice(`${marksForm.subject} marks saved for ${marksForm.learner.trim()}.`);
+    closeMarksModal();
+  }
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -1581,7 +1965,13 @@ export function AcademicsPage({
         }
       />
 
-      <SummaryCards items={model.academics.summary} />
+      <SummaryCards items={academicSummary} />
+
+      {marksNotice ? (
+        <Card className="border-success/25 bg-success-soft/70 p-4 text-sm font-semibold text-success">
+          {marksNotice}
+        </Card>
+      ) : null}
 
       <Card className="p-5">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
@@ -1622,7 +2012,7 @@ export function AcademicsPage({
                 title="Marks entry"
                 subtitle="Recent marks entry view for quick review."
                 columns={marksColumns}
-                rows={model.academics.marks}
+                rows={marksRows}
                 getRowKey={(row) => row.id}
               />
             ),
@@ -1650,23 +2040,62 @@ export function AcademicsPage({
         onClose={() => setShowMarksModal(false)}
         footer={
           <>
-            <Button variant="secondary" onClick={() => setShowMarksModal(false)}>
+            <Button variant="secondary" onClick={closeMarksModal}>
               Cancel
             </Button>
-            <Button onClick={() => setShowMarksModal(false)}>Save Marks</Button>
+            <Button onClick={saveMarks}>Save Marks</Button>
           </>
         }
       >
+        {marksError ? (
+          <div className="mb-4 rounded-[var(--radius-sm)] border border-danger/25 bg-danger-soft px-3 py-2 text-sm font-semibold text-danger">
+            {marksError}
+          </div>
+        ) : null}
         <div className="grid gap-4 md:grid-cols-2">
-          {["Learner", "Class", "Subject", "Score"].map((label) => (
-            <label key={label} className="space-y-2">
-              <span className="text-sm font-semibold text-foreground">{label}</span>
-              <input
-                className="input-base"
-                placeholder={label}
-              />
-            </label>
-          ))}
+          <label className="space-y-2">
+            <span className="text-sm font-semibold text-foreground">Learner</span>
+            <input
+              value={marksForm.learner}
+              onChange={(event) => setMarksForm((current) => ({ ...current, learner: event.target.value }))}
+              className="input-base"
+              placeholder="Faith Akinyi"
+            />
+          </label>
+          <label className="space-y-2">
+            <span className="text-sm font-semibold text-foreground">Class</span>
+            <input
+              value={marksForm.className}
+              onChange={(event) => setMarksForm((current) => ({ ...current, className: event.target.value }))}
+              className="input-base"
+              placeholder="Form 2 West"
+            />
+          </label>
+          <label className="space-y-2">
+            <span className="text-sm font-semibold text-foreground">Subject</span>
+            <select
+              value={marksForm.subject}
+              onChange={(event) => setMarksForm((current) => ({ ...current, subject: event.target.value }))}
+              className="input-base"
+            >
+              <option>English</option>
+              <option>Maths</option>
+              <option>Science</option>
+              <option>Social Studies</option>
+            </select>
+          </label>
+          <label className="space-y-2">
+            <span className="text-sm font-semibold text-foreground">Score</span>
+            <input
+              value={marksForm.score}
+              onChange={(event) => setMarksForm((current) => ({ ...current, score: event.target.value }))}
+              className="input-base"
+              placeholder="78"
+              type="number"
+              min="0"
+              max="100"
+            />
+          </label>
         </div>
       </Modal>
     </div>
@@ -2152,7 +2581,7 @@ export function SettingsPage({
         <div className="flex items-start gap-3 rounded-[var(--radius)] border border-border bg-surface-muted px-4 py-3">
           <ShieldCheck className="mt-0.5 h-5 w-5 text-accent" />
           <p className="text-sm leading-6 text-foreground">
-            Settings stay simple: school profile, fee structure, and user access all remain tenant-scoped and easy to review.
+            Settings stay simple: school profile, fee structure, and user access all remain linked to this school and easy to review.
           </p>
         </div>
       </Card>
@@ -2195,7 +2624,7 @@ export function SettingsPage({
                     {[
                       "Finance actions stay online-only to protect ledger truth.",
                       "Retired modules stay hidden from operational workspaces.",
-                      "User management stays tenant-scoped and role-based.",
+                      "User management stays school-linked and role-based.",
                     ].map((item) => (
                       <div
                         key={item}

@@ -5,8 +5,8 @@ export default function SupportStaffLoginPage() {
   return (
     <AuthShell
       eyebrow="Support staff login"
-      heroTitle="Resolve tenant issues with SLA context, ticket queues, and operational visibility."
-      heroDescription="Internal support teams enter a control-center experience for customer replies, escalations, tenant health, incidents, and recurring issue patterns."
+      heroTitle="Resolve school issues with SLA context, ticket queues, and operational visibility."
+      heroDescription="Internal support teams enter a control-center experience for customer replies, escalations, school health, incidents, and recurring issue patterns."
       badge="Support operations"
       logoMark="SP"
       helper="Support actions are role protected, internally audited, and separated from school-facing user access."
@@ -19,7 +19,7 @@ export default function SupportStaffLoginPage() {
         {
           id: "sla",
           title: "SLA dashboard",
-          description: "Response and resolution clocks help agents focus on the right tenant issue.",
+        description: "Response and resolution clocks help agents focus on the right school issue.",
         },
         {
           id: "incidents",

@@ -7,13 +7,23 @@ export type SchoolExperienceRole =
   | "deputy-principal"
   | "secretary"
   | "bursar"
+  | "accountant"
   | "teacher"
+  | "dean-academics"
+  | "exams-manager"
+  | "hod"
+  | "class-teacher"
+  | "grade-master"
   | "admin"
   | "storekeeper"
   | "librarian"
   | "nurse"
   | "boarding-master"
   | "security-officer"
+  | "transport-manager"
+  | "laboratory-technician"
+  | "guidance-counselling"
+  | "discipline-master"
   | "admissions";
 export type PortalViewer = "parent" | "student";
 
@@ -68,4 +78,5 @@ export interface ExperienceProfile {
   name: string;
   roleLabel: string;
   contextLabel: string;
+  roleKey?: SchoolExperienceRole | PortalViewer | "superadmin" | "system-monitor" | "platform-owner";
 }

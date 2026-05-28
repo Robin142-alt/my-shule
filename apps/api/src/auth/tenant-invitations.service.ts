@@ -166,12 +166,15 @@ export class TenantInvitationsService {
             AND token.consumed_at IS NULL
             AND token.metadata->>'purpose' = 'tenant_user_invitation'
         )
-        SELECT * FROM current_members
-        UNION ALL
-        SELECT * FROM pending_invitations
+        SELECT *
+        FROM (
+          SELECT * FROM pending_invitations
+          UNION ALL
+          SELECT * FROM current_members
+        ) managed_users
         ORDER BY
-          CASE kind WHEN 'invitation' THEN 0 ELSE 1 END,
-          created_at DESC
+          CASE managed_users.kind WHEN 'invitation' THEN 0 ELSE 1 END,
+          managed_users.created_at DESC
       `,
       [tenantId],
     );
@@ -633,7 +636,7 @@ export class TenantInvitationsService {
     }
 
     await this.databaseService.query(
-      'SELECT app.mark_auth_email_outbox_delivery($1, $2)',
+      'SELECT app.mark_auth_email_outbox_delivery($1::uuid, $2::text)',
       [outboxId, status],
     );
   }

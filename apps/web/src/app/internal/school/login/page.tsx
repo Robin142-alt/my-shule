@@ -17,7 +17,7 @@ export default async function InternalSchoolLoginPage() {
       heroDescription="Visibility across departments. Every payment accountable. Every incident traceable. Every student monitored responsibly."
       badge={`${resolution.branding.county} school ERP`}
       logoMark={resolution.branding.logoMark}
-      helper="Staff sign-in stays tenant aware, module-aware, school branded, and governed by role-safe approvals and audit trails."
+      helper="Staff sign-in stays school-aware, module-aware, branded, and protected by role-safe approvals and action history."
       highlights={[
         {
           id: "collections",
@@ -32,14 +32,14 @@ export default async function InternalSchoolLoginPage() {
             "Performance, lesson coverage, exam releases, and class operations are governed by assigned permissions.",
         },
         {
-          id: "tenant-security",
-          title: "Tenant-isolated access",
+          id: "school-security",
+          title: "School-protected access",
           description:
-            "Each school only enters its own workspace, branding, and operational data.",
+            "Each school only enters its own branded operations desk and school data.",
         },
       ]}
       trustNotes={[
-        { id: "tenant", label: "Tenant protected", icon: "shield" },
+        { id: "school", label: "School protected", icon: "shield" },
         { id: "branding", label: "School branded", icon: "check" },
         { id: "secure", label: "Secure session", icon: "lock" },
       ]}

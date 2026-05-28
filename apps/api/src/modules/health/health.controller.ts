@@ -66,7 +66,7 @@ export class HealthController {
 
     return {
       status:
-        (realtimeHealth && realtimeHealth.overall_status !== 'healthy')
+        this.isSloReadinessDegraded(realtimeHealth)
         || corsStatus.status === 'invalid'
         || supportNotificationDegraded
         || this.isOperationalReadinessDegraded(objectStorageStatus.status)
@@ -235,6 +235,17 @@ export class HealthController {
 
   private isOperationalReadinessDegraded(status: string): boolean {
     return status === 'missing_credentials' || status === 'degraded';
+  }
+
+  private isSloReadinessDegraded(
+    realtimeHealth: Awaited<ReturnType<SloMonitoringService['getRealtimeHealth']>> | null,
+  ): boolean {
+    if (!realtimeHealth) {
+      return false;
+    }
+
+    return realtimeHealth.overall_status === 'critical'
+      || (realtimeHealth.critical_alert_count ?? 0) > 0;
   }
 
   private readStringConfig(key: string): string | undefined {

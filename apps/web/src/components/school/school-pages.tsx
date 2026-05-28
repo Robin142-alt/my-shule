@@ -3,12 +3,9 @@
 import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowRight, BookOpenCheck, FileSpreadsheet, Printer, Send, UserPlus } from "lucide-react";
-
-import { ActivityListCard, SimpleListCard } from "@/components/experience/activity-list-card";
+import { SimpleListCard } from "@/components/experience/activity-list-card";
 import { DisciplineWorkspace } from "@/components/discipline/discipline-workspace";
 import { MetricGrid } from "@/components/experience/metric-grid";
-import { QuickActionBar } from "@/components/experience/quick-action-bar";
 import { AdmissionsModuleScreen } from "@/components/modules/admissions/admissions-module-screen";
 import { AiInsightsModuleScreen } from "@/components/modules/ai-insights/ai-insights-module-screen";
 import { AssetTrackingModuleScreen } from "@/components/modules/assets/asset-tracking-module-screen";
@@ -23,7 +20,8 @@ import { ProcurementModuleScreen } from "@/components/modules/procurement/procur
 import { TransportModuleScreen } from "@/components/modules/transport/transport-module-screen";
 import { VisitorManagementModuleScreen } from "@/components/modules/visitors/visitor-management-module-screen";
 import { ErpShell } from "@/components/school/erp-shell";
-import { PrincipalCommandCenter } from "@/components/school/principal-command-center";
+import { OperationalBlueprintWorkspace } from "@/components/school/operational-blueprint-workspace";
+import { RoleOperationalCommandCenter } from "@/components/school/role-operational-command-center";
 import { UserManagementPanel } from "@/components/school/user-management-panel";
 import { SupportCenterWorkspace } from "@/components/support/support-center-workspace";
 import { LearnerPicker } from "@/components/common/learner-picker";
@@ -41,12 +39,18 @@ import {
 import { getCsrfToken } from "@/lib/auth/csrf-client";
 import { redirectOnExpiredSessionResponse } from "@/lib/auth/session-expiry-client";
 import type { ExperienceNotificationItem } from "@/lib/experiences/types";
-import { getSchoolKpiSummary, getSchoolWorkspace, schoolSectionLabels, type SchoolExperienceRole, type SchoolSubscriptionView } from "@/lib/experiences/school-data";
+import { getSchoolWorkspace, schoolSectionLabels, type SchoolExperienceRole, type SchoolSubscriptionView } from "@/lib/experiences/school-data";
+import { getExtremeErpBlueprint, isExtremeErpWorkspaceId } from "@/lib/operational/extreme-erp-blueprints";
 import {
   filterNavItemsByEnabledModules,
   getModuleCodeForSchoolSection,
+  implementation101ModuleCodes,
   isSchoolSectionEnabled,
 } from "@/lib/module-access/module-access-map";
+import {
+  readCachedSchoolModuleCodes,
+  writeCachedSchoolModuleCodes,
+} from "@/lib/module-access/school-module-access-cache";
 import { toSchoolPath, toSchoolStudentPath } from "@/lib/routing/experience-routes";
 import type { LearnerLookupItem } from "@/lib/students/student-lookup";
 
@@ -348,10 +352,6 @@ function mapSchoolHref(
 ) {
   const normalized = href.replace(/^\/+/, "");
 
-  if (normalized === "library" || normalized.startsWith("library/")) {
-    return `/${normalized}`;
-  }
-
   const section = normalized.length === 0 ? "dashboard" : normalized;
 
   return buildSchoolSectionHref(
@@ -359,6 +359,79 @@ function mapSchoolHref(
     section as Parameters<typeof toSchoolPath>[0],
     routeMode,
   );
+}
+
+const supportWorkspaceSectionIds = new Set([
+  "support-new-ticket",
+  "support-my-tickets",
+  "support-knowledge-base",
+  "support-system-status",
+]);
+
+const roleOperationalWorkspaceSectionIds = new Set([
+  "dashboard",
+  "executive-analytics",
+  "alerts-risks",
+  "approvals",
+  "universal-approvals",
+  "users-staff",
+  "reports",
+  "reports-analytics",
+  "school-calendar",
+  "communication-center",
+  "document-printing",
+  "data-security",
+  "ai-insights",
+  "audit-logs",
+  "settings",
+  "students",
+  "school-admin",
+  "finance",
+  "mpesa",
+  "academics",
+  "syllabus",
+  "lesson-plans",
+  "attendance",
+  "resources",
+  "student-analytics",
+  "marks",
+  "grading",
+  "validation",
+  "communication",
+  "transport",
+  "procurement",
+  "hostel",
+  "boarding",
+  "cbt",
+  "lms",
+  "visitors",
+  "assets",
+  "iot",
+  "exams",
+  "discipline",
+  "labs",
+  "teacher-attendance",
+  "clinic",
+  "leadership",
+  "timetable",
+  "staff",
+  "admissions",
+  "inventory",
+  "library",
+  "hr-payroll",
+  "timetable-builder",
+  "canteen-meals",
+  "co-curricular",
+  "setup-wizard",
+  "ict-assets",
+]);
+
+function shouldRenderRoleOperationalWorkspace(role: SchoolExperienceRole, section: string) {
+  if (role === "admin") {
+    return section === "dashboard";
+  }
+
+  return roleOperationalWorkspaceSectionIds.has(section) && !supportWorkspaceSectionIds.has(section);
 }
 
 function getMissingFieldError(fields: Array<{ label: string; value: string }>) {
@@ -623,34 +696,6 @@ function buildFinanceSummaryItems(
   ];
 }
 
-function buildSchoolQuickActions(role: SchoolExperienceRole, routeMode: SchoolRouteMode) {
-  if (role === "librarian") {
-    return [
-      {
-        id: "open-library",
-        label: "Open Catalog",
-        description: "Manage catalog, borrowing, returns, and fines.",
-        href: "/library",
-        icon: BookOpenCheck,
-      },
-      {
-        id: "library-reports",
-        label: "Reports",
-        description: "Review overdue items, loans, fines, and inventory movement.",
-        href: "/library/reports",
-        icon: FileSpreadsheet,
-      },
-    ];
-  }
-
-  return [
-    { id: "record-payment", label: "Record Payment", description: "Post a school payment quickly", href: buildSchoolSectionHref(role, "finance", routeMode), icon: FileSpreadsheet },
-    { id: "add-student", label: "Add Student", description: "Create a learner record", href: buildSchoolSectionHref(role, "students", routeMode), icon: UserPlus },
-    { id: "send-sms", label: "Send SMS", description: "Reach families or a class stream", href: buildSchoolSectionHref(role, "communication", routeMode), icon: Send },
-    { id: "print-report", label: "Print Report", description: "Open class or fee reports", href: buildSchoolSectionHref(role, "reports", routeMode), icon: Printer },
-  ];
-}
-
 function SchoolPageHeader({
   eyebrow,
   title,
@@ -671,45 +716,6 @@ function SchoolPageHeader({
           <p className="mt-2 text-sm leading-6 text-muted">{description}</p>
         </div>
         {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
-      </div>
-    </Card>
-  );
-}
-
-function SubscriptionBanner({
-  subscription,
-  role,
-  routeMode,
-}: {
-  subscription: SchoolSubscriptionView;
-  role: SchoolExperienceRole;
-  routeMode: SchoolRouteMode;
-}) {
-  return (
-    <Card className="border-l-4 border-l-warning p-5">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-        <div className="max-w-3xl">
-          <div className="flex flex-wrap items-center gap-2">
-            <StatusPill label={subscription.statusLabel} tone={subscription.tone} />
-            <span className="text-xs font-semibold uppercase tracking-[0.16em] text-muted">
-              {subscription.state}
-            </span>
-          </div>
-          <h3 className="mt-3 text-lg font-semibold text-foreground">{subscription.headline}</h3>
-          <p className="mt-2 text-sm leading-6 text-muted">{subscription.detail}</p>
-          <div className="mt-3 flex flex-wrap items-center gap-4 text-sm text-muted">
-            <span>{subscription.renewalDueLabel}</span>
-            <span>{subscription.exportAllowedLabel}</span>
-          </div>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Link href={mapSchoolHref(role, subscription.primaryActionHref, routeMode)}>
-            <Button>{subscription.primaryActionLabel}</Button>
-          </Link>
-          <Link href={buildSchoolSectionHref(role, "reports", routeMode)}>
-            <Button variant="secondary">Export data</Button>
-          </Link>
-        </div>
       </div>
     </Card>
   );
@@ -818,7 +824,7 @@ function SubscriptionLifecyclePanel({
   );
 }
 
-function SchoolDashboardHome({
+export function SchoolDashboardHome({
   role,
   tenantSlug,
   routeMode,
@@ -827,108 +833,13 @@ function SchoolDashboardHome({
   tenantSlug?: string | null;
   routeMode: SchoolRouteMode;
 }) {
-  const { snapshot, model, subscription } = getSchoolWorkspace(role, tenantSlug);
-
   return (
-    <div className="space-y-6">
-      <SubscriptionBanner subscription={subscription} role={role} routeMode={routeMode} />
-      <MetricGrid items={getSchoolKpiSummary(role, tenantSlug)} />
-      <QuickActionBar
-        actions={buildSchoolQuickActions(role, routeMode)}
-      />
-      <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
-        <div className="space-y-6">
-          <DataTable
-            title="MPESA transactions"
-            subtitle="Fresh mobile payments that bursars or principals usually check first."
-            columns={[
-              { id: "student", header: "Student", render: (row) => row.student },
-              { id: "amount", header: "Amount", render: (row) => row.amount, className: "text-right font-semibold", headerClassName: "text-right" },
-              { id: "phone", header: "Phone", render: (row) => row.phone },
-              { id: "code", header: "Code", render: (row) => row.code },
-              { id: "status", header: "Status", render: (row) => <StatusPill label={row.status} tone={row.statusTone} /> },
-            ]}
-            rows={model.dashboard.mpesaFeed}
-            getRowKey={(row) => row.id}
-          />
-          <DataTable
-            title="Payment activity"
-            subtitle="Posted and in-flight collections for the current term."
-            columns={[
-              { id: "student", header: "Student", render: (row) => row.student },
-              { id: "amount", header: "Amount", render: (row) => row.amount, className: "text-right font-semibold", headerClassName: "text-right" },
-              { id: "method", header: "Method", render: (row) => row.method },
-              { id: "date", header: "Date", render: (row) => row.date },
-              { id: "reference", header: "Reference", render: (row) => row.reference },
-            ]}
-            rows={model.finance.rows.slice(0, 5)}
-            getRowKey={(row) => row.id}
-          />
-        </div>
-        <div className="space-y-6">
-          <SimpleListCard
-            title="Defaulters list"
-            subtitle="Families that usually need a call or reminder next."
-            items={model.dashboard.defaulters.map((row) => ({
-              id: row.id,
-              title: row.student,
-              subtitle: row.className,
-              value: row.balance,
-            }))}
-          />
-          <SimpleListCard
-            title="Alerts"
-            subtitle="Items that need attention before routine work."
-            items={snapshot.alerts.map((alert) => ({
-              id: alert.id,
-              title: alert.title,
-              subtitle: alert.description,
-              value: alert.severity,
-              tone: alert.severity,
-            }))}
-          />
-        </div>
-      </div>
-      <div className="grid gap-6 xl:grid-cols-[1fr_0.9fr]">
-        <ActivityListCard
-          title="Recent activity"
-          subtitle="School operations in reverse chronological order."
-          items={snapshot.activityFeed.map((item) => ({
-            id: item.id,
-            title: item.title,
-            detail: item.detail,
-            timeLabel: item.timeLabel,
-            tone: item.category === "payment" ? "ok" : "ok",
-          }))}
-        />
-        <Card className="p-5">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="text-lg font-semibold text-foreground">Quick actions</p>
-              <p className="mt-1 text-sm leading-6 text-muted">
-                The everyday things school teams need within two clicks.
-              </p>
-          </div>
-          <Link href={buildSchoolSectionHref(role, "reports", routeMode)} className="inline-flex items-center gap-2 text-sm font-semibold text-foreground">
-              Reports
-              <ArrowRight className="h-4 w-4" />
-            </Link>
-          </div>
-          <div className="mt-5 grid gap-3 sm:grid-cols-2">
-            {snapshot.quickActions.slice(0, 4).map((action) => (
-              <Link
-                key={action.id}
-                href={mapSchoolHref(role, action.href, routeMode)}
-                className="rounded-xl border border-border bg-surface-muted px-4 py-4 transition duration-150 hover:bg-surface-strong"
-              >
-                <p className="text-sm font-semibold text-foreground">{action.label}</p>
-                <p className="mt-1 text-sm text-muted">{action.description}</p>
-              </Link>
-            ))}
-          </div>
-        </Card>
-      </div>
-    </div>
+    <RoleOperationalCommandCenter
+      role={role}
+      initialSection="dashboard"
+      tenantSlug={tenantSlug}
+      routeMode={routeMode}
+    />
   );
 }
 
@@ -2052,7 +1963,7 @@ function SchoolFinancePage({
     <div className="space-y-6">
       <SchoolPageHeader
         eyebrow="Fees and payments"
-        title="Collections workspace"
+        title="Collections desk"
         description="Record payments, generate statements, and keep balances obvious enough for bursars and admins to trust instantly."
         actions={
           <>
@@ -2360,7 +2271,7 @@ function SchoolFinancePage({
         </div>
         <DataTable
           title="Fee structures"
-          subtitle={feeStructuresLoading ? "Loading fee structures..." : "Tenant-scoped fee plans available for bulk billing."}
+          subtitle={feeStructuresLoading ? "Loading fee structures..." : "School fee plans available for bulk billing."}
           columns={[
             { id: "name", header: "Name", render: (row) => row.name },
             {
@@ -2702,7 +2613,7 @@ function SchoolFinancePage({
       <Modal
         open={showInvoiceModal}
         title="Create invoice"
-        description="Generate a new fee invoice that appears in the collections workspace immediately."
+        description="Generate a new fee invoice that appears in the collections desk immediately."
         onClose={closeInvoiceModal}
         footer={
           <>
@@ -3789,7 +3700,7 @@ function SchoolReportsPage({
             <Button variant="secondary" onClick={exportReportCatalog}>
               Export Excel
             </Button>
-            <Button onClick={() => printReportSummary("School reports overview", "Operational reporting summary for the current workspace.")}>
+            <Button onClick={() => printReportSummary("School reports overview", "Operational reporting summary for the current section.")}>
               Print report
             </Button>
           </>
@@ -3987,7 +3898,7 @@ function SchoolCommunicationPage({
       <SchoolPageHeader
         eyebrow="Communication"
         title="School messaging"
-        description="Announcements, fee reminders, class updates, and SMS history in one straightforward workspace."
+        description="Announcements, fee reminders, class updates, and SMS history in one straightforward section."
         actions={<Button onClick={openSmsModal}>Send SMS</Button>}
       />
       {smsMessage ? (
@@ -4323,14 +4234,14 @@ function ModuleDisabledPanel({
   role: SchoolExperienceRole;
   routeMode: SchoolRouteMode;
 }) {
-  const requiredModule = getModuleCodeForSchoolSection(section);
+  const requiredModule = getModuleCodeForSchoolSection(section, role);
 
   return (
     <div className="space-y-6">
       <SchoolPageHeader
         eyebrow="Module access"
         title="Module not enabled for your school"
-        description="This workspace is controlled by the platform Superadmin. Existing records stay preserved and become visible again when the module is re-enabled."
+        description="This section is controlled by the platform Super Admin. Existing records stay preserved and become visible again when the module is re-enabled."
         actions={
           <Link href={buildSchoolSectionHref(role, "dashboard", routeMode)}>
             <Button variant="secondary">Back to dashboard</Button>
@@ -4344,7 +4255,7 @@ function ModuleDisabledPanel({
               {schoolSectionLabels[section] ?? "Requested module"}
             </p>
             <p className="mt-1 text-sm text-muted">
-              Required module code: {requiredModule ?? "core workspace"}
+              Required module code: {requiredModule ?? "core section"}
             </p>
           </div>
           <StatusPill label="Disabled by Superadmin" tone="warning" />
@@ -4356,26 +4267,28 @@ function ModuleDisabledPanel({
 
 function ModuleAccessVerifyingPanel({
   section,
+  role,
 }: {
   section: string;
+  role: SchoolExperienceRole;
 }) {
-  const requiredModule = getModuleCodeForSchoolSection(section);
+  const requiredModule = getModuleCodeForSchoolSection(section, role);
 
   return (
     <div className="space-y-6">
       <SchoolPageHeader
         eyebrow="Access control"
         title="Verifying module access"
-        description="MyShule is confirming tenant isolation, enabled modules, assigned permissions, and workflow visibility before rendering this workspace."
+        description="MyShule is confirming school access, enabled modules, assigned permissions, and section visibility before opening this page."
       />
       <Card className="p-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-sm font-semibold text-foreground">
-              {schoolSectionLabels[section] ?? "Requested workspace"}
+              {schoolSectionLabels[section] ?? "Requested section"}
             </p>
             <p className="mt-1 text-sm text-muted">
-              Required module code: {requiredModule ?? "core workspace"}
+              Required module code: {requiredModule ?? "core section"}
             </p>
           </div>
           <StatusPill label="Access sync" tone="warning" />
@@ -4414,7 +4327,7 @@ function LabsOperationsPage() {
       <SchoolPageHeader
         eyebrow="Laboratories"
         title="Laboratory operations"
-        description="Departments, sessions, mandatory attendance, equipment issuing, chemical safety, and reconciliation in one tenant-safe workspace."
+        description="Departments, sessions, mandatory attendance, equipment issuing, chemical safety, and reconciliation in one school-safe page."
         actions={<Button onClick={markMandatoryAttendance}>Mark attendance</Button>}
       />
       <MetricGrid
@@ -4547,7 +4460,7 @@ function TeacherBiometricAttendancePage() {
         />
         <SimpleListCard
           title="Attendance rule engine"
-          subtitle="Rules are tenant-specific and audited when changed."
+          subtitle="Rules are school-specific and recorded when changed."
           items={[
             { id: "rule-1", title: "Late detection", subtitle: "After default start time plus grace period.", value: "Active" },
             { id: "rule-2", title: "Half-day detection", subtitle: "Missing checkout is treated as half-day review.", value: "Active" },
@@ -4585,13 +4498,25 @@ function formatInsightValue(value: number | string | undefined, unit?: string) {
   return value ?? "0";
 }
 
-function ClinicOperationsPage({ tenantSlug }: { tenantSlug?: string | null }) {
+function ClinicOperationsPage({
+  tenantSlug,
+  liveDataEnabled = true,
+}: {
+  tenantSlug?: string | null;
+  liveDataEnabled?: boolean;
+}) {
   const [analytics, setAnalytics] = useState<ClinicAnalyticsResponse | null>(null);
   const [medicines, setMedicines] = useState<ClinicMedicineResponse[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
+
+    if (!liveDataEnabled) {
+      return () => {
+        cancelled = true;
+      };
+    }
 
     async function loadClinic() {
       try {
@@ -4602,7 +4527,7 @@ function ClinicOperationsPage({ tenantSlug }: { tenantSlug?: string | null }) {
         ]);
 
         if (!analyticsResponse.ok || !medicinesResponse.ok) {
-          throw new Error("Clinic workspace is not available.");
+          throw new Error("Clinic section is not available.");
         }
 
         const nextAnalytics = await analyticsResponse.json() as ClinicAnalyticsResponse;
@@ -4614,7 +4539,7 @@ function ClinicOperationsPage({ tenantSlug }: { tenantSlug?: string | null }) {
         }
       } catch (loadError) {
         if (!cancelled) {
-          setError(loadError instanceof Error ? loadError.message : "Clinic workspace is not available.");
+          setError(loadError instanceof Error ? loadError.message : "Clinic section is not available.");
         }
       }
     }
@@ -4624,7 +4549,7 @@ function ClinicOperationsPage({ tenantSlug }: { tenantSlug?: string | null }) {
     return () => {
       cancelled = true;
     };
-  }, [tenantSlug]);
+  }, [liveDataEnabled, tenantSlug]);
 
   const metrics = [
     { id: "medicines", label: "Medicines", value: formatInsightValue(analytics?.total_medicines), helper: "Active medicine records" },
@@ -4722,7 +4647,7 @@ function LeadershipCommandCenterPage({ role }: { role: SchoolExperienceRole }) {
         />
         <SimpleListCard
           title="Audit and governance"
-          subtitle="Every critical action is logged with actor, tenant, reason, and time."
+          subtitle="Every critical action is logged with actor, school, reason, and time."
           items={[
             { id: "audit-1", title: "Policy approval", subtitle: "Non-technical approvals are tracked before enforcement.", value: "Ready" },
             { id: "audit-2", title: "Permission changes", subtitle: "RBAC edits appear in the immutable audit log.", value: "Tracked" },
@@ -4753,22 +4678,48 @@ function SchoolBasicCardPage({
   );
 }
 
-export function SchoolPages({
-  role,
-  section = "dashboard",
-  studentId,
-  tenantSlug,
-  routeMode = "hosted",
-}: {
+type SchoolPagesProps = {
   role: SchoolExperienceRole;
   section?: string;
   studentId?: string;
   tenantSlug?: string | null;
   routeMode?: SchoolRouteMode;
-}) {
+  liveDataEnabled?: boolean;
+};
+
+export function SchoolPages(props: SchoolPagesProps) {
+  return <SchoolPagesShell {...props} />;
+}
+
+function SchoolPagesShell({
+  role,
+  section = "dashboard",
+  studentId,
+  tenantSlug,
+  routeMode = "hosted",
+  liveDataEnabled = true,
+}: SchoolPagesProps) {
   const router = useRouter();
+  const replaceRoute = router.replace;
   const workspace = getSchoolWorkspace(role, tenantSlug);
-  const [enabledModuleCodes, setEnabledModuleCodes] = useState<Set<string> | null>(null);
+  const [moduleAccessState, setModuleAccessState] = useState<{
+    codes: Set<string> | null;
+    verified: boolean;
+  }>(() => {
+    const cachedModuleCodes = readCachedSchoolModuleCodes({ role, tenantSlug });
+
+    if (!liveDataEnabled) {
+      return {
+        codes: cachedModuleCodes ?? new Set<string>(implementation101ModuleCodes),
+        verified: true,
+      };
+    }
+
+    return {
+      codes: cachedModuleCodes,
+      verified: Boolean(cachedModuleCodes && cachedModuleCodes.size > 0),
+    };
+  });
   const { navItems, profile, branding } = workspace;
   const activeHref = studentId
     ? buildSchoolSectionHref(role, "students", routeMode)
@@ -4781,6 +4732,14 @@ export function SchoolPages({
         );
   useEffect(() => {
     let cancelled = false;
+    const cachedModuleCodes = readCachedSchoolModuleCodes({ role, tenantSlug });
+    const hasUsableCachedModuleCodes = Boolean(cachedModuleCodes && cachedModuleCodes.size > 0);
+
+    if (!liveDataEnabled) {
+      return () => {
+        cancelled = true;
+      };
+    }
 
     async function loadModuleAccess() {
       try {
@@ -4790,13 +4749,16 @@ export function SchoolPages({
           cache: "no-store",
             });
 
-            if (redirectOnExpiredSessionResponse(response, "school", (href) => router.replace(href))) {
+            if (redirectOnExpiredSessionResponse(response, "school", (href) => replaceRoute(href))) {
               return;
             }
 
             if (!response.ok) {
-              if (!cancelled) {
-                setEnabledModuleCodes(new Set());
+              if (!cancelled && !hasUsableCachedModuleCodes) {
+                setModuleAccessState({
+                  codes: new Set(),
+                  verified: true,
+                });
               }
 
               return;
@@ -4810,11 +4772,24 @@ export function SchoolPages({
             : null;
 
         if (!cancelled && moduleCodes) {
-          setEnabledModuleCodes(new Set(moduleCodes));
+          const nextModuleCodes = new Set(moduleCodes);
+
+          writeCachedSchoolModuleCodes({
+            role,
+            tenantSlug,
+            moduleCodes: nextModuleCodes,
+          });
+          setModuleAccessState({
+            codes: nextModuleCodes,
+            verified: true,
+          });
         }
           } catch {
-            if (!cancelled) {
-              setEnabledModuleCodes(new Set());
+            if (!cancelled && !hasUsableCachedModuleCodes) {
+              setModuleAccessState({
+                codes: new Set(),
+                verified: true,
+              });
             }
           }
         }
@@ -4824,16 +4799,21 @@ export function SchoolPages({
     return () => {
       cancelled = true;
     };
-  }, [router]);
+  }, [liveDataEnabled, replaceRoute, role, tenantSlug]);
 
-  const accessLoading = enabledModuleCodes === null;
-  const visibleModuleCodes = enabledModuleCodes ?? new Set<string>();
-  const requiredModuleCode = getModuleCodeForSchoolSection(section);
+  const accessLoading = !moduleAccessState.verified;
+  const visibleModuleCodes = moduleAccessState.codes ?? new Set<string>();
+  const requiredModuleCode = getModuleCodeForSchoolSection(section, role);
   const principalDashboardRequiresModule = role === "principal" && section === "dashboard";
-  const scopedNavItems = filterNavItemsByEnabledModules(navItems, visibleModuleCodes)
+  const principalWorkspaceSyncing = role === "principal" && accessLoading && !studentId;
+  const shellNavItems = principalWorkspaceSyncing
+    ? navItems
+    : filterNavItemsByEnabledModules(navItems, visibleModuleCodes);
+  const scopedNavItems = shellNavItems
     .filter((item) => !(
       role === "principal"
       && item.id === "dashboard"
+      && !principalWorkspaceSyncing
       && !visibleModuleCodes.has("principal_dashboard")
     ))
     .map((item) => ({
@@ -4843,12 +4823,16 @@ export function SchoolPages({
   const principalDashboardEnabled =
     role !== "principal"
     || section !== "dashboard"
+    || principalWorkspaceSyncing
     || visibleModuleCodes.has("principal_dashboard");
   const requiresAccessSync =
-    accessLoading && (Boolean(requiredModuleCode) || principalDashboardRequiresModule);
+    !principalWorkspaceSyncing
+    && accessLoading
+    && (Boolean(requiredModuleCode) || principalDashboardRequiresModule);
   const canOpenSection = studentId
     ? true
-    : !requiresAccessSync && isSchoolSectionEnabled(section, visibleModuleCodes) && principalDashboardEnabled;
+    : principalWorkspaceSyncing
+      || (!requiresAccessSync && isSchoolSectionEnabled(section, visibleModuleCodes) && principalDashboardEnabled);
   const subscriptionNotifications: ExperienceNotificationItem[] =
     workspace.subscription.state === "ACTIVE"
       ? []
@@ -4875,6 +4859,23 @@ export function SchoolPages({
       }),
     ),
   ];
+  const operationalBlueprint = isExtremeErpWorkspaceId(section)
+    ? getExtremeErpBlueprint(section)
+    : null;
+  const renderRoleOperationalWorkspace =
+    !studentId && shouldRenderRoleOperationalWorkspace(role, section);
+
+  if (renderRoleOperationalWorkspace) {
+    return (
+      <RoleOperationalCommandCenter
+        role={role}
+        initialSection={section}
+        initialWorkspace={schoolSectionLabels[section]}
+        tenantSlug={tenantSlug}
+        routeMode={routeMode}
+      />
+    );
+  }
 
   return (
     <ErpShell
@@ -4887,79 +4888,63 @@ export function SchoolPages({
       topLabel={`${branding.name} school ERP`}
       title={schoolSectionLabels[section] ?? "Dashboard"}
       subtitle={`Built for ${branding.name}: clear balances, familiar school workflows, and direct actions for non-technical teams.`}
-      status={{ label: "Tenant isolated", tone: "ok" }}
+      status={{ label: "School protected", tone: "ok" }}
       profile={profile}
       notifications={notifications}
       actions={
         <StatusPill
-          label={`${workspace.model.currentTerm} • ${workspace.model.academicYear}`}
+          label={`${workspace.model.currentTerm} | ${workspace.model.academicYear}`}
           tone="ok"
         />
       }
     >
       {requiresAccessSync ? (
-        <ModuleAccessVerifyingPanel section={section} />
+        <ModuleAccessVerifyingPanel section={section} role={role} />
       ) : !canOpenSection ? (
         <ModuleDisabledPanel section={section} role={role} routeMode={routeMode} />
       ) : (
         <>
       {studentId ? <StudentProfilePage role={role} tenantSlug={tenantSlug} studentId={studentId} /> : null}
-      {!studentId && section === "dashboard" && role === "principal" ? (
-        <PrincipalCommandCenter tenantSlug={tenantSlug} view="dashboard" />
+      {!studentId && !renderRoleOperationalWorkspace && section === "students" ? <SchoolStudentsPage role={role} tenantSlug={tenantSlug} routeMode={routeMode} /> : null}
+      {!studentId && !renderRoleOperationalWorkspace && section === "finance" ? <SchoolFinancePage role={role} tenantSlug={tenantSlug} routeMode={routeMode} /> : null}
+      {!studentId && !renderRoleOperationalWorkspace && section === "mpesa" ? <SchoolMpesaPage role={role} tenantSlug={tenantSlug} /> : null}
+      {!studentId && !renderRoleOperationalWorkspace && section === "academics" ? <SchoolAcademicsPage role={role} tenantSlug={tenantSlug} /> : null}
+      {!studentId && !renderRoleOperationalWorkspace && section === "reports" ? <SchoolReportsPage role={role} tenantSlug={tenantSlug} /> : null}
+      {!studentId && !renderRoleOperationalWorkspace && section === "communication" ? <SchoolCommunicationPage role={role} tenantSlug={tenantSlug} /> : null}
+      {!studentId && !renderRoleOperationalWorkspace && operationalBlueprint ? (
+        <OperationalBlueprintWorkspace blueprint={operationalBlueprint} />
       ) : null}
-      {!studentId && section === "executive-analytics" && role === "principal" ? (
-        <PrincipalCommandCenter tenantSlug={tenantSlug} view="analytics" />
-      ) : null}
-      {!studentId && section === "alerts-risks" && role === "principal" ? (
-        <PrincipalCommandCenter tenantSlug={tenantSlug} view="risks" />
-      ) : null}
-      {!studentId && section === "approvals" && role === "principal" ? (
-        <PrincipalCommandCenter tenantSlug={tenantSlug} view="approvals" />
-      ) : null}
-      {!studentId && section === "users-staff" && role === "principal" ? (
-        <PrincipalCommandCenter tenantSlug={tenantSlug} view="staff" />
-      ) : null}
-      {!studentId && section === "audit-logs" && role === "principal" ? (
-        <PrincipalCommandCenter tenantSlug={tenantSlug} view="audit" />
-      ) : null}
-      {!studentId && section === "dashboard" && role !== "principal" ? <SchoolDashboardHome role={role} tenantSlug={tenantSlug} routeMode={routeMode} /> : null}
-      {!studentId && section === "students" ? <SchoolStudentsPage role={role} tenantSlug={tenantSlug} routeMode={routeMode} /> : null}
-      {!studentId && section === "finance" ? <SchoolFinancePage role={role} tenantSlug={tenantSlug} routeMode={routeMode} /> : null}
-      {!studentId && section === "mpesa" ? <SchoolMpesaPage role={role} tenantSlug={tenantSlug} /> : null}
-      {!studentId && section === "academics" ? <SchoolAcademicsPage role={role} tenantSlug={tenantSlug} /> : null}
-      {!studentId && section === "reports" ? <SchoolReportsPage role={role} tenantSlug={tenantSlug} /> : null}
-      {!studentId && section === "communication" ? <SchoolCommunicationPage role={role} tenantSlug={tenantSlug} /> : null}
-      {!studentId && section === "transport" ? (
+      {!studentId && !renderRoleOperationalWorkspace && section === "transport" ? (
         <TransportModuleScreen tenantSlug={tenantSlug} />
       ) : null}
-      {!studentId && section === "procurement" ? (
+      {!studentId && !renderRoleOperationalWorkspace && section === "procurement" ? (
         <ProcurementModuleScreen tenantSlug={tenantSlug} />
       ) : null}
-      {!studentId && section === "hostel" ? (
+      {!studentId && !renderRoleOperationalWorkspace && section === "hostel" ? (
         <HostelModuleScreen tenantSlug={tenantSlug} />
       ) : null}
-      {!studentId && section === "boarding" ? (
+      {!studentId && !renderRoleOperationalWorkspace && section === "boarding" ? (
         <BoardingModuleScreen tenantSlug={tenantSlug} />
       ) : null}
-      {!studentId && section === "cbt" ? (
+      {!studentId && !renderRoleOperationalWorkspace && section === "cbt" ? (
         <CbtModuleScreen tenantSlug={tenantSlug} />
       ) : null}
-      {!studentId && section === "lms" ? (
+      {!studentId && !renderRoleOperationalWorkspace && section === "lms" ? (
         <LmsModuleScreen tenantSlug={tenantSlug} />
       ) : null}
-      {!studentId && section === "ai-insights" ? (
+      {!studentId && !renderRoleOperationalWorkspace && section === "ai-insights" ? (
         <AiInsightsModuleScreen tenantSlug={tenantSlug} />
       ) : null}
-      {!studentId && section === "visitors" ? (
+      {!studentId && !renderRoleOperationalWorkspace && section === "visitors" ? (
         <VisitorManagementModuleScreen tenantSlug={tenantSlug} />
       ) : null}
-      {!studentId && section === "assets" ? (
+      {!studentId && !renderRoleOperationalWorkspace && section === "assets" ? (
         <AssetTrackingModuleScreen tenantSlug={tenantSlug} />
       ) : null}
-      {!studentId && section === "iot" ? (
+      {!studentId && !renderRoleOperationalWorkspace && section === "iot" ? (
         <IotModuleScreen tenantSlug={tenantSlug} />
       ) : null}
-      {!studentId && (
+      {!studentId && !renderRoleOperationalWorkspace && (
         section === "support-new-ticket"
         || section === "support-my-tickets"
         || section === "support-knowledge-base"
@@ -4970,29 +4955,29 @@ export function SchoolPages({
           defaultView={section as "support-new-ticket" | "support-my-tickets" | "support-knowledge-base" | "support-system-status"}
         />
       ) : null}
-      {!studentId && section === "exams" ? (
+      {!studentId && !renderRoleOperationalWorkspace && section === "exams" ? (
         <ExamsModuleScreen
           role={role}
           schoolName={workspace.branding.name}
           tenantSlug={tenantSlug}
         />
       ) : null}
-      {!studentId && section === "discipline" ? (
+      {!studentId && !renderRoleOperationalWorkspace && section === "discipline" ? (
         <DisciplineWorkspace tenantSlug={tenantSlug} />
       ) : null}
-      {!studentId && section === "labs" ? (
+      {!studentId && !renderRoleOperationalWorkspace && section === "labs" ? (
         <LabsOperationsPage />
       ) : null}
-      {!studentId && section === "teacher-attendance" ? (
+      {!studentId && !renderRoleOperationalWorkspace && section === "teacher-attendance" ? (
         <TeacherBiometricAttendancePage />
       ) : null}
-      {!studentId && section === "clinic" ? (
-        <ClinicOperationsPage tenantSlug={tenantSlug} />
+      {!studentId && !renderRoleOperationalWorkspace && section === "clinic" ? (
+        <ClinicOperationsPage tenantSlug={tenantSlug} liveDataEnabled={liveDataEnabled} />
       ) : null}
-      {!studentId && section === "leadership" ? (
+      {!studentId && !renderRoleOperationalWorkspace && section === "leadership" ? (
         <LeadershipCommandCenterPage role={role} />
       ) : null}
-      {!studentId && section === "timetable" ? (
+      {!studentId && !renderRoleOperationalWorkspace && section === "timetable" ? (
         <SchoolBasicCardPage
           eyebrow="Timetable"
           title="Timetable coordination"
@@ -5004,7 +4989,7 @@ export function SchoolPages({
           ]}
         />
       ) : null}
-      {!studentId && section === "staff" ? (
+      {!studentId && !renderRoleOperationalWorkspace && section === "staff" ? (
         <SchoolBasicCardPage
           eyebrow="Staff"
           title="Staff operations"
@@ -5012,17 +4997,17 @@ export function SchoolPages({
           items={[
             { id: "staff-1", title: "No staff accounts yet", subtitle: "Staff records appear after school administrators send real invitations.", value: "0" },
             { id: "staff-2", title: "No coverage schedule", subtitle: "Office coverage appears after staff shifts are configured.", value: "0" },
-            { id: "staff-3", title: "No leave requests", subtitle: "Leave approvals appear after staff begin using the workspace.", value: "0" },
+            { id: "staff-3", title: "No leave requests", subtitle: "Leave approvals appear after staff begin using this section.", value: "0" },
           ]}
         />
       ) : null}
-      {!studentId && section === "admissions" ? (
+      {!studentId && !renderRoleOperationalWorkspace && section === "admissions" ? (
         <AdmissionsModuleScreen role={workspace.dashboardRole} snapshot={workspace.snapshot} online />
       ) : null}
-      {!studentId && section === "inventory" ? (
+      {!studentId && !renderRoleOperationalWorkspace && section === "inventory" ? (
         <InventoryModuleScreen role={workspace.dashboardRole} snapshot={workspace.snapshot} online />
       ) : null}
-      {!studentId && section === "settings" ? (
+      {!studentId && !renderRoleOperationalWorkspace && section === "settings" ? (
         <div className="space-y-6">
           <SchoolPageHeader
             eyebrow="Settings"

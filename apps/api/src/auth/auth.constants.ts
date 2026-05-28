@@ -14,6 +14,11 @@ export const DEFAULT_ROLE_ADMIN = 'admin';
 export const DEFAULT_ROLE_MEMBER = 'member';
 export const DEFAULT_ROLE_STOREKEEPER = 'storekeeper';
 export const DEFAULT_ROLE_TEACHER = 'teacher';
+export const DEFAULT_ROLE_DEAN_ACADEMICS = 'dean_academics';
+export const DEFAULT_ROLE_EXAMS_MANAGER = 'exams_manager';
+export const DEFAULT_ROLE_HOD = 'hod';
+export const DEFAULT_ROLE_CLASS_TEACHER = 'class_teacher';
+export const DEFAULT_ROLE_GRADE_MASTER = 'grade_master';
 export const DEFAULT_ROLE_ACCOUNTANT = 'accountant';
 export const DEFAULT_ROLE_STAFF = 'staff';
 export const DEFAULT_ROLE_PRINCIPAL = 'principal';
@@ -29,6 +34,8 @@ export const DEFAULT_ROLE_COUNSELLOR = 'school_counsellor';
 export const DEFAULT_ROLE_DISCIPLINE_MASTER = 'discipline_master';
 export const DEFAULT_ROLE_BOARDING_MASTER = 'boarding_master';
 export const DEFAULT_ROLE_SECURITY_OFFICER = 'security_officer';
+export const DEFAULT_ROLE_TRANSPORT_MANAGER = 'transport_manager';
+export const DEFAULT_ROLE_LAB_TECHNICIAN = 'lab_technician';
 export const DEFAULT_ROLE_SUPPORT_AGENT = 'support_agent';
 export const DEFAULT_ROLE_SUPPORT_LEAD = 'support_lead';
 export const SUPERADMIN_ROLE_OWNER = 'platform_owner';
@@ -42,6 +49,7 @@ export const DEFAULT_PERMISSION_CATALOG = [
   { resource: 'roles', action: 'write', description: 'Manage tenant roles' },
   { resource: 'permissions', action: 'read', description: 'View tenant permissions' },
   { resource: 'permissions', action: 'write', description: 'Manage tenant permissions' },
+  { resource: 'platform', action: 'auto-repair', description: 'Run platform dashboard auto-repair diagnostics and repair snapshots' },
   { resource: 'tenant_memberships', action: 'read', description: 'View tenant memberships' },
   { resource: 'tenant_memberships', action: 'write', description: 'Manage tenant memberships' },
   { resource: 'finance', action: 'read', description: 'View financial operations' },
@@ -53,6 +61,7 @@ export const DEFAULT_PERMISSION_CATALOG = [
   { resource: 'students', action: 'write', description: 'Manage student records' },
   { resource: 'inventory', action: 'read', description: 'View inventory records' },
   { resource: 'inventory', action: 'write', description: 'Manage inventory records' },
+  { resource: 'assets', action: 'read', description: 'View asset and apparatus tracking records' },
   { resource: 'academics', action: 'read', description: 'View academic years, terms, classes, subjects, and assignments' },
   { resource: 'academics', action: 'write', description: 'Manage academic setup records' },
   { resource: 'academics', action: 'assign-teachers', description: 'Manage teacher subject and class assignments' },
@@ -252,6 +261,104 @@ export const DEFAULT_ROLE_CATALOG = [
       'discipline:write',
       'labs:read',
       'labs:attendance',
+      'support:view',
+      'support:create',
+      'support:reply',
+    ],
+  },
+  {
+    code: DEFAULT_ROLE_DEAN_ACADEMICS,
+    name: 'Dean of Academics',
+    description: 'Academic quality assurance, exam moderation, report card review, grading integrity checks, and curriculum compliance approval',
+    permissions: [
+      'auth:read',
+      'students:read',
+      'academics:read',
+      'exams:read',
+      'exams:review',
+      'exams:approve',
+      'reports:read',
+      'school_sms:send',
+      'support:view',
+      'support:create',
+      'support:reply',
+    ],
+  },
+  {
+    code: DEFAULT_ROLE_EXAMS_MANAGER,
+    name: 'Exams Manager',
+    description: 'Academic data production, exam setup, timetable scheduling, marks entry coordination, grade processing, and draft report card generation',
+    permissions: [
+      'auth:read',
+      'students:read',
+      'academics:read',
+      'exams:read',
+      'exams:write',
+      'exams:enter-marks',
+      'exams:review',
+      'reports:read',
+      'support:view',
+      'support:create',
+      'support:reply',
+    ],
+  },
+  {
+    code: DEFAULT_ROLE_HOD,
+    name: 'Head of Department',
+    description: 'Department-level academic oversight for teachers, subjects, syllabus coverage, exams, lesson plans, and curriculum compliance',
+    permissions: [
+      'auth:read',
+      'students:read',
+      'academics:read',
+      'academics:assign-teachers',
+      'exams:read',
+      'exams:review',
+      'discipline:read',
+      'timetable:read',
+      'reports:read',
+      'school_sms:send',
+      'support:view',
+      'support:create',
+      'support:reply',
+    ],
+  },
+  {
+    code: DEFAULT_ROLE_CLASS_TEACHER,
+    name: 'Class Teacher',
+    description: 'Class-level attendance, welfare, parent communication, and academic oversight',
+    permissions: [
+      'auth:read',
+      'students:read',
+      'academics:read',
+      'exams:read',
+      'exams:enter-marks',
+      'school_sms:send',
+      'discipline:read',
+      'discipline:write',
+      'clinic:read',
+      'reports:read',
+      'support:view',
+      'support:create',
+      'support:reply',
+    ],
+  },
+  {
+    code: DEFAULT_ROLE_GRADE_MASTER,
+    name: 'Grade/Form Master',
+    description: 'Multi-stream grade oversight for attendance, discipline, academics, class teachers, welfare, and parent escalations',
+    permissions: [
+      'auth:read',
+      'students:read',
+      'academics:read',
+      'academics:assign-teachers',
+      'exams:read',
+      'exams:review',
+      'discipline:read',
+      'discipline:write',
+      'discipline:reports',
+      'clinic:reports',
+      'school_sms:send',
+      'reports:read',
       'support:view',
       'support:create',
       'support:reply',
@@ -577,6 +684,40 @@ export const DEFAULT_ROLE_CATALOG = [
       'visitors:read',
       'visitors:write',
       'transport:read',
+      'support:view',
+      'support:create',
+      'support:reply',
+    ],
+  },
+  {
+    code: DEFAULT_ROLE_TRANSPORT_MANAGER,
+    name: 'Transport Manager',
+    description: 'Fleet, routes, drivers, student allocation, GPS, fuel, and transport compliance access',
+    permissions: [
+      'auth:read',
+      'students:read',
+      'transport:read',
+      'transport:write',
+      'school_sms:send',
+      'reports:read',
+      'support:view',
+      'support:create',
+      'support:reply',
+    ],
+  },
+  {
+    code: DEFAULT_ROLE_LAB_TECHNICIAN,
+    name: 'Laboratory Technician',
+    description: 'Laboratory safety, chemical control, equipment tracking, practical preparation, and audit logs access',
+    permissions: [
+      'auth:read',
+      'labs:read',
+      'labs:write',
+      'labs:inventory',
+      'inventory:read',
+      'procurement:read',
+      'assets:read',
+      'reports:read',
       'support:view',
       'support:create',
       'support:reply',

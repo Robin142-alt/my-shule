@@ -4,6 +4,9 @@ import { AUTH_ANONYMOUS_USER_ID } from '../../auth/auth.constants';
 import { RequestContextService } from '../../common/request-context/request-context.service';
 import {
   DomainEvent,
+  DeanApprovalGrantedPayload,
+  DisciplineCaseEscalatedPayload,
+  ExamSubmittedPayload,
   PaymentCompletedPayload,
   PublishDomainEventInput,
   StudentCreatedPayload,
@@ -73,6 +76,40 @@ export class EventPublisherService {
       event_name: 'payment.completed',
       aggregate_type: 'payment',
       aggregate_id: payload.payment_intent_id,
+      payload,
+    });
+  }
+
+  async publishExamSubmitted(payload: ExamSubmittedPayload): Promise<DomainEvent<'exam.submitted'>> {
+    return this.publish({
+      event_key: `exam.submitted:${payload.exam_id}`,
+      event_name: 'exam.submitted',
+      aggregate_type: 'exam',
+      aggregate_id: payload.exam_id,
+      payload,
+    });
+  }
+
+  async publishDeanApprovalGranted(
+    payload: DeanApprovalGrantedPayload,
+  ): Promise<DomainEvent<'dean.approval.granted'>> {
+    return this.publish({
+      event_key: `dean.approval.granted:${payload.approval_id}`,
+      event_name: 'dean.approval.granted',
+      aggregate_type: 'exam_approval',
+      aggregate_id: payload.approval_id,
+      payload,
+    });
+  }
+
+  async publishDisciplineCaseEscalated(
+    payload: DisciplineCaseEscalatedPayload,
+  ): Promise<DomainEvent<'discipline.case.escalated'>> {
+    return this.publish({
+      event_key: `discipline.case.escalated:${payload.case_id}`,
+      event_name: 'discipline.case.escalated',
+      aggregate_type: 'discipline_case',
+      aggregate_id: payload.case_id,
       payload,
     });
   }

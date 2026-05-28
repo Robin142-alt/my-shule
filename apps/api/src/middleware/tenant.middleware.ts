@@ -31,6 +31,11 @@ export class TenantMiddleware implements NestMiddleware {
       this.requestContext.setTenantId(tenantId);
       this.requestContext.setTenantSource(resolvedTenant.source);
 
+      if (this.shouldDeferRequestTransaction(request)) {
+        next();
+        return;
+      }
+
       client = await this.databaseService.acquireClient();
       await this.databaseService.initializeRequestSession(client, {
         ...requestContext,
@@ -69,6 +74,7 @@ export class TenantMiddleware implements NestMiddleware {
         const message = error instanceof Error ? error.message : 'Unknown transaction error';
         this.logger.error(message);
       } finally {
+        this.clearRequestDatabaseClient(client);
         client.release();
       }
     };
@@ -92,8 +98,40 @@ export class TenantMiddleware implements NestMiddleware {
       const message = error instanceof Error ? error.message : 'Unknown rollback error';
       this.logger.error(message);
     } finally {
+      this.clearRequestDatabaseClient(client);
       client.release();
     }
   }
-}
 
+  private clearRequestDatabaseClient(client: PoolClient): void {
+    const store = this.requestContext.getStore();
+
+    if (store?.db_client === client) {
+      this.requestContext.setDatabaseClient(undefined);
+    }
+  }
+
+  private shouldDeferRequestTransaction(request: Request): boolean {
+    return (
+      this.isCorsPreflightRequest(request)
+      || this.headerIncludes(request.headers.accept, 'text/event-stream')
+      || this.isHealthProbeRequest(request)
+    );
+  }
+
+  private headerIncludes(value: string | string[] | undefined, expected: string): boolean {
+    const values = Array.isArray(value) ? value : [value];
+
+    return values.some((entry) => entry?.toLowerCase().includes(expected));
+  }
+
+  private isHealthProbeRequest(request: Request): boolean {
+    const path = (request.path || request.originalUrl || request.url || '').toLowerCase();
+
+    return path === '/health' || path.startsWith('/health/');
+  }
+
+  private isCorsPreflightRequest(request: Request): boolean {
+    return (request.method ?? '').toUpperCase() === 'OPTIONS';
+  }
+}

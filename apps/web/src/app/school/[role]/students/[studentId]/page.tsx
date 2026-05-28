@@ -9,13 +9,23 @@ const allowedRoles = [
   "deputy-principal",
   "secretary",
   "bursar",
+  "accountant",
   "teacher",
+  "dean-academics",
+  "exams-manager",
+  "hod",
+  "class-teacher",
+  "grade-master",
   "admin",
   "storekeeper",
   "admissions",
   "nurse",
   "boarding-master",
   "security-officer",
+  "transport-manager",
+  "laboratory-technician",
+  "guidance-counselling",
+  "discipline-master",
 ] as const;
 
 export default async function SchoolStudentProfilePage({

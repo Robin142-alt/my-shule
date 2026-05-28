@@ -171,7 +171,7 @@ export function SupportCenterWorkspace({
     }
 
     if (!normalizedTenantSlug) {
-      setFormError("A school workspace is required before support can create a tenant-scoped ticket.");
+      setFormError("A school workspace is required before support can create a school support ticket.");
       return;
     }
 
@@ -324,11 +324,11 @@ export function SupportCenterWorkspace({
             </p>
             <h2 className="mt-2 text-2xl font-bold text-foreground">Support Center</h2>
             <p className="mt-2 text-sm leading-6 text-muted">
-              Raise issues, send screenshots or logs, follow ticket progress, and keep every support conversation attached to your school tenant.
+              Raise issues, send screenshots or logs, follow ticket progress, and keep every support conversation attached to your school.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <StatusPill label="Tenant isolated" tone="ok" />
+            <StatusPill label="School protected" tone="ok" />
             <StatusPill label={isLiveMode ? "Support connected" : "Support connection required"} tone={isLiveMode ? "ok" : "warning"} />
           </div>
         </div>
@@ -343,7 +343,7 @@ export function SupportCenterWorkspace({
               </span>
               <div>
                 <p className="text-lg font-semibold text-foreground">New Ticket</p>
-                <p className="mt-1 text-sm text-muted">Support receives the issue with tenant, user, browser, device, and page context.</p>
+                <p className="mt-1 text-sm text-muted">Support receives the issue with school, user, browser, device, and page context.</p>
               </div>
             </div>
 
@@ -459,7 +459,7 @@ export function SupportCenterWorkspace({
         <div className="space-y-6">
           <MetricGrid
             items={[
-              { id: "open", label: "Open tickets", value: String(tickets.filter((ticket) => ticket.status !== "Closed" && ticket.status !== "Resolved").length), helper: "Visible only to your school tenant" },
+              { id: "open", label: "Open tickets", value: String(tickets.filter((ticket) => ticket.status !== "Closed" && ticket.status !== "Resolved").length), helper: "Visible only to your school" },
               { id: "critical", label: "Critical escalations", value: String(tickets.filter((ticket) => ticket.priority === "Critical").length), helper: "Instant support notification" },
               { id: "response", label: "Next response due", value: tickets[0]?.firstResponseDue ?? "None", helper: "Based on active ticket SLA" },
             ]}

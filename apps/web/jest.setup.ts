@@ -10,6 +10,12 @@ import {
   routerReplaceMock,
 } from "./tests/design/router-mock";
 
+const nextNavigationRouterMock = {
+  push: routerPushMock,
+  replace: routerReplaceMock,
+  prefetch: routerPrefetchMock,
+};
+
 Object.assign(global, {
   TextEncoder,
   TextDecoder,
@@ -57,11 +63,7 @@ Object.assign(global, {
 });
 
 jest.mock("next/navigation", () => ({
-  useRouter: () => ({
-    push: routerPushMock,
-    replace: routerReplaceMock,
-    prefetch: routerPrefetchMock,
-  }),
+  useRouter: () => nextNavigationRouterMock,
   usePathname: () => "/dashboard/admin",
   useSearchParams: () => new URLSearchParams(window.location.search),
   notFound: jest.fn(),

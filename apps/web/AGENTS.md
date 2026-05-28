@@ -1,3 +1,9 @@
+<!-- BEGIN:myshule-root-bootstrap -->
+# MyShule Root Bootstrap Applies
+
+All work in `apps/web` must obey the repository root `AGENTS.md` MyShule Codex Core Bootstrap, including AGP governance, tenant isolation, event-driven communication, widget-state rendering, static role-based dashboards, and self-healing failure behavior.
+<!-- END:myshule-root-bootstrap -->
+
 <!-- BEGIN:nextjs-agent-rules -->
 # This is NOT the Next.js you know
 

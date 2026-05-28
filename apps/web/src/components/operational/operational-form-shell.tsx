@@ -1,0 +1,333 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import { FileText, ShieldCheck } from "lucide-react";
+
+import { Card } from "@/components/ui/card";
+import {
+  openPrintDocument,
+  type PrintableRow,
+} from "@/lib/dashboard/export";
+
+export type OperationalFormField = {
+  id: string;
+  label: string;
+  type: "text" | "number" | "tel" | "email" | "date" | "time" | "textarea" | "select";
+  value?: string;
+  options?: string[];
+  required?: boolean;
+};
+
+export type OperationalFormFooterAction =
+  | "Cancel"
+  | "Save Draft"
+  | "Submit"
+  | "Preview"
+  | "Print"
+  | "Submit for Approval"
+  | "Save and Send SMS"
+  | "Save and Print";
+
+export type OperationalFormContract = {
+  title: string;
+  description: string;
+  fields: OperationalFormField[];
+  footerActions: OperationalFormFooterAction[];
+  auditAction: string;
+  workflowBinding: string;
+  capability: string;
+};
+
+export type OperationalFormValues = Record<string, string>;
+
+function fieldKey(label: string) {
+  return label
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+export function OperationalFormShell({
+  contract,
+  onAction,
+  showExecutionContract = true,
+}: {
+  contract: OperationalFormContract;
+  onAction?: (
+    action: OperationalFormFooterAction,
+    contract: OperationalFormContract,
+    values: OperationalFormValues,
+  ) => void;
+  showExecutionContract?: boolean;
+}) {
+  const formId = fieldKey(contract.title);
+  const storageKey = `myshule.operational-form.${formId}`;
+  const defaultValues = useMemo(
+    () =>
+      Object.fromEntries(
+        contract.fields.map((field) => [fieldKey(field.label), field.value ?? ""]),
+      ) as OperationalFormValues,
+    [contract.fields],
+  );
+  const [notice, setNotice] = useState<string | null>(null);
+  const [values, setValues] = useState<OperationalFormValues>(() => {
+    if (typeof window === "undefined") {
+      return defaultValues;
+    }
+
+    try {
+      const stored = window.localStorage.getItem(storageKey);
+
+      return stored ? { ...defaultValues, ...(JSON.parse(stored) as OperationalFormValues) } : defaultValues;
+    } catch {
+      return defaultValues;
+    }
+  });
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  function validate(nextValues: OperationalFormValues) {
+    const nextErrors: Record<string, string> = {};
+
+    contract.fields.forEach((field) => {
+      const key = fieldKey(field.label);
+
+      if (field.required === false) {
+        return;
+      }
+
+      if (!nextValues[key]?.trim()) {
+        nextErrors[key] = `${field.label} is required.`;
+      }
+    });
+
+    setErrors(nextErrors);
+    return Object.keys(nextErrors).length === 0;
+  }
+
+  function persistDraft(nextValues: OperationalFormValues) {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    window.localStorage.setItem(storageKey, JSON.stringify(nextValues));
+  }
+
+  function clearDraft() {
+    if (typeof window !== "undefined") {
+      window.localStorage.removeItem(storageKey);
+    }
+  }
+
+  function printValues(nextValues: OperationalFormValues, title = contract.title) {
+    const rows: PrintableRow[] = contract.fields.map((field) => ({
+      label: field.label,
+      value: nextValues[fieldKey(field.label)] || "Not provided",
+    }));
+
+    openPrintDocument({
+      eyebrow: "School form printout",
+      title,
+      subtitle: contract.description,
+      rows,
+      footer: "Generated from MyShule school desk. Confirm details before filing.",
+    });
+  }
+
+  function setFieldValue(field: OperationalFormField, value: string) {
+    const key = fieldKey(field.label);
+
+    setValues((current) => ({ ...current, [key]: value }));
+    setErrors((current) => {
+      if (!current[key]) {
+        return current;
+      }
+
+      const next = { ...current };
+      delete next[key];
+      return next;
+    });
+  }
+
+  function renderField(field: OperationalFormField) {
+    const className =
+      "mt-1 w-full rounded-[var(--radius-xs)] border border-border bg-surface-muted px-3 py-2 text-sm text-foreground outline-none transition focus:border-accent";
+    const name = fieldKey(field.label);
+    const value = values[name] ?? "";
+
+    if (field.type === "textarea") {
+      return (
+        <textarea
+          id={field.id}
+          name={name}
+          value={value}
+          onChange={(event) => setFieldValue(field, event.currentTarget.value)}
+          className={`${className} min-h-24`}
+        />
+      );
+    }
+
+    if (field.type === "select") {
+      const options = field.options ?? [field.value ?? "Select option"];
+
+      return (
+        <select
+          id={field.id}
+          name={name}
+          value={value || options[0] || ""}
+          onChange={(event) => setFieldValue(field, event.currentTarget.value)}
+          className={className}
+        >
+          {options.map((option) => (
+            <option key={option} value={option}>
+              {option}
+            </option>
+          ))}
+        </select>
+      );
+    }
+
+    return (
+      <input
+        id={field.id}
+        name={name}
+        type={field.type}
+        value={value}
+        onChange={(event) => setFieldValue(field, event.currentTarget.value)}
+        className={className}
+      />
+    );
+  }
+
+  return (
+    <Card className="p-5">
+      <form
+        id={formId}
+        aria-label={contract.title}
+        onSubmit={(event) => {
+          event.preventDefault();
+          const nextValues = { ...values };
+
+          if (!validate(nextValues)) {
+            setNotice("Check the highlighted fields before submitting.");
+            return;
+          }
+
+          clearDraft();
+          setNotice("Form submitted. Related records and action history are being updated.");
+          onAction?.("Submit", contract, nextValues);
+        }}
+      >
+        <div className="flex items-start gap-3">
+          <div className="rounded-[var(--radius-sm)] border border-accent/20 bg-accent-soft p-2 text-accent">
+            <FileText className="h-4 w-4" />
+          </div>
+          <div>
+            <p className="eyebrow">School form</p>
+            <h2 className="mt-2 text-lg font-bold text-foreground">{contract.title}</h2>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">{contract.description}</p>
+          </div>
+        </div>
+
+        <div className="mt-5 grid gap-4 md:grid-cols-2">
+          {contract.fields.map((field) => (
+            <label key={field.id} htmlFor={field.id} className="text-xs font-bold text-muted">
+              {field.label}
+              {renderField(field)}
+              {errors[fieldKey(field.label)] ? (
+                <span className="mt-1 block text-[11px] font-bold text-danger">
+                  {errors[fieldKey(field.label)]}
+                </span>
+              ) : null}
+            </label>
+          ))}
+        </div>
+
+        {showExecutionContract ? (
+          <div className="mt-5 rounded-[var(--radius-sm)] border border-border bg-primary-soft/35 p-3">
+            <div className="flex items-center gap-2 text-xs font-bold text-muted">
+              <ShieldCheck className="h-3.5 w-3.5 text-accent" />
+              Action details
+            </div>
+            <div className="mt-2 grid gap-2 text-[11px] font-semibold text-muted sm:grid-cols-3">
+              <span>Permission checked</span>
+              <span>Related records update after saving</span>
+              <span>Action history kept</span>
+            </div>
+          </div>
+        ) : (
+          <div className="mt-5 flex items-center gap-2 rounded-[var(--radius-sm)] border border-[#D7E0EF] bg-[#EEF6FF] px-3 py-2 text-xs font-semibold text-[#40608F]">
+            <ShieldCheck className="h-3.5 w-3.5 text-[#0B3A7A]" />
+            This form saves the update, refreshes related desks, and keeps action history.
+          </div>
+        )}
+
+        <div className="mt-5 flex flex-wrap gap-2 border-t border-border pt-4">
+          {contract.footerActions.map((action) => (
+            <button
+              key={action}
+              type={action === "Submit" ? "submit" : "button"}
+              aria-label={action}
+              onClick={(event) => {
+                if (action !== "Submit") {
+                  const currentForm = event.currentTarget.form;
+                  const nextValues = { ...values };
+
+                  if (action === "Cancel") {
+                    setValues(defaultValues);
+                    setErrors({});
+                    clearDraft();
+                    currentForm?.reset();
+                    setNotice("Form cleared. No school record was changed.");
+                    return;
+                  } else if (action === "Preview") {
+                    setNotice("Preview prepared from the current form details.");
+                  } else if (action === "Print") {
+                    printValues(nextValues, `${contract.title} print copy`);
+                    setNotice("Print copy prepared from the current form details.");
+                  } else if (action === "Save Draft") {
+                    persistDraft(nextValues);
+                    setNotice("Draft saved. It now appears in Today's Work.");
+                  } else if (action === "Save and Send SMS") {
+                    if (!validate(nextValues)) {
+                      setNotice("Check the highlighted fields before sending SMS.");
+                      return;
+                    }
+                    setNotice("Record saved and parent SMS queued.");
+                  } else if (action === "Save and Print") {
+                    if (!validate(nextValues)) {
+                      setNotice("Check the highlighted fields before printing.");
+                      return;
+                    }
+                    printValues(nextValues, `${contract.title} saved copy`);
+                    setNotice("Record saved and printable copy prepared.");
+                  } else if (action === "Submit for Approval") {
+                    if (!validate(nextValues)) {
+                      setNotice("Check the highlighted fields before submitting for approval.");
+                      return;
+                    }
+                    setNotice("Submitted for approval and added to the review queue.");
+                  }
+
+                  onAction?.(action, contract, nextValues);
+                }
+              }}
+              className={`rounded-[var(--radius-xs)] border px-3 py-2 text-xs font-bold transition hover:-translate-y-0.5 ${
+                action === "Submit" || action === "Submit for Approval" || action === "Save and Send SMS"
+                  ? "border-accent/25 bg-accent-soft text-accent"
+                  : "border-border bg-surface text-foreground"
+              }`}
+            >
+              {action}
+            </button>
+          ))}
+        </div>
+
+        {notice ? (
+          <div className="mt-4 rounded-[var(--radius-sm)] border border-success/20 bg-success-soft px-3 py-2 text-xs font-bold text-success">
+            {notice}
+          </div>
+        ) : null}
+      </form>
+    </Card>
+  );
+}

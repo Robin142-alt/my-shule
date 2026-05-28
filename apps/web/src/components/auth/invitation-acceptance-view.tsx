@@ -90,7 +90,7 @@ export function InvitationAcceptanceView({
             Activate your school account
           </h2>
           <p className="text-sm leading-6 text-muted">
-            Confirm your name and create a private password. Your role and tenant access come from the invitation.
+            Confirm your name and create a private password. Your role and school access come from the invitation.
           </p>
         </div>
 

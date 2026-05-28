@@ -108,6 +108,21 @@ test('AuthSchemaService persists safe email outbox delivery diagnostics for plat
   assert.match(bootstrapSql, /ck_auth_email_outbox_provider_status_code/);
 });
 
+test('AuthSchemaService removes legacy email outbox delivery overloads before recreating the current function', async () => {
+  let bootstrapSql = '';
+  const service = new AuthSchemaService({
+    runSchemaBootstrap: async (sql: string) => {
+      bootstrapSql = sql;
+    },
+  } as never);
+
+  await service.onModuleInit();
+
+  assert.match(bootstrapSql, /DROP FUNCTION IF EXISTS app\.mark_auth_email_outbox_delivery\(uuid,\s*text\)/);
+  assert.match(bootstrapSql, /DROP FUNCTION IF EXISTS app\.mark_auth_email_outbox_delivery\(text,\s*text\)/);
+  assert.match(bootstrapSql, /CREATE OR REPLACE FUNCTION app\.mark_auth_email_outbox_delivery/);
+});
+
 test('AuthSchemaService does not grant broad public path access to auth token tables', async () => {
   let bootstrapSql = '';
   const service = new AuthSchemaService({

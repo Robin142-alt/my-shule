@@ -15,12 +15,24 @@ import { ReportExportWorkerService } from './reports/report-export.worker';
 import { ReportArtifactStorageService } from './reports/report-artifact-storage.service';
 import { ReportSnapshotRepository } from './reports/report-snapshot.repository';
 import { ReportSnapshotSchemaService } from './reports/report-snapshot-schema.service';
+import { AutoRepairController } from './auto-repair/auto-repair.controller';
+import { AutoRepairService } from './auto-repair/auto-repair.service';
+import {
+  ArchitectureRuntimeController,
+  ArchitectureRuntimeService,
+} from './platform-governance/architecture-runtime.controller';
 
 @Global()
 @Module({
-  controllers: [ReportExportJobsController],
+  controllers: [
+    ReportExportJobsController,
+    AutoRepairController,
+    ArchitectureRuntimeController,
+  ],
   providers: [
     RequestContextService,
+    AutoRepairService,
+    ArchitectureRuntimeService,
     DashboardSummaryRepository,
     DashboardSummarySchemaService,
     DatabaseFileStorageService,
@@ -51,6 +63,8 @@ import { ReportSnapshotSchemaService } from './reports/report-snapshot-schema.se
   ],
   exports: [
     RequestContextService,
+    AutoRepairService,
+    ArchitectureRuntimeService,
     DashboardSummaryRepository,
     DashboardSummarySchemaService,
     DatabaseFileStorageService,

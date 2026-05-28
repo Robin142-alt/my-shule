@@ -1685,7 +1685,7 @@ export function AdmissionsModuleScreen({
     <>
       <ModuleShell
         eyebrow="Admissions Module"
-        title="Admissions and student registration workspace"
+        title="Admissions and student registration desk"
         description="A real front-office workflow for Kenyan schools: application review, document control, learner registration, allocation, and transfer history."
         sections={sections}
         activeSection={activeSection}
@@ -1703,7 +1703,7 @@ export function AdmissionsModuleScreen({
                   ? "Live admissions desk"
                   : liveSession.apiConfigured
                     ? "Preview data until live sign-in"
-                    : "Review workspace"
+                    : "Review desk"
               }
               tone={isLiveMode ? "ok" : "warning"}
             />
@@ -1733,7 +1733,7 @@ export function AdmissionsModuleScreen({
             <p className="mt-2 text-sm font-semibold text-foreground">
               {isLiveMode
                 ? `Signed in as ${liveSession.user?.display_name ?? "admissions staff"} for live admissions records.`
-                : "Global search responds to learner name, admission number, and parent phone while the review workspace waits for a live tenant session."}
+          : "Global search responds to learner name, admission number, and parent phone while the review desk waits for a live school session."}
             </p>
             <p className="mt-2 text-sm leading-6 text-muted">
               {moduleError ?? liveSession.error ?? "Search results can jump directly into the student directory profile view."}

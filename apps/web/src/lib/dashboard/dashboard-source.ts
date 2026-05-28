@@ -38,7 +38,7 @@ function buildLiveAlerts(snapshot: DashboardSnapshot, input: {
           : "Platform health needs attention",
       description:
         input.activeAlertCount > 0
-          ? `${input.activeAlertCount} observability alerts are open across API, queue, sync, or MPESA subsystems.`
+          ? `${input.activeAlertCount} system health alerts are open across API, queue, sync, or MPESA services.`
           : "The live platform reports a degraded service state.",
       severity: input.overallStatus === "critical" ? "critical" : "warning",
       href: `/dashboard/${snapshot.role}/reports`,
@@ -135,9 +135,9 @@ function mergeActivityFeed(snapshot: DashboardSnapshot, input: {
       title: "Live platform status updated",
       detail:
         input.activeAlertCount > 0
-          ? `${input.activeAlertCount} observability alerts are open and visible in the live stack.`
+          ? `${input.activeAlertCount} system health alerts are open and visible in the live stack.`
           : "Realtime health reported a degraded state with no open alert objects returned.",
-      actor: "Observability",
+      actor: "System health",
       href: `/dashboard/${snapshot.role}/reports`,
       timeLabel: "now",
       category: "communication" as const,
@@ -181,7 +181,7 @@ async function hydrateWithLiveSignals(
 
   return {
     ...snapshot,
-    pageDescription: `${snapshot.pageDescription} Live API status is connected to readiness and observability checks.`,
+    pageDescription: `${snapshot.pageDescription} Live API status is connected to readiness and system health checks.`,
     alerts: [
       ...buildLiveAlerts(snapshot, {
         readinessStatus: readiness.status,

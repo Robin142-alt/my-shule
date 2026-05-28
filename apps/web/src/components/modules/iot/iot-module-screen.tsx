@@ -513,7 +513,7 @@ export function IotModuleScreen({
             <div className="flex flex-wrap items-center gap-2">
               <StatusPill label={message ?? (error ? "API attention" : "IoT")} tone={error ? "critical" : "ok"} />
               <span className="rounded-full bg-primary-soft px-2.5 py-1 text-[11px] font-semibold text-primary">
-                {tenantSlug || "school tenant"}
+          {tenantSlug || "school"}
               </span>
             </div>
             <h2 className="mt-4 text-2xl font-bold leading-tight text-foreground md:text-3xl">

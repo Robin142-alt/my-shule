@@ -1,6 +1,8 @@
-import { screen, waitFor } from "@testing-library/react";
+import { act, screen, waitFor } from "@testing-library/react";
 
 import { PrincipalCommandCenter } from "@/components/school/principal-command-center";
+import { SchoolPages } from "@/components/school/school-pages";
+import { getSchoolModuleAccessCacheKey } from "@/lib/module-access/school-module-access-cache";
 import { getVisibleApprovalWorkflows } from "@/lib/workflows/workflow-catalog";
 
 import { routerReplaceMock } from "./router-mock";
@@ -60,6 +62,8 @@ describe("principal command center", () => {
 
   beforeEach(() => {
     fetchMock.mockReset();
+    routerReplaceMock.mockClear();
+    window.sessionStorage.clear();
     global.fetch = fetchMock as unknown as typeof fetch;
   });
 
@@ -76,15 +80,16 @@ describe("principal command center", () => {
     expect(workflows.map((workflow) => workflow.id)).not.toContain("medicine-disposal");
   });
 
-  it("hides AI insight content until the tenant enables AI insights", async () => {
+  it("keeps AI insight content mounted as locked until the school enables AI insights", async () => {
     fetchMock.mockResolvedValue(jsonResponse(dashboardPayload));
 
     renderWithProviders(<PrincipalCommandCenter />);
 
     await waitFor(() => expect(screen.getByText("Fee collection trends")).toBeVisible());
     expect(screen.getByText("Executive command center")).toBeVisible();
-    expect(screen.queryByText("AI insights")).not.toBeInTheDocument();
-    expect(screen.getByText("Approval command queue")).toBeVisible();
+    expect(screen.getByText("AI insights")).toBeVisible();
+    expect(screen.getAllByText("Module not enabled for this school").length).toBeGreaterThan(0);
+    expect(screen.getByText("Approval queue")).toBeVisible();
   });
 
   it("shows AI insights only when ai_insights is enabled", async () => {
@@ -103,6 +108,59 @@ describe("principal command center", () => {
     expect(screen.getByText("Audited")).toBeVisible();
   });
 
+  it("keeps fixed executive intelligence zones mounted when modules are disabled", async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({
+        ...dashboardPayload,
+        enabled_modules: ["principal_dashboard"],
+        sections: [],
+        alerts: [],
+      }),
+    );
+
+    renderWithProviders(<PrincipalCommandCenter />);
+
+    expect(await screen.findByText("Academic Intelligence")).toBeVisible();
+    expect(screen.getByText("Financial Intelligence")).toBeVisible();
+    expect(screen.getByText("Student Intelligence")).toBeVisible();
+    expect(screen.getByText("Operations Intelligence")).toBeVisible();
+    expect(screen.getByText("Communications & Parent Confidence")).toBeVisible();
+    expect(screen.getAllByText("Request Module").length).toBeGreaterThan(0);
+  });
+
+  it("renders live metrics when the API gateway wraps the dashboard payload", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ data: dashboardPayload }));
+
+    renderWithProviders(<PrincipalCommandCenter />);
+
+    expect(await screen.findByText("842")).toBeVisible();
+    expect(screen.getByText("51")).toBeVisible();
+    expect(screen.getByText("34")).toBeVisible();
+    expect(screen.getByText("4 modules")).toBeVisible();
+    expect(screen.getByText("Fee collection trends")).toBeVisible();
+  });
+
+  it("renders a time-aware executive greeting for the principal", async () => {
+    const getHoursSpy = jest.spyOn(Date.prototype, "getHours").mockReturnValue(18);
+    fetchMock.mockResolvedValue(
+      jsonResponse({
+        ...dashboardPayload,
+        principal_name: "Dr. Kamau",
+        school_name: "Greenfield Academy",
+        alerts: [],
+      }),
+    );
+
+    try {
+      renderWithProviders(<PrincipalCommandCenter />);
+
+      expect(await screen.findByText("Good Evening, Dr. Kamau")).toBeVisible();
+      expect(screen.getByText("Here's what's happening at Greenfield Academy today.")).toBeVisible();
+    } finally {
+      getHoursSpy.mockRestore();
+    }
+  });
+
   it("routes expired principal dashboard sessions back to school login", async () => {
     fetchMock.mockResolvedValue(
       jsonResponse({ message: "Session has expired" }, { status: 401 }),
@@ -113,5 +171,132 @@ describe("principal command center", () => {
     await waitFor(() =>
       expect(routerReplaceMock).toHaveBeenCalledWith("/school/login?expired=1"),
     );
+  });
+
+  it("shows billing lifecycle messages returned by the live API", async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse(
+        { message: "Your subscription is suspended. Billing, renewal, support, and data export are still available." },
+        { status: 402 },
+      ),
+    );
+
+    renderWithProviders(<PrincipalCommandCenter />);
+
+    expect(
+      await screen.findByText(/Your subscription is suspended/i),
+    ).toBeVisible();
+  });
+
+  it("keeps the principal dashboard mounted when a legacy live payload omits module arrays", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({
+      tenant_id: "tenant-1",
+      generated_at: "2026-05-22T08:00:00.000Z",
+      overview: {
+        total_students: 0,
+        total_teachers: 0,
+        total_support_staff: 0,
+        active_classes_streams: 0,
+        student_attendance_today: 0,
+        teacher_attendance_today: 0,
+        parent_engagement_rate: 0,
+        active_users_online: 0,
+      },
+    }));
+
+    renderWithProviders(<PrincipalCommandCenter />);
+
+    await waitFor(() => expect(screen.getByText("Live")).toBeVisible());
+    expect(screen.getByText("Executive command center")).toBeVisible();
+    expect(screen.getByText("0 modules")).toBeVisible();
+    expect(screen.getByText("Realtime channels")).toBeVisible();
+  });
+
+  it("opens principal sections from cached module access while live access refreshes", async () => {
+    let resolveModuleRefresh: (response: Response) => void = () => undefined;
+    const moduleRefresh = new Promise<Response>((resolve) => {
+      resolveModuleRefresh = resolve;
+    });
+
+    window.sessionStorage.setItem(
+      getSchoolModuleAccessCacheKey({ role: "principal", tenantSlug: "barakaacademy" }),
+      JSON.stringify(["principal_dashboard", "finance", "discipline", "staff"]),
+    );
+    fetchMock.mockImplementation((input: RequestInfo | URL) => {
+      const url = String(input);
+
+      if (url.includes("/api/school/modules/me")) {
+        return moduleRefresh;
+      }
+
+      if (url.includes("/api/admin-command/principal/dashboard")) {
+        return Promise.resolve(jsonResponse(dashboardPayload));
+      }
+
+      return Promise.resolve(jsonResponse({}));
+    });
+
+    renderWithProviders(
+      <SchoolPages role="principal" section="academics" tenantSlug="barakaacademy" />,
+    );
+
+    expect(await screen.findByTestId("role-operational-command-center")).toBeVisible();
+    expect(screen.getByTestId("principal-practical-command-center")).toBeVisible();
+    expect(screen.getByRole("heading", { name: /^Academics$/i })).toBeVisible();
+    expect(screen.getAllByText(/Lessons are mostly covered/i).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/Module not enabled for your school/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Verifying module access/i)).not.toBeInTheDocument();
+
+    await act(async () => {
+      resolveModuleRefresh(
+        jsonResponse(["principal_dashboard", "finance", "discipline", "staff"]),
+      );
+      await Promise.resolve();
+    });
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("/api/school/modules/me"),
+      expect.any(Object),
+    ));
+  });
+
+  it("opens principal sections on cold module access while live access refreshes", async () => {
+    let resolveModuleRefresh: (response: Response) => void = () => undefined;
+    const moduleRefresh = new Promise<Response>((resolve) => {
+      resolveModuleRefresh = resolve;
+    });
+
+    fetchMock.mockImplementation((input: RequestInfo | URL) => {
+      const url = String(input);
+
+      if (url.includes("/api/school/modules/me")) {
+        return moduleRefresh;
+      }
+
+      if (url.includes("/api/admin-command/principal/dashboard")) {
+        return Promise.resolve(jsonResponse(dashboardPayload));
+      }
+
+      return Promise.resolve(jsonResponse({}));
+    });
+
+    try {
+      renderWithProviders(
+        <SchoolPages role="principal" section="approvals" tenantSlug="barakaacademy" />,
+      );
+
+      expect(await screen.findByTestId("role-operational-command-center", {}, { timeout: 800 })).toBeVisible();
+      expect(screen.getByTestId("principal-practical-command-center")).toBeVisible();
+      expect(screen.getByRole("heading", { name: /^Approvals$/i })).toBeVisible();
+      expect(screen.getAllByText(/7 approvals need action before close of day/i).length).toBeGreaterThan(0);
+      expect(screen.queryByText(/Verifying module access/i)).not.toBeInTheDocument();
+      expect(screen.queryByText(/Required module code: admin_command_centers/i)).not.toBeInTheDocument();
+    } finally {
+      await act(async () => {
+        resolveModuleRefresh(
+          jsonResponse(["principal_dashboard", "admin_command_centers", "finance", "discipline", "staff"]),
+        );
+        await Promise.resolve();
+      });
+    }
   });
 });

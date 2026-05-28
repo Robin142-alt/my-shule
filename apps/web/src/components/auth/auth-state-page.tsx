@@ -56,7 +56,7 @@ const stateHero: Record<
     eyebrow: "Unauthorized",
     title: "Access control states that feel operational, not broken.",
     description:
-      "Users understand when a valid account lacks the role, tenant, or module permission requested.",
+      "Users understand when a valid account lacks the role, school, or module permission requested.",
     badge: "Access control",
   },
   invite: {
@@ -74,11 +74,11 @@ const stateHero: Record<
     badge: "Password security",
   },
   tenant: {
-    eyebrow: "Tenant selection",
-    title: "School workspace selection keeps multi-tenant access clear.",
+    eyebrow: "School selection",
+    title: "School selection keeps access clear.",
     description:
-      "Institution users enter through the correct tenant before role-based access is evaluated.",
-    badge: "Tenant access",
+      "Institution users enter through the correct school before role-based access is evaluated.",
+    badge: "School access",
   },
   "magic-link": {
     eyebrow: "Magic link",
@@ -140,15 +140,15 @@ export function AuthStatePage({ kind }: { kind: AuthStateKind }) {
           description: "Expiration, device checks, and locked states remain clear and recoverable.",
         },
         {
-          id: "tenant",
-          title: "Tenant safe",
+          id: "school",
+          title: "School safe",
           description: "School context and role boundaries are protected before dashboards load.",
         },
       ]}
       trustNotes={[
         { id: "secure", label: "Secure cookies", icon: "lock" },
         { id: "audit", label: "Audit ready", icon: "check" },
-        { id: "tenant", label: "Tenant aware", icon: "shield" },
+        { id: "school", label: "School aware", icon: "shield" },
       ]}
     >
       <AuthStateView kind={kind} />

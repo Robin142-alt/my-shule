@@ -6,6 +6,7 @@ import { SmartphoneCharging } from "lucide-react";
 import { ParentDisciplineView } from "@/components/discipline/discipline-workspace";
 import { ActivityListCard, SimpleListCard } from "@/components/experience/activity-list-card";
 import { MetricGrid } from "@/components/experience/metric-grid";
+import { ParentCommandCenter } from "@/components/portal/parent-command-center";
 import { PortalShell } from "@/components/portal/portal-shell";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -99,20 +100,25 @@ function PortalPageHeader({
   );
 }
 
-function PortalDashboard({ viewer }: { viewer: PortalViewer }) {
+function PortalDashboard({ viewer, routeMode }: { viewer: PortalViewer; routeMode: PortalRouteMode }) {
+  const [studentNotice, setStudentNotice] = useState("Student desk ready for lessons, assignments, results, library books, and teacher messages.");
+
+  if (viewer === "parent") {
+    return <ParentCommandCenter routeMode={routeMode} />;
+  }
+
   const { metrics } = getPortalWorkspace(viewer);
 
   return (
     <div className="space-y-6">
       <PortalPageHeader
-        title={viewer === "parent" ? "Family learner command view" : "Student learning command view"}
-        description={
-          viewer === "parent"
-            ? "A secure child-only view of fees, attendance, progress, health, transport, and school communication as modules become available."
-            : "A focused student view of assignments, timetable, results, attendance, notices, and learning activity."
-        }
-        actions={<LiveIndicator label="Family sync" tone="ok" />}
+        title="Student learning command view"
+        description="A focused student view of assignments, timetable, results, attendance, notices, and learning activity."
+        actions={<LiveIndicator label="Student sync" tone="ok" />}
       />
+      <div role="status" className="rounded-xl border border-border bg-white px-4 py-3 text-sm font-semibold text-foreground shadow-sm">
+        {studentNotice}
+      </div>
       <MetricGrid items={metrics} />
       <SignalStrip
         items={[
@@ -124,11 +130,40 @@ function PortalDashboard({ viewer }: { viewer: PortalViewer }) {
       <div className="grid gap-6 xl:grid-cols-[1fr_0.95fr]">
         <div className="space-y-6">
           <Card className="p-5">
+            <p className="eyebrow">Today&apos;s work</p>
+            <h3 className="mt-2 text-lg font-semibold text-foreground">Student quick actions</h3>
+            <p className="mt-2 text-sm leading-6 text-muted">
+              Practical learning actions stay visible without exposing schoolwide office data.
+            </p>
+            <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              {[
+                "View Assignment",
+                "Submit Work",
+                "View Results",
+                "Download Notes",
+                "View Library Due Date",
+                "Message Teacher",
+                "Open Timetable",
+                "View Announcement",
+              ].map((action) => (
+                <Button
+                  key={action}
+                  type="button"
+                  variant="secondary"
+                  onClick={() => setStudentNotice(`${action} opened for the student account.`)}
+                  className="justify-center"
+                >
+                  {action}
+                </Button>
+              ))}
+            </div>
+          </Card>
+          <Card className="p-5">
             <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <p className="eyebrow">Child progress</p>
                 <h3 className="mt-2 text-lg font-semibold text-foreground">
-                  {viewer === "parent" ? "Linked learner timeline" : "My progress timeline"}
+                  My progress timeline
                 </h3>
                 <p className="mt-2 text-sm leading-6 text-muted">
                   Attendance, academics, health, and communication updates appear here only for the verified learner.
@@ -276,7 +311,7 @@ function PortalAcademicsPage() {
         label: `${row.subject} • ${row.teacher}`,
         value: `${row.score} (${row.grade})`,
       })),
-      footer: "This report card view is generated from the current portal academics workspace.",
+      footer: "This report card view is generated from the current portal academics section.",
     });
   }
 
@@ -517,7 +552,7 @@ export function PortalPages({
       notifications={notifications}
       actions={<StatusPill label="Balance visible" tone="ok" />}
     >
-      {section === "dashboard" ? <PortalDashboard viewer={viewer} /> : null}
+      {section === "dashboard" ? <PortalDashboard viewer={viewer} routeMode={routeMode} /> : null}
       {section === "fees" ? <PortalFeesPage viewer={viewer} /> : null}
       {section === "academics" ? <PortalAcademicsPage /> : null}
       {section === "discipline" ? <ParentDisciplineView /> : null}

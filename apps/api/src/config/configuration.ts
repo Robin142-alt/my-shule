@@ -37,7 +37,14 @@ const parseBoolean = (value: string | undefined, fallback: boolean): boolean => 
 };
 
 const appRuntime = process.env.APP_RUNTIME ?? 'server';
-const isServerlessRuntime = appRuntime === 'serverless' || process.env.VERCEL === '1';
+const isRailwayRuntime = Boolean(
+  process.env.RAILWAY_ENVIRONMENT_ID
+  || process.env.RAILWAY_PROJECT_ID
+  || process.env.RAILWAY_SERVICE_ID
+  || process.env.RAILWAY_DEPLOYMENT_ID,
+);
+const isServerlessRuntime =
+  !isRailwayRuntime && (appRuntime === 'serverless' || process.env.VERCEL === '1');
 
 export default () => ({
   app: {

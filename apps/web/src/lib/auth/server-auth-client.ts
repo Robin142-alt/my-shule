@@ -65,10 +65,6 @@ function buildExperienceHomePath(input: {
   if (input.audience === "school") {
     const role = normalizeSchoolExperienceRole(input.role);
 
-    if (role === "storekeeper") {
-      return "/inventory/dashboard";
-    }
-
     return `/school/${role}`;
   }
 
