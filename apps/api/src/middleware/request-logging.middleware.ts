@@ -42,17 +42,19 @@ export class RequestLoggingMiddleware implements NestMiddleware {
             ? String(contentLengthHeader)
             : null,
       });
-      this.sloMetrics?.recordApiRequest({
-        outcome:
-          event === 'request.completed' && response.statusCode < 500
-            ? 'success'
-            : 'failure',
-        duration_ms: durationMs,
-        status_code: response.statusCode,
-        method: request.method,
-        path: safePath,
-        event,
-      });
+      if (shouldRecordApiSloMetric(safePath)) {
+        this.sloMetrics?.recordApiRequest({
+          outcome:
+            event === 'request.completed' && response.statusCode < 500
+              ? 'success'
+              : 'failure',
+          duration_ms: durationMs,
+          status_code: response.statusCode,
+          method: request.method,
+          path: safePath,
+          event,
+        });
+      }
     };
 
     const onFinish = (): void => {
@@ -70,4 +72,13 @@ export class RequestLoggingMiddleware implements NestMiddleware {
 
     next();
   }
+}
+
+export function shouldRecordApiSloMetric(path: string): boolean {
+  return !(
+    path === '/health'
+    || path.startsWith('/health/')
+    || path === '/observability'
+    || path.startsWith('/observability/')
+  );
 }

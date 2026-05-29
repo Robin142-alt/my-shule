@@ -122,6 +122,6 @@ describe("OperationalActionButton", () => {
     await user.click(screen.getByRole("button", { name: /delete visitor record ready/i }));
     expect(screen.getByRole("dialog", { name: /confirm delete visitor record/i })).toBeVisible();
     await user.click(screen.getByRole("button", { name: /yes, continue/i }));
-    expect(screen.getByText(/delete visitor record completed/i)).toBeVisible();
+    expect(screen.getByText(/delete visitor record sent/i)).toBeVisible();
   });
 });

@@ -1204,7 +1204,9 @@ function runtimeCellValue(kind: WorkspaceKind, column: string, entry: RuntimeWor
 }
 
 function isCommandWorkspace(workspace: string, index: number) {
-  return index === 0 || /command|overview|dashboard|daily operations|front office|teaching queue|system monitor/i.test(workspace);
+  const normalized = workspace.trim().toLowerCase();
+
+  return index === 0 || normalized === "command center" || normalized === "overview" || normalized === "dashboard";
 }
 
 function isDiagnosticsWorkspace(workspace: string) {
@@ -5286,7 +5288,7 @@ function GenericRoleOperationalCommandCenter({
                 {item === resolvedWorkspace ? <StatusPill label="Active" tone="ok" compact /> : (
                   index < roleProfile.urgentAlerts.length ? (
                     <span className="rounded-full bg-warning-soft px-2 py-0.5 text-[10px] font-black text-warning">
-                      {index + 1}
+                      Urgent
                     </span>
                   ) : null
                 )}
@@ -5330,16 +5332,16 @@ function GenericRoleOperationalCommandCenter({
 
           <section className="min-h-0 flex-1 overflow-hidden px-4 py-5 md:px-6" data-testid="role-operational-workspace">
             <div className="flex h-full min-h-0 flex-col gap-4">
-            {commandWorkspace && !isSearching ? <PracticalSummaryGrid profile={roleProfile} /> : null}
+            {activeWorkspaceIndex === 0 && !isSearching ? <PracticalSummaryGrid profile={roleProfile} /> : null}
             <div className="shrink-0 flex flex-wrap items-center justify-between gap-3">
               <div>
                 <p className="text-xs font-black uppercase tracking-[0.16em] text-[#40608F]">Active section</p>
                 <p className="text-xl font-black text-[#071D49]">{schoolFriendlyText(resolvedWorkspace)}</p>
               </div>
               <div className="flex flex-wrap gap-2">
-                <StatusPill label={`Menu item ${activeWorkspaceIndex + 1}`} tone="ok" />
-                <StatusPill label={`${visibleQueueContract.items.length} pending`} tone="warning" />
-                <StatusPill label="Progress tracked" tone="ok" />
+                <StatusPill label={`${visibleQueueContract.items.length} tasks`} tone="warning" />
+                <StatusPill label={`${tableContract.rows.length} records`} tone="ok" />
+                <StatusPill label="Action history on" tone="ok" />
               </div>
             </div>
 
@@ -5358,7 +5360,7 @@ function GenericRoleOperationalCommandCenter({
                 <RecoveryPanel blueprint={resolvedBlueprint} />
                 <OutputGovernancePanel blueprint={resolvedBlueprint} role={role} />
               </div>
-            ) : commandWorkspace && activePanel === "queue" && isAccountantWorkspace ? (
+            ) : activePanel === "queue" && isAccountantWorkspace ? (
               <AccountantWorkspace
                 balances={feeBalances}
                 payments={feePayments}
@@ -5371,7 +5373,7 @@ function GenericRoleOperationalCommandCenter({
                 onRequestReversal={requestFeeReversal}
                 onExportFees={exportFeeList}
               />
-            ) : commandWorkspace && activePanel === "queue" && isSecretaryWorkspace ? (
+            ) : activePanel === "queue" && isSecretaryWorkspace ? (
               <SecretaryWorkspace
                 visitors={secretaryVisitors}
                 inquiries={secretaryInquiries}
@@ -5385,7 +5387,7 @@ function GenericRoleOperationalCommandCenter({
                 onEscalateInquiry={escalateSecretaryInquiry}
                 onAddInquiry={addSecretaryInquiry}
               />
-            ) : commandWorkspace && isNurseClinicWorkspace ? (
+            ) : isNurseClinicWorkspace ? (
               <NurseClinicWorkspace
                 visits={clinicVisits}
                 medicines={medicineStock}
@@ -5397,7 +5399,7 @@ function GenericRoleOperationalCommandCenter({
                 onRelease={releaseClinicVisit}
                 onPrint={printClinicSlip}
               />
-            ) : commandWorkspace && isAdmissionsWorkspace ? (
+            ) : isAdmissionsWorkspace ? (
               <AdmissionsWorkspace
                 applicants={admissionApplicants}
                 notice={admissionsNotice}
@@ -5409,7 +5411,7 @@ function GenericRoleOperationalCommandCenter({
                 onSendSms={sendAdmissionParentSms}
                 onPrintLetter={printAdmissionLetter}
               />
-            ) : commandWorkspace && isLibraryWorkspace ? (
+            ) : isLibraryWorkspace ? (
               <LibraryWorkspace
                 books={libraryBooks}
                 loans={libraryLoans}
@@ -5422,7 +5424,7 @@ function GenericRoleOperationalCommandCenter({
                 onSendSms={sendLibrarySms}
                 onPrintSlip={printLibrarySlip}
               />
-            ) : commandWorkspace && isStorekeeperWorkspace ? (
+            ) : isStorekeeperWorkspace ? (
               <StorekeeperWorkspace
                 items={stockItems}
                 movements={stockMovements}
@@ -5434,7 +5436,7 @@ function GenericRoleOperationalCommandCenter({
                 onPrintSlip={printStockSlip}
                 onExport={exportStockReport}
               />
-            ) : commandWorkspace && isBoardingWorkspace ? (
+            ) : isBoardingWorkspace ? (
               <BoardingWorkspace
                 rollCalls={boardingRollCalls}
                 exeats={exeatRequests}
@@ -5449,7 +5451,7 @@ function GenericRoleOperationalCommandCenter({
                 onForwardExeat={forwardExeatRequest}
                 onPrintRollCall={printBoardingRollCall}
               />
-            ) : commandWorkspace && isLaboratoryWorkspace ? (
+            ) : isLaboratoryWorkspace ? (
               <LaboratoryWorkspace
                 inventory={labInventory}
                 requests={labRequests}
@@ -5464,7 +5466,7 @@ function GenericRoleOperationalCommandCenter({
                 onAlertTeacher={alertLabTeacher}
                 onPrintPracticalChecklist={printLabPracticalChecklist}
               />
-            ) : commandWorkspace && isTransportWorkspace ? (
+            ) : isTransportWorkspace ? (
               <TransportWorkspace
                 vehicles={transportVehicles}
                 trips={transportTrips}

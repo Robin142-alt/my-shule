@@ -103,18 +103,29 @@ export function OperationalActionButton({
   showDiagnostics = true,
 }: {
   action: OperationalActionContract;
-  onExecute?: (action: OperationalActionContract) => void;
+  onExecute?: (action: OperationalActionContract) => void | Promise<void>;
   compact?: boolean;
   showDiagnostics?: boolean;
 }) {
-  const Icon = action.icon ?? healthIcon[action.health];
-  const disabled = action.health === "LOCKED" || action.health === "LOADING";
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const Icon = isSubmitting ? Clock3 : action.icon ?? healthIcon[action.health];
+  const disabled = action.health === "LOCKED" || action.health === "LOADING" || isSubmitting;
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [localNotice, setLocalNotice] = useState<string | null>(null);
+  const displayState = isSubmitting ? "Sending" : healthDisplay[action.health];
 
-  function completeAction() {
-    onExecute?.(action);
-    setLocalNotice(`${action.label} completed. Action history updated and related school records refreshed.`);
+  async function completeAction() {
+    setIsSubmitting(true);
+    setLocalNotice(`${action.label} is being sent...`);
+
+    try {
+      await onExecute?.(action);
+      setLocalNotice(`${action.label} sent. Action history updated and related school records refreshed.`);
+    } catch {
+      setLocalNotice(`${action.label} could not complete. Retry remains available.`);
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   function requestAction() {
@@ -127,7 +138,7 @@ export function OperationalActionButton({
       return;
     }
 
-    completeAction();
+    void completeAction();
   }
 
   return (
@@ -141,7 +152,7 @@ export function OperationalActionButton({
     >
       <button
         type="button"
-        aria-label={`${action.label} ${healthDisplay[action.health]}`}
+        aria-label={`${action.label} ${displayState}`}
         disabled={disabled}
         onClick={() => {
           requestAction();
@@ -151,7 +162,7 @@ export function OperationalActionButton({
         <Icon className="h-3.5 w-3.5" />
         {!compact || action.health !== "ACTIVE" ? (
           <span className="rounded-full border border-current/20 px-1.5 py-0.5 text-[9px] uppercase tracking-[0.12em]">
-            {healthDisplay[action.health]}
+            {displayState}
           </span>
         ) : null}
         {action.label}
@@ -190,7 +201,7 @@ export function OperationalActionButton({
               type="button"
               onClick={() => {
                 setConfirmOpen(false);
-                completeAction();
+                void completeAction();
               }}
               className="rounded-[var(--radius-xs)] border border-accent/25 bg-accent-soft px-3 py-2 text-xs font-bold text-accent"
             >

@@ -265,7 +265,7 @@ describe("universal operational form and table system", () => {
   it("validates required form fields, saves drafts locally, submits new entries, and resets cleanly", async () => {
     const user = userEvent.setup();
     const onAction = jest.fn();
-    const storageKey = "myshule.operational-form.parent-sms-follow-up";
+    const storageKey = "myshule:default-school:operational-form:parent-sms-follow-up";
 
     window.localStorage.removeItem(storageKey);
 

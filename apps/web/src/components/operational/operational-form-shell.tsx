@@ -47,6 +47,24 @@ function fieldKey(label: string) {
     .replace(/^-+|-+$/g, "");
 }
 
+function getSchoolScopedFormStorageKey(formId: string) {
+  const fallbackSchoolId = "default-school";
+
+  if (typeof window === "undefined") {
+    return `myshule:${fallbackSchoolId}:operational-form:${formId}`;
+  }
+
+  try {
+    const configuredSchoolId = window.localStorage.getItem("myshule.currentSchoolId");
+    const routeSchoolId = window.location.pathname.match(/^\/school\/([^/?#]+)/)?.[1];
+    const schoolId = configuredSchoolId || routeSchoolId || fallbackSchoolId;
+
+    return `myshule:${schoolId}:operational-form:${formId}`;
+  } catch {
+    return `myshule:${fallbackSchoolId}:operational-form:${formId}`;
+  }
+}
+
 export function OperationalFormShell({
   contract,
   onAction,
@@ -61,7 +79,7 @@ export function OperationalFormShell({
   showExecutionContract?: boolean;
 }) {
   const formId = fieldKey(contract.title);
-  const storageKey = `myshule.operational-form.${formId}`;
+  const storageKey = getSchoolScopedFormStorageKey(formId);
   const defaultValues = useMemo(
     () =>
       Object.fromEntries(
