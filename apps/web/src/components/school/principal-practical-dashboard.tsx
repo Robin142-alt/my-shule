@@ -22,12 +22,19 @@ import {
   UserPlus,
   WalletCards,
 } from "lucide-react";
-import { useMemo, useState, type ComponentType } from "react";
+import { useEffect, useMemo, useState, type ComponentType } from "react";
 
 import { DashboardGreeting } from "@/components/common/dashboard-greeting";
 import { Card } from "@/components/ui/card";
 import { StatusPill } from "@/components/ui/status-pill";
 import { getSchoolRoleGreetingName } from "@/lib/greetings/time-aware-greeting";
+import {
+  getCurrentSchoolId,
+  publishSchoolOperationalEvent,
+  readSchoolData,
+  subscribeToSchoolDataUpdates,
+  type SchoolOperationalEvent,
+} from "@/lib/school/school-operational-store";
 import { dispatchOperationalWorkflowAction } from "@/lib/workflows/operational-workflow-client";
 
 type PrincipalSectionId =
@@ -586,6 +593,23 @@ function slug(value: string) {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
 }
 
+function sectionLabelForModule(moduleName: string) {
+  const normalized = moduleName.toLowerCase();
+
+  if (/finance|fee|receipt|mpesa/.test(normalized)) return "Fees";
+  if (/visitor|front-office/.test(normalized)) return "Parents & Visitors";
+  if (/clinic|medicine|sick/.test(normalized)) return "Sick Bay";
+  if (/library|book/.test(normalized)) return "Library";
+  if (/attendance|roll-call/.test(normalized)) return "Attendance";
+  if (/boarding|hostel|exeat/.test(normalized)) return "Boarding";
+  if (/transport|trip|vehicle/.test(normalized)) return "Transport";
+  if (/inventory|stock|asset|store/.test(normalized)) return "Store & Assets";
+  if (/discipline|welfare/.test(normalized)) return "Discipline";
+  if (/academic|exam|marks/.test(normalized)) return "Academics";
+
+  return "School Activity";
+}
+
 function resolveInitialSection(initialSection?: string, initialWorkspace?: string): PrincipalSectionId {
   const requested = `${initialSection ?? ""} ${initialWorkspace ?? ""}`.toLowerCase();
 
@@ -917,6 +941,7 @@ function StateExamples() {
 export function PrincipalPracticalCommandCenter({
   initialSection,
   initialWorkspace,
+  tenantSlug,
 }: {
   initialSection?: string;
   initialWorkspace?: string;
@@ -947,8 +972,39 @@ export function PrincipalPracticalCommandCenter({
   const searchResults = useMemo(() => principalSearchResults(searchQuery), [searchQuery]);
   const isSearching = searchQuery.trim().length > 0;
   const greetingName = getSchoolRoleGreetingName("principal") || "Principal Wanjiku";
+  const schoolId = getCurrentSchoolId(tenantSlug);
   const overviewSections = overviewSectionIds.map((id) => sectionById(id));
   const rightRailSections = ["approvals", "system-health", "reports"].map((id) => sectionById(id as PrincipalSectionId));
+
+  useEffect(() => {
+    function loadSharedSchoolActions() {
+      const events: ActionLogItem[] = readSchoolData<SchoolOperationalEvent>("events", schoolId)
+        .filter((event) => event.actorRole !== "principal")
+        .slice(0, 6)
+        .map((event) => ({
+          id: event.id,
+          label: event.title,
+          section: sectionLabelForModule(event.module),
+          status: event.severity === "critical" || event.severity === "warning" ? "Saved for sync" : "Completed",
+          detail: event.body,
+        }));
+
+      if (events.length) {
+        setActionLog((items) => {
+          const existing = new Set(items.map((item) => item.id));
+          return [...events.filter((event) => !existing.has(event.id)), ...items].slice(0, 8);
+        });
+      }
+    }
+
+    loadSharedSchoolActions();
+
+    return subscribeToSchoolDataUpdates((detail) => {
+      if (detail.schoolId === schoolId) {
+        loadSharedSchoolActions();
+      }
+    });
+  }, [schoolId]);
 
   function handleAction(action: PracticalAction, section: PrincipalSection) {
     if (action.target) {
@@ -965,6 +1021,22 @@ export function PrincipalPracticalCommandCenter({
     };
 
     setActionLog((items) => [logItem, ...items].slice(0, 8));
+    publishSchoolOperationalEvent({
+      schoolId,
+      actorRole: "principal",
+      type: "PRINCIPAL_ACTION_SENT",
+      module: section.id,
+      title: action.label,
+      body: `${action.label} sent from ${section.label}.`,
+      entityId: logItem.id,
+      severity: "success",
+      payload: {
+        schoolName,
+        section: section.label,
+        source: section.source,
+      },
+      notifications: [{ audienceRoles: ["principal"], title: action.label }],
+    });
 
     void dispatchOperationalWorkflowAction({
       role: "principal",

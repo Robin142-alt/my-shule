@@ -21,7 +21,7 @@ import {
   WifiOff,
   Zap,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { DashboardGreeting } from "@/components/common/dashboard-greeting";
 import {
@@ -52,6 +52,15 @@ import {
   schoolFriendlyText,
   type PracticalRoleProfile,
 } from "@/lib/school/role-practical-ui";
+import {
+  addSchoolRecord,
+  getCurrentSchoolId,
+  mergeSchoolRecordsById,
+  publishSchoolOperationalEvent,
+  readSchoolData,
+  subscribeToSchoolDataUpdates,
+  updateSchoolRecord,
+} from "@/lib/school/school-operational-store";
 import {
   getKisumuBoysRoleFeed,
   scoreKisumuBoysHighDemoReadiness,
@@ -807,6 +816,18 @@ function slug(value: string) {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
+}
+
+function runtimeId(prefix: string) {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return `${prefix}-${crypto.randomUUID()}`;
+  }
+
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function runtimeNumber(min: number, range: number) {
+  return Math.floor(min + Math.random() * range);
 }
 
 function titleize(value: string) {
@@ -4049,6 +4070,7 @@ function GenericRoleOperationalCommandCenter({
   const roleProfile = getPracticalRoleProfile(role);
   const commandTitle = roleProfile.title || commandCenterTitle(role);
   const greetingName = getSchoolRoleGreetingName(role);
+  const schoolId = getCurrentSchoolId(tenantSlug);
   const sidebarItems = useMemo(() => blueprint?.sidebar ?? [], [blueprint?.sidebar]);
   const routeWorkspaceKey = `${initialSection ?? ""}:${initialWorkspace ?? ""}`;
   const preferredWorkspace = useMemo(
@@ -4103,6 +4125,26 @@ function GenericRoleOperationalCommandCenter({
   const [secretaryVisitors, setSecretaryVisitors] = useState<SecretaryVisitorRecord[]>(initialSecretaryVisitors);
   const [secretaryInquiries, setSecretaryInquiries] = useState<SecretaryInquiryRecord[]>(initialSecretaryInquiries);
   const [secretaryNotice, setSecretaryNotice] = useState("Front office ready. Register visitors, serve parents, print slips, send SMS, and escalate issues.");
+
+  useEffect(() => {
+    function hydrateStoredSchoolRecords() {
+      setClinicVisits(mergeSchoolRecordsById(initialClinicVisits, readSchoolData<ClinicVisitRecord>("clinic-visits", schoolId)));
+      setMedicineStock(mergeSchoolRecordsById(initialMedicineStock, readSchoolData<MedicineStockRecord>("medicine-stock", schoolId)));
+      setLibraryBooks(mergeSchoolRecordsById(initialLibraryBooks, readSchoolData<LibraryBookRecord>("library-books", schoolId)));
+      setLibraryLoans(mergeSchoolRecordsById(initialLibraryLoans, readSchoolData<LibraryLoanRecord>("library-loans", schoolId)));
+      setFeePayments(mergeSchoolRecordsById(initialFeePayments, readSchoolData<FeePaymentRecord>("finance-payments", schoolId)));
+      setSecretaryVisitors(mergeSchoolRecordsById(initialSecretaryVisitors, readSchoolData<SecretaryVisitorRecord>("visitors", schoolId)));
+      setSecretaryInquiries(mergeSchoolRecordsById(initialSecretaryInquiries, readSchoolData<SecretaryInquiryRecord>("front-office-inquiries", schoolId)));
+    }
+
+    hydrateStoredSchoolRecords();
+
+    return subscribeToSchoolDataUpdates((detail) => {
+      if (detail.schoolId === schoolId) {
+        hydrateStoredSchoolRecords();
+      }
+    });
+  }, [schoolId]);
   const demoRole = blueprintId ?? role;
   const useKisumuBoysDemo = shouldUseKisumuBoysDemoTenant(tenantSlug);
   const kisumuBoysRoleFeed = useMemo(
@@ -4179,7 +4221,7 @@ function GenericRoleOperationalCommandCenter({
     }));
     setExecutionLog((current) => [
       {
-        id: `${action.actionId}-dispatching-${Date.now()}`,
+        id: runtimeId(`${action.actionId}-dispatching`),
         label: `${action.label} sending`,
         workflow: schoolFriendlyText(action.workflowBinding),
         audit: action.auditEvent,
@@ -4220,7 +4262,7 @@ function GenericRoleOperationalCommandCenter({
       }));
       setExecutionLog((current) => [
         {
-          id: `${action.actionId}-success-${Date.now()}`,
+          id: runtimeId(`${action.actionId}-success`),
           label: action.label,
           workflow: schoolFriendlyText(result.workflowBinding),
           audit: result.auditAction ?? action.auditEvent,
@@ -4229,6 +4271,25 @@ function GenericRoleOperationalCommandCenter({
         },
         ...current,
       ].slice(0, 6));
+      publishSchoolOperationalEvent({
+        schoolId,
+        actorRole: role,
+        type: "WORKFLOW_ACTION_SENT",
+        module: activeWorkspaceKind,
+        title: action.label,
+        body: `${action.label} completed from ${resolvedWorkspace}.`,
+        entityId: action.actionId,
+        severity: "success",
+        payload: {
+          workspace: resolvedWorkspace,
+          workflowBinding: result.workflowBinding,
+          eventName: result.eventName,
+          auditAction: result.auditAction ?? action.auditEvent,
+        },
+        notifications: [
+          { audienceRoles: ["principal", role], title: `${action.label} completed` },
+        ],
+      });
       if (options?.materializeEntry) {
         setRuntimeEntries((current) => [
           options.materializeEntry as RuntimeWorkspaceEntry,
@@ -4244,7 +4305,7 @@ function GenericRoleOperationalCommandCenter({
       }));
       setExecutionLog((current) => [
         {
-          id: `${action.actionId}-failed-${Date.now()}`,
+          id: runtimeId(`${action.actionId}-failed`),
           label: `${action.label} needs retry: ${schoolFriendlyText(message)}`,
           workflow: schoolFriendlyText(action.workflowBinding),
           audit: action.auditEvent,
@@ -4253,13 +4314,30 @@ function GenericRoleOperationalCommandCenter({
         },
         ...current,
       ].slice(0, 6));
+      publishSchoolOperationalEvent({
+        schoolId,
+        actorRole: role,
+        type: "WORKFLOW_ACTION_SAVED_FOR_RETRY",
+        module: activeWorkspaceKind,
+        title: `${action.label} saved for retry`,
+        body: `${action.label} could not send immediately. Retry remains visible.`,
+        entityId: action.actionId,
+        severity: "warning",
+        payload: {
+          workspace: resolvedWorkspace,
+          message,
+        },
+        notifications: [
+          { audienceRoles: ["system-monitor", "principal", role], title: "Action saved for retry", severity: "warning" },
+        ],
+      });
     }
   }
 
   function executeFormAction(action: OperationalFormFooterAction, contract: OperationalFormContract, formData: OperationalFormValues) {
     const formEntryActions: OperationalFormFooterAction[] = ["Save Draft", "Submit", "Submit for Approval", "Save and Send SMS", "Save and Print"];
     const shouldMaterializeEntry = formEntryActions.includes(action);
-    const entryId = `${role}-${slug(resolvedWorkspace)}-${Date.now()}`;
+    const entryId = runtimeId(`${role}-${slug(resolvedWorkspace)}`);
     const actionToDispatch = actionContract({
       role,
       label: action,
@@ -4298,6 +4376,29 @@ function GenericRoleOperationalCommandCenter({
     }));
   }
 
+  function publishDashboardEvent(input: {
+    type: string;
+    module: string;
+    title: string;
+    body: string;
+    entityId?: string;
+    severity?: "info" | "warning" | "critical" | "success";
+    payload?: Record<string, unknown>;
+    notifications?: Array<{
+      audienceRoles: string[];
+      title?: string;
+      body?: string;
+      severity?: "info" | "warning" | "critical" | "success";
+    }>;
+    sms?: Array<{ recipient: string; message: string }>;
+  }) {
+    publishSchoolOperationalEvent({
+      schoolId,
+      actorRole: role,
+      ...input,
+    });
+  }
+
   function addLocalExecutionLog(
     label: string,
     events: string[],
@@ -4308,7 +4409,7 @@ function GenericRoleOperationalCommandCenter({
   ) {
     setExecutionLog((current) => [
       {
-        id: `local-${slug(label)}-${Date.now()}`,
+        id: runtimeId(`local-${slug(label)}`),
         label,
         workflow: options?.workflow ?? "Clinic visit -> Care action -> Guardian notified -> Follow-up",
         audit: options?.audit ?? "audit.nurse.clinic.local_action",
@@ -4317,10 +4418,22 @@ function GenericRoleOperationalCommandCenter({
       },
       ...current,
     ].slice(0, 6));
+    publishDashboardEvent({
+      type: "DASHBOARD_ACTION_RECORDED",
+      module: activeWorkspaceKind,
+      title: label,
+      body: events.map(schoolFriendlyText).join(", "),
+      severity: "success",
+      payload: {
+        workspace: resolvedWorkspace,
+        workflow: options?.workflow,
+        audit: options?.audit,
+      },
+    });
   }
 
   function recordClinicVisit(visit: Omit<ClinicVisitRecord, "id" | "status" | "parentContacted" | "time">) {
-    const visitId = `clinic-visit-${Date.now()}`;
+    const visitId = runtimeId("clinic-visit");
     const quantity = Math.max(1, visit.quantity);
     const newVisit: ClinicVisitRecord = {
       ...visit,
@@ -4336,6 +4449,29 @@ function GenericRoleOperationalCommandCenter({
         ? { ...item, quantity: Math.max(0, item.quantity - quantity) }
         : item
     )));
+    addSchoolRecord("clinic-visits", newVisit, schoolId);
+    addSchoolRecord("medicine-dispensations", {
+      id: runtimeId("dispensation"),
+      student: visit.student,
+      className: visit.className,
+      medicine: visit.medicine,
+      quantity,
+      guardianPhone: visit.guardianPhone,
+      visitId,
+      createdAt: new Date().toISOString(),
+    }, schoolId);
+    publishDashboardEvent({
+      type: "CLINIC_VISIT_RECORDED",
+      module: "clinic",
+      title: `${visit.student} sick bay visit recorded`,
+      body: `${visit.symptoms}. ${visit.medicine} quantity ${quantity} dispensed and stock deducted.`,
+      entityId: visitId,
+      severity: "warning",
+      payload: { visit: newVisit },
+      notifications: [
+        { audienceRoles: ["principal", "deputy-principal", "class-teacher", "boarding-master"], title: "Sick bay visit recorded" },
+      ],
+    });
     addLocalExecutionLog(
       `${visit.student} sick bay visit saved and ${visit.medicine} stock deducted`,
       ["Clinic visit saved", "Medicine stock deducted", "Parent SMS ready"],
@@ -4344,10 +4480,13 @@ function GenericRoleOperationalCommandCenter({
   }
 
   function loadMedicineStock(medicine: Omit<MedicineStockRecord, "id">) {
+    const newMedicine = { ...medicine, id: runtimeId("medicine") };
+
     setMedicineStock((current) => [
-      { ...medicine, id: `medicine-${Date.now()}` },
+      newMedicine,
       ...current,
     ]);
+    addSchoolRecord("medicine-stock", newMedicine, schoolId);
     addLocalExecutionLog(`${medicine.medicine} stock loaded`, ["Medicine batch saved", "Stock count updated"]);
     setClinicNotice(`${medicine.medicine} stock loaded. Inventory count updated.`);
   }
@@ -4355,6 +4494,17 @@ function GenericRoleOperationalCommandCenter({
   function notifyClinicParent(id: string) {
     const visit = clinicVisits.find((item) => item.id === id);
     setClinicVisits((current) => current.map((item) => item.id === id ? { ...item, parentContacted: true } : item));
+    updateSchoolRecord("clinic-visits", id, { parentContacted: true }, schoolId);
+    publishDashboardEvent({
+      type: "CLINIC_PARENT_SMS_SENT",
+      module: "clinic",
+      title: `${visit?.student ?? "Student"} parent notified`,
+      body: "Guardian SMS sent for sick bay visit.",
+      entityId: id,
+      severity: "success",
+      sms: visit?.guardianPhone ? [{ recipient: visit.guardianPhone, message: `${visit.student} has been attended to at the school sick bay.` }] : undefined,
+      notifications: [{ audienceRoles: ["principal", "class-teacher"], title: "Sick bay parent SMS sent" }],
+    });
     addLocalExecutionLog(`${visit?.student ?? "Student"} parent notified`, ["Parent SMS sent", "Class teacher copy prepared"]);
     setClinicNotice(`${visit?.student ?? "Student"} parent SMS sent.`);
   }
@@ -4362,6 +4512,19 @@ function GenericRoleOperationalCommandCenter({
   function referClinicVisit(id: string) {
     const visit = clinicVisits.find((item) => item.id === id);
     setClinicVisits((current) => current.map((item) => item.id === id ? { ...item, status: "Referred", parentContacted: true } : item));
+    updateSchoolRecord("clinic-visits", id, { status: "Referred", parentContacted: true }, schoolId);
+    publishDashboardEvent({
+      type: "CLINIC_REFERRAL_CREATED",
+      module: "clinic",
+      title: `${visit?.student ?? "Student"} referred to hospital`,
+      body: "Hospital referral created and leadership notified.",
+      entityId: id,
+      severity: "critical",
+      notifications: [
+        { audienceRoles: ["principal", "deputy-principal", "boarding-master", "class-teacher"], title: "Medical referral created", severity: "critical" },
+      ],
+      sms: visit?.guardianPhone ? [{ recipient: visit.guardianPhone, message: `${visit.student} has been referred for medical attention. Please contact the school.` }] : undefined,
+    });
     addLocalExecutionLog(`${visit?.student ?? "Student"} referred to hospital`, ["Referral slip prepared", "Guardian notified", "Deputy notified"]);
     setClinicNotice(`${visit?.student ?? "Student"} referred to hospital. Guardian and deputy notified.`);
   }
@@ -4369,6 +4532,7 @@ function GenericRoleOperationalCommandCenter({
   function releaseClinicVisit(id: string) {
     const visit = clinicVisits.find((item) => item.id === id);
     setClinicVisits((current) => current.map((item) => item.id === id ? { ...item, status: "Released" } : item));
+    updateSchoolRecord("clinic-visits", id, { status: "Released" }, schoolId);
     addLocalExecutionLog(`${visit?.student ?? "Student"} released from sick bay`, ["Visit closed", "Class teacher notified"]);
     setClinicNotice(`${visit?.student ?? "Student"} released from sick bay.`);
   }
@@ -4392,7 +4556,7 @@ function GenericRoleOperationalCommandCenter({
   function recordAdmissionApplicant(applicant: Omit<AdmissionApplicantRecord, "id" | "status" | "admissionNumber" | "parentSmsSent" | "letterPrinted">) {
     const newApplicant: AdmissionApplicantRecord = {
       ...applicant,
-      id: `admission-${Date.now()}`,
+      id: runtimeId("admission"),
       status: applicant.documents === "Complete" ? "Application Pending" : "Inquiry",
       parentSmsSent: false,
       letterPrinted: false,
@@ -4429,7 +4593,7 @@ function GenericRoleOperationalCommandCenter({
 
   function approveAdmissionApplicant(id: string) {
     const applicant = admissionApplicants.find((item) => item.id === id);
-    const generatedNumber = applicant?.admissionNumber ?? `KBI/2026/${Math.floor(100 + Math.random() * 800)}`;
+    const generatedNumber = applicant?.admissionNumber ?? `KBI/2026/${runtimeNumber(100, 800)}`;
 
     setAdmissionApplicants((current) => current.map((item) => item.id === id ? {
       ...item,
@@ -4498,11 +4662,22 @@ function GenericRoleOperationalCommandCenter({
   function addLibraryBook(book: Omit<LibraryBookRecord, "id" | "status">) {
     const newBook: LibraryBookRecord = {
       ...book,
-      id: `library-book-${Date.now()}`,
+      id: runtimeId("library-book"),
       status: "Available",
     };
 
     setLibraryBooks((current) => [newBook, ...current]);
+    addSchoolRecord("library-books", newBook, schoolId);
+    publishDashboardEvent({
+      type: "LIBRARY_BOOK_ADDED",
+      module: "library",
+      title: `${book.title} added to library catalogue`,
+      body: `Barcode ${book.barcode} registered on shelf ${book.shelf}.`,
+      entityId: newBook.id,
+      severity: "success",
+      payload: { book: newBook },
+      notifications: [{ audienceRoles: ["principal", "librarian"], title: "New library book added" }],
+    });
     addLibraryExecutionLog(`${book.title} added to catalogue`, ["Book saved", "Barcode registered", "Catalogue count updated"]);
     setLibraryNotice(`${book.title} added with barcode ${book.barcode}.`);
   }
@@ -4512,7 +4687,7 @@ function GenericRoleOperationalCommandCenter({
     const bookTitle = book?.title ?? `Scanned book ${loan.barcode}`;
     const newLoan: LibraryLoanRecord = {
       ...loan,
-      id: `library-loan-${Date.now()}`,
+      id: runtimeId("library-loan"),
       bookTitle,
       status: "Issued",
       fine: 0,
@@ -4525,6 +4700,20 @@ function GenericRoleOperationalCommandCenter({
         ? { ...item, status: "Issued" }
         : item
     )));
+    addSchoolRecord("library-loans", newLoan, schoolId);
+    if (book) {
+      updateSchoolRecord("library-books", book.id, { status: "Issued" }, schoolId);
+    }
+    publishDashboardEvent({
+      type: "LIBRARY_BOOK_ISSUED",
+      module: "library",
+      title: `${bookTitle} issued to ${loan.borrower}`,
+      body: `Due on ${loan.dueDate}. Borrower admission number ${loan.admissionNo}.`,
+      entityId: newLoan.id,
+      severity: "info",
+      payload: { loan: newLoan },
+      notifications: [{ audienceRoles: ["parent", "student", "class-teacher"], title: "Library book issued" }],
+    });
     addLibraryExecutionLog(`${bookTitle} issued to ${loan.borrower}`, ["Book issued", "Borrower record updated", "Issue slip ready"]);
     setLibraryNotice(`${bookTitle} issued to ${loan.borrower}. Print or SMS the issue slip.`);
   }
@@ -4536,6 +4725,22 @@ function GenericRoleOperationalCommandCenter({
     setLibraryBooks((current) => current.map((item) => (
       loan && item.barcode === loan.barcode ? { ...item, status: "Available" } : item
     )));
+    updateSchoolRecord("library-loans", id, { status: "Returned", fine: 0 }, schoolId);
+    if (loan) {
+      const book = libraryBooks.find((item) => item.barcode === loan.barcode);
+      if (book) {
+        updateSchoolRecord("library-books", book.id, { status: "Available" }, schoolId);
+      }
+    }
+    publishDashboardEvent({
+      type: "LIBRARY_BOOK_RETURNED",
+      module: "library",
+      title: `${loan?.bookTitle ?? "Book"} returned`,
+      body: "Return saved, book marked available, and fine cleared.",
+      entityId: id,
+      severity: "success",
+      notifications: [{ audienceRoles: ["librarian", "class-teacher"], title: "Library book returned" }],
+    });
     addLibraryExecutionLog(`${loan?.bookTitle ?? "Book"} returned`, ["Return saved", "Book marked available", "Fine cleared"]);
     setLibraryNotice(`${loan?.bookTitle ?? "Book"} returned and marked available.`);
   }
@@ -4547,6 +4752,16 @@ function GenericRoleOperationalCommandCenter({
     setLibraryBooks((current) => current.map((item) => (
       loan && item.barcode === loan.barcode ? { ...item, status: "Lost" } : item
     )));
+    updateSchoolRecord("library-loans", id, { status: "Lost", fine: Math.max(loan?.fine ?? 0, 850) }, schoolId);
+    publishDashboardEvent({
+      type: "LIBRARY_BOOK_LOST",
+      module: "library",
+      title: `${loan?.bookTitle ?? "Book"} marked lost`,
+      body: "Lost book fine applied and parent follow-up is ready.",
+      entityId: id,
+      severity: "warning",
+      notifications: [{ audienceRoles: ["parent", "student", "class-teacher", "principal"], title: "Library book marked lost", severity: "warning" }],
+    });
     addLibraryExecutionLog(`${loan?.bookTitle ?? "Book"} marked lost`, ["Lost book saved", "Fine applied", "Parent SMS ready"]);
     setLibraryNotice(`${loan?.bookTitle ?? "Book"} marked lost. Fine applied for follow-up.`);
   }
@@ -4558,6 +4773,7 @@ function GenericRoleOperationalCommandCenter({
     setLibraryBooks((current) => current.map((item) => (
       loan && item.barcode === loan.barcode ? { ...item, status: "Damaged" } : item
     )));
+    updateSchoolRecord("library-loans", id, { status: "Damaged", fine: Math.max(loan?.fine ?? 0, 300) }, schoolId);
     addLibraryExecutionLog(`${loan?.bookTitle ?? "Book"} marked damaged`, ["Damage record saved", "Fine applied"]);
     setLibraryNotice(`${loan?.bookTitle ?? "Book"} marked damaged. Repair or replacement follow-up is visible.`);
   }
@@ -4566,6 +4782,17 @@ function GenericRoleOperationalCommandCenter({
     const loan = libraryLoans.find((item) => item.id === id);
 
     setLibraryLoans((current) => current.map((item) => item.id === id ? { ...item, parentSmsSent: true } : item));
+    updateSchoolRecord("library-loans", id, { parentSmsSent: true }, schoolId);
+    publishDashboardEvent({
+      type: "LIBRARY_SMS_SENT",
+      module: "library",
+      title: `${loan?.borrower ?? "Borrower"} library SMS sent`,
+      body: `${loan?.bookTitle ?? "Book"} message sent to parent/student.`,
+      entityId: id,
+      severity: "success",
+      sms: [{ recipient: loan?.admissionNo ?? "student", message: `Library update: ${loan?.bookTitle ?? "book"} requires attention.` }],
+      notifications: [{ audienceRoles: ["parent", "student"], title: "Library SMS sent" }],
+    });
     addLibraryExecutionLog(`${loan?.borrower ?? "Borrower"} library SMS sent`, ["Overdue SMS sent", "Communication log updated"]);
     setLibraryNotice(`${loan?.borrower ?? "Borrower"} parent/student SMS sent for ${loan?.bookTitle ?? "book"}.`);
   }
@@ -4590,7 +4817,7 @@ function GenericRoleOperationalCommandCenter({
   function addStockItem(item: Omit<StockItemRecord, "id" | "status">) {
     const newItem: StockItemRecord = {
       ...item,
-      id: `stock-${Date.now()}`,
+      id: runtimeId("stock"),
       status: item.category === "Asset" ? "Approval Required" : item.quantity <= 20 ? "Low Stock" : "OK",
     };
 
@@ -4602,7 +4829,7 @@ function GenericRoleOperationalCommandCenter({
   function receiveStock(movement: Omit<StockMovementRecord, "id" | "movementType" | "time">) {
     const newMovement: StockMovementRecord = {
       ...movement,
-      id: `stock-movement-${Date.now()}`,
+      id: runtimeId("stock-movement"),
       movementType: "Received",
       time: new Date().toLocaleTimeString("en-KE", { hour: "2-digit", minute: "2-digit" }),
     };
@@ -4617,7 +4844,7 @@ function GenericRoleOperationalCommandCenter({
     const newMovement: StockMovementRecord = {
       ...movement,
       quantity,
-      id: `stock-movement-${Date.now()}`,
+      id: runtimeId("stock-movement"),
       movementType: "Issued",
       time: new Date().toLocaleTimeString("en-KE", { hour: "2-digit", minute: "2-digit" }),
     };
@@ -4674,7 +4901,7 @@ function GenericRoleOperationalCommandCenter({
   function addBoardingRollCall(record: Omit<BoardingRollCallRecord, "id" | "parentSmsSent" | "lastMarked">) {
     const newRecord: BoardingRollCallRecord = {
       ...record,
-      id: `boarding-roll-call-${Date.now()}`,
+      id: runtimeId("boarding-roll-call"),
       parentSmsSent: record.status === "Missing" || record.status === "Sick",
       lastMarked: new Date().toLocaleTimeString("en-KE", { hour: "2-digit", minute: "2-digit" }),
     };
@@ -4728,7 +4955,7 @@ function GenericRoleOperationalCommandCenter({
   function addExeatRequest(request: Omit<ExeatRequestRecord, "id" | "status">) {
     const newRequest: ExeatRequestRecord = {
       ...request,
-      id: `exeat-${Date.now()}`,
+      id: runtimeId("exeat"),
       status: "Pending",
     };
 
@@ -4771,7 +4998,7 @@ function GenericRoleOperationalCommandCenter({
   function addTransportTrip(trip: Omit<TransportTripRecord, "id" | "status" | "parentAlertSent" | "time">) {
     const newTrip: TransportTripRecord = {
       ...trip,
-      id: `transport-trip-${Date.now()}`,
+      id: runtimeId("transport-trip"),
       status: "Waiting",
       parentAlertSent: false,
       time: new Date().toLocaleTimeString("en-KE", { hour: "2-digit", minute: "2-digit" }),
@@ -4848,7 +5075,7 @@ function GenericRoleOperationalCommandCenter({
   function addLabChemicalStock(record: Omit<LabInventoryRecord, "id" | "status">) {
     const newRecord: LabInventoryRecord = {
       ...record,
-      id: `lab-stock-${Date.now()}`,
+      id: runtimeId("lab-stock"),
       status: Number(record.quantity) <= 5 ? "Low Stock" : "OK",
     };
 
@@ -4860,7 +5087,7 @@ function GenericRoleOperationalCommandCenter({
   function addLabPracticalRequest(record: Omit<LabPracticalRequestRecord, "id" | "status" | "teacherAlerted">) {
     const newRequest: LabPracticalRequestRecord = {
       ...record,
-      id: `lab-request-${Date.now()}`,
+      id: runtimeId("lab-request"),
       status: "Requested",
       teacherAlerted: false,
     };
@@ -4888,7 +5115,7 @@ function GenericRoleOperationalCommandCenter({
     }
 
     const issue: LabIssueRecord = {
-      id: `lab-issue-${Date.now()}`,
+      id: runtimeId("lab-issue"),
       item: apparatus.item,
       teacher: request.teacher,
       className: request.className,
@@ -4946,10 +5173,11 @@ function GenericRoleOperationalCommandCenter({
   }
 
   function recordFeePayment(payment: Omit<FeePaymentRecord, "id" | "receiptNo" | "parentSmsSent" | "status">) {
-    const receiptNo = `KBI-RCPT-${Math.floor(1100 + Math.random() * 8000)}`;
+    const receiptNo = `KBI-RCPT-${runtimeNumber(1100, 8000)}`;
+    const balanceRecord = feeBalances.find((item) => item.admissionNo === payment.admissionNo);
     const newPayment: FeePaymentRecord = {
       ...payment,
-      id: `fee-payment-${Date.now()}`,
+      id: runtimeId("fee-payment"),
       receiptNo,
       parentSmsSent: false,
       status: payment.method === "M-Pesa" ? "M-Pesa Pending" : "Recorded",
@@ -4963,6 +5191,32 @@ function GenericRoleOperationalCommandCenter({
       lastMethod: payment.method,
       status: Math.max(0, item.balance - payment.amount) === 0 ? "Clear" : Math.max(0, item.balance - payment.amount) > 10000 ? "High Balance" : "Balance",
     } : item));
+    addSchoolRecord("finance-payments", newPayment, schoolId);
+    addSchoolRecord("receipts", {
+      id: `receipt-${receiptNo}`,
+      receiptNo,
+      student: payment.student,
+      admissionNo: payment.admissionNo,
+      className: balanceRecord?.className ?? "Class/Form not set",
+      amount: payment.amount,
+      method: payment.method,
+      term: payment.term,
+      voteHead: payment.voteHead,
+      parentPhone: balanceRecord?.parentPhone ?? "",
+      createdAt: new Date().toISOString(),
+    }, schoolId);
+    publishDashboardEvent({
+      type: "FEE_PAYMENT_RECORDED",
+      module: "finance",
+      title: `${payment.student} fee payment recorded`,
+      body: `KSh ${payment.amount.toLocaleString("en-KE")} received by ${payment.method}. Receipt ${receiptNo} is ready.`,
+      entityId: newPayment.id,
+      severity: "success",
+      payload: { payment: newPayment },
+      notifications: [
+        { audienceRoles: ["principal", "secretary", "parent", "student"], title: "Fee payment recorded" },
+      ],
+    });
     addFinanceExecutionLog(`${payment.student} payment recorded`, ["Payment saved", "Student balance updated", "Receipt ready"]);
     setFinanceNotice(`${payment.student} payment recorded. Receipt ${receiptNo} is ready.`);
   }
@@ -4971,6 +5225,16 @@ function GenericRoleOperationalCommandCenter({
     const payment = feePayments.find((item) => item.id === id);
 
     setFeePayments((current) => current.map((item) => item.id === id ? { ...item, status: "Confirmed" } : item));
+    updateSchoolRecord("finance-payments", id, { status: "Confirmed" }, schoolId);
+    publishDashboardEvent({
+      type: "MPESA_PAYMENT_CONFIRMED",
+      module: "finance",
+      title: `${payment?.student ?? "Payment"} M-Pesa confirmed`,
+      body: `${payment?.receiptNo ?? "Receipt"} marked confirmed.`,
+      entityId: id,
+      severity: "success",
+      notifications: [{ audienceRoles: ["principal", "secretary", "parent"], title: "M-Pesa payment confirmed" }],
+    });
     addFinanceExecutionLog(`${payment?.student ?? "Payment"} M-Pesa confirmed`, ["M-Pesa confirmation saved", "Ledger marked confirmed"]);
     setFinanceNotice(`${payment?.student ?? "Payment"} M-Pesa confirmation completed.`);
   }
@@ -4987,8 +5251,20 @@ function GenericRoleOperationalCommandCenter({
 
   function sendReceiptSms(id: string) {
     const payment = feePayments.find((item) => item.id === id);
+    const balanceRecord = feeBalances.find((item) => item.admissionNo === payment?.admissionNo);
 
     setFeePayments((current) => current.map((item) => item.id === id ? { ...item, parentSmsSent: true } : item));
+    updateSchoolRecord("finance-payments", id, { parentSmsSent: true }, schoolId);
+    publishDashboardEvent({
+      type: "FEE_RECEIPT_SMS_SENT",
+      module: "finance",
+      title: `${payment?.student ?? "Parent"} receipt SMS sent`,
+      body: `${payment?.receiptNo ?? "Receipt"} SMS sent to ${balanceRecord?.parentPhone ?? "parent"}.`,
+      entityId: id,
+      severity: "success",
+      sms: balanceRecord?.parentPhone && payment ? [{ recipient: balanceRecord.parentPhone, message: `Payment received. Receipt ${payment.receiptNo}. Amount KSh ${payment.amount.toLocaleString("en-KE")}.` }] : undefined,
+      notifications: [{ audienceRoles: ["parent", "secretary"], title: "Receipt SMS sent" }],
+    });
     addFinanceExecutionLog(`${payment?.student ?? "Parent"} receipt SMS sent`, ["Receipt SMS simulated", "Parent communication updated"]);
     setFinanceNotice(`${payment?.student ?? "Parent"} receipt SMS sent.`);
   }
@@ -4996,6 +5272,16 @@ function GenericRoleOperationalCommandCenter({
   function sendFeeReminder(studentId: string) {
     const student = feeBalances.find((item) => item.id === studentId);
 
+    publishDashboardEvent({
+      type: "FEE_REMINDER_SMS_SENT",
+      module: "finance",
+      title: `${student?.student ?? "Student"} fee reminder sent`,
+      body: `Reminder sent to ${student?.parentPhone ?? "parent"} for balance follow-up.`,
+      entityId: studentId,
+      severity: "warning",
+      sms: student?.parentPhone ? [{ recipient: student.parentPhone, message: `Fee reminder for ${student.student}: balance KSh ${student.balance.toLocaleString("en-KE")}.` }] : undefined,
+      notifications: [{ audienceRoles: ["parent", "class-teacher", "principal"], title: "Fee reminder sent", severity: "warning" }],
+    });
     addFinanceExecutionLog(`${student?.student ?? "Student"} fee reminder sent`, ["Fee reminder SMS simulated", "Class teacher copy ready"]);
     setFinanceNotice(`${student?.student ?? "Student"} fee reminder sent to ${student?.parentPhone ?? "parent"}.`);
   }
@@ -5004,6 +5290,16 @@ function GenericRoleOperationalCommandCenter({
     const payment = feePayments.find((item) => item.id === id);
 
     setFeePayments((current) => current.map((item) => item.id === id ? { ...item, status: "Reversal Requested" } : item));
+    updateSchoolRecord("finance-payments", id, { status: "Reversal Requested" }, schoolId);
+    publishDashboardEvent({
+      type: "FEE_REVERSAL_REQUESTED",
+      module: "finance",
+      title: `${payment?.receiptNo ?? "Payment"} reversal requested`,
+      body: "Payment reversal approval requested and visible to leadership.",
+      entityId: id,
+      severity: "warning",
+      notifications: [{ audienceRoles: ["principal", "accountant"], title: "Fee reversal approval requested", severity: "warning" }],
+    });
     addFinanceExecutionLog(`${payment?.receiptNo ?? "Payment"} reversal requested`, ["Reversal approval requested", "Audit record created"]);
     setFinanceNotice(`${payment?.receiptNo ?? "Payment"} reversal sent for approval.`);
   }
@@ -5023,13 +5319,24 @@ function GenericRoleOperationalCommandCenter({
   function registerSecretaryVisitor(visitor: Omit<SecretaryVisitorRecord, "id" | "status" | "checkInTime" | "slipPrinted">) {
     const newVisitor: SecretaryVisitorRecord = {
       ...visitor,
-      id: `visitor-${Date.now()}`,
+      id: runtimeId("visitor"),
       status: "Inside",
       checkInTime: new Date().toLocaleTimeString("en-KE", { hour: "2-digit", minute: "2-digit" }),
       slipPrinted: false,
     };
 
     setSecretaryVisitors((current) => [newVisitor, ...current]);
+    addSchoolRecord("visitors", newVisitor, schoolId);
+    publishDashboardEvent({
+      type: "VISITOR_CHECKED_IN",
+      module: "visitors",
+      title: `${visitor.visitor} checked in`,
+      body: `${visitor.visitor} is visiting ${visitor.visiting} for ${visitor.reason}.`,
+      entityId: newVisitor.id,
+      severity: "info",
+      payload: { visitor: newVisitor },
+      notifications: [{ audienceRoles: ["principal", "secretary", "security-officer"], title: "Visitor checked in" }],
+    });
     addSecretaryExecutionLog(`${visitor.visitor} checked in`, ["Visitor registered", "Security/front office log updated"]);
     setSecretaryNotice(`${visitor.visitor} checked in to visit ${visitor.visiting}.`);
   }
@@ -5038,6 +5345,7 @@ function GenericRoleOperationalCommandCenter({
     const visitor = secretaryVisitors.find((item) => item.id === id);
 
     setSecretaryVisitors((current) => current.map((item) => item.id === id ? { ...item, slipPrinted: true } : item));
+    updateSchoolRecord("visitors", id, { slipPrinted: true }, schoolId);
     addSecretaryExecutionLog(`${visitor?.visitor ?? "Visitor"} slip printed`, ["Visitor slip prepared", "Print dialog opened"]);
     setSecretaryNotice(`${visitor?.visitor ?? "Visitor"} visitor slip opened for printing.`);
     if (typeof window !== "undefined") {
@@ -5049,6 +5357,16 @@ function GenericRoleOperationalCommandCenter({
     const visitor = secretaryVisitors.find((item) => item.id === id);
 
     setSecretaryVisitors((current) => current.map((item) => item.id === id ? { ...item, status: "Exited" } : item));
+    updateSchoolRecord("visitors", id, { status: "Exited" }, schoolId);
+    publishDashboardEvent({
+      type: "VISITOR_CHECKED_OUT",
+      module: "visitors",
+      title: `${visitor?.visitor ?? "Visitor"} checked out`,
+      body: "Visitor exit saved and current-inside board updated.",
+      entityId: id,
+      severity: "success",
+      notifications: [{ audienceRoles: ["principal", "secretary", "security-officer"], title: "Visitor checked out" }],
+    });
     addSecretaryExecutionLog(`${visitor?.visitor ?? "Visitor"} checked out`, ["Visitor exit saved", "Security board updated"]);
     setSecretaryNotice(`${visitor?.visitor ?? "Visitor"} checked out.`);
   }
@@ -5056,12 +5374,23 @@ function GenericRoleOperationalCommandCenter({
   function addSecretaryInquiry(record: Omit<SecretaryInquiryRecord, "id" | "status" | "smsSent">) {
     const newInquiry: SecretaryInquiryRecord = {
       ...record,
-      id: `inquiry-${Date.now()}`,
+      id: runtimeId("inquiry"),
       status: "Waiting",
       smsSent: false,
     };
 
     setSecretaryInquiries((current) => [newInquiry, ...current]);
+    addSchoolRecord("front-office-inquiries", newInquiry, schoolId);
+    publishDashboardEvent({
+      type: "PARENT_INQUIRY_REGISTERED",
+      module: "front-office",
+      title: `${record.parent} inquiry registered`,
+      body: `${record.issue} routed to ${record.department}.`,
+      entityId: newInquiry.id,
+      severity: "warning",
+      payload: { inquiry: newInquiry },
+      notifications: [{ audienceRoles: ["principal", "secretary", record.department.toLowerCase()], title: "Parent inquiry registered", severity: "warning" }],
+    });
     addSecretaryExecutionLog(`${record.parent} inquiry registered`, ["Parent inquiry saved", "Department queue updated"]);
     setSecretaryNotice(`${record.parent} request registered for ${record.department}.`);
   }
@@ -5070,6 +5399,7 @@ function GenericRoleOperationalCommandCenter({
     const inquiry = secretaryInquiries.find((item) => item.id === id);
 
     setSecretaryInquiries((current) => current.map((item) => item.id === id ? { ...item, status: "Resolved" } : item));
+    updateSchoolRecord("front-office-inquiries", id, { status: "Resolved" }, schoolId);
     addSecretaryExecutionLog(`${inquiry?.parent ?? "Parent"} marked served`, ["Front office queue updated", "Request closed"]);
     setSecretaryNotice(`${inquiry?.parent ?? "Parent"} marked served.`);
   }
@@ -5078,6 +5408,17 @@ function GenericRoleOperationalCommandCenter({
     const inquiry = secretaryInquiries.find((item) => item.id === id);
 
     setSecretaryInquiries((current) => current.map((item) => item.id === id ? { ...item, smsSent: true } : item));
+    updateSchoolRecord("front-office-inquiries", id, { smsSent: true }, schoolId);
+    publishDashboardEvent({
+      type: "PARENT_INQUIRY_SMS_SENT",
+      module: "front-office",
+      title: `${inquiry?.parent ?? "Parent"} SMS sent`,
+      body: `SMS sent about ${inquiry?.issue ?? "front office request"}.`,
+      entityId: id,
+      severity: "success",
+      sms: inquiry?.phone ? [{ recipient: inquiry.phone, message: `MyShule update: ${inquiry.issue} is being handled by ${inquiry.department}.` }] : undefined,
+      notifications: [{ audienceRoles: ["secretary", "principal"], title: "Front office SMS sent" }],
+    });
     addSecretaryExecutionLog(`${inquiry?.parent ?? "Parent"} SMS sent`, ["Parent SMS simulated", "Communication log updated"]);
     setSecretaryNotice(`${inquiry?.parent ?? "Parent"} SMS sent.`);
   }
@@ -5086,6 +5427,16 @@ function GenericRoleOperationalCommandCenter({
     const inquiry = secretaryInquiries.find((item) => item.id === id);
 
     setSecretaryInquiries((current) => current.map((item) => item.id === id ? { ...item, status: "Escalated" } : item));
+    updateSchoolRecord("front-office-inquiries", id, { status: "Escalated" }, schoolId);
+    publishDashboardEvent({
+      type: "PARENT_INQUIRY_ESCALATED",
+      module: "front-office",
+      title: `${inquiry?.issue ?? "Inquiry"} escalated`,
+      body: `Escalated to ${inquiry?.department ?? "department"} for follow-up.`,
+      entityId: id,
+      severity: "critical",
+      notifications: [{ audienceRoles: ["principal", "deputy-principal", "secretary"], title: "Front office issue escalated", severity: "critical" }],
+    });
     addSecretaryExecutionLog(`${inquiry?.issue ?? "Inquiry"} escalated`, ["Department escalation created", "Owner notified"]);
     setSecretaryNotice(`${inquiry?.issue ?? "Inquiry"} escalated to ${inquiry?.department ?? "department"}.`);
   }
@@ -5099,7 +5450,7 @@ function GenericRoleOperationalCommandCenter({
     setSearchQuery("");
     setExecutionLog((current) => [
       {
-        id: `search-${slug(result.workspace)}-${Date.now()}`,
+        id: runtimeId(`search-${slug(result.workspace)}`),
         label: `Opened ${result.label}`,
         workflow: schoolFriendlyText(result.workspace),
         audit: "SEARCH_RESULT_OPENED",
