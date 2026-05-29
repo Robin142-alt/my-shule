@@ -39,6 +39,12 @@ import {
 } from "lucide-react";
 
 import { toSchoolPath, type SchoolSection } from "@/lib/routing/experience-routes";
+import {
+  addSchoolRecord,
+  getCurrentSchoolId,
+  publishSchoolOperationalEvent,
+  type SchoolOperationalSeverity,
+} from "@/lib/school/school-operational-store";
 import { supportSidebarItems } from "@/lib/support/support-data";
 
 type StorekeeperRouteMode = "hosted" | "public";
@@ -568,6 +574,240 @@ const emptyStateExamples = [
   "No audit discrepancies found",
 ];
 
+type StorekeeperOperationalRecord = Record<string, string | number | boolean | null | undefined>;
+
+function toSeverity(tone: Tone): SchoolOperationalSeverity {
+  if (tone === "critical") return "critical";
+  if (tone === "warning" || tone === "accent") return "warning";
+  if (tone === "success") return "success";
+  return "info";
+}
+
+function recordId(prefix: string, source: string) {
+  const normalizedSource = source
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 52);
+
+  return `${prefix}-${normalizedSource || "item"}-${Date.now()}`;
+}
+
+function recordStorekeeperAction(input: {
+  type: string;
+  title: string;
+  body: string;
+  entityId?: string;
+  severity?: SchoolOperationalSeverity;
+  payload?: Record<string, unknown>;
+  notice: string;
+  record?: {
+    moduleName: string;
+    data: StorekeeperOperationalRecord;
+  };
+  notifications?: Array<{
+    audienceRoles: string[];
+    title?: string;
+    body?: string;
+    severity?: SchoolOperationalSeverity;
+  }>;
+}) {
+  const schoolId = getCurrentSchoolId();
+  const createdAt = new Date().toISOString();
+  const entityId = input.entityId ?? recordId("store-action", input.title);
+
+  addSchoolRecord(
+    "inventoryActions",
+    {
+      id: recordId("inventory-action", entityId),
+      actionType: input.type,
+      title: input.title,
+      body: input.body,
+      entityId,
+      status: "Recorded",
+      createdAt,
+    },
+    schoolId,
+  );
+
+  if (input.record) {
+    addSchoolRecord(
+      input.record.moduleName,
+      {
+        id: recordId(input.record.moduleName, entityId),
+        entityId,
+        ...input.record.data,
+        sourceModule: "inventory",
+        createdAt,
+      },
+      schoolId,
+    );
+  }
+
+  publishSchoolOperationalEvent({
+    schoolId,
+    type: input.type,
+    module: "inventory",
+    actorRole: "storekeeper",
+    title: input.title,
+    body: input.body,
+    entityId,
+    severity: input.severity ?? "info",
+    payload: input.payload,
+    notifications: input.notifications,
+  });
+
+  return input.notice;
+}
+
+function recordHeroAlertAction(alert: (typeof heroAlerts)[number]) {
+  const createsPurchaseOrder = alert.action.toLowerCase().includes("purchase order");
+  const notice = `${alert.action} opened for ${alert.title}.`;
+
+  return recordStorekeeperAction({
+    type: createsPurchaseOrder ? "STORE_PURCHASE_ORDER_DRAFTED" : "STORE_ALERT_ACTION_OPENED",
+    title: createsPurchaseOrder ? "Purchase order drafted" : `${alert.action} opened`,
+    body: notice,
+    entityId: alert.id,
+    severity: toSeverity(alert.tone),
+    payload: {
+      alertId: alert.id,
+      item: alert.title,
+      action: alert.action,
+      detail: alert.detail,
+      source: "critical-store-intelligence",
+    },
+    notice,
+    record: createsPurchaseOrder
+      ? {
+          moduleName: "purchaseOrders",
+          data: {
+            item: alert.title,
+            status: "Drafted",
+            requestedBy: "Storekeeper",
+            approvalRoute: "Bursar and Principal",
+            reason: alert.detail,
+          },
+        }
+      : undefined,
+    notifications: [
+      {
+        audienceRoles: ["principal", "accountant"],
+        title: createsPurchaseOrder ? "Storekeeper drafted a purchase order" : "Storekeeper opened a stock alert",
+        body: notice,
+        severity: toSeverity(alert.tone),
+      },
+    ],
+  });
+}
+
+function recordBulkApprovalReview() {
+  return recordStorekeeperAction({
+    type: "STORE_REQUISITION_BULK_REVIEW_OPENED",
+    title: "Safe requisition bulk approval review opened",
+    body: "Storekeeper opened a bulk review for safe, low-risk requisitions.",
+    severity: "info",
+    notice: "Safe requisition bulk approval review opened.",
+    payload: {
+      eligibleRequisitions: requisitions.filter((req) => req.tone === "success" || req.tone === "info").map((req) => req.id),
+      source: "requisition-management",
+    },
+  });
+}
+
+function recordUrgencyFilterOpened() {
+  return recordStorekeeperAction({
+    type: "STORE_REQUISITION_URGENCY_FILTER_OPENED",
+    title: "Requisition urgency filters opened",
+    body: "Storekeeper opened urgency filters for requisition triage.",
+    severity: "info",
+    notice: "Requisition urgency filters opened.",
+    payload: {
+      availableUrgencies: Array.from(new Set(requisitions.map((req) => req.urgency))),
+      source: "requisition-management",
+    },
+  });
+}
+
+function recordRequisitionDecision(
+  req: (typeof requisitions)[number],
+  decision: "approve" | "partial" | "reject",
+) {
+  const eventType =
+    decision === "approve"
+      ? "STORE_REQUISITION_APPROVED"
+      : decision === "partial"
+        ? "STORE_REQUISITION_PARTIAL_ISSUE_OPENED"
+        : "STORE_REQUISITION_REJECTED";
+  const movementType =
+    decision === "approve" ? "Issue approved" : decision === "partial" ? "Partial issue opened" : "Issue rejected";
+  const status = decision === "approve" ? "Approved" : decision === "partial" ? "Partial issue pending" : "Rejected";
+  const notice =
+    decision === "approve"
+      ? `${req.item} approved for ${req.department}.`
+      : decision === "partial"
+        ? `Partial issue opened for ${req.item} to ${req.department}.`
+        : `${req.item} rejection reason form opened.`;
+
+  return recordStorekeeperAction({
+    type: eventType,
+    title: `${movementType}: ${req.item}`,
+    body: notice,
+    entityId: req.id,
+    severity: decision === "reject" ? "warning" : toSeverity(req.tone),
+    payload: {
+      requisitionId: req.id,
+      department: req.department,
+      requester: req.requester,
+      item: req.item,
+      quantity: req.quantity,
+      available: req.available,
+      status,
+      source: "requisition-management",
+    },
+    notice,
+    record: {
+      moduleName: "inventoryMovements",
+      data: {
+        requisitionId: req.id,
+        movementType,
+        department: req.department,
+        requester: req.requester,
+        item: req.item,
+        quantity: req.quantity,
+        available: req.available,
+        status,
+      },
+    },
+    notifications: [
+      {
+        audienceRoles: ["principal", "accountant", "deputy-principal"],
+        title: `${req.department} requisition ${status.toLowerCase()}`,
+        body: notice,
+        severity: decision === "reject" ? "warning" : toSeverity(req.tone),
+      },
+    ],
+  });
+}
+
+function recordInventoryInsightOpened(insight: (typeof aiInsights)[number]) {
+  const notice = `${insight.action} opened from inventory insights.`;
+
+  return recordStorekeeperAction({
+    type: "STORE_INVENTORY_INSIGHT_OPENED",
+    title: insight.action,
+    body: notice,
+    severity: toSeverity(insight.tone),
+    payload: {
+      insight: insight.title,
+      detail: insight.detail,
+      confidence: insight.confidence,
+      source: "inventory-insights",
+    },
+    notice,
+  });
+}
+
 function cn(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
 }
@@ -899,7 +1139,7 @@ function HeroAlert({ alert, featured, theme }: { alert: (typeof heroAlerts)[numb
       <p className={cn("mt-3 text-sm leading-6", surface.muted)}>{alert.detail}</p>
       <button
         type="button"
-        onClick={() => announceAction(`${alert.action} opened for ${alert.title}.`)}
+        onClick={() => announceAction(recordHeroAlertAction(alert))}
         className="mt-5 inline-flex items-center gap-2 rounded-2xl bg-[#FF7A1A] px-4 py-2.5 text-sm font-black text-white shadow-[0_16px_36px_rgba(255,122,26,0.24)] transition group-hover:translate-x-1"
       >
         {alert.action}
@@ -1044,6 +1284,14 @@ function ActivityFeed({ theme }: { theme: StorekeeperTheme }) {
 
 function RequisitionPanel({ theme }: { theme: StorekeeperTheme }) {
   const surface = getSurfaceClasses(theme);
+  const [decisionByRequisitionId, setDecisionByRequisitionId] = useState<Record<string, string>>({});
+
+  function handleRequisitionDecision(req: (typeof requisitions)[number], decision: "approve" | "partial" | "reject") {
+    const status = decision === "approve" ? "Approved" : decision === "partial" ? "Partial issue pending" : "Rejected";
+
+    setDecisionByRequisitionId((current) => ({ ...current, [req.id]: status }));
+    announceAction(recordRequisitionDecision(req, decision));
+  }
 
   return (
     <section id="requisitions" className={cn("rounded-3xl border p-5 md:p-6", surface.card)}>
@@ -1055,14 +1303,14 @@ function RequisitionPanel({ theme }: { theme: StorekeeperTheme }) {
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
-              onClick={() => announceAction("Safe requisition bulk approval review opened.")}
+              onClick={() => announceAction(recordBulkApprovalReview())}
               className="rounded-2xl bg-[#FF7A1A] px-4 py-2 text-sm font-black text-white"
             >
               Bulk approve safe items
             </button>
             <button
               type="button"
-              onClick={() => announceAction("Requisition urgency filters opened.")}
+              onClick={() => announceAction(recordUrgencyFilterOpened())}
               className={cn("rounded-2xl border px-4 py-2 text-sm font-black", surface.soft)}
             >
               Filter urgency
@@ -1093,26 +1341,26 @@ function RequisitionPanel({ theme }: { theme: StorekeeperTheme }) {
               <p className="font-black">{req.quantity}</p>
               <StatusChip icon={AlertTriangle} label={req.urgency} tone={req.tone} />
               <p className={surface.muted}>{req.date}</p>
-              <p className="font-bold">{req.stage}</p>
+              <p className="font-bold">{decisionByRequisitionId[req.id] ?? req.stage}</p>
               <div className="flex flex-wrap items-center gap-2">
                 <span className="font-black">{req.available}</span>
                 <button
                   type="button"
-                  onClick={() => announceAction(`${req.item} approved for ${req.department}.`)}
+                  onClick={() => handleRequisitionDecision(req, "approve")}
                   className="rounded-full border border-emerald-300/30 bg-emerald-400/12 px-3 py-1 text-xs font-black text-emerald-100"
                 >
                   Approve
                 </button>
                 <button
                   type="button"
-                  onClick={() => announceAction(`Partial issue opened for ${req.item} to ${req.department}.`)}
+                  onClick={() => handleRequisitionDecision(req, "partial")}
                   className="rounded-full border border-amber-300/30 bg-amber-400/12 px-3 py-1 text-xs font-black text-amber-100"
                 >
                   Partial
                 </button>
                 <button
                   type="button"
-                  onClick={() => announceAction(`${req.item} rejection reason form opened.`)}
+                  onClick={() => handleRequisitionDecision(req, "reject")}
                   className="rounded-full border border-rose-300/30 bg-rose-400/12 px-3 py-1 text-xs font-black text-rose-100"
                 >
                   Reject
@@ -1312,7 +1560,7 @@ function AiInsights({ theme }: { theme: StorekeeperTheme }) {
             <p className={cn("mt-3 text-sm leading-6", surface.muted)}>{insight.detail}</p>
             <button
               type="button"
-              onClick={() => announceAction(`${insight.action} opened from inventory insights.`)}
+              onClick={() => announceAction(recordInventoryInsightOpened(insight))}
               className="mt-5 rounded-2xl border border-[#FF7A1A]/40 bg-[#FF7A1A]/14 px-4 py-2 text-sm font-black text-[#FFE0C2]"
             >
               {insight.action}

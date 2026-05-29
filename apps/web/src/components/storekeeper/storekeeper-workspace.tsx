@@ -1021,6 +1021,14 @@ export function StorekeeperWorkspace({
   function renderDashboard() {
     return (
       <div className="space-y-4">
+        <Card className="p-4">
+          <p className="eyebrow">Daily store priorities</p>
+          <h2 className="mt-1 text-xl font-black text-foreground">What requires action right now</h2>
+          <p className="mt-1 text-sm font-semibold text-muted">
+            Low stock, department requests, receipts, expiring batches, and audit movements that need storekeeper action today.
+          </p>
+        </Card>
+
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           {stats.map((stat) => (
             <Card key={stat.id} className={`p-4 ${toneRing(stat.tone)}`}>

@@ -495,7 +495,7 @@ const initialStockItems: StockItemRecord[] = [
     quantity: 18,
     unit: "pieces",
     supplier: "Kisumu Stationers",
-    department: "Academics",
+    department: "Teaching Supplies",
     unitCost: 120,
     status: "Low Stock",
   },
@@ -2329,7 +2329,7 @@ function StorekeeperWorkspace({
   const [quantity, setQuantity] = useState("120");
   const [unit, setUnit] = useState("pieces");
   const [supplier, setSupplier] = useState("Kisumu Stationers");
-  const [department, setDepartment] = useState("Academics");
+  const [department, setDepartment] = useState("Teaching Supplies");
   const [receiver, setReceiver] = useState("Mrs. Wanjiku");
   const [unitCost, setUnitCost] = useState("80");
   const [movementItem, setMovementItem] = useState(items[0]?.item ?? "Whiteboard Markers");
@@ -2375,6 +2375,16 @@ function StorekeeperWorkspace({
             </Card>
           ))}
         </div>
+
+        <Card className="p-4">
+          <div className="flex items-center gap-2">
+            <ListChecks className="h-4 w-4 text-accent" />
+            <h3 className="text-lg font-black text-foreground">What requires action right now</h3>
+          </div>
+          <p className="mt-1 text-sm font-semibold text-muted">
+            Low stock, department requests, receiving slips, damaged items, and movement records that need storekeeper action today.
+          </p>
+        </Card>
 
         <Card className="p-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
