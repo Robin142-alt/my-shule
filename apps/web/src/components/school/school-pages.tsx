@@ -426,9 +426,15 @@ const roleOperationalWorkspaceSectionIds = new Set([
   "ict-assets",
 ]);
 
+const financeRoleDedicatedSectionIds = new Set(["finance", "mpesa"]);
+
 function shouldRenderRoleOperationalWorkspace(role: SchoolExperienceRole, section: string) {
   if (role === "admin") {
     return section === "dashboard";
+  }
+
+  if ((role === "accountant" || role === "bursar") && financeRoleDedicatedSectionIds.has(section)) {
+    return false;
   }
 
   return roleOperationalWorkspaceSectionIds.has(section) && !supportWorkspaceSectionIds.has(section);
