@@ -668,6 +668,7 @@ describe("STEP 4: Role tests", () => {
   it("makes the laboratory desk practical with practical prep, stock, issue, returns, breakages, and checklists", async () => {
     const user = userEvent.setup();
     const printMock = jest.fn();
+    const schoolId = "kisumu-boys";
     Object.defineProperty(window, "print", { value: printMock, writable: true });
 
     renderWithProviders(
@@ -694,6 +695,14 @@ describe("STEP 4: Role tests", () => {
     await user.click(within(commandCenter).getByRole("button", { name: /add practical request/i }));
 
     expect(within(commandCenter).getByText(/food test practical request saved/i)).toBeVisible();
+    expect(
+      readSchoolData<{ practical: string; status: string }>("lab-practical-requests", schoolId).some(
+        (request) => request.practical === "Food test practical" && request.status === "Requested",
+      ),
+    ).toBe(true);
+    expect(
+      readSchoolData<SchoolOperationalEvent>("events", schoolId).some((event) => event.type === "LAB_PRACTICAL_REQUESTED" && /Food test practical/i.test(event.body)),
+    ).toBe(true);
 
     const practicalRow = within(commandCenter)
       .getAllByText(/Food test practical/i)
@@ -702,9 +711,40 @@ describe("STEP 4: Role tests", () => {
     expect(practicalRow).not.toBeNull();
     await user.click(within(practicalRow as HTMLElement).getByRole("button", { name: /approve practical prep/i }));
     expect(within(commandCenter).getByText(/food test practical preparation approved/i)).toBeVisible();
+    expect(
+      readSchoolData<SchoolOperationalEvent>("events", schoolId).some((event) => event.type === "LAB_PRACTICAL_PREP_APPROVED"),
+    ).toBe(true);
 
     await user.click(within(practicalRow as HTMLElement).getByRole("button", { name: /issue apparatus/i }));
     expect(within(commandCenter).getByText(/issued to mrs\. achieng/i)).toBeVisible();
+    expect(
+      readSchoolData<{ teacher: string; className: string; status: string }>("lab-apparatus-issues", schoolId).some(
+        (issue) => issue.teacher === "Mrs. Achieng" && issue.className === "Form 2 North" && issue.status === "Issued",
+      ),
+    ).toBe(true);
+    expect(
+      readSchoolData<SchoolNotification>("notifications", schoolId).some(
+        (notification) => notification.sourceModule === "laboratory" && notification.audienceRoles.includes("teacher") && /Food test practical/i.test(notification.body),
+      ),
+    ).toBe(true);
+
+    await user.click(within(practicalRow as HTMLElement).getByRole("button", { name: /alert teacher/i }));
+    expect(within(commandCenter).getByText(/mrs\. achieng alerted/i)).toBeVisible();
+    expect(
+      readSchoolData<SchoolSmsLog>("smsLogs", schoolId).some((sms) => sms.sourceModule === "laboratory" && /Food test practical/i.test(sms.message)),
+    ).toBe(true);
+
+    await user.click(within(commandCenter).getAllByRole("button", { name: /return apparatus/i })[0]);
+    expect(within(commandCenter).getByText(/returned and stock restored/i)).toBeVisible();
+    expect(
+      readSchoolData<SchoolOperationalEvent>("events", schoolId).some((event) => event.type === "LAB_APPARATUS_RETURNED"),
+    ).toBe(true);
+
+    await user.click(within(commandCenter).getAllByRole("button", { name: /record breakage/i })[0]);
+    expect(within(commandCenter).getByText(/breakage recorded for follow-up/i)).toBeVisible();
+    expect(
+      readSchoolData<{ item: string; status: string }>("lab-breakage-records", schoolId).some((record) => record.status === "Broken"),
+    ).toBe(true);
 
     await user.clear(within(commandCenter).getByLabelText(/lab stock item/i));
     await user.type(within(commandCenter).getByLabelText(/lab stock item/i), "Benedict Solution");
@@ -718,10 +758,21 @@ describe("STEP 4: Role tests", () => {
     await user.selectOptions(within(commandCenter).getByLabelText(/hazard level/i), "Low");
     await user.click(within(commandCenter).getByRole("button", { name: /add chemical stock/i }));
     expect(within(commandCenter).getByText(/benedict solution added to lab inventory/i)).toBeVisible();
+    expect(
+      readSchoolData<{ item: string; category: string }>("lab-inventory", schoolId).some(
+        (item) => item.item === "Benedict Solution" && item.category === "Chemical",
+      ),
+    ).toBe(true);
+    expect(
+      readSchoolData<SchoolOperationalEvent>("events", schoolId).some((event) => event.type === "LAB_STOCK_ADDED" && /Benedict Solution/i.test(event.body)),
+    ).toBe(true);
 
     await user.click(within(commandCenter).getByRole("button", { name: /print practical checklist/i }));
     expect(within(commandCenter).getByText(/practical checklist opened/i)).toBeVisible();
     expect(printMock).toHaveBeenCalled();
+    expect(
+      readSchoolData<SchoolOperationalEvent>("events", schoolId).some((event) => event.type === "LAB_PRACTICAL_CHECKLIST_PRINTED"),
+    ).toBe(true);
   }, 30000);
 
   it("makes the accountant desk practical with payment entry, M-Pesa confirmation, receipts, SMS, and fee export", async () => {

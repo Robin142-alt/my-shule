@@ -4143,6 +4143,9 @@ function GenericRoleOperationalCommandCenter({
       setExeatRequests(mergeSchoolRecordsById(initialExeatRequests, readSchoolData<ExeatRequestRecord>("boarding-exeat-requests", schoolId)));
       setTransportVehicles(mergeSchoolRecordsById(initialTransportVehicles, readSchoolData<TransportVehicleRecord>("transport-vehicles", schoolId)));
       setTransportTrips(mergeSchoolRecordsById(initialTransportTrips, readSchoolData<TransportTripRecord>("transport-trips", schoolId)));
+      setLabInventory(mergeSchoolRecordsById(initialLabInventory, readSchoolData<LabInventoryRecord>("lab-inventory", schoolId)));
+      setLabRequests(mergeSchoolRecordsById(initialLabRequests, readSchoolData<LabPracticalRequestRecord>("lab-practical-requests", schoolId)));
+      setLabIssues(mergeSchoolRecordsById(initialLabIssues, readSchoolData<LabIssueRecord>("lab-apparatus-issues", schoolId)));
       setAttendanceRegisters(readSchoolData<AttendanceRegisterRecord>("attendance-registers", schoolId));
     }
 
@@ -5497,14 +5500,75 @@ function GenericRoleOperationalCommandCenter({
     });
   }
 
+  function saveLabInventoryRecord(record: LabInventoryRecord) {
+    const storedRecords = readSchoolData<LabInventoryRecord>("lab-inventory", schoolId);
+
+    if (storedRecords.some((storedRecord) => storedRecord.id === record.id)) {
+      updateSchoolRecord("lab-inventory", record.id, record, schoolId);
+      return;
+    }
+
+    addSchoolRecord("lab-inventory", record, schoolId);
+  }
+
+  function saveLabPracticalRequest(request: LabPracticalRequestRecord) {
+    const storedRequests = readSchoolData<LabPracticalRequestRecord>("lab-practical-requests", schoolId);
+
+    if (storedRequests.some((storedRequest) => storedRequest.id === request.id)) {
+      updateSchoolRecord("lab-practical-requests", request.id, request, schoolId);
+      return;
+    }
+
+    addSchoolRecord("lab-practical-requests", request, schoolId);
+  }
+
+  function saveLabIssueRecord(issue: LabIssueRecord) {
+    const storedIssues = readSchoolData<LabIssueRecord>("lab-apparatus-issues", schoolId);
+
+    if (storedIssues.some((storedIssue) => storedIssue.id === issue.id)) {
+      updateSchoolRecord("lab-apparatus-issues", issue.id, issue, schoolId);
+      return;
+    }
+
+    addSchoolRecord("lab-apparatus-issues", issue, schoolId);
+  }
+
+  function labTeacherRecipient(request?: LabPracticalRequestRecord) {
+    return request ? `${request.teacher} lab contact` : "teacher lab contact";
+  }
+
   function addLabChemicalStock(record: Omit<LabInventoryRecord, "id" | "status">) {
     const newRecord: LabInventoryRecord = {
       ...record,
       id: runtimeId("lab-stock"),
-      status: Number(record.quantity) <= 5 ? "Low Stock" : "OK",
+      status: record.hazard === "High" ? "Hazard" : Number(record.quantity) <= 5 ? "Low Stock" : "OK",
     };
 
     setLabInventory((current) => [newRecord, ...current]);
+    saveLabInventoryRecord(newRecord);
+    publishDashboardEvent({
+      type: "LAB_STOCK_ADDED",
+      module: "laboratory",
+      title: `${record.item} added to lab stock`,
+      body: `${record.item} added as ${record.category.toLowerCase()} stock in ${record.location}.`,
+      entityId: newRecord.id,
+      severity: newRecord.status === "Hazard" ? "critical" : newRecord.status === "Low Stock" ? "warning" : "success",
+      payload: {
+        item: record.item,
+        category: record.category,
+        quantity: record.quantity,
+        unit: record.unit,
+        hazard: record.hazard,
+      },
+      notifications: newRecord.status === "Hazard" || newRecord.status === "Low Stock"
+        ? [{
+            audienceRoles: ["principal", "dean-academics", "laboratory-technician"],
+            title: newRecord.status === "Hazard" ? "Lab hazard stock added" : "Lab low stock added",
+            body: `${record.item} needs ${newRecord.status === "Hazard" ? "safety control" : "reorder follow-up"}.`,
+            severity: newRecord.status === "Hazard" ? "critical" : "warning",
+          }]
+        : [{ audienceRoles: ["laboratory-technician"], title: "Lab stock added" }],
+    });
     addLabExecutionLog(`${record.item} stock added`, ["Lab inventory updated", "Safety level recorded"]);
     setLabNotice(`${record.item} added to lab inventory with ${record.hazard.toLowerCase()} hazard level.`);
   }
@@ -5518,14 +5582,47 @@ function GenericRoleOperationalCommandCenter({
     };
 
     setLabRequests((current) => [newRequest, ...current]);
+    saveLabPracticalRequest(newRequest);
+    publishDashboardEvent({
+      type: "LAB_PRACTICAL_REQUESTED",
+      module: "laboratory",
+      title: `${record.practical} practical requested`,
+      body: `${record.teacher} requested ${record.practical} for ${record.className} ${record.subject} at ${record.requestedFor}.`,
+      entityId: newRequest.id,
+      severity: "warning",
+      payload: {
+        teacher: record.teacher,
+        className: record.className,
+        subject: record.subject,
+        practical: record.practical,
+        requestedFor: record.requestedFor,
+      },
+      notifications: [
+        { audienceRoles: ["laboratory-technician"], title: "New lab practical request", severity: "warning" },
+        { audienceRoles: ["dean-academics", "hod"], title: "Lab practical request visible", severity: "info" },
+      ],
+    });
     addLabExecutionLog(`${record.practical} practical request saved`, ["Teacher practical request saved", "Safety prep queue updated"]);
     setLabNotice(`${record.practical} request saved for ${record.className}.`);
   }
 
   function approveLabPracticalPrep(id: string) {
     const request = labRequests.find((item) => item.id === id);
+    const updatedRequest = request ? { ...request, status: "Prepared" as const, teacherAlerted: true } : null;
 
-    setLabRequests((current) => current.map((item) => item.id === id ? { ...item, status: "Prepared" } : item));
+    setLabRequests((current) => current.map((item) => item.id === id && updatedRequest ? updatedRequest : item));
+    if (updatedRequest) {
+      saveLabPracticalRequest(updatedRequest);
+      publishDashboardEvent({
+        type: "LAB_PRACTICAL_PREP_APPROVED",
+        module: "laboratory",
+        title: `${updatedRequest.practical} preparation approved`,
+        body: `${updatedRequest.practical} preparation approved for ${updatedRequest.teacher} and ${updatedRequest.className}.`,
+        entityId: id,
+        severity: "success",
+        notifications: [{ audienceRoles: ["teacher", "hod", "dean-academics"], title: "Lab practical preparation approved" }],
+      });
+    }
     addLabExecutionLog(`${request?.practical ?? "Practical"} prep approved`, ["Preparation approved", "Teacher notification ready"]);
     setLabNotice(`${request?.practical ?? "Practical"} preparation approved.`);
   }
@@ -5550,39 +5647,144 @@ function GenericRoleOperationalCommandCenter({
     };
 
     setLabInventory((current) => current.map((item) => item.id === apparatus.id ? { ...item, quantity: Math.max(0, item.quantity - issue.quantity), status: item.quantity - issue.quantity <= 5 ? "Low Stock" : item.status } : item));
-    setLabRequests((current) => current.map((item) => item.id === requestId ? { ...item, status: "Issued" } : item));
+    setLabRequests((current) => current.map((item) => item.id === requestId ? { ...item, status: "Issued", teacherAlerted: true } : item));
     setLabIssues((current) => [issue, ...current]);
+    const updatedApparatus = {
+      ...apparatus,
+      quantity: Math.max(0, apparatus.quantity - issue.quantity),
+      status: apparatus.quantity - issue.quantity <= 5 ? "Low Stock" as const : apparatus.status,
+    };
+    const updatedRequest = { ...request, status: "Issued" as const, teacherAlerted: true };
+    saveLabInventoryRecord(updatedApparatus);
+    saveLabPracticalRequest(updatedRequest);
+    saveLabIssueRecord(issue);
+    publishDashboardEvent({
+      type: "LAB_APPARATUS_ISSUED",
+      module: "laboratory",
+      title: `${apparatus.item} issued for ${request.practical}`,
+      body: `${apparatus.item} issued to ${request.teacher} for ${request.practical} in ${request.className}.`,
+      entityId: issue.id,
+      severity: updatedApparatus.status === "Low Stock" ? "warning" : "success",
+      payload: {
+        item: apparatus.item,
+        quantity: issue.quantity,
+        teacher: request.teacher,
+        className: request.className,
+        practical: request.practical,
+      },
+      notifications: [
+        { audienceRoles: ["teacher"], title: "Lab apparatus issued", body: `${apparatus.item} is ready for ${request.practical}.` },
+        { audienceRoles: ["dean-academics", "hod"], title: "Lab practical apparatus issued" },
+      ],
+      sms: [{ recipient: labTeacherRecipient(request), message: `Lab update: ${apparatus.item} has been issued for ${request.practical}.` }],
+    });
     addLabExecutionLog(`${apparatus.item} issued for ${request.practical}`, ["Apparatus issued", "Inventory reduced", "Issue register updated"]);
     setLabNotice(`${apparatus.item} issued to ${request.teacher} for ${request.className}.`);
   }
 
   function returnLabApparatus(issueId: string) {
     const issue = labIssues.find((item) => item.id === issueId);
+    const updatedIssue = issue ? { ...issue, status: "Returned" as const, note: "Returned in good condition" } : null;
+    const inventoryItem = labInventory.find((item) => item.item === issue?.item);
+    const updatedInventoryItem = inventoryItem && issue ? {
+      ...inventoryItem,
+      quantity: inventoryItem.quantity + issue.quantity,
+      status: "OK" as const,
+    } : null;
 
-    setLabIssues((current) => current.map((item) => item.id === issueId ? { ...item, status: "Returned", note: "Returned in good condition" } : item));
+    setLabIssues((current) => current.map((item) => item.id === issueId && updatedIssue ? updatedIssue : item));
     setLabInventory((current) => current.map((item) => item.item === issue?.item ? { ...item, quantity: item.quantity + (issue?.quantity ?? 0), status: "OK" } : item));
+    if (updatedIssue) {
+      saveLabIssueRecord(updatedIssue);
+    }
+    if (updatedInventoryItem) {
+      saveLabInventoryRecord(updatedInventoryItem);
+    }
+    publishDashboardEvent({
+      type: "LAB_APPARATUS_RETURNED",
+      module: "laboratory",
+      title: `${issue?.item ?? "Apparatus"} returned`,
+      body: `${issue?.item ?? "Apparatus"} returned from ${issue?.teacher ?? "teacher"} and inventory restored.`,
+      entityId: issueId,
+      severity: "success",
+      notifications: [{ audienceRoles: ["laboratory-technician", "hod"], title: "Lab apparatus returned" }],
+    });
     addLabExecutionLog(`${issue?.item ?? "Apparatus"} returned`, ["Return saved", "Inventory restored"]);
     setLabNotice(`${issue?.item ?? "Apparatus"} returned and stock restored.`);
   }
 
   function recordLabBreakage(issueId: string) {
     const issue = labIssues.find((item) => item.id === issueId);
+    const updatedIssue = issue ? { ...issue, status: "Broken" as const, note: "Breakage recorded for replacement follow-up" } : null;
+    const inventoryItem = labInventory.find((item) => item.item === issue?.item);
+    const updatedInventoryItem = inventoryItem ? { ...inventoryItem, status: "Broken" as const } : null;
 
-    setLabIssues((current) => current.map((item) => item.id === issueId ? { ...item, status: "Broken", note: "Breakage recorded for replacement follow-up" } : item));
+    setLabIssues((current) => current.map((item) => item.id === issueId && updatedIssue ? updatedIssue : item));
     setLabInventory((current) => current.map((item) => item.item === issue?.item ? { ...item, status: "Broken" } : item));
+    if (updatedIssue) {
+      saveLabIssueRecord(updatedIssue);
+      addSchoolRecord("lab-breakage-records", {
+        id: runtimeId("lab-breakage"),
+        item: updatedIssue.item,
+        teacher: updatedIssue.teacher,
+        className: updatedIssue.className,
+        quantity: updatedIssue.quantity,
+        status: "Broken",
+        note: updatedIssue.note,
+        createdAt: new Date().toISOString(),
+      }, schoolId);
+    }
+    if (updatedInventoryItem) {
+      saveLabInventoryRecord(updatedInventoryItem);
+    }
+    publishDashboardEvent({
+      type: "LAB_BREAKAGE_RECORDED",
+      module: "laboratory",
+      title: `${issue?.item ?? "Apparatus"} breakage recorded`,
+      body: `${issue?.item ?? "Apparatus"} breakage recorded for ${issue?.teacher ?? "teacher"} and replacement follow-up.`,
+      entityId: issueId,
+      severity: "warning",
+      notifications: [{
+        audienceRoles: ["principal", "hod", "dean-academics", "storekeeper"],
+        title: "Lab breakage needs follow-up",
+        severity: "warning",
+      }],
+    });
     addLabExecutionLog(`${issue?.item ?? "Apparatus"} breakage recorded`, ["Breakage saved", "Replacement follow-up available"]);
     setLabNotice(`${issue?.item ?? "Apparatus"} breakage recorded for follow-up.`);
   }
 
   function alertLabTeacher(requestId: string) {
     const request = labRequests.find((item) => item.id === requestId);
+    const updatedRequest = request ? { ...request, teacherAlerted: true } : null;
 
-    setLabRequests((current) => current.map((item) => item.id === requestId ? { ...item, teacherAlerted: true } : item));
+    setLabRequests((current) => current.map((item) => item.id === requestId && updatedRequest ? updatedRequest : item));
+    if (updatedRequest) {
+      saveLabPracticalRequest(updatedRequest);
+      publishDashboardEvent({
+        type: "LAB_TEACHER_ALERT_SENT",
+        module: "laboratory",
+        title: `${updatedRequest.teacher} lab alert sent`,
+        body: `${updatedRequest.teacher} was alerted about ${updatedRequest.practical} for ${updatedRequest.className}.`,
+        entityId: requestId,
+        severity: "success",
+        notifications: [{ audienceRoles: ["teacher"], title: "Lab teacher alert sent" }],
+        sms: [{ recipient: labTeacherRecipient(updatedRequest), message: `Lab update: ${updatedRequest.practical} is ready for ${updatedRequest.className}.` }],
+      });
+    }
     addLabExecutionLog(`${request?.teacher ?? "Teacher"} lab alert sent`, ["Teacher SMS simulated", "Lab communication log updated"]);
     setLabNotice(`${request?.teacher ?? "Teacher"} alerted about ${request?.practical ?? "the practical"}.`);
   }
 
   function printLabPracticalChecklist() {
+    publishDashboardEvent({
+      type: "LAB_PRACTICAL_CHECKLIST_PRINTED",
+      module: "laboratory",
+      title: "Lab practical checklist printed",
+      body: `${labRequests.length} practical requests and ${labInventory.length} lab stock records were prepared for printing.`,
+      severity: "success",
+      notifications: [{ audienceRoles: ["laboratory-technician", "dean-academics"], title: "Lab practical checklist printed" }],
+    });
     addLabExecutionLog("Practical checklist opened", ["Lab checklist prepared", "Print dialog opened"]);
     setLabNotice("Practical checklist opened for printing.");
     if (typeof window !== "undefined") {
