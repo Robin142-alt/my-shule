@@ -1861,6 +1861,7 @@ function AdmissionsWorkspace({
   onReject,
   onSendSms,
   onPrintLetter,
+  onPrintPipeline,
 }: {
   applicants: AdmissionApplicantRecord[];
   notice: string;
@@ -1871,6 +1872,7 @@ function AdmissionsWorkspace({
   onReject: (id: string) => void;
   onSendSms: (id: string) => void;
   onPrintLetter: (id: string) => void;
+  onPrintPipeline: () => void;
 }) {
   const [applicant, setApplicant] = useState("Faith Akinyi");
   const [className, setClassName] = useState("Form 1 North");
@@ -1978,7 +1980,7 @@ function AdmissionsWorkspace({
               <p className="eyebrow">Application pipeline</p>
               <h3 className="mt-1 text-lg font-black text-foreground">Applications, documents, interviews, and letters</h3>
             </div>
-            <button type="button" onClick={() => window.print()} className="inline-flex items-center gap-2 rounded-xl border border-[#D7E0EF] px-3 py-2 text-sm font-black text-[#071D49]">
+            <button type="button" onClick={onPrintPipeline} className="inline-flex items-center gap-2 rounded-xl border border-[#D7E0EF] px-3 py-2 text-sm font-black text-[#071D49]">
               <Printer className="h-4 w-4" /> Print Pipeline
             </button>
           </div>
@@ -4687,6 +4689,22 @@ function GenericRoleOperationalCommandCenter({
     }
   }
 
+  function printAdmissionsPipeline() {
+    publishDashboardEvent({
+      type: "ADMISSIONS_PIPELINE_PRINTED",
+      module: "admissions",
+      title: "Admissions pipeline opened for printing",
+      body: `${admissionApplicants.length} applicant records prepared for printing.`,
+      severity: "success",
+      notifications: [{ audienceRoles: ["admissions", "principal"], title: "Admissions pipeline printed" }],
+    });
+    addAdmissionsExecutionLog("Admissions pipeline opened", ["Application pipeline prepared", "Print dialog opened"]);
+    setAdmissionsNotice("Admissions pipeline opened for printing.");
+    if (typeof window !== "undefined") {
+      window.print();
+    }
+  }
+
   function addLibraryExecutionLog(label: string, events: string[]) {
     addLocalExecutionLog(label, events, {
       workflow: "Scan book -> Verify borrower -> Update library records -> Notify/print slip",
@@ -5632,6 +5650,7 @@ function GenericRoleOperationalCommandCenter({
           onReject={rejectAdmissionApplicant}
           onSendSms={sendAdmissionParentSms}
           onPrintLetter={printAdmissionLetter}
+          onPrintPipeline={printAdmissionsPipeline}
         />
       );
     }
@@ -5864,6 +5883,7 @@ function GenericRoleOperationalCommandCenter({
                 onReject={rejectAdmissionApplicant}
                 onSendSms={sendAdmissionParentSms}
                 onPrintLetter={printAdmissionLetter}
+                onPrintPipeline={printAdmissionsPipeline}
               />
             ) : isLibraryWorkspace ? (
               <LibraryWorkspace

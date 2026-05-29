@@ -279,6 +279,10 @@ describe("STEP 4: Role tests", () => {
     expect(within(commandCenter).getByRole("heading", { name: /add inquiry or application/i })).toBeVisible();
     expect(within(commandCenter).getByText(/application pipeline/i)).toBeVisible();
 
+    await user.click(within(commandCenter).getByRole("button", { name: /print pipeline/i }));
+    expect(within(commandCenter).getByText(/admissions pipeline opened for printing/i)).toBeVisible();
+    expect(printMock).toHaveBeenCalled();
+
     await user.clear(within(commandCenter).getByLabelText(/applicant name/i));
     await user.type(within(commandCenter).getByLabelText(/applicant name/i), "Sharon Achieng");
     await user.selectOptions(within(commandCenter).getByLabelText(/class or form requested/i), "Form 1 North");

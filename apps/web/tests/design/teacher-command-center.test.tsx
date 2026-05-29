@@ -13,6 +13,8 @@ describe("TeacherCommandCenter", () => {
 
   it("makes quick actions and teacher search open real workspaces with visible feedback", async () => {
     const user = userEvent.setup();
+    const printMock = jest.fn();
+    Object.defineProperty(window, "print", { value: printMock, writable: true });
 
     renderWithProviders(<TeacherCommandCenter routeMode="hosted" />);
 
@@ -31,6 +33,25 @@ describe("TeacherCommandCenter", () => {
 
     expect(screen.getByRole("heading", { name: /marks & exams/i })).toBeVisible();
     expect(screen.getByText(/cat 2 marks queue opened/i)).toBeVisible();
+
+    await user.click(screen.getByRole("button", { name: /^reports$/i }));
+    await user.click(screen.getByRole("button", { name: /subject report/i }));
+    expect(screen.getByText(/subject report opened/i)).toBeVisible();
+
+    await user.click(screen.getByRole("button", { name: /print subject report/i }));
+    expect(screen.getByText(/subject report opened for printing/i)).toBeVisible();
+    expect(printMock).toHaveBeenCalled();
+
+    const events = readSchoolData<Record<string, unknown>>("events", "kb-high");
+    expect(events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          schoolId: "kb-high",
+          type: "TEACHER_SUBJECT_REPORT_PRINTED",
+          module: "academics",
+        }),
+      ]),
+    );
   });
 
   it("submits class attendance into the school-scoped event store", async () => {

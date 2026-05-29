@@ -386,6 +386,7 @@ function ActionFormPanel({
   onSubmitAssignment,
   onSubmitResource,
   onSubmitSms,
+  onPrintSubjectReport,
 }: {
   activeAction: TeacherAction;
   classes: ClassRecord[];
@@ -396,6 +397,7 @@ function ActionFormPanel({
   onSubmitAssignment: (record: Omit<AssignmentRecord, "id" | "submitted" | "status">) => void;
   onSubmitResource: (record: Omit<ResourceRecord, "id" | "status">) => void;
   onSubmitSms: (record: Omit<MessageRecord, "id" | "status" | "time">) => void;
+  onPrintSubjectReport: () => void;
 }) {
   const [classId, setClassId] = useState(classes[0]?.id ?? "");
   const [batchId, setBatchId] = useState(markBatches[0]?.id ?? "");
@@ -535,7 +537,7 @@ function ActionFormPanel({
           >
             Export class report CSV
           </button>
-          <button type="button" onClick={() => window.print()} className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 text-left font-bold text-[#071D49] transition hover:-translate-y-0.5 hover:shadow-md">
+          <button type="button" onClick={onPrintSubjectReport} className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 text-left font-bold text-[#071D49] transition hover:-translate-y-0.5 hover:shadow-md">
             Print subject report
           </button>
           <button type="button" onClick={onClose} className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 text-left font-bold text-[#071D49] transition hover:-translate-y-0.5 hover:shadow-md">
@@ -1035,6 +1037,32 @@ export function TeacherCommandCenter({ routeMode }: { routeMode: TeacherRouteMod
     recordActivity(`SMS sent to ${record.audience}.`);
   }
 
+  function printSubjectReport() {
+    publishSchoolOperationalEvent({
+      schoolId,
+      actorRole: "teacher",
+      type: "TEACHER_SUBJECT_REPORT_PRINTED",
+      module: "academics",
+      title: "Subject report opened for printing",
+      body: `${classes.length} teaching classes prepared for the teacher subject report.`,
+      entityId: runtimeId("teacher-subject-report"),
+      severity: "success",
+      payload: { classes: classes.map((record) => ({ id: record.id, name: record.name, coverage: record.coverage, absent: record.absent })) },
+      notifications: [
+        {
+          audienceRoles: ["hod", "dean-of-academics"],
+          title: "Teacher subject report printed",
+          body: "Teacher opened the subject report for printing.",
+          severity: "success",
+        },
+      ],
+    });
+    recordActivity("Subject report opened for printing.");
+    if (typeof window !== "undefined") {
+      window.print();
+    }
+  }
+
   function markAssignmentGraded(id: string) {
     const assignment = assignments.find((record) => record.id === id);
     setAssignments((current) => current.map((record) => record.id === id ? { ...record, submitted: record.total, status: "Grading" } : record));
@@ -1075,6 +1103,7 @@ export function TeacherCommandCenter({ routeMode }: { routeMode: TeacherRouteMod
                 onSubmitAssignment={submitAssignment}
                 onSubmitResource={submitResource}
                 onSubmitSms={submitSms}
+                onPrintSubjectReport={printSubjectReport}
               />
               {activeView === "home" ? (
                 <HomeWorkspace onViewChange={setActiveView} onStartAction={startAction} summaryCards={summaryCards} />
