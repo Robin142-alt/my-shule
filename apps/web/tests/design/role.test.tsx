@@ -585,6 +585,7 @@ describe("STEP 4: Role tests", () => {
   it("makes the transport desk practical with trip attendance, parent alerts, fuel, maintenance, and route printing", async () => {
     const user = userEvent.setup();
     const printMock = jest.fn();
+    const schoolId = "kisumu-boys";
     Object.defineProperty(window, "print", { value: printMock, writable: true });
 
     renderWithProviders(
@@ -608,6 +609,14 @@ describe("STEP 4: Role tests", () => {
     await user.click(within(commandCenter).getByRole("button", { name: /add trip record/i }));
 
     expect(within(commandCenter).getByText(/david kiptoo added to mamboleo route/i)).toBeVisible();
+    expect(
+      readSchoolData<{ student: string; route: string; status: string }>("transport-trips", schoolId).some(
+        (trip) => trip.student === "David Kiptoo" && trip.route === "Mamboleo Route" && trip.status === "Waiting",
+      ),
+    ).toBe(true);
+    expect(
+      readSchoolData<SchoolOperationalEvent>("events", schoolId).some((event) => event.type === "TRANSPORT_TRIP_RECORDED" && /David Kiptoo/i.test(event.body)),
+    ).toBe(true);
 
     let tripRow = within(commandCenter)
       .getAllByText(/David Kiptoo/i)
@@ -616,6 +625,12 @@ describe("STEP 4: Role tests", () => {
     expect(tripRow).not.toBeNull();
     await user.click(within(tripRow as HTMLElement).getByRole("button", { name: /mark picked/i }));
     expect(within(commandCenter).getByText(/david kiptoo marked picked/i)).toBeVisible();
+    expect(
+      readSchoolData<SchoolSmsLog>("smsLogs", schoolId).some((sms) => sms.sourceModule === "transport" && /David Kiptoo/i.test(sms.message) && /picked/i.test(sms.message)),
+    ).toBe(true);
+    expect(
+      readSchoolData<SchoolOperationalEvent>("events", schoolId).some((event) => event.type === "TRANSPORT_STUDENT_PICKED"),
+    ).toBe(true);
 
     tripRow = within(commandCenter)
       .getAllByText(/David Kiptoo/i)
@@ -624,16 +639,30 @@ describe("STEP 4: Role tests", () => {
     expect(tripRow).not.toBeNull();
     await user.click(within(tripRow as HTMLElement).getByRole("button", { name: /mark dropped/i }));
     expect(within(commandCenter).getByText(/david kiptoo marked dropped/i)).toBeVisible();
+    expect(
+      readSchoolData<SchoolOperationalEvent>("events", schoolId).some((event) => event.type === "TRANSPORT_STUDENT_DROPPED"),
+    ).toBe(true);
 
     await user.click(within(commandCenter).getAllByRole("button", { name: /add fuel record/i })[0]);
     expect(within(commandCenter).getByText(/fuel record added/i)).toBeVisible();
+    expect(
+      readSchoolData<{ vehicle: string; action: string }>("transport-fuel-records", schoolId).some((record) => record.action === "Fuel Added"),
+    ).toBe(true);
 
     await user.click(within(commandCenter).getAllByRole("button", { name: /schedule maintenance/i })[0]);
     expect(within(commandCenter).getByText(/workshop booking confirmed/i)).toBeVisible();
+    expect(
+      readSchoolData<SchoolNotification>("notifications", schoolId).some(
+        (notification) => notification.sourceModule === "transport" && notification.audienceRoles.includes("principal") && /maintenance/i.test(notification.body),
+      ),
+    ).toBe(true);
 
     await user.click(within(commandCenter).getByRole("button", { name: /print route list/i }));
     expect(within(commandCenter).getByText(/transport route list opened/i)).toBeVisible();
     expect(printMock).toHaveBeenCalled();
+    expect(
+      readSchoolData<SchoolOperationalEvent>("events", schoolId).some((event) => event.type === "TRANSPORT_ROUTE_LIST_PRINTED"),
+    ).toBe(true);
   }, 30000);
 
   it("makes the laboratory desk practical with practical prep, stock, issue, returns, breakages, and checklists", async () => {

@@ -4139,6 +4139,10 @@ function GenericRoleOperationalCommandCenter({
       setFeePayments(mergeSchoolRecordsById(initialFeePayments, readSchoolData<FeePaymentRecord>("finance-payments", schoolId)));
       setSecretaryVisitors(mergeSchoolRecordsById(initialSecretaryVisitors, readSchoolData<SecretaryVisitorRecord>("visitors", schoolId)));
       setSecretaryInquiries(mergeSchoolRecordsById(initialSecretaryInquiries, readSchoolData<SecretaryInquiryRecord>("front-office-inquiries", schoolId)));
+      setBoardingRollCalls(mergeSchoolRecordsById(initialBoardingRollCalls, readSchoolData<BoardingRollCallRecord>("boarding-roll-calls", schoolId)));
+      setExeatRequests(mergeSchoolRecordsById(initialExeatRequests, readSchoolData<ExeatRequestRecord>("boarding-exeat-requests", schoolId)));
+      setTransportVehicles(mergeSchoolRecordsById(initialTransportVehicles, readSchoolData<TransportVehicleRecord>("transport-vehicles", schoolId)));
+      setTransportTrips(mergeSchoolRecordsById(initialTransportTrips, readSchoolData<TransportTripRecord>("transport-trips", schoolId)));
       setAttendanceRegisters(readSchoolData<AttendanceRegisterRecord>("attendance-registers", schoolId));
     }
 
@@ -5264,6 +5268,32 @@ function GenericRoleOperationalCommandCenter({
     });
   }
 
+  function saveTransportTripRecord(trip: TransportTripRecord) {
+    const storedTrips = readSchoolData<TransportTripRecord>("transport-trips", schoolId);
+
+    if (storedTrips.some((storedTrip) => storedTrip.id === trip.id)) {
+      updateSchoolRecord("transport-trips", trip.id, trip, schoolId);
+      return;
+    }
+
+    addSchoolRecord("transport-trips", trip, schoolId);
+  }
+
+  function saveTransportVehicleRecord(vehicle: TransportVehicleRecord) {
+    const storedVehicles = readSchoolData<TransportVehicleRecord>("transport-vehicles", schoolId);
+
+    if (storedVehicles.some((storedVehicle) => storedVehicle.id === vehicle.id)) {
+      updateSchoolRecord("transport-vehicles", vehicle.id, vehicle, schoolId);
+      return;
+    }
+
+    addSchoolRecord("transport-vehicles", vehicle, schoolId);
+  }
+
+  function transportParentRecipient(trip?: TransportTripRecord) {
+    return trip ? `${trip.admissionNo} parent contact` : "transport parent contact";
+  }
+
   function addTransportTrip(trip: Omit<TransportTripRecord, "id" | "status" | "parentAlertSent" | "time">) {
     const newTrip: TransportTripRecord = {
       ...trip,
@@ -5274,59 +5304,185 @@ function GenericRoleOperationalCommandCenter({
     };
 
     setTransportTrips((current) => [newTrip, ...current]);
+    saveTransportTripRecord(newTrip);
+    publishDashboardEvent({
+      type: "TRANSPORT_TRIP_RECORDED",
+      module: "transport",
+      title: `${trip.student} transport trip recorded`,
+      body: `${trip.student} was added to ${trip.route} at ${trip.stop}.`,
+      entityId: newTrip.id,
+      severity: "success",
+      payload: {
+        student: trip.student,
+        admissionNo: trip.admissionNo,
+        route: trip.route,
+        stop: trip.stop,
+      },
+      notifications: [{ audienceRoles: ["transport-manager", "principal"], title: "Transport trip recorded" }],
+    });
     addTransportExecutionLog(`${trip.student} trip record added`, ["Trip attendance saved", "Parent alert ready"]);
     setTransportNotice(`${trip.student} added to ${trip.route} at ${trip.stop}.`);
   }
 
   function markTransportPicked(id: string) {
     const trip = transportTrips.find((item) => item.id === id);
+    const updatedTrip = trip ? { ...trip, status: "Picked" as const, parentAlertSent: true } : null;
 
-    setTransportTrips((current) => current.map((item) => item.id === id ? { ...item, status: "Picked", parentAlertSent: true } : item));
+    setTransportTrips((current) => current.map((item) => item.id === id && updatedTrip ? updatedTrip : item));
+    if (updatedTrip) {
+      saveTransportTripRecord(updatedTrip);
+      publishDashboardEvent({
+        type: "TRANSPORT_STUDENT_PICKED",
+        module: "transport",
+        title: `${updatedTrip.student} picked`,
+        body: `${updatedTrip.student} was marked picked on ${updatedTrip.route} at ${updatedTrip.stop}.`,
+        entityId: id,
+        severity: "success",
+        notifications: [{ audienceRoles: ["parent", "class-teacher", "principal"], title: "Student transport pickup marked" }],
+        sms: [{ recipient: transportParentRecipient(updatedTrip), message: `Transport update: ${updatedTrip.student} has been picked on ${updatedTrip.route}.` }],
+      });
+    }
     addTransportExecutionLog(`${trip?.student ?? "Student"} marked picked`, ["Trip attendance updated", "Parent pickup SMS sent"]);
     setTransportNotice(`${trip?.student ?? "Student"} marked picked. Parent alert sent.`);
   }
 
   function markTransportDropped(id: string) {
     const trip = transportTrips.find((item) => item.id === id);
+    const updatedTrip = trip ? { ...trip, status: "Dropped" as const, parentAlertSent: true } : null;
 
-    setTransportTrips((current) => current.map((item) => item.id === id ? { ...item, status: "Dropped", parentAlertSent: true } : item));
+    setTransportTrips((current) => current.map((item) => item.id === id && updatedTrip ? updatedTrip : item));
+    if (updatedTrip) {
+      saveTransportTripRecord(updatedTrip);
+      publishDashboardEvent({
+        type: "TRANSPORT_STUDENT_DROPPED",
+        module: "transport",
+        title: `${updatedTrip.student} dropped`,
+        body: `${updatedTrip.student} was marked dropped at ${updatedTrip.stop} on ${updatedTrip.route}.`,
+        entityId: id,
+        severity: "success",
+        notifications: [{ audienceRoles: ["parent", "class-teacher", "principal"], title: "Student transport drop-off marked" }],
+        sms: [{ recipient: transportParentRecipient(updatedTrip), message: `Transport update: ${updatedTrip.student} has been dropped at ${updatedTrip.stop}.` }],
+      });
+    }
     addTransportExecutionLog(`${trip?.student ?? "Student"} marked dropped`, ["Drop-off saved", "Parent drop-off SMS sent"]);
     setTransportNotice(`${trip?.student ?? "Student"} marked dropped. Parent alert sent.`);
   }
 
   function notifyTransportParent(id: string) {
     const trip = transportTrips.find((item) => item.id === id);
+    const updatedTrip = trip ? { ...trip, parentAlertSent: true } : null;
 
-    setTransportTrips((current) => current.map((item) => item.id === id ? { ...item, parentAlertSent: true } : item));
+    setTransportTrips((current) => current.map((item) => item.id === id && updatedTrip ? updatedTrip : item));
+    if (updatedTrip) {
+      saveTransportTripRecord(updatedTrip);
+      publishDashboardEvent({
+        type: "TRANSPORT_PARENT_ALERT_SENT",
+        module: "transport",
+        title: `${updatedTrip.student} transport parent alert sent`,
+        body: `Parent/guardian was notified about ${updatedTrip.student}'s transport status.`,
+        entityId: id,
+        severity: "success",
+        notifications: [{ audienceRoles: ["parent", "transport-manager"], title: "Transport parent alert sent" }],
+        sms: [{ recipient: transportParentRecipient(updatedTrip), message: `Transport update: ${updatedTrip.student} is currently marked ${updatedTrip.status.toLowerCase()} on ${updatedTrip.route}.` }],
+      });
+    }
     addTransportExecutionLog(`${trip?.student ?? "Student"} parent transport alert sent`, ["Parent transport SMS sent", "Route communication updated"]);
     setTransportNotice(`${trip?.student ?? "Student"} parent transport alert sent.`);
   }
 
   function reportTransportVehicleIssue(id: string) {
     const vehicle = transportVehicles.find((item) => item.id === id);
+    const updatedVehicle = vehicle ? { ...vehicle, status: "Maintenance" as const, maintenanceNote: "Issue reported by transport desk" } : null;
 
-    setTransportVehicles((current) => current.map((item) => item.id === id ? { ...item, status: "Maintenance", maintenanceNote: "Issue reported by transport desk" } : item));
+    setTransportVehicles((current) => current.map((item) => item.id === id && updatedVehicle ? updatedVehicle : item));
+    if (updatedVehicle) {
+      saveTransportVehicleRecord(updatedVehicle);
+      publishDashboardEvent({
+        type: "TRANSPORT_VEHICLE_ISSUE_REPORTED",
+        module: "transport",
+        title: `${updatedVehicle.vehicle} issue reported`,
+        body: `${updatedVehicle.vehicle} on ${updatedVehicle.route} needs maintenance follow-up.`,
+        entityId: id,
+        severity: "warning",
+        notifications: [{ audienceRoles: ["principal", "accountant", "system-monitor"], title: "Transport vehicle maintenance issue", severity: "warning" }],
+      });
+    }
     addTransportExecutionLog(`${vehicle?.vehicle ?? "Vehicle"} issue reported`, ["Vehicle issue saved", "Principal transport alert ready"]);
     setTransportNotice(`${vehicle?.vehicle ?? "Vehicle"} issue reported for maintenance follow-up.`);
   }
 
   function addTransportFuelRecord(id: string) {
     const vehicle = transportVehicles.find((item) => item.id === id);
+    const updatedVehicle = vehicle ? { ...vehicle, fuelLevel: Math.min(100, vehicle.fuelLevel + 25) } : null;
 
-    setTransportVehicles((current) => current.map((item) => item.id === id ? { ...item, fuelLevel: Math.min(100, item.fuelLevel + 25) } : item));
+    setTransportVehicles((current) => current.map((item) => item.id === id && updatedVehicle ? updatedVehicle : item));
+    if (updatedVehicle) {
+      saveTransportVehicleRecord(updatedVehicle);
+      addSchoolRecord("transport-fuel-records", {
+        id: runtimeId("transport-fuel"),
+        vehicle: updatedVehicle.vehicle,
+        route: updatedVehicle.route,
+        action: "Fuel Added",
+        fuelLevel: updatedVehicle.fuelLevel,
+        recordedBy: "Transport Manager",
+        createdAt: new Date().toISOString(),
+      }, schoolId);
+      publishDashboardEvent({
+        type: "TRANSPORT_FUEL_RECORDED",
+        module: "transport",
+        title: `${updatedVehicle.vehicle} fuel recorded`,
+        body: `${updatedVehicle.vehicle} fuel level updated to ${updatedVehicle.fuelLevel}%.`,
+        entityId: id,
+        severity: "success",
+        notifications: [{ audienceRoles: ["transport-manager", "accountant"], title: "Transport fuel record added" }],
+      });
+    }
     addTransportExecutionLog(`${vehicle?.vehicle ?? "Vehicle"} fuel record added`, ["Fuel record saved", "Fuel level updated"]);
     setTransportNotice(`${vehicle?.vehicle ?? "Vehicle"} fuel record added.`);
   }
 
   function scheduleTransportMaintenance(id: string) {
     const vehicle = transportVehicles.find((item) => item.id === id);
+    const updatedVehicle = vehicle ? { ...vehicle, status: "Maintenance" as const, maintenanceNote: "Maintenance scheduled for today" } : null;
 
-    setTransportVehicles((current) => current.map((item) => item.id === id ? { ...item, status: "Maintenance", maintenanceNote: "Maintenance scheduled for today" } : item));
+    setTransportVehicles((current) => current.map((item) => item.id === id && updatedVehicle ? updatedVehicle : item));
+    if (updatedVehicle) {
+      saveTransportVehicleRecord(updatedVehicle);
+      addSchoolRecord("transport-maintenance-records", {
+        id: runtimeId("transport-maintenance"),
+        vehicle: updatedVehicle.vehicle,
+        route: updatedVehicle.route,
+        action: "Maintenance Scheduled",
+        note: updatedVehicle.maintenanceNote,
+        createdAt: new Date().toISOString(),
+      }, schoolId);
+      publishDashboardEvent({
+        type: "TRANSPORT_MAINTENANCE_SCHEDULED",
+        module: "transport",
+        title: `${updatedVehicle.vehicle} maintenance scheduled`,
+        body: `${updatedVehicle.vehicle} maintenance was scheduled for ${updatedVehicle.route}. Principal and accountant can track the follow-up.`,
+        entityId: id,
+        severity: "warning",
+        notifications: [{
+          audienceRoles: ["principal", "accountant", "system-monitor"],
+          title: "Transport maintenance scheduled",
+          severity: "warning",
+        }],
+      });
+    }
     addTransportExecutionLog(`${vehicle?.vehicle ?? "Vehicle"} maintenance scheduled`, ["Maintenance saved", "Vehicle status updated"]);
     setTransportNotice(`${vehicle?.vehicle ?? "Vehicle"} workshop booking confirmed.`);
   }
 
   function printTransportRouteList() {
+    publishDashboardEvent({
+      type: "TRANSPORT_ROUTE_LIST_PRINTED",
+      module: "transport",
+      title: "Transport route list printed",
+      body: `${transportVehicles.length} vehicle routes and ${transportTrips.length} trip records were prepared for printing.`,
+      severity: "success",
+      notifications: [{ audienceRoles: ["transport-manager", "principal"], title: "Transport route list printed" }],
+    });
     addTransportExecutionLog("Transport route list opened", ["Route list prepared", "Print dialog opened"]);
     setTransportNotice("Transport route list opened for printing.");
     if (typeof window !== "undefined") {
