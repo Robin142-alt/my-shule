@@ -215,6 +215,8 @@ describe("STEP 4: Role tests", () => {
 
   it("makes the nurse sick bay practical with visit entry, medicine stock deduction, and parent notification", async () => {
     const user = userEvent.setup();
+    const printMock = jest.fn();
+    Object.defineProperty(window, "print", { value: printMock, writable: true });
 
     renderWithProviders(
       createElement(SchoolPages, {
@@ -246,6 +248,10 @@ describe("STEP 4: Role tests", () => {
 
     await user.click(within(commandCenter).getAllByRole("button", { name: /notify parent/i })[0]);
     expect(within(commandCenter).getByText(/parent sms sent/i)).toBeVisible();
+
+    await user.click(within(commandCenter).getByRole("button", { name: /print register/i }));
+    expect(within(commandCenter).getByText(/sick bay register opened for printing/i)).toBeVisible();
+    expect(printMock).toHaveBeenCalled();
 
     await user.type(within(commandCenter).getByLabelText(/new medicine name/i), "Antiseptic Cream");
     await user.type(within(commandCenter).getByLabelText(/batch number/i), "ANT-220");
@@ -369,6 +375,10 @@ describe("STEP 4: Role tests", () => {
     expect(loanRow).not.toBeNull();
     await user.click(within(loanRow as HTMLElement).getByRole("button", { name: /return book/i }));
     expect(within(commandCenter).getByText(/agriculture form 3 returned and marked available/i)).toBeVisible();
+
+    await user.click(within(commandCenter).getByRole("button", { name: /print library report/i }));
+    expect(within(commandCenter).getByText(/library report opened for printing/i)).toBeVisible();
+    expect(printMock).toHaveBeenCalled();
   }, 30000);
 
   it("makes the storekeeper desk practical with stock receiving, issuing, movement history, and slip printing", async () => {

@@ -1639,6 +1639,7 @@ function NurseClinicWorkspace({
   onRefer,
   onRelease,
   onPrint,
+  onPrintRegister,
 }: {
   visits: ClinicVisitRecord[];
   medicines: MedicineStockRecord[];
@@ -1649,6 +1650,7 @@ function NurseClinicWorkspace({
   onRefer: (id: string) => void;
   onRelease: (id: string) => void;
   onPrint: (id: string) => void;
+  onPrintRegister: () => void;
 }) {
   const [student, setStudent] = useState("Brian Otieno");
   const [className, setClassName] = useState("Form 2 East");
@@ -1749,7 +1751,7 @@ function NurseClinicWorkspace({
               <p className="eyebrow">Clinic visits</p>
               <h3 className="mt-1 text-lg font-black text-foreground">Today&apos;s sick bay register</h3>
             </div>
-            <button type="button" onClick={() => window.print()} className="inline-flex items-center gap-2 rounded-xl border border-[#D7E0EF] px-3 py-2 text-sm font-black text-[#071D49]">
+            <button type="button" onClick={onPrintRegister} className="inline-flex items-center gap-2 rounded-xl border border-[#D7E0EF] px-3 py-2 text-sm font-black text-[#071D49]">
               <Printer className="h-4 w-4" /> Print Register
             </button>
           </div>
@@ -2078,6 +2080,7 @@ function LibraryWorkspace({
   onMarkDamaged,
   onSendSms,
   onPrintSlip,
+  onPrintReport,
 }: {
   books: LibraryBookRecord[];
   loans: LibraryLoanRecord[];
@@ -2089,6 +2092,7 @@ function LibraryWorkspace({
   onMarkDamaged: (id: string) => void;
   onSendSms: (id: string) => void;
   onPrintSlip: (id: string) => void;
+  onPrintReport: () => void;
 }) {
   const [searchTerm, setSearchTerm] = useState("");
   const [title, setTitle] = useState("Computer Studies Form 1");
@@ -2179,7 +2183,7 @@ function LibraryWorkspace({
               <p className="eyebrow">Borrower records</p>
               <h3 className="mt-1 text-lg font-black text-foreground">Issued, returned, overdue, lost, and damaged books</h3>
             </div>
-            <button type="button" onClick={() => window.print()} className="inline-flex items-center gap-2 rounded-xl border border-[#D7E0EF] px-3 py-2 text-sm font-black text-[#071D49]">
+            <button type="button" onClick={onPrintReport} className="inline-flex items-center gap-2 rounded-xl border border-[#D7E0EF] px-3 py-2 text-sm font-black text-[#071D49]">
               <Printer className="h-4 w-4" /> Print Library Report
             </button>
           </div>
@@ -4561,6 +4565,22 @@ function GenericRoleOperationalCommandCenter({
     }
   }
 
+  function printClinicRegister() {
+    publishDashboardEvent({
+      type: "CLINIC_REGISTER_PRINTED",
+      module: "clinic",
+      title: "Sick bay register opened for printing",
+      body: `${clinicVisits.length} sick bay visit records prepared for printing.`,
+      severity: "success",
+      notifications: [{ audienceRoles: ["nurse", "principal"], title: "Sick bay register printed" }],
+    });
+    addLocalExecutionLog("Sick bay register opened", ["Sick bay register prepared", "Print dialog opened"]);
+    setClinicNotice("Sick bay register opened for printing.");
+    if (typeof window !== "undefined") {
+      window.print();
+    }
+  }
+
   function addAdmissionsExecutionLog(label: string, events: string[]) {
     addLocalExecutionLog(label, events, {
       workflow: "Inquiry -> Documents -> Interview -> Decision -> Parent onboarding",
@@ -4817,6 +4837,22 @@ function GenericRoleOperationalCommandCenter({
 
     addLibraryExecutionLog(`${loan?.bookTitle ?? "Book"} library slip opened`, ["Library slip prepared", "Print dialog opened"]);
     setLibraryNotice(`${loan?.bookTitle ?? "Book"} slip opened for printing.`);
+    if (typeof window !== "undefined") {
+      window.print();
+    }
+  }
+
+  function printLibraryReport() {
+    publishDashboardEvent({
+      type: "LIBRARY_REPORT_PRINTED",
+      module: "library",
+      title: "Library report opened for printing",
+      body: `${libraryLoans.length} borrower records and ${libraryBooks.length} catalogue records prepared for printing.`,
+      severity: "success",
+      notifications: [{ audienceRoles: ["librarian", "principal"], title: "Library report printed" }],
+    });
+    addLibraryExecutionLog("Library report opened", ["Library report prepared", "Print dialog opened"]);
+    setLibraryNotice("Library report opened for printing.");
     if (typeof window !== "undefined") {
       window.print();
     }
@@ -5579,6 +5615,7 @@ function GenericRoleOperationalCommandCenter({
           onMarkDamaged={markLibraryDamaged}
           onSendSms={sendLibrarySms}
           onPrintSlip={printLibrarySlip}
+          onPrintReport={printLibraryReport}
         />
       );
     }
@@ -5611,6 +5648,7 @@ function GenericRoleOperationalCommandCenter({
           onRefer={referClinicVisit}
           onRelease={releaseClinicVisit}
           onPrint={printClinicSlip}
+          onPrintRegister={printClinicRegister}
         />
       );
     }
@@ -5813,6 +5851,7 @@ function GenericRoleOperationalCommandCenter({
                 onRefer={referClinicVisit}
                 onRelease={releaseClinicVisit}
                 onPrint={printClinicSlip}
+                onPrintRegister={printClinicRegister}
               />
             ) : isAdmissionsWorkspace ? (
               <AdmissionsWorkspace
@@ -5838,6 +5877,7 @@ function GenericRoleOperationalCommandCenter({
                 onMarkDamaged={markLibraryDamaged}
                 onSendSms={sendLibrarySms}
                 onPrintSlip={printLibrarySlip}
+                onPrintReport={printLibraryReport}
               />
             ) : isStorekeeperWorkspace ? (
               <StorekeeperWorkspace
