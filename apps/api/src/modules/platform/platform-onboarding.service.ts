@@ -1046,7 +1046,7 @@ export class PlatformOnboardingService {
     const token = randomBytes(32).toString('base64url');
     const tokenHash = this.hashToken(token);
     const expiresAt = new Date(Date.now() + this.getInvitationTtlMs());
-    const inviteUrl = this.buildInvitationUrl(token);
+    const inviteUrl = this.buildInvitationUrl(token, input.tenantId);
     const payload = {
       tenant_id: input.tenantId,
       tenant_name: input.schoolName,
@@ -1696,13 +1696,18 @@ export class PlatformOnboardingService {
     return Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : 26_000;
   }
 
-  private buildInvitationUrl(token: string): string {
+  private buildInvitationUrl(token: string, tenantId: string): string {
     const baseUrl = (
       this.configService.get<string>('email.publicAppUrl') ??
       'https://my-shule-erp.vercel.app'
     ).replace(/\/$/, '');
 
-    return `${baseUrl}/invite/accept?token=${encodeURIComponent(token)}`;
+    const params = new URLSearchParams({
+      token,
+      tenant: tenantId,
+    });
+
+    return `${baseUrl}/invite/accept?${params.toString()}`;
   }
 
   private parseInviteMetadata(

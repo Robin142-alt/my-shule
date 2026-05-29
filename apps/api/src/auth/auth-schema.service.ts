@@ -826,10 +826,13 @@ export class AuthSchemaService implements OnModuleInit {
       END;
       $$;
 
+      DROP FUNCTION IF EXISTS app.consume_invite_acceptance_action(text, text, text);
+      DROP FUNCTION IF EXISTS app.consume_invite_acceptance_action(text, text, text, text);
       CREATE OR REPLACE FUNCTION app.consume_invite_acceptance_action(
         input_token_hash text,
         input_password_hash text,
-        input_display_name text
+        input_display_name text,
+        input_expected_tenant_id text DEFAULT NULL
       )
       RETURNS TABLE (
         user_id uuid,
@@ -888,6 +891,12 @@ export class AuthSchemaService implements OnModuleInit {
         IF invite_tenant_id IS NULL OR length(invite_tenant_id) = 0 THEN
           RAISE EXCEPTION 'Invitation tenant is missing'
             USING ERRCODE = '22023';
+        END IF;
+
+        IF NULLIF(input_expected_tenant_id, '') IS NOT NULL
+          AND NULLIF(input_expected_tenant_id, '') <> invite_tenant_id THEN
+          RAISE EXCEPTION 'Invitation tenant mismatch'
+            USING ERRCODE = '28000';
         END IF;
 
         invite_role_code := COALESCE(NULLIF(invite_metadata ->> 'role_code', ''), 'member');

@@ -78,7 +78,7 @@ export class TenantInvitationsService {
       const token = randomBytes(32).toString('base64url');
       const tokenHash = this.hashToken(token);
       const expiresAt = new Date(Date.now() + this.getInvitationTtlMs());
-      const inviteUrl = this.buildInvitationUrl(token);
+      const inviteUrl = this.buildInvitationUrl(token, tenantId);
       const payload = {
         tenant_id: tenantId,
         tenant_name: schoolName,
@@ -199,7 +199,7 @@ export class TenantInvitationsService {
       const schoolName = await this.getSchoolName(tenantId);
       const token = randomBytes(32).toString('base64url');
       const expiresAt = new Date(Date.now() + this.getInvitationTtlMs());
-      const inviteUrl = this.buildInvitationUrl(token);
+      const inviteUrl = this.buildInvitationUrl(token, tenantId);
       const metadata = {
         tenant_id: tenantId,
         tenant_name: schoolName,
@@ -654,12 +654,17 @@ export class TenantInvitationsService {
     return safeMinutes * 60 * 1000;
   }
 
-  private buildInvitationUrl(token: string): string {
+  private buildInvitationUrl(token: string, tenantId: string): string {
     const baseUrl = (
       this.configService.get<string>('email.publicAppUrl') ??
       'https://my-shule-erp.vercel.app'
     ).replace(/\/$/, '');
 
-    return `${baseUrl}/invite/accept?token=${encodeURIComponent(token)}`;
+    const params = new URLSearchParams({
+      token,
+      tenant: tenantId,
+    });
+
+    return `${baseUrl}/invite/accept?${params.toString()}`;
   }
 }

@@ -8,6 +8,7 @@ import { AuthField } from "@/components/auth/auth-field";
 import { AuthMessage } from "@/components/auth/auth-message";
 import { AuthPasswordField } from "@/components/auth/auth-password-field";
 import { AuthSubmitButton } from "@/components/auth/auth-submit-button";
+import { acceptInvitation } from "@/lib/auth/invitation-client";
 
 export function InvitationAcceptanceView({
   initialToken,
@@ -51,26 +52,13 @@ export function InvitationAcceptanceView({
     setBusy(true);
 
     try {
-      const response = await fetch("/api/auth/invitations/accept", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          token: initialToken,
-          password,
-          display_name: displayName.trim(),
-        }),
+      await acceptInvitation({
+        token: initialToken,
+        password,
+        displayName: displayName.trim(),
       });
-      const payload = (await response.json().catch(() => null)) as
-        | { message?: string; redirect_to?: string }
-        | null;
 
-      if (!response.ok) {
-        throw new Error(payload?.message ?? "Unable to accept this invitation.");
-      }
-
-      setSuccessPath(payload?.redirect_to ?? "/login");
+      setSuccessPath("/login");
     } catch (error) {
       setGeneralError(
         error instanceof Error

@@ -20,9 +20,13 @@ export async function POST(request: NextRequest) {
       token?: string;
       password?: string;
       displayName?: string;
+      display_name?: string;
       tenantSlug?: string | null;
+      tenant_id?: string | null;
     };
-    const baseUrl = getDashboardApiBaseUrl(body.tenantSlug ?? undefined);
+    const expectedTenantId = body.tenantSlug?.trim() || body.tenant_id?.trim() || null;
+    const displayName = body.displayName?.trim() || body.display_name?.trim() || undefined;
+    const baseUrl = getDashboardApiBaseUrl(expectedTenantId ?? undefined);
 
     if (!baseUrl) {
       return NextResponse.json(
@@ -37,12 +41,13 @@ export async function POST(request: NextRequest) {
         Accept: "application/json",
         "Content-Type": "application/json",
         "x-auth-audience": "school",
-        ...(body.tenantSlug ? { "x-tenant-id": body.tenantSlug } : {}),
+        ...(expectedTenantId ? { "x-tenant-id": expectedTenantId } : {}),
       },
       body: JSON.stringify({
         token: body.token,
         password: body.password,
-        display_name: body.displayName,
+        display_name: displayName,
+        expected_tenant_id: expectedTenantId,
       }),
       cache: "no-store",
     });

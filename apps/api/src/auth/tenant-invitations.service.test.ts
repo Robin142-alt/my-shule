@@ -74,6 +74,7 @@ test('TenantInvitationsService sends a tenant-scoped role invitation without exp
   assert.equal(sentInvites[0]?.displayName, 'Teacher One');
   assert.equal(sentInvites[0]?.schoolName, 'Green Valley School');
   assert.match(sentInvites[0]?.inviteUrl ?? '', /^https:\/\/my-shule-erp\.vercel\.app\/invite\/accept\?token=/);
+  assert.match(sentInvites[0]?.inviteUrl ?? '', /[?&]tenant=green-valley(?:&|$)/);
   assert.equal(response.tenant_id, 'green-valley');
   assert.equal(response.email, 'teacher@example.test');
   assert.equal(response.role_code, 'teacher');
@@ -266,6 +267,7 @@ test('TenantInvitationsService resends a pending invitation with a rotated token
   assert.equal(sentInvites.length, 1);
   assert.equal(sentInvites[0]?.to, 'parent@example.test');
   assert.match(sentInvites[0]?.inviteUrl ?? '', /^https:\/\/my-shule-erp\.vercel\.app\/invite\/accept\?token=/);
+  assert.match(sentInvites[0]?.inviteUrl ?? '', /[?&]tenant=green-valley(?:&|$)/);
   const tokenUpdate = queries.find((query) => query.text.includes('UPDATE auth_action_tokens'));
   const markDeliveryQuery = queries.find((query) => query.text.includes('app.mark_auth_email_outbox_delivery'));
   assert.equal(tokenUpdate?.values[0], 'invite-1');

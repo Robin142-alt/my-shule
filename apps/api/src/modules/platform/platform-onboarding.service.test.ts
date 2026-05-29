@@ -70,6 +70,7 @@ test('PlatformOnboardingService creates a school and sends an invite without exp
   assert.equal(sentInvites.length, 1);
   assert.equal(sentInvites[0]?.to, 'principal@example.test');
   assert.match(sentInvites[0]?.inviteUrl ?? '', /^https:\/\/my-shule-erp\.vercel\.app\/invite\/accept\?token=/);
+  assert.match(sentInvites[0]?.inviteUrl ?? '', /[?&]tenant=green-valley(?:&|$)/);
   assert.equal(response.tenant_id, 'green-valley');
   assert.equal(response.invitation_sent, true);
   assert.equal(response.invitation_status, 'sent');
@@ -365,6 +366,7 @@ test('PlatformOnboardingService resends a school administrator invite with a rot
   assert.equal(response.admin_email, 'principal@example.test');
   assert.equal(sentInvites.length, 1);
   assert.match(sentInvites[0]?.inviteUrl ?? '', /^https:\/\/my-shule-erp\.vercel\.app\/invite\/accept\?token=/);
+  assert.match(sentInvites[0]?.inviteUrl ?? '', /[?&]tenant=green-valley(?:&|$)/);
   assert.equal(
     queries.some(
       (query) =>

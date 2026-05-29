@@ -13,8 +13,10 @@ import { acceptInvitation, type InvitationAcceptanceResult } from "@/lib/auth/in
 
 export function InviteAcceptanceView({
   initialToken = "",
+  initialTenantSlug = "",
 }: {
   initialToken?: string;
+  initialTenantSlug?: string;
 }) {
   const [token, setToken] = useState(initialToken);
   const [displayName, setDisplayName] = useState("");
@@ -62,6 +64,7 @@ export function InviteAcceptanceView({
         token: token.trim(),
         password,
         displayName: displayName.trim() || undefined,
+        tenantSlug: initialTenantSlug.trim() || undefined,
       });
       setAcceptedInvite(result);
     } catch (submitError) {

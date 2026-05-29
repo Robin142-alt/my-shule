@@ -72,6 +72,31 @@ test('AuthSchemaService resolves invite acceptance column-name conflicts', async
   assert.match(consumeInviteFunction, /ON CONFLICT \(tenant_id, user_id\)/);
 });
 
+test('AuthSchemaService checks expected tenant before consuming invitation tokens', async () => {
+  let bootstrapSql = '';
+  const service = new AuthSchemaService({
+    runSchemaBootstrap: async (sql: string) => {
+      bootstrapSql = sql;
+    },
+  } as never);
+
+  await service.onModuleInit();
+
+  const consumeInviteFunction = bootstrapSql.match(
+    /CREATE OR REPLACE FUNCTION app\.consume_invite_acceptance_action[\s\S]+?\$\$;/,
+  )?.[0] ?? '';
+
+  assert.match(bootstrapSql, /DROP FUNCTION IF EXISTS app\.consume_invite_acceptance_action\(text,\s*text,\s*text\)/);
+  assert.match(consumeInviteFunction, /input_expected_tenant_id text/);
+  assert.match(consumeInviteFunction, /NULLIF\(input_expected_tenant_id,\s*''\) IS NOT NULL/);
+  assert.match(consumeInviteFunction, /NULLIF\(input_expected_tenant_id,\s*''\) <> invite_tenant_id/);
+  assert.match(consumeInviteFunction, /RAISE EXCEPTION 'Invitation tenant mismatch'/);
+  assert.ok(
+    consumeInviteFunction.indexOf('Invitation tenant mismatch') <
+      consumeInviteFunction.indexOf('UPDATE auth_action_tokens'),
+  );
+});
+
 test('AuthSchemaService defines email verification token functions and route policies', async () => {
   let bootstrapSql = '';
   const service = new AuthSchemaService({
