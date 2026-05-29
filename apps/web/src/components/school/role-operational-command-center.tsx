@@ -4977,6 +4977,32 @@ function GenericRoleOperationalCommandCenter({
     });
   }
 
+  function saveBoardingRollCallRecord(record: BoardingRollCallRecord) {
+    const storedRecords = readSchoolData<BoardingRollCallRecord>("boarding-roll-calls", schoolId);
+
+    if (storedRecords.some((storedRecord) => storedRecord.id === record.id)) {
+      updateSchoolRecord("boarding-roll-calls", record.id, record, schoolId);
+      return;
+    }
+
+    addSchoolRecord("boarding-roll-calls", record, schoolId);
+  }
+
+  function saveBoardingExeatRequest(request: ExeatRequestRecord) {
+    const storedRequests = readSchoolData<ExeatRequestRecord>("boarding-exeat-requests", schoolId);
+
+    if (storedRequests.some((storedRequest) => storedRequest.id === request.id)) {
+      updateSchoolRecord("boarding-exeat-requests", request.id, request, schoolId);
+      return;
+    }
+
+    addSchoolRecord("boarding-exeat-requests", request, schoolId);
+  }
+
+  function boarderParentRecipient(record?: BoardingRollCallRecord) {
+    return record ? `${record.student} parent contact` : "boarder parent contact";
+  }
+
   function addBoardingRollCall(record: Omit<BoardingRollCallRecord, "id" | "parentSmsSent" | "lastMarked">) {
     const newRecord: BoardingRollCallRecord = {
       ...record,
@@ -4986,47 +5012,158 @@ function GenericRoleOperationalCommandCenter({
     };
 
     setBoardingRollCalls((current) => [newRecord, ...current]);
+    saveBoardingRollCallRecord(newRecord);
+    publishDashboardEvent({
+      type: "BOARDING_ROLL_CALL_RECORDED",
+      module: "boarding",
+      title: `${record.student} roll call recorded`,
+      body: `${record.student} marked ${record.status.toLowerCase()} in ${record.dorm}.`,
+      entityId: newRecord.id,
+      severity: record.status === "Missing" ? "critical" : record.status === "Sick" ? "warning" : "success",
+      payload: {
+        student: record.student,
+        className: record.className,
+        dorm: record.dorm,
+        bed: record.bed,
+        status: record.status,
+      },
+      notifications: record.status === "Missing"
+        ? [{
+            audienceRoles: ["deputy-principal", "principal", "security-officer", "class-teacher"],
+            title: "Missing boarder alert",
+            body: `${record.student} is missing from ${record.dorm} roll call. Start deputy, security, and class teacher follow-up.`,
+            severity: "critical",
+          }]
+        : record.status === "Sick"
+          ? [{
+              audienceRoles: ["nurse", "class-teacher", "principal"],
+              title: "Sick boarder needs care",
+              body: `${record.student} was marked sick in ${record.dorm}. Nurse follow-up is required.`,
+              severity: "warning",
+            }]
+          : [{ audienceRoles: ["boarding-master"], title: "Boarding roll call updated" }],
+      sms: record.status === "Missing" || record.status === "Sick"
+        ? [{ recipient: boarderParentRecipient(newRecord), message: `Boarding update: ${record.student} was marked ${record.status.toLowerCase()} in ${record.dorm}. The school is following up.` }]
+        : undefined,
+    });
     addBoardingExecutionLog(`${record.student} roll call saved`, ["Roll call saved", record.status === "Missing" ? "Missing boarder alert ready" : "Hostel record updated"]);
     setBoardingNotice(`${record.student} marked ${record.status.toLowerCase()} in ${record.dorm}.`);
   }
 
   function markBoarderPresent(id: string) {
     const record = boardingRollCalls.find((item) => item.id === id);
+    const updatedRecord = record
+      ? {
+          ...record,
+          status: "Present" as const,
+          lastMarked: new Date().toLocaleTimeString("en-KE", { hour: "2-digit", minute: "2-digit" }),
+        }
+      : null;
 
-    setBoardingRollCalls((current) => current.map((item) => item.id === id ? {
-      ...item,
-      status: "Present",
-      lastMarked: new Date().toLocaleTimeString("en-KE", { hour: "2-digit", minute: "2-digit" }),
-    } : item));
+    setBoardingRollCalls((current) => current.map((item) => item.id === id && updatedRecord ? updatedRecord : item));
+    if (updatedRecord) {
+      saveBoardingRollCallRecord(updatedRecord);
+      publishDashboardEvent({
+        type: "BOARDING_ROLL_CALL_CORRECTED",
+        module: "boarding",
+        title: `${updatedRecord.student} marked present`,
+        body: `${updatedRecord.student} roll call was corrected to present.`,
+        entityId: id,
+        severity: "success",
+        notifications: [{ audienceRoles: ["boarding-master", "deputy-principal"], title: "Boarder marked present" }],
+      });
+    }
     addBoardingExecutionLog(`${record?.student ?? "Boarder"} marked present`, ["Roll call corrected", "Missing alert cleared"]);
     setBoardingNotice(`${record?.student ?? "Boarder"} marked present.`);
   }
 
   function markBoarderMissing(id: string) {
     const record = boardingRollCalls.find((item) => item.id === id);
+    const updatedRecord = record
+      ? {
+          ...record,
+          status: "Missing" as const,
+          parentSmsSent: true,
+          lastMarked: new Date().toLocaleTimeString("en-KE", { hour: "2-digit", minute: "2-digit" }),
+        }
+      : null;
 
-    setBoardingRollCalls((current) => current.map((item) => item.id === id ? {
-      ...item,
-      status: "Missing",
-      parentSmsSent: true,
-      lastMarked: new Date().toLocaleTimeString("en-KE", { hour: "2-digit", minute: "2-digit" }),
-    } : item));
+    setBoardingRollCalls((current) => current.map((item) => item.id === id && updatedRecord ? updatedRecord : item));
+    if (updatedRecord) {
+      saveBoardingRollCallRecord(updatedRecord);
+      publishDashboardEvent({
+        type: "BOARDING_MISSING_BOARDER_ALERTED",
+        module: "boarding",
+        title: `${updatedRecord.student} missing boarder alert sent`,
+        body: `${updatedRecord.student} is missing from ${updatedRecord.dorm}. Deputy, security, parent, and principal follow-up was started.`,
+        entityId: id,
+        severity: "critical",
+        notifications: [{
+          audienceRoles: ["deputy-principal", "principal", "security-officer", "class-teacher"],
+          title: "Missing boarder follow-up",
+          severity: "critical",
+        }],
+        sms: [{ recipient: boarderParentRecipient(updatedRecord), message: `Boarding alert: ${updatedRecord.student} is missing from ${updatedRecord.dorm} roll call. The school is following up immediately.` }],
+      });
+    }
     addBoardingExecutionLog(`${record?.student ?? "Boarder"} marked missing`, ["Deputy alert ready", "Security alert ready", "Parent SMS sent"]);
     setBoardingNotice(`${record?.student ?? "Boarder"} marked missing. Parent, deputy, and security follow-up prepared.`);
   }
 
   function notifyBoarderParent(id: string) {
     const record = boardingRollCalls.find((item) => item.id === id);
+    const updatedRecord = record ? { ...record, parentSmsSent: true } : null;
 
-    setBoardingRollCalls((current) => current.map((item) => item.id === id ? { ...item, parentSmsSent: true } : item));
+    setBoardingRollCalls((current) => current.map((item) => item.id === id && updatedRecord ? updatedRecord : item));
+    if (updatedRecord) {
+      saveBoardingRollCallRecord(updatedRecord);
+      publishDashboardEvent({
+        type: "BOARDING_PARENT_SMS_SENT",
+        module: "boarding",
+        title: `${updatedRecord.student} boarding SMS sent`,
+        body: `Parent/guardian was notified about ${updatedRecord.student}'s hostel status.`,
+        entityId: id,
+        severity: "success",
+        notifications: [{ audienceRoles: ["parent", "boarding-master", "class-teacher"], title: "Boarding parent SMS sent" }],
+        sms: [{ recipient: boarderParentRecipient(updatedRecord), message: `Boarding update: ${updatedRecord.student} is currently marked ${updatedRecord.status.toLowerCase()} in ${updatedRecord.dorm}.` }],
+      });
+    }
     addBoardingExecutionLog(`${record?.student ?? "Boarder"} parent notified`, ["Parent SMS sent", "Boarding communication log updated"]);
     setBoardingNotice(`${record?.student ?? "Boarder"} parent SMS sent.`);
   }
 
   function referBoarderToNurse(id: string) {
     const record = boardingRollCalls.find((item) => item.id === id);
+    const updatedRecord = record ? { ...record, status: "Sick" as const, parentSmsSent: true } : null;
 
-    setBoardingRollCalls((current) => current.map((item) => item.id === id ? { ...item, status: "Sick", parentSmsSent: true } : item));
+    setBoardingRollCalls((current) => current.map((item) => item.id === id && updatedRecord ? updatedRecord : item));
+    if (updatedRecord) {
+      saveBoardingRollCallRecord(updatedRecord);
+      addSchoolRecord("boarding-nurse-referrals", {
+        id: runtimeId("boarding-nurse-referral"),
+        student: updatedRecord.student,
+        className: updatedRecord.className,
+        dorm: updatedRecord.dorm,
+        bed: updatedRecord.bed,
+        source: "Boarding Master",
+        status: "Sent to nurse",
+        createdAt: new Date().toISOString(),
+      }, schoolId);
+      publishDashboardEvent({
+        type: "BOARDING_NURSE_REFERRAL_CREATED",
+        module: "boarding",
+        title: `${updatedRecord.student} referred to nurse`,
+        body: `${updatedRecord.student} was referred from ${updatedRecord.dorm} to the sick bay and parent notification was queued.`,
+        entityId: id,
+        severity: "warning",
+        notifications: [{
+          audienceRoles: ["nurse", "class-teacher", "principal", "deputy-principal"],
+          title: "Boarder referred to nurse",
+          severity: "warning",
+        }],
+        sms: [{ recipient: boarderParentRecipient(updatedRecord), message: `Health update: ${updatedRecord.student} has been referred to the school nurse from ${updatedRecord.dorm}.` }],
+      });
+    }
     addBoardingExecutionLog(`${record?.student ?? "Boarder"} referred to nurse`, ["Nurse referral created", "Parent SMS sent", "Class teacher copy ready"]);
     setBoardingNotice(`${record?.student ?? "Boarder"} referred to nurse and parent notified.`);
   }
@@ -5039,27 +5176,80 @@ function GenericRoleOperationalCommandCenter({
     };
 
     setExeatRequests((current) => [newRequest, ...current]);
+    saveBoardingExeatRequest(newRequest);
+    publishDashboardEvent({
+      type: "BOARDING_EXEAT_REQUESTED",
+      module: "boarding",
+      title: `${request.student} exeat requested`,
+      body: `${request.student} requested exeat from ${request.dorm} for ${request.reason}.`,
+      entityId: newRequest.id,
+      severity: "warning",
+      payload: {
+        student: request.student,
+        dorm: request.dorm,
+        reason: request.reason,
+      },
+      notifications: [{ audienceRoles: ["deputy-principal", "principal", "security-officer"], title: "New exeat request", severity: "warning" }],
+    });
     addBoardingExecutionLog(`${request.student} exeat request saved`, ["Exeat request saved", "Approval queue updated"]);
     setBoardingNotice(`${request.student} exeat request saved for ${request.reason}.`);
   }
 
   function approveExeatRequest(id: string) {
     const request = exeatRequests.find((item) => item.id === id);
+    const updatedRequest = request ? { ...request, status: "Approved" as const } : null;
 
-    setExeatRequests((current) => current.map((item) => item.id === id ? { ...item, status: "Approved" } : item));
+    setExeatRequests((current) => current.map((item) => item.id === id && updatedRequest ? updatedRequest : item));
+    if (updatedRequest) {
+      saveBoardingExeatRequest(updatedRequest);
+      publishDashboardEvent({
+        type: "BOARDING_EXEAT_APPROVED",
+        module: "boarding",
+        title: `${updatedRequest.student} exeat approved`,
+        body: `${updatedRequest.student} exeat was approved. Security can confirm gate pass and parent pickup.`,
+        entityId: id,
+        severity: "success",
+        notifications: [
+          { audienceRoles: ["security-officer", "principal", "deputy-principal"], title: "Exeat approved" },
+          { audienceRoles: ["parent"], title: "Student exeat approved" },
+        ],
+        sms: [{ recipient: updatedRequest.parentPhone, message: `Exeat approved: ${updatedRequest.student} may leave school for ${updatedRequest.reason}. Please coordinate with security.` }],
+      });
+    }
     addBoardingExecutionLog(`${request?.student ?? "Boarder"} exeat approved`, ["Exeat approved", "Parent SMS ready", "Security gate pass ready"]);
     setBoardingNotice(`${request?.student ?? "Boarder"} exeat approved. Gate pass can be printed.`);
   }
 
   function forwardExeatRequest(id: string) {
     const request = exeatRequests.find((item) => item.id === id);
+    const updatedRequest = request ? { ...request, status: "Forwarded" as const } : null;
 
-    setExeatRequests((current) => current.map((item) => item.id === id ? { ...item, status: "Forwarded" } : item));
+    setExeatRequests((current) => current.map((item) => item.id === id && updatedRequest ? updatedRequest : item));
+    if (updatedRequest) {
+      saveBoardingExeatRequest(updatedRequest);
+      publishDashboardEvent({
+        type: "BOARDING_EXEAT_FORWARDED",
+        module: "boarding",
+        title: `${updatedRequest.student} exeat forwarded`,
+        body: `${updatedRequest.student} exeat was forwarded to the deputy principal for review.`,
+        entityId: id,
+        severity: "warning",
+        notifications: [{ audienceRoles: ["deputy-principal", "principal"], title: "Exeat forwarded for review", severity: "warning" }],
+      });
+    }
     addBoardingExecutionLog(`${request?.student ?? "Boarder"} exeat forwarded`, ["Deputy review requested", "Exeat remains visible"]);
     setBoardingNotice(`${request?.student ?? "Boarder"} exeat forwarded to deputy.`);
   }
 
   function printBoardingRollCall() {
+    publishDashboardEvent({
+      type: "BOARDING_ROLL_CALL_PRINTED",
+      module: "boarding",
+      title: "Hostel roll call printed",
+      body: `${boardingRollCalls.length} boarder roll call records were prepared for printing.`,
+      severity: "success",
+      notifications: [{ audienceRoles: ["boarding-master", "deputy-principal"], title: "Hostel roll call printed" }],
+    });
     addBoardingExecutionLog("Hostel roll call sheet opened", ["Roll call print view prepared", "Print dialog opened"]);
     setBoardingNotice("Hostel roll call sheet opened for printing.");
     if (typeof window !== "undefined") {

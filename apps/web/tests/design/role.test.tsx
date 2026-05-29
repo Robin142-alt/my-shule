@@ -5,6 +5,12 @@ import userEvent from "@testing-library/user-event";
 import { SchoolPages } from "@/components/school/school-pages";
 import type { SchoolExperienceRole } from "@/lib/experiences/types";
 import { getOperationalRoleBlueprint, type DocxRoleId } from "@/lib/operational/myshule-extreme-operating-system";
+import {
+  readSchoolData,
+  type SchoolNotification,
+  type SchoolOperationalEvent,
+  type SchoolSmsLog,
+} from "@/lib/school/school-operational-store";
 
 import { renderDashboardScreen, renderWithProviders } from "./test-utils";
 
@@ -47,6 +53,7 @@ describe("STEP 4: Role tests", () => {
 
   beforeEach(() => {
     window.sessionStorage.clear();
+    window.localStorage.clear();
     fetchMock.mockReset();
     fetchMock.mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
@@ -466,6 +473,7 @@ describe("STEP 4: Role tests", () => {
   it("makes the boarding desk practical with roll call, missing alerts, nurse referral, exeats, and printing", async () => {
     const user = userEvent.setup();
     const printMock = jest.fn();
+    const schoolId = "kisumu-boys";
     Object.defineProperty(window, "print", { value: printMock, writable: true });
 
     renderWithProviders(
@@ -491,6 +499,24 @@ describe("STEP 4: Role tests", () => {
     await user.click(within(commandCenter).getByRole("button", { name: /save roll call/i }));
 
     expect(within(commandCenter).getByText(/peter ouma marked missing/i)).toBeVisible();
+    await waitFor(() => {
+      const storedRollCalls = readSchoolData<{ student: string; status: string; schoolId: string }>("boarding-roll-calls", schoolId);
+      expect(storedRollCalls.some((record) => record.student === "Peter Ouma" && record.status === "Missing" && record.schoolId === schoolId)).toBe(true);
+    });
+    expect(
+      readSchoolData<SchoolOperationalEvent>("events", schoolId).some(
+        (event) => event.type === "BOARDING_ROLL_CALL_RECORDED" && event.module === "boarding" && event.schoolId === schoolId,
+      ),
+    ).toBe(true);
+    expect(
+      readSchoolData<SchoolNotification>("notifications", schoolId).some(
+        (notification) =>
+          notification.sourceModule === "boarding" &&
+          notification.audienceRoles.includes("deputy-principal") &&
+          notification.audienceRoles.includes("security-officer") &&
+          /Peter Ouma/i.test(notification.body),
+      ),
+    ).toBe(true);
 
     let rollCallRow = within(commandCenter)
       .getAllByText(/Peter Ouma/i)
@@ -499,6 +525,14 @@ describe("STEP 4: Role tests", () => {
     expect(rollCallRow).not.toBeNull();
     await user.click(within(rollCallRow as HTMLElement).getByRole("button", { name: /notify parent/i }));
     expect(within(commandCenter).getByText(/peter ouma parent sms sent/i)).toBeVisible();
+    expect(
+      readSchoolData<SchoolSmsLog>("smsLogs", schoolId).some(
+        (sms) => sms.sourceModule === "boarding" && /Peter Ouma/i.test(sms.message),
+      ),
+    ).toBe(true);
+    expect(
+      readSchoolData<SchoolOperationalEvent>("events", schoolId).some((event) => event.type === "BOARDING_PARENT_SMS_SENT"),
+    ).toBe(true);
 
     rollCallRow = within(commandCenter)
       .getAllByText(/Peter Ouma/i)
@@ -507,6 +541,16 @@ describe("STEP 4: Role tests", () => {
     expect(rollCallRow).not.toBeNull();
     await user.click(within(rollCallRow as HTMLElement).getByRole("button", { name: /refer to nurse/i }));
     expect(within(commandCenter).getByText(/peter ouma referred to nurse/i)).toBeVisible();
+    expect(
+      readSchoolData<{ student: string; source: string }>("boarding-nurse-referrals", schoolId).some(
+        (referral) => referral.student === "Peter Ouma" && referral.source === "Boarding Master",
+      ),
+    ).toBe(true);
+    expect(
+      readSchoolData<SchoolNotification>("notifications", schoolId).some(
+        (notification) => notification.sourceModule === "boarding" && notification.audienceRoles.includes("nurse") && /Peter Ouma/i.test(notification.body),
+      ),
+    ).toBe(true);
 
     await user.clear(within(commandCenter).getByLabelText(/exeat student/i));
     await user.type(within(commandCenter).getByLabelText(/exeat student/i), "Peter Ouma");
@@ -519,12 +563,23 @@ describe("STEP 4: Role tests", () => {
     await user.click(within(commandCenter).getByRole("button", { name: /add exeat request/i }));
 
     expect(within(commandCenter).getByText(/peter ouma exeat request saved/i)).toBeVisible();
+    expect(
+      readSchoolData<{ student: string; status: string }>("boarding-exeat-requests", schoolId).some(
+        (request) => request.student === "Peter Ouma" && request.status === "Pending",
+      ),
+    ).toBe(true);
     await user.click(within(commandCenter).getAllByRole("button", { name: /approve exeat/i })[0]);
     expect(within(commandCenter).getByText(/peter ouma exeat approved/i)).toBeVisible();
+    expect(
+      readSchoolData<SchoolOperationalEvent>("events", schoolId).some((event) => event.type === "BOARDING_EXEAT_APPROVED" && /Peter Ouma/i.test(event.body)),
+    ).toBe(true);
 
     await user.click(within(commandCenter).getByRole("button", { name: /print roll call/i }));
     expect(within(commandCenter).getByText(/hostel roll call sheet opened/i)).toBeVisible();
     expect(printMock).toHaveBeenCalled();
+    expect(
+      readSchoolData<SchoolOperationalEvent>("events", schoolId).some((event) => event.type === "BOARDING_ROLL_CALL_PRINTED"),
+    ).toBe(true);
   }, 30000);
 
   it("makes the transport desk practical with trip attendance, parent alerts, fuel, maintenance, and route printing", async () => {
