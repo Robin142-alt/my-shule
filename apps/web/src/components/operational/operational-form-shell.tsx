@@ -231,7 +231,7 @@ export function OperationalFormShell({
           }
 
           clearDraft();
-          setNotice("Form submitted. Related records and action history are being updated.");
+          setNotice("Form submitted. Related records are being updated.");
           onAction?.("Submit", contract, nextValues);
         }}
       >
@@ -269,13 +269,13 @@ export function OperationalFormShell({
             <div className="mt-2 grid gap-2 text-[11px] font-semibold text-muted sm:grid-cols-3">
               <span>Permission checked</span>
               <span>Related records update after saving</span>
-              <span>Action history kept</span>
+              <span>Reporting record kept</span>
             </div>
           </div>
         ) : (
           <div className="mt-5 flex items-center gap-2 rounded-[var(--radius-sm)] border border-[#D7E0EF] bg-[#EEF6FF] px-3 py-2 text-xs font-semibold text-[#40608F]">
             <ShieldCheck className="h-3.5 w-3.5 text-[#0B3A7A]" />
-            This form saves the update, refreshes related desks, and keeps action history.
+            This form saves the update, refreshes related desks, and keeps a reporting record.
           </div>
         )}
 

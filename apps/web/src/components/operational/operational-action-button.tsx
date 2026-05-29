@@ -120,7 +120,7 @@ export function OperationalActionButton({
 
     try {
       await onExecute?.(action);
-      setLocalNotice(`${action.label} sent. Action history updated and related school records refreshed.`);
+      setLocalNotice(`${action.label} sent. Related school records refreshed.`);
     } catch {
       setLocalNotice(`${action.label} could not complete. Retry remains available.`);
     } finally {
@@ -170,7 +170,7 @@ export function OperationalActionButton({
       {!compact && showDiagnostics ? (
         <div className="mt-2 space-y-1 text-[10px] font-semibold leading-4 text-muted">
           <p>{healthMessage(action)}</p>
-          <p>Action history will record who did this and when.</p>
+          <p>This action keeps a reporting record with the user and time.</p>
         </div>
       ) : null}
       {localNotice ? (
@@ -183,7 +183,7 @@ export function OperationalActionButton({
         title={`Confirm ${action.label}`}
         description={
           action.confirmation === "REASON_REQUIRED"
-            ? "Confirm this school action. Add the reason in the related form or action history."
+            ? "Confirm this school action. Add the reason in the related form."
             : "This changes the visible school record. Confirm before continuing."
         }
         onClose={() => setConfirmOpen(false)}

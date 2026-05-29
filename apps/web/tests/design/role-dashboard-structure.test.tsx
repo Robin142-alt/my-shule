@@ -65,7 +65,7 @@ describe("role dashboard operational structure", () => {
         /pending|urgent|missing|failed|unresolved|alerts|approvals|follow|exceptions|queue|action|review|requests|overdue|risk/i,
       );
       expect(blueprint.queues[0]?.actions).toEqual(
-        expect.arrayContaining(["View Action History"]),
+        expect.arrayContaining(["View Details"]),
       );
     }
   });
@@ -84,15 +84,13 @@ describe("role dashboard operational structure", () => {
     expect(screen.getByText(/Kisumu Boys High live updates/i)).toBeVisible();
     expect(screen.getAllByText(/Attendance absence synced/i).length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText(/Today['’]s Work/i).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/View Action History/i).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/View Action History/i)).not.toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: /Ready/i }).length).toBeGreaterThan(0);
     expect(screen.queryByText(/Visible recovery states/i)).not.toBeInTheDocument();
 
     await user.click(screen.getAllByRole("button", { name: /Attendance/i })[0]);
-    await user.click(screen.getByRole("button", { name: /^Action History$/i }));
-
-    expect(screen.getAllByText(/Action history/i).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/Task progress/i).length).toBeGreaterThan(0);
+    expect(screen.queryByRole("button", { name: /^Action History$/i })).not.toBeInTheDocument();
+    expect(screen.queryByText(/Action history/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/Visible recovery states/i)).not.toBeInTheDocument();
   }, 30000);
 

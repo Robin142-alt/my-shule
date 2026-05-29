@@ -64,7 +64,7 @@ describe("OperationalActionButton", () => {
       expect(screen.getByText(label)).toBeVisible();
     }
 
-    expect(screen.getAllByText(/Action history will record who did this and when/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/reporting record with the user and time/i).length).toBeGreaterThan(0);
   });
 
   it("does not hide locked, degraded, or failed actions and routes active clicks through the execution contract", async () => {

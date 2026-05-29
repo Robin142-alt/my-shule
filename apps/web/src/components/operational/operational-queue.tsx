@@ -50,7 +50,7 @@ export function OperationalQueue({
     if (item) {
       if (/approve/.test(normalized)) {
         updateItemPriority(item.id, "Approved", "ok");
-        setNotice(`${item.title} approved and action history updated.`);
+        setNotice(`${item.title} approved and related records updated.`);
       } else if (/reject/.test(normalized)) {
         updateItemPriority(item.id, "Rejected", "critical");
         setNotice(`${item.title} rejected and returned to the responsible desk.`);
@@ -152,7 +152,7 @@ export function OperationalQueue({
               ))}
             </div>
             <p className="mt-3 text-[10px] font-black uppercase tracking-[0.14em] text-muted">
-              Action history ready for this item
+              Reporting record ready for this item
             </p>
           </article>
         ))}

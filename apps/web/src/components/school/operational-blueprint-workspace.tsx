@@ -65,7 +65,7 @@ function toTableContract(blueprint: ExtremeErpBlueprint): OperationalTableContra
 
   return {
     title: table.title,
-    description: "Search, filter, act, print, export, and inspect action history without leaving this section.",
+    description: "Search, filter, act, print, export, and review saved records without leaving this section.",
     searchPlaceholder: `Search ${blueprint.title}`,
     filters: ["Status", "Owner", "Priority"],
     sortOptions: ["Newest", "Due soon", "Highest priority"],

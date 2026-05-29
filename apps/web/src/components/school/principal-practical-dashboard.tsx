@@ -90,7 +90,7 @@ type ActionLogItem = {
   id: string;
   label: string;
   section: string;
-  status: "Sent" | "Saved for sync" | "Completed";
+  status: "Sent" | "Will retry" | "Completed";
   detail: string;
 };
 
@@ -449,7 +449,7 @@ const principalSections: PrincipalSection[] = [
     id: "audit-logs",
     label: "Audit Logs",
     icon: History,
-    source: "Action history from school departments",
+    source: "School accountability records",
     status: "ok",
     summary: "Recent school actions are visible for accountability.",
     metrics: [
@@ -459,12 +459,12 @@ const principalSections: PrincipalSection[] = [
       { label: "SMS actions", value: "41", helper: "Parent communication" },
     ],
     actions: [
-      { label: "View Action History", target: "audit-logs" },
-      { label: "Print Action History" },
+      { label: "View Accountability Records", target: "audit-logs" },
+      { label: "Print Accountability Records" },
       { label: "Assign to Staff Member" },
     ],
     records: [
-      { item: "Fee reminder SMS sent", owner: "Accountant", nextAction: "View action history", status: "Done" },
+      { item: "Fee reminder SMS sent", owner: "Accountant", nextAction: "View record", status: "Done" },
       { item: "Visitor slip printed", owner: "Security Desk", nextAction: "View slip", status: "Done" },
       { item: "Exeat request opened", owner: "Boarding Master", nextAction: "Approve or return", status: "Open" },
     ],
@@ -950,7 +950,7 @@ export function PrincipalPracticalCommandCenter({
   const [activeSection, setActiveSection] = useState<PrincipalSectionId>(() =>
     resolveInitialSection(initialSection, initialWorkspace),
   );
-  const [actionLog, setActionLog] = useState<ActionLogItem[]>([
+  const [, setActionLog] = useState<ActionLogItem[]>([
     {
       id: "seed-fee-sms",
       label: "Fee reminder SMS sent",
@@ -968,6 +968,7 @@ export function PrincipalPracticalCommandCenter({
   ]);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [actionNotice, setActionNotice] = useState<string | null>(null);
   const active = activeSection === "overview" ? null : sectionById(activeSection);
   const searchResults = useMemo(() => principalSearchResults(searchQuery), [searchQuery]);
   const isSearching = searchQuery.trim().length > 0;
@@ -985,7 +986,7 @@ export function PrincipalPracticalCommandCenter({
           id: event.id,
           label: event.title,
           section: sectionLabelForModule(event.module),
-          status: event.severity === "critical" || event.severity === "warning" ? "Saved for sync" : "Completed",
+          status: event.severity === "critical" || event.severity === "warning" ? "Will retry" : "Completed",
           detail: event.body,
         }));
 
@@ -1021,6 +1022,7 @@ export function PrincipalPracticalCommandCenter({
     };
 
     setActionLog((items) => [logItem, ...items].slice(0, 8));
+    setActionNotice(`${action.label} sent from ${section.label}.`);
     publishSchoolOperationalEvent({
       schoolId,
       actorRole: "principal",
@@ -1049,13 +1051,14 @@ export function PrincipalPracticalCommandCenter({
         source: section.source,
       },
     }).catch(() => {
+      setActionNotice(`${action.label} sent from ${section.label}. The system will retry when the school connection is ready.`);
       setActionLog((items) =>
         items.map((item) =>
           item.id === logItem.id
             ? {
                 ...item,
-                status: "Saved for sync",
-                detail: `${action.label} sent from ${section.label}. Saved for sync; the system will retry when the school connection is ready.`,
+                status: "Will retry",
+                detail: `${action.label} sent from ${section.label}. The system will retry when the school connection is ready.`,
               }
             : item,
         ),
@@ -1076,6 +1079,7 @@ export function PrincipalPracticalCommandCenter({
     };
 
     setActionLog((items) => [logItem, ...items].slice(0, 8));
+    setActionNotice(`Opened ${section.label}.`);
   }
 
   const nav = useMemo(() => sidebarItems, []);
@@ -1120,12 +1124,12 @@ export function PrincipalPracticalCommandCenter({
         </aside>
 
         <main className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
-          <header className="shrink-0 border-b border-[#D7E0EF] bg-white/92 px-4 py-4 shadow-sm backdrop-blur md:px-6">
-            <div className="flex flex-wrap items-start justify-between gap-3">
+          <header className="shrink-0 border-b border-[#D7E0EF] bg-white/92 px-4 py-2.5 shadow-sm backdrop-blur md:px-5">
+            <div className="flex flex-wrap items-start justify-between gap-2.5">
               <div className="flex items-start gap-3">
                 <button
                   type="button"
-                  className="rounded-xl border border-[#D7E0EF] bg-white p-2 text-[#0B3A7A] lg:hidden"
+                  className="rounded-xl border border-[#D7E0EF] bg-white p-1.5 text-[#0B3A7A] lg:hidden"
                   onClick={() => setMobileNavOpen((open) => !open)}
                   aria-label="Open principal navigation"
                 >
@@ -1137,8 +1141,8 @@ export function PrincipalPracticalCommandCenter({
                     context="Here is what needs your attention at Kisumu Boys High School today."
                     tone="dark"
                   />
-                  <h2 className="mt-2 text-xl font-black tracking-tight text-[#071D49]">Principal Command Center</h2>
-                  <p className="mt-2 text-sm font-semibold text-[#52657F]">Term 2 2026 - Updated a few moments ago</p>
+                  <h2 className="mt-1 text-lg font-black tracking-tight text-[#071D49]">Principal Command Center</h2>
+                  <p className="mt-1 text-xs font-semibold text-[#52657F]">Term 2 2026 - Updated a few moments ago</p>
                 </div>
               </div>
               <div className="flex flex-wrap items-center gap-2">
@@ -1150,14 +1154,14 @@ export function PrincipalPracticalCommandCenter({
                     value={searchQuery}
                     onChange={(event) => setSearchQuery(event.currentTarget.value)}
                     placeholder="Search students, staff, receipts, visitors"
-                    className="w-[320px] rounded-xl border border-[#D7E0EF] bg-[#F8FAFC] py-2 pl-9 pr-3 text-sm font-semibold text-[#40608F] outline-none transition focus:border-[#9BC5FF] focus:bg-white"
+                    className="w-[320px] rounded-xl border border-[#D7E0EF] bg-[#F8FAFC] py-1.5 pl-9 pr-3 text-sm font-semibold text-[#40608F] outline-none transition focus:border-[#9BC5FF] focus:bg-white"
                   />
                 </label>
                 <StatusPill label="Live school updates" tone="ok" />
                 <StatusPill label="7 approvals" tone="warning" />
               </div>
             </div>
-            <label className="relative mt-3 block md:hidden">
+            <label className="relative mt-2 block md:hidden">
               <span className="sr-only">Search students, staff, receipts, visitors</span>
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#40608F]" />
               <input
@@ -1165,12 +1169,12 @@ export function PrincipalPracticalCommandCenter({
                 value={searchQuery}
                 onChange={(event) => setSearchQuery(event.currentTarget.value)}
                 placeholder="Search students, staff, receipts, visitors"
-                className="w-full rounded-xl border border-[#D7E0EF] bg-[#F8FAFC] py-2 pl-9 pr-3 text-sm font-semibold text-[#40608F] outline-none transition focus:border-[#9BC5FF] focus:bg-white"
+                className="w-full rounded-xl border border-[#D7E0EF] bg-[#F8FAFC] py-1.5 pl-9 pr-3 text-sm font-semibold text-[#40608F] outline-none transition focus:border-[#9BC5FF] focus:bg-white"
               />
             </label>
           </header>
 
-          <section className="flex min-h-0 flex-1 flex-col overflow-hidden px-4 py-4 md:px-6">
+          <section className="flex min-h-0 flex-1 flex-col overflow-hidden px-4 py-3 md:px-5">
             {!active && !isSearching ? (
               <div className="grid shrink-0 gap-3 md:grid-cols-2 xl:grid-cols-6">
                 {summaryCards.map((card) => (
@@ -1188,22 +1192,22 @@ export function PrincipalPracticalCommandCenter({
               </div>
             ) : null}
 
+            {actionNotice ? (
+              <div className="mt-3 shrink-0 rounded-xl border border-[#B8D4FF] bg-[#EFF6FF] px-3 py-2 text-xs font-black text-[#0B3A7A]" role="status">
+                {actionNotice}
+              </div>
+            ) : null}
+
             {isSearching ? (
-              <div className="grid min-h-0 flex-1 gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.65fr)]">
+              <div className="min-h-0 flex-1">
                 <PrincipalSearchPanel query={searchQuery} results={searchResults} onOpen={openSearchResult} />
-                <div className="min-h-0 overflow-y-auto pr-1">
-                  <RightRail actionLog={actionLog} onAction={handleAction} sections={[]} showQuietAreas={false} />
-                </div>
               </div>
             ) : active ? (
-              <div className="grid min-h-0 flex-1 gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.65fr)]">
+              <div className="min-h-0 flex-1">
                 <div className="min-h-0 space-y-4 overflow-y-auto pr-1">
                   <SchoolOperationCard section={active} onAction={handleAction} />
                   <RecordsPanel section={active} onAction={handleAction} />
                   {active.id === "system-health" ? <StateExamples /> : null}
-                </div>
-                <div className="min-h-0 overflow-y-auto pr-1">
-                  <RightRail actionLog={actionLog} onAction={handleAction} sections={[]} showQuietAreas={false} />
                 </div>
               </div>
             ) : (
@@ -1212,7 +1216,7 @@ export function PrincipalPracticalCommandCenter({
                   <OverviewSituationBoard sections={overviewSections} onAction={handleAction} />
                 </div>
                 <div className="min-h-0 overflow-y-auto pr-1">
-                  <RightRail actionLog={actionLog} onAction={handleAction} sections={rightRailSections} />
+                  <RightRail onAction={handleAction} sections={rightRailSections} />
                 </div>
               </div>
             )}
@@ -1224,12 +1228,10 @@ export function PrincipalPracticalCommandCenter({
 }
 
 function RightRail({
-  actionLog,
   onAction,
   sections = ["approvals", "system-health", "reports"].map((id) => sectionById(id as PrincipalSectionId)),
   showQuietAreas = true,
 }: {
-  actionLog: ActionLogItem[];
   onAction: (action: PracticalAction, section: PrincipalSection) => void;
   sections?: PrincipalSection[];
   showQuietAreas?: boolean;
@@ -1262,27 +1264,6 @@ function RightRail({
           </div>
         </Card>
       ) : null}
-
-      <Card className="border-[#D7E0EF] bg-white p-4">
-        <div className="flex items-center gap-2">
-          <History className="h-4 w-4 text-[#0B3A7A]" />
-          <h2 className="text-base font-black text-[#071D49]">Action history</h2>
-        </div>
-        <div className="mt-4 space-y-2">
-          {actionLog.map((item) => (
-            <div key={item.id} className="rounded-xl border border-[#D7E0EF] bg-[#F8FAFC] px-3 py-2">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="text-sm font-black text-[#071D49]">{item.label}</p>
-                <span className="rounded-full border border-[#D7E0EF] bg-white px-2 py-0.5 text-[11px] font-black text-[#40608F]">
-                  {item.status}
-                </span>
-              </div>
-              <p className="mt-1 text-xs font-semibold text-[#52657F]">{item.section}</p>
-              <p className="mt-1 text-xs leading-5 text-[#52657F]">{item.detail}</p>
-            </div>
-          ))}
-        </div>
-      </Card>
 
       {showQuietAreas ? (
         <Card className="border-[#D7E0EF] bg-white p-4">

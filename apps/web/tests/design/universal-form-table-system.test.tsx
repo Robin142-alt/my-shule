@@ -176,7 +176,7 @@ describe("universal operational form and table system", () => {
     expect(screen.getByText(/Action details/)).toBeVisible();
     expect(screen.getByText(/Permission checked/)).toBeVisible();
     expect(screen.getByText(/Related records update after saving/)).toBeVisible();
-    expect(screen.getByText(/Action history kept/)).toBeVisible();
+    expect(screen.getByText(/Reporting record kept/)).toBeVisible();
   });
 
   it("makes table search, row view/edit/delete, sms, print, and export actions usable with local state", async () => {

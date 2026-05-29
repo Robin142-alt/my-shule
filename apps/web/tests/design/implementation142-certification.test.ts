@@ -20,7 +20,7 @@ describe("Implementation 142 certification", () => {
       expect(role.searchMode).toMatch(/GLOBAL|SCOPED|SELF|PLATFORM/);
       expect(role.firstViewport.length).toBeGreaterThanOrEqual(5);
       expect(role.sidebar.length).toBeGreaterThanOrEqual(6);
-      expect(role.queues[0]?.actions).toEqual(expect.arrayContaining(["View Action History"]));
+      expect(role.queues[0]?.actions).toEqual(expect.arrayContaining(["View Details"]));
       expect(role.primaryActions.length).toBeGreaterThanOrEqual(5);
       expect(role.tables[0]?.rowActions.length).toBeGreaterThanOrEqual(4);
       expect(role.tables[0]?.bulkActions.length).toBeGreaterThanOrEqual(1);

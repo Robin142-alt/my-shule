@@ -17,6 +17,13 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
+import {
+  addSchoolRecord,
+  getCurrentSchoolId,
+  publishSchoolOperationalEvent,
+  simulateSms,
+} from "@/lib/school/school-operational-store";
+
 type TeacherRouteMode = "hosted" | "public";
 type TeacherView =
   | "home"
@@ -172,6 +179,14 @@ function exportCsv(filename: string, rows: Array<Record<string, string | number>
   URL.revokeObjectURL(url);
 }
 
+function runtimeId(prefix: string) {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return `${prefix}-${crypto.randomUUID()}`;
+  }
+
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
 function Sidebar({ activeView, onViewChange }: { activeView: TeacherView; onViewChange: (view: TeacherView) => void }) {
   return (
     <aside className="hidden h-[calc(100vh-1.5rem)] overflow-hidden rounded-2xl bg-[#071D49] p-4 text-white shadow-[0_24px_70px_rgba(7,29,73,0.28)] lg:block">
@@ -221,18 +236,18 @@ function Topbar({
   onStartAction: (action: TeacherAction, view: TeacherView, message: string) => void;
 }) {
   return (
-    <header className="sticky top-0 z-20 border-b border-[#D8E0EC] bg-[#F3F6FA]/90 px-4 py-3 backdrop-blur">
-      <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+    <header className="sticky top-0 z-20 border-b border-[#D8E0EC] bg-[#F3F6FA]/90 px-4 py-2 backdrop-blur">
+      <div className="flex flex-col gap-2 xl:flex-row xl:items-center xl:justify-between">
         <div className="flex items-center gap-3">
-          <div className="grid h-11 w-11 place-items-center rounded-2xl bg-[#071D49] text-sm font-black text-white">MS</div>
+          <div className="grid h-9 w-9 place-items-center rounded-xl bg-[#071D49] text-xs font-black text-white">MS</div>
           <div>
-            <p className="text-xs font-black uppercase tracking-[0.2em] text-[#64748B]">Term 2 - Teacher</p>
-            <h1 className="text-xl font-black text-[#071D49]">Teacher Dashboard</h1>
+            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[#64748B]">Term 2 - Teacher</p>
+            <h1 className="text-lg font-black text-[#071D49]">Teacher Dashboard</h1>
           </div>
         </div>
         <div className="grid gap-2 md:grid-cols-[minmax(260px,1fr)_auto_auto] xl:min-w-[660px]">
           <div className="relative">
-            <label className="flex min-h-11 items-center gap-3 rounded-xl border border-[#D8E0EC] bg-white px-3 text-[#64748B] shadow-sm">
+            <label className="flex min-h-10 items-center gap-3 rounded-xl border border-[#D8E0EC] bg-white px-3 text-[#64748B] shadow-sm">
               <Search className="h-4 w-4" aria-hidden="true" />
               <span className="sr-only">Quick search</span>
               <input
@@ -268,8 +283,8 @@ function Topbar({
               </div>
             ) : null}
           </div>
-          <button type="button" onClick={() => onStartAction("marks", "marks", "Marks entry form opened.")} className="rounded-xl bg-[#FF7A1A] px-4 py-2 text-sm font-black text-white">Enter marks</button>
-          <button type="button" onClick={() => onStartAction("sms", "communication", "Parent SMS form opened.")} className="rounded-xl border border-[#D8E0EC] bg-white px-4 py-2 text-sm font-black text-[#071D49]">Send SMS</button>
+          <button type="button" onClick={() => onStartAction("marks", "marks", "Marks entry form opened.")} className="rounded-xl bg-[#FF7A1A] px-4 py-1.5 text-sm font-black text-white">Enter marks</button>
+          <button type="button" onClick={() => onStartAction("sms", "communication", "Parent SMS form opened.")} className="rounded-xl border border-[#D8E0EC] bg-white px-4 py-1.5 text-sm font-black text-[#071D49]">Send SMS</button>
         </div>
       </div>
     </header>
@@ -812,6 +827,7 @@ function ActiveWorkspace({
 }
 
 export function TeacherCommandCenter({ routeMode }: { routeMode: TeacherRouteMode }) {
+  const schoolId = getCurrentSchoolId();
   const [activeView, setActiveView] = useState<TeacherView>("home");
   const [searchTerm, setSearchTerm] = useState("");
   const [notice, setNotice] = useState("Ready for today\u2019s teaching work.");
@@ -821,7 +837,7 @@ export function TeacherCommandCenter({ routeMode }: { routeMode: TeacherRouteMod
   const [assignments, setAssignments] = useState<AssignmentRecord[]>(initialAssignments);
   const [resources, setResources] = useState<ResourceRecord[]>(initialResources);
   const [messages, setMessages] = useState<MessageRecord[]>(initialMessages);
-  const [activityLog, setActivityLog] = useState<string[]>(["Teacher dashboard opened for Kisumu Boys High School."]);
+  const [, setActivityLog] = useState<string[]>(["Teacher dashboard opened for Kisumu Boys High School."]);
   const [detailPanel, setDetailPanel] = useState<DetailPanel | null>(null);
   const searchResults = searchTerm.trim()
     ? teacherSearchRecords.filter((record) => `${record.label} ${record.detail}`.toLowerCase().includes(searchTerm.trim().toLowerCase()))
@@ -853,32 +869,129 @@ export function TeacherCommandCenter({ routeMode }: { routeMode: TeacherRouteMod
   }
 
   function submitAttendance(classId: string, absent: number) {
-    const className = classes.find((record) => record.id === classId)?.name ?? "Class";
-    setClasses((current) => current.map((record) => record.id === classId ? { ...record, attendance: "Submitted", absent: Math.max(absent, 0) } : record));
+    const targetClass = classes.find((record) => record.id === classId);
+    const className = targetClass?.name ?? "Class";
+    const safeAbsent = Math.max(absent, 0);
+    const totalLearners = targetClass?.learners ?? 0;
+    const attendanceRecord = {
+      id: runtimeId("attendance-register"),
+      classId,
+      className,
+      subject: targetClass?.lesson ?? "Lesson",
+      teacher: "Mr. Otieno",
+      totalLearners,
+      present: Math.max(totalLearners - safeAbsent, 0),
+      absent: safeAbsent,
+      status: "Submitted",
+      markedAt: new Date().toISOString(),
+    };
+
+    addSchoolRecord("attendance-registers", attendanceRecord, schoolId);
+    publishSchoolOperationalEvent({
+      schoolId,
+      actorRole: "teacher",
+      type: "ATTENDANCE_REGISTER_SUBMITTED",
+      module: "attendance",
+      title: `${className} attendance submitted`,
+      body: `${attendanceRecord.present} present and ${safeAbsent} absent. Principal, deputy, and class teacher views can now update.`,
+      entityId: attendanceRecord.id,
+      severity: safeAbsent > 0 ? "warning" : "success",
+      payload: { attendance: attendanceRecord },
+      notifications: [
+        {
+          audienceRoles: ["principal", "deputy-principal", "class-teacher"],
+          title: "Attendance register submitted",
+          body: `${className}: ${attendanceRecord.present} present, ${safeAbsent} absent.`,
+          severity: safeAbsent > 0 ? "warning" : "success",
+        },
+      ],
+    });
+    setClasses((current) => current.map((record) => record.id === classId ? { ...record, attendance: "Submitted", absent: safeAbsent } : record));
     setActiveAction(null);
-    recordActivity(`${className} attendance submitted with ${Math.max(absent, 0)} absent learner(s).`);
+    recordActivity(`${className} attendance submitted with ${safeAbsent} absent learner(s).`);
   }
 
   function submitMarks(batchId: string, submitted: number) {
     const batch = markBatches.find((record) => record.id === batchId);
+    const targetTotal = batch?.total ?? submitted;
+    const safeSubmitted = Math.min(Math.max(submitted, 0), targetTotal);
+    const status = safeSubmitted >= targetTotal ? "Submitted" : "Open";
     setMarkBatches((current) => current.map((record) => {
       if (record.id !== batchId) return record;
-      const safeSubmitted = Math.min(Math.max(submitted, 0), record.total);
       return { ...record, submitted: safeSubmitted, status: safeSubmitted >= record.total ? "Submitted" : "Open" };
     }));
+    publishSchoolOperationalEvent({
+      schoolId,
+      actorRole: "teacher",
+      type: "MARKS_PROGRESS_UPDATED",
+      module: "academics",
+      title: `${batch?.exam ?? "Marks"} progress updated`,
+      body: `${safeSubmitted}/${targetTotal} marks submitted for ${batch?.className ?? "class"}.`,
+      entityId: batchId,
+      severity: status === "Submitted" ? "success" : "warning",
+      payload: { batchId, submitted: safeSubmitted, total: targetTotal, status },
+      notifications: [
+        {
+          audienceRoles: ["dean-of-academics", "exams-manager", "hod"],
+          title: "Marks progress updated",
+          body: `${batch?.exam ?? "Marks"} now has ${safeSubmitted}/${targetTotal} submitted.`,
+          severity: status === "Submitted" ? "success" : "warning",
+        },
+      ],
+    });
     setActiveAction(null);
-    recordActivity(`${batch?.exam ?? "Marks"} updated to ${submitted} submitted mark(s).`);
+    recordActivity(`${batch?.exam ?? "Marks"} updated to ${safeSubmitted} submitted mark(s).`);
   }
 
   function submitAssignment(record: Omit<AssignmentRecord, "id" | "submitted" | "status">) {
-    const newAssignment: AssignmentRecord = { ...record, id: `assignment-${Date.now()}`, submitted: 0, status: "Published" };
+    const newAssignment: AssignmentRecord = { ...record, id: runtimeId("assignment"), submitted: 0, status: "Published" };
+    addSchoolRecord("assignments", newAssignment, schoolId);
+    publishSchoolOperationalEvent({
+      schoolId,
+      actorRole: "teacher",
+      type: "ASSIGNMENT_PUBLISHED",
+      module: "academics",
+      title: `${record.title} published`,
+      body: `${record.className} assignment due on ${record.dueDate}.`,
+      entityId: newAssignment.id,
+      severity: "info",
+      payload: { assignment: newAssignment },
+      notifications: [
+        {
+          audienceRoles: ["student", "parent", "class-teacher"],
+          title: "New assignment published",
+          body: `${record.title} is due on ${record.dueDate}.`,
+          severity: "info",
+        },
+      ],
+    });
     setAssignments((current) => [newAssignment, ...current]);
     setActiveAction(null);
     recordActivity(`${record.title} published for ${record.className}.`);
   }
 
   function submitResource(record: Omit<ResourceRecord, "id" | "status">) {
-    const newResource: ResourceRecord = { ...record, id: `resource-${Date.now()}`, status: "Draft" };
+    const newResource: ResourceRecord = { ...record, id: runtimeId("resource"), status: "Draft" };
+    addSchoolRecord("lesson-resources", newResource, schoolId);
+    publishSchoolOperationalEvent({
+      schoolId,
+      actorRole: "teacher",
+      type: "LEARNING_RESOURCE_UPLOADED",
+      module: "academics",
+      title: `${record.title} uploaded`,
+      body: `${record.type} uploaded for ${record.className} and saved as a draft.`,
+      entityId: newResource.id,
+      severity: "info",
+      payload: { resource: newResource },
+      notifications: [
+        {
+          audienceRoles: ["teacher", "hod"],
+          title: "Lesson resource uploaded",
+          body: `${record.title} is ready for review or publishing.`,
+          severity: "info",
+        },
+      ],
+    });
     setResources((current) => [newResource, ...current]);
     setActiveAction(null);
     recordActivity(`${record.title} uploaded as a draft for ${record.className}.`);
@@ -887,10 +1000,36 @@ export function TeacherCommandCenter({ routeMode }: { routeMode: TeacherRouteMod
   function submitSms(record: Omit<MessageRecord, "id" | "status" | "time">) {
     const newMessage: MessageRecord = {
       ...record,
-      id: `sms-${Date.now()}`,
+      id: runtimeId("sms"),
       status: "Sent",
       time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
     };
+    addSchoolRecord("teacher-messages", newMessage, schoolId);
+    simulateSms({
+      schoolId,
+      recipient: record.audience,
+      message: record.body,
+      sourceModule: "communication",
+    });
+    publishSchoolOperationalEvent({
+      schoolId,
+      actorRole: "teacher",
+      type: "CLASS_SMS_SENT",
+      module: "communication",
+      title: `SMS sent to ${record.audience}`,
+      body: record.body,
+      entityId: newMessage.id,
+      severity: "success",
+      payload: { message: newMessage },
+      notifications: [
+        {
+          audienceRoles: ["principal", "class-teacher"],
+          title: "Class message sent",
+          body: `Teacher sent SMS to ${record.audience}.`,
+          severity: "success",
+        },
+      ],
+    });
     setMessages((current) => [newMessage, ...current]);
     setActiveAction(null);
     recordActivity(`SMS sent to ${record.audience}.`);
@@ -920,7 +1059,7 @@ export function TeacherCommandCenter({ routeMode }: { routeMode: TeacherRouteMod
             onSearchResult={openSearchRecord}
             onStartAction={startAction}
           />
-          <main className="h-[calc(100%-84px)] overflow-y-auto p-4">
+          <main className="h-[calc(100%-72px)] overflow-y-auto p-4">
             <div className="space-y-4">
               <div className="rounded-xl border border-[#BFDBFE] bg-[#EFF6FF] px-4 py-3 text-sm font-black text-[#1D4ED8]">
                 {notice}
@@ -955,14 +1094,6 @@ export function TeacherCommandCenter({ routeMode }: { routeMode: TeacherRouteMod
                 />
               )}
               {detailPanel ? <DetailPanelView detail={detailPanel} onClose={() => setDetailPanel(null)} /> : null}
-              <section className="rounded-2xl border border-[#D8E0EC] bg-white p-4 shadow-sm">
-                <h2 className="text-lg font-black text-[#071D49]">Recent teacher actions</h2>
-                <div className="mt-3 space-y-2">
-                  {activityLog.map((item) => (
-                    <p key={item} className="rounded-xl bg-[#F8FAFC] px-3 py-2 text-sm font-semibold text-[#64748B]">{item}</p>
-                  ))}
-                </div>
-              </section>
             </div>
           </main>
         </div>

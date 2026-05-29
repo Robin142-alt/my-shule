@@ -370,7 +370,7 @@ export function getPracticalRoleProfile(role: SchoolExperienceRole): PracticalRo
 }
 
 const friendlyActionReplacements: Array<[RegExp, string]> = [
-  [/open audit trail/gi, "View Action History"],
+  [/open audit trail/gi, "View Details"],
   [/generated audit extract/gi, "Download Report"],
   [/generate audit extract/gi, "Download Report"],
   [/trigger repair/gi, "Retry"],
@@ -394,11 +394,11 @@ const friendlyTextReplacements: Array<[RegExp, string]> = [
   [/capability governed/gi, "permission controlled"],
   [/governed capability/gi, "permission controlled"],
   [/workflow dispatch/gi, "task sent"],
-  [/execution timeline/gi, "action history"],
+  [/execution timeline/gi, "saved records"],
   [/generated audit extract/gi, "downloaded report"],
   [/audit extract/gi, "downloaded report"],
-  [/audit trail/gi, "action history"],
-  [/audit item/gi, "action history item"],
+  [/audit trail/gi, "saved records"],
+  [/audit item/gi, "saved record"],
   [/audit state/gi, "history status"],
   [/repair triggered/gi, "retry started"],
   [/demo data fabric/gi, "sample school data"],
@@ -416,7 +416,7 @@ const friendlyTextReplacements: Array<[RegExp, string]> = [
   [/\bAGP\b/g, "permission check"],
   [/capability resolution/gi, "permission check"],
   [/event emission/gi, "live update"],
-  [/audit logging/gi, "action history"],
+  [/audit logging/gi, "saved records"],
   [/module bindings/gi, "connected school desks"],
   [/validating/gi, "checking"],
   [/dispatching/gi, "sending"],

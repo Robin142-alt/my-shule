@@ -4626,7 +4626,7 @@ function LeadershipCommandCenterPage({ role }: { role: SchoolExperienceRole }) {
           { id: "attendance", label: "Attendance compliance", value: "Live", helper: "Teacher and learner signals" },
           { id: "fees", label: "Fee collection", value: "Read only", helper: "Principal financial oversight" },
           { id: "discipline", label: "Discipline severity", value: "Weighted", helper: "Repeat cases and escalations" },
-          { id: "audit", label: "Audit trail", value: "Immutable", helper: "Critical action history" },
+          { id: "audit", label: "Audit trail", value: "Immutable", helper: "Critical accountability records" },
         ]}
       />
       <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">

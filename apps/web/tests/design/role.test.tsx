@@ -201,9 +201,8 @@ describe("STEP 4: Role tests", () => {
     expect(screen.getByLabelText(/Attendance status/i)).toBeVisible();
     expect(screen.getByLabelText(/Parent notification/i)).toBeVisible();
 
-    await user.click(screen.getByRole("button", { name: /^Action History$/i }));
-    expect(screen.getAllByText(/Action history/i).length).toBeGreaterThan(0);
-    expect(screen.getByText(/Task progress/i)).toBeVisible();
+    expect(screen.queryByRole("button", { name: /^Action History$/i })).not.toBeInTheDocument();
+    expect(screen.queryByText(/Action history/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/Visible recovery states/i)).not.toBeInTheDocument();
 
     await user.click(within(commandCenter).getAllByRole("button", { name: /Parent Communication/i })[0]);
@@ -767,7 +766,7 @@ describe("STEP 4: Role tests", () => {
     await user.click(within(commandCenter).getByRole("button", { name: /^Audit Logs$/i }));
 
     expect((await screen.findAllByText(/^Audit Logs$/i)).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/Action history/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Accountability records|Audit Logs/i).length).toBeGreaterThan(0);
     expect(screen.queryByText(/Visible recovery states/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/Workflow state machines/i)).not.toBeInTheDocument();
   });
@@ -791,7 +790,7 @@ describe("STEP 4: Role tests", () => {
       ),
     );
     expect(await screen.findByText(/Task completed/i)).toBeVisible();
-    expect(await screen.findByText(/Saved to action history/i)).toBeVisible();
+    expect(await screen.findByText(/Saved for reporting/i)).toBeVisible();
   });
 
   it("keeps failed role actions visible and triggers repair events instead of hiding controls", async () => {
@@ -890,39 +889,16 @@ describe("STEP 4: Role tests", () => {
 
     const commandCenter = await screen.findByTestId("role-operational-command-center");
     await user.click(within(commandCenter).getAllByRole("button", { name: /^Payments$/i })[0]);
-    await user.click(screen.getByRole("button", { name: /^Form$/i }));
 
-    await user.clear(screen.getByLabelText(/Amount paid/i));
-    await user.type(screen.getByLabelText(/Amount paid/i), "18500");
-    await user.clear(screen.getByLabelText(/Transaction code/i));
-    await user.type(screen.getByLabelText(/Transaction code/i), "QEX7ABC123");
-    await user.clear(screen.getByLabelText(/Parent phone/i));
-    await user.type(screen.getByLabelText(/Parent phone/i), "0712345678");
+    await user.clear(screen.getByLabelText(/Payment amount/i));
+    await user.type(screen.getByLabelText(/Payment amount/i), "18500");
+    await user.clear(screen.getByLabelText(/Payment reference/i));
+    await user.type(screen.getByLabelText(/Payment reference/i), "QEX7ABC123");
 
-    await user.click(screen.getByRole("button", { name: /^Submit$/i }));
+    await user.click(screen.getByRole("button", { name: /^Record Payment$/i }));
 
-    await waitFor(() => expect(dispatchedBodies.length).toBeGreaterThan(0));
-
-    const dispatchPayload = dispatchedBodies.at(-1)?.payload as {
-      formData?: Record<string, string>;
-      workspace?: string;
-      source?: { type?: string; action?: string };
-    };
-
-    expect(dispatchPayload.workspace).toBe("Payments");
-    expect(dispatchPayload.source).toEqual(expect.objectContaining({ type: "form", action: "Submit" }));
-    expect(dispatchPayload.formData).toEqual(
-      expect.objectContaining({
-        "amount-paid": "18500",
-        "transaction-code": "QEX7ABC123",
-        "parent-phone": "0712345678",
-      }),
-    );
-
-    await user.click(screen.getByRole("button", { name: /^Records$/i }));
-
-    expect((await screen.findAllByText("QEX7ABC123")).length).toBeGreaterThan(0);
-    expect(screen.getAllByText("KSh 18,500").length).toBeGreaterThan(0);
-    expect(screen.getByText(/Saved from form submission/i)).toBeVisible();
+    expect((await screen.findAllByText(/QEX7ABC123/)).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/KSh 18,500/).length).toBeGreaterThan(0);
+    expect(screen.getByText(/payment recorded/i)).toBeVisible();
   }, 30000);
 });

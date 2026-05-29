@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  Activity,
   CheckCircle2,
   ClipboardList,
   Clock3,
@@ -115,7 +114,7 @@ type RuntimeWorkspaceEntry = {
   createdAt: string;
 };
 
-type WorkspacePanel = "queue" | "records" | "form" | "audit";
+type WorkspacePanel = "queue" | "records" | "form";
 
 type ClinicVisitRecord = {
   id: string;
@@ -336,7 +335,6 @@ const workspacePanels: Array<{ id: WorkspacePanel; label: string }> = [
   { id: "queue", label: "Today's Work" },
   { id: "records", label: "Records" },
   { id: "form", label: "Form" },
-  { id: "audit", label: "Action History" },
 ];
 
 const initialClinicVisits: ClinicVisitRecord[] = [
@@ -994,28 +992,28 @@ function workspaceOwner(role: SchoolExperienceRole, kind: WorkspaceKind) {
 
 function workspaceActionLabels(kind: WorkspaceKind, workspace: string, blueprint: OperationalRoleBlueprint, workspaceIndex: number) {
   const byKind: Record<WorkspaceKind, string[]> = {
-    command: ["Open Urgent Tasks", "Assign Owner", "Escalate Risk", "Send Update", "Print Summary", "View Action History"],
-    approval: ["Open Review", "Approve", "Reject", "Return for Correction", "Assign Reviewer", "View Action History"],
-    academic: ["Open Academic Review", "Request Correction", "Approve Batch", "Notify Teacher", "Print Academic Report", "View Action History"],
-    finance: ["Record Payment", "Confirm M-Pesa", "Print Receipt", "Send Fee Reminder", "Approve Waiver", "View Action History"],
-    attendance: ["Mark Present", "Mark Absent", "Record Reason", "Notify Parent", "Print Attendance Report", "View Action History"],
-    discipline: ["Record Incident", "Escalate Case", "Notify Parent", "Refer to Counsellor", "Mark Issue Solved", "View Action History"],
-    communication: ["Send Message", "Schedule Meeting", "Use Template", "Mark Responded", "Escalate", "View Action History"],
-    students: ["Open Profile", "Message Guardian", "Record Note", "Mark Concern", "Assign Follow-up", "View Action History"],
-    staff: ["Assign Staff Member", "Request Update", "Schedule Meeting", "Send Reminder", "Record Observation", "View Action History"],
-    transport: ["Assign Route", "Update ETA", "Send Parent Alert", "Report Vehicle Issue", "Schedule Maintenance", "View Action History"],
-    inventory: ["Receive Stock", "Issue Stock", "Create Procurement Request", "Start Stock Take", "Print Slip", "View Action History"],
-    library: ["Issue Book", "Return Book", "Apply Fine", "Send Overdue SMS", "Print Slip", "View Action History"],
-    clinic: ["Record Visit", "Dispense Medicine", "Notify Parent", "Refer to Hospital", "Print Medical Slip", "View Action History"],
-    counselling: ["Start Session", "Add Notes", "Escalate Emergency", "Notify Principal", "Schedule Follow-up", "View Action History"],
-    boarding: ["Mark Roll Call", "Approve Exeat", "Assign Bed", "Notify Parent", "Report Incident", "View Action History"],
+    command: ["Open Urgent Tasks", "Assign Owner", "Escalate Risk", "Send Update", "Print Summary", "View Details"],
+    approval: ["Open Review", "Approve", "Reject", "Return for Correction", "Assign Reviewer", "View Details"],
+    academic: ["Open Academic Review", "Request Correction", "Approve Batch", "Notify Teacher", "Print Academic Report", "View Details"],
+    finance: ["Record Payment", "Confirm M-Pesa", "Print Receipt", "Send Fee Reminder", "Approve Waiver", "View Details"],
+    attendance: ["Mark Present", "Mark Absent", "Record Reason", "Notify Parent", "Print Attendance Report", "View Details"],
+    discipline: ["Record Incident", "Escalate Case", "Notify Parent", "Refer to Counsellor", "Mark Issue Solved", "View Details"],
+    communication: ["Send Message", "Schedule Meeting", "Use Template", "Mark Responded", "Escalate", "View Details"],
+    students: ["Open Profile", "Message Guardian", "Record Note", "Mark Concern", "Assign Follow-up", "View Details"],
+    staff: ["Assign Staff Member", "Request Update", "Schedule Meeting", "Send Reminder", "Record Observation", "View Details"],
+    transport: ["Assign Route", "Update ETA", "Send Parent Alert", "Report Vehicle Issue", "Schedule Maintenance", "View Details"],
+    inventory: ["Receive Stock", "Issue Stock", "Create Procurement Request", "Start Stock Take", "Print Slip", "View Details"],
+    library: ["Issue Book", "Return Book", "Apply Fine", "Send Overdue SMS", "Print Slip", "View Details"],
+    clinic: ["Record Visit", "Dispense Medicine", "Notify Parent", "Refer to Hospital", "Print Medical Slip", "View Details"],
+    counselling: ["Start Session", "Add Notes", "Escalate Emergency", "Notify Principal", "Schedule Follow-up", "View Details"],
+    boarding: ["Mark Roll Call", "Approve Exeat", "Assign Bed", "Notify Parent", "Report Incident", "View Details"],
     security: ["Register Visitor", "Verify Gate Pass", "Log Vehicle", "Report Incident", "Call Admin", "Print Visitor Badge"],
-    laboratory: ["Approve Practical Prep", "Add Chemical Stock", "Record Breakage", "Schedule Maintenance", "Alert Teacher", "View Action History"],
-    admissions: ["Add Inquiry", "Verify Documents", "Schedule Interview", "Approve Admission", "Print Admission Letter", "View Action History"],
-    reports: ["Generate Report", "Apply Filters", "Export PDF", "Export Excel", "Schedule Report", "View Action History"],
-    settings: ["Update Setting", "Test Integration", "Save Policy", "Verify Callback", "Request Approval", "View Action History"],
-    audit: ["View Action History", "Retry Sync", "Retry Failed Job", "Assign to Staff Member", "Mark Issue Solved", "Download Report"],
-    general: ["Open Item", "Assign Owner", "Update Status", "Escalate", "Generate Report", "View Action History"],
+    laboratory: ["Approve Practical Prep", "Add Chemical Stock", "Record Breakage", "Schedule Maintenance", "Alert Teacher", "View Details"],
+    admissions: ["Add Inquiry", "Verify Documents", "Schedule Interview", "Approve Admission", "Print Admission Letter", "View Details"],
+    reports: ["Generate Report", "Apply Filters", "Export PDF", "Export Excel", "Schedule Report", "View Details"],
+    settings: ["Update Setting", "Test Integration", "Save Policy", "Verify Callback", "Request Approval", "View Details"],
+    audit: ["Review Update", "Retry Sync", "Retry Failed Job", "Assign to Staff Member", "Mark Issue Solved", "Download Report"],
+    general: ["Open Item", "Assign Owner", "Update Status", "Escalate", "Generate Report", "View Details"],
   };
 
   if (kind === "command") {
@@ -1418,8 +1416,8 @@ function toQueueContract(
 
   return {
     title: `${schoolFriendlyText(activeWorkspace)} today's work`,
-    description: `Only ${schoolFriendlyText(activeWorkspace.toLowerCase())} work appears here. Each item has an owner, due time, next action, and action history.`,
-    bulkActions: ["Assign selected", "Escalate selected", "Print selected", "View Action History"].map((label, index) => {
+    description: `Only ${schoolFriendlyText(activeWorkspace.toLowerCase())} work appears here. Each item has an owner, due time, next action, and saved record.`,
+    bulkActions: ["Assign selected", "Escalate selected", "Print selected", "Export selected"].map((label, index) => {
       const action = actionContract({
         role,
         label: schoolFriendlyActionLabel(label),
@@ -3463,36 +3461,6 @@ function WorkflowMap({ workflows }: { workflows: string[] }) {
   );
 }
 
-function ExecutionTimeline({ items }: { items: ExecutionLogItem[] }) {
-  return (
-    <Card className="p-5">
-      <div className="flex items-center gap-2">
-        <Activity className="h-4 w-4 text-accent" />
-        <h2 className="text-lg font-bold text-foreground">Action history</h2>
-      </div>
-      <div className="mt-4 space-y-2">
-        {items.length === 0 ? (
-          <p className="rounded-[var(--radius-sm)] border border-border bg-surface-muted px-3 py-2 text-xs font-semibold text-muted">
-            No actions have been taken in this browser session yet.
-          </p>
-        ) : (
-          items.map((item) => (
-            <div key={item.id} className="rounded-[var(--radius-sm)] border border-border bg-surface-muted px-3 py-2">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="text-sm font-bold text-foreground">{item.label}</p>
-                <StatusPill label={item.status} tone={item.status === "SUCCESS" ? "ok" : item.status === "FAILED" ? "critical" : "warning"} compact />
-              </div>
-              <p className="mt-1 text-xs font-semibold text-muted">Progress: {schoolFriendlyText(item.workflow)}</p>
-              <p className="mt-1 text-xs font-semibold text-muted">Update: {item.events.map(schoolFriendlyText).join(", ")}</p>
-              <p className="mt-1 text-xs font-semibold text-muted">Record: saved to action history</p>
-            </div>
-          ))
-        )}
-      </div>
-    </Card>
-  );
-}
-
 function ExecutionInlineNotice({ items }: { items: ExecutionLogItem[] }) {
   const latest = items[0];
 
@@ -3503,11 +3471,11 @@ function ExecutionInlineNotice({ items }: { items: ExecutionLogItem[] }) {
   return (
     <div className="rounded-xl border border-[#D7E0EF] bg-white/75 px-3 py-2 shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-xs font-bold text-[#071D49]">{latest.label}</p>
+      <p className="text-xs font-bold text-[#071D49]">{latest.label}</p>
         <StatusPill label={latest.status} tone={latest.status === "SUCCESS" ? "ok" : latest.status === "FAILED" ? "critical" : "warning"} compact />
       </div>
       <p className="mt-1 text-[11px] font-semibold text-[#40608F]">{latest.events.map(schoolFriendlyText).join(", ")}</p>
-      <p className="mt-1 text-[11px] font-semibold text-[#40608F]">Saved to action history</p>
+      <p className="mt-1 text-[11px] font-semibold text-[#40608F]">Saved for reporting</p>
     </div>
   );
 }
@@ -3678,7 +3646,7 @@ function OutputGovernancePanel({ blueprint, role }: { blueprint: OperationalRole
       </div>
       <p className="mt-4 flex items-center gap-2 rounded-xl border border-border bg-surface-muted px-3 py-2 text-xs font-semibold text-muted">
         <CheckCircle2 className="h-3.5 w-3.5 text-accent" />
-        {titleizeRole(role)} actions check permission, update the right records, notify related desks, and keep action history.
+        {titleizeRole(role)} actions check permission, update the right records, notify related desks, and keep a reporting record.
       </p>
     </Card>
   );
@@ -3773,7 +3741,7 @@ function KisumuBoysDemoFeedPanel({
                 </div>
                 <p className="mt-1 text-xs font-semibold leading-5 text-[#52657F]">{item.body}</p>
                 <p className="mt-2 text-[11px] font-black uppercase tracking-[0.14em] text-[#40608F]">
-                  Work list: {schoolFriendlyText(item.queue)} | Action history ready
+                  Work list: {schoolFriendlyText(item.queue)} | update record ready
                 </p>
               </div>
               <OperationalActionButton action={action} onExecute={onExecute} compact />
@@ -4194,7 +4162,6 @@ function GenericRoleOperationalCommandCenter({
   const tableContract = toTableContract(role, resolvedBlueprint, activeWorkspaceIndex, resolvedWorkspace, workspaceRuntimeEntries);
   const formContract = toFormContract(role, resolvedBlueprint, activeWorkspaceIndex, resolvedWorkspace);
   const actions = workspaceActions(role, resolvedBlueprint, resolvedWorkspace, activeWorkspaceIndex, healthById);
-  const activeWorkflow = workspaceWorkflow(activeWorkspaceKind, resolvedWorkspace);
   const roleSearchResults = buildRoleSearchResults({
     query: searchQuery,
     role,
@@ -5591,15 +5558,6 @@ function GenericRoleOperationalCommandCenter({
       return <OperationalFormShell contract={formContract} onAction={executeFormAction} showExecutionContract={false} />;
     }
 
-    if (activePanel === "audit") {
-      return (
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
-          <ExecutionTimeline items={executionLog} />
-          <WorkflowMap workflows={[activeWorkflow]} />
-        </div>
-      );
-    }
-
     return <OperationalQueue contract={visibleQueueContract} onExecute={(action) => void executeAction(action)} />;
   }
 
@@ -5649,18 +5607,18 @@ function GenericRoleOperationalCommandCenter({
         </aside>
 
         <main className="flex h-full min-w-0 flex-col overflow-hidden">
-          <header className="shrink-0 border-b border-[#D7E0EF] bg-[linear-gradient(135deg,#071D49_0%,#123A7A_58%,#0F172A_100%)] px-4 py-4 text-white shadow-[0_24px_70px_rgba(7,29,73,0.18)] md:px-6">
+          <header className="shrink-0 border-b border-[#D7E0EF] bg-[linear-gradient(135deg,#071D49_0%,#123A7A_58%,#0F172A_100%)] px-4 py-2.5 text-white shadow-[0_18px_48px_rgba(7,29,73,0.16)] md:px-5">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <DashboardGreeting
                   name={greetingName}
                   context={roleProfile.todayContext}
                   tone="light"
-                  className="mb-3"
+                  className="mb-1.5"
                 />
-                <p className="text-xs font-black uppercase tracking-[0.2em] text-cyan-100/75">{"Today's school desk"}</p>
-                <h2 className="mt-1 text-2xl font-black tracking-tight">{commandTitle}</h2>
-                <p className="mt-1 max-w-4xl text-sm leading-6 text-white/76">{roleProfile.subtitle}</p>
+                <p className="text-[11px] font-black uppercase tracking-[0.18em] text-cyan-100/75">{"Today's school desk"}</p>
+                <h2 className="mt-0.5 text-xl font-black tracking-tight">{commandTitle}</h2>
+                <p className="mt-0.5 max-w-4xl text-xs leading-5 text-white/76">{roleProfile.subtitle}</p>
               </div>
               <div className="flex flex-wrap gap-2">
                 <label className="relative w-full sm:w-[320px]">
@@ -5671,7 +5629,7 @@ function GenericRoleOperationalCommandCenter({
                     value={searchQuery}
                     onChange={(event) => setSearchQuery(event.currentTarget.value)}
                     placeholder={searchPlaceholder(role, roleProfile, resolvedWorkspace)}
-                    className="w-full rounded-xl border border-white/15 bg-white/10 py-2 pl-9 pr-3 text-sm font-semibold text-white outline-none transition placeholder:text-white/58 focus:border-cyan-200/45 focus:bg-white/14"
+                    className="w-full rounded-xl border border-white/15 bg-white/10 py-1.5 pl-9 pr-3 text-sm font-semibold text-white outline-none transition placeholder:text-white/58 focus:border-cyan-200/45 focus:bg-white/14"
                   />
                 </label>
                 <StatusPill label="Authorized actions" tone="ok" />
@@ -5692,7 +5650,7 @@ function GenericRoleOperationalCommandCenter({
               <div className="flex flex-wrap gap-2">
                 <StatusPill label={`${visibleQueueContract.items.length} tasks`} tone="warning" />
                 <StatusPill label={`${tableContract.rows.length} records`} tone="ok" />
-                <StatusPill label="Action history on" tone="ok" />
+                <StatusPill label="Updates saved" tone="ok" />
               </div>
             </div>
 
@@ -5704,8 +5662,7 @@ function GenericRoleOperationalCommandCenter({
             ) : diagnosticsWorkspace ? (
               <div className="h-full min-h-0 space-y-4 overflow-y-auto pr-1">
                 <WorkspaceActionStrip actions={actions} onExecute={(action) => void executeAction(action)} />
-                <div className="grid gap-4 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
-                  <ExecutionTimeline items={executionLog} />
+                <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)]">
                   <WorkflowMap workflows={resolvedBlueprint.workflows} />
                 </div>
                 <RecoveryPanel blueprint={resolvedBlueprint} />
@@ -5890,7 +5847,7 @@ function GenericRoleOperationalCommandCenter({
 
             <p className="shrink-0 flex items-center gap-2 rounded-xl border border-[#D7E0EF] bg-white/70 px-3 py-2 text-xs font-semibold text-[#40608F]">
               <Clock3 className="h-3.5 w-3.5 text-accent" />
-              Use the role menu to switch sections. System issues and retries stay in action history and reports.
+              Use the role menu to switch sections. System issues and retries stay in reports.
             </p>
             </div>
           </section>

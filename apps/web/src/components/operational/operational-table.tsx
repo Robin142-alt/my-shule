@@ -230,7 +230,7 @@ export function OperationalTable({
     } else if (/resolve|mark returned|return|check out|checkout/.test(normalized)) {
       updateRowStatus(row.id, "Resolved", "ok");
     } else if (/sms|notify|reminder|alert/.test(normalized)) {
-      setNotice(`${action} queued for ${row.cells.student ?? row.cells.parent ?? row.cells.visitor ?? row.id}. SMS queued and action history updated.`);
+      setNotice(`${action} queued for ${row.cells.student ?? row.cells.parent ?? row.cells.visitor ?? row.id}. SMS queued and related records updated.`);
     } else if (/print|slip|receipt|letter/.test(normalized)) {
       printRows([row], `${action} - ${row.id}`);
     } else if (/export/.test(normalized)) {
@@ -256,8 +256,8 @@ export function OperationalTable({
         : "";
 
     const actionNotice = /sms|notify|reminder|alert/i.test(action)
-      ? `${action}${suffix}: SMS queued. Action history has been updated.`
-      : `${action}${suffix} is ready. Action history has been updated.`;
+      ? `${action}${suffix}: SMS queued. Related records have been updated.`
+      : `${action}${suffix} is ready. Related records have been updated.`;
 
     setNotice(actionNotice);
     onAction?.(action, context);
