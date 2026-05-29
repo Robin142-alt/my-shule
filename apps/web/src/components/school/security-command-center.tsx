@@ -636,6 +636,13 @@ function VisitorManagement({
   const [vehicle, setVehicle] = useState("");
   const inputClass = "rounded-[var(--radius)] border border-white/12 bg-white/10 px-3 py-2 text-sm font-semibold text-white outline-none placeholder:text-white/38 focus:border-cyan-300";
 
+  function printVisitorSlip(visitor: VisitorRecord) {
+    onAction(`${visitor.name} visitor slip opened for printing.`);
+    if (typeof window !== "undefined") {
+      window.print();
+    }
+  }
+
   return (
     <DarkSection id="visitor-management">
       <SectionTitle
@@ -694,7 +701,7 @@ function VisitorManagement({
                 {visitor.status !== "Exited" ? (
                   <button type="button" onClick={() => onCheckOut(visitor.id)} className="rounded-[var(--radius)] border border-emerald-300/35 bg-emerald-400/12 px-3 py-1.5 text-xs font-black text-emerald-100">Check Out</button>
                 ) : null}
-                <button type="button" onClick={() => onAction(`${visitor.name} visitor slip opened for printing.`)} className="rounded-[var(--radius)] border border-white/12 bg-white/10 px-3 py-1.5 text-xs font-black text-white">Print Slip</button>
+                <button type="button" onClick={() => printVisitorSlip(visitor)} className="rounded-[var(--radius)] border border-white/12 bg-white/10 px-3 py-1.5 text-xs font-black text-white">Print Slip</button>
                 <button type="button" onClick={() => onAction(`Office alerted about ${visitor.name}.`)} className="rounded-[var(--radius)] border border-orange-300/35 bg-[#FF7A1A]/14 px-3 py-1.5 text-xs font-black text-[#FFE1C8]">Alert Office</button>
               </div>
             </article>

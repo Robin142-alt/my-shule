@@ -39,6 +39,8 @@ describe("finance and security command center interactions", () => {
 
   it("lets security check in and check out a visitor from the active visitor desk", async () => {
     const user = userEvent.setup();
+    const printMock = jest.fn();
+    Object.defineProperty(window, "print", { value: printMock, writable: true });
 
     renderWithProviders(<SecurityCommandCenter routeMode="hosted" />);
 
@@ -55,6 +57,10 @@ describe("finance and security command center interactions", () => {
 
     expect(screen.getByText(/peter ouma checked in/i)).toBeVisible();
     expect(screen.getByText(/admission inquiry/i)).toBeVisible();
+
+    await user.click(screen.getAllByRole("button", { name: /print slip/i })[0]);
+    expect(screen.getByText(/visitor slip opened for printing/i)).toBeVisible();
+    expect(printMock).toHaveBeenCalled();
 
     await user.click(screen.getAllByRole("button", { name: /check out/i })[0]);
     expect(screen.getByText(/peter ouma checked out/i)).toBeVisible();

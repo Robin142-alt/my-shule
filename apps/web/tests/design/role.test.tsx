@@ -707,6 +707,27 @@ describe("STEP 4: Role tests", () => {
     expect(within(commandCenter).getByText(/marked served/i)).toBeVisible();
   }, 30000);
 
+  it("lets the secretary print a fee statement directly from student search", async () => {
+    const user = userEvent.setup();
+    const printMock = jest.fn();
+    Object.defineProperty(window, "print", { value: printMock, writable: true });
+
+    renderWithProviders(
+      createElement(SchoolPages, {
+        role: "secretary" as SchoolExperienceRole,
+        tenantSlug: "kisumu-boys",
+      }),
+    );
+
+    const commandCenter = await screen.findByTestId("role-operational-command-center");
+    await user.clear(within(commandCenter).getByLabelText(/secretary student search/i));
+    await user.type(within(commandCenter).getByLabelText(/secretary student search/i), "Brian");
+    await user.click(within(commandCenter).getAllByRole("button", { name: /print fee statement/i })[0]);
+
+    expect(within(commandCenter).getByText(/fee statement opened for printing/i)).toBeVisible();
+    expect(printMock).toHaveBeenCalled();
+  }, 30000);
+
   it("renders role-specific sidebar aliases as operational workspaces instead of falling through to legacy pages", async () => {
     const routeCases: Array<{
       role: SchoolExperienceRole;

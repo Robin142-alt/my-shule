@@ -3269,6 +3269,7 @@ function SecretaryWorkspace({
   onRegisterVisitor,
   onPrintVisitorSlip,
   onCheckOutVisitor,
+  onPrintFeeStatement,
   onMarkParentServed,
   onSendParentSms,
   onEscalateInquiry,
@@ -3281,6 +3282,7 @@ function SecretaryWorkspace({
   onRegisterVisitor: (visitor: Omit<SecretaryVisitorRecord, "id" | "status" | "checkInTime" | "slipPrinted">) => void;
   onPrintVisitorSlip: (id: string) => void;
   onCheckOutVisitor: (id: string) => void;
+  onPrintFeeStatement: (student: FeeBalanceRecord) => void;
   onMarkParentServed: (id: string) => void;
   onSendParentSms: (id: string) => void;
   onEscalateInquiry: (id: string) => void;
@@ -3418,7 +3420,7 @@ function SecretaryWorkspace({
               <div key={studentRecord.id} className="rounded-xl border border-[#D7E0EF] bg-surface-muted p-3">
                 <p className="text-sm font-black text-foreground">{studentRecord.student}</p>
                 <p className="mt-1 text-xs font-semibold text-muted">{studentRecord.className} - {studentRecord.admissionNo} - balance KSh {studentRecord.balance.toLocaleString("en-KE")}</p>
-                <button type="button" onClick={() => onAddInquiry({ parent: "Front office parent", student: studentRecord.student, className: studentRecord.className, phone: studentRecord.parentPhone, issue: "Fee statement printed", department: "Finance" })} className="mt-2 rounded-lg border border-[#B8D4FF] px-2 py-1 text-xs font-black text-[#1D4ED8]">Print Fee Statement</button>
+                <button type="button" onClick={() => onPrintFeeStatement(studentRecord)} className="mt-2 rounded-lg border border-[#B8D4FF] px-2 py-1 text-xs font-black text-[#1D4ED8]">Print Fee Statement</button>
               </div>
             ))}
           </div>
@@ -5366,6 +5368,23 @@ function GenericRoleOperationalCommandCenter({
     }
   }
 
+  function printSecretaryFeeStatement(student: FeeBalanceRecord) {
+    publishDashboardEvent({
+      type: "FEE_STATEMENT_PRINTED",
+      module: "front-office",
+      title: `${student.student} fee statement printed`,
+      body: `Fee statement opened for ${student.admissionNo} by the secretary desk.`,
+      entityId: student.id,
+      severity: "success",
+      notifications: [{ audienceRoles: ["secretary", "accountant"], title: "Fee statement printed" }],
+    });
+    addSecretaryExecutionLog(`${student.student} fee statement printed`, ["Fee statement prepared", "Print dialog opened"]);
+    setSecretaryNotice(`${student.student} fee statement opened for printing.`);
+    if (typeof window !== "undefined") {
+      window.print();
+    }
+  }
+
   function checkOutSecretaryVisitor(id: string) {
     const visitor = secretaryVisitors.find((item) => item.id === id);
 
@@ -5769,6 +5788,7 @@ function GenericRoleOperationalCommandCenter({
                 onRegisterVisitor={registerSecretaryVisitor}
                 onPrintVisitorSlip={printSecretaryVisitorSlip}
                 onCheckOutVisitor={checkOutSecretaryVisitor}
+                onPrintFeeStatement={printSecretaryFeeStatement}
                 onMarkParentServed={markSecretaryParentServed}
                 onSendParentSms={sendSecretaryParentSms}
                 onEscalateInquiry={escalateSecretaryInquiry}
