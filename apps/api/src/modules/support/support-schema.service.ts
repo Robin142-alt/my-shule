@@ -759,7 +759,7 @@ export class SupportSchemaService implements OnModuleInit {
     const components = [
       ['api', 'API', 'operational', 99.98, 182],
       ['payments', 'Payment systems', 'operational', 99.96, 240],
-      ['mpesa', 'MPESA integrations', 'degraded', 99.90, 410],
+      ['mpesa', 'MPESA integrations', 'operational', 99.90, 210],
       ['queues', 'Background queues', 'operational', 99.95, 95],
       ['uptime', 'School dashboards', 'operational', 99.99, 160],
     ] as const;
