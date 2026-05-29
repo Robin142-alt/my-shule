@@ -23,6 +23,7 @@ import {
 import { useEffect, useMemo, useState, type ComponentType } from "react";
 
 import { DashboardGreeting } from "@/components/common/dashboard-greeting";
+import { UserManagementWorkspace } from "@/components/school/user-management-workspace";
 import { Card } from "@/components/ui/card";
 import { StatusPill } from "@/components/ui/status-pill";
 import { getSchoolRoleGreetingName } from "@/lib/greetings/time-aware-greeting";
@@ -49,6 +50,7 @@ type PrincipalSectionId =
   | "library"
   | "store-assets"
   | "admissions"
+  | "user-management"
   | "reports"
   | "approvals"
   | "audit-logs"
@@ -492,6 +494,31 @@ const principalSections: PrincipalSection[] = [
       { item: "Backup completed", owner: "System Monitor", nextAction: "No action needed", status: "OK" },
     ],
   },
+  {
+    id: "user-management",
+    label: "Users & Invitations",
+    icon: UserPlus,
+    source: "School user records, pending invitations, roles, and access logs",
+    status: "warning",
+    summary: "86 active school users, 2 pending invitations, and 1 suspended account need review.",
+    emptyState: "No pending user invitations",
+    metrics: [
+      { label: "Active users", value: "86", helper: "Current school only" },
+      { label: "Pending invitations", value: "2", helper: "Expire automatically" },
+      { label: "Suspended users", value: "1", helper: "Access blocked" },
+      { label: "Roles with invite access", value: "2", helper: "Principal and Deputy Principal" },
+    ],
+    actions: [
+      { label: "Manage Users", target: "user-management" },
+      { label: "Invite New User", target: "user-management" },
+      { label: "Review Pending Invitations", target: "user-management", tone: "warning" },
+    ],
+    records: [
+      { item: "Faith Akinyi invitation pending", owner: "Principal Office", nextAction: "Resend or copy invite", status: "Pending" },
+      { item: "Grace Njeri access review", owner: "Principal Office", nextAction: "Reactivate or keep suspended", status: "Suspended" },
+      { item: "Deputy user management permission", owner: "Principal Office", nextAction: "Review permission summary", status: "Enabled" },
+    ],
+  },
 ];
 
 const sidebarItems: Array<{ id: PrincipalSectionId; label: string; badge?: string }> = [
@@ -508,6 +535,7 @@ const sidebarItems: Array<{ id: PrincipalSectionId; label: string; badge?: strin
   { id: "library", label: "Library" },
   { id: "store-assets", label: "Store & Assets", badge: "3" },
   { id: "admissions", label: "Admissions" },
+  { id: "user-management", label: "Users & Invitations", badge: "2" },
   { id: "reports", label: "Reports" },
   { id: "approvals", label: "Approvals", badge: "7" },
   { id: "audit-logs", label: "Audit Logs" },
@@ -532,6 +560,7 @@ const overviewSectionIds: PrincipalSectionId[] = [
   "boarding",
   "academics",
   "staff",
+  "user-management",
   "transport",
   "approvals",
 ];
@@ -616,6 +645,7 @@ function resolveInitialSection(initialSection?: string, initialWorkspace?: strin
   if (/discipline|incident|welfare|counsellor/.test(requested)) return "discipline";
   if (/academic|exam|marks|lesson|report-card|report card/.test(requested)) return "academics";
   if (/staff|teacher|hr|leave/.test(requested)) return "staff";
+  if (/user|users|invitation|invite|role|permission|account/.test(requested)) return "user-management";
   if (/parent|visitor|security|front/.test(requested)) return "parents-visitors";
   if (/clinic|sick|nurse|medicine|health/.test(requested)) return "sick-bay";
   if (/boarding|hostel|dorm|exeat/.test(requested)) return "boarding";
@@ -1243,11 +1273,22 @@ export function PrincipalPracticalCommandCenter({
               </div>
             ) : active ? (
               <div className="min-h-0 flex-1">
-                <div className="min-h-0 space-y-4">
-                  <SchoolOperationCard section={active} onAction={handleAction} />
-                  <RecordsPanel section={active} onAction={handleAction} />
-                  {active.id === "system-health" ? <StateExamples /> : null}
-                </div>
+                {active.id === "user-management" ? (
+                  <UserManagementWorkspace
+                    schoolId={schoolId}
+                    schoolName={schoolName}
+                    actorRole="Principal"
+                    actorName={greetingName}
+                    canInviteUsers
+                    canManageUsers
+                  />
+                ) : (
+                  <div className="min-h-0 space-y-4">
+                    <SchoolOperationCard section={active} onAction={handleAction} />
+                    <RecordsPanel section={active} onAction={handleAction} />
+                    {active.id === "system-health" ? <StateExamples /> : null}
+                  </div>
+                )}
               </div>
             ) : (
               <div className="mt-3 min-h-0 flex-1 space-y-4">

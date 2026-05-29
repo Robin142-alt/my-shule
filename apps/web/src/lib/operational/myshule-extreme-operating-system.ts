@@ -979,7 +979,7 @@ const roleBlueprints: OperationalRoleBlueprint[] = [
     id: "deputy-principal",
     identity: "Daily school operations tracker for attendance, staff coordination, timetable conflicts, incidents, and duty roster gaps.",
     firstViewport: ["missing attendance", "absent teachers", "timetable conflicts", "unresolved incidents", "student movement issues", "duty roster gaps"],
-    sidebar: ["Daily Operations", "Attendance Escalations", "Staff Coordination", "Timetable Conflicts", "Duty Roster", "Incident Routing"],
+    sidebar: ["Daily Operations", "Attendance Escalations", "Staff Coordination", "Timetable Conflicts", "Duty Roster", "Incident Routing", "Users & Invitations"],
     primaryActions: ["Assign", "Reassign", "Resolve", "Escalate", "Add Note", "Notify Staff"],
     tables: [table("Daily Operations Table", ["Issue Type", "Affected Class", "Assigned Person", "Priority", "Status", "Action Required"], ["Assign", "Reassign", "Resolve", "Escalate"], ["Assign selected", "Export"])],
     forms: [form("Timetable Conflict Resolution Form", ["Affected class", "Subject", "Teacher", "Conflict type", "Substitute teacher", "Resolution note"], ["Notify Staff"])],

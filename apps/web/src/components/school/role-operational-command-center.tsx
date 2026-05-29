@@ -39,6 +39,7 @@ import {
 import { OperationalQueue, type OperationalQueueContract } from "@/components/operational/operational-queue";
 import { OperationalTable, type OperationalTableContract } from "@/components/operational/operational-table";
 import { PrincipalPracticalCommandCenter } from "@/components/school/principal-practical-dashboard";
+import { UserManagementWorkspace } from "@/components/school/user-management-workspace";
 import { Card } from "@/components/ui/card";
 import { StatusPill } from "@/components/ui/status-pill";
 import type { SchoolExperienceRole } from "@/lib/experiences/types";
@@ -4159,6 +4160,7 @@ function GenericRoleOperationalCommandCenter({
   const isLaboratoryWorkspace = role === "laboratory-technician" && (activeWorkspaceKind === "laboratory" || /dashboard|laboratory|lab|chemical|apparatus|practical|safety/i.test(resolvedWorkspace));
   const isAccountantWorkspace = (role === "accountant" || role === "bursar") && (activeWorkspaceKind === "finance" || /dashboard|fee|finance|receipt|payment|m-pesa|mpesa|balance/i.test(resolvedWorkspace));
   const isSecretaryWorkspace = (role === "secretary" || role === "admin") && (activeWorkspaceKind === "command" || activeWorkspaceKind === "communication" || /dashboard|front office|visitor|parent|document|appointment|communication/i.test(resolvedWorkspace));
+  const isUserManagementWorkspace = role === "deputy-principal" && /user|invitation|invite|role|permission/i.test(resolvedWorkspace);
   const diagnosticsWorkspace = isDiagnosticsWorkspace(resolvedWorkspace);
   const commandWorkspace = isCommandWorkspace(resolvedWorkspace, activeWorkspaceIndex);
   const kisumuBoysFeed = filterKisumuBoysFeedForWorkspace({
@@ -5771,6 +5773,14 @@ function GenericRoleOperationalCommandCenter({
                 onSendParentSms={sendSecretaryParentSms}
                 onEscalateInquiry={escalateSecretaryInquiry}
                 onAddInquiry={addSecretaryInquiry}
+              />
+            ) : isUserManagementWorkspace ? (
+              <UserManagementWorkspace
+                schoolId={schoolId}
+                actorRole="Deputy Principal"
+                actorName={greetingName || "Mr. Otieno"}
+                canInviteUsers
+                canManageUsers
               />
             ) : isNurseClinicWorkspace ? (
               <NurseClinicWorkspace
