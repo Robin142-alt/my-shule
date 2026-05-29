@@ -89,7 +89,7 @@ export function OperationalQueue({
   }
 
   return (
-    <Card className="flex max-h-[calc(100vh-330px)] min-h-[300px] flex-col overflow-hidden p-4">
+    <Card className="flex min-h-[260px] flex-col overflow-visible p-4">
       <div className="shrink-0 flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="eyebrow">{"Today\u2019s Work"}</p>
@@ -116,7 +116,7 @@ export function OperationalQueue({
         </div>
       ) : null}
 
-      <div className="mt-4 min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
+      <div className="mt-4 space-y-3">
         {items.length === 0 ? (
           <div className="rounded-[var(--radius-sm)] border border-dashed border-border bg-surface-muted/70 p-5 text-sm font-semibold text-muted">
             No pending work in this queue right now.

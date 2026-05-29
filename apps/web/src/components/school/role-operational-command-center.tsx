@@ -8,6 +8,7 @@ import {
   Hospital,
   LayoutDashboard,
   ListChecks,
+  Menu,
   MessageCircle,
   Pill,
   Printer,
@@ -18,6 +19,7 @@ import {
   Thermometer,
   type LucideIcon,
   WifiOff,
+  X,
   Zap,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -115,6 +117,19 @@ type RuntimeWorkspaceEntry = {
 };
 
 type WorkspacePanel = "queue" | "records" | "form";
+
+type AttendanceRegisterRecord = {
+  id: string;
+  classId?: string;
+  className: string;
+  subject?: string;
+  teacher?: string;
+  totalLearners?: number;
+  present?: number;
+  absent?: number;
+  status: string;
+  markedAt?: string;
+};
 
 type ClinicVisitRecord = {
   id: string;
@@ -1666,7 +1681,7 @@ function NurseClinicWorkspace({
   ];
 
   return (
-    <div className="grid h-full min-h-0 gap-4 overflow-y-auto pr-1 2xl:grid-cols-[minmax(0,1fr)_420px]">
+    <div className="grid gap-4 2xl:grid-cols-[minmax(0,1fr)_420px]">
       <div className="space-y-4">
         <div role="status" className="rounded-xl border border-[#B8D4FF] bg-[#EFF6FF] px-4 py-3 text-sm font-black text-[#1D4ED8]">
           {notice}
@@ -1889,7 +1904,7 @@ function AdmissionsWorkspace({
   }
 
   return (
-    <div className="grid h-full min-h-0 gap-4 overflow-y-auto pr-1 2xl:grid-cols-[minmax(0,1fr)_400px]">
+    <div className="grid gap-4 2xl:grid-cols-[minmax(0,1fr)_400px]">
       <div className="space-y-4">
         <div role="status" className="rounded-xl border border-[#B8D4FF] bg-[#EFF6FF] px-4 py-3 text-sm font-black text-[#1D4ED8]">
           {notice}
@@ -2108,7 +2123,7 @@ function LibraryWorkspace({
   ];
 
   return (
-    <div className="grid h-full min-h-0 gap-4 overflow-y-auto pr-1 2xl:grid-cols-[minmax(0,1fr)_400px]">
+    <div className="grid gap-4 2xl:grid-cols-[minmax(0,1fr)_400px]">
       <div className="space-y-4">
         <div role="status" className="rounded-xl border border-[#B8D4FF] bg-[#EFF6FF] px-4 py-3 text-sm font-black text-[#1D4ED8]">
           {notice}
@@ -2217,7 +2232,7 @@ function LibraryWorkspace({
             <span className="sr-only">Search catalogue</span>
             <input value={searchTerm} onChange={(event) => setSearchTerm(event.currentTarget.value)} className={fieldClass} aria-label="Search catalogue" placeholder="Search title, barcode, shelf" />
           </label>
-          <div className="mt-3 max-h-[310px] space-y-2 overflow-y-auto pr-1">
+          <div className="mt-3 space-y-2">
             {filteredBooks.length === 0 ? (
               <p className="rounded-xl border border-[#D7E0EF] bg-surface-muted p-3 text-sm font-semibold text-muted">No book matches that search.</p>
             ) : filteredBooks.map((book) => (
@@ -2334,7 +2349,7 @@ function StorekeeperWorkspace({
   ];
 
   return (
-    <div className="grid h-full min-h-0 gap-4 overflow-y-auto pr-1 2xl:grid-cols-[minmax(0,1fr)_400px]">
+    <div className="grid gap-4 2xl:grid-cols-[minmax(0,1fr)_400px]">
       <div className="space-y-4">
         <div role="status" className="rounded-xl border border-[#B8D4FF] bg-[#EFF6FF] px-4 py-3 text-sm font-black text-[#1D4ED8]">
           {notice}
@@ -2479,7 +2494,7 @@ function StorekeeperWorkspace({
             <h3 className="text-lg font-black text-foreground">Stock catalogue</h3>
             <StatusPill label={`${items.length} items`} tone="ok" />
           </div>
-          <div className="mt-3 max-h-[360px] space-y-2 overflow-y-auto pr-1">
+          <div className="mt-3 space-y-2">
             {items.map((item) => (
               <div key={item.id} className="rounded-xl border border-[#D7E0EF] bg-surface-muted p-3">
                 <div className="flex items-center justify-between gap-2">
@@ -2551,7 +2566,7 @@ function BoardingWorkspace({
   ];
 
   return (
-    <div className="grid h-full min-h-0 gap-4 overflow-y-auto pr-1 2xl:grid-cols-[minmax(0,1fr)_400px]">
+    <div className="grid gap-4 2xl:grid-cols-[minmax(0,1fr)_400px]">
       <div className="space-y-4">
         <div role="status" className="rounded-xl border border-[#B8D4FF] bg-[#EFF6FF] px-4 py-3 text-sm font-black text-[#1D4ED8]">
           {notice}
@@ -2738,7 +2753,7 @@ function TransportWorkspace({
   ];
 
   return (
-    <div className="grid h-full min-h-0 gap-4 overflow-y-auto pr-1 2xl:grid-cols-[minmax(0,1fr)_400px]">
+    <div className="grid gap-4 2xl:grid-cols-[minmax(0,1fr)_400px]">
       <div className="space-y-4">
         <div role="status" className="rounded-xl border border-[#B8D4FF] bg-[#EFF6FF] px-4 py-3 text-sm font-black text-[#1D4ED8]">
           {notice}
@@ -2914,7 +2929,7 @@ function LaboratoryWorkspace({
   ];
 
   return (
-    <div className="grid h-full min-h-0 gap-4 overflow-y-auto pr-1 2xl:grid-cols-[minmax(0,1fr)_400px]">
+    <div className="grid gap-4 2xl:grid-cols-[minmax(0,1fr)_400px]">
       <div className="space-y-4">
         <div role="status" className="rounded-xl border border-[#B8D4FF] bg-[#EFF6FF] px-4 py-3 text-sm font-black text-[#1D4ED8]">
           {notice}
@@ -3118,7 +3133,7 @@ function AccountantWorkspace({
   ];
 
   return (
-    <div className="grid h-full min-h-0 gap-4 overflow-y-auto pr-1 2xl:grid-cols-[minmax(0,1fr)_400px]">
+    <div className="grid gap-4 2xl:grid-cols-[minmax(0,1fr)_400px]">
       <div className="space-y-4">
         <div role="status" className="rounded-xl border border-[#B8D4FF] bg-[#EFF6FF] px-4 py-3 text-sm font-black text-[#1D4ED8]">{notice}</div>
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
@@ -3296,7 +3311,7 @@ function SecretaryWorkspace({
   ];
 
   return (
-    <div className="grid h-full min-h-0 gap-4 overflow-y-auto pr-1 2xl:grid-cols-[minmax(0,1fr)_400px]">
+    <div className="grid gap-4 2xl:grid-cols-[minmax(0,1fr)_400px]">
       <div className="space-y-4">
         <div role="status" className="rounded-xl border border-[#B8D4FF] bg-[#EFF6FF] px-4 py-3 text-sm font-black text-[#1D4ED8]">{notice}</div>
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
@@ -3564,7 +3579,7 @@ function RoleSearchPanel({
   onOpen: (result: RoleSearchResult) => void;
 }) {
   return (
-    <Card className="h-full min-h-0 overflow-hidden p-5">
+    <Card className="p-4 md:p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="eyebrow">Search results</p>
@@ -3576,7 +3591,7 @@ function RoleSearchPanel({
         <StatusPill label={`${results.length} found`} tone={results.length ? "ok" : "warning"} />
       </div>
 
-      <div className="mt-4 h-full min-h-0 space-y-3 overflow-y-auto pr-1">
+      <div className="mt-4 space-y-3">
         {results.length === 0 ? (
           <div className="rounded-[var(--radius-sm)] border border-border bg-surface-muted px-4 py-8 text-center">
             <p className="text-sm font-black text-foreground">No matching school record found.</p>
@@ -3714,7 +3729,7 @@ function KisumuBoysDemoFeedPanel({
           <StatusPill label={`${score.widgetCount} sections`} tone="ok" />
         </div>
       </div>
-      <div className="mt-4 grid max-h-[360px] gap-3 overflow-y-auto pr-1">
+      <div className="mt-4 grid gap-3">
         {feed.slice(0, 18).map((item, index) => {
           const action: OperationalActionContract = {
             actionId: `kisumu-boys-${slug(role)}-${slug(item.id)}-${index}`,
@@ -3824,7 +3839,7 @@ function kisumuBoysFeedToRuntimeEntries({
       owner: schoolFriendlyText(item.queue),
       status: schoolFriendlyText(item.eventType.replace(/_/g, " ")),
       "next-action": schoolFriendlyActionLabel(item.action),
-      "action-history": "Ready",
+      "saved-record": "Ready",
     },
     status: "Action dispatched",
     createdAt: "2026-05-27T06:45:00.000+03:00",
@@ -4062,10 +4077,12 @@ function GenericRoleOperationalCommandCenter({
       ? workspaceSelection.workspace
       : preferredWorkspace;
   const [activePanel, setActivePanel] = useState<WorkspacePanel>("queue");
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [healthById, setHealthById] = useState<Record<string, OperationalActionHealth>>({});
   const [executionLog, setExecutionLog] = useState<ExecutionLogItem[]>([]);
   const [runtimeEntries, setRuntimeEntries] = useState<RuntimeWorkspaceEntry[]>([]);
+  const [attendanceRegisters, setAttendanceRegisters] = useState<AttendanceRegisterRecord[]>([]);
   const [clinicVisits, setClinicVisits] = useState<ClinicVisitRecord[]>(initialClinicVisits);
   const [medicineStock, setMedicineStock] = useState<MedicineStockRecord[]>(initialMedicineStock);
   const [clinicNotice, setClinicNotice] = useState("Sick bay ready. Record visits, dispense medicine, notify parents, and print slips from this desk.");
@@ -4103,6 +4120,7 @@ function GenericRoleOperationalCommandCenter({
       setFeePayments(mergeSchoolRecordsById(initialFeePayments, readSchoolData<FeePaymentRecord>("finance-payments", schoolId)));
       setSecretaryVisitors(mergeSchoolRecordsById(initialSecretaryVisitors, readSchoolData<SecretaryVisitorRecord>("visitors", schoolId)));
       setSecretaryInquiries(mergeSchoolRecordsById(initialSecretaryInquiries, readSchoolData<SecretaryInquiryRecord>("front-office-inquiries", schoolId)));
+      setAttendanceRegisters(readSchoolData<AttendanceRegisterRecord>("attendance-registers", schoolId));
     }
 
     hydrateStoredSchoolRecords();
@@ -4153,7 +4171,33 @@ function GenericRoleOperationalCommandCenter({
       workspace: resolvedWorkspace,
     })
     : [];
+  const attendanceWorkspaceEntries =
+    activeWorkspaceKind === "attendance"
+      ? attendanceRegisters.slice(0, 12).map((record, index): RuntimeWorkspaceEntry => ({
+        id: `attendance-${record.id}-${index}`,
+        workspace: resolvedWorkspace,
+        title: `${record.className} attendance submitted`,
+        actionLabel: Number(record.absent ?? 0) > 0 ? "Notify Parent" : "Open Register",
+        source: "queue",
+        values: {
+          item: `${record.className} attendance submitted`,
+          student: record.className,
+          "student/class": record.className,
+          owner: record.teacher ?? "Teacher",
+          status: record.status,
+          "next-action": Number(record.absent ?? 0) > 0 ? "Follow up absentees" : "Review register",
+          absent: String(record.absent ?? 0),
+          present: String(record.present ?? 0),
+          "last-seen": record.markedAt
+            ? new Date(record.markedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+            : "Just now",
+        },
+        status: "Action dispatched",
+        createdAt: record.markedAt ?? new Date().toISOString(),
+      }))
+      : [];
   const workspaceRuntimeEntries = [
+    ...attendanceWorkspaceEntries,
     ...demoWorkspaceEntries,
     ...runtimeEntries.filter((entry) => entry.workspace === resolvedWorkspace),
   ];
@@ -5562,13 +5606,35 @@ function GenericRoleOperationalCommandCenter({
   }
 
   return (
-    <div className="h-screen overflow-hidden bg-[#F3F6FA]" data-testid="role-operational-command-center">
-      <div className="mx-auto grid h-full min-h-0 max-w-[1500px] gap-0 lg:grid-cols-[292px_minmax(0,1fr)]">
-        <aside className="flex h-full min-h-0 flex-col overflow-hidden border-r border-[#D7E0EF] bg-[linear-gradient(180deg,#071D49_0%,#102E63_58%,#0F172A_100%)] p-4 text-white">
+    <div className="min-h-dvh bg-[#F3F6FA] lg:h-dvh lg:overflow-hidden" data-testid="role-operational-command-center">
+      <div className="mx-auto grid min-h-dvh max-w-none gap-0 lg:h-full lg:min-h-0 lg:grid-cols-[292px_minmax(0,1fr)]">
+        {mobileSidebarOpen ? (
+          <button
+            type="button"
+            aria-label={`Close ${roleTitle} menu overlay`}
+            className="fixed inset-0 z-30 bg-slate-950/45 lg:hidden"
+            onClick={() => setMobileSidebarOpen(false)}
+          />
+        ) : null}
+        <aside
+          className={`fixed inset-y-0 left-0 z-40 flex w-[min(84vw,292px)] min-h-0 flex-col overflow-hidden border-r border-[#D7E0EF] bg-[linear-gradient(180deg,#071D49_0%,#102E63_58%,#0F172A_100%)] p-4 text-white shadow-2xl transition-transform duration-200 lg:static lg:z-auto lg:h-full lg:w-auto lg:translate-x-0 lg:shadow-none ${
+            mobileSidebarOpen ? "translate-x-0" : "-translate-x-full"
+          }`}
+        >
           <div className="shrink-0 rounded-2xl border border-white/12 bg-white/[0.08] p-4 backdrop-blur">
-            <div className="flex items-center gap-2">
-              <LayoutDashboard className="h-4 w-4 text-cyan-200" />
-              <p className="text-xs font-black uppercase tracking-[0.18em] text-cyan-100/80">Role menu</p>
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <LayoutDashboard className="h-4 w-4 text-cyan-200" />
+                <p className="text-xs font-black uppercase tracking-[0.18em] text-cyan-100/80">Role menu</p>
+              </div>
+              <button
+                type="button"
+                className="rounded-lg border border-white/15 bg-white/10 p-1.5 text-white lg:hidden"
+                onClick={() => setMobileSidebarOpen(false)}
+                aria-label={`Close ${roleTitle} menu`}
+              >
+                <X className="h-4 w-4" />
+              </button>
             </div>
             <h1 className="mt-3 text-2xl font-black tracking-tight">{roleProfile.sidebarTitle}</h1>
             <p className="mt-2 text-xs font-semibold leading-5 text-white/62">{roleProfile.sidebarSubtitle}</p>
@@ -5586,6 +5652,7 @@ function GenericRoleOperationalCommandCenter({
                     workspace: item,
                   });
                   setActivePanel("queue");
+                  setMobileSidebarOpen(false);
                 }}
                 className={`flex items-center justify-between rounded-xl border px-3 py-2 text-left text-xs font-bold transition hover:-translate-y-0.5 ${
                   item === resolvedWorkspace
@@ -5606,19 +5673,29 @@ function GenericRoleOperationalCommandCenter({
           </nav>
         </aside>
 
-        <main className="flex h-full min-w-0 flex-col overflow-hidden">
+        <main className="flex min-h-dvh min-w-0 flex-col lg:h-full lg:min-h-0 lg:overflow-hidden">
           <header className="shrink-0 border-b border-[#D7E0EF] bg-[linear-gradient(135deg,#071D49_0%,#123A7A_58%,#0F172A_100%)] px-4 py-2.5 text-white shadow-[0_18px_48px_rgba(7,29,73,0.16)] md:px-5">
             <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <DashboardGreeting
-                  name={greetingName}
-                  context={roleProfile.todayContext}
-                  tone="light"
-                  className="mb-1.5"
-                />
-                <p className="text-[11px] font-black uppercase tracking-[0.18em] text-cyan-100/75">{"Today's school desk"}</p>
-                <h2 className="mt-0.5 text-xl font-black tracking-tight">{commandTitle}</h2>
-                <p className="mt-0.5 max-w-4xl text-xs leading-5 text-white/76">{roleProfile.subtitle}</p>
+              <div className="flex min-w-0 items-start gap-2">
+                <button
+                  type="button"
+                  className="mt-0.5 rounded-xl border border-white/15 bg-white/10 p-1.5 text-white lg:hidden"
+                  onClick={() => setMobileSidebarOpen(true)}
+                  aria-label={`Open ${roleTitle} menu`}
+                >
+                  <Menu className="h-5 w-5" />
+                </button>
+                <div className="min-w-0">
+                  <DashboardGreeting
+                    name={greetingName}
+                    context={roleProfile.todayContext}
+                    tone="light"
+                    className="mb-1.5"
+                  />
+                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-cyan-100/75">{"Today's school desk"}</p>
+                  <h2 className="mt-0.5 text-xl font-black tracking-tight">{commandTitle}</h2>
+                  <p className="mt-0.5 max-w-4xl text-xs leading-5 text-white/76">{roleProfile.subtitle}</p>
+                </div>
               </div>
               <div className="flex flex-wrap gap-2">
                 <label className="relative w-full sm:w-[320px]">
@@ -5639,8 +5716,8 @@ function GenericRoleOperationalCommandCenter({
             </div>
           </header>
 
-          <section className="min-h-0 flex-1 overflow-hidden px-4 py-5 md:px-6" data-testid="role-operational-workspace">
-            <div className="flex h-full min-h-0 flex-col gap-4">
+          <section className="min-h-0 flex-1 overflow-y-auto px-3 py-3 md:px-5" data-testid="role-operational-workspace">
+            <div className="flex min-h-full flex-col gap-4">
             {activeWorkspaceIndex === 0 && !isSearching ? <PracticalSummaryGrid profile={roleProfile} /> : null}
             <div className="shrink-0 flex flex-wrap items-center justify-between gap-3">
               <div>
@@ -5654,13 +5731,13 @@ function GenericRoleOperationalCommandCenter({
               </div>
             </div>
 
-            <div key={resolvedWorkspace} className="min-h-0 flex-1 overflow-hidden">
+            <div key={resolvedWorkspace} className="min-h-0 flex-1">
             {isSearching ? (
-              <div className="h-full min-h-0">
+              <div className="min-h-0">
                 <RoleSearchPanel query={searchQuery} results={roleSearchResults} onOpen={openSearchResult} />
               </div>
             ) : diagnosticsWorkspace ? (
-              <div className="h-full min-h-0 space-y-4 overflow-y-auto pr-1">
+              <div className="min-h-0 space-y-4">
                 <WorkspaceActionStrip actions={actions} onExecute={(action) => void executeAction(action)} />
                 <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)]">
                   <WorkflowMap workflows={resolvedBlueprint.workflows} />
@@ -5789,8 +5866,8 @@ function GenericRoleOperationalCommandCenter({
                 onPrintRouteList={printTransportRouteList}
               />
             ) : commandWorkspace ? (
-              <div className="grid h-full min-h-0 gap-4 2xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
-                <div className="min-h-0 space-y-4 overflow-y-auto pr-1">
+              <div className="grid min-h-0 gap-4 2xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
+                <div className="min-h-0 space-y-4">
                   <PracticalAlertsPanel profile={roleProfile} />
                   {kisumuBoysScore ? (
                     <KisumuBoysDemoFeedPanel
@@ -5835,10 +5912,10 @@ function GenericRoleOperationalCommandCenter({
                 <OperationalQueue contract={visibleQueueContract} onExecute={(action) => void executeAction(action)} />
               </div>
             ) : (
-              <div className="grid h-full min-h-0 grid-rows-[auto_auto_auto_minmax(0,1fr)] gap-4">
+              <div className="grid min-h-0 gap-4">
                 <WorkspaceActionStrip actions={actions} onExecute={(action) => void executeAction(action)} />
                 <WorkspacePanelTabs activePanel={activePanel} onChange={setActivePanel} />
-                <div className="min-h-0 overflow-hidden">
+                <div className="min-h-0">
                   {renderOperationalPanel()}
                 </div>
               </div>

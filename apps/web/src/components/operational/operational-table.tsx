@@ -425,7 +425,7 @@ export function OperationalTable({
         ))}
       </div>
 
-      <div className="mt-4 overflow-hidden rounded-[var(--radius-sm)] border border-border">
+      <div className="mt-4 overflow-x-auto rounded-[var(--radius-sm)] border border-border">
         <table className="w-full min-w-[720px] border-collapse text-left text-sm">
           <thead className="sticky top-0 bg-primary-soft/45 text-[10px] font-black uppercase tracking-[0.14em] text-muted">
             <tr>

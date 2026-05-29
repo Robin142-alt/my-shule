@@ -3,7 +3,6 @@
 import {
   AlertTriangle,
   BedDouble,
-  Bell,
   BriefcaseBusiness,
   Bus,
   ClipboardCheck,
@@ -16,7 +15,6 @@ import {
   PackageCheck,
   Search,
   ShieldAlert,
-  Stethoscope,
   Users,
   UserCheck,
   UserPlus,
@@ -799,6 +797,39 @@ function OverviewSituationBoard({
   );
 }
 
+function CompactApprovalsCard({
+  section,
+  onAction,
+}: {
+  section: PrincipalSection;
+  onAction: (action: PracticalAction, section: PrincipalSection) => void;
+}) {
+  return (
+    <Card className="border-[#FED7AA] bg-[#FFF7ED] p-3 shadow-[0_12px_30px_rgba(194,65,12,0.08)]">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-3">
+          <span className="rounded-xl bg-white p-2 text-[#C2410C]">
+            <ClipboardCheck className="h-4 w-4" />
+          </span>
+          <div className="min-w-0">
+            <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[#C2410C]">Pending approvals</p>
+            <h2 className="mt-0.5 text-base font-black text-[#071D49]">{section.summary}</h2>
+            <p className="mt-1 text-xs font-semibold text-[#7C2D12]">Open the approvals page for full review. The overview stays focused.</p>
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          {section.metrics.slice(0, 3).map((metric) => (
+            <span key={metric.label} className="rounded-full border border-[#FDBA74] bg-white px-2.5 py-1 text-xs font-black text-[#9A3412]">
+              {metric.value} {metric.label}
+            </span>
+          ))}
+          <PracticalButton action={section.actions[0]} section={section} onAction={onAction} />
+        </div>
+      </div>
+    </Card>
+  );
+}
+
 function RecordsPanel({
   section,
   onAction,
@@ -870,7 +901,7 @@ function PrincipalSearchPanel({
   onOpen: (section: PrincipalSection, actionLabel: string) => void;
 }) {
   return (
-    <Card className="h-full overflow-hidden border-[#D7E0EF] bg-white p-4 shadow-[0_16px_44px_rgba(15,23,42,0.06)]">
+    <Card className="border-[#D7E0EF] bg-white p-4 shadow-[0_16px_44px_rgba(15,23,42,0.06)]">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[#597091]">Search results</p>
@@ -882,7 +913,7 @@ function PrincipalSearchPanel({
         <StatusPill label={`${results.length} found`} tone={results.length ? "ok" : "warning"} />
       </div>
 
-      <div className="mt-4 max-h-[calc(100%-96px)] space-y-3 overflow-y-auto pr-1">
+      <div className="mt-4 space-y-3">
         {results.length ? (
           results.map((result) => {
             const Icon = result.section.icon;
@@ -975,7 +1006,7 @@ export function PrincipalPracticalCommandCenter({
   const greetingName = getSchoolRoleGreetingName("principal") || "Principal Wanjiku";
   const schoolId = getCurrentSchoolId(tenantSlug);
   const overviewSections = overviewSectionIds.map((id) => sectionById(id));
-  const rightRailSections = ["approvals", "system-health", "reports"].map((id) => sectionById(id as PrincipalSectionId));
+  const approvalsSection = sectionById("approvals");
 
   useEffect(() => {
     function loadSharedSchoolActions() {
@@ -1085,11 +1116,19 @@ export function PrincipalPracticalCommandCenter({
   const nav = useMemo(() => sidebarItems, []);
 
   return (
-    <div className="h-screen overflow-hidden bg-[#F3F6FA]" data-testid="role-operational-command-center">
-      <div className="grid h-full min-h-0 lg:grid-cols-[280px_minmax(0,1fr)]" data-testid="principal-practical-command-center">
+    <div className="min-h-dvh bg-[#F3F6FA] lg:h-dvh lg:overflow-hidden" data-testid="role-operational-command-center">
+      <div className="grid min-h-dvh lg:h-full lg:min-h-0 lg:grid-cols-[280px_minmax(0,1fr)]" data-testid="principal-practical-command-center">
+        {mobileNavOpen ? (
+          <button
+            type="button"
+            aria-label="Close principal navigation overlay"
+            className="fixed inset-0 z-30 bg-slate-950/45 lg:hidden"
+            onClick={() => setMobileNavOpen(false)}
+          />
+        ) : null}
         <aside
-          className={`min-h-0 border-r border-[#D7E0EF] bg-[linear-gradient(180deg,#071D49_0%,#102E63_64%,#0F172A_100%)] p-4 text-white lg:flex lg:h-full lg:max-h-none lg:flex-col ${
-            mobileNavOpen ? "flex max-h-[58vh] flex-col overflow-hidden" : "hidden"
+          className={`fixed inset-y-0 left-0 z-40 flex w-[min(84vw,280px)] min-h-0 flex-col overflow-hidden border-r border-[#D7E0EF] bg-[linear-gradient(180deg,#071D49_0%,#102E63_64%,#0F172A_100%)] p-4 text-white shadow-2xl transition-transform duration-200 lg:static lg:z-auto lg:h-full lg:w-auto lg:translate-x-0 lg:shadow-none ${
+            mobileNavOpen ? "translate-x-0" : "-translate-x-full"
           }`}
         >
           <div className="shrink-0 rounded-2xl border border-white/12 bg-white/[0.08] p-4">
@@ -1123,7 +1162,7 @@ export function PrincipalPracticalCommandCenter({
           </nav>
         </aside>
 
-        <main className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
+        <main className="flex min-h-dvh min-w-0 flex-col lg:h-full lg:min-h-0 lg:overflow-hidden">
           <header className="shrink-0 border-b border-[#D7E0EF] bg-white/92 px-4 py-2.5 shadow-sm backdrop-blur md:px-5">
             <div className="flex flex-wrap items-start justify-between gap-2.5">
               <div className="flex items-start gap-3">
@@ -1174,7 +1213,7 @@ export function PrincipalPracticalCommandCenter({
             </label>
           </header>
 
-          <section className="flex min-h-0 flex-1 flex-col overflow-hidden px-4 py-3 md:px-5">
+          <section className="min-h-0 flex-1 overflow-y-auto px-3 py-3 md:px-5">
             {!active && !isSearching ? (
               <div className="grid shrink-0 gap-3 md:grid-cols-2 xl:grid-cols-6">
                 {summaryCards.map((card) => (
@@ -1204,80 +1243,21 @@ export function PrincipalPracticalCommandCenter({
               </div>
             ) : active ? (
               <div className="min-h-0 flex-1">
-                <div className="min-h-0 space-y-4 overflow-y-auto pr-1">
+                <div className="min-h-0 space-y-4">
                   <SchoolOperationCard section={active} onAction={handleAction} />
                   <RecordsPanel section={active} onAction={handleAction} />
                   {active.id === "system-health" ? <StateExamples /> : null}
                 </div>
               </div>
             ) : (
-              <div className="mt-4 grid min-h-0 flex-1 gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.65fr)]">
-                <div className="min-h-0 space-y-4 overflow-y-auto pr-1">
-                  <OverviewSituationBoard sections={overviewSections} onAction={handleAction} />
-                </div>
-                <div className="min-h-0 overflow-y-auto pr-1">
-                  <RightRail onAction={handleAction} sections={rightRailSections} />
-                </div>
+              <div className="mt-3 min-h-0 flex-1 space-y-4">
+                <CompactApprovalsCard section={approvalsSection} onAction={handleAction} />
+                <OverviewSituationBoard sections={overviewSections} onAction={handleAction} />
               </div>
             )}
           </section>
         </main>
       </div>
-    </div>
-  );
-}
-
-function RightRail({
-  onAction,
-  sections = ["approvals", "system-health", "reports"].map((id) => sectionById(id as PrincipalSectionId)),
-  showQuietAreas = true,
-}: {
-  onAction: (action: PracticalAction, section: PrincipalSection) => void;
-  sections?: PrincipalSection[];
-  showQuietAreas?: boolean;
-}) {
-  return (
-    <div className="space-y-4">
-      {sections.length > 0 ? (
-        <Card className="border-[#D7E0EF] bg-white p-4">
-          <div className="flex items-center gap-2">
-            <Bell className="h-4 w-4 text-[#C2410C]" />
-            <h2 className="text-base font-black text-[#071D49]">Approvals, alerts, and reports</h2>
-          </div>
-          <div className="mt-4 space-y-3">
-            {sections.map((section) => (
-              <div key={section.id} className="rounded-xl border border-[#D7E0EF] bg-[#F8FAFC] p-3">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-black text-[#071D49]">{section.label}</p>
-                    <p className="mt-1 text-xs font-semibold leading-5 text-[#52657F]">{section.summary}</p>
-                  </div>
-                  <StatusPill label={section.status === "ok" ? "OK" : "Open"} tone={statusTone(section.status)} compact />
-                </div>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {section.actions.slice(0, 2).map((action) => (
-                    <PracticalButton key={`${section.id}-${action.label}`} action={action} section={section} onAction={onAction} />
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        </Card>
-      ) : null}
-
-      {showQuietAreas ? (
-        <Card className="border-[#D7E0EF] bg-white p-4">
-          <div className="flex items-center gap-2">
-            <Stethoscope className="h-4 w-4 text-[#047857]" />
-            <h2 className="text-base font-black text-[#071D49]">Quiet areas</h2>
-          </div>
-          <div className="mt-3 grid gap-2 text-sm font-bold text-[#047857]">
-            <p className="rounded-xl border border-[#BFE8D7] bg-[#ECFDF5] px-3 py-2">No blocklisted visitor alerts</p>
-            <p className="rounded-xl border border-[#BFE8D7] bg-[#ECFDF5] px-3 py-2">No missing boarder currently</p>
-            <p className="rounded-xl border border-[#BFE8D7] bg-[#ECFDF5] px-3 py-2">No urgent library incident</p>
-          </div>
-        </Card>
-      ) : null}
     </div>
   );
 }
