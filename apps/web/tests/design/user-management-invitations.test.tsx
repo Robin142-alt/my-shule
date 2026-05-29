@@ -9,6 +9,14 @@ import {
 
 import { renderWithProviders } from "./test-utils";
 
+function jsonResponse(body: unknown, init?: ResponseInit) {
+  return {
+    status: init?.status ?? 200,
+    ok: (init?.status ?? 200) >= 200 && (init?.status ?? 200) < 300,
+    json: async () => body,
+  } as Response;
+}
+
 function seedSchoolUser(schoolId: string, overrides: Record<string, unknown>) {
   return addSchoolRecord(
     "school-users",
@@ -31,8 +39,12 @@ function seedSchoolUser(schoolId: string, overrides: Record<string, unknown>) {
 }
 
 describe("school-scoped user management and invitations", () => {
+  const fetchMock = jest.fn();
+
   beforeEach(() => {
     window.localStorage.clear();
+    fetchMock.mockReset();
+    global.fetch = undefined as unknown as typeof fetch;
   });
 
   it("adds a dedicated Principal Users & Invitations workspace without replacing the overview", async () => {
@@ -102,6 +114,107 @@ describe("school-scoped user management and invitations", () => {
         ]),
       );
     });
+  }, 30000);
+
+  it("uses the live invitation API contract when available and keeps local fallback audit behavior", async () => {
+    const user = userEvent.setup();
+    fetchMock.mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      const method = init?.method ?? "GET";
+
+      if (url === "/api/auth/invitations" && method === "GET") {
+        return Promise.resolve(jsonResponse({
+          users: [
+            {
+              id: "membership-1",
+              kind: "member",
+              display_name: "Mary Wanjiku",
+              email: "principal@example.test",
+              role_code: "principal",
+              role_name: "Principal",
+              status: "active",
+            },
+            {
+              id: "invite-1",
+              kind: "invitation",
+              display_name: "Jane Parent",
+              email: "parent@example.test",
+              role_code: "parent",
+              role_name: "Parent",
+              status: "invited",
+            },
+          ],
+        }));
+      }
+
+      if (url === "/api/auth/csrf") {
+        return Promise.resolve(jsonResponse({ token: "csrf-user-workspace-token" }));
+      }
+
+      return Promise.resolve(jsonResponse({
+        id: "invite-2",
+        kind: "invitation",
+        display_name: "Brian Otieno",
+        email: "brian.parent@example.test",
+        role_code: "parent",
+        role_name: "Parent",
+        status: "invited",
+      }));
+    });
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    renderWithProviders(<SchoolPages role="principal" tenantSlug="kisumu-boys" />);
+
+    const commandCenter = await screen.findByTestId("role-operational-command-center");
+    await user.click(within(commandCenter).getByRole("button", { name: /Users & Invitations/i }));
+
+    expect(await within(commandCenter).findByText(/Mary Wanjiku/i)).toBeVisible();
+    await user.click(within(commandCenter).getByRole("button", { name: /Pending Invitations/i }));
+    expect(within(commandCenter).getByText(/Jane Parent/i)).toBeVisible();
+
+    await user.click(within(commandCenter).getByRole("button", { name: /Invite New User/i }));
+    await user.type(within(commandCenter).getByLabelText(/Full name/i), "Brian Otieno");
+    await user.type(within(commandCenter).getByLabelText(/Phone number/i), "0712456789");
+    await user.type(within(commandCenter).getByLabelText(/Email address/i), "brian.parent@example.test");
+    await user.selectOptions(within(commandCenter).getByLabelText(/^Role$/i), "Parent");
+    await user.click(within(commandCenter).getByRole("button", { name: /Send Invitation/i }));
+
+    await waitFor(() => expect(within(commandCenter).getByText(/Invitation created for Brian Otieno/i)).toBeVisible());
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/auth/invitations",
+      expect.objectContaining({
+        method: "GET",
+        credentials: "same-origin",
+      }),
+    );
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/auth/csrf",
+      expect.objectContaining({
+        method: "GET",
+        credentials: "same-origin",
+      }),
+    );
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/auth/invitations",
+      expect.objectContaining({
+        method: "POST",
+        credentials: "same-origin",
+        headers: expect.objectContaining({
+          "Content-Type": "application/json",
+          "x-myshule-csrf": "csrf-user-workspace-token",
+        }),
+        body: expect.stringContaining('"role_code":"parent"'),
+      }),
+    );
+    expect(readSchoolData("user-management-audit", "kisumu-boys")).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          action: "User invited",
+          target: "Brian Otieno",
+          schoolId: "kisumu-boys",
+        }),
+      ]),
+    );
   }, 30000);
 
   it("prevents duplicate active users inside the same school and filters out another school's users", async () => {

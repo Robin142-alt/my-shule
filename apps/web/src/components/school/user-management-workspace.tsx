@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { Card } from "@/components/ui/card";
 import { StatusPill } from "@/components/ui/status-pill";
+import { getCsrfToken } from "@/lib/auth/csrf-client";
 import {
   addSchoolRecord,
   mergeSchoolRecordsById,
@@ -87,6 +88,25 @@ type InviteFormState = {
   note: string;
 };
 
+type ManagedUserApi = {
+  id?: string;
+  kind?: "member" | "invitation";
+  display_name?: string;
+  email?: string;
+  phone?: string;
+  role_code?: string;
+  role_name?: string;
+  department?: string;
+  assignment?: string;
+  status?: "active" | "suspended" | "deactivated" | "invited" | "expired" | "revoked" | "accepted";
+  created_at?: string;
+  joined_at?: string;
+  last_active_at?: string;
+  invited_by_role?: string;
+  expires_at?: string;
+  invite_code?: string;
+};
+
 const userModule = "school-users";
 const invitationModule = "user-invitations";
 const userAuditModule = "user-management-audit";
@@ -117,6 +137,36 @@ const schoolRoles = [
   "ICT / Computer Lab user",
 ] as const;
 
+const roleCodeByLabel: Record<string, string> = {
+  Principal: "principal",
+  "Deputy Principal": "deputy_principal",
+  Secretary: "secretary",
+  Accountant: "accountant",
+  Teacher: "teacher",
+  "Dean of Academics": "dean_academics",
+  "Exams Manager": "exams_manager",
+  "Head of Department": "hod",
+  "Class Teacher": "class_teacher",
+  "Grade/Form Master": "grade_master",
+  Nurse: "nurse",
+  "School Counsellor": "school_counsellor",
+  "Discipline Master": "discipline_master",
+  Librarian: "librarian",
+  Parent: "parent",
+  Student: "student",
+  Storekeeper: "storekeeper",
+  "Boarding Master": "boarding_master",
+  "Security Officer": "security_officer",
+  "Transport Manager": "transport_manager",
+  "Laboratory Technician": "lab_technician",
+  "Admissions Officer": "admissions",
+  "ICT / Computer Lab user": "ict",
+};
+
+const roleLabelByCode = Object.fromEntries(
+  Object.entries(roleCodeByLabel).map(([label, code]) => [code, label]),
+);
+
 const tabs: Array<{ id: UserManagementTab; label: string }> = [
   { id: "users", label: "All Users" },
   { id: "invitations", label: "Pending Invitations" },
@@ -146,6 +196,18 @@ function normalize(value: string) {
 
 function slug(value: string) {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+}
+
+function roleCodeForLabel(label: string) {
+  return roleCodeByLabel[label] ?? slug(label).replace(/-/g, "_");
+}
+
+function roleLabelForCode(code?: string, fallback?: string) {
+  if (!code) {
+    return fallback ?? "School User";
+  }
+
+  return roleLabelByCode[code] ?? fallback ?? code.split("_").map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(" ");
 }
 
 function randomToken() {
@@ -323,6 +385,109 @@ function seedAudit(schoolId: string, actorRole: string, actorName: string): User
   ];
 }
 
+function apiStatusToUserStatus(status: ManagedUserApi["status"]): SchoolUserStatus {
+  if (status === "suspended") return "Suspended";
+  if (status === "deactivated") return "Deactivated";
+  return "Active";
+}
+
+function apiStatusToInvitationStatus(status: ManagedUserApi["status"]): InvitationStatus {
+  if (status === "accepted") return "Accepted";
+  if (status === "expired") return "Expired";
+  if (status === "revoked") return "Revoked";
+  return "Pending";
+}
+
+function apiUserToSchoolUser(user: ManagedUserApi, schoolId: string): SchoolUserRecord {
+  const role = roleLabelForCode(user.role_code, user.role_name);
+  const createdAt = user.created_at ?? nowIso();
+
+  return {
+    id: user.id ?? `${schoolId}-${slug(user.email ?? user.display_name ?? role)}`,
+    schoolId,
+    name: user.display_name ?? user.email ?? "School user",
+    role,
+    department: user.department ?? "School access",
+    assignment: user.assignment ?? role,
+    phone: user.phone ?? "",
+    email: user.email ?? "",
+    status: apiStatusToUserStatus(user.status),
+    lastActive: user.last_active_at ? displayDate(user.last_active_at) : "Not yet active today",
+    joinedAt: user.joined_at ?? createdAt,
+    createdAt,
+  };
+}
+
+function apiUserToInvitation(user: ManagedUserApi, schoolId: string, actorRole: string): UserInvitationRecord {
+  const role = roleLabelForCode(user.role_code, user.role_name);
+  const createdAt = user.created_at ?? nowIso();
+
+  return {
+    id: user.id ?? `${schoolId}-invite-${slug(user.email ?? user.display_name ?? role)}`,
+    schoolId,
+    invitedName: user.display_name ?? user.email ?? "Invited user",
+    phone: user.phone ?? "",
+    email: user.email ?? "",
+    role,
+    department: user.department ?? "School access",
+    assignment: user.assignment ?? role,
+    identifier: "",
+    deliveryMethod: user.email ? "Email" : "Copy link",
+    note: "Loaded from live school access service",
+    invitedByUserId: `${schoolId}-${slug(user.invited_by_role ?? actorRole)}`,
+    invitedByRole: user.invited_by_role ?? actorRole,
+    invitationStatus: apiStatusToInvitationStatus(user.status),
+    inviteCode: user.invite_code ?? "Hidden after delivery",
+    inviteToken: `${schoolId}.live.${user.id ?? slug(user.email ?? role)}`,
+    expiryDate: user.expires_at ?? inviteExpiryDate(7),
+    acceptedAt: user.status === "accepted" ? nowIso() : undefined,
+    createdAt,
+    updatedAt: createdAt,
+  };
+}
+
+function splitLiveUsers(payloadUsers: ManagedUserApi[] | undefined, schoolId: string, actorRole: string) {
+  const users: SchoolUserRecord[] = [];
+  const invitations: UserInvitationRecord[] = [];
+
+  (payloadUsers ?? []).forEach((apiUser) => {
+    const isInvitation =
+      apiUser.kind === "invitation"
+      || apiUser.status === "invited"
+      || apiUser.status === "expired"
+      || apiUser.status === "revoked"
+      || apiUser.status === "accepted";
+
+    if (isInvitation) {
+      invitations.push(apiUserToInvitation(apiUser, schoolId, actorRole));
+    } else {
+      users.push(apiUserToSchoolUser(apiUser, schoolId));
+    }
+  });
+
+  return { users, invitations };
+}
+
+function isManagedUserApi(payload: unknown): payload is ManagedUserApi {
+  return Boolean(
+    payload
+      && typeof payload === "object"
+      && ("id" in payload || "display_name" in payload || "email" in payload || "role_code" in payload || "status" in payload),
+  );
+}
+
+function readManagedUserPayload(payload: { user?: ManagedUserApi; message?: string } | ManagedUserApi | null) {
+  if (!payload) return null;
+  if ("user" in payload) return payload.user ?? null;
+  return isManagedUserApi(payload) ? payload : null;
+}
+
+function readManagedInvitationPayload(payload: { invitation?: ManagedUserApi; message?: string } | ManagedUserApi | null) {
+  if (!payload) return null;
+  if ("invitation" in payload) return payload.invitation ?? null;
+  return isManagedUserApi(payload) ? payload : null;
+}
+
 function statusTone(status: SchoolUserStatus | InvitationStatus) {
   if (status === "Active" || status === "Accepted") return "ok";
   if (status === "Pending") return "warning";
@@ -373,19 +538,67 @@ export function UserManagementWorkspace({
   const [editingUser, setEditingUser] = useState<SchoolUserRecord | null>(null);
 
   useEffect(() => {
+    let mounted = true;
+
+    function localUsers() {
+      return mergeSchoolRecordsById(seedSchoolUsers(schoolId), readSchoolData<SchoolUserRecord>(userModule, schoolId));
+    }
+
+    function localInvitations() {
+      return mergeSchoolRecordsById(seedInvitations(schoolId, actorRole), readSchoolData<UserInvitationRecord>(invitationModule, schoolId));
+    }
+
     function hydrate() {
-      setUsers(mergeSchoolRecordsById(seedSchoolUsers(schoolId), readSchoolData<SchoolUserRecord>(userModule, schoolId)));
-      setInvitations(mergeSchoolRecordsById(seedInvitations(schoolId, actorRole), readSchoolData<UserInvitationRecord>(invitationModule, schoolId)));
+      setUsers(localUsers());
+      setInvitations(localInvitations());
       setAuditRecords(mergeSchoolRecordsById(seedAudit(schoolId, actorRole, actorName), readSchoolData<UserManagementAuditRecord>(userAuditModule, schoolId)));
     }
 
-    hydrate();
+    async function hydrateLiveAccess() {
+      if (typeof fetch !== "function") {
+        return;
+      }
 
-    return subscribeToSchoolDataUpdates((detail) => {
+      try {
+        const response = await fetch("/api/auth/invitations", {
+          method: "GET",
+          credentials: "same-origin",
+          cache: "no-store",
+        });
+        const payload = (await response.json().catch(() => null)) as { users?: ManagedUserApi[]; message?: string } | null;
+
+        if (!response.ok) {
+          throw new Error(payload?.message ?? "Unable to load live school users.");
+        }
+
+        const live = splitLiveUsers(payload?.users, schoolId, actorRole);
+
+        if (!mounted) {
+          return;
+        }
+
+        setUsers(mergeSchoolRecordsById(live.users, localUsers()));
+        setInvitations(mergeSchoolRecordsById(live.invitations, localInvitations()));
+      } catch {
+        if (mounted) {
+          setNotice((current) => current ?? "Live user service is unavailable. Showing saved school user records.");
+        }
+      }
+    }
+
+    hydrate();
+    void hydrateLiveAccess();
+
+    const unsubscribe = subscribeToSchoolDataUpdates((detail) => {
       if (detail.schoolId === schoolId && [userModule, invitationModule, userAuditModule].includes(detail.moduleName)) {
         hydrate();
       }
     });
+
+    return () => {
+      mounted = false;
+      unsubscribe();
+    };
   }, [actorName, actorRole, schoolId]);
 
   const pendingInvitations = invitations.filter((invite) => invite.invitationStatus === "Pending");
@@ -445,19 +658,47 @@ export function UserManagementWorkspace({
     });
   }
 
-  function updateUserStatus(user: SchoolUserRecord, status: SchoolUserStatus, reason: string) {
+  async function updateUserStatus(user: SchoolUserRecord, status: SchoolUserStatus, reason: string) {
     if (!canManageUsers) {
       setError("Your account can view users, but user management changes are not enabled.");
       return;
     }
 
     const updatedAt = nowIso();
+    let nextUser = { ...user, status, statusReason: reason, statusChangedBy: actorName, statusChangedAt: updatedAt };
+
+    if (typeof fetch === "function" && (status === "Active" || status === "Suspended")) {
+      try {
+        const csrfToken = await getCsrfToken();
+        const response = await fetch(`/api/auth/tenant-users/${encodeURIComponent(user.id)}/status`, {
+          method: "PATCH",
+          credentials: "same-origin",
+          headers: {
+            "Content-Type": "application/json",
+            "x-myshule-csrf": csrfToken,
+          },
+          body: JSON.stringify({ status: status === "Active" ? "active" : "suspended" }),
+        });
+        const payload = (await response.json().catch(() => null)) as { user?: ManagedUserApi; message?: string } | ManagedUserApi | null;
+
+        if (!response.ok) {
+          throw new Error((payload && "message" in payload ? payload.message : undefined) ?? "Unable to update user status.");
+        }
+
+        const apiUser = readManagedUserPayload(payload);
+        if (apiUser?.id) {
+          nextUser = { ...apiUserToSchoolUser(apiUser, schoolId), statusReason: reason, statusChangedBy: actorName, statusChangedAt: updatedAt };
+        }
+      } catch {
+        setNotice("Live user service could not update status. Saved the change locally for this school.");
+      }
+    }
 
     updateSchoolRecord<SchoolUserRecord>(
       userModule,
       user.id,
       {
-        status,
+        status: nextUser.status,
         statusReason: reason,
         statusChangedBy: actorName,
         statusChangedAt: updatedAt,
@@ -467,13 +708,13 @@ export function UserManagementWorkspace({
     setUsers((current) =>
       current.map((item) =>
         item.id === user.id
-          ? { ...item, status, statusReason: reason, statusChangedBy: actorName, statusChangedAt: updatedAt }
+          ? { ...item, ...nextUser }
           : item,
       ),
     );
-    addUserAudit(`User ${status.toLowerCase()}`, user.name, user.status, status, reason);
-    publishUserEvent("USER_STATUS_CHANGED", `User ${status.toLowerCase()}`, `${user.name} is now ${status.toLowerCase()} in ${schoolName}.`, user.id);
-    setNotice(`${user.name} is now ${status}.`);
+    addUserAudit(`User ${nextUser.status.toLowerCase()}`, user.name, user.status, nextUser.status, reason);
+    publishUserEvent("USER_STATUS_CHANGED", `User ${nextUser.status.toLowerCase()}`, `${user.name} is now ${nextUser.status.toLowerCase()} in ${schoolName}.`, user.id);
+    setNotice(`${user.name} is now ${nextUser.status}.`);
     setError(null);
   }
 
@@ -492,27 +733,81 @@ export function UserManagementWorkspace({
     setSelectedDetail(null);
   }
 
-  function resendInvitation(invite: UserInvitationRecord) {
+  async function resendInvitation(invite: UserInvitationRecord) {
     if (invite.invitationStatus !== "Pending") {
       setError("Only pending invitations can be resent.");
       return;
     }
 
     const expiryDate = inviteExpiryDate(7);
+    let nextInvite = { ...invite, expiryDate, updatedAt: nowIso() };
+
+    if (typeof fetch === "function") {
+      try {
+        const csrfToken = await getCsrfToken();
+        const response = await fetch(`/api/auth/invitations/${encodeURIComponent(invite.id)}/resend`, {
+          method: "POST",
+          credentials: "same-origin",
+          headers: {
+            "Content-Type": "application/json",
+            "x-myshule-csrf": csrfToken,
+          },
+        });
+        const payload = (await response.json().catch(() => null)) as { invitation?: ManagedUserApi; message?: string } | ManagedUserApi | null;
+
+        if (!response.ok) {
+          throw new Error((payload && "message" in payload ? payload.message : undefined) ?? "Unable to resend invitation.");
+        }
+
+        const apiInvite = readManagedInvitationPayload(payload);
+        if (apiInvite?.id) {
+          nextInvite = {
+            ...apiUserToInvitation({ ...apiInvite, kind: "invitation" }, schoolId, actorRole),
+            phone: apiInvite.phone ?? invite.phone,
+            department: apiInvite.department ?? invite.department,
+            assignment: apiInvite.assignment ?? invite.assignment,
+            expiryDate: apiInvite.expires_at ?? expiryDate,
+          };
+        }
+      } catch {
+        setNotice("Live invite service could not resend. Saved the new expiry locally.");
+      }
+    }
+
     updateSchoolRecord<UserInvitationRecord>(invitationModule, invite.id, { expiryDate, updatedAt: nowIso() }, schoolId);
     setInvitations((current) =>
-      current.map((item) => (item.id === invite.id ? { ...item, expiryDate, updatedAt: nowIso() } : item)),
+      current.map((item) => (item.id === invite.id ? { ...item, ...nextInvite } : item)),
     );
-    addUserAudit("Invitation resent", invite.invitedName, invite.expiryDate, expiryDate, "Invitation resent");
+    addUserAudit("Invitation resent", invite.invitedName, invite.expiryDate, nextInvite.expiryDate, "Invitation resent");
     publishUserEvent("USER_INVITATION_RESENT", "Invitation resent", `${invite.invitedName} invitation was resent.`, invite.id);
     setNotice(`Invitation resent to ${invite.invitedName}.`);
     setError(null);
   }
 
-  function revokeInvitation(invite: UserInvitationRecord) {
+  async function revokeInvitation(invite: UserInvitationRecord) {
     if (invite.invitationStatus !== "Pending") {
       setError("Only pending invitations can be revoked.");
       return;
+    }
+
+    if (typeof fetch === "function") {
+      try {
+        const csrfToken = await getCsrfToken();
+        const response = await fetch(`/api/auth/invitations/${encodeURIComponent(invite.id)}`, {
+          method: "DELETE",
+          credentials: "same-origin",
+          headers: {
+            "Content-Type": "application/json",
+            "x-myshule-csrf": csrfToken,
+          },
+        });
+
+        if (!response.ok) {
+          throw new Error("Unable to revoke invitation.");
+        }
+      } catch {
+        setNotice("Live invite service could not revoke. Saved the revocation locally.");
+      }
     }
 
     updateSchoolRecord<UserInvitationRecord>(invitationModule, invite.id, { invitationStatus: "Revoked", updatedAt: nowIso() }, schoolId);
@@ -551,7 +846,7 @@ export function UserManagementWorkspace({
     setNotice(`Password reset link sent to ${user.name}.`);
   }
 
-  function saveEditedUser(event: React.FormEvent<HTMLFormElement>) {
+  async function saveEditedUser(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     if (!editingUser) {
@@ -573,6 +868,27 @@ export function UserManagementWorkspace({
       return;
     }
 
+    if (typeof fetch === "function" && updates.role !== editingUser.role) {
+      try {
+        const csrfToken = await getCsrfToken();
+        const response = await fetch(`/api/auth/tenant-users/${encodeURIComponent(editingUser.id)}/role`, {
+          method: "PATCH",
+          credentials: "same-origin",
+          headers: {
+            "Content-Type": "application/json",
+            "x-myshule-csrf": csrfToken,
+          },
+          body: JSON.stringify({ role_code: roleCodeForLabel(updates.role) }),
+        });
+
+        if (!response.ok) {
+          throw new Error("Unable to update role.");
+        }
+      } catch {
+        setNotice("Live user service could not update the role. Saved the change locally for this school.");
+      }
+    }
+
     updateSchoolRecord<SchoolUserRecord>(userModule, editingUser.id, updates, schoolId);
     setUsers((current) => current.map((user) => (user.id === editingUser.id ? { ...user, ...updates } : user)));
     addUserAudit("User edited", editingUser.name, JSON.stringify({
@@ -586,7 +902,7 @@ export function UserManagementWorkspace({
     setError(null);
   }
 
-  function createInvitation(event: React.FormEvent<HTMLFormElement>) {
+  async function createInvitation(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
 
@@ -641,7 +957,70 @@ export function UserManagementWorkspace({
       updatedAt: nowIso(),
     };
 
-    const saved = addSchoolRecord<UserInvitationRecord>(invitationModule, invite, schoolId);
+    let saved: UserInvitationRecord | null = null;
+
+    if (typeof fetch === "function" && invite.email) {
+      try {
+        const csrfToken = await getCsrfToken();
+        const response = await fetch("/api/auth/invitations", {
+          method: "POST",
+          credentials: "same-origin",
+          headers: {
+            "Content-Type": "application/json",
+            "x-myshule-csrf": csrfToken,
+          },
+          body: JSON.stringify({
+            display_name: invite.invitedName,
+            email: invite.email,
+            role_code: roleCodeForLabel(invite.role),
+            phone: invite.phone,
+            department: invite.department,
+            assignment: invite.assignment,
+            identifier: invite.identifier,
+            delivery_method: invite.deliveryMethod,
+            note: invite.note,
+          }),
+        });
+        const payload = (await response.json().catch(() => null)) as { invitation?: ManagedUserApi; message?: string } | ManagedUserApi | null;
+
+        if (!response.ok) {
+          throw new Error((payload && "message" in payload ? payload.message : undefined) ?? "Unable to create invitation.");
+        }
+
+        const apiInvite = readManagedInvitationPayload(payload);
+        if (apiInvite?.id) {
+          saved = {
+            ...apiUserToInvitation(
+              {
+                ...apiInvite,
+                kind: "invitation",
+                display_name: apiInvite.display_name ?? invite.invitedName,
+                phone: apiInvite.phone ?? invite.phone,
+                role_code: apiInvite.role_code ?? roleCodeForLabel(invite.role),
+                role_name: apiInvite.role_name ?? invite.role,
+                status: apiInvite.status ?? "invited",
+              },
+              schoolId,
+              actorRole,
+            ),
+            department: apiInvite.department ?? invite.department,
+            assignment: apiInvite.assignment ?? invite.assignment,
+            identifier: invite.identifier,
+            deliveryMethod: invite.deliveryMethod,
+            note: invite.note,
+            invitedByUserId: invite.invitedByUserId,
+            invitedByRole: invite.invitedByRole,
+          };
+        }
+      } catch {
+        setNotice("Live invite service is unavailable. Created a local invite code for this school.");
+      }
+    }
+
+    if (!saved) {
+      saved = addSchoolRecord<UserInvitationRecord>(invitationModule, invite, schoolId);
+    }
+
     setInvitations((current) => [saved, ...current.filter((item) => item.id !== saved.id)]);
     addUserAudit("User invited", invite.invitedName, undefined, `${invite.role} invitation via ${invite.deliveryMethod}`, invite.note);
     publishUserEvent("USER_INVITED", "User invited", `${invite.invitedName} was invited as ${invite.role} in ${schoolName}.`, invite.id);
