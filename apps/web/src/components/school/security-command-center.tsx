@@ -34,6 +34,12 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
+import {
+  addSchoolRecord,
+  getCurrentSchoolId,
+  publishSchoolOperationalEvent,
+} from "@/lib/school/school-operational-store";
+
 type SecurityRouteMode = "hosted" | "public";
 type Tone = "secure" | "info" | "warning" | "danger" | "cyan" | "neutral";
 type SecurityKpi = {
@@ -84,6 +90,14 @@ function announceAction(message: string) {
   if (typeof window !== "undefined") {
     window.dispatchEvent(new CustomEvent("myshule-dashboard-action", { detail: message }));
   }
+}
+
+function runtimeId(prefix: string) {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return `${prefix}-${crypto.randomUUID()}`;
+  }
+
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
 const toneStyles: Record<
@@ -622,11 +636,13 @@ function VisitorManagement({
   onAddVisitor,
   onCheckOut,
   onAction,
+  onPrintSlip,
 }: {
   visitors: VisitorRecord[];
   onAddVisitor: (visitor: Omit<VisitorRecord, "id" | "entryTime" | "expectedExit" | "status" | "tone">) => void;
   onCheckOut: (id: string) => void;
   onAction: (message: string) => void;
+  onPrintSlip: (visitor: VisitorRecord) => void;
 }) {
   const [name, setName] = useState("");
   const [idNumber, setIdNumber] = useState("");
@@ -635,13 +651,6 @@ function VisitorManagement({
   const [purpose, setPurpose] = useState("");
   const [vehicle, setVehicle] = useState("");
   const inputClass = "rounded-[var(--radius)] border border-white/12 bg-white/10 px-3 py-2 text-sm font-semibold text-white outline-none placeholder:text-white/38 focus:border-cyan-300";
-
-  function printVisitorSlip(visitor: VisitorRecord) {
-    onAction(`${visitor.name} visitor slip opened for printing.`);
-    if (typeof window !== "undefined") {
-      window.print();
-    }
-  }
 
   return (
     <DarkSection id="visitor-management">
@@ -701,7 +710,7 @@ function VisitorManagement({
                 {visitor.status !== "Exited" ? (
                   <button type="button" onClick={() => onCheckOut(visitor.id)} className="rounded-[var(--radius)] border border-emerald-300/35 bg-emerald-400/12 px-3 py-1.5 text-xs font-black text-emerald-100">Check Out</button>
                 ) : null}
-                <button type="button" onClick={() => printVisitorSlip(visitor)} className="rounded-[var(--radius)] border border-white/12 bg-white/10 px-3 py-1.5 text-xs font-black text-white">Print Slip</button>
+                <button type="button" onClick={() => onPrintSlip(visitor)} className="rounded-[var(--radius)] border border-white/12 bg-white/10 px-3 py-1.5 text-xs font-black text-white">Print Slip</button>
                 <button type="button" onClick={() => onAction(`Office alerted about ${visitor.name}.`)} className="rounded-[var(--radius)] border border-orange-300/35 bg-[#FF7A1A]/14 px-3 py-1.5 text-xs font-black text-[#FFE1C8]">Alert Office</button>
               </div>
             </article>
@@ -996,6 +1005,7 @@ function ActiveSecuritySection({
   kpiItems,
   onAddVisitor,
   onCheckOutVisitor,
+  onPrintVisitorSlip,
   onNotice,
 }: {
   activeSection: string;
@@ -1003,6 +1013,7 @@ function ActiveSecuritySection({
   kpiItems: SecurityKpi[];
   onAddVisitor: (visitor: Omit<VisitorRecord, "id" | "entryTime" | "expectedExit" | "status" | "tone">) => void;
   onCheckOutVisitor: (id: string) => void;
+  onPrintVisitorSlip: (visitor: VisitorRecord) => void;
   onNotice: (message: string) => void;
 }) {
   if (activeSection === "top") {
@@ -1021,7 +1032,7 @@ function ActiveSecuritySection({
 
   if (activeSection === "live-gate-monitor") return <LiveActivityFeed />;
   if (activeSection === "visitor-management") {
-    return <VisitorManagement visitors={visitors} onAddVisitor={onAddVisitor} onCheckOut={onCheckOutVisitor} onAction={onNotice} />;
+    return <VisitorManagement visitors={visitors} onAddVisitor={onAddVisitor} onCheckOut={onCheckOutVisitor} onAction={onNotice} onPrintSlip={onPrintVisitorSlip} />;
   }
   if (activeSection === "student-exit-control") return <StudentExitControl />;
   if (activeSection === "boarding-security") return <BoardingSecurity />;
@@ -1034,6 +1045,7 @@ function ActiveSecuritySection({
 }
 
 export function SecurityCommandCenter({ routeMode }: { routeMode: SecurityRouteMode }) {
+  const schoolId = getCurrentSchoolId();
   const [searchTerm, setSearchTerm] = useState("");
   const [notice, setNotice] = useState("Security desk ready for gate operations.");
   const [activeSection, setActiveSection] = useState("top");
@@ -1077,20 +1089,85 @@ export function SecurityCommandCenter({ routeMode }: { routeMode: SecurityRouteM
     const exit = new Date(now.getTime() + 2 * 60 * 60 * 1000);
     const newVisitor: VisitorRecord = {
       ...visitor,
-      id: `visitor-${Date.now()}`,
+      id: runtimeId("visitor"),
       entryTime: now.toLocaleTimeString("en-KE", { hour: "2-digit", minute: "2-digit" }),
       expectedExit: exit.toLocaleTimeString("en-KE", { hour: "2-digit", minute: "2-digit" }),
       status: "QR badge active",
       tone: "secure",
     };
     setVisitors((current) => [newVisitor, ...current]);
+    addSchoolRecord("visitors", newVisitor, schoolId);
+    publishSchoolOperationalEvent({
+      schoolId,
+      actorRole: "security",
+      type: "VISITOR_CHECKED_IN",
+      module: "visitors",
+      title: `${visitor.name} checked in`,
+      body: `${visitor.name} checked in to visit ${visitor.personVisiting} for ${visitor.purpose}.`,
+      entityId: newVisitor.id,
+      severity: visitor.purpose.toLowerCase().includes("emergency") ? "critical" : "success",
+      payload: { visitor: newVisitor },
+      notifications: [
+        {
+          audienceRoles: ["secretary", "principal", "security"],
+          title: "Visitor checked in",
+          body: `${visitor.name} is inside school for ${visitor.purpose}.`,
+          severity: "success",
+        },
+      ],
+    });
     setNotice(`${visitor.name} checked in. Visitor slip is ready for printing.`);
   }
 
   function checkOutVisitor(id: string) {
     const visitor = visitors.find((item) => item.id === id);
     setVisitors((current) => current.map((item) => item.id === id ? { ...item, status: "Exited", tone: "secure" } : item));
+    publishSchoolOperationalEvent({
+      schoolId,
+      actorRole: "security",
+      type: "VISITOR_CHECKED_OUT",
+      module: "visitors",
+      title: `${visitor?.name ?? "Visitor"} checked out`,
+      body: `${visitor?.name ?? "Visitor"} exited the school gate and was removed from the currently-inside list.`,
+      entityId: id,
+      severity: "success",
+      payload: { visitor },
+      notifications: [
+        {
+          audienceRoles: ["secretary", "security"],
+          title: "Visitor checked out",
+          body: `${visitor?.name ?? "Visitor"} has left the school.`,
+          severity: "success",
+        },
+      ],
+    });
     setNotice(`${visitor?.name ?? "Visitor"} checked out and removed from currently-inside list.`);
+  }
+
+  function printVisitorSlip(visitor: VisitorRecord) {
+    publishSchoolOperationalEvent({
+      schoolId,
+      actorRole: "security",
+      type: "VISITOR_SLIP_PRINTED",
+      module: "visitors",
+      title: `${visitor.name} visitor slip opened for printing`,
+      body: `${visitor.name} visitor slip prepared for ${visitor.personVisiting}.`,
+      entityId: visitor.id,
+      severity: "success",
+      payload: { visitor },
+      notifications: [
+        {
+          audienceRoles: ["security", "secretary"],
+          title: "Visitor slip printed",
+          body: `${visitor.name} visitor slip is ready.`,
+          severity: "success",
+        },
+      ],
+    });
+    setNotice(`${visitor.name} visitor slip opened for printing.`);
+    if (typeof window !== "undefined") {
+      window.print();
+    }
   }
 
   return (
@@ -1113,6 +1190,7 @@ export function SecurityCommandCenter({ routeMode }: { routeMode: SecurityRouteM
             kpiItems={kpiItems}
             onAddVisitor={addVisitor}
             onCheckOutVisitor={checkOutVisitor}
+            onPrintVisitorSlip={printVisitorSlip}
             onNotice={setNotice}
           />
         </main>
