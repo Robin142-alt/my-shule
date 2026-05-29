@@ -248,6 +248,22 @@ export type PlatformSchoolResponseDto = {
   onboarding_profile?: SchoolOnboardingProfileDto;
 };
 
+export type PlatformTenantProductSummaryDto = {
+  total_schools: number;
+  active_schools: number;
+  inactive_schools: number;
+  billing_active_schools: number;
+  billing_grace_period_schools: number;
+  billing_restricted_schools: number;
+  billing_suspended_schools: number;
+  pending_principal_invites: number;
+  failed_principal_invites: number;
+  expired_principal_invites: number;
+  schools_with_modules: number;
+  enabled_module_assignments: number;
+  generated_at: string;
+};
+
 export type PlatformSchoolUsageSummaryDto = {
   memberships: number;
   students: number;

@@ -548,6 +548,61 @@ test('PlatformOnboardingService lists schools with persisted enabled module code
   assert.deepEqual(response[1]?.enabled_modules, ['students', 'exams']);
 });
 
+test('PlatformOnboardingService summarizes tenants in product for the Super Admin overview', async () => {
+  const queries: Array<{ text: string; values: unknown[] }> = [];
+  const service = new PlatformOnboardingService(
+    {
+      query: async (text: string, values: unknown[]) => {
+        queries.push({ text, values });
+
+        return {
+          rows: [
+            {
+              total_schools: '4',
+              active_schools: '3',
+              inactive_schools: '1',
+              billing_active_schools: '2',
+              billing_grace_period_schools: '1',
+              billing_restricted_schools: '1',
+              billing_suspended_schools: '0',
+              pending_principal_invites: '1',
+              failed_principal_invites: '1',
+              expired_principal_invites: '1',
+              schools_with_modules: '3',
+              enabled_module_assignments: '12',
+            },
+          ],
+        };
+      },
+    } as never,
+    { ensureTenantAuthorizationBaseline: async () => undefined } as never,
+    {
+      getTransactionalEmailStatus: () => ({ provider: 'resend', status: 'configured' }),
+      hasLikelyProductionSenderConfigured: () => true,
+    } as never,
+    { get: () => undefined } as never,
+    { getStore: () => ({ user_id: 'platform-owner' }) } as never,
+  );
+
+  const response = await service.getProductTenantSummary();
+
+  assert.equal(response.total_schools, 4);
+  assert.equal(response.active_schools, 3);
+  assert.equal(response.inactive_schools, 1);
+  assert.equal(response.billing_active_schools, 2);
+  assert.equal(response.billing_grace_period_schools, 1);
+  assert.equal(response.billing_restricted_schools, 1);
+  assert.equal(response.billing_suspended_schools, 0);
+  assert.equal(response.pending_principal_invites, 1);
+  assert.equal(response.failed_principal_invites, 1);
+  assert.equal(response.expired_principal_invites, 1);
+  assert.equal(response.schools_with_modules, 3);
+  assert.equal(response.enabled_module_assignments, 12);
+  assert.match(response.generated_at, /^\d{4}-\d{2}-\d{2}T/);
+  assert.match(queries[0]?.text ?? '', /FROM\s+tenants/i);
+  assert.doesNotMatch(queries[0]?.text ?? '', /WHERE\s+tenants\.tenant_id\s*=/i);
+});
+
 test('PlatformOnboardingService lets Superadmin manually set school billing state', async () => {
   const queries: Array<{ text: string; values: unknown[] }> = [];
   const configuredAt = '2026-05-23T10:00:00.000Z';

@@ -60,6 +60,7 @@ import {
   createPlatformSchool,
   deletePlatformSchool,
   fetchPlatformSchools,
+  fetchPlatformTenantProductSummary,
   fetchPlatformModules,
   fetchPlatformSchoolModules,
   resendPlatformSchoolAdminInvite,
@@ -69,6 +70,7 @@ import {
   type PlatformManualBillingState,
   type PlatformSchool,
   type PlatformSchoolModuleAccess,
+  type PlatformTenantProductSummary,
 } from "@/lib/platform/school-onboarding-client";
 import {
   defaultOnboardingModuleCodes,
@@ -365,6 +367,139 @@ function buildLiveSuperadminKpis(schools: PlatformSchool[]) {
 
     return metric;
   });
+}
+
+const emptyTenantProductSummary: PlatformTenantProductSummary = {
+  total_schools: 0,
+  active_schools: 0,
+  inactive_schools: 0,
+  billing_active_schools: 0,
+  billing_grace_period_schools: 0,
+  billing_restricted_schools: 0,
+  billing_suspended_schools: 0,
+  pending_principal_invites: 0,
+  failed_principal_invites: 0,
+  expired_principal_invites: 0,
+  schools_with_modules: 0,
+  enabled_module_assignments: 0,
+  generated_at: "",
+};
+
+function pluralize(count: number, singular: string, plural = `${singular}s`) {
+  return `${count} ${count === 1 ? singular : plural}`;
+}
+
+function TenantProductSummaryCard({
+  summary,
+}: {
+  summary: PlatformTenantProductSummary;
+}) {
+  const attentionCount =
+    summary.pending_principal_invites
+    + summary.failed_principal_invites
+    + summary.expired_principal_invites
+    + summary.billing_restricted_schools
+    + summary.billing_suspended_schools;
+  const updatedAt = summary.generated_at
+    ? new Date(summary.generated_at).toLocaleString("en-KE", {
+        dateStyle: "medium",
+        timeStyle: "short",
+      })
+    : "Waiting for live refresh";
+
+  return (
+    <Card className="p-5" data-testid="tenant-product-summary">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">
+            Production schools
+          </p>
+          <h2 className="mt-2 text-xl font-bold text-foreground">Tenants in product</h2>
+          <p className="mt-2 text-sm text-muted">
+            Authenticated school count, principal invitation health, billing state, and module allocation.
+          </p>
+        </div>
+        <StatusPill
+          label={attentionCount > 0 ? `${attentionCount} need review` : "No review needed"}
+          tone={attentionCount > 0 ? "warning" : "ok"}
+        />
+      </div>
+      <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="rounded-[var(--radius-md)] border border-border bg-surface-soft p-4">
+          <p className="text-3xl font-black text-foreground">{summary.total_schools}</p>
+          <p className="mt-1 text-sm font-semibold text-muted">
+            {pluralize(summary.active_schools, "active school")}
+          </p>
+          <p className="mt-1 text-xs text-muted">
+            {pluralize(summary.inactive_schools, "inactive school")}
+          </p>
+        </div>
+        <div className="rounded-[var(--radius-md)] border border-border bg-surface-soft p-4">
+          <p className="text-3xl font-black text-foreground">
+            {summary.pending_principal_invites}
+          </p>
+          <p className="mt-1 text-sm font-semibold text-muted">
+            {pluralize(summary.pending_principal_invites, "pending principal invite")}
+          </p>
+          <p className="mt-1 text-xs text-muted">
+            {pluralize(summary.expired_principal_invites, "expired invite")}
+          </p>
+        </div>
+        <div className="rounded-[var(--radius-md)] border border-border bg-surface-soft p-4">
+          <p className="text-3xl font-black text-foreground">
+            {summary.failed_principal_invites}
+          </p>
+          <p className="mt-1 text-sm font-semibold text-muted">
+            {pluralize(summary.failed_principal_invites, "failed invite delivery", "failed invite deliveries")}
+          </p>
+          <p className="mt-1 text-xs text-muted">
+            {pluralize(summary.billing_restricted_schools, "restricted school")}
+          </p>
+        </div>
+        <div className="rounded-[var(--radius-md)] border border-border bg-surface-soft p-4">
+          <p className="text-3xl font-black text-foreground">
+            {summary.enabled_module_assignments}
+          </p>
+          <p className="mt-1 text-sm font-semibold text-muted">
+            {pluralize(summary.enabled_module_assignments, "enabled module assignment")}
+          </p>
+          <p className="mt-1 text-xs text-muted">
+            {pluralize(summary.schools_with_modules, "school")} with modules
+          </p>
+        </div>
+      </div>
+      <p className="mt-4 text-xs text-muted">Updated: {updatedAt}</p>
+    </Card>
+  );
+}
+
+function normalizeTenantProductSummary(value: unknown): PlatformTenantProductSummary {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return emptyTenantProductSummary;
+  }
+
+  const candidate = value as Partial<PlatformTenantProductSummary>;
+  const toNumber = (item: unknown) =>
+    typeof item === "number" && Number.isFinite(item) ? item : 0;
+
+  return {
+    total_schools: toNumber(candidate.total_schools),
+    active_schools: toNumber(candidate.active_schools),
+    inactive_schools: toNumber(candidate.inactive_schools),
+    billing_active_schools: toNumber(candidate.billing_active_schools),
+    billing_grace_period_schools: toNumber(candidate.billing_grace_period_schools),
+    billing_restricted_schools: toNumber(candidate.billing_restricted_schools),
+    billing_suspended_schools: toNumber(candidate.billing_suspended_schools),
+    pending_principal_invites: toNumber(candidate.pending_principal_invites),
+    failed_principal_invites: toNumber(candidate.failed_principal_invites),
+    expired_principal_invites: toNumber(candidate.expired_principal_invites),
+    schools_with_modules: toNumber(candidate.schools_with_modules),
+    enabled_module_assignments: toNumber(candidate.enabled_module_assignments),
+    generated_at:
+      typeof candidate.generated_at === "string"
+        ? candidate.generated_at
+        : emptyTenantProductSummary.generated_at,
+  };
 }
 
 function SuperadminLogoutButton() {
@@ -2499,6 +2634,7 @@ function SettingsPage({ routeMode }: { routeMode: SuperadminRouteMode }) {
 function SuperadminOverview({ routeMode }: { routeMode: SuperadminRouteMode }) {
   const router = useRouter();
   const [metrics, setMetrics] = useState(superadminKpis);
+  const [tenantProductSummary, setTenantProductSummary] = useState(emptyTenantProductSummary);
   const quickActions = superadminQuickActions.map((action) => ({
     ...action,
     href: mapSuperadminHref(action.href, routeMode),
@@ -2509,10 +2645,14 @@ function SuperadminOverview({ routeMode }: { routeMode: SuperadminRouteMode }) {
 
     async function loadOverviewMetrics() {
       try {
-        const liveRows = await fetchPlatformSchools();
+        const [liveRows, liveSummary] = await Promise.all([
+          fetchPlatformSchools(),
+          fetchPlatformTenantProductSummary(),
+        ]);
 
         if (!cancelled) {
           setMetrics(buildLiveSuperadminKpis(liveRows));
+          setTenantProductSummary(normalizeTenantProductSummary(liveSummary));
         }
       } catch (error) {
         if (redirectOnExpiredSessionError(error, "superadmin", (href) => router.replace(href))) {
@@ -2521,6 +2661,7 @@ function SuperadminOverview({ routeMode }: { routeMode: SuperadminRouteMode }) {
 
         if (!cancelled) {
           setMetrics(superadminKpis);
+          setTenantProductSummary(emptyTenantProductSummary);
         }
       }
     }
@@ -2535,6 +2676,7 @@ function SuperadminOverview({ routeMode }: { routeMode: SuperadminRouteMode }) {
   return (
     <div className="space-y-6">
       <MetricGrid items={metrics} columns="three" />
+      <TenantProductSummaryCard summary={tenantProductSummary} />
       <QuickActionBar actions={quickActions} />
       <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
         <div className="space-y-6">

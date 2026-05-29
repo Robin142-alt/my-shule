@@ -245,6 +245,56 @@ describe("experience actions", () => {
     }
   });
 
+  it("shows the authenticated tenants-in-product summary on the superadmin overview", async () => {
+    const originalFetch = global.fetch;
+    const fetchMock = jest.fn((input: RequestInfo | URL) => {
+      const url = typeof input === "string" ? input : input.toString();
+
+      if (url.includes("/api/platform/schools/summary")) {
+        return Promise.resolve(jsonResponse({
+          total_schools: 4,
+          active_schools: 3,
+          inactive_schools: 1,
+          billing_active_schools: 2,
+          billing_grace_period_schools: 1,
+          billing_restricted_schools: 1,
+          billing_suspended_schools: 0,
+          pending_principal_invites: 1,
+          failed_principal_invites: 1,
+          expired_principal_invites: 1,
+          schools_with_modules: 3,
+          enabled_module_assignments: 12,
+          generated_at: "2026-05-29T15:30:00.000Z",
+        }));
+      }
+
+      if (url.includes("/api/platform/schools")) {
+        return Promise.resolve(jsonResponse([]));
+      }
+
+      if (url.includes("/api/platform/modules")) {
+        return Promise.resolve(jsonResponse([]));
+      }
+
+      return Promise.resolve(jsonResponse({}));
+    });
+
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    try {
+      renderWithProviders(createElement(SuperadminPages, { section: "overview" }));
+
+      expect(await screen.findByText(/tenants in product/i)).toBeVisible();
+      await waitFor(() => expect(screen.getByText("4")).toBeVisible());
+      expect(screen.getByText(/3 active schools/i)).toBeVisible();
+      expect(screen.getByText(/1 pending principal invite/i)).toBeVisible();
+      expect(screen.getByText(/1 failed invite delivery/i)).toBeVisible();
+      expect(screen.getByText(/12 enabled module assignments/i)).toBeVisible();
+    } finally {
+      global.fetch = originalFetch;
+    }
+  });
+
   it("shares a portal fee statement through a real copy flow", async () => {
     const user = userEvent.setup();
     const writeText = jest.fn().mockResolvedValue(undefined);

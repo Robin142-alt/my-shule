@@ -9,6 +9,7 @@ import {
   PlatformEmailReadinessResponseDto,
   PlatformSchoolDeleteResponseDto,
   PlatformSchoolResponseDto,
+  PlatformTenantProductSummaryDto,
   PlatformTenantAnonymizeResponseDto,
   PlatformTenantOffboardingManifestDto,
   UpdateSchoolBillingDto,
@@ -23,6 +24,11 @@ export class PlatformOnboardingController {
   @Get('schools')
   listSchools(): Promise<PlatformSchoolResponseDto[]> {
     return this.onboardingService.listSchools();
+  }
+
+  @Get('schools/summary')
+  getProductTenantSummary(): Promise<PlatformTenantProductSummaryDto> {
+    return this.onboardingService.getProductTenantSummary();
   }
 
   @Get('email/readiness')

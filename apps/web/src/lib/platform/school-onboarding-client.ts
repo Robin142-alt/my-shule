@@ -25,6 +25,22 @@ export type PlatformSchool = {
   billing?: PlatformSchoolBilling;
 };
 
+export type PlatformTenantProductSummary = {
+  total_schools: number;
+  active_schools: number;
+  inactive_schools: number;
+  billing_active_schools: number;
+  billing_grace_period_schools: number;
+  billing_restricted_schools: number;
+  billing_suspended_schools: number;
+  pending_principal_invites: number;
+  failed_principal_invites: number;
+  expired_principal_invites: number;
+  schools_with_modules: number;
+  enabled_module_assignments: number;
+  generated_at: string;
+};
+
 export type PlatformManualBillingState =
   | "not_configured"
   | "active"
@@ -146,6 +162,20 @@ export async function fetchPlatformSchools() {
   const payload = await parsePlatformResponse<PlatformSchool[]>(response);
 
   return Array.isArray(payload) ? payload : [];
+}
+
+export async function fetchPlatformTenantProductSummary() {
+  const response = await fetch("/api/platform/schools/summary", {
+    method: "GET",
+    credentials: "same-origin",
+    cache: "no-store",
+  });
+  const payload = await parsePlatformResponse<PlatformTenantProductSummary>(
+    response,
+    "Unable to load tenants in product summary.",
+  );
+
+  return payload as PlatformTenantProductSummary;
 }
 
 export async function fetchPlatformModules() {

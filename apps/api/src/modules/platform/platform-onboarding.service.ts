@@ -30,6 +30,7 @@ import {
   PlatformManualBillingState,
   SchoolOnboardingProfileDto,
   PlatformSchoolResponseDto,
+  PlatformTenantProductSummaryDto,
   PlatformTenantAnonymizeResponseDto,
   PlatformTenantOffboardingManifestDto,
   PlatformSchoolUsageSummaryDto,
@@ -55,6 +56,21 @@ type TenantRow = {
   subscription_grace_period_ends_at?: Date | string | null;
   subscription_restricted_at?: Date | string | null;
   subscription_suspended_at?: Date | string | null;
+};
+
+type PlatformTenantProductSummaryRow = {
+  total_schools?: number | string | null;
+  active_schools?: number | string | null;
+  inactive_schools?: number | string | null;
+  billing_active_schools?: number | string | null;
+  billing_grace_period_schools?: number | string | null;
+  billing_restricted_schools?: number | string | null;
+  billing_suspended_schools?: number | string | null;
+  pending_principal_invites?: number | string | null;
+  failed_principal_invites?: number | string | null;
+  expired_principal_invites?: number | string | null;
+  schools_with_modules?: number | string | null;
+  enabled_module_assignments?: number | string | null;
 };
 
 type InvitationDeliveryStatus = PlatformSchoolResponseDto['invitation_status'];
@@ -188,6 +204,111 @@ export class PlatformOnboardingService {
         enabledModules: enabledModulesByTenantId.get(row.tenant_id) ?? [],
       }),
     );
+  }
+
+  async getProductTenantSummary(): Promise<PlatformTenantProductSummaryDto> {
+    const result = await this.databaseService.query<PlatformTenantProductSummaryRow>(
+      `
+        WITH tenant_product AS (
+          SELECT
+            tenants.tenant_id,
+            tenants.status,
+            COALESCE(
+              NULLIF(current_subscription.metadata ->> 'manual_billing_state', ''),
+              CASE current_subscription.status
+                WHEN 'active' THEN 'active'
+                WHEN 'trialing' THEN 'active'
+                WHEN 'past_due' THEN 'grace_period'
+                WHEN 'restricted' THEN 'restricted'
+                WHEN 'suspended' THEN 'suspended'
+                WHEN 'expired' THEN 'expired'
+                ELSE 'not_configured'
+              END
+            ) AS billing_state,
+            latest_email.status AS invitation_delivery_status,
+            latest_token.expires_at AS invite_expires_at,
+            latest_token.consumed_at AS invite_consumed_at,
+            COALESCE(module_counts.enabled_count, 0) AS enabled_module_count
+          FROM tenants
+          LEFT JOIN LATERAL (
+            SELECT status
+            FROM auth_email_outbox
+            WHERE tenant_id = tenants.tenant_id
+              AND template = 'school_invitation'
+            ORDER BY created_at DESC
+            LIMIT 1
+          ) latest_email ON TRUE
+          LEFT JOIN LATERAL (
+            SELECT expires_at, consumed_at
+            FROM auth_action_tokens
+            WHERE tenant_id = tenants.tenant_id
+              AND purpose = 'invite_acceptance'
+            ORDER BY created_at DESC
+            LIMIT 1
+          ) latest_token ON TRUE
+          LEFT JOIN LATERAL (
+            SELECT status, metadata
+            FROM subscriptions
+            WHERE tenant_id = tenants.tenant_id
+            ORDER BY
+              CASE status
+                WHEN 'active' THEN 1
+                WHEN 'trialing' THEN 2
+                WHEN 'past_due' THEN 3
+                WHEN 'restricted' THEN 4
+                WHEN 'suspended' THEN 5
+                ELSE 6
+              END ASC,
+              created_at DESC
+            LIMIT 1
+          ) current_subscription ON TRUE
+          LEFT JOIN LATERAL (
+            SELECT COUNT(*)::int AS enabled_count
+            FROM school_module_access
+            WHERE tenant_id = tenants.tenant_id
+              AND enabled = TRUE
+          ) module_counts ON TRUE
+        )
+        SELECT
+          COUNT(*)::int AS total_schools,
+          COUNT(*) FILTER (WHERE status = 'active')::int AS active_schools,
+          COUNT(*) FILTER (WHERE status <> 'active')::int AS inactive_schools,
+          COUNT(*) FILTER (WHERE billing_state = 'active')::int AS billing_active_schools,
+          COUNT(*) FILTER (WHERE billing_state = 'grace_period')::int AS billing_grace_period_schools,
+          COUNT(*) FILTER (WHERE billing_state = 'restricted')::int AS billing_restricted_schools,
+          COUNT(*) FILTER (WHERE billing_state = 'suspended')::int AS billing_suspended_schools,
+          COUNT(*) FILTER (
+            WHERE invite_consumed_at IS NULL
+              AND invite_expires_at > NOW()
+              AND COALESCE(invitation_delivery_status, 'pending') IN ('pending', 'processing', 'sent')
+          )::int AS pending_principal_invites,
+          COUNT(*) FILTER (WHERE invitation_delivery_status = 'failed')::int AS failed_principal_invites,
+          COUNT(*) FILTER (
+            WHERE invite_consumed_at IS NULL
+              AND invite_expires_at <= NOW()
+          )::int AS expired_principal_invites,
+          COUNT(*) FILTER (WHERE enabled_module_count > 0)::int AS schools_with_modules,
+          COALESCE(SUM(enabled_module_count), 0)::int AS enabled_module_assignments
+        FROM tenant_product
+      `,
+    );
+    const row = result.rows[0] ?? {};
+
+    return {
+      total_schools: this.toSummaryCount(row.total_schools),
+      active_schools: this.toSummaryCount(row.active_schools),
+      inactive_schools: this.toSummaryCount(row.inactive_schools),
+      billing_active_schools: this.toSummaryCount(row.billing_active_schools),
+      billing_grace_period_schools: this.toSummaryCount(row.billing_grace_period_schools),
+      billing_restricted_schools: this.toSummaryCount(row.billing_restricted_schools),
+      billing_suspended_schools: this.toSummaryCount(row.billing_suspended_schools),
+      pending_principal_invites: this.toSummaryCount(row.pending_principal_invites),
+      failed_principal_invites: this.toSummaryCount(row.failed_principal_invites),
+      expired_principal_invites: this.toSummaryCount(row.expired_principal_invites),
+      schools_with_modules: this.toSummaryCount(row.schools_with_modules),
+      enabled_module_assignments: this.toSummaryCount(row.enabled_module_assignments),
+      generated_at: new Date().toISOString(),
+    };
   }
 
   async getEmailReadiness(): Promise<PlatformEmailReadinessResponseDto> {
@@ -1234,6 +1355,19 @@ export class PlatformOnboardingService {
       billing: this.buildPlatformSchoolBilling(tenant),
       onboarding_profile: this.extractBlueprintOnboardingProfile(tenant.metadata),
     };
+  }
+
+  private toSummaryCount(value: number | string | null | undefined): number {
+    if (typeof value === 'number') {
+      return Number.isFinite(value) ? value : 0;
+    }
+
+    if (typeof value === 'string') {
+      const parsed = Number.parseInt(value, 10);
+      return Number.isFinite(parsed) ? parsed : 0;
+    }
+
+    return 0;
   }
 
   private buildPlatformSchoolBilling(
