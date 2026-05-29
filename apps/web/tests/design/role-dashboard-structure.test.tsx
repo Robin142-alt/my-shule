@@ -204,4 +204,91 @@ describe("role dashboard operational structure", () => {
 
     expect(await within(commandCenter).findByText(/Send Absence SMS sent from Attendance/i)).toBeVisible();
   }, 30000);
+
+  it("keeps principal overview wide by replacing the permanent approvals rail with a compact approvals card", async () => {
+    renderWithProviders(<SchoolPages role="principal" tenantSlug="kisumu-boys" />);
+
+    const commandCenter = await screen.findByTestId("role-operational-command-center");
+    const principalWorkspace = screen.getByTestId("principal-practical-command-center");
+    const contentScrollArea = principalWorkspace.querySelector("main section");
+
+    expect(commandCenter.className).toMatch(/min-h-dvh/);
+    expect(commandCenter.className).not.toMatch(/h-screen/);
+    expect(contentScrollArea?.className ?? "").toMatch(/overflow-y-auto/);
+    expect(principalWorkspace.innerHTML).not.toContain("xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.65fr)]");
+    expect(within(commandCenter).queryByText(/Approvals, alerts, and reports/i)).not.toBeInTheDocument();
+    expect(within(commandCenter).queryByText(/Quiet areas/i)).not.toBeInTheDocument();
+    expect(within(commandCenter).getAllByText(/^Pending approvals$/i).length).toBeGreaterThanOrEqual(1);
+    expect(within(commandCenter).getAllByRole("button", { name: /Open Approval Queue/i }).length).toBeGreaterThanOrEqual(1);
+  }, 30000);
+
+  it("opens principal navigation as a mobile drawer instead of a short inline sidebar", async () => {
+    const user = userEvent.setup();
+
+    renderWithProviders(<SchoolPages role="principal" tenantSlug="kisumu-boys" />);
+
+    await screen.findByTestId("role-operational-command-center");
+    const sidebar = document.querySelector("[aria-label='Principal dashboard sidebar']")?.closest("aside");
+
+    expect(sidebar?.className ?? "").toMatch(/fixed/);
+    expect(sidebar?.className ?? "").toMatch(/-translate-x-full/);
+    expect(sidebar?.className ?? "").not.toMatch(/max-h-\[58vh\]/);
+
+    await user.click(screen.getByRole("button", { name: /Open principal navigation/i }));
+
+    expect(screen.getByRole("button", { name: /Close principal navigation overlay/i })).toBeInTheDocument();
+    expect(sidebar?.className ?? "").toMatch(/translate-x-0/);
+
+    await user.click(screen.getByRole("button", { name: /Close principal navigation overlay/i }));
+
+    expect(screen.queryByRole("button", { name: /Close principal navigation overlay/i })).not.toBeInTheDocument();
+    expect(sidebar?.className ?? "").toMatch(/-translate-x-full/);
+  }, 30000);
+
+  it("keeps non-principal role dashboards on one main scroll area with a mobile drawer sidebar", async () => {
+    const user = userEvent.setup();
+
+    renderWithProviders(<SchoolPages role="deputy-principal" tenantSlug="kisumu-boys" />);
+
+    const commandCenter = await screen.findByTestId("role-operational-command-center");
+    const contentScrollArea = commandCenter.querySelector("main section");
+    const sidebar = commandCenter.querySelector("aside");
+
+    expect(commandCenter.className).toMatch(/min-h-dvh/);
+    expect(commandCenter.className).not.toMatch(/h-screen/);
+    expect(contentScrollArea?.className ?? "").toMatch(/overflow-y-auto/);
+    expect(sidebar?.className ?? "").toMatch(/fixed/);
+    expect(sidebar?.className ?? "").toMatch(/-translate-x-full/);
+    expect(commandCenter.innerHTML).not.toContain("max-h-[calc(100vh");
+    expect(commandCenter.innerHTML).not.toContain("grid h-full min-h-0");
+
+    await user.click(within(commandCenter).getByRole("button", { name: /Open Deputy Principal menu/i }));
+
+    expect(within(commandCenter).getByRole("button", { name: /Close Deputy Principal menu overlay/i })).toBeInTheDocument();
+    expect(sidebar?.className ?? "").toMatch(/translate-x-0/);
+
+    await user.click(within(commandCenter).getAllByRole("button", { name: /Attendance/i })[0]);
+
+    expect(within(commandCenter).queryByRole("button", { name: /Close Deputy Principal menu overlay/i })).not.toBeInTheDocument();
+    expect(sidebar?.className ?? "").toMatch(/-translate-x-full/);
+  }, 30000);
+
+  it("keeps operational queues page-scrolled and operational tables horizontally scrollable on mobile", async () => {
+    const user = userEvent.setup();
+
+    renderWithProviders(<SchoolPages role="class-teacher" tenantSlug="kisumu-boys" />);
+
+    const commandCenter = await screen.findByTestId("role-operational-command-center");
+
+    expect(commandCenter.innerHTML).not.toContain("max-h-[calc(100vh-330px)]");
+
+    await user.click(within(commandCenter).getAllByRole("button", { name: /Attendance/i })[0]);
+    await user.click(within(commandCenter).getByRole("button", { name: /^Records$/i }));
+
+    const attendanceTable = within(commandCenter).getByText(/Student\/Class/i).closest("table");
+    const tableWrapper = attendanceTable?.parentElement;
+
+    expect(tableWrapper?.className ?? "").toMatch(/overflow-x-auto/);
+    expect(tableWrapper?.className ?? "").not.toMatch(/overflow-hidden/);
+  }, 30000);
 });
