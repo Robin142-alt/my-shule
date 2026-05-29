@@ -14,6 +14,7 @@ import { getSchoolWorkspace } from "@/lib/experiences/school-data";
 import { isProductionReadyModule } from "@/lib/features/module-readiness";
 import { isSchoolSectionEnabled } from "@/lib/module-access/module-access-map";
 import { isSchoolSection } from "@/lib/routing/experience-routes";
+import { readSchoolData } from "@/lib/school/school-operational-store";
 
 import { renderWithProviders } from "./test-utils";
 
@@ -101,6 +102,7 @@ const modules: Array<{
 
 describe("Implementation 100 live module workspaces", () => {
   beforeEach(() => {
+    window.localStorage.clear();
     global.fetch = jest.fn((input: RequestInfo | URL) => {
       if (String(input).includes("/api/school/modules/me")) {
         return Promise.resolve({
@@ -219,6 +221,15 @@ describe("Implementation 100 live module workspaces", () => {
 
     await user.click(row.getByRole("button", { name: /^issue$/i }));
     expect(screen.getByRole("status")).toHaveTextContent(/issued/i);
+    expect(readSchoolData<Record<string, unknown>>("events", "barakaacademy")).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          schoolId: "barakaacademy",
+          type: "ICT_ASSET_ISSUED",
+          module: "assets",
+        }),
+      ]),
+    );
 
     await user.click(row.getByRole("button", { name: /report fault/i }));
     expect(screen.getByRole("status")).toHaveTextContent(/fault reported/i);
@@ -231,6 +242,15 @@ describe("Implementation 100 live module workspaces", () => {
 
     await user.click(screen.getByRole("button", { name: /print asset tags/i }));
     expect(printMock).toHaveBeenCalled();
+    expect(readSchoolData<Record<string, unknown>>("events", "barakaacademy")).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          schoolId: "barakaacademy",
+          type: "ICT_ASSET_TAGS_PRINTED",
+          module: "assets",
+        }),
+      ]),
+    );
   });
 
 });

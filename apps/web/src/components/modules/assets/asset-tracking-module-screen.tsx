@@ -6,6 +6,12 @@ import { Implementation100LiveModuleScreen, type Implementation100Dashboard } fr
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { StatusPill } from "@/components/ui/status-pill";
+import {
+  addSchoolRecord,
+  getCurrentSchoolId,
+  publishSchoolOperationalEvent,
+  type SchoolOperationalSeverity,
+} from "@/lib/school/school-operational-store";
 
 type IctAssetRecord = {
   id: string;
@@ -86,6 +92,14 @@ const initialLabBookings: LabBookingRecord[] = [
 const fieldClassName =
   "w-full rounded-[var(--radius-sm)] border border-border bg-white px-3 py-2 text-sm text-foreground outline-none transition focus:border-accent/50 focus:shadow-[var(--shadow-focus)]";
 
+function runtimeId(prefix: string) {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return `${prefix}-${crypto.randomUUID()}`;
+  }
+
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
 export function AssetTrackingModuleScreen({
   tenantSlug,
   initialDashboard,
@@ -107,6 +121,7 @@ export function AssetTrackingModuleScreen({
   const [bookingRoom, setBookingRoom] = useState("Computer Lab 1");
   const [bookingTime, setBookingTime] = useState("Today 2:00 PM");
   const [assetSearch, setAssetSearch] = useState("");
+  const schoolId = getCurrentSchoolId(tenantSlug);
   const faultyAssets = assets.filter((asset) => asset.condition === "Faulty" || asset.condition === "Under Repair" || asset.status === "Repair Needed");
   const issuedAssets = assets.filter((asset) => asset.status === "Issued");
   const availableAssets = assets.filter((asset) => asset.status === "Available");
@@ -121,10 +136,48 @@ export function AssetTrackingModuleScreen({
     )
     : assets;
 
+  function publishAssetEvent({
+    type,
+    title,
+    body,
+    entityId,
+    severity = "info",
+    payload,
+    audienceRoles = ["ict", "principal"],
+  }: {
+    type: string;
+    title: string;
+    body: string;
+    entityId?: string;
+    severity?: SchoolOperationalSeverity;
+    payload?: Record<string, unknown>;
+    audienceRoles?: string[];
+  }) {
+    publishSchoolOperationalEvent({
+      schoolId,
+      actorRole: "ict",
+      type,
+      module: "assets",
+      title,
+      body,
+      entityId,
+      severity,
+      payload,
+      notifications: [
+        {
+          audienceRoles,
+          title,
+          body,
+          severity,
+        },
+      ],
+    });
+  }
+
   function addAsset(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const record: IctAssetRecord = {
-      id: `ict-asset-${Date.now()}`,
+      id: runtimeId("ict-asset"),
       tag: assetTag,
       asset: assetName,
       category,
@@ -136,6 +189,16 @@ export function AssetTrackingModuleScreen({
     };
 
     setAssets((currentAssets) => [record, ...currentAssets]);
+    addSchoolRecord("ict-assets", record, schoolId);
+    publishAssetEvent({
+      type: "ICT_ASSET_REGISTERED",
+      title: `${assetName} registered`,
+      body: `${assetTag} registered in ${location} for ${assignedTo}.`,
+      entityId: record.id,
+      severity: "success",
+      payload: { asset: record },
+      audienceRoles: ["ict", "storekeeper", "principal"],
+    });
     setMessage(`${assetName} registered with asset tag ${assetTag}.`);
   }
 
@@ -143,6 +206,28 @@ export function AssetTrackingModuleScreen({
     const asset = assets.find((item) => item.id === id);
 
     setAssets((currentAssets) => currentAssets.map((item) => item.id === id ? { ...item, status: "Issued", assignedTo: item.assignedTo || "ICT user" } : item));
+    addSchoolRecord(
+      "asset-movements",
+      {
+        id: runtimeId("asset-movement"),
+        assetId: id,
+        asset: asset?.asset ?? "Asset",
+        action: "Issued",
+        assignedTo: asset?.assignedTo || "ICT user",
+        location: asset?.location ?? "ICT store",
+        createdAt: new Date().toISOString(),
+      },
+      schoolId,
+    );
+    publishAssetEvent({
+      type: "ICT_ASSET_ISSUED",
+      title: `${asset?.asset ?? "Asset"} issued`,
+      body: `${asset?.tag ?? "Asset"} issued to ${asset?.assignedTo || "ICT user"}.`,
+      entityId: id,
+      severity: "warning",
+      payload: { asset },
+      audienceRoles: ["ict", "storekeeper", "principal"],
+    });
     setMessage(`${asset?.asset ?? "Asset"} issued and movement history updated.`);
   }
 
@@ -150,6 +235,28 @@ export function AssetTrackingModuleScreen({
     const asset = assets.find((item) => item.id === id);
 
     setAssets((currentAssets) => currentAssets.map((item) => item.id === id ? { ...item, status: "Returned", assignedTo: "ICT Store", location: "ICT Store" } : item));
+    addSchoolRecord(
+      "asset-movements",
+      {
+        id: runtimeId("asset-movement"),
+        assetId: id,
+        asset: asset?.asset ?? "Asset",
+        action: "Returned",
+        assignedTo: "ICT Store",
+        location: "ICT Store",
+        createdAt: new Date().toISOString(),
+      },
+      schoolId,
+    );
+    publishAssetEvent({
+      type: "ICT_ASSET_RETURNED",
+      title: `${asset?.asset ?? "Asset"} returned`,
+      body: `${asset?.tag ?? "Asset"} returned to ICT store.`,
+      entityId: id,
+      severity: "success",
+      payload: { asset },
+      audienceRoles: ["ict", "storekeeper"],
+    });
     setMessage(`${asset?.asset ?? "Asset"} returned to ICT store.`);
   }
 
@@ -157,6 +264,27 @@ export function AssetTrackingModuleScreen({
     const asset = assets.find((item) => item.id === id);
 
     setAssets((currentAssets) => currentAssets.map((item) => item.id === id ? { ...item, condition: "Under Repair", status: "Repair Needed" } : item));
+    addSchoolRecord(
+      "asset-repairs",
+      {
+        id: runtimeId("asset-repair"),
+        assetId: id,
+        asset: asset?.asset ?? "Asset",
+        status: "Repair Needed",
+        note: "Fault reported from ICT asset desk.",
+        createdAt: new Date().toISOString(),
+      },
+      schoolId,
+    );
+    publishAssetEvent({
+      type: "ICT_ASSET_FAULT_REPORTED",
+      title: `${asset?.asset ?? "Asset"} fault reported`,
+      body: `${asset?.tag ?? "Asset"} moved to repair-needed status.`,
+      entityId: id,
+      severity: "critical",
+      payload: { asset },
+      audienceRoles: ["ict", "principal", "system-monitor"],
+    });
     setMessage(`${asset?.asset ?? "Asset"} fault reported and repair history updated.`);
   }
 
@@ -164,13 +292,22 @@ export function AssetTrackingModuleScreen({
     const asset = assets.find((item) => item.id === id);
 
     setAssets((currentAssets) => currentAssets.map((item) => item.id === id ? { ...item, condition: "Working", status: "Available" } : item));
+    publishAssetEvent({
+      type: "ICT_ASSET_REPAIRED",
+      title: `${asset?.asset ?? "Asset"} repaired`,
+      body: `${asset?.tag ?? "Asset"} marked working and available.`,
+      entityId: id,
+      severity: "success",
+      payload: { asset },
+      audienceRoles: ["ict", "principal"],
+    });
     setMessage(`${asset?.asset ?? "Asset"} marked repaired and available.`);
   }
 
   function addLabBooking(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const booking: LabBookingRecord = {
-      id: `lab-booking-${Date.now()}`,
+      id: runtimeId("lab-booking"),
       teacher: bookingTeacher,
       className: bookingClass,
       room: bookingRoom,
@@ -179,6 +316,16 @@ export function AssetTrackingModuleScreen({
     };
 
     setBookings((currentBookings) => [booking, ...currentBookings]);
+    addSchoolRecord("lab-bookings", booking, schoolId);
+    publishAssetEvent({
+      type: "ICT_LAB_BOOKING_REQUESTED",
+      title: `${booking.className} lab booking requested`,
+      body: `${booking.teacher} requested ${booking.room} at ${booking.time}.`,
+      entityId: booking.id,
+      severity: "warning",
+      payload: { booking },
+      audienceRoles: ["ict", "teacher"],
+    });
     setMessage(`${bookingClass} computer lab booking saved for ${bookingTime}.`);
   }
 
@@ -186,10 +333,27 @@ export function AssetTrackingModuleScreen({
     const booking = bookings.find((item) => item.id === id);
 
     setBookings((currentBookings) => currentBookings.map((item) => item.id === id ? { ...item, status: "Approved" } : item));
+    publishAssetEvent({
+      type: "ICT_LAB_BOOKING_APPROVED",
+      title: `${booking?.className ?? "Class"} lab booking approved`,
+      body: `${booking?.room ?? "Computer lab"} booking approved for ${booking?.time ?? "scheduled time"}.`,
+      entityId: id,
+      severity: "success",
+      payload: { booking },
+      audienceRoles: ["ict", "teacher", "principal"],
+    });
     setMessage(`${booking?.className ?? "Class"} lab booking approved and teacher notified.`);
   }
 
   function printAssetTags() {
+    publishAssetEvent({
+      type: "ICT_ASSET_TAGS_PRINTED",
+      title: "ICT asset tag sheet opened for printing",
+      body: `${visibleAssets.length} visible ICT asset tag(s) prepared for printing.`,
+      severity: "success",
+      payload: { visibleAssetTags: visibleAssets.map((asset) => asset.tag) },
+      audienceRoles: ["ict", "storekeeper"],
+    });
     setMessage("ICT asset tag sheet opened for printing.");
     if (typeof window !== "undefined") {
       window.print();
