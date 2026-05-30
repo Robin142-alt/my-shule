@@ -25,6 +25,7 @@ import {
   priorityTone,
   statusTone,
   supportCategories,
+  buildAttachmentPath,
   supportModules,
   systemStatusComponents,
   type SupportAttachment,
@@ -32,6 +33,12 @@ import {
   type SupportPriority,
   type SupportTicket,
 } from "@/lib/support/support-data";
+import {
+  addSchoolRecord,
+  publishSchoolOperationalEvent,
+  readSchoolData,
+  writeSchoolData,
+} from "@/lib/school/school-operational-store";
 import {
   createSupportTicketLive,
   fetchKnowledgeBaseLive,
@@ -82,6 +89,20 @@ function upsertTicket(tickets: SupportTicket[], nextTicket: SupportTicket) {
     : [nextTicket, ...tickets];
 }
 
+function localTicketNumber() {
+  const year = new Date().getFullYear();
+  return `SUP-${year}-${String(Date.now()).slice(-6)}`;
+}
+
+function displayTimeNow() {
+  return new Intl.DateTimeFormat("en-KE", {
+    day: "2-digit",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date());
+}
+
 export function SupportCenterWorkspace({
   tenantSlug = null,
   defaultView,
@@ -92,7 +113,9 @@ export function SupportCenterWorkspace({
   const normalizedTenantSlug = tenantSlug?.trim() ?? "";
   const apiConfigured = isDashboardApiConfigured();
   const queryClient = useQueryClient();
-  const [localTickets, setLocalTickets] = useState<SupportTicket[]>([]);
+  const [localTickets, setLocalTickets] = useState<SupportTicket[]>(() =>
+    normalizedTenantSlug ? readSchoolData<SupportTicket>("support-tickets", normalizedTenantSlug) : [],
+  );
   const [subject, setSubject] = useState("");
   const [category, setCategory] = useState<string>("MPESA");
   const [priority, setPriority] = useState<SupportPriority>("Medium");
@@ -164,6 +187,88 @@ export function SupportCenterWorkspace({
     : systemStatusComponents;
   const currentIncident = liveSystemStatusQuery.data?.incidents?.[0];
 
+  function saveLocalTicket(nextTicket: SupportTicket) {
+    const scopedTicket = addSchoolRecord<SupportTicket>("support-tickets", nextTicket, normalizedTenantSlug);
+
+    setLocalTickets((current) => upsertTicket(current, scopedTicket));
+    queryClient.setQueryData<SupportTicket[]>(ticketsQueryKey, (current = []) =>
+      upsertTicket(current, scopedTicket),
+    );
+    publishSchoolOperationalEvent({
+      schoolId: normalizedTenantSlug,
+      type: "SUPPORT_TICKET_CREATED",
+      module: "support",
+      actorRole: "school-admin",
+      title: "Support ticket created",
+      body: `${scopedTicket.ticketNumber} was created for ${scopedTicket.moduleAffected}.`,
+      entityId: scopedTicket.id,
+      severity: scopedTicket.priority === "Critical" || scopedTicket.priority === "High" ? "warning" : "info",
+      payload: {
+        status: scopedTicket.status,
+        category: scopedTicket.category,
+        priority: scopedTicket.priority,
+        moduleAffected: scopedTicket.moduleAffected,
+      },
+      notifications: [
+        {
+          audienceRoles: ["superadmin", "support"],
+          title: "School support ticket created",
+          body: `${scopedTicket.schoolName} created ${scopedTicket.ticketNumber}: ${scopedTicket.subject}`,
+        },
+      ],
+    });
+
+    return scopedTicket;
+  }
+
+  function buildLocalTicket(): SupportTicket {
+    const ticketNumber = localTicketNumber();
+    const attachment: SupportAttachment | null = selectedFile
+      ? {
+          id: `local-attachment-${Date.now()}`,
+          name: selectedFile.name,
+          type: selectedFile.type || "application/octet-stream",
+          size: `${Math.max(1, Math.round(selectedFile.size / 1024))} KB`,
+          storedPath: buildAttachmentPath(normalizedTenantSlug, ticketNumber, selectedFile.name),
+        }
+      : null;
+
+    return {
+      id: `local-ticket-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      ticketNumber,
+      tenantId: normalizedTenantSlug,
+      tenantSlug: normalizedTenantSlug,
+      schoolName: normalizedTenantSlug
+        .split("-")
+        .filter(Boolean)
+        .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+        .join(" ") || "Current School",
+      subject: subject.trim(),
+      category,
+      priority,
+      moduleAffected,
+      description: description.trim(),
+      status: "Open",
+      owner: "Support queue",
+      requester: "School admin",
+      updatedAt: displayTimeNow(),
+      firstResponseDue: priority === "Critical" ? "Within 1 hour" : "Within 1 school day",
+      resolutionDue: priority === "Critical" ? "Same day target" : "Next school day target",
+      context,
+      attachments: attachment ? [attachment] : [],
+      messages: [
+        {
+          id: `local-message-${Date.now()}`,
+          author: "School admin",
+          authorType: "school",
+          body: description.trim(),
+          createdAt: displayTimeNow(),
+        },
+      ],
+      internalNotes: [],
+    };
+  }
+
   async function submitTicket() {
     if (!subject.trim() || !description.trim()) {
       setFormError("Subject and description are required before support can triage the ticket.");
@@ -176,7 +281,14 @@ export function SupportCenterWorkspace({
     }
 
     if (!apiConfigured) {
-      setFormError("Support ticket creation is temporarily unavailable for this workspace.");
+      const savedTicket = saveLocalTicket(buildLocalTicket());
+
+      setSuccessMessage(`Ticket ${savedTicket.ticketNumber} created locally. Live support delivery needs retry when the support service is available.`);
+      setCreatedAttachmentPath(savedTicket.attachments[0]?.storedPath ?? null);
+      setFormError(null);
+      setSubject("");
+      setDescription("");
+      setSelectedFile(null);
       return;
     }
 
@@ -212,11 +324,18 @@ export function SupportCenterWorkspace({
       setSuccessMessage(`Ticket ${savedTicket.ticketNumber} created and ${savedTicket.status.toLowerCase()}.`);
       setCreatedAttachmentPath(attachment?.storedPath ?? null);
     } catch (error) {
+      const savedTicket = saveLocalTicket(buildLocalTicket());
+
+      setSuccessMessage(`Ticket ${savedTicket.ticketNumber} created locally. Live support delivery failed and should be retried by support.`);
+      setCreatedAttachmentPath(savedTicket.attachments[0]?.storedPath ?? null);
       setFormError(
         error instanceof Error
           ? error.message
-          : "Unable to create the live support ticket.",
+          : "Unable to create the live support ticket. Local support ticket was saved.",
       );
+      setSubject("");
+      setDescription("");
+      setSelectedFile(null);
       return;
     }
 
@@ -277,7 +396,11 @@ export function SupportCenterWorkspace({
           }
         : ticket;
 
-    setLocalTickets((current) => current.map(updater));
+    setLocalTickets((current) => {
+      const nextTickets = current.map(updater);
+      writeSchoolData("support-tickets", nextTickets, normalizedTenantSlug);
+      return nextTickets;
+    });
     queryClient.setQueryData<SupportTicket[]>(ticketsQueryKey, (current) =>
       current ? current.map(updater) : current,
     );

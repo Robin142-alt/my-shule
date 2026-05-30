@@ -329,10 +329,13 @@ describe("exams workspace", () => {
       await Promise.resolve();
     });
 
-    expect(
-      screen.getByRole("heading", { name: /exams & results command center/i }),
-    ).toBeVisible();
-  });
+  expect(
+    screen.getAllByRole("heading", { name: /teaching desk/i }).length,
+  ).toBeGreaterThan(0);
+  expect(
+    screen.getAllByRole("button", { name: /open academic review ready/i }).length,
+  ).toBeGreaterThan(0);
+});
 
   it("blocks the exams workspace when the tenant module is disabled", async () => {
     expect(isSchoolSectionEnabled("exams", ["students", "billing"])).toBe(false);

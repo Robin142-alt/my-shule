@@ -682,7 +682,7 @@ const roleDemoProfiles: Record<KisumuBoysDashboardRole, RoleDemoProfile> = {
     modules: ["attendance", "students", "communication", "discipline"],
     eventTypes: ["ATTENDANCE_UPDATED", "STUDENT_WELFARE_ALERTED", "PARENT_MEETING_BOOKED", "DISCIPLINE_CASE_CREATED"],
     queues: ["Class follow-ups", "Parent meetings", "Student welfare", "Class discipline review"],
-    actions: ["Call guardian", "Record reason", "Book meeting", "Close follow-up"],
+    actions: ["Notify guardian", "Record reason", "Book meeting", "Close follow-up"],
     subjects: ["chronic absentee", "guardian phone update", "welfare case", "repeat lateness"],
   },
   "grade-master": {

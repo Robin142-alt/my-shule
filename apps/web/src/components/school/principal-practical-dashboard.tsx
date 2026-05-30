@@ -209,7 +209,7 @@ const principalSections: PrincipalSection[] = [
       { label: "Print Attendance Report" },
     ],
     records: [
-      { item: "Form 2 North register missing", owner: "Class Teacher", nextAction: "Call teacher and submit register", status: "Due now" },
+          { item: "Form 2 North register missing", owner: "Class Teacher", nextAction: "Notify teacher to submit register", status: "Due now" },
       { item: "18 absentees need parent SMS", owner: "Deputy Office", nextAction: "Send absence SMS", status: "Pending" },
       { item: "Late arrivals at lower gate", owner: "Security Desk", nextAction: "Attach gate log", status: "In progress" },
     ],
@@ -469,7 +469,7 @@ const principalSections: PrincipalSection[] = [
       { label: "Active inquiries", value: "5", helper: "This week" },
       { label: "Document gaps", value: "2", helper: "Birth certificate or report form" },
       { label: "Interviews due", value: "3", helper: "Scheduled this week" },
-      { label: "Letters ready", value: "1", helper: "Print and SMS parent" },
+      { label: "Letters ready", value: "1", helper: "Print letter and send parent SMS separately" },
     ],
     actions: [
       { label: "View Admissions", target: "admissions" },

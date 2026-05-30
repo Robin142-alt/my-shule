@@ -950,7 +950,7 @@ function MobileQuickActions() {
     ["Session", CalendarClock],
     ["Lookup", Search],
     ["Notes", MessageCircleHeart],
-    ["Call", PhoneCall],
+    ["Open Contact Details", PhoneCall],
   ] as const;
 
   return (

@@ -659,7 +659,7 @@ function ParentsWorkspace() {
           <h3 className="font-black text-[#071D49]">Communication logs</h3>
           <div className="mt-3 space-y-2 text-sm font-semibold text-[#64748B]">
             <p>SMS sent: absenteeism reminder.</p>
-            <p>Call logged: parent meeting confirmed.</p>
+            <p>Contact note logged: parent meeting confirmed.</p>
             <p>Email queued: academic intervention summary.</p>
           </div>
         </div>

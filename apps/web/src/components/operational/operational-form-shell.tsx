@@ -25,8 +25,8 @@ export type OperationalFormFooterAction =
   | "Preview"
   | "Print"
   | "Submit for Approval"
-  | "Save and Send SMS"
-  | "Save and Print";
+  | "Send SMS"
+  | "Preview Print";
 
 export type OperationalFormContract = {
   title: string;
@@ -305,19 +305,19 @@ export function OperationalFormShell({
                   } else if (action === "Save Draft") {
                     persistDraft(nextValues);
                     setNotice("Draft saved. It now appears in Today's Work.");
-                  } else if (action === "Save and Send SMS") {
+                  } else if (action === "Send SMS") {
                     if (!validate(nextValues)) {
                       setNotice("Check the highlighted fields before sending SMS.");
                       return;
                     }
-                    setNotice("Record saved and parent SMS queued.");
-                  } else if (action === "Save and Print") {
+                    setNotice("SMS queued for the selected contact.");
+                  } else if (action === "Preview Print") {
                     if (!validate(nextValues)) {
-                      setNotice("Check the highlighted fields before printing.");
+                      setNotice("Check the highlighted fields before preparing the print preview.");
                       return;
                     }
-                    printValues(nextValues, `${contract.title} saved copy`);
-                    setNotice("Record saved and printable copy prepared.");
+                    printValues(nextValues, `${contract.title} print preview`);
+                    setNotice("Printable preview prepared.");
                   } else if (action === "Submit for Approval") {
                     if (!validate(nextValues)) {
                       setNotice("Check the highlighted fields before submitting for approval.");
@@ -330,7 +330,7 @@ export function OperationalFormShell({
                 }
               }}
               className={`rounded-[var(--radius-xs)] border px-3 py-2 text-xs font-bold transition hover:-translate-y-0.5 ${
-                action === "Submit" || action === "Submit for Approval" || action === "Save and Send SMS"
+                action === "Submit" || action === "Submit for Approval" || action === "Send SMS"
                   ? "border-accent/25 bg-accent-soft text-accent"
                   : "border-border bg-surface text-foreground"
               }`}

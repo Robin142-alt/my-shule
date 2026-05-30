@@ -368,6 +368,10 @@ const supportWorkspaceSectionIds = new Set([
   "support-system-status",
 ]);
 
+function canCreateSupportTickets(role: SchoolExperienceRole) {
+  return role === "principal" || role === "deputy-principal";
+}
+
 const roleOperationalWorkspaceSectionIds = new Set([
   "dashboard",
   "executive-analytics",
@@ -1113,7 +1117,7 @@ function StudentProfilePage({
                   title="Overview actions"
                   subtitle="Fast follow-up actions for this learner."
                   items={[
-                    { id: "call", title: "Call parent", subtitle: "Discuss balances or classroom updates", value: "Available" },
+                    { id: "contact", title: "Open parent contact details", subtitle: "Discuss balances or classroom updates through approved channels", value: "Available" },
                     { id: "fee", title: "Open fee statement", subtitle: "Prepare a printable account view", value: "Ready" },
                     { id: "academics", title: "Open report card", subtitle: "See current performance and comments", value: "Current" },
                   ]}
@@ -4956,10 +4960,14 @@ function SchoolPagesShell({
         || section === "support-knowledge-base"
         || section === "support-system-status"
       ) ? (
-        <SupportCenterWorkspace
-          tenantSlug={tenantSlug}
-          defaultView={section as "support-new-ticket" | "support-my-tickets" | "support-knowledge-base" | "support-system-status"}
-        />
+        canCreateSupportTickets(role) ? (
+          <SupportCenterWorkspace
+            tenantSlug={tenantSlug}
+            defaultView={section as "support-new-ticket" | "support-my-tickets" | "support-knowledge-base" | "support-system-status"}
+          />
+        ) : (
+          <ModuleDisabledPanel section={section} role={role} routeMode={routeMode} />
+        )
       ) : null}
       {!studentId && !renderRoleOperationalWorkspace && section === "exams" ? (
         <ExamsModuleScreen

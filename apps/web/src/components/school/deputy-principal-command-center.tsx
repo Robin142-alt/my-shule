@@ -191,7 +191,7 @@ const criticalAlerts: CriticalAlert[] = [
     affected: "4 learners, Form 3 North",
     status: "Escalation pending",
     tone: "danger",
-    actions: ["Call Parent", "Assign Investigation", "Notify Principal"],
+    actions: ["Notify Parent", "Assign Investigation", "Notify Principal"],
   },
   {
     title: "Class absenteeism spike",
@@ -261,7 +261,7 @@ const aiInsights: Insight[] = [
 const quickActions = [
   "Record Discipline Case",
   "Send Parent Alert",
-  "Call Emergency Meeting",
+  "Schedule Emergency Meeting",
   "Generate Incident Report",
   "Approve Suspension",
   "Print Attendance Report",

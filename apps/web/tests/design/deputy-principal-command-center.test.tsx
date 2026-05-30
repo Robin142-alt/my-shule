@@ -21,7 +21,7 @@ describe("DeputyPrincipalCommandCenter", () => {
     await user.click(screen.getByRole("button", { name: /^emergency$/i }));
     expect(screen.getByText(/emergency response panel opened for deputy review/i)).toBeVisible();
 
-    await user.click(screen.getByRole("button", { name: /call parent/i }));
-    expect(screen.getByText(/call parent opened for bullying incident reported/i)).toBeVisible();
+    await user.click(screen.getByRole("button", { name: /notify parent/i }));
+    expect(screen.getByText(/notify parent opened for bullying incident reported/i)).toBeVisible();
   });
 });

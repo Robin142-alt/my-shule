@@ -1143,7 +1143,7 @@ function workspaceActionLabels(kind: WorkspaceKind, workspace: string, blueprint
     clinic: ["Record Visit", "Dispense Medicine", "Notify Parent", "Refer to Hospital", "Print Medical Slip", "View Details"],
     counselling: ["Start Session", "Add Notes", "Escalate Emergency", "Notify Principal", "Schedule Follow-up", "View Details"],
     boarding: ["Mark Roll Call", "Approve Exeat", "Assign Bed", "Notify Parent", "Report Incident", "View Details"],
-    security: ["Register Visitor", "Verify Gate Pass", "Log Vehicle", "Report Incident", "Call Admin", "Print Visitor Badge"],
+    security: ["Register Visitor", "Verify Gate Pass", "Log Vehicle", "Report Incident", "Notify Admin", "Print Visitor Badge"],
     laboratory: ["Approve Practical Prep", "Add Chemical Stock", "Record Breakage", "Schedule Maintenance", "Alert Teacher", "View Details"],
     admissions: ["Add Inquiry", "Verify Documents", "Schedule Interview", "Approve Admission", "Print Admission Letter", "View Details"],
     reports: ["Generate Report", "Apply Filters", "Export PDF", "Export Excel", "Schedule Report", "View Details"],
@@ -1222,11 +1222,11 @@ function workspaceFieldLabels(kind: WorkspaceKind) {
 }
 
 function workspaceFooterActions(kind: WorkspaceKind): OperationalFormFooterAction[] {
-  if (kind === "finance" || kind === "communication") return ["Cancel", "Save Draft", "Submit", "Save and Send SMS", "Save and Print"];
+  if (kind === "finance" || kind === "communication") return ["Cancel", "Save Draft", "Submit", "Send SMS", "Preview Print"];
   if (kind === "reports") return ["Cancel", "Preview", "Print", "Submit"];
   if (kind === "approval") return ["Cancel", "Save Draft", "Submit for Approval", "Print"];
   if (["admissions", "inventory", "library", "clinic", "laboratory", "security", "transport"].includes(kind)) {
-    return ["Cancel", "Save Draft", "Submit", "Save and Print"];
+    return ["Cancel", "Save Draft", "Submit", "Preview Print"];
   }
 
   return ["Cancel", "Save Draft", "Submit"];
@@ -5074,7 +5074,7 @@ function GenericRoleOperationalCommandCenter({
   }
 
   function executeFormAction(action: OperationalFormFooterAction, contract: OperationalFormContract, formData: OperationalFormValues) {
-    const formEntryActions: OperationalFormFooterAction[] = ["Save Draft", "Submit", "Submit for Approval", "Save and Send SMS", "Save and Print"];
+    const formEntryActions: OperationalFormFooterAction[] = ["Save Draft", "Submit", "Submit for Approval", "Send SMS", "Preview Print"];
     const shouldMaterializeEntry = formEntryActions.includes(action);
     const entryId = runtimeId(`${role}-${slug(resolvedWorkspace)}`);
     const actionToDispatch = actionContract({

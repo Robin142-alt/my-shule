@@ -20,11 +20,18 @@ export type SchoolNotification = {
   id: string;
   schoolId: string;
   audienceRoles: string[];
+  recipientRole?: string;
   sourceModule: string;
+  relatedModule?: string;
+  relatedRecordId?: string;
+  actionUrl?: string;
+  type?: string;
+  priority?: SchoolOperationalSeverity;
   title: string;
   body: string;
   severity: SchoolOperationalSeverity;
   read: boolean;
+  createdBy?: string;
   createdAt: string;
 };
 
@@ -65,6 +72,11 @@ export type PublishSchoolOperationalEventInput = {
     title?: string;
     body?: string;
     severity?: SchoolOperationalSeverity;
+    recipientRole?: string;
+    relatedModule?: string;
+    relatedRecordId?: string;
+    actionUrl?: string;
+    type?: string;
   }>;
   sms?: Array<{
     recipient: string;
@@ -206,11 +218,18 @@ export function createNotification(
       id: uniqueId("notification"),
       schoolId,
       audienceRoles: input.audienceRoles,
+      recipientRole: input.recipientRole,
       sourceModule: input.sourceModule,
+      relatedModule: input.relatedModule,
+      relatedRecordId: input.relatedRecordId,
+      actionUrl: input.actionUrl,
+      type: input.type,
+      priority: input.priority,
       title: input.title,
       body: input.body,
       severity: input.severity,
       read: false,
+      createdBy: input.createdBy,
       createdAt: nowIso(),
     },
     schoolId,
@@ -289,13 +308,26 @@ export function publishSchoolOperationalEvent(input: PublishSchoolOperationalEve
   });
 
   input.notifications?.forEach((notification) => {
+    const relatedModule = notification.relatedModule ?? input.module;
+    const relatedRecordId = notification.relatedRecordId ?? input.entityId;
+    const actionUrl =
+      notification.actionUrl
+      ?? (relatedRecordId ? `/${relatedModule}?record=${encodeURIComponent(relatedRecordId)}` : `/${relatedModule}`);
+
     createNotification({
       schoolId,
       audienceRoles: notification.audienceRoles,
+      recipientRole: notification.recipientRole,
       sourceModule: input.module,
+      relatedModule,
+      relatedRecordId,
+      actionUrl,
+      type: notification.type ?? input.type,
+      priority: notification.severity ?? severity,
       title: notification.title ?? input.title,
       body: notification.body ?? input.body,
       severity: notification.severity ?? severity,
+      createdBy: input.actorRole,
     });
   });
 

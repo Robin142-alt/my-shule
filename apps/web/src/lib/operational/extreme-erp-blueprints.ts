@@ -139,7 +139,7 @@ export const extremeErpBlueprints: ExtremeErpBlueprint[] = [
       table("admin.students", "Student records table", ["Admission No", "Student", "Class", "Parent Phone", "Status"], ["View", "Edit", "Print Profile", "Send SMS"], ["Print selected", "Send SMS"]),
     ],
     forms: [
-      form("student-record", "Student Record Form", "Maintain the official student file.", ["Admission number", "Student name", "County", "Class", "Stream", "Parent phone"], ["Save and Print Profile", "Save and Notify Parent"]),
+      form("student-record", "Student Record Form", "Maintain the official student file.", ["Admission number", "Student name", "County", "Class", "Stream", "Parent phone"], ["Save Student", "Preview Profile", "Notify Parent"]),
     ],
     printOutputs: ["Student profile", "Admission letter", "Parent contact list"],
   }),
@@ -275,7 +275,7 @@ export const extremeErpBlueprints: ExtremeErpBlueprint[] = [
     moduleCode: "setup_wizard",
     commandQuestion: "Which setup step is incomplete before the school can launch daily operations?",
     roleFocus: "Guided school setup for low-ICT teams: profile, terms, classes, users, imports, fees, SMS, M-Pesa, templates, and launch.",
-    urgentActions: ["Validate Import", "Fix Errors", "Save and Continue", "Launch School"],
+    urgentActions: ["Validate Import", "Fix Errors", "Save Step", "Launch School"],
     queues: [
       queue("setup.steps", "Setup steps pending", "School Owner", ["Continue", "Validate", "Skip If Allowed", "Launch"], "Profile -> Imports -> Finance -> Permissions -> Launch", "SCHOOL_SETUP_LAUNCHED"),
     ],
@@ -283,7 +283,7 @@ export const extremeErpBlueprints: ExtremeErpBlueprint[] = [
       table("setup.import", "Student import validation", ["Admission No", "Student", "Class", "Parent Phone", "Error"], ["Fix", "Validate", "Import"], ["Import Students"]),
     ],
     forms: [
-      form("school-profile", "School Profile Step", "Set the tenant profile, year, term, classes, and launch defaults.", ["School name", "County", "Academic year", "Current term", "Classes", "Streams"], ["Save and Continue"]),
+      form("school-profile", "School Profile Step", "Set the tenant profile, year, term, classes, and launch defaults.", ["School name", "County", "Academic year", "Current term", "Classes", "Streams"], ["Save Step"]),
     ],
     printOutputs: ["Import error report", "Setup review", "Launch checklist"],
   }),
@@ -301,7 +301,7 @@ export const extremeErpBlueprints: ExtremeErpBlueprint[] = [
       table("ict.assets", "ICT asset register", ["Asset Tag", "Asset", "Serial", "Location", "Condition", "Status"], ["Issue", "Return", "Move Asset", "Report Fault"], ["Print asset tags"]),
     ],
     forms: [
-      form("ict-asset", "Add ICT Asset Form", "Register high-value digital assets with barcode and warranty controls.", ["Asset name", "Category", "Serial number", "Asset tag", "Purchase cost", "Warranty expiry"], ["Save and Print Barcode"]),
+      form("ict-asset", "Add ICT Asset Form", "Register high-value digital assets with barcode and warranty controls.", ["Asset name", "Category", "Serial number", "Asset tag", "Purchase cost", "Warranty expiry"], ["Save Asset", "Preview Barcode"]),
     ],
     printOutputs: ["Asset tag", "Issue slip", "Lab booking list"],
   }),

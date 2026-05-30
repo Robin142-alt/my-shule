@@ -865,7 +865,7 @@ function EmergencyMode() {
       </div>
       <div className="mt-6 flex flex-col gap-3 sm:flex-row">
         <button type="button" onClick={() => announceAction("Emergency lockdown checklist opened.")} className="min-h-12 flex-1 rounded-[var(--radius-lg)] bg-rose-600 px-5 py-3 text-sm font-black text-white shadow-[0_18px_42px_rgba(225,29,72,0.28)] transition hover:-translate-y-0.5">Activate lockdown</button>
-        <button type="button" onClick={() => announceAction("Emergency contact list opened.")} className="min-h-12 flex-1 rounded-[var(--radius-lg)] border border-white/14 bg-white/10 px-5 py-3 text-sm font-black text-white transition hover:-translate-y-0.5">Call emergency contacts</button>
+        <button type="button" onClick={() => announceAction("Emergency contact list opened.")} className="min-h-12 flex-1 rounded-[var(--radius-lg)] border border-white/14 bg-white/10 px-5 py-3 text-sm font-black text-white transition hover:-translate-y-0.5">Open emergency contacts</button>
       </div>
     </DarkSection>
   );

@@ -319,7 +319,7 @@ const highRiskStudents: RiskStudent[] = [
     score: "78",
     pattern: "Emotionally withdrawn student, frequent clinic visitors trend, and exam stress indicators.",
     response: "Guardian responsiveness medium. Parent meeting booked.",
-    action: "Call student",
+    action: "Open student profile",
     tone: "amber",
   },
   {
@@ -623,7 +623,7 @@ function Hero() {
             I can see patterns before they become crises.
           </p>
           <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            {["Record Incident", "Call Student", "Notify Parent", "Generate Discipline Report"].map((label) => (
+            {["Record Incident", "Open Student Profile", "Notify Parent", "Generate Discipline Report"].map((label) => (
               <button
                 key={label}
                 type="button"
@@ -819,7 +819,7 @@ function QuickActionsPanel() {
     ["Notify Parent", PhoneCall, "amber"],
     ["Print Discipline Slip", FileBarChart2, "slate"],
     ["Refer to Counsellor", Stethoscope, "safe"],
-    ["Call Security", Siren, "danger"],
+    ["Alert Security", Siren, "danger"],
     ["Generate Weekly Report", FileBarChart2, "emerald"],
   ];
 

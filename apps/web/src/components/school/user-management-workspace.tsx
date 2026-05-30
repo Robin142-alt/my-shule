@@ -17,7 +17,7 @@ import {
 } from "@/lib/school/school-operational-store";
 
 type SchoolUserStatus = "Active" | "Pending" | "Suspended" | "Deactivated";
-type InvitationStatus = "Pending" | "Accepted" | "Expired" | "Revoked";
+type InvitationStatus = "Pending" | "Accepted" | "Expired" | "Revoked" | "Email Failed";
 type UserManagementTab = "users" | "invitations" | "invite" | "roles" | "inactive" | "audit";
 type InviteDeliveryMethod = "SMS" | "Email" | "Copy link";
 
@@ -98,7 +98,7 @@ type ManagedUserApi = {
   role_name?: string;
   department?: string;
   assignment?: string;
-  status?: "active" | "suspended" | "deactivated" | "invited" | "expired" | "revoked" | "accepted";
+  status?: "active" | "suspended" | "deactivated" | "invited" | "expired" | "revoked" | "accepted" | "email_failed" | "failed";
   created_at?: string;
   joined_at?: string;
   last_active_at?: string;
@@ -395,6 +395,7 @@ function apiStatusToInvitationStatus(status: ManagedUserApi["status"]): Invitati
   if (status === "accepted") return "Accepted";
   if (status === "expired") return "Expired";
   if (status === "revoked") return "Revoked";
+  if (status === "email_failed" || status === "failed") return "Email Failed";
   return "Pending";
 }
 
@@ -491,6 +492,7 @@ function readManagedInvitationPayload(payload: { invitation?: ManagedUserApi; me
 function statusTone(status: SchoolUserStatus | InvitationStatus) {
   if (status === "Active" || status === "Accepted") return "ok";
   if (status === "Pending") return "warning";
+  if (status === "Email Failed") return "warning";
   return "critical";
 }
 
@@ -601,7 +603,7 @@ export function UserManagementWorkspace({
     };
   }, [actorName, actorRole, schoolId]);
 
-  const pendingInvitations = invitations.filter((invite) => invite.invitationStatus === "Pending");
+  const pendingInvitations = invitations.filter((invite) => invite.invitationStatus === "Pending" || invite.invitationStatus === "Email Failed");
   const inactiveUsers = users.filter((user) => user.status === "Suspended" || user.status === "Deactivated");
   const departmentOptions = useMemo(
     () => ["All departments", ...Array.from(new Set(users.map((user) => user.department).filter(Boolean)))],
@@ -734,13 +736,13 @@ export function UserManagementWorkspace({
   }
 
   async function resendInvitation(invite: UserInvitationRecord) {
-    if (invite.invitationStatus !== "Pending") {
-      setError("Only pending invitations can be resent.");
+    if (invite.invitationStatus !== "Pending" && invite.invitationStatus !== "Email Failed") {
+      setError("Only pending or failed-email invitations can be resent.");
       return;
     }
 
     const expiryDate = inviteExpiryDate(7);
-    let nextInvite = { ...invite, expiryDate, updatedAt: nowIso() };
+    let nextInvite = { ...invite, invitationStatus: "Pending" as InvitationStatus, expiryDate, updatedAt: nowIso() };
 
     if (typeof fetch === "function") {
       try {
@@ -774,7 +776,7 @@ export function UserManagementWorkspace({
       }
     }
 
-    updateSchoolRecord<UserInvitationRecord>(invitationModule, invite.id, { expiryDate, updatedAt: nowIso() }, schoolId);
+    updateSchoolRecord<UserInvitationRecord>(invitationModule, invite.id, { invitationStatus: "Pending", expiryDate, updatedAt: nowIso() }, schoolId);
     setInvitations((current) =>
       current.map((item) => (item.id === invite.id ? { ...item, ...nextInvite } : item)),
     );
@@ -921,6 +923,11 @@ export function UserManagementWorkspace({
       return;
     }
 
+    if (inviteForm.deliveryMethod === "Email" && !inviteForm.email.trim()) {
+      setError("Email address is required when sending an email invitation.");
+      return;
+    }
+
     const duplicateActiveUser = users.find((user) => {
       const samePhone = inviteForm.phone.trim() && normalize(user.phone) === normalize(inviteForm.phone);
       const sameEmail = inviteForm.email.trim() && normalize(user.email) === normalize(inviteForm.email);
@@ -1012,8 +1019,47 @@ export function UserManagementWorkspace({
             invitedByRole: invite.invitedByRole,
           };
         }
-      } catch {
-        setNotice("Live invite service is unavailable. Created a local invite code for this school.");
+      } catch (inviteError) {
+        const failedInvite: UserInvitationRecord = {
+          ...invite,
+          invitationStatus: invite.deliveryMethod === "Email" ? "Email Failed" : "Pending",
+          note: [
+            invite.note,
+            inviteError instanceof Error ? inviteError.message : "Invite delivery failed.",
+          ].filter(Boolean).join(" | "),
+          updatedAt: nowIso(),
+        };
+
+        const savedFailedInvite = addSchoolRecord<UserInvitationRecord>(invitationModule, failedInvite, schoolId);
+        saved = savedFailedInvite;
+        setInvitations((current) => [savedFailedInvite, ...current.filter((item) => item.id !== savedFailedInvite.id)]);
+        addUserAudit(
+          invite.deliveryMethod === "Email" ? "Invitation email failed" : "User invited locally",
+          invite.invitedName,
+          undefined,
+          `${invite.role} invitation via ${invite.deliveryMethod}`,
+          inviteError instanceof Error ? inviteError.message : "Invite delivery failed.",
+        );
+        publishUserEvent(
+          invite.deliveryMethod === "Email" ? "USER_INVITE_EMAIL_FAILED" : "USER_INVITED_LOCALLY",
+          invite.deliveryMethod === "Email" ? "Invitation email delivery failed" : "User invitation saved locally",
+          invite.deliveryMethod === "Email"
+            ? `${invite.invitedName} invitation was saved, but email delivery failed.`
+            : `${invite.invitedName} invitation was saved locally for ${schoolName}.`,
+          invite.id,
+        );
+        setInviteForm(initialInviteForm());
+        setActiveTab("invitations");
+        if (invite.deliveryMethod === "Email") {
+          setError(
+            `Email delivery failed for ${invite.invitedName}. The invitation was saved with Email Failed status; resend after email is available.`,
+          );
+          setNotice(null);
+        } else {
+          setNotice("Live invite service is unavailable. Created a local invite code for this school.");
+        }
+
+        return;
       }
     }
 
@@ -1463,7 +1509,7 @@ function InvitationsTable({
               <td className="px-3 py-3">
                 <div className="flex flex-wrap gap-1.5">
                   <SmallAction label="View details" icon={Eye} onClick={() => onView(invite)} />
-                  <SmallAction label="Resend invitation" icon={Mail} onClick={() => onResend(invite)} disabled={invite.invitationStatus !== "Pending"} />
+                  <SmallAction label="Resend invitation" icon={Mail} onClick={() => onResend(invite)} disabled={invite.invitationStatus !== "Pending" && invite.invitationStatus !== "Email Failed"} />
                   <SmallAction label="Revoke invitation" onClick={() => onRevoke(invite)} disabled={invite.invitationStatus !== "Pending"} tone="danger" />
                   <SmallAction label="Copy invite link/code" icon={Copy} onClick={() => onCopy(invite)} />
                   {invite.invitationStatus === "Expired" || invite.invitationStatus === "Revoked" ? (

@@ -478,7 +478,7 @@ describe("enterprise support workspace", () => {
 
     renderWithProviders(
       createElement(SchoolPages, {
-        role: "admin",
+        role: "principal",
         tenantSlug: "barakaacademy",
         section: "support-new-ticket",
       }),

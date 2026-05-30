@@ -67,8 +67,8 @@ describe("experience shells", () => {
 
     const commandCenter = await screen.findByTestId("role-operational-command-center");
     expect(within(commandCenter).getAllByText(/front office/i).length).toBeGreaterThan(0);
-    expect(within(commandCenter).getAllByRole("button", { name: /Record Visitor Ready/i }).length).toBeGreaterThan(0);
-    expect(within(commandCenter).getAllByRole("button", { name: /Print Letter Ready/i }).length).toBeGreaterThan(0);
+    expect(within(commandCenter).getAllByRole("button", { name: /Mark Parent Served/i }).length).toBeGreaterThan(0);
+    expect(within(commandCenter).getAllByRole("button", { name: /Send SMS/i }).length).toBeGreaterThan(0);
     expect(within(commandCenter).queryByRole("button", { name: /Approve Results Ready/i })).not.toBeInTheDocument();
   });
 });

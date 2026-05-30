@@ -62,8 +62,8 @@ const formContract: OperationalFormContract = {
     "Preview",
     "Print",
     "Submit for Approval",
-    "Save and Send SMS",
-    "Save and Print",
+    "Send SMS",
+    "Preview Print",
   ],
   auditAction: "audit.parent-sms-follow-up",
   workflowBinding: "parent-communication",
@@ -168,11 +168,11 @@ describe("universal operational form and table system", () => {
     expect(within(form).getByRole("button", { name: /cancel/i })).toBeVisible();
     expect(within(form).getByRole("button", { name: /save draft/i })).toBeVisible();
     expect(within(form).getByRole("button", { name: /^submit$/i })).toBeVisible();
-    expect(within(form).getByRole("button", { name: /preview/i })).toBeVisible();
+    expect(within(form).getByRole("button", { name: /^preview$/i })).toBeVisible();
     expect(within(form).getByRole("button", { name: /^print$/i })).toBeVisible();
     expect(within(form).getByRole("button", { name: /submit for approval/i })).toBeVisible();
-    expect(within(form).getByRole("button", { name: /save and send sms/i })).toBeVisible();
-    expect(within(form).getByRole("button", { name: /save and print/i })).toBeVisible();
+    expect(within(form).getByRole("button", { name: /send sms/i })).toBeVisible();
+    expect(within(form).getByRole("button", { name: /preview print/i })).toBeVisible();
     expect(screen.getByText(/Action details/)).toBeVisible();
     expect(screen.getByText(/Permission checked/)).toBeVisible();
     expect(screen.getByText(/Related records update after saving/)).toBeVisible();

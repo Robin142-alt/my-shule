@@ -85,6 +85,7 @@ const schoolNavMap: Record<SchoolExperienceRole, ExperienceNavItem[]> = {
     { id: "data-security", label: "Data Security", href: toSchoolPath("data-security"), icon: Fingerprint, group: "Intelligence" },
     { id: "ai-insights", label: "AI Insights", href: toSchoolPath("ai-insights"), icon: Cpu, group: "Intelligence" },
     { id: "audit-logs", label: "Audit Logs", href: toSchoolPath("audit-logs"), icon: Fingerprint, group: "Intelligence" },
+    ...supportSidebarItems,
     { id: "settings", label: "Settings", href: toSchoolPath("settings"), icon: Settings, group: "Administration" },
   ],
   "deputy-principal": [
@@ -556,6 +557,18 @@ function buildSchoolProfile(role: SchoolExperienceRole, schoolName: string): Exp
   };
 }
 
+function canCreateSchoolSupportTicket(role: SchoolExperienceRole) {
+  return role === "principal" || role === "deputy-principal";
+}
+
+function filterSupportItemsForRole(role: SchoolExperienceRole, items: ExperienceNavItem[]) {
+  if (canCreateSchoolSupportTicket(role)) {
+    return items;
+  }
+
+  return items.filter((item) => !item.id.startsWith("support-"));
+}
+
 export function getSchoolWorkspace(role: SchoolExperienceRole, tenantSlug?: string | null) {
   const branding = getSchoolBrandingBySlug(tenantSlug) ?? getDefaultSchoolBranding();
   const dashboardRole = roleToDashboardRole[role];
@@ -573,7 +586,7 @@ export function getSchoolWorkspace(role: SchoolExperienceRole, tenantSlug?: stri
     snapshot,
     model,
     subscription: buildSchoolSubscription(role),
-    navItems: filterProductionReadyNavItems(schoolNavMap[role]),
+    navItems: filterSupportItemsForRole(role, filterProductionReadyNavItems(schoolNavMap[role])),
     profile: buildSchoolProfile(role, branding.name),
   };
 }

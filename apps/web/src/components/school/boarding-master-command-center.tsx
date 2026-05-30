@@ -249,7 +249,7 @@ const patrolTimeline: FeedItem[] = [
 
 const incidents: FeedItem[] = [
   { title: "Student found outside dorm", detail: "Dorm B learner found near laundry block after lights-out.", time: "11 min ago", tone: "danger", actions: ["Assign punishment", "Notify parent", "Escalate to deputy principal"] },
-  { title: "Bullying report", detail: "Possible bullying cluster detected around Dorm B lower wing.", time: "28 min ago", tone: "warning", actions: ["Launch welfare check", "Call guardian"] },
+  { title: "Bullying report", detail: "Possible bullying cluster detected around Dorm B lower wing.", time: "28 min ago", tone: "warning", actions: ["Launch welfare check", "Notify guardian"] },
   { title: "Contraband confiscated", detail: "Unauthorized phone recovered during prefect inspection.", time: "1 hr ago", tone: "warning", actions: ["Suspend boarding privileges"] },
   { title: "Dorm vandalism", detail: "Broken window latch reported by Dorm A captain.", time: "today", tone: "info", actions: ["Create maintenance ticket"] },
 ];

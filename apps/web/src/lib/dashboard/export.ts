@@ -206,9 +206,43 @@ export function openPrintDocument({
             line-height: 1.7;
             color: #64748b;
           }
+          .toolbar {
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            padding: 14px;
+            background: rgba(248, 250, 252, 0.96);
+            border-bottom: 1px solid #e2e8f0;
+            backdrop-filter: blur(10px);
+          }
+          .toolbar button {
+            border: 1px solid #bfdbfe;
+            border-radius: 10px;
+            background: #eff6ff;
+            color: #0f3f8a;
+            cursor: pointer;
+            font-weight: 800;
+            padding: 10px 14px;
+          }
+          .toolbar button.primary {
+            background: #0f3f8a;
+            border-color: #0f3f8a;
+            color: #ffffff;
+          }
+          .toolbar button.neutral {
+            background: #ffffff;
+            border-color: #cbd5e1;
+            color: #334155;
+          }
           @media print {
             body {
               background: #ffffff;
+            }
+            .toolbar {
+              display: none;
             }
             .page {
               margin: 0;
@@ -221,6 +255,11 @@ export function openPrintDocument({
         </style>
       </head>
       <body>
+        <div class="toolbar" aria-label="Print preview actions">
+          <button class="primary" type="button" onclick="window.print()">Print</button>
+          <button type="button" onclick="window.print()">Download PDF</button>
+          <button class="neutral" type="button" onclick="window.close()">Cancel</button>
+        </div>
         <main class="page">
           <div class="eyebrow">${escapeHtml(eyebrow)}</div>
           <h1>${escapeHtml(title)}</h1>
@@ -234,5 +273,4 @@ export function openPrintDocument({
   `);
   popup.document.close();
   popup.focus();
-  popup.print();
 }

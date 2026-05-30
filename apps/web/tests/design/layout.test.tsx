@@ -86,7 +86,7 @@ describe("STEP 1: Layout tests", () => {
     expect(screen.getByText(/parent intelligence/i)).toBeVisible();
     expect(screen.getAllByText(/brian otieno/i).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/aisha wanjiku/i).length).toBeGreaterThan(0);
-    expect(screen.getByRole("button", { name: /ai assistant/i })).toBeVisible();
+  expect(screen.getAllByRole("button", { name: /ai assistant/i }).length).toBeGreaterThan(0);
     expect(screen.getAllByRole("button", { name: /emergency hotline/i }).length).toBeGreaterThan(0);
     expect(screen.getByRole("heading", { name: /real-time alerts center/i })).toBeVisible();
     expect(screen.getByRole("heading", { name: /academic performance overview/i })).toBeVisible();
