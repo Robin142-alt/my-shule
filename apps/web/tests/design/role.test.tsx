@@ -968,6 +968,134 @@ describe("STEP 4: Role tests", () => {
     ).toBe(true);
   }, 30000);
 
+  it("makes the discipline master desk practical with incident intake, parent SMS, counselling referral, escalation, printing, and resolution", async () => {
+    const user = userEvent.setup();
+    const printMock = jest.fn();
+    const schoolId = "kisumu-boys";
+    Object.defineProperty(window, "print", { value: printMock, writable: true });
+
+    renderWithProviders(
+      createElement(SchoolPages, {
+        role: "discipline-master" as SchoolExperienceRole,
+        tenantSlug: "kisumu-boys",
+      }),
+    );
+
+    const commandCenter = await screen.findByTestId("role-operational-command-center");
+    expect(within(commandCenter).getByRole("heading", { name: /record discipline incident/i })).toBeVisible();
+    expect(within(commandCenter).getByText(/case queue and interventions/i)).toBeVisible();
+
+    await user.clear(within(commandCenter).getByLabelText(/discipline student/i));
+    await user.type(within(commandCenter).getByLabelText(/discipline student/i), "Kevin Maina");
+    await user.clear(within(commandCenter).getByLabelText(/discipline class/i));
+    await user.type(within(commandCenter).getByLabelText(/discipline class/i), "Form 3 South");
+    await user.selectOptions(within(commandCenter).getByLabelText(/case type/i), "Bullying");
+    await user.selectOptions(within(commandCenter).getByLabelText(/case severity/i), "Serious");
+    await user.clear(within(commandCenter).getByLabelText(/reported by/i));
+    await user.type(within(commandCenter).getByLabelText(/reported by/i), "Mr. Otieno");
+    await user.clear(within(commandCenter).getByLabelText(/guardian phone/i));
+    await user.type(within(commandCenter).getByLabelText(/guardian phone/i), "0712 111 222");
+    await user.clear(within(commandCenter).getByLabelText(/incident notes/i));
+    await user.type(within(commandCenter).getByLabelText(/incident notes/i), "Repeat bullying report near dormitory.");
+    await user.click(within(commandCenter).getByRole("button", { name: /add incident/i }));
+
+    expect(within(commandCenter).getByRole("status")).toHaveTextContent(/kevin maina discipline case recorded/i);
+    expect(
+      readSchoolData<{ student: string; severity: string; status: string; schoolId: string }>("discipline-cases", schoolId).some(
+        (record) => record.student === "Kevin Maina" && record.severity === "Serious" && record.status === "New" && record.schoolId === schoolId,
+      ),
+    ).toBe(true);
+    expect(
+      readSchoolData<SchoolOperationalEvent>("events", schoolId).some(
+        (event) => event.type === "DISCIPLINE_CASE_RECORDED" && event.module === "discipline" && /Kevin Maina/i.test(event.body),
+      ),
+    ).toBe(true);
+    expect(
+      readSchoolData<SchoolNotification>("notifications", schoolId).some(
+        (notification) =>
+          notification.sourceModule === "discipline" &&
+          notification.audienceRoles.includes("deputy-principal") &&
+          notification.audienceRoles.includes("class-teacher") &&
+          /Kevin Maina/i.test(notification.body),
+      ),
+    ).toBe(true);
+
+    let caseRow = within(commandCenter)
+      .getAllByText(/Kevin Maina/i)
+      .map((element) => element.closest("tr"))
+      .find(Boolean);
+    expect(caseRow).not.toBeNull();
+    await user.click(within(caseRow as HTMLElement).getByRole("button", { name: /notify parent/i }));
+    expect(within(commandCenter).getByRole("status")).toHaveTextContent(/kevin maina parent sms sent/i);
+    expect(
+      readSchoolData<SchoolSmsLog>("smsLogs", schoolId).some(
+        (sms) => sms.sourceModule === "discipline" && /Kevin Maina/i.test(sms.message) && /discipline/i.test(sms.message),
+      ),
+    ).toBe(true);
+
+    caseRow = within(commandCenter)
+      .getAllByText(/Kevin Maina/i)
+      .map((element) => element.closest("tr"))
+      .find(Boolean);
+    expect(caseRow).not.toBeNull();
+    await user.click(within(caseRow as HTMLElement).getByRole("button", { name: /refer counsellor/i }));
+    expect(within(commandCenter).getByRole("status")).toHaveTextContent(/kevin maina referred to counsellor/i);
+    expect(
+      readSchoolData<{ student: string; source: string; status: string }>("counselling-referrals", schoolId).some(
+        (referral) => referral.student === "Kevin Maina" && referral.source === "Discipline Master" && referral.status === "Pending Session",
+      ),
+    ).toBe(true);
+    expect(
+      readSchoolData<SchoolNotification>("notifications", schoolId).some(
+        (notification) =>
+          notification.sourceModule === "discipline" &&
+          notification.audienceRoles.includes("guidance-counselling") &&
+          /Kevin Maina/i.test(notification.body),
+      ),
+    ).toBe(true);
+
+    caseRow = within(commandCenter)
+      .getAllByText(/Kevin Maina/i)
+      .map((element) => element.closest("tr"))
+      .find(Boolean);
+    expect(caseRow).not.toBeNull();
+    await user.click(within(caseRow as HTMLElement).getByRole("button", { name: /escalate deputy/i }));
+    expect(within(commandCenter).getByRole("status")).toHaveTextContent(/kevin maina escalated to deputy/i);
+    expect(
+      readSchoolData<SchoolOperationalEvent>("events", schoolId).some((event) => event.type === "DISCIPLINE_CASE_ESCALATED" && /Kevin Maina/i.test(event.body)),
+    ).toBe(true);
+
+    caseRow = within(commandCenter)
+      .getAllByText(/Kevin Maina/i)
+      .map((element) => element.closest("tr"))
+      .find(Boolean);
+    expect(caseRow).not.toBeNull();
+    await user.click(within(caseRow as HTMLElement).getByRole("button", { name: /print letter/i }));
+    expect(within(commandCenter).getByRole("status")).toHaveTextContent(/kevin maina discipline letter opened/i);
+    expect(printMock).toHaveBeenCalled();
+    expect(
+      readSchoolData<{ documentType: string; student: string }>("printed-documents", schoolId).some(
+        (document) => document.documentType === "Discipline Letter" && document.student === "Kevin Maina",
+      ),
+    ).toBe(true);
+
+    caseRow = within(commandCenter)
+      .getAllByText(/Kevin Maina/i)
+      .map((element) => element.closest("tr"))
+      .find(Boolean);
+    expect(caseRow).not.toBeNull();
+    await user.click(within(caseRow as HTMLElement).getByRole("button", { name: /mark resolved/i }));
+    expect(within(commandCenter).getByRole("status")).toHaveTextContent(/kevin maina case resolved/i);
+    expect(
+      readSchoolData<{ student: string; status: string }>("discipline-cases", schoolId).some(
+        (record) => record.student === "Kevin Maina" && record.status === "Resolved",
+      ),
+    ).toBe(true);
+    expect(
+      readSchoolData<SchoolOperationalEvent>("events", schoolId).some((event) => event.type === "DISCIPLINE_CASE_RESOLVED" && /Kevin Maina/i.test(event.body)),
+    ).toBe(true);
+  }, 30000);
+
   it("lets the secretary print a fee statement directly from student search", async () => {
     const user = userEvent.setup();
     const printMock = jest.fn();

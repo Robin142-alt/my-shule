@@ -338,6 +338,21 @@ type SecretaryInquiryRecord = {
   smsSent: boolean;
 };
 
+type DisciplineCaseRecord = {
+  id: string;
+  student: string;
+  className: string;
+  caseType: "Bullying" | "Fighting" | "Lateness" | "Uniform" | "Dormitory" | "Other";
+  severity: "Minor" | "Moderate" | "Serious" | "Critical";
+  reportedBy: string;
+  guardianPhone: string;
+  notes: string;
+  status: "New" | "Under Review" | "Escalated" | "Counsellor Referral" | "Resolved";
+  parentSmsSent: boolean;
+  counsellorReferred: boolean;
+  time: string;
+};
+
 type RoleSearchResult = {
   id: string;
   label: string;
@@ -822,6 +837,51 @@ const initialSecretaryInquiries: SecretaryInquiryRecord[] = [
     department: "Academics",
     status: "In Progress",
     smsSent: true,
+  },
+];
+
+const initialDisciplineCases: DisciplineCaseRecord[] = [
+  {
+    id: "discipline-calvin",
+    student: "Calvin Were",
+    className: "Form 1 North",
+    caseType: "Dormitory",
+    severity: "Serious",
+    reportedBy: "Boarding Master",
+    guardianPhone: "0700 444 112",
+    notes: "Missed night roll call twice and requires deputy follow-up.",
+    status: "Escalated",
+    parentSmsSent: true,
+    counsellorReferred: false,
+    time: "07:15",
+  },
+  {
+    id: "discipline-faith",
+    student: "Faith Akinyi",
+    className: "Grade 8 West",
+    caseType: "Lateness",
+    severity: "Moderate",
+    reportedBy: "Class Teacher",
+    guardianPhone: "0798 111 222",
+    notes: "Repeated lateness after lunch break, parent meeting pending.",
+    status: "Under Review",
+    parentSmsSent: false,
+    counsellorReferred: false,
+    time: "10:05",
+  },
+  {
+    id: "discipline-brian",
+    student: "Brian Otieno",
+    className: "Form 2 East",
+    caseType: "Bullying",
+    severity: "Critical",
+    reportedBy: "Mr. Otieno",
+    guardianPhone: "0712 345 678",
+    notes: "Bullying report under investigation; counsellor watch recommended.",
+    status: "Counsellor Referral",
+    parentSmsSent: true,
+    counsellorReferred: true,
+    time: "11:30",
   },
 ];
 
@@ -3465,6 +3525,217 @@ function SecretaryWorkspace({
   );
 }
 
+function DisciplineWorkspace({
+  cases,
+  notice,
+  onAddCase,
+  onNotifyParent,
+  onReferCounsellor,
+  onEscalateDeputy,
+  onPrintLetter,
+  onResolveCase,
+  recordIncidentAction,
+  onExecuteAction,
+}: {
+  cases: DisciplineCaseRecord[];
+  notice: string;
+  onAddCase: (record: Omit<DisciplineCaseRecord, "id" | "status" | "parentSmsSent" | "counsellorReferred" | "time">) => void;
+  onNotifyParent: (id: string) => void;
+  onReferCounsellor: (id: string) => void;
+  onEscalateDeputy: (id: string) => void;
+  onPrintLetter: (id: string) => void;
+  onResolveCase: (id: string) => void;
+  recordIncidentAction: OperationalActionContract;
+  onExecuteAction: (action: OperationalActionContract) => void;
+}) {
+  const [student, setStudent] = useState("Grace Njeri");
+  const [className, setClassName] = useState("Form 2 West");
+  const [caseType, setCaseType] = useState<DisciplineCaseRecord["caseType"]>("Lateness");
+  const [severity, setSeverity] = useState<DisciplineCaseRecord["severity"]>("Moderate");
+  const [reportedBy, setReportedBy] = useState("Mrs. Achieng");
+  const [guardianPhone, setGuardianPhone] = useState("0711 555 990");
+  const [notes, setNotes] = useState("Parent follow-up needed after repeated lesson lateness.");
+  const [searchTerm, setSearchTerm] = useState("");
+  const fieldClass = "rounded-xl border border-[#D7E0EF] bg-white px-3 py-2 text-sm font-semibold text-[#071D49] outline-none focus:border-[#1D4ED8]";
+  const seriousCases = cases.filter((item) => item.severity === "Serious" || item.severity === "Critical");
+  const openCases = cases.filter((item) => item.status !== "Resolved");
+  const parentSmsPending = cases.filter((item) => !item.parentSmsSent && item.status !== "Resolved");
+  const referrals = cases.filter((item) => item.counsellorReferred);
+  const filteredCases = cases.filter((item) => `${item.student} ${item.className} ${item.caseType} ${item.reportedBy} ${item.notes}`.toLowerCase().includes(searchTerm.toLowerCase()));
+  const summaryCards: Array<{ label: string; value: string; helper: string; tone: "ok" | "warning" | "critical"; Icon: LucideIcon }> = [
+    { label: "Open Cases", value: String(openCases.length), helper: "Discipline case queue", tone: openCases.length > 0 ? "warning" : "ok", Icon: ClipboardList },
+    { label: "Serious Cases", value: String(seriousCases.length), helper: "Deputy/principal follow-up", tone: seriousCases.length > 0 ? "critical" : "ok", Icon: ShieldCheck },
+    { label: "Parent SMS Pending", value: String(parentSmsPending.length), helper: "Guardian communication", tone: parentSmsPending.length > 0 ? "warning" : "ok", Icon: MessageCircle },
+    { label: "Counsellor Referrals", value: String(referrals.length), helper: "Student welfare support", tone: referrals.length > 0 ? "warning" : "ok", Icon: Stethoscope },
+    { label: "Resolved Cases", value: String(cases.filter((item) => item.status === "Resolved").length), helper: "Closed with action taken", tone: "ok", Icon: CheckCircle2 },
+  ];
+
+  return (
+    <div className="grid gap-4 2xl:grid-cols-[minmax(0,1fr)_400px]">
+      <div className="space-y-4">
+        <div role="status" className="rounded-xl border border-[#B8D4FF] bg-[#EFF6FF] px-4 py-3 text-sm font-black text-[#1D4ED8]">
+          {notice}
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+          {summaryCards.map(({ label, value, helper, tone, Icon }) => (
+            <Card key={label} className="p-4">
+              <div className="flex items-start justify-between gap-2">
+                <Icon className="h-5 w-5 text-accent" />
+                <StatusPill label={tone === "critical" ? "Urgent" : tone === "warning" ? "Check" : "OK"} tone={tone} compact />
+              </div>
+              <p className="mt-3 text-xs font-black uppercase tracking-[0.14em] text-muted">{label}</p>
+              <p className="mt-1 text-2xl font-black text-foreground">{value}</p>
+              <p className="mt-1 text-xs font-semibold text-muted">{helper}</p>
+            </Card>
+          ))}
+        </div>
+
+        <Card className="p-5">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="eyebrow">Incident intake</p>
+              <h3 className="mt-1 text-lg font-black text-foreground">Record discipline incident</h3>
+              <p className="mt-1 text-sm font-semibold text-muted">
+                Save student incidents, notify guardians, create counsellor referrals, escalate serious cases, and print discipline letters.
+              </p>
+            </div>
+            <StatusPill label="Case desk active" tone="warning" />
+          </div>
+          <form
+            className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4"
+            onSubmit={(event) => {
+              event.preventDefault();
+              onAddCase({ student, className, caseType, severity, reportedBy, guardianPhone, notes });
+            }}
+          >
+            <input value={student} onChange={(event) => setStudent(event.currentTarget.value)} className={fieldClass} aria-label="Discipline student" placeholder="Student name" required />
+            <input value={className} onChange={(event) => setClassName(event.currentTarget.value)} className={fieldClass} aria-label="Discipline class" placeholder="Class/Form" required />
+            <select value={caseType} onChange={(event) => setCaseType(event.currentTarget.value as DisciplineCaseRecord["caseType"])} className={fieldClass} aria-label="Case type">
+              {["Bullying", "Fighting", "Lateness", "Uniform", "Dormitory", "Other"].map((option) => <option key={option}>{option}</option>)}
+            </select>
+            <select value={severity} onChange={(event) => setSeverity(event.currentTarget.value as DisciplineCaseRecord["severity"])} className={fieldClass} aria-label="Case severity">
+              {["Minor", "Moderate", "Serious", "Critical"].map((option) => <option key={option}>{option}</option>)}
+            </select>
+            <input value={reportedBy} onChange={(event) => setReportedBy(event.currentTarget.value)} className={fieldClass} aria-label="Reported by" placeholder="Reported by" required />
+            <input value={guardianPhone} onChange={(event) => setGuardianPhone(event.currentTarget.value)} className={fieldClass} aria-label="Guardian phone" placeholder="Guardian phone" required />
+            <textarea value={notes} onChange={(event) => setNotes(event.currentTarget.value)} className={`${fieldClass} md:col-span-2`} aria-label="Incident notes" placeholder="Evidence, witnesses, action taken" required />
+            <button type="submit" className="rounded-xl bg-[#071D49] px-4 py-2 text-sm font-black text-white md:col-span-2 xl:col-span-4">Add Incident</button>
+          </form>
+        </Card>
+
+        <Card className="p-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="eyebrow">Case queue</p>
+              <h3 className="mt-1 text-lg font-black text-foreground">Case queue and interventions</h3>
+              <p className="mt-1 text-sm font-semibold text-muted">Each row can contact parent, refer welfare support, escalate, print, or close the case.</p>
+            </div>
+            <StatusPill label={`${filteredCases.length} shown`} tone="ok" />
+          </div>
+          <label className="mt-4 block">
+            <span className="sr-only">Search discipline cases</span>
+            <input value={searchTerm} onChange={(event) => setSearchTerm(event.currentTarget.value)} className={`${fieldClass} w-full`} aria-label="Search discipline cases" placeholder="Search student, case type, class, reporter" />
+          </label>
+          <div className="mt-4 overflow-x-auto rounded-xl border border-[#D7E0EF]">
+            <table className="min-w-full divide-y divide-[#E2E8F0] text-sm">
+              <thead className="bg-[#F8FAFC] text-left text-xs font-black uppercase tracking-[0.12em] text-muted">
+                <tr>
+                  {["Student", "Case", "Severity", "Status", "Parent SMS", "Action"].map((column) => <th key={column} className="px-3 py-3">{column}</th>)}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#E2E8F0] bg-white">
+                {filteredCases.length === 0 ? (
+                  <tr>
+                    <td className="px-3 py-6 text-center text-sm font-semibold text-muted" colSpan={6}>No discipline cases match that search.</td>
+                  </tr>
+                ) : filteredCases.map((item) => (
+                  <tr key={item.id}>
+                    <td className="px-3 py-3 font-black text-foreground">
+                      {item.student}
+                      <span className="block text-xs font-semibold text-muted">{item.className} - {item.time}</span>
+                    </td>
+                    <td className="px-3 py-3 font-semibold text-muted">
+                      {item.caseType}
+                      <span className="block text-xs">{item.reportedBy}: {item.notes}</span>
+                    </td>
+                    <td className="px-3 py-3"><StatusPill label={item.severity} tone={item.severity === "Critical" || item.severity === "Serious" ? "critical" : item.severity === "Moderate" ? "warning" : "ok"} compact /></td>
+                    <td className="px-3 py-3"><StatusPill label={item.status} tone={item.status === "Resolved" ? "ok" : item.status === "Escalated" ? "critical" : "warning"} compact /></td>
+                    <td className="px-3 py-3"><StatusPill label={item.parentSmsSent ? "Sent" : "Not sent"} tone={item.parentSmsSent ? "ok" : "warning"} compact /></td>
+                    <td className="px-3 py-3">
+                      <div className="flex flex-wrap gap-2">
+                        <button type="button" onClick={() => onNotifyParent(item.id)} className="rounded-lg border border-[#B8D4FF] px-2 py-1 text-xs font-black text-[#1D4ED8]">Notify Parent</button>
+                        <button type="button" onClick={() => onReferCounsellor(item.id)} className="rounded-lg border border-[#FED7AA] px-2 py-1 text-xs font-black text-warning">Refer Counsellor</button>
+                        <button type="button" onClick={() => onEscalateDeputy(item.id)} className="rounded-lg border border-[#FECACA] px-2 py-1 text-xs font-black text-critical">Escalate Deputy</button>
+                        <button type="button" onClick={() => onPrintLetter(item.id)} className="rounded-lg border border-[#D7E0EF] px-2 py-1 text-xs font-black text-[#071D49]">Print Letter</button>
+                        <button type="button" onClick={() => onResolveCase(item.id)} className="rounded-lg border border-[#BBF7D0] px-2 py-1 text-xs font-black text-success">Mark Resolved</button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      </div>
+
+      <aside className="space-y-4">
+        <Card className="p-5">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="eyebrow">Workflow action</p>
+              <h3 className="mt-1 text-lg font-black text-foreground">Record incident task</h3>
+              <p className="mt-1 text-xs font-semibold text-muted">Keeps the governed action visible if the dispatcher is slow or unavailable.</p>
+            </div>
+          </div>
+          <div className="mt-3">
+            <OperationalActionButton action={recordIncidentAction} onExecute={onExecuteAction} compact />
+          </div>
+        </Card>
+
+        <Card className="p-5">
+          <div className="flex items-center gap-2">
+            <ShieldCheck className="h-4 w-4 text-critical" />
+            <h3 className="text-lg font-black text-foreground">Urgent discipline follow-up</h3>
+          </div>
+          <div className="mt-3 space-y-2">
+            {seriousCases.length === 0 ? (
+              <p className="rounded-xl border border-[#D7E0EF] bg-surface-muted p-3 text-sm font-semibold text-muted">No serious discipline cases today.</p>
+            ) : seriousCases.map((item) => (
+              <div key={item.id} className="rounded-xl border border-[#FECACA] bg-critical-soft/40 p-3">
+                <p className="text-sm font-black text-foreground">{item.student}</p>
+                <p className="mt-1 text-xs font-semibold text-muted">{item.caseType} - {item.className} - {item.status}</p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <button type="button" onClick={() => onEscalateDeputy(item.id)} className="rounded-lg border border-[#FECACA] px-2 py-1 text-xs font-black text-critical">Escalate Deputy</button>
+                  <button type="button" onClick={() => onReferCounsellor(item.id)} className="rounded-lg border border-[#FED7AA] px-2 py-1 text-xs font-black text-warning">Refer Counsellor</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+
+        <Card className="p-5">
+          <div className="flex items-center gap-2">
+            <MessageCircle className="h-4 w-4 text-accent" />
+            <h3 className="text-lg font-black text-foreground">Parent communication</h3>
+          </div>
+          <div className="mt-3 space-y-2">
+            {parentSmsPending.length === 0 ? (
+              <p className="rounded-xl border border-[#D7E0EF] bg-surface-muted p-3 text-sm font-semibold text-muted">All open discipline cases have parent communication recorded.</p>
+            ) : parentSmsPending.map((item) => (
+              <div key={item.id} className="rounded-xl border border-[#D7E0EF] bg-surface-muted p-3">
+                <p className="text-sm font-black text-foreground">{item.student}</p>
+                <p className="mt-1 text-xs font-semibold text-muted">{item.guardianPhone} - {item.caseType}</p>
+                <button type="button" onClick={() => onNotifyParent(item.id)} className="mt-2 rounded-lg border border-[#B8D4FF] px-2 py-1 text-xs font-black text-[#1D4ED8]">Notify Parent</button>
+              </div>
+            ))}
+          </div>
+        </Card>
+      </aside>
+    </div>
+  );
+}
+
 function WorkflowMap({ workflows }: { workflows: string[] }) {
   return (
     <Card className="p-5">
@@ -4129,6 +4400,8 @@ function GenericRoleOperationalCommandCenter({
   const [secretaryVisitors, setSecretaryVisitors] = useState<SecretaryVisitorRecord[]>(initialSecretaryVisitors);
   const [secretaryInquiries, setSecretaryInquiries] = useState<SecretaryInquiryRecord[]>(initialSecretaryInquiries);
   const [secretaryNotice, setSecretaryNotice] = useState("Front office ready. Register visitors, serve parents, print slips, send SMS, and escalate issues.");
+  const [disciplineCases, setDisciplineCases] = useState<DisciplineCaseRecord[]>(initialDisciplineCases);
+  const [disciplineNotice, setDisciplineNotice] = useState("Discipline desk ready. Record incidents, notify parents, refer counsellor, escalate serious cases, print letters, and close cases.");
 
   useEffect(() => {
     function hydrateStoredSchoolRecords() {
@@ -4147,6 +4420,7 @@ function GenericRoleOperationalCommandCenter({
       setLabInventory(mergeSchoolRecordsById(initialLabInventory, readSchoolData<LabInventoryRecord>("lab-inventory", schoolId)));
       setLabRequests(mergeSchoolRecordsById(initialLabRequests, readSchoolData<LabPracticalRequestRecord>("lab-practical-requests", schoolId)));
       setLabIssues(mergeSchoolRecordsById(initialLabIssues, readSchoolData<LabIssueRecord>("lab-apparatus-issues", schoolId)));
+      setDisciplineCases(mergeSchoolRecordsById(initialDisciplineCases, readSchoolData<DisciplineCaseRecord>("discipline-cases", schoolId)));
       setAttendanceRegisters(readSchoolData<AttendanceRegisterRecord>("attendance-registers", schoolId));
     }
 
@@ -4186,6 +4460,7 @@ function GenericRoleOperationalCommandCenter({
   const isLaboratoryWorkspace = role === "laboratory-technician" && (activeWorkspaceKind === "laboratory" || /dashboard|laboratory|lab|chemical|apparatus|practical|safety/i.test(resolvedWorkspace));
   const isAccountantWorkspace = (role === "accountant" || role === "bursar") && (activeWorkspaceKind === "finance" || /dashboard|fee|finance|receipt|payment|m-pesa|mpesa|balance/i.test(resolvedWorkspace));
   const isSecretaryWorkspace = (role === "secretary" || role === "admin") && (activeWorkspaceKind === "command" || activeWorkspaceKind === "communication" || /dashboard|front office|visitor|parent|document|appointment|communication/i.test(resolvedWorkspace));
+  const isDisciplineWorkspace = role === "discipline-master" && (activeWorkspaceKind === "command" || activeWorkspaceKind === "discipline" || /dashboard|incident|case|discipline|prefect|deputy|counsellor|evidence/i.test(resolvedWorkspace));
   const isUserManagementWorkspace = role === "deputy-principal" && /user|invitation|invite|role|permission/i.test(resolvedWorkspace);
   const diagnosticsWorkspace = isDiagnosticsWorkspace(resolvedWorkspace);
   const commandWorkspace = isCommandWorkspace(resolvedWorkspace, activeWorkspaceIndex);
@@ -4234,6 +4509,16 @@ function GenericRoleOperationalCommandCenter({
   const tableContract = toTableContract(role, resolvedBlueprint, activeWorkspaceIndex, resolvedWorkspace, workspaceRuntimeEntries);
   const formContract = toFormContract(role, resolvedBlueprint, activeWorkspaceIndex, resolvedWorkspace);
   const actions = workspaceActions(role, resolvedBlueprint, resolvedWorkspace, activeWorkspaceIndex, healthById);
+  const baseDisciplineRecordIncidentAction = actionContract({
+    role,
+    label: "Record Incident",
+    workflowBinding: "Discipline incident intake",
+    auditEvent: "DISCIPLINE_CASE_RECORDED",
+  });
+  const disciplineRecordIncidentAction: OperationalActionContract = {
+    ...baseDisciplineRecordIncidentAction,
+    health: healthById[baseDisciplineRecordIncidentAction.actionId] ?? baseDisciplineRecordIncidentAction.health,
+  };
   const roleSearchResults = buildRoleSearchResults({
     query: searchQuery,
     role,
@@ -6208,6 +6493,201 @@ function GenericRoleOperationalCommandCenter({
     setSecretaryNotice(`${inquiry?.issue ?? "Inquiry"} escalated to ${inquiry?.department ?? "department"}.`);
   }
 
+  function saveDisciplineCaseRecord(record: DisciplineCaseRecord) {
+    const storedCases = readSchoolData<DisciplineCaseRecord>("discipline-cases", schoolId);
+
+    if (storedCases.some((item) => item.id === record.id)) {
+      updateSchoolRecord("discipline-cases", record.id, record, schoolId);
+      return;
+    }
+
+    addSchoolRecord("discipline-cases", record, schoolId);
+  }
+
+  function addDisciplineExecutionLog(label: string, events: string[]) {
+    addLocalExecutionLog(label, events, {
+      workflow: "Incident recorded -> Parent contacted -> Intervention assigned -> Follow-up closed",
+      audit: "audit.discipline.case_action",
+    });
+  }
+
+  function addDisciplineCase(record: Omit<DisciplineCaseRecord, "id" | "status" | "parentSmsSent" | "counsellorReferred" | "time">) {
+    const newCase: DisciplineCaseRecord = {
+      ...record,
+      id: runtimeId("discipline-case"),
+      status: "New",
+      parentSmsSent: false,
+      counsellorReferred: false,
+      time: new Date().toLocaleTimeString("en-KE", { hour: "2-digit", minute: "2-digit" }),
+    };
+
+    setDisciplineCases((current) => [newCase, ...current]);
+    saveDisciplineCaseRecord(newCase);
+    publishDashboardEvent({
+      type: "DISCIPLINE_CASE_RECORDED",
+      module: "discipline",
+      title: `${newCase.student} discipline case recorded`,
+      body: `${newCase.caseType} case for ${newCase.student} in ${newCase.className} was reported by ${newCase.reportedBy}.`,
+      entityId: newCase.id,
+      severity: newCase.severity === "Serious" || newCase.severity === "Critical" ? "critical" : "warning",
+      payload: { case: newCase },
+      notifications: [
+        {
+          audienceRoles: ["deputy-principal", "principal", "class-teacher", "discipline-master"],
+          title: "Discipline case recorded",
+          body: `${newCase.student} needs discipline follow-up.`,
+          severity: newCase.severity === "Serious" || newCase.severity === "Critical" ? "critical" : "warning",
+        },
+      ],
+    });
+    addDisciplineExecutionLog(`${newCase.student} discipline case recorded`, ["Incident saved", "Deputy and class teacher notified"]);
+    setDisciplineNotice(`${newCase.student} discipline case recorded.`);
+  }
+
+  function updateDisciplineCase(id: string, updates: Partial<DisciplineCaseRecord>) {
+    let nextRecord: DisciplineCaseRecord | null = null;
+
+    setDisciplineCases((current) => current.map((item) => {
+      if (item.id !== id) {
+        return item;
+      }
+
+      nextRecord = { ...item, ...updates };
+      return nextRecord;
+    }));
+
+    const currentRecord = disciplineCases.find((item) => item.id === id);
+    const recordToSave = nextRecord ?? (currentRecord ? { ...currentRecord, ...updates } : null);
+
+    if (recordToSave) {
+      saveDisciplineCaseRecord(recordToSave);
+    }
+
+    return recordToSave;
+  }
+
+  function notifyDisciplineParent(id: string) {
+    const disciplineCase = updateDisciplineCase(id, { parentSmsSent: true });
+
+    publishDashboardEvent({
+      type: "DISCIPLINE_PARENT_SMS_SENT",
+      module: "discipline",
+      title: `${disciplineCase?.student ?? "Student"} parent SMS sent`,
+      body: `Parent/guardian notified about ${disciplineCase?.caseType ?? "discipline"} follow-up.`,
+      entityId: id,
+      severity: "success",
+      sms: disciplineCase?.guardianPhone ? [{
+        recipient: disciplineCase.guardianPhone,
+        message: `MyShule discipline update: ${disciplineCase.student} has a ${disciplineCase.caseType} case under follow-up. Please contact the school office.`,
+      }] : undefined,
+      notifications: [{ audienceRoles: ["discipline-master", "class-teacher", "deputy-principal"], title: "Discipline parent SMS sent" }],
+    });
+    addDisciplineExecutionLog(`${disciplineCase?.student ?? "Student"} parent SMS sent`, ["Parent SMS simulated", "Communication log updated"]);
+    setDisciplineNotice(`${disciplineCase?.student ?? "Student"} parent SMS sent.`);
+  }
+
+  function referDisciplineCounsellor(id: string) {
+    const disciplineCase = updateDisciplineCase(id, { status: "Counsellor Referral", counsellorReferred: true });
+
+    if (disciplineCase) {
+      addSchoolRecord("counselling-referrals", {
+        id: runtimeId("counselling-referral"),
+        disciplineCaseId: disciplineCase.id,
+        student: disciplineCase.student,
+        className: disciplineCase.className,
+        source: "Discipline Master",
+        reason: `${disciplineCase.caseType}: ${disciplineCase.notes}`,
+        status: "Pending Session",
+        createdAt: new Date().toISOString(),
+      }, schoolId);
+    }
+    publishDashboardEvent({
+      type: "DISCIPLINE_COUNSELLOR_REFERRAL_CREATED",
+      module: "discipline",
+      title: `${disciplineCase?.student ?? "Student"} referred to counsellor`,
+      body: `${disciplineCase?.student ?? "Student"} was referred to the counsellor for welfare follow-up.`,
+      entityId: id,
+      severity: "warning",
+      notifications: [
+        {
+          audienceRoles: ["guidance-counselling", "school-counsellor", "deputy-principal", "principal"],
+          title: "Counsellor referral created",
+          body: `${disciplineCase?.student ?? "Student"} needs counselling follow-up.`,
+          severity: "warning",
+        },
+      ],
+    });
+    addDisciplineExecutionLog(`${disciplineCase?.student ?? "Student"} referred to counsellor`, ["Referral created", "Counsellor notified"]);
+    setDisciplineNotice(`${disciplineCase?.student ?? "Student"} referred to counsellor.`);
+  }
+
+  function escalateDisciplineCase(id: string) {
+    const disciplineCase = updateDisciplineCase(id, { status: "Escalated" });
+
+    publishDashboardEvent({
+      type: "DISCIPLINE_CASE_ESCALATED",
+      module: "discipline",
+      title: `${disciplineCase?.student ?? "Student"} escalated to deputy`,
+      body: `${disciplineCase?.caseType ?? "Discipline"} case for ${disciplineCase?.student ?? "student"} escalated to deputy principal.`,
+      entityId: id,
+      severity: "critical",
+      notifications: [
+        {
+          audienceRoles: ["deputy-principal", "principal", "discipline-master"],
+          title: "Discipline case escalated",
+          body: `${disciplineCase?.student ?? "Student"} needs deputy action.`,
+          severity: "critical",
+        },
+      ],
+    });
+    addDisciplineExecutionLog(`${disciplineCase?.student ?? "Student"} escalated to deputy`, ["Deputy notified", "Case priority updated"]);
+    setDisciplineNotice(`${disciplineCase?.student ?? "Student"} escalated to deputy.`);
+  }
+
+  function printDisciplineLetter(id: string) {
+    const disciplineCase = disciplineCases.find((item) => item.id === id);
+
+    if (disciplineCase) {
+      addSchoolRecord("printed-documents", {
+        id: runtimeId("discipline-letter"),
+        documentType: "Discipline Letter",
+        student: disciplineCase.student,
+        className: disciplineCase.className,
+        caseType: disciplineCase.caseType,
+        printedBy: titleizeRole(role),
+        createdAt: new Date().toISOString(),
+      }, schoolId);
+    }
+    publishDashboardEvent({
+      type: "DISCIPLINE_LETTER_PRINTED",
+      module: "discipline",
+      title: `${disciplineCase?.student ?? "Student"} discipline letter opened`,
+      body: `Discipline letter prepared for ${disciplineCase?.student ?? "student"}.`,
+      entityId: id,
+      severity: "success",
+      notifications: [{ audienceRoles: ["discipline-master", "deputy-principal"], title: "Discipline letter printed" }],
+    });
+    addDisciplineExecutionLog(`${disciplineCase?.student ?? "Student"} discipline letter opened`, ["Printable letter prepared", "Document record saved"]);
+    setDisciplineNotice(`${disciplineCase?.student ?? "Student"} discipline letter opened.`);
+    window.print?.();
+  }
+
+  function resolveDisciplineCase(id: string) {
+    const disciplineCase = updateDisciplineCase(id, { status: "Resolved" });
+
+    publishDashboardEvent({
+      type: "DISCIPLINE_CASE_RESOLVED",
+      module: "discipline",
+      title: `${disciplineCase?.student ?? "Student"} case resolved`,
+      body: `${disciplineCase?.caseType ?? "Discipline"} case for ${disciplineCase?.student ?? "student"} marked resolved.`,
+      entityId: id,
+      severity: "success",
+      notifications: [{ audienceRoles: ["discipline-master", "class-teacher", "deputy-principal"], title: "Discipline case resolved" }],
+    });
+    addDisciplineExecutionLog(`${disciplineCase?.student ?? "Student"} case resolved`, ["Case status closed", "Follow-up record saved"]);
+    setDisciplineNotice(`${disciplineCase?.student ?? "Student"} case resolved.`);
+  }
+
   function openSearchResult(result: RoleSearchResult) {
     setWorkspaceSelection({
       routeKey: routeWorkspaceKey,
@@ -6350,6 +6830,26 @@ function GenericRoleOperationalCommandCenter({
           onPrint={printClinicSlip}
           onPrintRegister={printClinicRegister}
         />
+      );
+    }
+
+    if (isDisciplineWorkspace) {
+      return (
+        <div className="space-y-4">
+          <DisciplineWorkspace
+            cases={disciplineCases}
+            notice={disciplineNotice}
+            onAddCase={addDisciplineCase}
+            onNotifyParent={notifyDisciplineParent}
+            onReferCounsellor={referDisciplineCounsellor}
+            onEscalateDeputy={escalateDisciplineCase}
+            onPrintLetter={printDisciplineLetter}
+            onResolveCase={resolveDisciplineCase}
+            recordIncidentAction={disciplineRecordIncidentAction}
+            onExecuteAction={(action) => void executeAction(action)}
+          />
+          <ExecutionInlineNotice items={executionLog} />
+        </div>
       );
     }
 
@@ -6540,6 +7040,22 @@ function GenericRoleOperationalCommandCenter({
                 canInviteUsers
                 canManageUsers
               />
+            ) : isDisciplineWorkspace ? (
+              <div className="space-y-4">
+                <DisciplineWorkspace
+                  cases={disciplineCases}
+                  notice={disciplineNotice}
+                  onAddCase={addDisciplineCase}
+                  onNotifyParent={notifyDisciplineParent}
+                  onReferCounsellor={referDisciplineCounsellor}
+                  onEscalateDeputy={escalateDisciplineCase}
+                  onPrintLetter={printDisciplineLetter}
+                  onResolveCase={resolveDisciplineCase}
+                  recordIncidentAction={disciplineRecordIncidentAction}
+                  onExecuteAction={(action) => void executeAction(action)}
+                />
+                <ExecutionInlineNotice items={executionLog} />
+              </div>
             ) : isNurseClinicWorkspace ? (
               <NurseClinicWorkspace
                 visits={clinicVisits}
