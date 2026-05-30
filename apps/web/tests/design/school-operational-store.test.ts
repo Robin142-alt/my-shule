@@ -1,3 +1,5 @@
+import { waitFor } from "@testing-library/react";
+
 import {
   addSchoolRecord,
   createNotification,
@@ -6,7 +8,18 @@ import {
   readSchoolData,
   simulateSms,
   subscribeToSchoolDataUpdates,
+  type SchoolOperationalEventSyncStatus,
 } from "@/lib/school/school-operational-store";
+
+function jsonResponse(body: unknown, init?: ResponseInit) {
+  const status = init?.status ?? 200;
+
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    json: async () => body,
+  } as Response;
+}
 
 describe("school operational store", () => {
   beforeEach(() => {
@@ -52,6 +65,84 @@ describe("school operational store", () => {
     ]);
     expect(readSchoolData("smsLogs", "kb-high")).toEqual([
       expect.objectContaining({ recipient: "0712345678", status: "Sent" }),
+    ]);
+  });
+
+  it("syncs published school operations to the backend event endpoint with tenant metadata", async () => {
+    const fetchMock = jest.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+
+      if (url === "/api/auth/csrf") {
+        return jsonResponse({ token: "csrf-token" });
+      }
+
+      if (url === "/api/events/school-operations") {
+        return jsonResponse({ status: "accepted" }, { status: 202 });
+      }
+
+      return jsonResponse({ message: "Unexpected request" }, { status: 404 });
+    });
+    Object.defineProperty(window, "fetch", {
+      configurable: true,
+      value: fetchMock,
+    });
+    Object.defineProperty(globalThis, "fetch", {
+      configurable: true,
+      value: fetchMock,
+    });
+
+    const event = publishSchoolOperationalEvent({
+      schoolId: "kb-high",
+      type: "FEE_REVERSAL_REQUESTED",
+      module: "finance",
+      actorRole: "accountant",
+      title: "Fee reversal requested",
+      body: "Receipt KBI-RCPT-400 needs approval.",
+      entityId: "approval-400",
+      severity: "warning",
+      notifications: [
+        {
+          audienceRoles: ["principal", "deputy-principal"],
+          relatedModule: "finance",
+          relatedRecordId: "approval-400",
+          title: "Fee reversal approval requested",
+        },
+      ],
+    });
+
+    await waitFor(() =>
+      expect(fetchMock.mock.calls.map(([url]) => String(url))).toContain("/api/events/school-operations"),
+    );
+
+    const backendCall = fetchMock.mock.calls.find(([url]) => String(url) === "/api/events/school-operations");
+    expect(backendCall?.[1]).toEqual(
+      expect.objectContaining({
+        method: "POST",
+        credentials: "same-origin",
+      }),
+    );
+    expect((backendCall?.[1]?.headers as Record<string, string>)["x-myshule-csrf"]).toBe("csrf-token");
+    expect(JSON.parse(String(backendCall?.[1]?.body))).toEqual(
+      expect.objectContaining({
+        schoolId: "kb-high",
+        event: expect.objectContaining({
+          id: event.id,
+          schoolId: "kb-high",
+          type: "FEE_REVERSAL_REQUESTED",
+          module: "finance",
+          entityId: "approval-400",
+        }),
+        notifications: [
+          expect.objectContaining({
+            audienceRoles: ["principal", "deputy-principal"],
+            relatedModule: "finance",
+            relatedRecordId: "approval-400",
+          }),
+        ],
+      }),
+    );
+    expect(readSchoolData<SchoolOperationalEventSyncStatus>("eventSyncStatus", "kb-high")).toEqual([
+      expect.objectContaining({ eventId: event.id, status: "Synced" }),
     ]);
   });
 

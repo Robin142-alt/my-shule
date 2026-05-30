@@ -10,10 +10,12 @@ import { DashboardRealtimeService } from './dashboard-realtime.service';
 import { EventConsumerRegistryService } from './event-consumer-registry.service';
 import { EventConsumerService } from './event-consumer.service';
 import { EventPublisherService } from './event-publisher.service';
+import { SchoolOperationalEventsService } from './school-operational-events.service';
 import {
   DashboardRealtimeSnapshot,
   DomainEvent,
   PaymentCompletedPayload,
+  SchoolOperationRecordedPayload,
   WorkflowActionDispatchedPayload,
 } from './events.types';
 
@@ -102,6 +104,152 @@ test('EventPublisherService writes student.created events with request headers',
   assert.equal(typeof headers.span_id, 'string');
   assert.equal(headers.parent_span_id, null);
   assert.equal(writtenEvent.available_at, undefined);
+});
+
+test('SchoolOperationalEventsService records frontend school operations inside the current tenant only', async () => {
+  const requestContext = new RequestContextService();
+  let publishedInput: Record<string, unknown> | null = null;
+  const service = new SchoolOperationalEventsService(requestContext, {
+    publish: async (input: Record<string, unknown>) => {
+      publishedInput = input;
+      return {
+        id: 'event-school-operation-1',
+        tenant_id: 'tenant-a',
+        event_key: input.event_key,
+        event_name: input.event_name,
+        aggregate_type: input.aggregate_type,
+        aggregate_id: input.aggregate_id,
+        payload: input.payload,
+        headers: input.headers ?? {},
+        status: 'pending',
+        attempt_count: 0,
+        available_at: '2026-05-31T06:30:00.000Z',
+        published_at: null,
+        last_error: null,
+        created_at: '2026-05-31T06:30:00.000Z',
+        updated_at: '2026-05-31T06:30:00.000Z',
+      };
+    },
+  } as never);
+
+  await requestContext.run(
+    {
+      request_id: 'req-school-operation-1',
+      tenant_id: 'tenant-a',
+      user_id: '00000000-0000-0000-0000-000000000010',
+      role: 'accountant',
+      session_id: 'session-school-operation-1',
+      permissions: ['auth:read'],
+      is_authenticated: true,
+      client_ip: '127.0.0.1',
+      user_agent: 'test-suite',
+      method: 'POST',
+      path: '/events/school-operations',
+      started_at: '2026-05-31T06:30:00.000Z',
+    },
+    () =>
+      service.recordSchoolOperation({
+        schoolId: 'tenant-a',
+        event: {
+          id: 'event-local-1',
+          schoolId: 'tenant-a',
+          type: 'FEE_REVERSAL_REQUESTED',
+          module: 'finance',
+          actorRole: 'accountant',
+          title: 'Fee reversal requested',
+          body: 'Receipt KBI-RCPT-400 needs approval.',
+          entityId: 'approval-400',
+          severity: 'warning',
+          payload: { amount: 'KSh 4,500' },
+          createdAt: '2026-05-31T06:30:00.000Z',
+        },
+        notifications: [
+          {
+            id: 'notification-local-1',
+            schoolId: 'tenant-a',
+            title: 'Fee reversal requested',
+            body: 'Receipt KBI-RCPT-400 needs approval.',
+            audienceRoles: ['principal', 'deputy-principal'],
+            priority: 'urgent',
+            sourceModule: 'finance',
+            relatedModule: 'finance',
+            relatedRecordId: 'approval-400',
+            read: false,
+            createdAt: '2026-05-31T06:30:00.000Z',
+          },
+        ],
+        sms: [],
+      }),
+  );
+
+  assert.ok(publishedInput);
+  const writtenEvent = publishedInput as Record<string, unknown>;
+  assert.equal(writtenEvent.tenant_id, 'tenant-a');
+  assert.equal(writtenEvent.event_name, 'school.operation.recorded');
+  assert.equal(writtenEvent.aggregate_type, 'school_operation');
+  assert.equal(
+    writtenEvent.event_key,
+    'school.operation.recorded:tenant-a:event-local-1',
+  );
+  assert.deepEqual(writtenEvent.headers, {
+    source: 'web.dashboard',
+    frontend_event_id: 'event-local-1',
+    source_module: 'finance',
+    actor_role: 'accountant',
+  });
+
+  const payload = writtenEvent.payload as SchoolOperationRecordedPayload;
+  assert.equal(payload.tenant_id, 'tenant-a');
+  assert.equal(payload.school_id, 'tenant-a');
+  assert.equal(payload.operation_id, 'event-local-1');
+  assert.equal(payload.module, 'finance');
+  assert.equal(payload.entity_id, 'approval-400');
+  assert.deepEqual(payload.target_roles, ['principal', 'deputy-principal']);
+});
+
+test('SchoolOperationalEventsService rejects school operations posted to another tenant', async () => {
+  const requestContext = new RequestContextService();
+  const service = new SchoolOperationalEventsService(requestContext, {
+    publish: async () => {
+      throw new Error('publish should not be called for cross-tenant data');
+    },
+  } as never);
+
+  await assert.rejects(
+    requestContext.run(
+      {
+        request_id: 'req-school-operation-2',
+        tenant_id: 'tenant-a',
+        user_id: '00000000-0000-0000-0000-000000000010',
+        role: 'accountant',
+        session_id: 'session-school-operation-2',
+        permissions: ['auth:read'],
+        is_authenticated: true,
+        client_ip: '127.0.0.1',
+        user_agent: 'test-suite',
+        method: 'POST',
+        path: '/events/school-operations',
+        started_at: '2026-05-31T06:35:00.000Z',
+      },
+      () =>
+        service.recordSchoolOperation({
+          schoolId: 'tenant-b',
+          event: {
+            id: 'event-local-2',
+            schoolId: 'tenant-b',
+            type: 'FEE_REVERSAL_REQUESTED',
+            module: 'finance',
+            actorRole: 'accountant',
+            title: 'Fee reversal requested',
+            body: 'Cross-school request should fail.',
+            createdAt: '2026-05-31T06:35:00.000Z',
+          },
+          notifications: [],
+          sms: [],
+        }),
+    ),
+    /does not match the current school/,
+  );
 });
 
 test('EventConsumerService skips already-completed consumers', async () => {
@@ -372,6 +520,66 @@ test('DashboardRealtimeService maps operational workflow completion receipts int
     'approve-results completed through exam-release.',
   );
   assert.equal(dashboardEvent?.notification.tone, 'ok');
+});
+
+test('DashboardRealtimeService maps frontend school operations into role-specific updates', () => {
+  const service = new DashboardRealtimeService(
+    {} as never,
+    {} as never,
+    {} as never,
+  );
+  const event: DomainEvent<'school.operation.recorded'> = {
+    id: 'event-school-operation-dashboard-1',
+    tenant_id: 'tenant-a',
+    event_key: 'school.operation.recorded:tenant-a:event-local-1',
+    event_name: 'school.operation.recorded',
+    aggregate_type: 'school_operation',
+    aggregate_id: '00000000-0000-4000-8000-000000000778',
+    payload: {
+      tenant_id: 'tenant-a',
+      school_id: 'tenant-a',
+      operation_id: 'event-local-1',
+      operation_type: 'FEE_REVERSAL_REQUESTED',
+      module: 'finance',
+      actor_role: 'accountant',
+      title: 'Fee reversal requested',
+      body: 'Receipt KBI-RCPT-400 needs approval.',
+      entity_id: 'approval-400',
+      severity: 'warning',
+      target_roles: ['principal', 'deputy-principal'],
+      notifications: [],
+      sms: [],
+      payload: { amount: 'KSh 4,500' },
+      occurred_at: '2026-05-31T06:30:00.000Z',
+    },
+    headers: {},
+    status: 'published',
+    attempt_count: 0,
+    available_at: '2026-05-31T06:30:00.000Z',
+    published_at: '2026-05-31T06:30:01.000Z',
+    last_error: null,
+    created_at: '2026-05-31T06:30:00.000Z',
+    updated_at: '2026-05-31T06:30:01.000Z',
+  };
+
+  const dashboardEvent = service.toDashboardEvent(event, {
+    enabledModules: ['finance'],
+    permissions: ['finance:read'],
+  });
+
+  assert.equal(dashboardEvent?.type, 'SCHOOL_OPERATION_RECORDED');
+  assert.equal(dashboardEvent?.sourceModule, 'finance');
+  assert.equal(dashboardEvent?.entityId, 'approval-400');
+  assert.ok(dashboardEvent?.channels.includes('tenant:tenant-a'));
+  assert.ok(dashboardEvent?.channels.includes('module:finance'));
+  assert.ok(dashboardEvent?.channels.includes('role:principal'));
+  assert.ok(dashboardEvent?.channels.includes('role:deputy-principal'));
+  assert.equal(dashboardEvent?.notification.title, 'Fee reversal requested');
+  assert.equal(
+    dashboardEvent?.notification.body,
+    'Receipt KBI-RCPT-400 needs approval.',
+  );
+  assert.equal(dashboardEvent?.notification.tone, 'warning');
 });
 
 test('DashboardRealtimeService suppresses disabled modules and permission mismatches', () => {

@@ -1,5 +1,7 @@
 "use client";
 
+import { getCsrfToken } from "@/lib/auth/csrf-client";
+
 export type SchoolOperationalSeverity = "info" | "warning" | "critical" | "success";
 
 export type SchoolOperationalEvent = {
@@ -57,6 +59,17 @@ export type SchoolSmsLog = {
   createdAt: string;
 };
 
+export type SchoolOperationalEventSyncStatus = {
+  id: string;
+  schoolId: string;
+  eventId: string;
+  endpoint: string;
+  status: "Synced" | "Queued" | "Failed";
+  error?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type PublishSchoolOperationalEventInput = {
   schoolId?: string | null;
   type: string;
@@ -84,6 +97,13 @@ export type PublishSchoolOperationalEventInput = {
   }>;
 };
 
+type BackendOperationalEventSyncPayload = {
+  schoolId: string;
+  event: SchoolOperationalEvent;
+  notifications: SchoolNotification[];
+  sms: SchoolSmsLog[];
+};
+
 const DEFAULT_SCHOOL_ID = "kb-high";
 const UPDATE_EVENT_NAME = "myshule:school-data-updated";
 
@@ -93,6 +113,10 @@ function nowIso() {
 
 function uniqueId(prefix: string) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function normalizeErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : "Backend event sync failed.";
 }
 
 export function getCurrentSchoolId(explicitSchoolId?: string | null) {
@@ -207,6 +231,83 @@ export function updateSchoolRecord<T extends { id: string; schoolId?: string }>(
   return next;
 }
 
+function upsertEventSyncStatus(status: SchoolOperationalEventSyncStatus) {
+  const current = readSchoolData<SchoolOperationalEventSyncStatus>("eventSyncStatus", status.schoolId);
+  const next = current.some((record) => record.eventId === status.eventId)
+    ? current.map((record) => (record.eventId === status.eventId ? status : record))
+    : [status, ...current];
+
+  writeSchoolData("eventSyncStatus", next, status.schoolId);
+  return status;
+}
+
+function queueBackendEventSync(payload: BackendOperationalEventSyncPayload, error: unknown) {
+  addSchoolRecord(
+    "eventSyncQueue",
+    {
+      id: uniqueId("event-sync-queue"),
+      schoolId: payload.schoolId,
+      eventId: payload.event.id,
+      endpoint: "/api/events/school-operations",
+      status: "Queued",
+      error: normalizeErrorMessage(error),
+      payload,
+      createdAt: nowIso(),
+    },
+    payload.schoolId,
+  );
+  upsertEventSyncStatus({
+    id: `event-sync-status-${payload.event.id}`,
+    schoolId: payload.schoolId,
+    eventId: payload.event.id,
+    endpoint: "/api/events/school-operations",
+    status: "Queued",
+    error: normalizeErrorMessage(error),
+    createdAt: nowIso(),
+    updatedAt: nowIso(),
+  });
+}
+
+async function syncSchoolOperationalEventToBackend(payload: BackendOperationalEventSyncPayload) {
+  if (typeof window === "undefined" || typeof globalThis.fetch === "undefined") {
+    return;
+  }
+
+  const endpoint = "/api/events/school-operations";
+
+  try {
+    const csrfToken = await getCsrfToken();
+    const response = await globalThis.fetch(endpoint, {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+        "x-myshule-csrf": csrfToken,
+      },
+      credentials: "same-origin",
+      cache: "no-store",
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      const body = (await response.json().catch(() => null)) as { message?: string } | null;
+      throw new Error(body?.message ?? `Backend event sync failed with ${response.status}`);
+    }
+
+    upsertEventSyncStatus({
+      id: `event-sync-status-${payload.event.id}`,
+      schoolId: payload.schoolId,
+      eventId: payload.event.id,
+      endpoint,
+      status: "Synced",
+      createdAt: nowIso(),
+      updatedAt: nowIso(),
+    });
+  } catch (error) {
+    queueBackendEventSync(payload, error);
+  }
+}
+
 export function createNotification(
   input: Omit<SchoolNotification, "id" | "schoolId" | "read" | "createdAt"> & { schoolId?: string | null },
 ) {
@@ -279,6 +380,8 @@ export function simulateSms(input: Omit<SchoolSmsLog, "id" | "schoolId" | "statu
 export function publishSchoolOperationalEvent(input: PublishSchoolOperationalEventInput) {
   const schoolId = getCurrentSchoolId(input.schoolId);
   const severity = input.severity ?? "info";
+  const createdSmsLogs: SchoolSmsLog[] = [];
+  const createdNotifications: SchoolNotification[] = [];
   const event = addSchoolRecord<SchoolOperationalEvent>(
     "events",
     {
@@ -314,7 +417,7 @@ export function publishSchoolOperationalEvent(input: PublishSchoolOperationalEve
       notification.actionUrl
       ?? (relatedRecordId ? `/${relatedModule}?record=${encodeURIComponent(relatedRecordId)}` : `/${relatedModule}`);
 
-    createNotification({
+    const createdNotification = createNotification({
       schoolId,
       audienceRoles: notification.audienceRoles,
       recipientRole: notification.recipientRole,
@@ -329,15 +432,24 @@ export function publishSchoolOperationalEvent(input: PublishSchoolOperationalEve
       severity: notification.severity ?? severity,
       createdBy: input.actorRole,
     });
+    createdNotifications.push(createdNotification);
   });
 
   input.sms?.forEach((sms) => {
-    simulateSms({
+    const createdSmsLog = simulateSms({
       schoolId,
       recipient: sms.recipient,
       message: sms.message,
       sourceModule: input.module,
     });
+    createdSmsLogs.push(createdSmsLog);
+  });
+
+  void syncSchoolOperationalEventToBackend({
+    schoolId,
+    event,
+    notifications: createdNotifications,
+    sms: createdSmsLogs,
   });
 
   return event;

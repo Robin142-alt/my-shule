@@ -8,6 +8,8 @@ import { DashboardRealtimeController } from './dashboard-realtime.controller';
 import { DashboardRealtimeService } from './dashboard-realtime.service';
 import { OperationalWorkflowDispatcherController } from './operational-workflow-dispatcher.controller';
 import { OperationalWorkflowDispatcherService } from './operational-workflow-dispatcher.service';
+import { SchoolOperationalEventsController } from './school-operational-events.controller';
+import { SchoolOperationalEventsService } from './school-operational-events.service';
 import { StudentCreatedConsumer } from './consumers/student-created.consumer';
 import { EventConsumerRegistryService } from './event-consumer-registry.service';
 import { EventConsumerService } from './event-consumer.service';
@@ -21,12 +23,17 @@ import { EventConsumerRunsRepository } from './repositories/event-consumer-runs.
 import { OutboxEventsRepository } from './repositories/outbox-events.repository';
 
 @Module({
-  controllers: [DashboardRealtimeController, OperationalWorkflowDispatcherController],
+  controllers: [
+    DashboardRealtimeController,
+    OperationalWorkflowDispatcherController,
+    SchoolOperationalEventsController,
+  ],
   providers: [
     EventsSchemaService,
     EventPublisherService,
     DashboardRealtimeService,
     OperationalWorkflowDispatcherService,
+    SchoolOperationalEventsService,
     StudentEventsService,
     OutboxDispatcherService,
     EventConsumerService,
@@ -47,6 +54,7 @@ import { OutboxEventsRepository } from './repositories/outbox-events.repository'
     AuditLogsRepository,
     DashboardRealtimeService,
     OperationalWorkflowDispatcherService,
+    SchoolOperationalEventsService,
   ],
 })
 export class EventsModule {}

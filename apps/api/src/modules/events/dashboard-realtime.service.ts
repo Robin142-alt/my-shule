@@ -20,11 +20,13 @@ import { OutboxEventsRepository } from './repositories/outbox-events.repository'
 
 interface DashboardEventConfig {
   type: DashboardRealtimeEventType;
-  sourceModule: string;
-  requiredPermission: string;
-  roleChannels: string[];
-  title: string;
-  tone: DashboardRealtimeNotification['tone'];
+  sourceModule: string | ((event: DomainEvent) => string);
+  requiredPermission: string | ((event: DomainEvent) => string);
+  roleChannels: string[] | ((event: DomainEvent) => string[]);
+  title: string | ((event: DomainEvent) => string);
+  tone:
+    | DashboardRealtimeNotification['tone']
+    | ((event: DomainEvent) => DashboardRealtimeNotification['tone']);
   body(event: DomainEvent): string;
 }
 
@@ -103,6 +105,59 @@ const eventConfigs: Partial<Record<SupportedDomainEventName, DashboardEventConfi
       return `${studentName} has a ${severity} discipline escalation.`;
     },
   },
+  'school.operation.recorded': {
+    type: 'SCHOOL_OPERATION_RECORDED',
+    sourceModule: (event) => {
+      const payload = payloadRecord(event);
+
+      return typeof payload.module === 'string' && payload.module.trim()
+        ? payload.module.trim()
+        : 'platform';
+    },
+    requiredPermission: (event) => {
+      const payload = payloadRecord(event);
+      const moduleName = typeof payload.module === 'string' && payload.module.trim()
+        ? payload.module.trim()
+        : 'platform';
+
+      return `${moduleName}:read`;
+    },
+    roleChannels: (event) => {
+      const payload = payloadRecord(event);
+      const roles = Array.isArray(payload.target_roles) ? payload.target_roles : [];
+
+      return roles
+        .filter((role): role is string => typeof role === 'string' && role.trim().length > 0)
+        .map((role) => `role:${role.trim()}`);
+    },
+    title: (event) => {
+      const payload = payloadRecord(event);
+
+      return typeof payload.title === 'string' && payload.title.trim()
+        ? payload.title.trim()
+        : 'School update recorded';
+    },
+    tone: (event) => {
+      const payload = payloadRecord(event);
+
+      if (payload.severity === 'success') {
+        return 'ok';
+      }
+
+      if (payload.severity === 'warning' || payload.severity === 'critical') {
+        return payload.severity;
+      }
+
+      return 'info';
+    },
+    body: (event) => {
+      const payload = payloadRecord(event);
+
+      return typeof payload.body === 'string' && payload.body.trim()
+        ? payload.body.trim()
+        : 'A school operation was updated.';
+    },
+  },
   'workflow.action.dispatched': {
     type: 'WORKFLOW_ACTION_DISPATCHED',
     sourceModule: 'platform',
@@ -154,28 +209,34 @@ export class DashboardRealtimeService {
       return null;
     }
 
+    const sourceModule = this.resolveConfigValue(config.sourceModule, event);
+    const requiredPermission = this.resolveConfigValue(config.requiredPermission, event);
+    const roleChannels = this.resolveConfigValue(config.roleChannels, event);
+    const title = this.resolveConfigValue(config.title, event);
+    const tone = this.resolveConfigValue(config.tone, event);
+
     if (
-      !this.isCoreSource(config.sourceModule)
-      && !filter.enabledModules.includes(config.sourceModule)
+      !this.isCoreSource(sourceModule)
+      && !filter.enabledModules.includes(sourceModule)
     ) {
       return null;
     }
 
-    if (!this.hasPermission(filter.permissions, config.requiredPermission)) {
+    if (!this.hasPermission(filter.permissions, requiredPermission)) {
       return null;
     }
 
     const channels = [
       `tenant:${event.tenant_id}`,
-      `module:${config.sourceModule}`,
-      ...config.roleChannels,
+      `module:${sourceModule}`,
+      ...roleChannels,
     ];
 
     return {
       id: event.id,
       type: config.type,
       tenantId: event.tenant_id,
-      sourceModule: config.sourceModule,
+      sourceModule,
       entityId: this.entityIdForDashboard(event),
       occurredAt: event.created_at,
       payload: payloadRecord(event),
@@ -183,9 +244,9 @@ export class DashboardRealtimeService {
       notification: {
         id: `notification:${event.id}`,
         eventType: config.type,
-        title: config.title,
+        title,
         body: config.body(event),
-        tone: config.tone,
+        tone,
         targetChannels: channels.filter((channel) => !channel.startsWith('tenant:')),
         createdAt: event.created_at,
       },
@@ -266,6 +327,16 @@ export class DashboardRealtimeService {
   }
 
   private entityIdForDashboard(event: DomainEvent): string {
+    if (event.event_name === 'school.operation.recorded') {
+      const payload = payloadRecord(event);
+
+      return typeof payload.entity_id === 'string' && payload.entity_id.trim()
+        ? payload.entity_id.trim()
+        : typeof payload.operation_id === 'string'
+          ? payload.operation_id
+          : event.aggregate_id;
+    }
+
     if (
       event.event_name === 'workflow.action.dispatched'
       || event.event_name === 'workflow.action.completed'
@@ -284,6 +355,12 @@ export class DashboardRealtimeService {
     }
 
     return `${event.created_at}|${event.id}`;
+  }
+
+  private resolveConfigValue<T>(value: T | ((event: DomainEvent) => T), event: DomainEvent): T {
+    return typeof value === 'function'
+      ? (value as (event: DomainEvent) => T)(event)
+      : value;
   }
 }
 

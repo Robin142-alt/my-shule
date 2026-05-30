@@ -6,6 +6,7 @@ export type SupportedDomainEventName =
   | 'exam.submitted'
   | 'dean.approval.granted'
   | 'discipline.case.escalated'
+  | 'school.operation.recorded'
   | 'workflow.action.dispatched'
   | 'workflow.action.completed';
 export type OutboxEventStatus =
@@ -75,6 +76,24 @@ export interface DisciplineCaseEscalatedPayload {
   escalated_to_role: string;
   escalated_at: string;
   summary: string;
+}
+
+export interface SchoolOperationRecordedPayload {
+  tenant_id: string;
+  school_id: string;
+  operation_id: string;
+  operation_type: string;
+  module: string;
+  actor_role: string;
+  title: string;
+  body: string;
+  entity_id: string | null;
+  severity: 'info' | 'warning' | 'critical' | 'success';
+  target_roles: string[];
+  notifications: Record<string, unknown>[];
+  sms: Record<string, unknown>[];
+  payload: Record<string, unknown>;
+  occurred_at: string;
 }
 
 export interface WorkflowActionDispatchedPayload {
@@ -156,6 +175,7 @@ export interface DomainEventPayloadMap {
   'exam.submitted': ExamSubmittedPayload;
   'dean.approval.granted': DeanApprovalGrantedPayload;
   'discipline.case.escalated': DisciplineCaseEscalatedPayload;
+  'school.operation.recorded': SchoolOperationRecordedPayload;
   'workflow.action.dispatched': WorkflowActionDispatchedPayload;
   'workflow.action.completed': WorkflowActionCompletedPayload;
 }
@@ -243,6 +263,7 @@ export type DashboardRealtimeEventType =
   | 'DEAN_APPROVAL_GRANTED'
   | 'FEE_PAYMENT_COMPLETED'
   | 'DISCIPLINE_CASE_ESCALATED'
+  | 'SCHOOL_OPERATION_RECORDED'
   | 'WORKFLOW_ACTION_DISPATCHED'
   | 'WORKFLOW_ACTION_COMPLETED';
 

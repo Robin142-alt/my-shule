@@ -9,7 +9,7 @@ type ProxyExpectation = {
 
 const productionModuleProxies: ProxyExpectation[] = [
   { route: "admin-command", upstream: "/admin-command", methods: ["GET", "POST"] },
-  { route: "events", upstream: "/events", methods: ["GET"] },
+  { route: "events", upstream: "/events", methods: ["GET", "POST"] },
   { route: "operational-workflows", upstream: "/operational-workflows", methods: ["GET", "POST"] },
   { route: "academics", upstream: "/academics", methods: ["GET", "POST"] },
   { route: "reports", upstream: "/reports", methods: ["GET", "POST"] },
