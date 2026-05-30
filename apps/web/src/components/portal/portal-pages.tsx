@@ -100,6 +100,16 @@ type PortalLearnerFeeBalanceRecord = {
   status: string;
 };
 
+type PortalLearnerClinicVisitRecord = {
+  id: string;
+  student: string;
+  className: string;
+  medicine: string;
+  status: string;
+  parentContacted?: boolean;
+  time: string;
+};
+
 type PortalFeeHistoryRow = {
   id: string;
   date: string;
@@ -149,6 +159,15 @@ function studentOperationalItems(learnerName: string) {
       value: item.status,
       tone: "warning" as const,
     }));
+  const clinic = readSchoolData<PortalLearnerClinicVisitRecord>("clinic-visits")
+    .filter((item) => item.student === learnerName)
+    .map((item) => ({
+      id: `student-clinic-${item.id}`,
+      title: `Sick bay visit recorded: ${item.medicine}`,
+      subtitle: `${item.status} at ${item.time}. Parent notification ${item.parentContacted ? "sent" : "pending"}.`,
+      value: item.status,
+      tone: item.status === "Referred" ? "warning" as const : "ok" as const,
+    }));
   const library = readSchoolData<PortalLearnerLibraryLoanRecord>("library-loans")
     .filter((item) => item.borrower === learnerName && item.status !== "Returned")
     .map((item) => ({
@@ -159,7 +178,7 @@ function studentOperationalItems(learnerName: string) {
       tone: item.status === "Overdue" ? "warning" as const : "ok" as const,
     }));
 
-  return [...finance, ...attendance, ...counselling, ...library].slice(0, 8);
+  return [...finance, ...attendance, ...counselling, ...clinic, ...library].slice(0, 8);
 }
 
 function portalFeeRowsForLearner(learnerName: string): PortalFeeHistoryRow[] {

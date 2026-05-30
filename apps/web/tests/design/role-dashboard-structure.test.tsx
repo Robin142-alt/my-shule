@@ -223,6 +223,48 @@ describe("role dashboard operational structure", () => {
     expect(within(commandCenter).getByText(/Mrs\. Wanjiku waiting for Brian Otieno/i)).toBeVisible();
   });
 
+  it("shows nurse sick bay and medicine stock records inside the principal sick bay workspace", async () => {
+    const schoolId = "principal-sick-bay-sync";
+    window.localStorage.setItem("myshule.currentSchoolId", schoolId);
+
+    addSchoolRecord(
+      "clinic-visits",
+      {
+        id: "clinic-visit-brian-referral",
+        student: "Brian Otieno",
+        className: "Form 2 East",
+        symptoms: "High fever and dizziness",
+        temperature: "39.1",
+        medicine: "ORS sachets",
+        quantity: 2,
+        guardianPhone: "0712 345 678",
+        status: "Referred",
+        parentContacted: true,
+        time: "10:15 AM",
+      },
+      schoolId,
+    );
+    addSchoolRecord(
+      "medicine-stock",
+      {
+        id: "medicine-ors-low",
+        medicine: "ORS sachets",
+        batch: "ORS-2026-A",
+        quantity: 3,
+        expiry: "2026-07-15",
+        reorderAt: 10,
+      },
+      schoolId,
+    );
+
+    renderWithProviders(<SchoolPages role="principal" section="clinic" tenantSlug={schoolId} />);
+
+    const commandCenter = screen.getByTestId("principal-practical-command-center");
+    expect(within(commandCenter).getByText(/1 sick bay case recorded and 1 medicine stock alert/i)).toBeVisible();
+    expect(within(commandCenter).getByText(/Brian Otieno referred from sick bay/i)).toBeVisible();
+    expect(within(commandCenter).getByText(/ORS sachets low stock/i)).toBeVisible();
+  });
+
   it("keeps the command center short and makes sidebar workspaces render independent practical data", async () => {
     const user = userEvent.setup();
 

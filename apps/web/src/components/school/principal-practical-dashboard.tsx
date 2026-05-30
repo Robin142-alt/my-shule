@@ -152,6 +152,29 @@ type PrincipalFrontOfficeInquiryRecord = {
   smsSent: boolean;
 };
 
+type PrincipalClinicVisitRecord = {
+  id: string;
+  student: string;
+  className: string;
+  symptoms: string;
+  temperature: string;
+  medicine: string;
+  quantity: number;
+  guardianPhone: string;
+  status: string;
+  parentContacted: boolean;
+  time: string;
+};
+
+type PrincipalMedicineStockRecord = {
+  id: string;
+  medicine: string;
+  batch: string;
+  quantity: number;
+  expiry: string;
+  reorderAt: number;
+};
+
 const schoolName = "Kisumu Boys High School";
 
 const principalSections: PrincipalSection[] = [
@@ -628,8 +651,10 @@ function buildPrincipalSectionsForSchool(schoolId: string) {
   const balances = readSchoolData<PrincipalFeeBalanceRecord>("fee-balances", schoolId);
   const visitors = readSchoolData<PrincipalVisitorRecord>("visitors", schoolId);
   const inquiries = readSchoolData<PrincipalFrontOfficeInquiryRecord>("front-office-inquiries", schoolId);
+  const clinicVisits = readSchoolData<PrincipalClinicVisitRecord>("clinic-visits", schoolId);
+  const medicineStock = readSchoolData<PrincipalMedicineStockRecord>("medicine-stock", schoolId);
 
-  if (!payments.length && !balances.length && !visitors.length && !inquiries.length) {
+  if (!payments.length && !balances.length && !visitors.length && !inquiries.length && !clinicVisits.length && !medicineStock.length) {
     return principalSections;
   }
 
@@ -666,6 +691,23 @@ function buildPrincipalSectionsForSchool(schoolId: string) {
       status: inquiry.status || "Waiting",
     })),
   ];
+  const referredClinicVisits = clinicVisits.filter((visit) => /referred/i.test(visit.status));
+  const parentAlertsSent = clinicVisits.filter((visit) => visit.parentContacted).length;
+  const lowStockMedicines = medicineStock.filter((item) => Number(item.quantity || 0) <= Number(item.reorderAt || 0));
+  const clinicRows = [
+    ...clinicVisits.slice(0, 5).map((visit) => ({
+      item: `${visit.student} ${/referred/i.test(visit.status) ? "referred from sick bay" : "treated in sick bay"}`,
+      owner: "Nurse",
+      nextAction: /referred/i.test(visit.status) ? "Confirm hospital or parent pickup" : `Monitor ${visit.symptoms}`,
+      status: visit.status || "Open",
+    })),
+    ...lowStockMedicines.slice(0, 5).map((item) => ({
+      item: `${item.medicine} low stock`,
+      owner: "Nurse",
+      nextAction: `Reorder before stock falls below ${item.reorderAt}`,
+      status: `${item.quantity} left`,
+    })),
+  ];
 
   return principalSections.map((section) => {
     if (section.id === "parents-visitors") {
@@ -680,6 +722,21 @@ function buildPrincipalSectionsForSchool(schoolId: string) {
           { label: "Visitors waiting", value: String(waitingVisitors.length), helper: "Awaiting check-in completion" },
         ],
         records: frontOfficeRows.length ? [...frontOfficeRows, ...section.records].slice(0, 8) : section.records,
+      } satisfies PrincipalSection;
+    }
+
+    if (section.id === "sick-bay") {
+      return {
+        ...section,
+        status: referredClinicVisits.length > 0 || lowStockMedicines.length > 0 ? "warning" : "ok",
+        summary: `${pluralize(clinicVisits.length, "sick bay case")} recorded and ${pluralize(lowStockMedicines.length, "medicine stock alert")} needing attention.`,
+        metrics: [
+          { label: "Students treated", value: String(clinicVisits.length), helper: "From nurse sick bay records" },
+          { label: "Referred cases", value: String(referredClinicVisits.length), helper: "Hospital or parent pickup follow-up" },
+          { label: "Low-stock medicines", value: String(lowStockMedicines.length), helper: "Below reorder level" },
+          { label: "Parent SMS sent", value: String(parentAlertsSent), helper: "Guardian notifications" },
+        ],
+        records: clinicRows.length ? [...clinicRows, ...section.records].slice(0, 8) : section.records,
       } satisfies PrincipalSection;
     }
 
@@ -705,6 +762,7 @@ function buildPrincipalSectionsForSchool(schoolId: string) {
 function buildSummaryCardsForSections(sections: PrincipalSection[]) {
   const fees = sectionById("fees", sections);
   const parentsVisitors = sectionById("parents-visitors", sections);
+  const sickBay = sectionById("sick-bay", sections);
 
   return summaryCards.map((card) => {
     if (card.source === "Fees") {
@@ -722,6 +780,14 @@ function buildSummaryCardsForSections(sections: PrincipalSection[]) {
         ...card,
         value: parentsVisitors.metrics[0]?.value ?? card.value,
         helper: `${parentsVisitors.metrics[1]?.value ?? "0"} parents waiting`,
+      };
+    }
+
+    if (card.source === "Sick Bay") {
+      return {
+        ...card,
+        value: sickBay.metrics[0]?.value ?? card.value,
+        helper: `${sickBay.metrics[1]?.value ?? "0"} referrals, ${sickBay.metrics[2]?.value ?? "0"} stock alerts`,
       };
     }
 

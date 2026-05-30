@@ -207,6 +207,34 @@ describe("portal and platform command center interactions", () => {
     expect(screen.getAllByText(/KSh 5,000/i).length).toBeGreaterThan(0);
   });
 
+  it("shows nurse sick bay updates on the student portal", () => {
+    const schoolId = "kisumu-boys";
+    window.localStorage.setItem("myshule.currentSchoolId", schoolId);
+
+    addSchoolRecord(
+      "clinic-visits",
+      {
+        id: "student-clinic-brian",
+        student: "Brian Otieno",
+        className: "Form 2 East",
+        symptoms: "High fever",
+        temperature: "39.1",
+        medicine: "ORS sachets",
+        quantity: 2,
+        guardianPhone: "0712 345 678",
+        status: "Referred",
+        parentContacted: true,
+        time: "10:15 AM",
+      },
+      schoolId,
+    );
+
+    renderWithProviders(<PortalPages viewer="student" routeMode="hosted" />);
+
+    expect(screen.getByText(/Sick bay visit recorded: ORS sachets/i)).toBeVisible();
+    expect(screen.getByText(/Referred at 10:15 AM/i)).toBeVisible();
+  });
+
   it("makes super admin shell search and notification controls visible as working actions", async () => {
     const user = userEvent.setup();
 
