@@ -778,6 +778,7 @@ describe("STEP 4: Role tests", () => {
   it("makes the accountant desk practical with payment entry, M-Pesa confirmation, receipts, SMS, and fee export", async () => {
     const user = userEvent.setup();
     const printMock = jest.fn();
+    const schoolId = "kisumu-boys";
     Object.defineProperty(window, "print", { value: printMock, writable: true });
 
     renderWithProviders(
@@ -799,18 +800,67 @@ describe("STEP 4: Role tests", () => {
     await user.click(within(commandCenter).getByRole("button", { name: /^record payment$/i }));
 
     expect(within(commandCenter).getByText(/brian otieno payment recorded/i)).toBeVisible();
+    expect(
+      readSchoolData<{ student: string; amount: number; method: string }>("finance-payments", schoolId).some(
+        (payment) => payment.student === "Brian Otieno" && payment.amount === 5000 && payment.method === "Cash",
+      ),
+    ).toBe(true);
+    expect(
+      readSchoolData<{ student: string; amount: number; receiptNo: string }>("receipts", schoolId).some(
+        (receipt) => receipt.student === "Brian Otieno" && receipt.amount === 5000 && /^KBI-RCPT-/.test(receipt.receiptNo),
+      ),
+    ).toBe(true);
+    expect(
+      readSchoolData<{ student: string; balance: number }>("fee-balances", schoolId).some(
+        (balance) => balance.student === "Brian Otieno" && balance.balance === 7400,
+      ),
+    ).toBe(true);
+    expect(
+      readSchoolData<SchoolNotification>("notifications", schoolId).some(
+        (notification) => notification.sourceModule === "finance" && notification.audienceRoles.includes("principal") && /fee payment/i.test(notification.title),
+      ),
+    ).toBe(true);
+
     await user.click(within(commandCenter).getAllByRole("button", { name: /print receipt/i })[0]);
     expect(within(commandCenter).getByText(/opened for printing/i)).toBeVisible();
     expect(printMock).toHaveBeenCalled();
+    expect(
+      readSchoolData<SchoolOperationalEvent>("events", schoolId).some((event) => event.type === "FEE_RECEIPT_PRINTED"),
+    ).toBe(true);
 
     await user.click(within(commandCenter).getAllByRole("button", { name: /send receipt sms/i })[0]);
     expect(within(commandCenter).getByText(/receipt sms sent/i)).toBeVisible();
+    expect(
+      readSchoolData<SchoolSmsLog>("smsLogs", schoolId).some((sms) => sms.sourceModule === "finance" && /Receipt KBI-RCPT-/i.test(sms.message)),
+    ).toBe(true);
 
     await user.click(within(commandCenter).getAllByRole("button", { name: /confirm m-pesa/i })[0]);
     expect(within(commandCenter).getByText(/m-pesa confirmation completed/i)).toBeVisible();
+    expect(
+      readSchoolData<SchoolOperationalEvent>("events", schoolId).some((event) => event.type === "MPESA_PAYMENT_CONFIRMED"),
+    ).toBe(true);
+
+    await user.click(within(commandCenter).getAllByRole("button", { name: /send fee reminder/i })[0]);
+    expect(within(commandCenter).getByText(/fee reminder sent/i)).toBeVisible();
+    expect(
+      readSchoolData<{ student: string; status: string }>("fee-reminders", schoolId).some(
+        (reminder) => reminder.student === "Brian Otieno" && reminder.status === "Sent",
+      ),
+    ).toBe(true);
+
+    await user.click(within(commandCenter).getAllByRole("button", { name: /request reversal/i })[0]);
+    expect(within(commandCenter).getByText(/reversal sent for approval/i)).toBeVisible();
+    expect(
+      readSchoolData<{ receiptNo: string; status: string }>("finance-reversal-requests", schoolId).some(
+        (request) => /^KBI-RCPT-/.test(request.receiptNo) && request.status === "Pending Approval",
+      ),
+    ).toBe(true);
 
     await user.click(within(commandCenter).getByRole("button", { name: /export fee list csv/i }));
     expect(within(commandCenter).getByText(/fee list csv export prepared/i)).toBeVisible();
+    expect(
+      readSchoolData<SchoolOperationalEvent>("events", schoolId).some((event) => event.type === "FEE_LIST_EXPORTED"),
+    ).toBe(true);
   }, 30000);
 
   it("makes the secretary desk practical with visitor check-in, parent inquiries, slips, SMS, and service status", async () => {

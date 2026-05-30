@@ -4136,6 +4136,7 @@ function GenericRoleOperationalCommandCenter({
       setMedicineStock(mergeSchoolRecordsById(initialMedicineStock, readSchoolData<MedicineStockRecord>("medicine-stock", schoolId)));
       setLibraryBooks(mergeSchoolRecordsById(initialLibraryBooks, readSchoolData<LibraryBookRecord>("library-books", schoolId)));
       setLibraryLoans(mergeSchoolRecordsById(initialLibraryLoans, readSchoolData<LibraryLoanRecord>("library-loans", schoolId)));
+      setFeeBalances(mergeSchoolRecordsById(initialFeeBalances, readSchoolData<FeeBalanceRecord>("fee-balances", schoolId)));
       setFeePayments(mergeSchoolRecordsById(initialFeePayments, readSchoolData<FeePaymentRecord>("finance-payments", schoolId)));
       setSecretaryVisitors(mergeSchoolRecordsById(initialSecretaryVisitors, readSchoolData<SecretaryVisitorRecord>("visitors", schoolId)));
       setSecretaryInquiries(mergeSchoolRecordsById(initialSecretaryInquiries, readSchoolData<SecretaryInquiryRecord>("front-office-inquiries", schoolId)));
@@ -5799,9 +5800,31 @@ function GenericRoleOperationalCommandCenter({
     });
   }
 
+  function saveFeeBalanceRecord(record: FeeBalanceRecord) {
+    const storedBalances = readSchoolData<FeeBalanceRecord>("fee-balances", schoolId);
+
+    if (storedBalances.some((storedBalance) => storedBalance.id === record.id)) {
+      updateSchoolRecord("fee-balances", record.id, record, schoolId);
+      return;
+    }
+
+    addSchoolRecord("fee-balances", record, schoolId);
+  }
+
   function recordFeePayment(payment: Omit<FeePaymentRecord, "id" | "receiptNo" | "parentSmsSent" | "status">) {
     const receiptNo = `KBI-RCPT-${runtimeNumber(1100, 8000)}`;
     const balanceRecord = feeBalances.find((item) => item.admissionNo === payment.admissionNo);
+    const nextBalanceRecord = balanceRecord ? {
+      ...balanceRecord,
+      balance: Math.max(0, balanceRecord.balance - payment.amount),
+      lastPayment: payment.amount,
+      lastMethod: payment.method,
+      status: Math.max(0, balanceRecord.balance - payment.amount) === 0
+        ? "Clear" as const
+        : Math.max(0, balanceRecord.balance - payment.amount) > 10000
+          ? "High Balance" as const
+          : "Balance" as const,
+    } : null;
     const newPayment: FeePaymentRecord = {
       ...payment,
       id: runtimeId("fee-payment"),
@@ -5811,14 +5834,11 @@ function GenericRoleOperationalCommandCenter({
     };
 
     setFeePayments((current) => [newPayment, ...current]);
-    setFeeBalances((current) => current.map((item) => item.admissionNo === payment.admissionNo ? {
-      ...item,
-      balance: Math.max(0, item.balance - payment.amount),
-      lastPayment: payment.amount,
-      lastMethod: payment.method,
-      status: Math.max(0, item.balance - payment.amount) === 0 ? "Clear" : Math.max(0, item.balance - payment.amount) > 10000 ? "High Balance" : "Balance",
-    } : item));
+    setFeeBalances((current) => current.map((item) => item.admissionNo === payment.admissionNo && nextBalanceRecord ? nextBalanceRecord : item));
     addSchoolRecord("finance-payments", newPayment, schoolId);
+    if (nextBalanceRecord) {
+      saveFeeBalanceRecord(nextBalanceRecord);
+    }
     addSchoolRecord("receipts", {
       id: `receipt-${receiptNo}`,
       receiptNo,
@@ -5869,6 +5889,26 @@ function GenericRoleOperationalCommandCenter({
   function printFeeReceipt(id: string) {
     const payment = feePayments.find((item) => item.id === id);
 
+    if (payment) {
+      publishDashboardEvent({
+        type: "FEE_RECEIPT_PRINTED",
+        module: "finance",
+        title: `${payment.receiptNo} receipt printed`,
+        body: `${payment.receiptNo} for ${payment.student} was opened for printing.`,
+        entityId: id,
+        severity: "success",
+        payload: { receiptNo: payment.receiptNo, student: payment.student, amount: payment.amount },
+        notifications: [{ audienceRoles: ["accountant", "secretary"], title: "Fee receipt printed" }],
+      });
+      addSchoolRecord("printed-documents", {
+        id: runtimeId("printed-receipt"),
+        documentType: "Fee Receipt",
+        reference: payment.receiptNo,
+        student: payment.student,
+        module: "finance",
+        createdAt: new Date().toISOString(),
+      }, schoolId);
+    }
     addFinanceExecutionLog(`${payment?.receiptNo ?? "Receipt"} opened`, ["Receipt print view prepared", "Print dialog opened"]);
     setFinanceNotice(`${payment?.receiptNo ?? "Receipt"} opened for printing.`);
     if (typeof window !== "undefined") {
@@ -5899,6 +5939,18 @@ function GenericRoleOperationalCommandCenter({
   function sendFeeReminder(studentId: string) {
     const student = feeBalances.find((item) => item.id === studentId);
 
+    if (student) {
+      addSchoolRecord("fee-reminders", {
+        id: runtimeId("fee-reminder"),
+        student: student.student,
+        admissionNo: student.admissionNo,
+        className: student.className,
+        balance: student.balance,
+        parentPhone: student.parentPhone,
+        status: "Sent",
+        createdAt: new Date().toISOString(),
+      }, schoolId);
+    }
     publishDashboardEvent({
       type: "FEE_REMINDER_SMS_SENT",
       module: "finance",
@@ -5918,6 +5970,19 @@ function GenericRoleOperationalCommandCenter({
 
     setFeePayments((current) => current.map((item) => item.id === id ? { ...item, status: "Reversal Requested" } : item));
     updateSchoolRecord("finance-payments", id, { status: "Reversal Requested" }, schoolId);
+    if (payment) {
+      addSchoolRecord("finance-reversal-requests", {
+        id: runtimeId("finance-reversal"),
+        paymentId: payment.id,
+        receiptNo: payment.receiptNo,
+        student: payment.student,
+        admissionNo: payment.admissionNo,
+        amount: payment.amount,
+        status: "Pending Approval",
+        requestedBy: "Accountant",
+        createdAt: new Date().toISOString(),
+      }, schoolId);
+    }
     publishDashboardEvent({
       type: "FEE_REVERSAL_REQUESTED",
       module: "finance",
@@ -5932,6 +5997,21 @@ function GenericRoleOperationalCommandCenter({
   }
 
   function exportFeeList() {
+    addSchoolRecord("finance-exports", {
+      id: runtimeId("finance-export"),
+      reportType: "Fee List CSV",
+      balanceCount: feeBalances.length,
+      paymentCount: feePayments.length,
+      createdAt: new Date().toISOString(),
+    }, schoolId);
+    publishDashboardEvent({
+      type: "FEE_LIST_EXPORTED",
+      module: "finance",
+      title: "Fee list CSV exported",
+      body: `${feeBalances.length} balances and ${feePayments.length} payments were prepared for export.`,
+      severity: "success",
+      notifications: [{ audienceRoles: ["accountant", "principal"], title: "Fee list exported" }],
+    });
     addFinanceExecutionLog("Fee list CSV exported", ["Visible balances exported", "Download prepared"]);
     setFinanceNotice("Fee list CSV export prepared.");
   }
