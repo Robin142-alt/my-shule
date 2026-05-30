@@ -124,6 +124,18 @@ type PortalLibraryLoanRecord = {
   fine?: number;
 };
 
+type PortalAttendanceRegisterRecord = {
+  id: string;
+  className: string;
+  teacher?: string;
+  present?: number;
+  absent?: number;
+  status: string;
+  markedAt?: string;
+  absentLearners?: string[];
+  lateLearners?: string[];
+};
+
 function parentHref(section: PortalSection, routeMode: PortalRouteMode) {
   if (routeMode === "public") {
     return section === "dashboard" ? "/portal/parent" : `/portal/parent/${section}`;
@@ -605,6 +617,20 @@ const liveFeed: FeedItem[] = [
 ];
 
 function parentOperationalFeedForLearner(learnerName: string): FeedItem[] {
+  const attendance = readSchoolData<PortalAttendanceRegisterRecord>("attendance-registers")
+    .filter((item) => {
+      const absentLearners = Array.isArray(item.absentLearners) ? item.absentLearners : [];
+      const lateLearners = Array.isArray(item.lateLearners) ? item.lateLearners : [];
+      return [...absentLearners, ...lateLearners].some((name) => name.toLowerCase() === learnerName.toLowerCase());
+    })
+    .map((item): FeedItem => ({
+      id: `parent-attendance-${item.id}`,
+      title: `${learnerName} attendance follow-up recorded`,
+      detail: `${item.className} register submitted by ${item.teacher ?? "class teacher"}. ${Number(item.absent ?? 0)} absent learners recorded.`,
+      time: item.markedAt ? new Date(item.markedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "today",
+      tone: Number(item.absent ?? 0) > 0 ? "warning" : "info",
+      icon: ClipboardCheck,
+    }));
   const counselling = readSchoolData<PortalCounsellingSessionRecord>("counselling-sessions")
     .filter((item) => item.student === learnerName && item.status !== "Closed")
     .map((item): FeedItem => ({
@@ -636,7 +662,7 @@ function parentOperationalFeedForLearner(learnerName: string): FeedItem[] {
       icon: LibraryBig,
     }));
 
-  return [...counselling, ...clinic, ...library].slice(0, 8);
+  return [...attendance, ...counselling, ...clinic, ...library].slice(0, 8);
 }
 
 const classTimeline: TimelineItem[] = [

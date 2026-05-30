@@ -392,7 +392,7 @@ function ActionFormPanel({
   classes: ClassRecord[];
   markBatches: MarkBatch[];
   onClose: () => void;
-  onSubmitAttendance: (classId: string, absent: number) => void;
+  onSubmitAttendance: (classId: string, absent: number, absentLearners: string[]) => void;
   onSubmitMarks: (batchId: string, submitted: number) => void;
   onSubmitAssignment: (record: Omit<AssignmentRecord, "id" | "submitted" | "status">) => void;
   onSubmitResource: (record: Omit<ResourceRecord, "id" | "status">) => void;
@@ -402,6 +402,7 @@ function ActionFormPanel({
   const [classId, setClassId] = useState(classes[0]?.id ?? "");
   const [batchId, setBatchId] = useState(markBatches[0]?.id ?? "");
   const [absent, setAbsent] = useState("0");
+  const [absentLearnerNames, setAbsentLearnerNames] = useState("");
   const [submitted, setSubmitted] = useState("");
   const [assignmentTitle, setAssignmentTitle] = useState("");
   const [assignmentClass, setAssignmentClass] = useState(classes[0]?.name ?? "");
@@ -438,16 +439,22 @@ function ActionFormPanel({
 
       {activeAction === "attendance" ? (
         <form
-          className="grid gap-3 md:grid-cols-[1fr_140px_auto]"
+          className="grid gap-3 md:grid-cols-[1fr_140px_1fr_auto]"
           onSubmit={(event) => {
             event.preventDefault();
-            onSubmitAttendance(classId, Number(absent || 0));
+            onSubmitAttendance(
+              classId,
+              Number(absent || 0),
+              absentLearnerNames.split(",").map((name) => name.trim()).filter(Boolean),
+            );
+            setAbsentLearnerNames("");
           }}
         >
           <select value={classId} onChange={(event) => setClassId(event.target.value)} className={inputClass} aria-label="Class register">
             {classes.map((record) => <option key={record.id} value={record.id}>{record.name}</option>)}
           </select>
           <input value={absent} onChange={(event) => setAbsent(event.target.value)} className={inputClass} inputMode="numeric" aria-label="Absent learners" placeholder="Absent" required />
+          <input value={absentLearnerNames} onChange={(event) => setAbsentLearnerNames(event.target.value)} className={inputClass} aria-label="Absent learner names" placeholder="Names, separated by commas" />
           <button type="submit" className="rounded-xl bg-[#071D49] px-4 py-2 text-sm font-black text-white">Submit register</button>
         </form>
       ) : null}
@@ -870,7 +877,7 @@ export function TeacherCommandCenter({ routeMode }: { routeMode: TeacherRouteMod
     recordActivity(message);
   }
 
-  function submitAttendance(classId: string, absent: number) {
+  function submitAttendance(classId: string, absent: number, absentLearners: string[] = []) {
     const targetClass = classes.find((record) => record.id === classId);
     const className = targetClass?.name ?? "Class";
     const safeAbsent = Math.max(absent, 0);
@@ -884,6 +891,7 @@ export function TeacherCommandCenter({ routeMode }: { routeMode: TeacherRouteMod
       totalLearners,
       present: Math.max(totalLearners - safeAbsent, 0),
       absent: safeAbsent,
+      absentLearners,
       status: "Submitted",
       markedAt: new Date().toISOString(),
     };

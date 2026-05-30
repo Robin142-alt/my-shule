@@ -13,6 +13,10 @@ import { renderWithProviders } from "./test-utils";
 jest.setTimeout(20000);
 
 describe("portal and platform command center interactions", () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+  });
+
   it("makes exams manager search and draft actions visible as working controls", async () => {
     const user = userEvent.setup();
 
@@ -117,6 +121,38 @@ describe("portal and platform command center interactions", () => {
     expect(screen.getByText(/Kidagaa Kimemwozea due on 2026-06-01/i)).toBeVisible();
     expect(screen.getByText(/Counselling follow-up scheduled with the school counsellor/i)).toBeVisible();
     expect(screen.queryByText(/PRIVATE counselling note/i)).not.toBeInTheDocument();
+  });
+
+  it("shows parent and student attendance follow-up from submitted class registers", () => {
+    const schoolId = "kisumu-boys";
+    window.localStorage.setItem("myshule.currentSchoolId", schoolId);
+
+    addSchoolRecord(
+      "attendance-registers",
+      {
+        id: "portal-attendance-brian",
+        classId: "form-2-blue",
+        className: "Form 2 Blue",
+        subject: "Mathematics",
+        teacher: "Mr. Otieno",
+        totalLearners: 48,
+        present: 45,
+        absent: 3,
+        status: "Submitted",
+        markedAt: "2026-05-30T06:45:00.000Z",
+        absentLearners: ["Brian Otieno", "Kevin Maina", "Faith Akinyi"],
+      },
+      schoolId,
+    );
+
+    const parentView = renderWithProviders(<ParentCommandCenter routeMode="hosted" />);
+    expect(screen.getByText(/Brian Otieno attendance follow-up recorded/i)).toBeVisible();
+    expect(screen.getByText(/Form 2 Blue register submitted by Mr\. Otieno/i)).toBeVisible();
+    parentView.unmount();
+
+    renderWithProviders(<PortalPages viewer="student" routeMode="hosted" />);
+    expect(screen.getByText(/Attendance follow-up recorded for Form 2 Blue/i)).toBeVisible();
+    expect(screen.getByText(/3 absent learners/i)).toBeVisible();
   });
 
   it("makes super admin shell search and notification controls visible as working actions", async () => {

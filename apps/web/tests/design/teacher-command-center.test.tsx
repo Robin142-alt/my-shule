@@ -95,4 +95,26 @@ describe("TeacherCommandCenter", () => {
     expect(notifications.some((notification) => notification.audienceRoles.includes("deputy-principal"))).toBe(true);
     expect(notifications.some((notification) => notification.audienceRoles.includes("class-teacher"))).toBe(true);
   });
+
+  it("stores named absent learners so parent and student dashboards can receive specific follow-up", async () => {
+    const user = userEvent.setup();
+
+    renderWithProviders(<TeacherCommandCenter routeMode="hosted" />);
+
+    await user.click(screen.getAllByRole("button", { name: /mark attendance/i })[0]);
+    await user.clear(screen.getByLabelText(/absent learners/i));
+    await user.type(screen.getByLabelText(/absent learners/i), "2");
+    await user.type(screen.getByLabelText(/absent learner names/i), "Brian Otieno, Faith Akinyi");
+    await user.click(screen.getByRole("button", { name: /submit register/i }));
+
+    const attendanceRegisters = readSchoolData<Record<string, unknown>>("attendance-registers", "kb-high");
+    expect(attendanceRegisters).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          absent: 2,
+          absentLearners: ["Brian Otieno", "Faith Akinyi"],
+        }),
+      ]),
+    );
+  });
 });

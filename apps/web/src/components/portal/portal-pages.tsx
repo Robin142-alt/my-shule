@@ -70,7 +70,31 @@ type PortalLearnerLibraryLoanRecord = {
   status: string;
 };
 
+type PortalLearnerAttendanceRegisterRecord = {
+  id: string;
+  className: string;
+  teacher?: string;
+  absent?: number;
+  status: string;
+  markedAt?: string;
+  absentLearners?: string[];
+  lateLearners?: string[];
+};
+
 function studentOperationalItems(learnerName: string) {
+  const attendance = readSchoolData<PortalLearnerAttendanceRegisterRecord>("attendance-registers")
+    .filter((item) => {
+      const absentLearners = Array.isArray(item.absentLearners) ? item.absentLearners : [];
+      const lateLearners = Array.isArray(item.lateLearners) ? item.lateLearners : [];
+      return [...absentLearners, ...lateLearners].some((name) => name.toLowerCase() === learnerName.toLowerCase());
+    })
+    .map((item) => ({
+      id: `student-attendance-${item.id}`,
+      title: `Attendance follow-up recorded for ${item.className}`,
+      subtitle: `${item.teacher ?? "Class teacher"} submitted the register with ${Number(item.absent ?? 0)} absent learners.`,
+      value: item.status,
+      tone: "warning" as const,
+    }));
   const counselling = readSchoolData<PortalLearnerCounsellingSessionRecord>("counselling-sessions")
     .filter((item) => item.student === learnerName && item.status !== "Closed")
     .map((item) => ({
@@ -90,7 +114,7 @@ function studentOperationalItems(learnerName: string) {
       tone: item.status === "Overdue" ? "warning" as const : "ok" as const,
     }));
 
-  return [...counselling, ...library].slice(0, 8);
+  return [...attendance, ...counselling, ...library].slice(0, 8);
 }
 
 function buildPortalSectionHref(
