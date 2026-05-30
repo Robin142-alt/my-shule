@@ -1615,6 +1615,88 @@ function toQueueContract(
   };
 }
 
+function shouldShowCounsellingDependency(role: SchoolExperienceRole, kind: WorkspaceKind, workspace: string) {
+  const normalizedWorkspace = workspace.toLowerCase();
+
+  if (role === "deputy-principal") {
+    return kind === "command" || kind === "discipline" || /daily|student|parent|escalation|welfare/.test(normalizedWorkspace);
+  }
+
+  if (role === "class-teacher") {
+    return kind === "command" || kind === "students" || kind === "communication" || /class|student|parent|welfare|follow/.test(normalizedWorkspace);
+  }
+
+  if (role === "principal") {
+    return kind === "command" || /student|welfare|discipline|daily/.test(normalizedWorkspace);
+  }
+
+  return false;
+}
+
+function counsellingDependencyTitle(role: SchoolExperienceRole, session: CounsellingSessionRecord) {
+  if (role === "deputy-principal" || role === "principal") {
+    return `${session.student} high-risk counselling follow-up`;
+  }
+
+  if (role === "class-teacher") {
+    return `${session.student} counselling check-in needed`;
+  }
+
+  return `${session.student} counselling follow-up`;
+}
+
+function counsellingDependencyActionLabel(role: SchoolExperienceRole, session: CounsellingSessionRecord) {
+  if (role === "deputy-principal" || role === "principal") {
+    return session.riskLevel === "Critical" || session.riskLevel === "High" ? "Review welfare risk" : "Open welfare note";
+  }
+
+  if (role === "class-teacher") {
+    return session.guardianSmsSent ? "Open class follow-up" : "Check guardian contact";
+  }
+
+  return "Open counselling follow-up";
+}
+
+function counsellingDependencyEntries({
+  role,
+  kind,
+  workspace,
+  sessions,
+}: {
+  role: SchoolExperienceRole;
+  kind: WorkspaceKind;
+  workspace: string;
+  sessions: CounsellingSessionRecord[];
+}): RuntimeWorkspaceEntry[] {
+  if (!shouldShowCounsellingDependency(role, kind, workspace)) {
+    return [];
+  }
+
+  return sessions
+    .filter((session) => session.status !== "Closed")
+    .slice(0, 6)
+    .map((session): RuntimeWorkspaceEntry => ({
+      id: `${role}-counselling-${session.id}`,
+      workspace,
+      title: counsellingDependencyTitle(role, session),
+      actionLabel: counsellingDependencyActionLabel(role, session),
+      source: "queue",
+      values: {
+        item: counsellingDependencyTitle(role, session),
+        student: session.student,
+        "student/class": session.className,
+        owner: "School Counsellor",
+        status: session.status,
+        "next-action": session.guardianSmsSent ? "Coordinate follow-up" : "Confirm guardian communication",
+        risk: session.riskLevel,
+        "source-desk": "Counselling desk",
+        "privacy-note": "Confidential counselling notes stay in the counselling desk",
+      },
+      status: session.riskLevel === "High" || session.riskLevel === "Critical" ? "Action dispatched" : "Saved from form submission",
+      createdAt: new Date().toISOString(),
+    }));
+}
+
 function toTableContract(
   role: SchoolExperienceRole,
   blueprint: OperationalRoleBlueprint,
@@ -3587,6 +3669,7 @@ function SecretaryWorkspace({
 
 function DisciplineWorkspace({
   cases,
+  counsellingSessions = [],
   notice,
   onAddCase,
   onNotifyParent,
@@ -3598,6 +3681,7 @@ function DisciplineWorkspace({
   onExecuteAction,
 }: {
   cases: DisciplineCaseRecord[];
+  counsellingSessions?: CounsellingSessionRecord[];
   notice: string;
   onAddCase: (record: Omit<DisciplineCaseRecord, "id" | "status" | "parentSmsSent" | "counsellorReferred" | "time">) => void;
   onNotifyParent: (id: string) => void;
@@ -3621,6 +3705,7 @@ function DisciplineWorkspace({
   const openCases = cases.filter((item) => item.status !== "Resolved");
   const parentSmsPending = cases.filter((item) => !item.parentSmsSent && item.status !== "Resolved");
   const referrals = cases.filter((item) => item.counsellorReferred);
+  const linkedCounsellingSessions = counsellingSessions.filter((item) => item.status !== "Closed" && (item.referralSource === "Discipline Master" || item.riskLevel === "High" || item.riskLevel === "Critical"));
   const filteredCases = cases.filter((item) => `${item.student} ${item.className} ${item.caseType} ${item.reportedBy} ${item.notes}`.toLowerCase().includes(searchTerm.toLowerCase()));
   const summaryCards: Array<{ label: string; value: string; helper: string; tone: "ok" | "warning" | "critical"; Icon: LucideIcon }> = [
     { label: "Open Cases", value: String(openCases.length), helper: "Discipline case queue", tone: openCases.length > 0 ? "warning" : "ok", Icon: ClipboardList },
@@ -3769,6 +3854,27 @@ function DisciplineWorkspace({
                   <button type="button" onClick={() => onEscalateDeputy(item.id)} className="rounded-lg border border-[#FECACA] px-2 py-1 text-xs font-black text-critical">Escalate Deputy</button>
                   <button type="button" onClick={() => onReferCounsellor(item.id)} className="rounded-lg border border-[#FED7AA] px-2 py-1 text-xs font-black text-warning">Refer Counsellor</button>
                 </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+
+        <Card className="p-5">
+          <div className="flex items-center gap-2">
+            <Stethoscope className="h-4 w-4 text-warning" />
+            <h3 className="text-lg font-black text-foreground">Counselling support updates</h3>
+          </div>
+          <div className="mt-3 space-y-2">
+            {linkedCounsellingSessions.length === 0 ? (
+              <p className="rounded-xl border border-[#D7E0EF] bg-surface-muted p-3 text-sm font-semibold text-muted">No counselling support updates linked to discipline today.</p>
+            ) : linkedCounsellingSessions.slice(0, 5).map((item) => (
+              <div key={item.id} className="rounded-xl border border-[#FED7AA] bg-warning-soft/45 p-3">
+                <div className="flex items-start justify-between gap-2">
+                  <p className="text-sm font-black text-foreground">{item.student} counselling support linked to discipline</p>
+                  <StatusPill label={item.riskLevel} tone={item.riskLevel === "High" || item.riskLevel === "Critical" ? "critical" : "warning"} compact />
+                </div>
+                <p className="mt-1 text-xs font-semibold text-muted">{item.className} - {item.sessionType} - {item.status}</p>
+                <p className="mt-2 text-[11px] font-black uppercase tracking-[0.12em] text-muted">Private notes stay with the counsellor</p>
               </div>
             ))}
           </div>
@@ -4780,7 +4886,14 @@ function GenericRoleOperationalCommandCenter({
         createdAt: record.markedAt ?? new Date().toISOString(),
       }))
       : [];
+  const counsellingWorkspaceEntries = counsellingDependencyEntries({
+    role,
+    kind: activeWorkspaceKind,
+    workspace: resolvedWorkspace,
+    sessions: counsellingSessions,
+  });
   const workspaceRuntimeEntries = [
+    ...counsellingWorkspaceEntries,
     ...attendanceWorkspaceEntries,
     ...demoWorkspaceEntries,
     ...runtimeEntries.filter((entry) => entry.workspace === resolvedWorkspace),
@@ -7305,6 +7418,7 @@ function GenericRoleOperationalCommandCenter({
         <div className="space-y-4">
           <DisciplineWorkspace
             cases={disciplineCases}
+            counsellingSessions={counsellingSessions}
             notice={disciplineNotice}
             onAddCase={addDisciplineCase}
             onNotifyParent={notifyDisciplineParent}
@@ -7529,6 +7643,7 @@ function GenericRoleOperationalCommandCenter({
               <div className="space-y-4">
                 <DisciplineWorkspace
                   cases={disciplineCases}
+                  counsellingSessions={counsellingSessions}
                   notice={disciplineNotice}
                   onAddCase={addDisciplineCase}
                   onNotifyParent={notifyDisciplineParent}

@@ -6,6 +6,7 @@ import { SchoolPages } from "@/components/school/school-pages";
 import type { SchoolExperienceRole } from "@/lib/experiences/types";
 import { getOperationalRoleBlueprint, type DocxRoleId } from "@/lib/operational/myshule-extreme-operating-system";
 import {
+  addSchoolRecord,
   readSchoolData,
   type SchoolNotification,
   type SchoolOperationalEvent,
@@ -1212,6 +1213,49 @@ describe("STEP 4: Role tests", () => {
         (session) => session.student === "Faith Akinyi" && session.status === "Closed",
       ),
     ).toBe(true);
+  }, 30000);
+
+  it("surfaces counselling outcomes on related school dashboards without exposing confidential notes", async () => {
+    const schoolId = "kisumu-boys";
+
+    addSchoolRecord(
+      "counselling-sessions",
+      {
+        id: "counselling-cross-dashboard-faith",
+        student: "Faith Akinyi",
+        className: "Grade 8 West",
+        referralSource: "Discipline Master",
+        riskLevel: "High",
+        sessionType: "Welfare Check",
+        guardianPhone: "0798 111 222",
+        notes: "PRIVATE counselling note about bullying stress and family context.",
+        followUpDate: "2026-06-02",
+        status: "Open",
+        guardianSmsSent: false,
+        time: "08:15",
+      },
+      schoolId,
+    );
+
+    const roleExpectations: Array<{ role: SchoolExperienceRole; expected: RegExp }> = [
+      { role: "deputy-principal", expected: /faith akinyi high-risk counselling follow-up/i },
+      { role: "class-teacher", expected: /faith akinyi counselling check-in needed/i },
+      { role: "discipline-master", expected: /faith akinyi counselling support linked to discipline/i },
+    ];
+
+    for (const { role, expected } of roleExpectations) {
+      const view = renderWithProviders(
+        createElement(SchoolPages, {
+          role,
+          tenantSlug: "kisumu-boys",
+        }),
+      );
+
+      const commandCenter = await screen.findByTestId("role-operational-command-center");
+      expect(within(commandCenter).getByText(expected)).toBeVisible();
+      expect(within(commandCenter).queryByText(/PRIVATE counselling note/i)).not.toBeInTheDocument();
+      view.unmount();
+    }
   }, 30000);
 
   it("lets the secretary print a fee statement directly from student search", async () => {
