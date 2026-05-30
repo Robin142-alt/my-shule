@@ -175,6 +175,18 @@ type PrincipalMedicineStockRecord = {
   reorderAt: number;
 };
 
+type PrincipalLibraryLoanRecord = {
+  id: string;
+  bookTitle: string;
+  barcode: string;
+  borrower: string;
+  admissionNo: string;
+  dueDate: string;
+  status: string;
+  fine?: number;
+  parentSmsSent?: boolean;
+};
+
 const schoolName = "Kisumu Boys High School";
 
 const principalSections: PrincipalSection[] = [
@@ -653,8 +665,17 @@ function buildPrincipalSectionsForSchool(schoolId: string) {
   const inquiries = readSchoolData<PrincipalFrontOfficeInquiryRecord>("front-office-inquiries", schoolId);
   const clinicVisits = readSchoolData<PrincipalClinicVisitRecord>("clinic-visits", schoolId);
   const medicineStock = readSchoolData<PrincipalMedicineStockRecord>("medicine-stock", schoolId);
+  const libraryLoans = readSchoolData<PrincipalLibraryLoanRecord>("library-loans", schoolId);
 
-  if (!payments.length && !balances.length && !visitors.length && !inquiries.length && !clinicVisits.length && !medicineStock.length) {
+  if (
+    !payments.length &&
+    !balances.length &&
+    !visitors.length &&
+    !inquiries.length &&
+    !clinicVisits.length &&
+    !medicineStock.length &&
+    !libraryLoans.length
+  ) {
     return principalSections;
   }
 
@@ -708,6 +729,18 @@ function buildPrincipalSectionsForSchool(schoolId: string) {
       status: `${item.quantity} left`,
     })),
   ];
+  const activeLibraryLoans = libraryLoans.filter((loan) => !/returned/i.test(loan.status));
+  const libraryFollowUps = activeLibraryLoans.filter(
+    (loan) => /overdue|lost|damaged/i.test(loan.status) || Number(loan.fine ?? 0) > 0,
+  );
+  const librarySmsPending = libraryFollowUps.filter((loan) => !loan.parentSmsSent).length;
+  const libraryFineTotal = libraryFollowUps.reduce((total, loan) => total + Number(loan.fine ?? 0), 0);
+  const libraryRows = activeLibraryLoans.slice(0, 6).map((loan) => ({
+    item: `${loan.bookTitle} borrowed by ${loan.borrower}`,
+    owner: "Librarian",
+    nextAction: Number(loan.fine ?? 0) > 0 ? `Fine ${formatKsh(Number(loan.fine ?? 0))}` : "Monitor due date",
+    status: loan.status || "Issued",
+  }));
 
   return principalSections.map((section) => {
     if (section.id === "parents-visitors") {
@@ -737,6 +770,21 @@ function buildPrincipalSectionsForSchool(schoolId: string) {
           { label: "Parent SMS sent", value: String(parentAlertsSent), helper: "Guardian notifications" },
         ],
         records: clinicRows.length ? [...clinicRows, ...section.records].slice(0, 8) : section.records,
+      } satisfies PrincipalSection;
+    }
+
+    if (section.id === "library") {
+      return {
+        ...section,
+        status: libraryFollowUps.length > 0 ? "warning" : "ok",
+        summary: `${pluralize(activeLibraryLoans.length, "active library record")} with ${libraryFollowUps.length} needing follow-up.`,
+        metrics: [
+          { label: "Active loans", value: String(activeLibraryLoans.length), helper: "Books currently with learners or staff" },
+          { label: "Follow-ups", value: String(libraryFollowUps.length), helper: "Overdue, lost, damaged, or fined" },
+          { label: "Parent SMS pending", value: String(librarySmsPending), helper: "Library notices not yet sent" },
+          { label: "Billable fines", value: formatKsh(libraryFineTotal), helper: "Visible for finance follow-up" },
+        ],
+        records: libraryRows.length ? [...libraryRows, ...section.records].slice(0, 8) : section.records,
       } satisfies PrincipalSection;
     }
 

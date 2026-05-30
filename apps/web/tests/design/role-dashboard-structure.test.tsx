@@ -265,6 +265,50 @@ describe("role dashboard operational structure", () => {
     expect(within(commandCenter).getByText(/ORS sachets low stock/i)).toBeVisible();
   });
 
+  it("shows librarian circulation and fine records inside the principal library workspace", async () => {
+    const schoolId = "principal-library-sync";
+    window.localStorage.setItem("myshule.currentSchoolId", schoolId);
+
+    addSchoolRecord(
+      "library-loans",
+      {
+        id: "library-loan-brian-overdue",
+        bookTitle: "Kidagaa Kimemwozea",
+        barcode: "KBH-LIB-9090",
+        borrower: "Brian Otieno",
+        admissionNo: "KBI/2026/044",
+        dueDate: "2026-06-01",
+        status: "Overdue",
+        fine: 40,
+        parentSmsSent: false,
+      },
+      schoolId,
+    );
+    addSchoolRecord(
+      "library-loans",
+      {
+        id: "library-loan-faith-lost",
+        bookTitle: "The River and the Source",
+        barcode: "KBH-LIB-7001",
+        borrower: "Faith Akinyi",
+        admissionNo: "KBI/2025/118",
+        dueDate: "2026-05-25",
+        status: "Lost",
+        fine: 850,
+        parentSmsSent: true,
+      },
+      schoolId,
+    );
+
+    renderWithProviders(<SchoolPages role="principal" section="library" tenantSlug={schoolId} />);
+
+    const commandCenter = screen.getByTestId("principal-practical-command-center");
+    expect(within(commandCenter).getByText(/2 active library records with 2 needing follow-up/i)).toBeVisible();
+    expect(within(commandCenter).getByText(/Kidagaa Kimemwozea borrowed by Brian Otieno/i)).toBeVisible();
+    expect(within(commandCenter).getAllByText(/Fine KSh 40/i).length).toBeGreaterThan(0);
+    expect(within(commandCenter).getByText(/The River and the Source borrowed by Faith Akinyi/i)).toBeVisible();
+  });
+
   it("keeps the command center short and makes sidebar workspaces render independent practical data", async () => {
     const user = userEvent.setup();
 

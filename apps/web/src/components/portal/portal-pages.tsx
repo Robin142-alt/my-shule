@@ -68,6 +68,7 @@ type PortalLearnerLibraryLoanRecord = {
   borrower: string;
   dueDate: string;
   status: string;
+  fine?: number;
 };
 
 type PortalLearnerAttendanceRegisterRecord = {
@@ -173,7 +174,7 @@ function studentOperationalItems(learnerName: string) {
     .map((item) => ({
       id: `student-library-${item.id}`,
       title: `${item.bookTitle} due on ${item.dueDate}`,
-      subtitle: `Library status: ${item.status}. Return it through the librarian desk.`,
+      subtitle: `Library status: ${item.status}. ${Number(item.fine ?? 0) > 0 ? `Fine ${formatKsh(Number(item.fine ?? 0))}. ` : ""}Return it through the librarian desk.`,
       value: item.status,
       tone: item.status === "Overdue" ? "warning" as const : "ok" as const,
     }));

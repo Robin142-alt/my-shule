@@ -235,6 +235,32 @@ describe("portal and platform command center interactions", () => {
     expect(screen.getByText(/Referred at 10:15 AM/i)).toBeVisible();
   });
 
+  it("shows library fines on the student portal", () => {
+    const schoolId = "kisumu-boys";
+    window.localStorage.setItem("myshule.currentSchoolId", schoolId);
+
+    addSchoolRecord(
+      "library-loans",
+      {
+        id: "student-library-brian-fine",
+        bookTitle: "Blossoms of the Savannah",
+        barcode: "KBH-LIB-9191",
+        borrower: "Brian Otieno",
+        admissionNo: "KBI/2026/044",
+        dueDate: "2026-06-07",
+        status: "Overdue",
+        fine: 120,
+        parentSmsSent: false,
+      },
+      schoolId,
+    );
+
+    renderWithProviders(<PortalPages viewer="student" routeMode="hosted" />);
+
+    expect(screen.getByText(/Blossoms of the Savannah due on 2026-06-07/i)).toBeVisible();
+    expect(screen.getByText(/Fine KSh 120/i)).toBeVisible();
+  });
+
   it("makes super admin shell search and notification controls visible as working actions", async () => {
     const user = userEvent.setup();
 
