@@ -155,6 +155,58 @@ describe("portal and platform command center interactions", () => {
     expect(screen.getByText(/3 absent learners/i)).toBeVisible();
   });
 
+  it("shows parent and student fee updates from accountant payment records", () => {
+    const schoolId = "kisumu-boys";
+    window.localStorage.setItem("myshule.currentSchoolId", schoolId);
+
+    addSchoolRecord(
+      "finance-payments",
+      {
+        id: "portal-payment-brian",
+        student: "Brian Otieno",
+        admissionNo: "KBI/2026/044",
+        amount: 5000,
+        method: "Cash",
+        voteHead: "Tuition",
+        term: "Term 2 2026",
+        reference: "CASH-5000",
+        receiptNo: "KBI-RCPT-5001",
+        parentSmsSent: true,
+        status: "Recorded",
+      },
+      schoolId,
+    );
+    addSchoolRecord(
+      "fee-balances",
+      {
+        id: "fee-brian",
+        student: "Brian Otieno",
+        admissionNo: "KBI/2026/044",
+        className: "Form 2 East",
+        balance: 7400,
+        parentPhone: "0712 345 678",
+        lastPayment: 5000,
+        lastMethod: "Cash",
+        status: "Balance",
+      },
+      schoolId,
+    );
+
+    const parentView = renderWithProviders(<ParentCommandCenter routeMode="hosted" />);
+    expect(screen.getByText(/Brian Otieno payment of KSh 5,000 recorded/i)).toBeVisible();
+    expect(screen.getByText(/Receipt KBI-RCPT-5001 posted by Cash/i)).toBeVisible();
+    parentView.unmount();
+
+    const studentView = renderWithProviders(<PortalPages viewer="student" routeMode="hosted" />);
+    expect(screen.getByText(/Fee payment recorded: KSh 5,000/i)).toBeVisible();
+    expect(screen.getByText(/Balance KSh 7,400/i)).toBeVisible();
+    studentView.unmount();
+
+    renderWithProviders(<PortalPages viewer="parent" section="fees" routeMode="hosted" />);
+    expect(screen.getAllByText(/KBI-RCPT-5001/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/KSh 5,000/i).length).toBeGreaterThan(0);
+  });
+
   it("makes super admin shell search and notification controls visible as working actions", async () => {
     const user = userEvent.setup();
 

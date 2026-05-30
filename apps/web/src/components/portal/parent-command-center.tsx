@@ -136,6 +136,28 @@ type PortalAttendanceRegisterRecord = {
   lateLearners?: string[];
 };
 
+type PortalFeePaymentRecord = {
+  id: string;
+  student: string;
+  admissionNo: string;
+  amount: number;
+  method: string;
+  receiptNo: string;
+  status: string;
+};
+
+type PortalFeeBalanceRecord = {
+  id: string;
+  student: string;
+  admissionNo: string;
+  balance: number;
+  status: string;
+};
+
+function formatKsh(amount: number) {
+  return `KSh ${amount.toLocaleString("en-KE")}`;
+}
+
 function parentHref(section: PortalSection, routeMode: PortalRouteMode) {
   if (routeMode === "public") {
     return section === "dashboard" ? "/portal/parent" : `/portal/parent/${section}`;
@@ -617,6 +639,20 @@ const liveFeed: FeedItem[] = [
 ];
 
 function parentOperationalFeedForLearner(learnerName: string): FeedItem[] {
+  const feeBalances = readSchoolData<PortalFeeBalanceRecord>("fee-balances");
+  const finance = readSchoolData<PortalFeePaymentRecord>("finance-payments")
+    .filter((item) => item.student === learnerName)
+    .map((item): FeedItem => {
+      const balance = feeBalances.find((record) => record.admissionNo === item.admissionNo || record.student === item.student);
+      return {
+        id: `parent-finance-${item.id}`,
+        title: `${item.student} payment of ${formatKsh(item.amount)} recorded`,
+        detail: `Receipt ${item.receiptNo} posted by ${item.method}. Current balance ${formatKsh(Number(balance?.balance ?? 0))}.`,
+        time: item.status,
+        tone: item.status === "M-Pesa Pending" || item.status === "Reversal Requested" ? "warning" : "good",
+        icon: CreditCard,
+      };
+    });
   const attendance = readSchoolData<PortalAttendanceRegisterRecord>("attendance-registers")
     .filter((item) => {
       const absentLearners = Array.isArray(item.absentLearners) ? item.absentLearners : [];
@@ -662,7 +698,7 @@ function parentOperationalFeedForLearner(learnerName: string): FeedItem[] {
       icon: LibraryBig,
     }));
 
-  return [...attendance, ...counselling, ...clinic, ...library].slice(0, 8);
+  return [...finance, ...attendance, ...counselling, ...clinic, ...library].slice(0, 8);
 }
 
 const classTimeline: TimelineItem[] = [

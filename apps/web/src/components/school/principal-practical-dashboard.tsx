@@ -102,6 +102,32 @@ type PrincipalSearchResult = {
   actionLabel: string;
 };
 
+type PrincipalFeePaymentRecord = {
+  id: string;
+  student: string;
+  admissionNo: string;
+  amount: number;
+  method: string;
+  voteHead: string;
+  term: string;
+  reference: string;
+  receiptNo: string;
+  parentSmsSent: boolean;
+  status: string;
+};
+
+type PrincipalFeeBalanceRecord = {
+  id: string;
+  student: string;
+  admissionNo: string;
+  className: string;
+  balance: number;
+  parentPhone: string;
+  lastPayment: number;
+  lastMethod: string;
+  status: string;
+};
+
 const schoolName = "Kisumu Boys High School";
 
 const principalSections: PrincipalSection[] = [
@@ -565,14 +591,80 @@ const overviewSectionIds: PrincipalSectionId[] = [
   "approvals",
 ];
 
-function principalSearchResults(query: string) {
+function formatKsh(amount: number) {
+  return `KSh ${amount.toLocaleString("en-KE", { maximumFractionDigits: 0 })}`;
+}
+
+function buildPrincipalSectionsForSchool(schoolId: string) {
+  const payments = readSchoolData<PrincipalFeePaymentRecord>("finance-payments", schoolId);
+  const balances = readSchoolData<PrincipalFeeBalanceRecord>("fee-balances", schoolId);
+
+  if (!payments.length && !balances.length) {
+    return principalSections;
+  }
+
+  const collectedToday = payments.reduce((total, payment) => total + Number(payment.amount || 0), 0);
+  const pendingMpesa = payments.filter((payment) => /pending/i.test(payment.status) || /m-pesa/i.test(payment.method)).length;
+  const highBalanceCount = balances.filter((balance) => Number(balance.balance || 0) > 10000).length;
+  const outstandingTotal = balances.reduce((total, balance) => total + Number(balance.balance || 0), 0);
+  const paymentRows = payments.slice(0, 5).map((payment) => {
+    const balance = balances.find((item) => item.student === payment.student || item.admissionNo === payment.admissionNo);
+    const currentBalance = Number(balance?.balance ?? 0);
+
+    return {
+      item: `${payment.student} payment ${payment.receiptNo}`,
+      owner: "Accountant",
+      nextAction: `Current balance ${formatKsh(currentBalance)}`,
+      status: payment.status || "Recorded",
+    };
+  });
+
+  return principalSections.map((section) => {
+    if (section.id !== "fees") {
+      return section;
+    }
+
+    return {
+      ...section,
+      status: pendingMpesa > 0 || highBalanceCount > 0 ? "warning" : "ok",
+      summary: `${formatKsh(collectedToday)} collected today from accountant payment records.`,
+      metrics: [
+        { label: "Collected today", value: formatKsh(collectedToday), helper: "From accountant payment records" },
+        { label: "Balances above KSh 10,000", value: String(highBalanceCount), helper: "Defaulter list ready" },
+        { label: "Pending balances", value: formatKsh(outstandingTotal), helper: "Current fee balance records" },
+        { label: "M-Pesa pending", value: String(pendingMpesa), helper: "Confirmations needing finance follow-up" },
+      ],
+      records: paymentRows.length ? [...paymentRows, ...section.records].slice(0, 8) : section.records,
+    } satisfies PrincipalSection;
+  });
+}
+
+function buildSummaryCardsForSections(sections: PrincipalSection[]) {
+  const fees = sectionById("fees", sections);
+
+  return summaryCards.map((card) => {
+    if (card.source !== "Fees") {
+      return card;
+    }
+
+    return {
+      ...card,
+      value: fees.metrics[0]?.value ?? card.value,
+      helper: fees.metrics[3]?.value
+        ? `${fees.metrics[3].value} M-Pesa confirmation${fees.metrics[3].value === "1" ? "" : "s"} pending`
+        : card.helper,
+    };
+  });
+}
+
+function principalSearchResults(query: string, sections = principalSections) {
   const normalized = query.trim().toLowerCase();
 
   if (!normalized) {
     return [];
   }
 
-  return principalSections.flatMap((section) => {
+  return sections.flatMap((section) => {
     const results: PrincipalSearchResult[] = [];
     const sectionHaystack = [
       section.label,
@@ -661,8 +753,8 @@ function resolveInitialSection(initialSection?: string, initialWorkspace?: strin
   return "overview";
 }
 
-function sectionById(id: PrincipalSectionId) {
-  return principalSections.find((section) => section.id === id) ?? principalSections[0];
+function sectionById(id: PrincipalSectionId, sections = principalSections) {
+  return sections.find((section) => section.id === id) ?? sections[0] ?? principalSections[0];
 }
 
 function actionToneClass(tone?: PracticalAction["tone"]) {
@@ -1030,16 +1122,20 @@ export function PrincipalPracticalCommandCenter({
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [actionNotice, setActionNotice] = useState<string | null>(null);
-  const active = activeSection === "overview" ? null : sectionById(activeSection);
-  const searchResults = useMemo(() => principalSearchResults(searchQuery), [searchQuery]);
-  const isSearching = searchQuery.trim().length > 0;
   const greetingName = getSchoolRoleGreetingName("principal") || "Principal Wanjiku";
   const schoolId = getCurrentSchoolId(tenantSlug);
-  const overviewSections = overviewSectionIds.map((id) => sectionById(id));
-  const approvalsSection = sectionById("approvals");
+  const [sections, setSections] = useState<PrincipalSection[]>(() => buildPrincipalSectionsForSchool(schoolId));
+  const active = activeSection === "overview" ? null : sectionById(activeSection, sections);
+  const searchResults = useMemo(() => principalSearchResults(searchQuery, sections), [searchQuery, sections]);
+  const isSearching = searchQuery.trim().length > 0;
+  const overviewSections = overviewSectionIds.map((id) => sectionById(id, sections));
+  const approvalsSection = sectionById("approvals", sections);
+  const currentSummaryCards = useMemo(() => buildSummaryCardsForSections(sections), [sections]);
 
   useEffect(() => {
     function loadSharedSchoolActions() {
+      setSections(buildPrincipalSectionsForSchool(schoolId));
+
       const events: ActionLogItem[] = readSchoolData<SchoolOperationalEvent>("events", schoolId)
         .filter((event) => event.actorRole !== "principal")
         .slice(0, 6)
@@ -1246,7 +1342,7 @@ export function PrincipalPracticalCommandCenter({
           <section className="min-h-0 flex-1 overflow-y-auto px-3 py-3 md:px-5">
             {!active && !isSearching ? (
               <div className="grid shrink-0 gap-3 md:grid-cols-2 xl:grid-cols-6">
-                {summaryCards.map((card) => (
+                {currentSummaryCards.map((card) => (
                   <button
                     key={card.label}
                     type="button"

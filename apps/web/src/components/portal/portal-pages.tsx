@@ -81,7 +81,52 @@ type PortalLearnerAttendanceRegisterRecord = {
   lateLearners?: string[];
 };
 
+type PortalLearnerFeePaymentRecord = {
+  id: string;
+  student: string;
+  admissionNo: string;
+  amount: number;
+  method: string;
+  reference: string;
+  receiptNo: string;
+  status: string;
+};
+
+type PortalLearnerFeeBalanceRecord = {
+  id: string;
+  student: string;
+  admissionNo: string;
+  balance: number;
+  status: string;
+};
+
+type PortalFeeHistoryRow = {
+  id: string;
+  date: string;
+  amount: string;
+  method: string;
+  reference: string;
+  status: string;
+};
+
+function formatKsh(amount: number) {
+  return `KSh ${amount.toLocaleString("en-KE")}`;
+}
+
 function studentOperationalItems(learnerName: string) {
+  const feeBalances = readSchoolData<PortalLearnerFeeBalanceRecord>("fee-balances");
+  const finance = readSchoolData<PortalLearnerFeePaymentRecord>("finance-payments")
+    .filter((item) => item.student === learnerName)
+    .map((item) => {
+      const balance = feeBalances.find((record) => record.admissionNo === item.admissionNo || record.student === item.student);
+      return {
+        id: `student-finance-${item.id}`,
+        title: `Fee payment recorded: ${formatKsh(item.amount)}`,
+        subtitle: `Receipt ${item.receiptNo} via ${item.method}. Balance ${formatKsh(Number(balance?.balance ?? 0))}.`,
+        value: item.status,
+        tone: item.status === "M-Pesa Pending" || item.status === "Reversal Requested" ? "warning" as const : "ok" as const,
+      };
+    });
   const attendance = readSchoolData<PortalLearnerAttendanceRegisterRecord>("attendance-registers")
     .filter((item) => {
       const absentLearners = Array.isArray(item.absentLearners) ? item.absentLearners : [];
@@ -114,7 +159,22 @@ function studentOperationalItems(learnerName: string) {
       tone: item.status === "Overdue" ? "warning" as const : "ok" as const,
     }));
 
-  return [...attendance, ...counselling, ...library].slice(0, 8);
+  return [...finance, ...attendance, ...counselling, ...library].slice(0, 8);
+}
+
+function portalFeeRowsForLearner(learnerName: string): PortalFeeHistoryRow[] {
+  const storedPayments = readSchoolData<PortalLearnerFeePaymentRecord>("finance-payments")
+    .filter((item) => item.student === learnerName)
+    .map((item) => ({
+      id: item.id,
+      date: item.receiptNo,
+      amount: formatKsh(item.amount),
+      method: item.method,
+      reference: item.reference || item.receiptNo,
+      status: item.status,
+    }));
+
+  return storedPayments.length > 0 ? storedPayments : portalFeeHistory;
 }
 
 function buildPortalSectionHref(
@@ -309,12 +369,22 @@ function PortalDashboard({ viewer, routeMode }: { viewer: PortalViewer; routeMod
 
 function PortalFeesPage({ viewer }: { viewer: PortalViewer }) {
   const [shareStatus, setShareStatus] = useState<string | null>(null);
+  const [feeRows, setFeeRows] = useState<PortalFeeHistoryRow[]>(() => portalFeeRowsForLearner("Brian Otieno"));
+
+  useEffect(() => {
+    function refreshFeeRows() {
+      setFeeRows(portalFeeRowsForLearner("Brian Otieno"));
+    }
+
+    refreshFeeRows();
+    return subscribeToSchoolDataUpdates(() => refreshFeeRows());
+  }, []);
 
   async function shareStatement() {
     const statementText = [
       "My Shule family statement",
       "",
-      ...portalFeeHistory.map(
+      ...feeRows.map(
         (row) => `${row.date} | ${row.amount} | ${row.method} | ${row.reference} | ${row.status}`,
       ),
     ].join("\n");
@@ -346,9 +416,9 @@ function PortalFeesPage({ viewer }: { viewer: PortalViewer }) {
             { id: "reference", header: "Reference", render: (row) => row.reference },
             { id: "status", header: "Status", render: (row) => row.status },
           ]}
-          rows={portalFeeHistory}
-          getRowKey={(row) => row.id}
-        />
+            rows={feeRows}
+            getRowKey={(row) => row.id}
+          />
         <Card className="p-5">
           <div className="flex items-center gap-3">
             <span className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-accent-soft text-foreground">

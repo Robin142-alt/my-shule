@@ -7,6 +7,7 @@ import {
   getOperationalRoleBlueprint,
 } from "@/lib/operational/myshule-extreme-operating-system";
 import { SchoolPages } from "@/components/school/school-pages";
+import { addSchoolRecord } from "@/lib/school/school-operational-store";
 
 import { renderWithProviders } from "./test-utils";
 
@@ -133,6 +134,51 @@ describe("role dashboard operational structure", () => {
     expect(screen.getByText(/From: Accountant dashboard and M-Pesa confirmations/i)).toBeVisible();
     expect(screen.getByText(/From: Teacher and Class Teacher dashboards/i)).toBeVisible();
   }, 30000);
+
+  it("shows accountant payment records inside the principal fees workspace", async () => {
+    const schoolId = "kisumu-boys";
+    window.localStorage.setItem("myshule.currentSchoolId", schoolId);
+
+    addSchoolRecord(
+      "finance-payments",
+      {
+        id: "principal-payment-brian",
+        student: "Brian Otieno",
+        admissionNo: "KBI/2026/044",
+        amount: 5000,
+        method: "Cash",
+        voteHead: "Tuition",
+        term: "Term 2 2026",
+        reference: "CASH-5000",
+        receiptNo: "KBI-RCPT-5001",
+        parentSmsSent: true,
+        status: "Recorded",
+      },
+      schoolId,
+    );
+    addSchoolRecord(
+      "fee-balances",
+      {
+        id: "fee-brian",
+        student: "Brian Otieno",
+        admissionNo: "KBI/2026/044",
+        className: "Form 2 East",
+        balance: 7400,
+        parentPhone: "0712 345 678",
+        lastPayment: 5000,
+        lastMethod: "Cash",
+        status: "Balance",
+      },
+      schoolId,
+    );
+
+    renderWithProviders(<SchoolPages role="principal" section="finance" tenantSlug={schoolId} />);
+
+    const commandCenter = screen.getByTestId("principal-practical-command-center");
+    expect(within(commandCenter).getByText(/KSh 5,000 collected today/i)).toBeVisible();
+    expect(within(commandCenter).getByText(/Brian Otieno payment KBI-RCPT-5001/i)).toBeVisible();
+    expect(within(commandCenter).getAllByText(/Current balance KSh 7,400/i).length).toBeGreaterThan(0);
+  });
 
   it("keeps the command center short and makes sidebar workspaces render independent practical data", async () => {
     const user = userEvent.setup();
