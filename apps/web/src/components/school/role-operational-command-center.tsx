@@ -42,6 +42,7 @@ import { PrincipalPracticalCommandCenter } from "@/components/school/principal-p
 import { UserManagementWorkspace } from "@/components/school/user-management-workspace";
 import { Card } from "@/components/ui/card";
 import { StatusPill } from "@/components/ui/status-pill";
+import { openPrintDocument } from "@/lib/dashboard/export";
 import type { SchoolExperienceRole } from "@/lib/experiences/types";
 import {
   getOperationalRoleBlueprint,
@@ -118,6 +119,24 @@ type RuntimeWorkspaceEntry = {
 };
 
 type WorkspacePanel = "queue" | "records" | "form";
+
+function openSchoolPrintPreview(input: {
+  eyebrow: string;
+  title: string;
+  subtitle?: string;
+  rows?: Array<{ label: string; value: string | number }>;
+  footer?: string;
+}) {
+  openPrintDocument({
+    eyebrow: input.eyebrow,
+    title: input.title,
+    subtitle: input.subtitle ?? "School operations print preview",
+    rows: input.rows?.length
+      ? input.rows.map((row) => ({ label: row.label, value: String(row.value) }))
+      : [{ label: "Prepared", value: new Date().toLocaleString("en-KE") }],
+    footer: input.footer ?? "Printed from MyShule school operations.",
+  });
+}
 
 type AttendanceRegisterRecord = {
   id: string;
@@ -5280,9 +5299,15 @@ function GenericRoleOperationalCommandCenter({
     const visit = clinicVisits.find((item) => item.id === id);
     addLocalExecutionLog(`${visit?.student ?? "Student"} medical slip opened`, ["Medical slip prepared", "Print dialog opened"]);
     setClinicNotice(`${visit?.student ?? "Student"} medical slip opened for printing.`);
-    if (typeof window !== "undefined") {
-      window.print();
-    }
+    openSchoolPrintPreview({
+      eyebrow: "Medical slip",
+      title: `${visit?.student ?? "Student"} Medical Slip`,
+      rows: visit ? [
+        { label: "Student", value: visit.student },
+        { label: "Status", value: visit.status },
+        { label: "Medicine", value: visit.medicine },
+      ] : undefined,
+    });
   }
 
   function printClinicRegister() {
@@ -5296,9 +5321,14 @@ function GenericRoleOperationalCommandCenter({
     });
     addLocalExecutionLog("Sick bay register opened", ["Sick bay register prepared", "Print dialog opened"]);
     setClinicNotice("Sick bay register opened for printing.");
-    if (typeof window !== "undefined") {
-      window.print();
-    }
+    openSchoolPrintPreview({
+      eyebrow: "Sick bay register",
+      title: "Sick Bay Register",
+      rows: clinicVisits.map((visit) => ({
+        label: visit.student,
+        value: `${visit.status} | ${visit.medicine} | Parent contacted: ${visit.parentContacted ? "Yes" : "No"}`,
+      })),
+    });
   }
 
   function addAdmissionsExecutionLog(label: string, events: string[]) {
@@ -5402,9 +5432,16 @@ function GenericRoleOperationalCommandCenter({
     }));
     addAdmissionsExecutionLog(`${applicant?.applicant ?? "Applicant"} admission letter opened`, ["Admission letter prepared", "Print dialog opened"]);
     setAdmissionsNotice(`${applicant?.applicant ?? "Applicant"} admission letter opened for printing.`);
-    if (typeof window !== "undefined") {
-      window.print();
-    }
+    openSchoolPrintPreview({
+      eyebrow: "Admission letter",
+      title: `${applicant?.applicant ?? "Applicant"} Admission Letter`,
+      rows: applicant ? [
+        { label: "Applicant", value: applicant.applicant },
+        { label: "Class/Form", value: applicant.className },
+        { label: "Admission number", value: applicant.admissionNumber ?? "Pending" },
+        { label: "Status", value: applicant.status },
+      ] : undefined,
+    });
   }
 
   function printAdmissionsPipeline() {
@@ -5418,9 +5455,14 @@ function GenericRoleOperationalCommandCenter({
     });
     addAdmissionsExecutionLog("Admissions pipeline opened", ["Application pipeline prepared", "Print dialog opened"]);
     setAdmissionsNotice("Admissions pipeline opened for printing.");
-    if (typeof window !== "undefined") {
-      window.print();
-    }
+    openSchoolPrintPreview({
+      eyebrow: "Admissions pipeline",
+      title: "Admissions Pipeline",
+      rows: admissionApplicants.map((applicant) => ({
+        label: applicant.applicant,
+        value: `${applicant.className} | ${applicant.documents} | ${applicant.status}`,
+      })),
+    });
   }
 
   function addLibraryExecutionLog(label: string, events: string[]) {
@@ -5573,9 +5615,17 @@ function GenericRoleOperationalCommandCenter({
 
     addLibraryExecutionLog(`${loan?.bookTitle ?? "Book"} library slip opened`, ["Library slip prepared", "Print dialog opened"]);
     setLibraryNotice(`${loan?.bookTitle ?? "Book"} slip opened for printing.`);
-    if (typeof window !== "undefined") {
-      window.print();
-    }
+    openSchoolPrintPreview({
+      eyebrow: "Library slip",
+      title: `${loan?.bookTitle ?? "Book"} Library Slip`,
+      rows: loan ? [
+        { label: "Borrower", value: loan.borrower },
+        { label: "Admission number", value: loan.admissionNo },
+        { label: "Barcode", value: loan.barcode },
+        { label: "Due date", value: loan.dueDate },
+        { label: "Status", value: loan.status },
+      ] : undefined,
+    });
   }
 
   function printLibraryReport() {
@@ -5589,9 +5639,14 @@ function GenericRoleOperationalCommandCenter({
     });
     addLibraryExecutionLog("Library report opened", ["Library report prepared", "Print dialog opened"]);
     setLibraryNotice("Library report opened for printing.");
-    if (typeof window !== "undefined") {
-      window.print();
-    }
+    openSchoolPrintPreview({
+      eyebrow: "Library report",
+      title: "Library Borrowing Report",
+      rows: libraryLoans.map((loan) => ({
+        label: loan.borrower,
+        value: `${loan.bookTitle} | ${loan.status} | Fine KSh ${loan.fine}`,
+      })),
+    });
   }
 
   function addStockExecutionLog(label: string, events: string[]) {
@@ -5668,9 +5723,16 @@ function GenericRoleOperationalCommandCenter({
 
     addStockExecutionLog(`${movement?.item ?? "Stock"} slip opened`, ["Stock slip prepared", "Print dialog opened"]);
     setStockNotice(`${movement?.item ?? "Stock"} issue slip opened for printing.`);
-    if (typeof window !== "undefined") {
-      window.print();
-    }
+    openSchoolPrintPreview({
+      eyebrow: "Stock issue slip",
+      title: `${movement?.item ?? "Stock"} Issue Slip`,
+      rows: movement ? [
+        { label: "Item", value: movement.item },
+        { label: "Department", value: movement.department },
+        { label: "Receiver", value: movement.receiver },
+        { label: "Quantity", value: movement.quantity },
+      ] : undefined,
+    });
   }
 
   function exportStockReport() {
@@ -5960,9 +6022,14 @@ function GenericRoleOperationalCommandCenter({
     });
     addBoardingExecutionLog("Hostel roll call sheet opened", ["Roll call print view prepared", "Print dialog opened"]);
     setBoardingNotice("Hostel roll call sheet opened for printing.");
-    if (typeof window !== "undefined") {
-      window.print();
-    }
+    openSchoolPrintPreview({
+      eyebrow: "Hostel roll call",
+      title: "Hostel Roll Call Sheet",
+      rows: boardingRollCalls.map((record) => ({
+        label: record.student,
+        value: `${record.className} | ${record.dorm} ${record.bed} | ${record.status}`,
+      })),
+    });
   }
 
   function addTransportExecutionLog(label: string, events: string[]) {
@@ -6189,9 +6256,14 @@ function GenericRoleOperationalCommandCenter({
     });
     addTransportExecutionLog("Transport route list opened", ["Route list prepared", "Print dialog opened"]);
     setTransportNotice("Transport route list opened for printing.");
-    if (typeof window !== "undefined") {
-      window.print();
-    }
+    openSchoolPrintPreview({
+      eyebrow: "Transport routes",
+      title: "Transport Route List",
+      rows: transportVehicles.map((vehicle) => ({
+        label: vehicle.vehicle,
+        value: `${vehicle.route} | ${vehicle.driver} | ${vehicle.status} | Fuel ${vehicle.fuelLevel}%`,
+      })),
+    });
   }
 
   function addLabExecutionLog(label: string, events: string[]) {
@@ -6488,9 +6560,14 @@ function GenericRoleOperationalCommandCenter({
     });
     addLabExecutionLog("Practical checklist opened", ["Lab checklist prepared", "Print dialog opened"]);
     setLabNotice("Practical checklist opened for printing.");
-    if (typeof window !== "undefined") {
-      window.print();
-    }
+    openSchoolPrintPreview({
+      eyebrow: "Lab practical checklist",
+      title: "Laboratory Practical Checklist",
+      rows: labRequests.map((request) => ({
+        label: request.practical,
+        value: `${request.className} | ${request.teacher} | ${request.status}`,
+      })),
+    });
   }
 
   function addFinanceExecutionLog(label: string, events: string[]) {
@@ -6611,9 +6688,16 @@ function GenericRoleOperationalCommandCenter({
     }
     addFinanceExecutionLog(`${payment?.receiptNo ?? "Receipt"} opened`, ["Receipt print view prepared", "Print dialog opened"]);
     setFinanceNotice(`${payment?.receiptNo ?? "Receipt"} opened for printing.`);
-    if (typeof window !== "undefined") {
-      window.print();
-    }
+    openSchoolPrintPreview({
+      eyebrow: "Fee receipt",
+      title: `${payment?.receiptNo ?? "Receipt"} Fee Receipt`,
+      rows: payment ? [
+        { label: "Student", value: payment.student },
+        { label: "Admission number", value: payment.admissionNo },
+        { label: "Amount", value: `KSh ${payment.amount.toLocaleString("en-KE")}` },
+        { label: "Method", value: payment.method },
+      ] : undefined,
+    });
   }
 
   function sendReceiptSms(id: string) {
@@ -6775,9 +6859,16 @@ function GenericRoleOperationalCommandCenter({
     }
     addSecretaryExecutionLog(`${visitor?.visitor ?? "Visitor"} slip printed`, ["Visitor slip prepared", "Print dialog opened"]);
     setSecretaryNotice(`${visitor?.visitor ?? "Visitor"} visitor slip opened for printing.`);
-    if (typeof window !== "undefined") {
-      window.print();
-    }
+    openSchoolPrintPreview({
+      eyebrow: "Visitor slip",
+      title: `${visitor?.visitor ?? "Visitor"} Visitor Slip`,
+      rows: visitor ? [
+        { label: "Visitor", value: visitor.visitor },
+        { label: "Phone / ID", value: visitor.phoneOrId },
+        { label: "Visiting", value: visitor.visiting },
+        { label: "Reason", value: visitor.reason },
+      ] : undefined,
+    });
   }
 
   function printSecretaryFeeStatement(student: FeeBalanceRecord) {
@@ -6792,9 +6883,16 @@ function GenericRoleOperationalCommandCenter({
     });
     addSecretaryExecutionLog(`${student.student} fee statement printed`, ["Fee statement prepared", "Print dialog opened"]);
     setSecretaryNotice(`${student.student} fee statement opened for printing.`);
-    if (typeof window !== "undefined") {
-      window.print();
-    }
+    openSchoolPrintPreview({
+      eyebrow: "Fee statement",
+      title: `${student.student} Fee Statement`,
+      rows: [
+        { label: "Student", value: student.student },
+        { label: "Admission number", value: student.admissionNo },
+        { label: "Class/Form", value: student.className },
+        { label: "Balance", value: `KSh ${student.balance.toLocaleString("en-KE")}` },
+      ],
+    });
   }
 
   function checkOutSecretaryVisitor(id: string) {
@@ -7925,3 +8023,4 @@ function workspaceKindFromRouteSection(section: string): WorkspaceKind {
 
   return "general";
 }
+

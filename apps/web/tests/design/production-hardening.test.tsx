@@ -173,4 +173,17 @@ describe("production ERP hardening", () => {
     expect(source).not.toMatch(/\bCall (Parent|Teacher|Staff|Nurse|Driver|Accountant|Student|Security|Admin|guardian|emergency contacts)\b/i);
     expect(source).not.toMatch(/\b(Call teacher and submit register|Save and Send SMS|Save and Print|Save and Continue|Save and Notify Parent|Print and SMS parent)\b/i);
   });
+
+  it("routes dashboard print actions through print preview instead of direct browser printing", () => {
+    const root = process.cwd();
+    const files = [
+      "src/components/modules/assets/asset-tracking-module-screen.tsx",
+      "src/components/school/teacher-command-center.tsx",
+      "src/components/school/security-command-center.tsx",
+      "src/components/school/role-operational-command-center.tsx",
+    ];
+    const source = files.map((file) => readFileSync(join(root, file), "utf8")).join("\n");
+
+    expect(source).not.toMatch(/window\.print\(\)/);
+  });
 });

@@ -6,6 +6,7 @@ import { Implementation100LiveModuleScreen, type Implementation100Dashboard } fr
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { StatusPill } from "@/components/ui/status-pill";
+import { openPrintDocument } from "@/lib/dashboard/export";
 import {
   addSchoolRecord,
   getCurrentSchoolId,
@@ -355,9 +356,16 @@ export function AssetTrackingModuleScreen({
       audienceRoles: ["ict", "storekeeper"],
     });
     setMessage("ICT asset tag sheet opened for printing.");
-    if (typeof window !== "undefined") {
-      window.print();
-    }
+    openPrintDocument({
+      eyebrow: "ICT asset tags",
+      title: "ICT Asset Tag Sheet",
+      subtitle: "Print preview for visible ICT asset tags.",
+      rows: visibleAssets.map((asset) => ({
+        label: asset.tag,
+        value: `${asset.asset} | ${asset.category} | ${asset.location} | ${asset.status}`,
+      })),
+      footer: "Printed from the ICT computer lab and asset desk.",
+    });
   }
 
   return (

@@ -23,6 +23,7 @@ import {
   publishSchoolOperationalEvent,
   simulateSms,
 } from "@/lib/school/school-operational-store";
+import { openPrintDocument } from "@/lib/dashboard/export";
 
 type TeacherRouteMode = "hosted" | "public";
 type TeacherView =
@@ -1066,9 +1067,16 @@ export function TeacherCommandCenter({ routeMode }: { routeMode: TeacherRouteMod
       ],
     });
     recordActivity("Subject report opened for printing.");
-    if (typeof window !== "undefined") {
-      window.print();
-    }
+    openPrintDocument({
+      eyebrow: "Teacher subject report",
+      title: "Subject Report",
+      subtitle: "Teaching classes, syllabus coverage, and attendance exceptions.",
+      rows: classes.map((record) => ({
+        label: record.name,
+        value: `${record.lesson} | Coverage ${record.coverage}% | Absent ${record.absent}`,
+      })),
+      footer: "Printed from the Teacher dashboard.",
+    });
   }
 
   function markAssignmentGraded(id: string) {

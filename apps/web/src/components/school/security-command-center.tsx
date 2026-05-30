@@ -39,6 +39,7 @@ import {
   getCurrentSchoolId,
   publishSchoolOperationalEvent,
 } from "@/lib/school/school-operational-store";
+import { openPrintDocument } from "@/lib/dashboard/export";
 
 type SecurityRouteMode = "hosted" | "public";
 type Tone = "secure" | "info" | "warning" | "danger" | "cyan" | "neutral";
@@ -1165,9 +1166,20 @@ export function SecurityCommandCenter({ routeMode }: { routeMode: SecurityRouteM
       ],
     });
     setNotice(`${visitor.name} visitor slip opened for printing.`);
-    if (typeof window !== "undefined") {
-      window.print();
-    }
+    openPrintDocument({
+      eyebrow: "Visitor slip",
+      title: "Visitor Gate Slip",
+      subtitle: "Kisumu Boys High School security desk",
+      rows: [
+        { label: "Visitor", value: visitor.name },
+        { label: "ID / Phone", value: `${visitor.idNumber} | ${visitor.phone}` },
+        { label: "Visiting", value: visitor.personVisiting },
+        { label: "Purpose", value: visitor.purpose },
+        { label: "Entry / Expected exit", value: `${visitor.entryTime} | ${visitor.expectedExit}` },
+        { label: "Vehicle", value: visitor.vehicle || "None recorded" },
+      ],
+      footer: "Visitor must return this slip at checkout.",
+    });
   }
 
   return (
