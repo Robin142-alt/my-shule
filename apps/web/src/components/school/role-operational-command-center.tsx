@@ -3483,6 +3483,7 @@ function SecretaryWorkspace({
   visitors,
   inquiries,
   balances,
+  payments,
   notice,
   onRegisterVisitor,
   onPrintVisitorSlip,
@@ -3496,6 +3497,7 @@ function SecretaryWorkspace({
   visitors: SecretaryVisitorRecord[];
   inquiries: SecretaryInquiryRecord[];
   balances: FeeBalanceRecord[];
+  payments: FeePaymentRecord[];
   notice: string;
   onRegisterVisitor: (visitor: Omit<SecretaryVisitorRecord, "id" | "status" | "checkInTime" | "slipPrinted">) => void;
   onPrintVisitorSlip: (id: string) => void;
@@ -3523,6 +3525,8 @@ function SecretaryWorkspace({
   const waitingVisitors = visitors.filter((item) => item.status === "Waiting");
   const insideVisitors = visitors.filter((item) => item.status === "Inside" || item.status === "Overstayed");
   const filteredStudents = balances.filter((item) => `${item.student} ${item.admissionNo} ${item.parentPhone}`.toLowerCase().includes(studentSearch.toLowerCase()));
+  const latestPaymentForStudent = (studentRecord: FeeBalanceRecord) =>
+    payments.find((payment) => payment.admissionNo === studentRecord.admissionNo || payment.student === studentRecord.student);
   const summaryCards: Array<{ label: string; value: string; helper: string; tone: "ok" | "warning" | "critical"; Icon: LucideIcon }> = [
     { label: "Parents Waiting", value: String(waitingParents.length), helper: "Front office queue", tone: waitingParents.length > 0 ? "warning" : "ok", Icon: ClipboardList },
     { label: "Visitors Waiting", value: String(waitingVisitors.length), helper: "Gate/front desk log", tone: waitingVisitors.length > 0 ? "warning" : "ok", Icon: Clock3 },
@@ -3635,11 +3639,28 @@ function SecretaryWorkspace({
           <input value={studentSearch} onChange={(event) => setStudentSearch(event.currentTarget.value)} className={`${fieldClass} mt-4 w-full`} aria-label="Secretary student search" placeholder="Search name, admission no, parent phone" />
           <div className="mt-3 space-y-2">
             {filteredStudents.map((studentRecord) => (
-              <div key={studentRecord.id} className="rounded-xl border border-[#D7E0EF] bg-surface-muted p-3">
-                <p className="text-sm font-black text-foreground">{studentRecord.student}</p>
-                <p className="mt-1 text-xs font-semibold text-muted">{studentRecord.className} - {studentRecord.admissionNo} - balance KSh {studentRecord.balance.toLocaleString("en-KE")}</p>
-                <button type="button" onClick={() => onPrintFeeStatement(studentRecord)} className="mt-2 rounded-lg border border-[#B8D4FF] px-2 py-1 text-xs font-black text-[#1D4ED8]">Print Fee Statement</button>
-              </div>
+              (() => {
+                const latestPayment = latestPaymentForStudent(studentRecord);
+
+                return (
+                  <div key={studentRecord.id} className="rounded-xl border border-[#D7E0EF] bg-surface-muted p-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="text-sm font-black text-foreground">{studentRecord.student}</p>
+                      <StatusPill label={studentRecord.status} tone={studentRecord.status === "Clear" ? "ok" : studentRecord.status === "High Balance" ? "critical" : "warning"} compact />
+                    </div>
+                    <p className="mt-1 text-xs font-semibold text-muted">{studentRecord.className} - {studentRecord.admissionNo} - balance KSh {studentRecord.balance.toLocaleString("en-KE")}</p>
+                    {latestPayment ? (
+                      <div className="mt-2 rounded-lg border border-[#BBF7D0] bg-[#F0FDF4] px-2 py-2 text-xs font-bold text-[#047857]">
+                        <p>Latest payment KSh {latestPayment.amount.toLocaleString("en-KE")} by {latestPayment.method}</p>
+                        <p>Receipt {latestPayment.receiptNo} - {latestPayment.status}</p>
+                      </div>
+                    ) : (
+                      <p className="mt-2 rounded-lg border border-[#D7E0EF] bg-white px-2 py-2 text-xs font-bold text-muted">No payment recorded today</p>
+                    )}
+                    <button type="button" onClick={() => onPrintFeeStatement(studentRecord)} className="mt-2 rounded-lg border border-[#B8D4FF] px-2 py-1 text-xs font-black text-[#1D4ED8]">Print Fee Statement</button>
+                  </div>
+                );
+              })()
             ))}
           </div>
         </Card>
@@ -7621,6 +7642,7 @@ function GenericRoleOperationalCommandCenter({
                 visitors={secretaryVisitors}
                 inquiries={secretaryInquiries}
                 balances={feeBalances}
+                payments={feePayments}
                 notice={secretaryNotice}
                 onRegisterVisitor={registerSecretaryVisitor}
                 onPrintVisitorSlip={printSecretaryVisitorSlip}

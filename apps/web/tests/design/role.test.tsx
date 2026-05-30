@@ -1279,6 +1279,60 @@ describe("STEP 4: Role tests", () => {
     expect(printMock).toHaveBeenCalled();
   }, 30000);
 
+  it("shows accountant payment status in the secretary student search", async () => {
+    const user = userEvent.setup();
+    const schoolId = "secretary-finance-sync";
+    window.localStorage.setItem("myshule.currentSchoolId", schoolId);
+
+    addSchoolRecord(
+      "fee-balances",
+      {
+        id: "fee-mary-atieno",
+        student: "Mary Atieno",
+        admissionNo: "KBI/2026/501",
+        className: "Form 1 North",
+        balance: 7400,
+        parentPhone: "0711 222 999",
+        lastPayment: 5000,
+        lastMethod: "Cash",
+        status: "Balance",
+      },
+      schoolId,
+    );
+    addSchoolRecord(
+      "finance-payments",
+      {
+        id: "secretary-payment-mary",
+        student: "Mary Atieno",
+        admissionNo: "KBI/2026/501",
+        amount: 5000,
+        method: "Cash",
+        voteHead: "Tuition",
+        term: "Term 2 2026",
+        reference: "CASH-5000",
+        receiptNo: "KBI-RCPT-5010",
+        parentSmsSent: true,
+        status: "Recorded",
+      },
+      schoolId,
+    );
+
+    renderWithProviders(
+      createElement(SchoolPages, {
+        role: "secretary" as SchoolExperienceRole,
+        tenantSlug: schoolId,
+      }),
+    );
+
+    const commandCenter = await screen.findByTestId("role-operational-command-center");
+    await user.clear(within(commandCenter).getByLabelText(/secretary student search/i));
+    await user.type(within(commandCenter).getByLabelText(/secretary student search/i), "Mary");
+
+    expect(within(commandCenter).getByText(/balance KSh 7,400/i)).toBeVisible();
+    expect(within(commandCenter).getByText(/latest payment KSh 5,000 by Cash/i)).toBeVisible();
+    expect(within(commandCenter).getByText(/receipt KBI-RCPT-5010/i)).toBeVisible();
+  }, 30000);
+
   it("renders role-specific sidebar aliases as operational workspaces instead of falling through to legacy pages", async () => {
     const routeCases: Array<{
       role: SchoolExperienceRole;
