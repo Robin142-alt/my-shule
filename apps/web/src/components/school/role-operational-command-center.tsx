@@ -353,6 +353,21 @@ type DisciplineCaseRecord = {
   time: string;
 };
 
+type CounsellingSessionRecord = {
+  id: string;
+  student: string;
+  className: string;
+  referralSource: "Teacher" | "Class Teacher" | "Discipline Master" | "Boarding Master" | "Nurse" | "Parent" | "Self";
+  riskLevel: "Low" | "Medium" | "High" | "Critical";
+  sessionType: "Welfare Check" | "Discipline Referral" | "Academic Stress" | "Boarding Support" | "Medical Follow-up" | "Parent Meeting";
+  guardianPhone: string;
+  notes: string;
+  followUpDate: string;
+  status: "Open" | "Follow-up Scheduled" | "Escalated" | "Closed";
+  guardianSmsSent: boolean;
+  time: string;
+};
+
 type RoleSearchResult = {
   id: string;
   label: string;
@@ -882,6 +897,51 @@ const initialDisciplineCases: DisciplineCaseRecord[] = [
     parentSmsSent: true,
     counsellorReferred: true,
     time: "11:30",
+  },
+];
+
+const initialCounsellingSessions: CounsellingSessionRecord[] = [
+  {
+    id: "counselling-brian",
+    student: "Brian Otieno",
+    className: "Form 2 East",
+    referralSource: "Discipline Master",
+    riskLevel: "High",
+    sessionType: "Discipline Referral",
+    guardianPhone: "0712 345 678",
+    notes: "Bullying follow-up linked to discipline case and class teacher watch list.",
+    followUpDate: "2026-06-03",
+    status: "Follow-up Scheduled",
+    guardianSmsSent: true,
+    time: "09:20",
+  },
+  {
+    id: "counselling-faith",
+    student: "Faith Akinyi",
+    className: "Grade 8 West",
+    referralSource: "Class Teacher",
+    riskLevel: "Medium",
+    sessionType: "Academic Stress",
+    guardianPhone: "0798 111 222",
+    notes: "Needs study pressure check-in after missing assignments.",
+    followUpDate: "2026-06-05",
+    status: "Open",
+    guardianSmsSent: false,
+    time: "10:40",
+  },
+  {
+    id: "counselling-grace",
+    student: "Grace Njeri",
+    className: "Form 2 West",
+    referralSource: "Boarding Master",
+    riskLevel: "Low",
+    sessionType: "Boarding Support",
+    guardianPhone: "0711 555 990",
+    notes: "Dorm adjustment support; boarding master requested weekly check.",
+    followUpDate: "2026-06-07",
+    status: "Closed",
+    guardianSmsSent: true,
+    time: "12:15",
   },
 ];
 
@@ -3736,6 +3796,223 @@ function DisciplineWorkspace({
   );
 }
 
+function CounsellingWorkspace({
+  sessions,
+  notice,
+  onAddSession,
+  onNotifyGuardian,
+  onScheduleFollowUp,
+  onEscalateDeputy,
+  onPrintSummary,
+  onCloseFollowUp,
+}: {
+  sessions: CounsellingSessionRecord[];
+  notice: string;
+  onAddSession: (record: Omit<CounsellingSessionRecord, "id" | "status" | "guardianSmsSent" | "time">) => void;
+  onNotifyGuardian: (id: string) => void;
+  onScheduleFollowUp: (id: string) => void;
+  onEscalateDeputy: (id: string) => void;
+  onPrintSummary: (id: string) => void;
+  onCloseFollowUp: (id: string) => void;
+}) {
+  const [student, setStudent] = useState("Faith Akinyi");
+  const [className, setClassName] = useState("Grade 8 West");
+  const [referralSource, setReferralSource] = useState<CounsellingSessionRecord["referralSource"]>("Discipline Master");
+  const [riskLevel, setRiskLevel] = useState<CounsellingSessionRecord["riskLevel"]>("High");
+  const [sessionType, setSessionType] = useState<CounsellingSessionRecord["sessionType"]>("Welfare Check");
+  const [guardianPhone, setGuardianPhone] = useState("0798 111 222");
+  const [notes, setNotes] = useState("Bullying stress follow-up and parent meeting needed.");
+  const [followUpDate, setFollowUpDate] = useState("2026-06-02");
+  const [searchTerm, setSearchTerm] = useState("");
+  const fieldClass = "rounded-xl border border-[#D7E0EF] bg-white px-3 py-2 text-sm font-semibold text-[#071D49] outline-none focus:border-[#1D4ED8]";
+  const openSessions = sessions.filter((item) => item.status !== "Closed");
+  const highRisk = sessions.filter((item) => item.riskLevel === "High" || item.riskLevel === "Critical");
+  const followUpsDue = sessions.filter((item) => item.status === "Follow-up Scheduled" || item.status === "Open");
+  const guardianSmsPending = sessions.filter((item) => !item.guardianSmsSent && item.status !== "Closed");
+  const filteredSessions = sessions.filter((item) => `${item.student} ${item.className} ${item.referralSource} ${item.riskLevel} ${item.sessionType} ${item.notes}`.toLowerCase().includes(searchTerm.toLowerCase()));
+  const summaryCards: Array<{ label: string; value: string; helper: string; tone: "ok" | "warning" | "critical"; Icon: LucideIcon }> = [
+    { label: "Open Sessions", value: String(openSessions.length), helper: "Student welfare queue", tone: openSessions.length > 0 ? "warning" : "ok", Icon: ClipboardList },
+    { label: "High Risk", value: String(highRisk.length), helper: "Deputy visibility needed", tone: highRisk.length > 0 ? "critical" : "ok", Icon: ShieldCheck },
+    { label: "Follow-ups Due", value: String(followUpsDue.length), helper: "Counsellor calendar", tone: followUpsDue.length > 0 ? "warning" : "ok", Icon: Clock3 },
+    { label: "Guardian SMS Pending", value: String(guardianSmsPending.length), helper: "Parent/guardian contact", tone: guardianSmsPending.length > 0 ? "warning" : "ok", Icon: MessageCircle },
+    { label: "Closed Cases", value: String(sessions.filter((item) => item.status === "Closed").length), helper: "Completed follow-ups", tone: "ok", Icon: CheckCircle2 },
+  ];
+
+  return (
+    <div className="grid gap-4 2xl:grid-cols-[minmax(0,1fr)_380px]">
+      <div className="space-y-4">
+        <div role="status" className="rounded-xl border border-[#B8D4FF] bg-[#EFF6FF] px-4 py-3 text-sm font-black text-[#1D4ED8]">
+          {notice}
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+          {summaryCards.map(({ label, value, helper, tone, Icon }) => (
+            <Card key={label} className="p-4">
+              <div className="flex items-start justify-between gap-2">
+                <Icon className="h-5 w-5 text-accent" />
+                <StatusPill label={tone === "critical" ? "Urgent" : tone === "warning" ? "Check" : "OK"} tone={tone} compact />
+              </div>
+              <p className="mt-3 text-xs font-black uppercase tracking-[0.14em] text-muted">{label}</p>
+              <p className="mt-1 text-2xl font-black text-foreground">{value}</p>
+              <p className="mt-1 text-xs font-semibold text-muted">{helper}</p>
+            </Card>
+          ))}
+        </div>
+
+        <Card className="p-5">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="eyebrow">Counselling intake</p>
+              <h3 className="mt-1 text-lg font-black text-foreground">Start counselling session</h3>
+              <p className="mt-1 text-sm font-semibold text-muted">
+                Record referrals, protect sensitive notes, schedule follow-ups, notify guardians, and escalate high-risk welfare cases.
+              </p>
+            </div>
+            <StatusPill label="Student welfare desk" tone="warning" />
+          </div>
+          <form
+            className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4"
+            onSubmit={(event) => {
+              event.preventDefault();
+              onAddSession({ student, className, referralSource, riskLevel, sessionType, guardianPhone, notes, followUpDate });
+            }}
+          >
+            <input value={student} onChange={(event) => setStudent(event.currentTarget.value)} className={fieldClass} aria-label="Counselling student" placeholder="Student name" required />
+            <input value={className} onChange={(event) => setClassName(event.currentTarget.value)} className={fieldClass} aria-label="Counselling class" placeholder="Class/Form" required />
+            <select value={referralSource} onChange={(event) => setReferralSource(event.currentTarget.value as CounsellingSessionRecord["referralSource"])} className={fieldClass} aria-label="Referral source">
+              {["Teacher", "Class Teacher", "Discipline Master", "Boarding Master", "Nurse", "Parent", "Self"].map((option) => <option key={option}>{option}</option>)}
+            </select>
+            <select value={riskLevel} onChange={(event) => setRiskLevel(event.currentTarget.value as CounsellingSessionRecord["riskLevel"])} className={fieldClass} aria-label="Risk level">
+              {["Low", "Medium", "High", "Critical"].map((option) => <option key={option}>{option}</option>)}
+            </select>
+            <select value={sessionType} onChange={(event) => setSessionType(event.currentTarget.value as CounsellingSessionRecord["sessionType"])} className={fieldClass} aria-label="Session type">
+              {["Welfare Check", "Discipline Referral", "Academic Stress", "Boarding Support", "Medical Follow-up", "Parent Meeting"].map((option) => <option key={option}>{option}</option>)}
+            </select>
+            <input value={guardianPhone} onChange={(event) => setGuardianPhone(event.currentTarget.value)} className={fieldClass} aria-label="Guardian phone" placeholder="Guardian phone" required />
+            <input value={followUpDate} onChange={(event) => setFollowUpDate(event.currentTarget.value)} className={fieldClass} aria-label="Follow-up date" type="date" required />
+            <textarea value={notes} onChange={(event) => setNotes(event.currentTarget.value)} className={`${fieldClass} md:col-span-2 xl:col-span-1`} aria-label="Session notes" placeholder="Confidential notes and follow-up plan" required />
+            <button type="submit" className="rounded-xl bg-[#071D49] px-4 py-2 text-sm font-black text-white md:col-span-2 xl:col-span-4">Save Session</button>
+          </form>
+        </Card>
+
+        <Card className="p-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="eyebrow">Student welfare queue</p>
+              <h3 className="mt-1 text-lg font-black text-foreground">Referral queue and follow-ups</h3>
+              <p className="mt-1 text-sm font-semibold text-muted">Each case can notify guardian, schedule follow-up, escalate risk, print summary, or close the follow-up.</p>
+            </div>
+            <StatusPill label={`${filteredSessions.length} shown`} tone="ok" />
+          </div>
+          <label className="mt-4 block">
+            <span className="sr-only">Search counselling sessions</span>
+            <input value={searchTerm} onChange={(event) => setSearchTerm(event.currentTarget.value)} className={`${fieldClass} w-full`} aria-label="Search counselling sessions" placeholder="Search student, referral source, risk, session type" />
+          </label>
+          <div className="mt-4 overflow-x-auto rounded-xl border border-[#D7E0EF]">
+            <table className="min-w-full divide-y divide-[#E2E8F0] text-sm">
+              <thead className="bg-[#F8FAFC] text-left text-xs font-black uppercase tracking-[0.12em] text-muted">
+                <tr>
+                  {["Student", "Referral", "Risk", "Status", "Guardian SMS", "Action"].map((column) => <th key={column} className="px-3 py-3">{column}</th>)}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#E2E8F0] bg-white">
+                {filteredSessions.length === 0 ? (
+                  <tr>
+                    <td className="px-3 py-6 text-center text-sm font-semibold text-muted" colSpan={6}>No counselling sessions match that search.</td>
+                  </tr>
+                ) : filteredSessions.map((item) => (
+                  <tr key={item.id}>
+                    <td className="px-3 py-3 font-black text-foreground">
+                      {item.student}
+                      <span className="block text-xs font-semibold text-muted">{item.className} - {item.time}</span>
+                    </td>
+                    <td className="px-3 py-3 font-semibold text-muted">
+                      {item.referralSource}
+                      <span className="block text-xs">{item.sessionType}: {item.notes}</span>
+                      <span className="block text-xs">Follow-up: {item.followUpDate}</span>
+                    </td>
+                    <td className="px-3 py-3"><StatusPill label={item.riskLevel} tone={item.riskLevel === "Critical" || item.riskLevel === "High" ? "critical" : item.riskLevel === "Medium" ? "warning" : "ok"} compact /></td>
+                    <td className="px-3 py-3"><StatusPill label={item.status} tone={item.status === "Closed" ? "ok" : item.status === "Escalated" ? "critical" : "warning"} compact /></td>
+                    <td className="px-3 py-3"><StatusPill label={item.guardianSmsSent ? "Sent" : "Not sent"} tone={item.guardianSmsSent ? "ok" : "warning"} compact /></td>
+                    <td className="px-3 py-3">
+                      <div className="flex flex-wrap gap-2">
+                        <button type="button" onClick={() => onNotifyGuardian(item.id)} className="rounded-lg border border-[#B8D4FF] px-2 py-1 text-xs font-black text-[#1D4ED8]">Notify Guardian</button>
+                        <button type="button" onClick={() => onScheduleFollowUp(item.id)} className="rounded-lg border border-[#FED7AA] px-2 py-1 text-xs font-black text-warning">Schedule Follow-up</button>
+                        <button type="button" onClick={() => onEscalateDeputy(item.id)} className="rounded-lg border border-[#FECACA] px-2 py-1 text-xs font-black text-critical">Escalate Deputy</button>
+                        <button type="button" onClick={() => onPrintSummary(item.id)} className="rounded-lg border border-[#D7E0EF] px-2 py-1 text-xs font-black text-[#071D49]">Print Summary</button>
+                        <button type="button" onClick={() => onCloseFollowUp(item.id)} className="rounded-lg border border-[#BBF7D0] px-2 py-1 text-xs font-black text-success">Mark Follow-up Done</button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      </div>
+
+      <aside className="space-y-4">
+        <Card className="p-5">
+          <div className="flex items-center gap-2">
+            <ShieldCheck className="h-4 w-4 text-critical" />
+            <h3 className="text-lg font-black text-foreground">High-risk welfare cases</h3>
+          </div>
+          <div className="mt-3 space-y-2">
+            {highRisk.length === 0 ? (
+              <p className="rounded-xl border border-[#D7E0EF] bg-surface-muted p-3 text-sm font-semibold text-muted">No high-risk counselling cases today.</p>
+            ) : highRisk.map((item) => (
+              <div key={item.id} className="rounded-xl border border-[#FECACA] bg-critical-soft/40 p-3">
+                <p className="text-sm font-black text-foreground">{item.student}</p>
+                <p className="mt-1 text-xs font-semibold text-muted">{item.sessionType} - {item.className} - {item.status}</p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <button type="button" onClick={() => onEscalateDeputy(item.id)} className="rounded-lg border border-[#FECACA] px-2 py-1 text-xs font-black text-critical">Escalate Deputy</button>
+                  <button type="button" onClick={() => onNotifyGuardian(item.id)} className="rounded-lg border border-[#B8D4FF] px-2 py-1 text-xs font-black text-[#1D4ED8]">Notify Guardian</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+
+        <Card className="p-5">
+          <div className="flex items-center gap-2">
+            <Clock3 className="h-4 w-4 text-warning" />
+            <h3 className="text-lg font-black text-foreground">Follow-ups due</h3>
+          </div>
+          <div className="mt-3 space-y-2">
+            {followUpsDue.length === 0 ? (
+              <p className="rounded-xl border border-[#D7E0EF] bg-surface-muted p-3 text-sm font-semibold text-muted">No counselling follow-ups due today.</p>
+            ) : followUpsDue.slice(0, 5).map((item) => (
+              <div key={item.id} className="rounded-xl border border-[#D7E0EF] bg-surface-muted p-3">
+                <p className="text-sm font-black text-foreground">{item.student}</p>
+                <p className="mt-1 text-xs font-semibold text-muted">{item.followUpDate} - {item.sessionType}</p>
+                <button type="button" onClick={() => onCloseFollowUp(item.id)} className="mt-2 rounded-lg border border-[#BBF7D0] px-2 py-1 text-xs font-black text-success">Mark Follow-up Done</button>
+              </div>
+            ))}
+          </div>
+        </Card>
+
+        <Card className="p-5">
+          <div className="flex items-center gap-2">
+            <MessageCircle className="h-4 w-4 text-accent" />
+            <h3 className="text-lg font-black text-foreground">Guardian communication</h3>
+          </div>
+          <div className="mt-3 space-y-2">
+            {guardianSmsPending.length === 0 ? (
+              <p className="rounded-xl border border-[#D7E0EF] bg-surface-muted p-3 text-sm font-semibold text-muted">All open counselling cases have guardian communication recorded.</p>
+            ) : guardianSmsPending.map((item) => (
+              <div key={item.id} className="rounded-xl border border-[#D7E0EF] bg-surface-muted p-3">
+                <p className="text-sm font-black text-foreground">{item.student}</p>
+                <p className="mt-1 text-xs font-semibold text-muted">{item.guardianPhone} - {item.riskLevel} risk</p>
+                <button type="button" onClick={() => onNotifyGuardian(item.id)} className="mt-2 rounded-lg border border-[#B8D4FF] px-2 py-1 text-xs font-black text-[#1D4ED8]">Notify Guardian</button>
+              </div>
+            ))}
+          </div>
+        </Card>
+      </aside>
+    </div>
+  );
+}
+
 function WorkflowMap({ workflows }: { workflows: string[] }) {
   return (
     <Card className="p-5">
@@ -4402,6 +4679,8 @@ function GenericRoleOperationalCommandCenter({
   const [secretaryNotice, setSecretaryNotice] = useState("Front office ready. Register visitors, serve parents, print slips, send SMS, and escalate issues.");
   const [disciplineCases, setDisciplineCases] = useState<DisciplineCaseRecord[]>(initialDisciplineCases);
   const [disciplineNotice, setDisciplineNotice] = useState("Discipline desk ready. Record incidents, notify parents, refer counsellor, escalate serious cases, print letters, and close cases.");
+  const [counsellingSessions, setCounsellingSessions] = useState<CounsellingSessionRecord[]>(initialCounsellingSessions);
+  const [counsellingNotice, setCounsellingNotice] = useState("Counselling desk ready. Record sessions, notify guardians, schedule follow-ups, escalate high-risk cases, print summaries, and close follow-ups.");
 
   useEffect(() => {
     function hydrateStoredSchoolRecords() {
@@ -4421,6 +4700,7 @@ function GenericRoleOperationalCommandCenter({
       setLabRequests(mergeSchoolRecordsById(initialLabRequests, readSchoolData<LabPracticalRequestRecord>("lab-practical-requests", schoolId)));
       setLabIssues(mergeSchoolRecordsById(initialLabIssues, readSchoolData<LabIssueRecord>("lab-apparatus-issues", schoolId)));
       setDisciplineCases(mergeSchoolRecordsById(initialDisciplineCases, readSchoolData<DisciplineCaseRecord>("discipline-cases", schoolId)));
+      setCounsellingSessions(mergeSchoolRecordsById(initialCounsellingSessions, readSchoolData<CounsellingSessionRecord>("counselling-sessions", schoolId)));
       setAttendanceRegisters(readSchoolData<AttendanceRegisterRecord>("attendance-registers", schoolId));
     }
 
@@ -4461,6 +4741,7 @@ function GenericRoleOperationalCommandCenter({
   const isAccountantWorkspace = (role === "accountant" || role === "bursar") && (activeWorkspaceKind === "finance" || /dashboard|fee|finance|receipt|payment|m-pesa|mpesa|balance/i.test(resolvedWorkspace));
   const isSecretaryWorkspace = (role === "secretary" || role === "admin") && (activeWorkspaceKind === "command" || activeWorkspaceKind === "communication" || /dashboard|front office|visitor|parent|document|appointment|communication/i.test(resolvedWorkspace));
   const isDisciplineWorkspace = role === "discipline-master" && (activeWorkspaceKind === "command" || activeWorkspaceKind === "discipline" || /dashboard|incident|case|discipline|prefect|deputy|counsellor|evidence/i.test(resolvedWorkspace));
+  const isCounsellingWorkspace = role === "guidance-counselling" && (activeWorkspaceKind === "command" || activeWorkspaceKind === "counselling" || /dashboard|counselling|counseling|wellness|session|referral|follow-up|parent|welfare|risk/i.test(resolvedWorkspace));
   const isUserManagementWorkspace = role === "deputy-principal" && /user|invitation|invite|role|permission/i.test(resolvedWorkspace);
   const diagnosticsWorkspace = isDiagnosticsWorkspace(resolvedWorkspace);
   const commandWorkspace = isCommandWorkspace(resolvedWorkspace, activeWorkspaceIndex);
@@ -6688,6 +6969,192 @@ function GenericRoleOperationalCommandCenter({
     setDisciplineNotice(`${disciplineCase?.student ?? "Student"} case resolved.`);
   }
 
+  function saveCounsellingSessionRecord(record: CounsellingSessionRecord) {
+    const storedSessions = readSchoolData<CounsellingSessionRecord>("counselling-sessions", schoolId);
+
+    if (storedSessions.some((item) => item.id === record.id)) {
+      updateSchoolRecord("counselling-sessions", record.id, record, schoolId);
+      return;
+    }
+
+    addSchoolRecord("counselling-sessions", record, schoolId);
+  }
+
+  function addCounsellingExecutionLog(label: string, events: string[]) {
+    addLocalExecutionLog(label, events, {
+      workflow: "Referral received -> Session recorded -> Guardian contacted -> Follow-up closed",
+      audit: "audit.counselling.session_action",
+    });
+  }
+
+  function addCounsellingSession(record: Omit<CounsellingSessionRecord, "id" | "status" | "guardianSmsSent" | "time">) {
+    const newSession: CounsellingSessionRecord = {
+      ...record,
+      id: runtimeId("counselling-session"),
+      status: "Open",
+      guardianSmsSent: false,
+      time: new Date().toLocaleTimeString("en-KE", { hour: "2-digit", minute: "2-digit" }),
+    };
+
+    setCounsellingSessions((current) => [newSession, ...current]);
+    saveCounsellingSessionRecord(newSession);
+    publishDashboardEvent({
+      type: "COUNSELLING_SESSION_RECORDED",
+      module: "counselling",
+      title: `${newSession.student} counselling session recorded`,
+      body: `${newSession.student} in ${newSession.className} was referred by ${newSession.referralSource} for ${newSession.sessionType}.`,
+      entityId: newSession.id,
+      severity: newSession.riskLevel === "High" || newSession.riskLevel === "Critical" ? "critical" : "warning",
+      payload: { session: newSession },
+      notifications: [
+        {
+          audienceRoles: ["deputy-principal", "principal", "discipline-master", "class-teacher"],
+          title: "Counselling session recorded",
+          body: `${newSession.student} has a ${newSession.riskLevel.toLowerCase()} risk counselling follow-up.`,
+          severity: newSession.riskLevel === "High" || newSession.riskLevel === "Critical" ? "critical" : "warning",
+        },
+      ],
+    });
+    addCounsellingExecutionLog(`${newSession.student} counselling session recorded`, ["Session saved", "Deputy and discipline desk notified"]);
+    setCounsellingNotice(`${newSession.student} counselling session recorded.`);
+  }
+
+  function updateCounsellingSession(id: string, updates: Partial<CounsellingSessionRecord>) {
+    let nextRecord: CounsellingSessionRecord | null = null;
+
+    setCounsellingSessions((current) => current.map((item) => {
+      if (item.id !== id) {
+        return item;
+      }
+
+      nextRecord = { ...item, ...updates };
+      return nextRecord;
+    }));
+
+    const currentRecord = counsellingSessions.find((item) => item.id === id);
+    const recordToSave = nextRecord ?? (currentRecord ? { ...currentRecord, ...updates } : null);
+
+    if (recordToSave) {
+      saveCounsellingSessionRecord(recordToSave);
+    }
+
+    return recordToSave;
+  }
+
+  function notifyCounsellingGuardian(id: string) {
+    const session = updateCounsellingSession(id, { guardianSmsSent: true });
+
+    publishDashboardEvent({
+      type: "COUNSELLING_GUARDIAN_SMS_SENT",
+      module: "counselling",
+      title: `${session?.student ?? "Student"} guardian SMS sent`,
+      body: `Guardian notified about counselling follow-up for ${session?.student ?? "student"}.`,
+      entityId: id,
+      severity: "success",
+      sms: session?.guardianPhone ? [{
+        recipient: session.guardianPhone,
+        message: `MyShule counselling update: ${session.student} has a ${session.sessionType.toLowerCase()} follow-up scheduled. Please contact the school counsellor if needed.`,
+      }] : undefined,
+      notifications: [{ audienceRoles: ["guidance-counselling", "class-teacher", "deputy-principal"], title: "Counselling guardian SMS sent" }],
+    });
+    addCounsellingExecutionLog(`${session?.student ?? "Student"} guardian SMS sent`, ["Guardian SMS simulated", "Communication record updated"]);
+    setCounsellingNotice(`${session?.student ?? "Student"} guardian SMS sent.`);
+  }
+
+  function scheduleCounsellingFollowUp(id: string) {
+    const session = updateCounsellingSession(id, { status: "Follow-up Scheduled" });
+
+    if (session) {
+      addSchoolRecord("counselling-follow-ups", {
+        id: runtimeId("counselling-follow-up"),
+        sessionId: session.id,
+        student: session.student,
+        className: session.className,
+        followUpDate: session.followUpDate,
+        status: "Scheduled",
+        createdAt: new Date().toISOString(),
+      }, schoolId);
+    }
+    publishDashboardEvent({
+      type: "COUNSELLING_FOLLOW_UP_SCHEDULED",
+      module: "counselling",
+      title: `${session?.student ?? "Student"} counselling follow-up scheduled`,
+      body: `${session?.student ?? "Student"} follow-up was scheduled for ${session?.followUpDate ?? "the next available date"}.`,
+      entityId: id,
+      severity: "warning",
+      notifications: [{ audienceRoles: ["guidance-counselling", "class-teacher", "deputy-principal"], title: "Counselling follow-up scheduled" }],
+    });
+    addCounsellingExecutionLog(`${session?.student ?? "Student"} follow-up scheduled`, ["Follow-up calendar updated", "Class teacher notified"]);
+    setCounsellingNotice(`${session?.student ?? "Student"} follow-up scheduled.`);
+  }
+
+  function escalateCounsellingCase(id: string) {
+    const session = updateCounsellingSession(id, { status: "Escalated" });
+
+    publishDashboardEvent({
+      type: "COUNSELLING_CASE_ESCALATED",
+      module: "counselling",
+      title: `${session?.student ?? "Student"} escalated to deputy`,
+      body: `${session?.riskLevel ?? "Counselling"} risk case for ${session?.student ?? "student"} escalated to deputy principal.`,
+      entityId: id,
+      severity: "critical",
+      notifications: [
+        {
+          audienceRoles: ["deputy-principal", "principal", "guidance-counselling"],
+          title: "Counselling case escalated",
+          body: `${session?.student ?? "Student"} needs deputy welfare action.`,
+          severity: "critical",
+        },
+      ],
+    });
+    addCounsellingExecutionLog(`${session?.student ?? "Student"} escalated to deputy`, ["Deputy notified", "Risk level visible"]);
+    setCounsellingNotice(`${session?.student ?? "Student"} escalated to deputy.`);
+  }
+
+  function printCounsellingSummary(id: string) {
+    const session = counsellingSessions.find((item) => item.id === id);
+
+    if (session) {
+      addSchoolRecord("printed-documents", {
+        id: runtimeId("counselling-summary"),
+        documentType: "Counselling Summary",
+        student: session.student,
+        className: session.className,
+        sessionType: session.sessionType,
+        printedBy: titleizeRole(role),
+        createdAt: new Date().toISOString(),
+      }, schoolId);
+    }
+    publishDashboardEvent({
+      type: "COUNSELLING_SUMMARY_PRINTED",
+      module: "counselling",
+      title: `${session?.student ?? "Student"} counselling summary opened`,
+      body: `Counselling summary prepared for ${session?.student ?? "student"}.`,
+      entityId: id,
+      severity: "success",
+      notifications: [{ audienceRoles: ["guidance-counselling", "deputy-principal"], title: "Counselling summary printed" }],
+    });
+    addCounsellingExecutionLog(`${session?.student ?? "Student"} counselling summary opened`, ["Printable summary prepared", "Document record saved"]);
+    setCounsellingNotice(`${session?.student ?? "Student"} counselling summary opened.`);
+    window.print?.();
+  }
+
+  function closeCounsellingFollowUp(id: string) {
+    const session = updateCounsellingSession(id, { status: "Closed" });
+
+    publishDashboardEvent({
+      type: "COUNSELLING_FOLLOW_UP_CLOSED",
+      module: "counselling",
+      title: `${session?.student ?? "Student"} counselling follow-up closed`,
+      body: `${session?.student ?? "Student"} counselling follow-up marked closed.`,
+      entityId: id,
+      severity: "success",
+      notifications: [{ audienceRoles: ["guidance-counselling", "class-teacher", "deputy-principal"], title: "Counselling follow-up closed" }],
+    });
+    addCounsellingExecutionLog(`${session?.student ?? "Student"} follow-up closed`, ["Case closed", "Follow-up record saved"]);
+    setCounsellingNotice(`${session?.student ?? "Student"} follow-up closed.`);
+  }
+
   function openSearchResult(result: RoleSearchResult) {
     setWorkspaceSelection({
       routeKey: routeWorkspaceKey,
@@ -6847,6 +7314,24 @@ function GenericRoleOperationalCommandCenter({
             onResolveCase={resolveDisciplineCase}
             recordIncidentAction={disciplineRecordIncidentAction}
             onExecuteAction={(action) => void executeAction(action)}
+          />
+          <ExecutionInlineNotice items={executionLog} />
+        </div>
+      );
+    }
+
+    if (isCounsellingWorkspace) {
+      return (
+        <div className="space-y-4">
+          <CounsellingWorkspace
+            sessions={counsellingSessions}
+            notice={counsellingNotice}
+            onAddSession={addCounsellingSession}
+            onNotifyGuardian={notifyCounsellingGuardian}
+            onScheduleFollowUp={scheduleCounsellingFollowUp}
+            onEscalateDeputy={escalateCounsellingCase}
+            onPrintSummary={printCounsellingSummary}
+            onCloseFollowUp={closeCounsellingFollowUp}
           />
           <ExecutionInlineNotice items={executionLog} />
         </div>
@@ -7053,6 +7538,20 @@ function GenericRoleOperationalCommandCenter({
                   onResolveCase={resolveDisciplineCase}
                   recordIncidentAction={disciplineRecordIncidentAction}
                   onExecuteAction={(action) => void executeAction(action)}
+                />
+                <ExecutionInlineNotice items={executionLog} />
+              </div>
+            ) : isCounsellingWorkspace ? (
+              <div className="space-y-4">
+                <CounsellingWorkspace
+                  sessions={counsellingSessions}
+                  notice={counsellingNotice}
+                  onAddSession={addCounsellingSession}
+                  onNotifyGuardian={notifyCounsellingGuardian}
+                  onScheduleFollowUp={scheduleCounsellingFollowUp}
+                  onEscalateDeputy={escalateCounsellingCase}
+                  onPrintSummary={printCounsellingSummary}
+                  onCloseFollowUp={closeCounsellingFollowUp}
                 />
                 <ExecutionInlineNotice items={executionLog} />
               </div>

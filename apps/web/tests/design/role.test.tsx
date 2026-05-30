@@ -1096,6 +1096,124 @@ describe("STEP 4: Role tests", () => {
     ).toBe(true);
   }, 30000);
 
+  it("makes the counselling desk practical with session intake, guardian SMS, follow-ups, escalation, printing, and closure", async () => {
+    const user = userEvent.setup();
+    const printMock = jest.fn();
+    const schoolId = "kisumu-boys";
+    Object.defineProperty(window, "print", { value: printMock, writable: true });
+
+    renderWithProviders(
+      createElement(SchoolPages, {
+        role: "guidance-counselling" as SchoolExperienceRole,
+        tenantSlug: "kisumu-boys",
+      }),
+    );
+
+    const commandCenter = await screen.findByTestId("role-operational-command-center");
+    expect(within(commandCenter).getByRole("heading", { name: /start counselling session/i })).toBeVisible();
+    expect(within(commandCenter).getByText(/referral queue and follow-ups/i)).toBeVisible();
+
+    await user.clear(within(commandCenter).getByLabelText(/counselling student/i));
+    await user.type(within(commandCenter).getByLabelText(/counselling student/i), "Faith Akinyi");
+    await user.clear(within(commandCenter).getByLabelText(/counselling class/i));
+    await user.type(within(commandCenter).getByLabelText(/counselling class/i), "Grade 8 West");
+    await user.selectOptions(within(commandCenter).getByLabelText(/referral source/i), "Discipline Master");
+    await user.selectOptions(within(commandCenter).getByLabelText(/risk level/i), "High");
+    await user.selectOptions(within(commandCenter).getByLabelText(/session type/i), "Welfare Check");
+    await user.clear(within(commandCenter).getByLabelText(/guardian phone/i));
+    await user.type(within(commandCenter).getByLabelText(/guardian phone/i), "0798 111 222");
+    await user.clear(within(commandCenter).getByLabelText(/session notes/i));
+    await user.type(within(commandCenter).getByLabelText(/session notes/i), "Bullying stress follow-up and parent meeting needed.");
+    await user.clear(within(commandCenter).getByLabelText(/follow-up date/i));
+    await user.type(within(commandCenter).getByLabelText(/follow-up date/i), "2026-06-02");
+    await user.click(within(commandCenter).getByRole("button", { name: /save session/i }));
+
+    expect(within(commandCenter).getByRole("status")).toHaveTextContent(/faith akinyi counselling session recorded/i);
+    expect(
+      readSchoolData<{ student: string; riskLevel: string; status: string; schoolId: string }>("counselling-sessions", schoolId).some(
+        (session) => session.student === "Faith Akinyi" && session.riskLevel === "High" && session.status === "Open" && session.schoolId === schoolId,
+      ),
+    ).toBe(true);
+    expect(
+      readSchoolData<SchoolOperationalEvent>("events", schoolId).some(
+        (event) => event.type === "COUNSELLING_SESSION_RECORDED" && event.module === "counselling" && /Faith Akinyi/i.test(event.body),
+      ),
+    ).toBe(true);
+    expect(
+      readSchoolData<SchoolNotification>("notifications", schoolId).some(
+        (notification) =>
+          notification.sourceModule === "counselling" &&
+          notification.audienceRoles.includes("deputy-principal") &&
+          notification.audienceRoles.includes("discipline-master") &&
+          /Faith Akinyi/i.test(notification.body),
+      ),
+    ).toBe(true);
+
+    let sessionRow = within(commandCenter)
+      .getAllByText(/Faith Akinyi/i)
+      .map((element) => element.closest("tr"))
+      .find(Boolean);
+    expect(sessionRow).not.toBeNull();
+    await user.click(within(sessionRow as HTMLElement).getByRole("button", { name: /notify guardian/i }));
+    expect(within(commandCenter).getByRole("status")).toHaveTextContent(/faith akinyi guardian sms sent/i);
+    expect(
+      readSchoolData<SchoolSmsLog>("smsLogs", schoolId).some(
+        (sms) => sms.sourceModule === "counselling" && /Faith Akinyi/i.test(sms.message) && /counselling/i.test(sms.message),
+      ),
+    ).toBe(true);
+
+    sessionRow = within(commandCenter)
+      .getAllByText(/Faith Akinyi/i)
+      .map((element) => element.closest("tr"))
+      .find(Boolean);
+    expect(sessionRow).not.toBeNull();
+    await user.click(within(sessionRow as HTMLElement).getByRole("button", { name: /schedule follow-up/i }));
+    expect(within(commandCenter).getByRole("status")).toHaveTextContent(/faith akinyi follow-up scheduled/i);
+    expect(
+      readSchoolData<{ student: string; status: string }>("counselling-follow-ups", schoolId).some(
+        (followUp) => followUp.student === "Faith Akinyi" && followUp.status === "Scheduled",
+      ),
+    ).toBe(true);
+
+    sessionRow = within(commandCenter)
+      .getAllByText(/Faith Akinyi/i)
+      .map((element) => element.closest("tr"))
+      .find(Boolean);
+    expect(sessionRow).not.toBeNull();
+    await user.click(within(sessionRow as HTMLElement).getByRole("button", { name: /escalate deputy/i }));
+    expect(within(commandCenter).getByRole("status")).toHaveTextContent(/faith akinyi escalated to deputy/i);
+    expect(
+      readSchoolData<SchoolOperationalEvent>("events", schoolId).some((event) => event.type === "COUNSELLING_CASE_ESCALATED" && /Faith Akinyi/i.test(event.body)),
+    ).toBe(true);
+
+    sessionRow = within(commandCenter)
+      .getAllByText(/Faith Akinyi/i)
+      .map((element) => element.closest("tr"))
+      .find(Boolean);
+    expect(sessionRow).not.toBeNull();
+    await user.click(within(sessionRow as HTMLElement).getByRole("button", { name: /print summary/i }));
+    expect(within(commandCenter).getByRole("status")).toHaveTextContent(/faith akinyi counselling summary opened/i);
+    expect(printMock).toHaveBeenCalled();
+    expect(
+      readSchoolData<{ documentType: string; student: string }>("printed-documents", schoolId).some(
+        (document) => document.documentType === "Counselling Summary" && document.student === "Faith Akinyi",
+      ),
+    ).toBe(true);
+
+    sessionRow = within(commandCenter)
+      .getAllByText(/Faith Akinyi/i)
+      .map((element) => element.closest("tr"))
+      .find(Boolean);
+    expect(sessionRow).not.toBeNull();
+    await user.click(within(sessionRow as HTMLElement).getByRole("button", { name: /mark follow-up done/i }));
+    expect(within(commandCenter).getByRole("status")).toHaveTextContent(/faith akinyi follow-up closed/i);
+    expect(
+      readSchoolData<{ student: string; status: string }>("counselling-sessions", schoolId).some(
+        (session) => session.student === "Faith Akinyi" && session.status === "Closed",
+      ),
+    ).toBe(true);
+  }, 30000);
+
   it("lets the secretary print a fee statement directly from student search", async () => {
     const user = userEvent.setup();
     const printMock = jest.fn();
