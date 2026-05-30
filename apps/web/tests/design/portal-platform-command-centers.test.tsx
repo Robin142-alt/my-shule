@@ -6,6 +6,7 @@ import { ParentCommandCenter } from "@/components/portal/parent-command-center";
 import { PortalPages } from "@/components/portal/portal-pages";
 import { SuperadminPages } from "@/components/platform/superadmin-pages";
 import { ExamsManagerCommandCenter } from "@/components/school/exams-manager-command-center";
+import { addSchoolRecord } from "@/lib/school/school-operational-store";
 
 import { renderWithProviders } from "./test-utils";
 
@@ -48,6 +49,74 @@ describe("portal and platform command center interactions", () => {
 
     await user.click(screen.getByRole("button", { name: /message teacher/i }));
     expect(screen.getByText(/message teacher opened for the student account/i)).toBeVisible();
+  });
+
+  it("shows parent and student safe updates from school operations without exposing confidential notes", () => {
+    const schoolId = "kisumu-boys";
+    window.localStorage.setItem("myshule.currentSchoolId", schoolId);
+
+    addSchoolRecord(
+      "counselling-sessions",
+      {
+        id: "portal-counselling-brian",
+        student: "Brian Otieno",
+        className: "Form 2 Blue",
+        referralSource: "Discipline Master",
+        riskLevel: "High",
+        sessionType: "Welfare Check",
+        guardianPhone: "0712 345 678",
+        notes: "PRIVATE counselling note about bullying stress and family context.",
+        followUpDate: "2026-06-03",
+        status: "Follow-up Scheduled",
+        guardianSmsSent: true,
+        time: "09:20",
+      },
+      schoolId,
+    );
+    addSchoolRecord(
+      "clinic-visits",
+      {
+        id: "portal-clinic-brian",
+        student: "Brian Otieno",
+        className: "Form 2 Blue",
+        symptoms: "Headache",
+        temperature: "37.8",
+        medicine: "Paracetamol",
+        quantity: 2,
+        guardianPhone: "0712 345 678",
+        status: "Released",
+        parentContacted: true,
+        time: "11:45",
+      },
+      schoolId,
+    );
+    addSchoolRecord(
+      "library-loans",
+      {
+        id: "portal-library-brian",
+        bookTitle: "Kidagaa Kimemwozea",
+        barcode: "KBH-LIB-9090",
+        borrower: "Brian Otieno",
+        admissionNo: "KBH-2044",
+        dueDate: "2026-06-01",
+        status: "Overdue",
+        fine: 40,
+        parentSmsSent: false,
+      },
+      schoolId,
+    );
+
+    const parentView = renderWithProviders(<ParentCommandCenter routeMode="hosted" />);
+    expect(screen.getByText(/Brian Otieno counselling follow-up scheduled/i)).toBeVisible();
+    expect(screen.getByText(/Paracetamol issued and learner released/i)).toBeVisible();
+    expect(screen.getByText(/Kidagaa Kimemwozea overdue/i)).toBeVisible();
+    expect(screen.queryByText(/PRIVATE counselling note/i)).not.toBeInTheDocument();
+    parentView.unmount();
+
+    renderWithProviders(<PortalPages viewer="student" routeMode="hosted" />);
+    expect(screen.getByText(/Kidagaa Kimemwozea due on 2026-06-01/i)).toBeVisible();
+    expect(screen.getByText(/Counselling follow-up scheduled with the school counsellor/i)).toBeVisible();
+    expect(screen.queryByText(/PRIVATE counselling note/i)).not.toBeInTheDocument();
   });
 
   it("makes super admin shell search and notification controls visible as working actions", async () => {

@@ -33,6 +33,10 @@ import {
   type PortalViewer,
 } from "@/lib/experiences/portal-data";
 import { toPortalPath } from "@/lib/routing/experience-routes";
+import {
+  readSchoolData,
+  subscribeToSchoolDataUpdates,
+} from "@/lib/school/school-operational-store";
 
 type PortalRouteMode = "hosted" | "public";
 
@@ -49,6 +53,45 @@ type ParentMedicalHistoryRow = {
     quantity_dispensed?: number | string;
   }>;
 };
+
+type PortalLearnerCounsellingSessionRecord = {
+  id: string;
+  student: string;
+  sessionType: string;
+  followUpDate: string;
+  status: string;
+};
+
+type PortalLearnerLibraryLoanRecord = {
+  id: string;
+  bookTitle: string;
+  borrower: string;
+  dueDate: string;
+  status: string;
+};
+
+function studentOperationalItems(learnerName: string) {
+  const counselling = readSchoolData<PortalLearnerCounsellingSessionRecord>("counselling-sessions")
+    .filter((item) => item.student === learnerName && item.status !== "Closed")
+    .map((item) => ({
+      id: `student-counselling-${item.id}`,
+      title: "Counselling follow-up scheduled with the school counsellor",
+      subtitle: `${item.sessionType} on ${item.followUpDate}. Detailed counsellor notes stay protected.`,
+      value: item.status,
+      tone: "warning" as const,
+    }));
+  const library = readSchoolData<PortalLearnerLibraryLoanRecord>("library-loans")
+    .filter((item) => item.borrower === learnerName && item.status !== "Returned")
+    .map((item) => ({
+      id: `student-library-${item.id}`,
+      title: `${item.bookTitle} due on ${item.dueDate}`,
+      subtitle: `Library status: ${item.status}. Return it through the librarian desk.`,
+      value: item.status,
+      tone: item.status === "Overdue" ? "warning" as const : "ok" as const,
+    }));
+
+  return [...counselling, ...library].slice(0, 8);
+}
 
 function buildPortalSectionHref(
   viewer: PortalViewer,
@@ -102,6 +145,16 @@ function PortalPageHeader({
 
 function PortalDashboard({ viewer, routeMode }: { viewer: PortalViewer; routeMode: PortalRouteMode }) {
   const [studentNotice, setStudentNotice] = useState("Student desk ready for lessons, assignments, results, library books, and teacher messages.");
+  const [studentUpdates, setStudentUpdates] = useState(() => studentOperationalItems("Brian Otieno"));
+
+  useEffect(() => {
+    function refreshStudentUpdates() {
+      setStudentUpdates(studentOperationalItems("Brian Otieno"));
+    }
+
+    refreshStudentUpdates();
+    return subscribeToSchoolDataUpdates(() => refreshStudentUpdates());
+  }, []);
 
   if (viewer === "parent") {
     return <ParentCommandCenter routeMode={routeMode} />;
@@ -218,6 +271,11 @@ function PortalDashboard({ viewer, routeMode }: { viewer: PortalViewer; routeMod
             title="Messages"
             subtitle="Announcements, reminders, and teacher communication."
             items={portalMessages}
+          />
+          <SimpleListCard
+            title="School updates"
+            subtitle="Only learner-safe updates from school desks appear here."
+            items={studentUpdates}
           />
         </div>
       </div>

@@ -41,6 +41,10 @@ import {
 import { DashboardGreeting } from "@/components/common/dashboard-greeting";
 import type { PortalSection } from "@/lib/routing/experience-routes";
 import { toPortalPath } from "@/lib/routing/experience-routes";
+import {
+  readSchoolData,
+  subscribeToSchoolDataUpdates,
+} from "@/lib/school/school-operational-store";
 
 type PortalRouteMode = "hosted" | "public";
 type AlertTone = "good" | "info" | "warning" | "danger";
@@ -87,6 +91,37 @@ type TimelineItem = {
   detail: string;
   status: "completed" | "active" | "upcoming" | "urgent";
   metrics: string[];
+};
+
+type PortalCounsellingSessionRecord = {
+  id: string;
+  student: string;
+  className: string;
+  riskLevel: string;
+  sessionType: string;
+  followUpDate: string;
+  status: string;
+  guardianSmsSent?: boolean;
+};
+
+type PortalClinicVisitRecord = {
+  id: string;
+  student: string;
+  className: string;
+  medicine: string;
+  quantity: number;
+  status: string;
+  parentContacted?: boolean;
+  time: string;
+};
+
+type PortalLibraryLoanRecord = {
+  id: string;
+  bookTitle: string;
+  borrower: string;
+  dueDate: string;
+  status: string;
+  fine?: number;
 };
 
 function parentHref(section: PortalSection, routeMode: PortalRouteMode) {
@@ -569,6 +604,41 @@ const liveFeed: FeedItem[] = [
   { id: "bus", title: "School bus departed", detail: "Route 14 left school gate. Estimated home dropoff in 18 minutes.", time: "4:42 PM", tone: "info", icon: Bus },
 ];
 
+function parentOperationalFeedForLearner(learnerName: string): FeedItem[] {
+  const counselling = readSchoolData<PortalCounsellingSessionRecord>("counselling-sessions")
+    .filter((item) => item.student === learnerName && item.status !== "Closed")
+    .map((item): FeedItem => ({
+      id: `parent-counselling-${item.id}`,
+      title: `${item.student} counselling follow-up scheduled`,
+      detail: `${item.sessionType} with school counsellor. Follow-up date: ${item.followUpDate}. Confidential notes stay with the counsellor.`,
+      time: item.followUpDate,
+      tone: item.riskLevel === "High" || item.riskLevel === "Critical" ? "warning" : "info",
+      icon: Stethoscope,
+    }));
+  const clinic = readSchoolData<PortalClinicVisitRecord>("clinic-visits")
+    .filter((item) => item.student === learnerName)
+    .map((item): FeedItem => ({
+      id: `parent-clinic-${item.id}`,
+      title: `${item.medicine} issued and learner released`,
+      detail: `${item.student} was treated in sick bay and marked ${item.status.toLowerCase()}. Parent notification ${item.parentContacted ? "sent" : "pending"}.`,
+      time: item.time,
+      tone: item.status === "Referred" ? "danger" : "good",
+      icon: HeartPulse,
+    }));
+  const library = readSchoolData<PortalLibraryLoanRecord>("library-loans")
+    .filter((item) => item.borrower === learnerName && item.status !== "Returned")
+    .map((item): FeedItem => ({
+      id: `parent-library-${item.id}`,
+      title: `${item.bookTitle} ${item.status.toLowerCase()}`,
+      detail: `Due ${item.dueDate}${Number(item.fine ?? 0) > 0 ? ` with KES ${item.fine} fine` : ""}.`,
+      time: item.dueDate,
+      tone: item.status === "Overdue" || item.status === "Lost" || item.status === "Damaged" ? "warning" : "info",
+      icon: LibraryBig,
+    }));
+
+  return [...counselling, ...clinic, ...library].slice(0, 8);
+}
+
 const classTimeline: TimelineItem[] = [
   {
     id: "math",
@@ -628,6 +698,7 @@ export function ParentCommandCenter({ routeMode }: ParentCommandCenterProps) {
   const [clockLabel, setClockLabel] = useState("Live school day");
   const [notice, setNotice] = useState("Parent portal ready with fees, academics, health, transport, and school messages.");
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [operationalFeed, setOperationalFeed] = useState<FeedItem[]>(() => parentOperationalFeedForLearner("Brian Otieno"));
   const dateFormatter = useMemo(
     () =>
       new Intl.DateTimeFormat("en-KE", {
@@ -650,6 +721,17 @@ export function ParentCommandCenter({ routeMode }: ParentCommandCenterProps) {
 
     return () => window.clearInterval(timer);
   }, [dateFormatter]);
+
+  useEffect(() => {
+    function refreshFeed() {
+      setOperationalFeed(parentOperationalFeedForLearner("Brian Otieno"));
+    }
+
+    refreshFeed();
+    return subscribeToSchoolDataUpdates(() => refreshFeed());
+  }, []);
+
+  const visibleLiveFeed = operationalFeed.length > 0 ? [...operationalFeed, ...liveFeed] : liveFeed;
 
   return (
     <div className="-mx-2 -mb-8 overflow-hidden rounded-[var(--radius-xl)] bg-[#071D49] text-white shadow-[0_30px_90px_rgba(7,29,73,0.26)] md:-mx-1">
@@ -866,7 +948,7 @@ export function ParentCommandCenter({ routeMode }: ParentCommandCenterProps) {
                   }
                 />
                 <div className="grid gap-3">
-                  {liveFeed.map((item) => (
+                  {visibleLiveFeed.map((item) => (
                     <FeedRow key={item.id} item={item} />
                   ))}
                 </div>
