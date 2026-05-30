@@ -128,6 +128,30 @@ type PrincipalFeeBalanceRecord = {
   status: string;
 };
 
+type PrincipalVisitorRecord = {
+  id: string;
+  visitor: string;
+  phoneOrId: string;
+  visiting: string;
+  reason: string;
+  vehicle: string;
+  status: string;
+  checkInTime: string;
+  slipPrinted: boolean;
+};
+
+type PrincipalFrontOfficeInquiryRecord = {
+  id: string;
+  parent: string;
+  student: string;
+  className: string;
+  phone: string;
+  issue: string;
+  department: string;
+  status: string;
+  smsSent: boolean;
+};
+
 const schoolName = "Kisumu Boys High School";
 
 const principalSections: PrincipalSection[] = [
@@ -595,11 +619,17 @@ function formatKsh(amount: number) {
   return `KSh ${amount.toLocaleString("en-KE", { maximumFractionDigits: 0 })}`;
 }
 
+function pluralize(count: number, singular: string, plural = `${singular}s`) {
+  return `${count} ${count === 1 ? singular : plural}`;
+}
+
 function buildPrincipalSectionsForSchool(schoolId: string) {
   const payments = readSchoolData<PrincipalFeePaymentRecord>("finance-payments", schoolId);
   const balances = readSchoolData<PrincipalFeeBalanceRecord>("fee-balances", schoolId);
+  const visitors = readSchoolData<PrincipalVisitorRecord>("visitors", schoolId);
+  const inquiries = readSchoolData<PrincipalFrontOfficeInquiryRecord>("front-office-inquiries", schoolId);
 
-  if (!payments.length && !balances.length) {
+  if (!payments.length && !balances.length && !visitors.length && !inquiries.length) {
     return principalSections;
   }
 
@@ -618,8 +648,41 @@ function buildPrincipalSectionsForSchool(schoolId: string) {
       status: payment.status || "Recorded",
     };
   });
+  const insideVisitors = visitors.filter((visitor) => /inside|overstayed/i.test(visitor.status));
+  const waitingVisitors = visitors.filter((visitor) => /waiting/i.test(visitor.status));
+  const overstayedVisitors = visitors.filter((visitor) => /overstayed/i.test(visitor.status));
+  const waitingInquiries = inquiries.filter((inquiry) => /waiting|in progress/i.test(inquiry.status));
+  const frontOfficeRows = [
+    ...insideVisitors.map((visitor) => ({
+      item: `${visitor.visitor} visiting ${visitor.visiting}`,
+      owner: "Secretary / Security",
+      nextAction: /overstayed/i.test(visitor.status) ? "Confirm visitor exit" : "Monitor visitor log",
+      status: visitor.status || "Inside",
+    })),
+    ...waitingInquiries.map((inquiry) => ({
+      item: `${inquiry.parent} waiting for ${inquiry.student}`,
+      owner: "Secretary",
+      nextAction: `Handle ${inquiry.issue}`,
+      status: inquiry.status || "Waiting",
+    })),
+  ];
 
   return principalSections.map((section) => {
+    if (section.id === "parents-visitors") {
+      return {
+        ...section,
+        status: overstayedVisitors.length > 0 ? "critical" : insideVisitors.length > 0 || waitingInquiries.length > 0 ? "warning" : "ok",
+        summary: `${pluralize(insideVisitors.length, "visitor")} inside and ${pluralize(waitingInquiries.length, "parent inquiry", "parent inquiries")} waiting.`,
+        metrics: [
+          { label: "Visitors inside", value: String(insideVisitors.length), helper: "From security and front office logs" },
+          { label: "Parents waiting", value: String(waitingInquiries.length), helper: "Open parent service requests" },
+          { label: "Overstayed visitors", value: String(overstayedVisitors.length), helper: "Needs security follow-up" },
+          { label: "Visitors waiting", value: String(waitingVisitors.length), helper: "Awaiting check-in completion" },
+        ],
+        records: frontOfficeRows.length ? [...frontOfficeRows, ...section.records].slice(0, 8) : section.records,
+      } satisfies PrincipalSection;
+    }
+
     if (section.id !== "fees") {
       return section;
     }
@@ -641,19 +704,28 @@ function buildPrincipalSectionsForSchool(schoolId: string) {
 
 function buildSummaryCardsForSections(sections: PrincipalSection[]) {
   const fees = sectionById("fees", sections);
+  const parentsVisitors = sectionById("parents-visitors", sections);
 
   return summaryCards.map((card) => {
-    if (card.source !== "Fees") {
-      return card;
+    if (card.source === "Fees") {
+      return {
+        ...card,
+        value: fees.metrics[0]?.value ?? card.value,
+        helper: fees.metrics[3]?.value
+          ? `${fees.metrics[3].value} M-Pesa confirmation${fees.metrics[3].value === "1" ? "" : "s"} pending`
+          : card.helper,
+      };
     }
 
-    return {
-      ...card,
-      value: fees.metrics[0]?.value ?? card.value,
-      helper: fees.metrics[3]?.value
-        ? `${fees.metrics[3].value} M-Pesa confirmation${fees.metrics[3].value === "1" ? "" : "s"} pending`
-        : card.helper,
-    };
+    if (card.source === "Parents & Visitors") {
+      return {
+        ...card,
+        value: parentsVisitors.metrics[0]?.value ?? card.value,
+        helper: `${parentsVisitors.metrics[1]?.value ?? "0"} parents waiting`,
+      };
+    }
+
+    return card;
   });
 }
 

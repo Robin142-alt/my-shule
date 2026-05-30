@@ -180,6 +180,49 @@ describe("role dashboard operational structure", () => {
     expect(within(commandCenter).getAllByText(/Current balance KSh 7,400/i).length).toBeGreaterThan(0);
   });
 
+  it("shows secretary visitor and parent inquiry records inside the principal visitors workspace", async () => {
+    const schoolId = "principal-front-office-sync";
+    window.localStorage.setItem("myshule.currentSchoolId", schoolId);
+
+    addSchoolRecord(
+      "visitors",
+      {
+        id: "visitor-peter-ouma",
+        visitor: "Peter Ouma",
+        phoneOrId: "0710 111 222",
+        visiting: "Accounts Office",
+        reason: "Fee balance follow-up",
+        vehicle: "KDE 245P",
+        status: "Inside",
+        checkInTime: "8:20 AM",
+        slipPrinted: true,
+      },
+      schoolId,
+    );
+    addSchoolRecord(
+      "front-office-inquiries",
+      {
+        id: "inquiry-wanjiku-transfer",
+        parent: "Mrs. Wanjiku",
+        student: "Brian Otieno",
+        className: "Form 2 East",
+        phone: "0712 345 678",
+        issue: "Transfer letter request",
+        department: "Principal",
+        status: "Waiting",
+        smsSent: false,
+      },
+      schoolId,
+    );
+
+    renderWithProviders(<SchoolPages role="principal" section="visitors" tenantSlug={schoolId} />);
+
+    const commandCenter = screen.getByTestId("principal-practical-command-center");
+    expect(within(commandCenter).getByText(/1 visitor inside and 1 parent inquiry waiting/i)).toBeVisible();
+    expect(within(commandCenter).getByText(/Peter Ouma visiting Accounts Office/i)).toBeVisible();
+    expect(within(commandCenter).getByText(/Mrs\. Wanjiku waiting for Brian Otieno/i)).toBeVisible();
+  });
+
   it("keeps the command center short and makes sidebar workspaces render independent practical data", async () => {
     const user = userEvent.setup();
 
