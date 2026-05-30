@@ -6053,6 +6053,26 @@ function GenericRoleOperationalCommandCenter({
 
     setSecretaryVisitors((current) => current.map((item) => item.id === id ? { ...item, slipPrinted: true } : item));
     updateSchoolRecord("visitors", id, { slipPrinted: true }, schoolId);
+    if (visitor) {
+      addSchoolRecord("printed-documents", {
+        id: runtimeId("printed-visitor-slip"),
+        documentType: "Visitor Slip",
+        reference: visitor.phoneOrId,
+        visitor: visitor.visitor,
+        visiting: visitor.visiting,
+        module: "visitors",
+        createdAt: new Date().toISOString(),
+      }, schoolId);
+      publishDashboardEvent({
+        type: "VISITOR_SLIP_PRINTED",
+        module: "visitors",
+        title: `${visitor.visitor} visitor slip printed`,
+        body: `${visitor.visitor} visitor slip opened for ${visitor.visiting}.`,
+        entityId: id,
+        severity: "success",
+        notifications: [{ audienceRoles: ["security-officer", "secretary"], title: "Visitor slip printed" }],
+      });
+    }
     addSecretaryExecutionLog(`${visitor?.visitor ?? "Visitor"} slip printed`, ["Visitor slip prepared", "Print dialog opened"]);
     setSecretaryNotice(`${visitor?.visitor ?? "Visitor"} visitor slip opened for printing.`);
     if (typeof window !== "undefined") {
@@ -6124,6 +6144,29 @@ function GenericRoleOperationalCommandCenter({
 
     setSecretaryInquiries((current) => current.map((item) => item.id === id ? { ...item, status: "Resolved" } : item));
     updateSchoolRecord("front-office-inquiries", id, { status: "Resolved" }, schoolId);
+    if (inquiry) {
+      addSchoolRecord("front-office-service-records", {
+        id: runtimeId("front-office-service"),
+        inquiryId: inquiry.id,
+        parent: inquiry.parent,
+        student: inquiry.student,
+        className: inquiry.className,
+        issue: inquiry.issue,
+        department: inquiry.department,
+        status: "Resolved",
+        servedBy: "Secretary",
+        createdAt: new Date().toISOString(),
+      }, schoolId);
+      publishDashboardEvent({
+        type: "PARENT_INQUIRY_RESOLVED",
+        module: "front-office",
+        title: `${inquiry.parent} front office request resolved`,
+        body: `${inquiry.issue} for ${inquiry.student} was marked served by the secretary desk.`,
+        entityId: id,
+        severity: "success",
+        notifications: [{ audienceRoles: ["secretary", "principal", inquiry.department.toLowerCase()], title: "Parent inquiry resolved" }],
+      });
+    }
     addSecretaryExecutionLog(`${inquiry?.parent ?? "Parent"} marked served`, ["Front office queue updated", "Request closed"]);
     setSecretaryNotice(`${inquiry?.parent ?? "Parent"} marked served.`);
   }

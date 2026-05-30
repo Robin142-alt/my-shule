@@ -866,6 +866,7 @@ describe("STEP 4: Role tests", () => {
   it("makes the secretary desk practical with visitor check-in, parent inquiries, slips, SMS, and service status", async () => {
     const user = userEvent.setup();
     const printMock = jest.fn();
+    const schoolId = "kisumu-boys";
     Object.defineProperty(window, "print", { value: printMock, writable: true });
 
     renderWithProviders(
@@ -888,22 +889,83 @@ describe("STEP 4: Role tests", () => {
     await user.type(within(commandCenter).getByLabelText(/visit reason/i), "Fee balance follow-up");
     await user.click(within(commandCenter).getByRole("button", { name: /check in visitor/i }));
     expect(within(commandCenter).getByText(/peter ouma checked in/i)).toBeVisible();
+    expect(
+      readSchoolData<{ visitor: string; status: string }>("visitors", schoolId).some(
+        (visitor) => visitor.visitor === "Peter Ouma" && visitor.status === "Inside",
+      ),
+    ).toBe(true);
+    expect(
+      readSchoolData<SchoolOperationalEvent>("events", schoolId).some((event) => event.type === "VISITOR_CHECKED_IN" && /Peter Ouma/i.test(event.body)),
+    ).toBe(true);
+    expect(
+      readSchoolData<SchoolNotification>("notifications", schoolId).some(
+        (notification) => notification.sourceModule === "visitors" && notification.audienceRoles.includes("security-officer") && /Visitor checked in/i.test(notification.title),
+      ),
+    ).toBe(true);
 
     await user.click(within(commandCenter).getAllByRole("button", { name: /print visitor slip/i })[0]);
     expect(within(commandCenter).getByText(/visitor slip opened for printing/i)).toBeVisible();
     expect(printMock).toHaveBeenCalled();
+    expect(
+      readSchoolData<{ documentType: string; visitor: string }>("printed-documents", schoolId).some(
+        (document) => document.documentType === "Visitor Slip" && document.visitor === "Peter Ouma",
+      ),
+    ).toBe(true);
+    expect(
+      readSchoolData<SchoolOperationalEvent>("events", schoolId).some((event) => event.type === "VISITOR_SLIP_PRINTED" && /Peter Ouma/i.test(event.body)),
+    ).toBe(true);
+
+    await user.click(within(commandCenter).getAllByRole("button", { name: /check out visitor/i })[0]);
+    expect(within(commandCenter).getByText(/peter ouma checked out/i)).toBeVisible();
+    expect(
+      readSchoolData<{ visitor: string; status: string }>("visitors", schoolId).some(
+        (visitor) => visitor.visitor === "Peter Ouma" && visitor.status === "Exited",
+      ),
+    ).toBe(true);
 
     await user.clear(within(commandCenter).getByLabelText(/inquiry issue/i));
     await user.type(within(commandCenter).getByLabelText(/inquiry issue/i), "Medical follow-up request");
     await user.selectOptions(within(commandCenter).getByLabelText(/inquiry department/i), "Medical");
     await user.click(within(commandCenter).getByRole("button", { name: /register complaint/i }));
     expect(within(commandCenter).getByText(/request registered for medical/i)).toBeVisible();
+    expect(
+      readSchoolData<{ issue: string; department: string; status: string }>("front-office-inquiries", schoolId).some(
+        (inquiry) => inquiry.issue === "Medical follow-up request" && inquiry.department === "Medical" && inquiry.status === "Waiting",
+      ),
+    ).toBe(true);
+    expect(
+      readSchoolData<SchoolNotification>("notifications", schoolId).some(
+        (notification) => notification.sourceModule === "front-office" && notification.audienceRoles.includes("medical") && /Parent inquiry registered/i.test(notification.title),
+      ),
+    ).toBe(true);
 
     await user.click(within(commandCenter).getAllByRole("button", { name: /^send sms$/i })[0]);
     expect(within(commandCenter).getByRole("status")).toHaveTextContent(/sms sent/i);
+    expect(
+      readSchoolData<SchoolSmsLog>("smsLogs", schoolId).some((sms) => sms.sourceModule === "front-office" && /Medical follow-up request/i.test(sms.message)),
+    ).toBe(true);
+
+    await user.click(within(commandCenter).getAllByRole("button", { name: /escalate issue/i })[0]);
+    expect(within(commandCenter).getByText(/medical follow-up request escalated to medical/i)).toBeVisible();
+    expect(
+      readSchoolData<SchoolOperationalEvent>("events", schoolId).some((event) => event.type === "PARENT_INQUIRY_ESCALATED" && /Medical/i.test(event.body)),
+    ).toBe(true);
 
     await user.click(within(commandCenter).getAllByRole("button", { name: /mark parent served/i })[0]);
     expect(within(commandCenter).getByText(/marked served/i)).toBeVisible();
+    expect(
+      readSchoolData<{ issue: string; status: string }>("front-office-inquiries", schoolId).some(
+        (inquiry) => inquiry.issue === "Medical follow-up request" && inquiry.status === "Resolved",
+      ),
+    ).toBe(true);
+    expect(
+      readSchoolData<{ parent: string; status: string }>("front-office-service-records", schoolId).some(
+        (record) => record.parent === "Mrs. Wanjiku" && record.status === "Resolved",
+      ),
+    ).toBe(true);
+    expect(
+      readSchoolData<SchoolOperationalEvent>("events", schoolId).some((event) => event.type === "PARENT_INQUIRY_RESOLVED"),
+    ).toBe(true);
   }, 30000);
 
   it("lets the secretary print a fee statement directly from student search", async () => {
