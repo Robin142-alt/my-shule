@@ -23,6 +23,7 @@ export interface RateLimitDecision {
   actor_key: string;
   total_hits: number;
   rate_limit_class: RateLimitClass;
+  storage_mode: 'redis' | 'memory_fallback';
 }
 
 export type RateLimitClass =
@@ -36,6 +37,8 @@ export type RateLimitClass =
 
 @Injectable()
 export class RateLimitService {
+  private readonly fallbackBuckets = new Map<string, { total_hits: number; expires_at_ms: number }>();
+
   constructor(
     private readonly configService: ConfigService,
     private readonly requestContext: RequestContextService,
@@ -66,14 +69,63 @@ export class RateLimitService {
     const nowSeconds = Math.floor(Date.now() / 1000);
     const windowSlot = Math.floor(nowSeconds / policy.window_seconds);
     const redisKey = `rate-limit:${policy.bucket}:${bucketId}:${windowSlot}`;
-    const redisClient = this.redisService.getClient();
-    const totalHits = await redisClient.incr(redisKey);
+    try {
+      const redisClient = this.redisService.getClient();
+      const totalHits = await redisClient.incr(redisKey);
 
-    if (totalHits === 1) {
-      await redisClient.expire(redisKey, policy.window_seconds);
+      if (totalHits === 1) {
+        await redisClient.expire(redisKey, policy.window_seconds);
+      }
+
+      const ttl = Math.max(await redisClient.ttl(redisKey), 1);
+      return this.buildDecision(policy, routeKey, actorKey, totalHits, ttl, 'redis');
+    } catch {
+      return this.consumeFallback(policy, redisKey, routeKey, actorKey, nowSeconds);
     }
+  }
 
-    const ttl = Math.max(await redisClient.ttl(redisKey), 1);
+  private consumeFallback(
+    policy: RateLimitPolicy,
+    bucketId: string,
+    routeKey: string,
+    actorKey: string,
+    nowSeconds: number,
+  ): RateLimitDecision {
+    this.evictExpiredFallbackBuckets();
+
+    const nowMs = nowSeconds * 1000;
+    const existing = this.fallbackBuckets.get(bucketId);
+    const bucket = existing && existing.expires_at_ms > nowMs
+      ? existing
+      : {
+          total_hits: 0,
+          expires_at_ms: nowMs + policy.window_seconds * 1000,
+        };
+
+    bucket.total_hits += 1;
+    this.fallbackBuckets.set(bucketId, bucket);
+
+    const ttl = Math.max(Math.ceil((bucket.expires_at_ms - nowMs) / 1000), 1);
+    return this.buildDecision(
+      policy,
+      routeKey,
+      actorKey,
+      bucket.total_hits,
+      ttl,
+      'memory_fallback',
+    );
+  }
+
+  private buildDecision(
+    policy: RateLimitPolicy,
+    routeKey: string,
+    actorKey: string,
+    totalHits: number,
+    ttl: number,
+    storageMode: RateLimitDecision['storage_mode'],
+  ): RateLimitDecision {
+    const nowSeconds = Math.floor(Date.now() / 1000);
+
     return {
       allowed: totalHits <= policy.max_requests,
       limit: policy.max_requests,
@@ -84,7 +136,18 @@ export class RateLimitService {
       actor_key: actorKey,
       total_hits: totalHits,
       rate_limit_class: policy.rate_limit_class,
+      storage_mode: storageMode,
     };
+  }
+
+  private evictExpiredFallbackBuckets(): void {
+    const nowMs = Date.now();
+
+    for (const [key, bucket] of this.fallbackBuckets.entries()) {
+      if (bucket.expires_at_ms <= nowMs) {
+        this.fallbackBuckets.delete(key);
+      }
+    }
   }
 
   private resolvePolicy(routeKey: string, rateLimitClass: RateLimitClass): RateLimitPolicy {
