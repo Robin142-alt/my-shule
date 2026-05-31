@@ -137,6 +137,99 @@ describe("experience actions", () => {
     ).toBeVisible();
   });
 
+  it("loads backend school notifications into the shell and marks them read when opened", async () => {
+    const user = userEvent.setup();
+    const fetchMock = jest.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input.toString();
+
+      if (url.includes("/api/school/modules/me")) {
+        return Promise.resolve(jsonResponse({ data: enabledSchoolModules }));
+      }
+
+      if (url === "/api/events/notifications?limit=8") {
+        return Promise.resolve(
+          jsonResponse({
+            data: [
+              {
+                id: "00000000-0000-4000-8000-000000000401",
+                title: "Fee reversal requested",
+                detail: "Receipt KBI-RCPT-400 needs approval.",
+                status: "unread",
+                tone: "warning",
+                href: "/finance?record=approval-400",
+                sourceModule: "finance",
+                relatedModule: "finance",
+                relatedRecordId: "approval-400",
+                createdAt: "2026-05-31T06:30:00.000Z",
+                readAt: null,
+              },
+            ],
+          }),
+        );
+      }
+
+      if (url === "/api/auth/csrf") {
+        return Promise.resolve(jsonResponse({ token: "csrf-token" }));
+      }
+
+      if (url === "/api/events/notifications/00000000-0000-4000-8000-000000000401/read") {
+        expect(init).toEqual(
+          expect.objectContaining({
+            method: "POST",
+            credentials: "same-origin",
+          }),
+        );
+        expect((init?.headers as Record<string, string>)["x-myshule-csrf"]).toBe("csrf-token");
+
+        return Promise.resolve(
+          jsonResponse({
+            data: {
+              id: "00000000-0000-4000-8000-000000000401",
+              status: "read",
+            },
+          }),
+        );
+      }
+
+      if (url.includes("/api/billing/reconciliation")) {
+        return Promise.resolve(jsonResponse(emptyReconciliationReport()));
+      }
+
+      if (
+        url.includes("/api/billing/finance-activity")
+        || url.includes("/api/billing/student-balances")
+        || url.includes("/api/billing/fee-structures")
+        || url.includes("/api/billing/manual-fee-payments")
+        || url.includes("/api/payments/mpesa/c2b/payments")
+        || url.includes("/api/platform/schools")
+      ) {
+        return Promise.resolve(jsonResponse([]));
+      }
+
+      return Promise.resolve(jsonResponse({}));
+    }) as unknown as jest.MockedFunction<typeof fetch>;
+    global.fetch = fetchMock;
+
+    renderWithProviders(
+      createElement(SchoolPages, { role: "bursar", section: "finance", tenantSlug: "barakaacademy" }),
+    );
+
+    await waitFor(() =>
+      expect(fetchMock.mock.calls.map(([url]) => String(url))).toContain("/api/events/notifications?limit=8"),
+    );
+
+    await user.click(screen.getByRole("button", { name: "Notifications" }));
+    const notificationsPanel = await screen.findByTestId("workspace-notifications-panel");
+    await user.click(within(notificationsPanel).getByRole("button", { name: /Fee reversal requested/i }));
+
+    await waitFor(() =>
+      expect(fetchMock.mock.calls.map(([url]) => String(url))).toContain(
+        "/api/events/notifications/00000000-0000-4000-8000-000000000401/read",
+      ),
+    );
+    expect(routerPushMock).toHaveBeenCalledWith("/finance?record=approval-400");
+  });
+
   it("adds a learner from the school students workspace instead of exposing a dead action", async () => {
     const user = userEvent.setup();
     renderWithProviders(

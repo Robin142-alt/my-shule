@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 
 import { RequestContextService } from '../../common/request-context/request-context.service';
@@ -110,6 +110,38 @@ export class SchoolOperationalEventsService {
     };
   }
 
+  async listCurrentTenantNotifications(options: { limit?: unknown } = {}) {
+    const store = this.requestContext.requireStore();
+    const tenantId = this.requireText(store.tenant_id, 'tenant context');
+    const role = this.optionalText(store.role);
+
+    return {
+      data: await this.schoolOperationNotificationsRepository.listForTenantRole(
+        tenantId,
+        role,
+        { limit: this.normalizeLimit(options.limit) },
+      ),
+    };
+  }
+
+  async markCurrentTenantNotificationRead(notificationId: unknown) {
+    const store = this.requestContext.requireStore();
+    const tenantId = this.requireText(store.tenant_id, 'tenant context');
+    const role = this.optionalText(store.role);
+    const id = this.requireText(notificationId, 'notificationId');
+    const notification = await this.schoolOperationNotificationsRepository.markReadForTenantRole(
+      tenantId,
+      role,
+      id,
+    );
+
+    if (!notification) {
+      throw new NotFoundException('Notification was not found for the current school and role');
+    }
+
+    return { data: notification };
+  }
+
   private targetRolesFromNotifications(notifications: SchoolOperationalNotificationInput[]): string[] {
     const roles = new Set<string>();
 
@@ -162,5 +194,24 @@ export class SchoolOperationalEventsService {
     }
 
     return value.trim();
+  }
+
+  private optionalText(value: unknown): string | null {
+    return typeof value === 'string' && value.trim() ? value.trim() : null;
+  }
+
+  private normalizeLimit(value: unknown): number {
+    const numberValue =
+      typeof value === 'string' && value.trim()
+        ? Number(value)
+        : typeof value === 'number'
+          ? value
+          : 8;
+
+    if (!Number.isFinite(numberValue)) {
+      return 8;
+    }
+
+    return Math.min(Math.max(Math.trunc(numberValue), 1), 50);
   }
 }

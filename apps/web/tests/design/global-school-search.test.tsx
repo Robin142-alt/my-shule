@@ -160,4 +160,41 @@ describe("global school search", () => {
     expect(within(urgentPanel).getByRole("button", { name: /Fee reminders/i })).toBeVisible();
     expect(within(urgentPanel).getByRole("button", { name: /Approval queue/i })).toBeVisible();
   });
+
+  it("marks backend notifications read before opening their related school record", async () => {
+    const user = userEvent.setup();
+    const onNotificationOpen = jest.fn();
+
+    renderWithProviders(
+      <AppTopbar
+        variant="school"
+        navItems={[]}
+        topLabel="Greenfield Academy school ERP"
+        title="Principal Command Center"
+        subtitle="Live daily school operations, approvals, alerts, and reports."
+        profile={{ name: "Principal Wanjiku", roleLabel: "Principal", contextLabel: "Greenfield Academy" }}
+        notifications={[
+          {
+            id: "notification-1",
+            title: "Fee reversal requested",
+            detail: "Receipt KBI-RCPT-400 needs approval.",
+            timeLabel: "now",
+            tone: "warning",
+            href: "/finance?record=approval-400",
+          },
+        ]}
+        onNotificationOpen={onNotificationOpen}
+        onOpenSidebar={jest.fn()}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Notifications" }));
+    const panel = await screen.findByTestId("workspace-notifications-panel");
+    await user.click(within(panel).getByRole("button", { name: /Fee reversal requested/i }));
+
+    expect(onNotificationOpen).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "notification-1" }),
+    );
+    expect(routerPushMock).toHaveBeenCalledWith("/finance?record=approval-400");
+  });
 });

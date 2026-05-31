@@ -43,6 +43,10 @@ export interface ExperienceNotificationItem {
   timeLabel: string;
   tone: "ok" | "warning" | "critical";
   href?: string;
+  status?: "unread" | "read" | "sent" | "dismissed" | string;
+  sourceModule?: string;
+  relatedModule?: string | null;
+  relatedRecordId?: string | null;
 }
 
 export interface ExperienceMetric {

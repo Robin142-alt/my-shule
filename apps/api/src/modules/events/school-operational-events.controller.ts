@@ -1,4 +1,4 @@
-import { Body, Controller, HttpCode, Post } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Param, Post, Query } from '@nestjs/common';
 
 import { Permissions } from '../../auth/decorators/permissions.decorator';
 import {
@@ -15,5 +15,18 @@ export class SchoolOperationalEventsController {
   @Permissions('auth:read')
   recordSchoolOperation(@Body() dto: SchoolOperationalEventSyncDto) {
     return this.schoolOperationalEventsService.recordSchoolOperation(dto);
+  }
+
+  @Get('notifications')
+  @Permissions('auth:read')
+  listNotifications(@Query('limit') limit?: string) {
+    return this.schoolOperationalEventsService.listCurrentTenantNotifications({ limit });
+  }
+
+  @Post('notifications/:notificationId/read')
+  @HttpCode(200)
+  @Permissions('auth:read')
+  markNotificationRead(@Param('notificationId') notificationId: string) {
+    return this.schoolOperationalEventsService.markCurrentTenantNotificationRead(notificationId);
   }
 }

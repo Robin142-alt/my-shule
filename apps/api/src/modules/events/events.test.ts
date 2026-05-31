@@ -10,6 +10,7 @@ import { DashboardRealtimeService } from './dashboard-realtime.service';
 import { EventConsumerRegistryService } from './event-consumer-registry.service';
 import { EventConsumerService } from './event-consumer.service';
 import { EventPublisherService } from './event-publisher.service';
+import { SchoolOperationalEventsController } from './school-operational-events.controller';
 import { SchoolOperationalEventsService } from './school-operational-events.service';
 import {
   DashboardRealtimeSnapshot,
@@ -278,6 +279,193 @@ test('SchoolOperationalEventsService rejects school operations posted to another
     ),
     /does not match the current school/,
   );
+});
+
+test('SchoolOperationNotificationsRepository lists unread notifications for the current tenant role', async () => {
+  const queries: Array<{ sql: string; values: unknown[] }> = [];
+  const { SchoolOperationNotificationsRepository } = await import(
+    './repositories/school-operation-notifications.repository'
+  );
+  const repository = new SchoolOperationNotificationsRepository({
+    query: async (sql: string, values: unknown[] = []) => {
+      queries.push({ sql, values });
+      return {
+        rows: [
+          {
+            id: '00000000-0000-4000-8000-000000000401',
+            notification_key: 'school-operation:event-local-1:notification-local-1',
+            type: 'school.operation.recorded',
+            title: 'Fee reversal requested',
+            body: 'Receipt KBI-RCPT-400 needs approval.',
+            status: 'unread',
+            read_at: null,
+            metadata: {
+              priority: 'urgent',
+              sourceModule: 'finance',
+              relatedModule: 'finance',
+              relatedRecordId: 'approval-400',
+              target_roles: ['principal', 'deputy-principal'],
+            },
+            created_at: '2026-05-31T06:30:00.000Z',
+            updated_at: '2026-05-31T06:30:00.000Z',
+          },
+        ],
+      };
+    },
+  } as never);
+
+  const result = await repository.listForTenantRole('tenant-a', 'principal', {
+    limit: 8,
+  });
+
+  assert.equal(queries.length, 1);
+  assert.match(queries[0].sql, /FROM notifications/);
+  assert.match(queries[0].sql, /tenant_id = \$1/);
+  assert.match(queries[0].sql, /target_roles/);
+  assert.match(queries[0].sql, /LIMIT \$3::integer/);
+  assert.deepEqual(queries[0].values, ['tenant-a', 'principal', 8]);
+  assert.deepEqual(result, [
+    {
+      id: '00000000-0000-4000-8000-000000000401',
+      title: 'Fee reversal requested',
+      detail: 'Receipt KBI-RCPT-400 needs approval.',
+      status: 'unread',
+      tone: 'critical',
+      href: '/finance?record=approval-400',
+      sourceModule: 'finance',
+      relatedModule: 'finance',
+      relatedRecordId: 'approval-400',
+      createdAt: '2026-05-31T06:30:00.000Z',
+      readAt: null,
+    },
+  ]);
+});
+
+test('SchoolOperationNotificationsRepository marks only tenant-role visible notifications as read', async () => {
+  const queries: Array<{ sql: string; values: unknown[] }> = [];
+  const { SchoolOperationNotificationsRepository } = await import(
+    './repositories/school-operation-notifications.repository'
+  );
+  const repository = new SchoolOperationNotificationsRepository({
+    query: async (sql: string, values: unknown[] = []) => {
+      queries.push({ sql, values });
+      return {
+        rows: [
+          {
+            id: '00000000-0000-4000-8000-000000000401',
+            notification_key: 'school-operation:event-local-1:notification-local-1',
+            type: 'school.operation.recorded',
+            title: 'Fee reversal requested',
+            body: 'Receipt KBI-RCPT-400 needs approval.',
+            status: 'read',
+            read_at: '2026-05-31T06:45:00.000Z',
+            metadata: {
+              priority: 'urgent',
+              sourceModule: 'finance',
+              relatedModule: 'finance',
+              relatedRecordId: 'approval-400',
+              target_roles: ['principal', 'deputy-principal'],
+            },
+            created_at: '2026-05-31T06:30:00.000Z',
+            updated_at: '2026-05-31T06:45:00.000Z',
+          },
+        ],
+      };
+    },
+  } as never);
+
+  const result = await repository.markReadForTenantRole(
+    'tenant-a',
+    'principal',
+    '00000000-0000-4000-8000-000000000401',
+  );
+
+  assert.equal(queries.length, 1);
+  assert.match(queries[0].sql, /UPDATE notifications/);
+  assert.match(queries[0].sql, /tenant_id = \$1/);
+  assert.match(queries[0].sql, /id = \$2::uuid/);
+  assert.match(queries[0].sql, /target_roles/);
+  assert.deepEqual(queries[0].values, [
+    'tenant-a',
+    '00000000-0000-4000-8000-000000000401',
+    'principal',
+  ]);
+  assert.equal(result?.status, 'read');
+  assert.equal(result?.readAt, '2026-05-31T06:45:00.000Z');
+});
+
+test('SchoolOperationalEventsService exposes notification inbox and read updates in the current school context', async () => {
+  const requestContext = new RequestContextService();
+  const repositoryCalls: Array<Record<string, unknown>> = [];
+  const service = new SchoolOperationalEventsService(requestContext, {
+    publish: async () => {
+      throw new Error('publish should not be called while reading notifications');
+    },
+  } as never, {
+    upsertFromSchoolOperation: async () => undefined,
+    listForTenantRole: async (tenantId: string, role: string, options: { limit: number }) => {
+      repositoryCalls.push({ action: 'list', tenantId, role, limit: options.limit });
+      return [
+        {
+          id: 'notification-1',
+          title: 'Store request approved',
+          detail: 'Two boxes of chalk are ready for collection.',
+          status: 'unread',
+          tone: 'ok',
+          href: '/inventory?record=stock-request-44',
+          sourceModule: 'inventory',
+          relatedModule: 'inventory',
+          relatedRecordId: 'stock-request-44',
+          createdAt: '2026-05-31T07:00:00.000Z',
+          readAt: null,
+        },
+      ];
+    },
+    markReadForTenantRole: async (tenantId: string, role: string, notificationId: string) => {
+      repositoryCalls.push({ action: 'mark-read', tenantId, role, notificationId });
+      return {
+        id: notificationId,
+        title: 'Store request approved',
+        detail: 'Two boxes of chalk are ready for collection.',
+        status: 'read',
+        tone: 'ok',
+        href: '/inventory?record=stock-request-44',
+        sourceModule: 'inventory',
+        relatedModule: 'inventory',
+        relatedRecordId: 'stock-request-44',
+        createdAt: '2026-05-31T07:00:00.000Z',
+        readAt: '2026-05-31T07:05:00.000Z',
+      };
+    },
+  } as never);
+
+  const result = await requestContext.run(
+    {
+      request_id: 'req-notification-1',
+      tenant_id: 'tenant-a',
+      user_id: '00000000-0000-0000-0000-000000000010',
+      role: 'teacher',
+      session_id: 'session-notification-1',
+      permissions: ['auth:read'],
+      is_authenticated: true,
+      client_ip: '127.0.0.1',
+      user_agent: 'test-suite',
+      method: 'GET',
+      path: '/events/notifications',
+      started_at: '2026-05-31T07:00:00.000Z',
+    },
+    async () => ({
+      inbox: await service.listCurrentTenantNotifications({ limit: 8 }),
+      read: await service.markCurrentTenantNotificationRead('notification-1'),
+    }),
+  );
+
+  assert.deepEqual(repositoryCalls, [
+    { action: 'list', tenantId: 'tenant-a', role: 'teacher', limit: 8 },
+    { action: 'mark-read', tenantId: 'tenant-a', role: 'teacher', notificationId: 'notification-1' },
+  ]);
+  assert.equal(result.inbox.data[0].title, 'Store request approved');
+  assert.equal(result.read.data.status, 'read');
 });
 
 test('EventConsumerService skips already-completed consumers', async () => {
@@ -1017,4 +1205,28 @@ test('DashboardRealtimeController exposes authenticated snapshot and SSE routes'
   assert.ok(streamDescriptor?.value);
   assert.deepEqual(Reflect.getMetadata(PERMISSIONS_KEY, snapshotDescriptor.value), ['auth:read']);
   assert.deepEqual(Reflect.getMetadata(PERMISSIONS_KEY, streamDescriptor.value), ['auth:read']);
+});
+
+test('SchoolOperationalEventsController exposes authenticated operation and notification routes', () => {
+  assert.equal(Reflect.getMetadata(PATH_METADATA, SchoolOperationalEventsController), 'events');
+
+  const recordDescriptor = Object.getOwnPropertyDescriptor(
+    SchoolOperationalEventsController.prototype,
+    'recordSchoolOperation',
+  );
+  const listDescriptor = Object.getOwnPropertyDescriptor(
+    SchoolOperationalEventsController.prototype,
+    'listNotifications',
+  );
+  const markReadDescriptor = Object.getOwnPropertyDescriptor(
+    SchoolOperationalEventsController.prototype,
+    'markNotificationRead',
+  );
+
+  assert.ok(recordDescriptor?.value);
+  assert.ok(listDescriptor?.value);
+  assert.ok(markReadDescriptor?.value);
+  assert.deepEqual(Reflect.getMetadata(PERMISSIONS_KEY, recordDescriptor.value), ['auth:read']);
+  assert.deepEqual(Reflect.getMetadata(PERMISSIONS_KEY, listDescriptor.value), ['auth:read']);
+  assert.deepEqual(Reflect.getMetadata(PERMISSIONS_KEY, markReadDescriptor.value), ['auth:read']);
 });

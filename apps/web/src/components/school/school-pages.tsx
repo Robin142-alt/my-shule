@@ -4698,6 +4698,94 @@ type SchoolPagesProps = {
   liveDataEnabled?: boolean;
 };
 
+type BackendSchoolNotification = {
+  id?: unknown;
+  title?: unknown;
+  detail?: unknown;
+  body?: unknown;
+  status?: unknown;
+  tone?: unknown;
+  href?: unknown;
+  sourceModule?: unknown;
+  relatedModule?: unknown;
+  relatedRecordId?: unknown;
+  createdAt?: unknown;
+  readAt?: unknown;
+};
+
+function toExperienceNotificationItem(notification: BackendSchoolNotification): ExperienceNotificationItem | null {
+  if (typeof notification.id !== "string" || !notification.id.trim()) {
+    return null;
+  }
+
+  const title =
+    typeof notification.title === "string" && notification.title.trim()
+      ? notification.title.trim()
+      : "School update";
+  const detail =
+    typeof notification.detail === "string" && notification.detail.trim()
+      ? notification.detail.trim()
+      : typeof notification.body === "string" && notification.body.trim()
+        ? notification.body.trim()
+        : "A school action needs attention.";
+  const tone =
+    notification.tone === "critical" || notification.tone === "warning" || notification.tone === "ok"
+      ? notification.tone
+      : "ok";
+
+  return {
+    id: notification.id.trim(),
+    title,
+    detail,
+    timeLabel: formatSchoolNotificationTime(notification.createdAt),
+    tone,
+    href: typeof notification.href === "string" && notification.href.trim() ? notification.href.trim() : undefined,
+    status:
+      typeof notification.status === "string" && notification.status.trim()
+        ? notification.status.trim()
+        : "unread",
+    sourceModule:
+      typeof notification.sourceModule === "string" && notification.sourceModule.trim()
+        ? notification.sourceModule.trim()
+        : undefined,
+    relatedModule:
+      typeof notification.relatedModule === "string" && notification.relatedModule.trim()
+        ? notification.relatedModule.trim()
+        : null,
+    relatedRecordId:
+      typeof notification.relatedRecordId === "string" && notification.relatedRecordId.trim()
+        ? notification.relatedRecordId.trim()
+        : null,
+  };
+}
+
+function formatSchoolNotificationTime(value: unknown) {
+  if (typeof value !== "string" || Number.isNaN(Date.parse(value))) {
+    return "school update";
+  }
+
+  const elapsedMs = Date.now() - new Date(value).getTime();
+  const minutes = Math.max(0, Math.round(elapsedMs / 60_000));
+
+  if (minutes < 1) {
+    return "now";
+  }
+
+  if (minutes < 60) {
+    return `${minutes}m ago`;
+  }
+
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) {
+    return `${hours}h ago`;
+  }
+
+  return new Date(value).toLocaleDateString("en-KE", {
+    month: "short",
+    day: "numeric",
+  });
+}
+
 export function SchoolPages(props: SchoolPagesProps) {
   return <SchoolPagesShell {...props} />;
 }
@@ -4731,6 +4819,7 @@ function SchoolPagesShell({
       verified: Boolean(cachedModuleCodes && cachedModuleCodes.size > 0),
     };
   });
+  const [liveNotifications, setLiveNotifications] = useState<ExperienceNotificationItem[]>([]);
   const { navItems, profile, branding } = workspace;
   const activeHref = studentId
     ? buildSchoolSectionHref(role, "students", routeMode)
@@ -4818,6 +4907,65 @@ function SchoolPagesShell({
 
     return startSchoolOperationalEventSyncRetryWorker(tenantSlug ?? undefined);
   }, [liveDataEnabled, tenantSlug]);
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!liveDataEnabled) {
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    async function loadLiveNotifications() {
+      try {
+        const response = await fetch("/api/events/notifications?limit=8", {
+          method: "GET",
+          credentials: "same-origin",
+          cache: "no-store",
+        });
+
+        if (redirectOnExpiredSessionResponse(response, "school", (href) => replaceRoute(href))) {
+          return;
+        }
+
+        if (!response.ok) {
+          return;
+        }
+
+        const payload = (await response.json().catch(() => null)) as
+          | { data?: BackendSchoolNotification[] }
+          | BackendSchoolNotification[]
+          | null;
+        const rows = Array.isArray(payload)
+          ? payload
+          : Array.isArray(payload?.data)
+            ? payload.data
+            : [];
+        const nextNotifications = rows
+          .map((item) => toExperienceNotificationItem(item))
+          .filter((item): item is ExperienceNotificationItem => Boolean(item))
+          .filter((item) => item.status !== "read");
+
+        if (!cancelled) {
+          setLiveNotifications(nextNotifications);
+        }
+      } catch {
+        if (!cancelled) {
+          setLiveNotifications((items) => items);
+        }
+      }
+    }
+
+    void loadLiveNotifications();
+    const intervalId = window.setInterval(() => {
+      void loadLiveNotifications();
+    }, 30_000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+    };
+  }, [liveDataEnabled, replaceRoute, role, tenantSlug]);
 
   const accessLoading = !moduleAccessState.verified;
   const visibleModuleCodes = moduleAccessState.codes ?? new Set<string>();
@@ -4851,6 +4999,37 @@ function SchoolPagesShell({
     ? true
     : principalWorkspaceSyncing
       || (!requiresAccessSync && isSchoolSectionEnabled(section, visibleModuleCodes) && principalDashboardEnabled);
+  async function markLiveNotificationRead(item: ExperienceNotificationItem) {
+    if (!liveNotifications.some((notification) => notification.id === item.id)) {
+      return;
+    }
+
+    try {
+      const csrfToken = await getCsrfToken();
+      const response = await fetch(`/api/events/notifications/${encodeURIComponent(item.id)}/read`, {
+        method: "POST",
+        credentials: "same-origin",
+        headers: {
+          "content-type": "application/json",
+          "x-myshule-csrf": csrfToken,
+        },
+      });
+
+      if (redirectOnExpiredSessionResponse(response, "school", (href) => replaceRoute(href))) {
+        return;
+      }
+
+      if (!response.ok) {
+        return;
+      }
+
+      setLiveNotifications((items) =>
+        items.filter((notification) => notification.id !== item.id),
+      );
+    } catch {
+      setLiveNotifications((items) => items);
+    }
+  }
   const subscriptionNotifications: ExperienceNotificationItem[] =
     workspace.subscription.state === "ACTIVE"
       ? []
@@ -4865,6 +5044,7 @@ function SchoolPagesShell({
           },
         ];
   const notifications: ExperienceNotificationItem[] = [
+    ...(liveDataEnabled ? liveNotifications : []),
     ...subscriptionNotifications,
     ...workspace.snapshot.notifications.slice(0, 3).map(
       (item): ExperienceNotificationItem => ({
@@ -4909,6 +5089,7 @@ function SchoolPagesShell({
       status={{ label: "School protected", tone: "ok" }}
       profile={profile}
       notifications={notifications}
+      onNotificationOpen={markLiveNotificationRead}
       actions={
         <StatusPill
           label={`${workspace.model.currentTerm} | ${workspace.model.academicYear}`}

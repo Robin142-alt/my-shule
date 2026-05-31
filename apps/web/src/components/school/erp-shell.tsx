@@ -20,6 +20,7 @@ export function ErpShell({
   subtitle,
   actions,
   notifications,
+  onNotificationOpen,
   profile,
   status,
   children,
@@ -32,6 +33,7 @@ export function ErpShell({
   subtitle: string;
   actions?: ReactNode;
   notifications?: ExperienceNotificationItem[];
+  onNotificationOpen?: (item: ExperienceNotificationItem) => void | Promise<void>;
   profile: ExperienceProfile;
   status?: { label: string; tone: "ok" | "warning" | "critical" };
   children: ReactNode;
@@ -66,6 +68,7 @@ export function ErpShell({
           variant="school"
           navItems={navItems}
           notifications={notifications}
+          onNotificationOpen={onNotificationOpen}
           topLabel={topLabel}
           title={title}
           subtitle={subtitle}

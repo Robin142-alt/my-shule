@@ -277,6 +277,7 @@ export function AppTopbar({
   actions,
   status,
   profile,
+  onNotificationOpen,
   onOpenSidebar,
 }: {
   variant: TopbarVariant;
@@ -288,6 +289,7 @@ export function AppTopbar({
   actions?: ReactNode;
   status?: { label: string; tone: "ok" | "warning" | "critical" };
   profile?: ExperienceProfile;
+  onNotificationOpen?: (item: ExperienceNotificationItem) => void | Promise<void>;
   onOpenSidebar: () => void;
 }) {
   const router = useRouter();
@@ -614,6 +616,10 @@ export function AppTopbar({
                         key={item.id}
                         type="button"
                         onClick={() => {
+                          if (onNotificationOpen) {
+                            void Promise.resolve(onNotificationOpen(item)).catch(() => undefined);
+                          }
+
                           if (item.href) {
                             runNavigation(item.href);
                             return;
