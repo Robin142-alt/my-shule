@@ -11,6 +11,7 @@ import { ModuleAccessService } from '../module-access/module-access.service';
 import {
   CreateMedicineDto,
   DispenseMedicineDto,
+  ListClinicMedicinesQueryDto,
   ReceiveMedicineStockDto,
   RecordClinicVisitDto,
 } from './dto/clinic.dto';
@@ -43,10 +44,16 @@ export class ClinicService {
     return medicine;
   }
 
-  listMedicines() {
+  listMedicines(query: ListClinicMedicinesQueryDto = {}) {
     this.assertPermission('clinic:read');
+    const search = query.search?.trim() ?? '';
 
-    return this.repository.listMedicines(this.requireTenantId());
+    return this.repository.listMedicines(this.requireTenantId(), {
+      search: search.length >= 2 ? search : undefined,
+      category: query.category?.trim() || undefined,
+      limit: this.parseBoundedInteger(query.limit, 25, 50),
+      offset: this.parseBoundedInteger(query.offset, 0, Number.MAX_SAFE_INTEGER),
+    });
   }
 
   async receiveMedicineStock(medicineId: string, dto: ReceiveMedicineStockDto) {
@@ -362,5 +369,19 @@ export class ClinicService {
     }
 
     return new Date(timestamp).toISOString().slice(0, 10);
+  }
+
+  private parseBoundedInteger(
+    value: number | string | undefined,
+    fallback: number,
+    max: number,
+  ): number {
+    const parsed = typeof value === 'number' ? value : Number.parseInt(String(value ?? ''), 10);
+
+    if (!Number.isFinite(parsed)) {
+      return fallback;
+    }
+
+    return Math.min(Math.max(Math.floor(parsed), 0), max);
   }
 }

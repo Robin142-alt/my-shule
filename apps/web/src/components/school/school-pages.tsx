@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { SimpleListCard } from "@/components/experience/activity-list-card";
@@ -1283,7 +1283,7 @@ function SchoolFinancePage({
     setActivityLoading(true);
 
     try {
-      const response = await fetch(buildBillingApiPath("/api/billing/finance-activity", tenantSlug), {
+      const response = await fetch(buildBillingApiPath("/api/billing/finance-activity?limit=25&offset=0", tenantSlug), {
         cache: "no-store",
       });
 
@@ -4820,6 +4820,7 @@ function SchoolPagesShell({
     };
   });
   const [liveNotifications, setLiveNotifications] = useState<ExperienceNotificationItem[]>([]);
+  const lastNotificationLoadRef = useRef(0);
   const { navItems, profile, branding } = workspace;
   const activeHref = studentId
     ? buildSchoolSectionHref(role, "students", routeMode)
@@ -4917,6 +4918,7 @@ function SchoolPagesShell({
     }
 
     async function loadLiveNotifications() {
+      lastNotificationLoadRef.current = Date.now();
       try {
         const response = await fetch("/api/events/notifications?limit=8", {
           method: "GET",
@@ -4957,13 +4959,23 @@ function SchoolPagesShell({
     }
 
     void loadLiveNotifications();
-    const intervalId = window.setInterval(() => {
-      void loadLiveNotifications();
-    }, 30_000);
+    const refreshWhenUserReturns = () => {
+      if (document.visibilityState === "hidden") {
+        return;
+      }
+
+      if (Date.now() - lastNotificationLoadRef.current > 60_000) {
+        void loadLiveNotifications();
+      }
+    };
+
+    window.addEventListener("focus", refreshWhenUserReturns);
+    document.addEventListener("visibilitychange", refreshWhenUserReturns);
 
     return () => {
       cancelled = true;
-      window.clearInterval(intervalId);
+      window.removeEventListener("focus", refreshWhenUserReturns);
+      document.removeEventListener("visibilitychange", refreshWhenUserReturns);
     };
   }, [liveDataEnabled, replaceRoute, role, tenantSlug]);
 

@@ -8,6 +8,7 @@ import { AuditLogService } from '../modules/observability/audit-log.service';
 import { AuthEmailService } from './auth-email.service';
 import {
   CreateTenantInvitationDto,
+  ListTenantUsersQueryDto,
   TENANT_INVITABLE_ROLE_CODES,
   TenantInvitationActionResponseDto,
   TenantManagedUserDto,
@@ -127,8 +128,15 @@ export class TenantInvitationsService {
     });
   }
 
-  async listTenantUsers(): Promise<TenantManagedUsersResponseDto> {
+  async listTenantUsers(
+    query: ListTenantUsersQueryDto = {},
+  ): Promise<TenantManagedUsersResponseDto> {
     const tenantId = this.requireTenantId();
+    const search = this.normalizeSearchTerm(query.search);
+    const roleCode = query.role_code ? this.normalizeRoleCode(query.role_code) : null;
+    const status = query.status?.trim() || null;
+    const limit = this.normalizeListLimit(query.limit);
+    const offset = this.normalizeListOffset(query.offset);
     const result = await this.databaseService.query<TenantManagedUserRow>(
       `
         WITH current_members AS (
@@ -150,6 +158,11 @@ export class TenantInvitationsService {
            AND r.tenant_id = tm.tenant_id
           WHERE tm.tenant_id = $1
             AND tm.status IN ('active', 'suspended')
+            AND (
+              $2::text IS NULL
+              OR lower(u.display_name) LIKE $2::text
+              OR lower(u.email) LIKE $2::text
+            )
         ),
         pending_invitations AS (
           SELECT
@@ -173,22 +186,65 @@ export class TenantInvitationsService {
             AND token.purpose = 'invite_acceptance'
             AND token.consumed_at IS NULL
             AND token.metadata->>'purpose' = 'tenant_user_invitation'
+            AND (
+              $2::text IS NULL
+              OR lower(COALESCE(NULLIF(token.metadata->>'display_name', ''), token.email)) LIKE $2::text
+              OR lower(token.email) LIKE $2::text
+            )
         )
-        SELECT *
+        SELECT
+          managed_users.id,
+          managed_users.kind,
+          managed_users.display_name,
+          managed_users.email,
+          managed_users.role_code,
+          managed_users.role_name,
+          managed_users.status,
+          managed_users.expires_at,
+          managed_users.created_at
         FROM (
-          SELECT * FROM pending_invitations
+          SELECT
+            id,
+            kind,
+            display_name,
+            email,
+            role_code,
+            role_name,
+            status,
+            expires_at,
+            created_at
+          FROM pending_invitations
           UNION ALL
-          SELECT * FROM current_members
+          SELECT
+            id,
+            kind,
+            display_name,
+            email,
+            role_code,
+            role_name,
+            status,
+            expires_at,
+            created_at
+          FROM current_members
         ) managed_users
+        WHERE ($3::text IS NULL OR managed_users.role_code = $3::text)
+          AND ($4::text IS NULL OR managed_users.status = $4::text)
         ORDER BY
           CASE managed_users.kind WHEN 'invitation' THEN 0 ELSE 1 END,
           managed_users.created_at DESC
+        LIMIT $5::integer
+        OFFSET $6::integer
       `,
-      [tenantId],
+      [tenantId, search, roleCode, status, limit, offset],
     );
 
     return {
       users: result.rows.map((row) => this.mapManagedUser(row)),
+      pagination: {
+        limit,
+        offset,
+        returned: result.rows.length,
+      },
     };
   }
 
@@ -431,6 +487,36 @@ export class TenantInvitationsService {
     }
 
     return normalizedRoleCode as TenantInvitableRoleCode;
+  }
+
+  private normalizeSearchTerm(search: string | undefined): string | null {
+    const normalized = search?.trim().toLowerCase() ?? '';
+
+    if (normalized.length < 2) {
+      return null;
+    }
+
+    return `%${normalized}%`;
+  }
+
+  private normalizeListLimit(limit: number | undefined): number {
+    const parsed = Number(limit ?? 25);
+
+    if (!Number.isFinite(parsed)) {
+      return 25;
+    }
+
+    return Math.min(Math.max(Math.trunc(parsed), 1), 50);
+  }
+
+  private normalizeListOffset(offset: number | undefined): number {
+    const parsed = Number(offset ?? 0);
+
+    if (!Number.isFinite(parsed)) {
+      return 0;
+    }
+
+    return Math.max(Math.trunc(parsed), 0);
   }
 
   private requireTenantId(): string {

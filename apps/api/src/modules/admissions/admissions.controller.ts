@@ -109,14 +109,14 @@ export class AdmissionsController {
 
   @Get('parents')
   @Permissions('admissions:read')
-  listParents() {
-    return this.admissionsService.listParents();
+  listParents(@Query() query: ListAdmissionsQueryDto) {
+    return this.admissionsService.listParents(query);
   }
 
   @Get('documents')
   @Permissions('documents:read')
-  listDocuments() {
-    return this.admissionsService.listDocuments();
+  listDocuments(@Query() query: ListAdmissionsQueryDto) {
+    return this.admissionsService.listDocuments(query);
   }
 
   @Patch('documents/:documentId')
@@ -130,8 +130,8 @@ export class AdmissionsController {
 
   @Get('allocations')
   @Permissions('admissions:read')
-  listAllocations() {
-    return this.admissionsService.listAllocations();
+  listAllocations(@Query() query: ListAdmissionsQueryDto) {
+    return this.admissionsService.listAllocations(query);
   }
 
   @Post('allocations/:studentId')
@@ -145,8 +145,8 @@ export class AdmissionsController {
 
   @Get('transfers')
   @Permissions('transfers:read')
-  listTransfers() {
-    return this.admissionsService.listTransfers();
+  listTransfers(@Query() query: ListAdmissionsQueryDto) {
+    return this.admissionsService.listTransfers(query);
   }
 
   @Post('transfers')

@@ -111,17 +111,18 @@ export class AdmissionsRepository {
 
   async listApplications(
     tenantId: string,
-    options: { search?: string; status?: string; limit: number },
+    options: { search?: string; status?: string; limit: number; offset?: number },
   ): Promise<AdmissionApplicationRecord[]> {
     const conditions = ['tenant_id = $1'];
     const values: unknown[] = [tenantId];
     let parameterIndex = 2;
+    const search = this.normalizeSearch(options.search);
 
-    if (options.search) {
+    if (search) {
       conditions.push(
         `(full_name ILIKE $${parameterIndex} OR application_number ILIKE $${parameterIndex} OR parent_phone ILIKE $${parameterIndex})`,
       );
-      values.push(`%${options.search}%`);
+      values.push(`%${search}%`);
       parameterIndex += 1;
     }
 
@@ -131,7 +132,11 @@ export class AdmissionsRepository {
       parameterIndex += 1;
     }
 
-    values.push(options.limit);
+    const limitParameterIndex = parameterIndex;
+    values.push(this.normalizeLimit(options.limit));
+    parameterIndex += 1;
+    const offsetParameterIndex = parameterIndex;
+    values.push(this.normalizeOffset(options.offset));
 
     const result = await this.databaseService.query<AdmissionApplicationRecord>(
       `
@@ -166,7 +171,8 @@ export class AdmissionsRepository {
         FROM admission_applications
         WHERE ${conditions.join(' AND ')}
         ORDER BY created_at DESC
-        LIMIT $${parameterIndex}
+        LIMIT $${limitParameterIndex}::integer
+        OFFSET $${offsetParameterIndex}::integer
       `,
       values,
     );
@@ -519,7 +525,35 @@ export class AdmissionsRepository {
     return result.rows;
   }
 
-  async listDocuments(tenantId: string) {
+  async listDocuments(
+    tenantId: string,
+    options: { search?: string; status?: string; limit?: number; offset?: number } = {},
+  ) {
+    const conditions = ['document.tenant_id = $1'];
+    const values: unknown[] = [tenantId];
+    let parameterIndex = 2;
+    const search = this.normalizeSearch(options.search);
+
+    if (search) {
+      conditions.push(
+        `(document.document_type ILIKE $${parameterIndex} OR document.original_file_name ILIKE $${parameterIndex} OR application.full_name ILIKE $${parameterIndex} OR student.admission_number ILIKE $${parameterIndex})`,
+      );
+      values.push(`%${search}%`);
+      parameterIndex += 1;
+    }
+
+    if (options.status) {
+      conditions.push(`document.verification_status = $${parameterIndex}`);
+      values.push(options.status);
+      parameterIndex += 1;
+    }
+
+    const limitParameterIndex = parameterIndex;
+    values.push(this.normalizeLimit(options.limit));
+    parameterIndex += 1;
+    const offsetParameterIndex = parameterIndex;
+    values.push(this.normalizeOffset(options.offset));
+
     const result = await this.databaseService.query(
       `
         SELECT
@@ -541,10 +575,12 @@ export class AdmissionsRepository {
         LEFT JOIN students student
           ON student.tenant_id = document.tenant_id
          AND student.id = document.student_id
-        WHERE document.tenant_id = $1
+        WHERE ${conditions.join(' AND ')}
         ORDER BY document.created_at DESC
+        LIMIT $${limitParameterIndex}::integer
+        OFFSET $${offsetParameterIndex}::integer
       `,
-      [tenantId],
+      values,
     );
 
     return result.rows;
@@ -1250,7 +1286,29 @@ export class AdmissionsRepository {
     return result.rows[0] ?? null;
   }
 
-  async listAllocations(tenantId: string) {
+  async listAllocations(
+    tenantId: string,
+    options: { search?: string; limit?: number; offset?: number } = {},
+  ) {
+    const conditions = ['allocation.tenant_id = $1', 'allocation.is_current = TRUE'];
+    const values: unknown[] = [tenantId];
+    let parameterIndex = 2;
+    const search = this.normalizeSearch(options.search);
+
+    if (search) {
+      conditions.push(
+        `(student.admission_number ILIKE $${parameterIndex} OR student.first_name ILIKE $${parameterIndex} OR student.last_name ILIKE $${parameterIndex} OR allocation.class_name ILIKE $${parameterIndex} OR allocation.stream_name ILIKE $${parameterIndex})`,
+      );
+      values.push(`%${search}%`);
+      parameterIndex += 1;
+    }
+
+    const limitParameterIndex = parameterIndex;
+    values.push(this.normalizeLimit(options.limit));
+    parameterIndex += 1;
+    const offsetParameterIndex = parameterIndex;
+    values.push(this.normalizeOffset(options.offset));
+
     const result = await this.databaseService.query(
       `
         SELECT
@@ -1268,11 +1326,12 @@ export class AdmissionsRepository {
         JOIN students student
           ON student.tenant_id = allocation.tenant_id
          AND student.id = allocation.student_id
-        WHERE allocation.tenant_id = $1
-          AND allocation.is_current = TRUE
+        WHERE ${conditions.join(' AND ')}
         ORDER BY allocation.effective_from DESC
+        LIMIT $${limitParameterIndex}::integer
+        OFFSET $${offsetParameterIndex}::integer
       `,
-      [tenantId],
+      values,
     );
 
     return result.rows;
@@ -1280,13 +1339,14 @@ export class AdmissionsRepository {
 
   async listStudentDirectory(
     tenantId: string,
-    options: { search?: string; limit: number },
+    options: { search?: string; limit: number; offset?: number },
   ) {
     const conditions = ['student.tenant_id = $1'];
     const values: unknown[] = [tenantId];
     let parameterIndex = 2;
+    const search = this.normalizeSearch(options.search);
 
-    if (options.search) {
+    if (search) {
       conditions.push(
         `(
           CONCAT(student.first_name, ' ', student.last_name) ILIKE $${parameterIndex}
@@ -1294,11 +1354,15 @@ export class AdmissionsRepository {
           OR COALESCE(student.primary_guardian_phone, '') ILIKE $${parameterIndex}
         )`,
       );
-      values.push(`%${options.search}%`);
+      values.push(`%${search}%`);
       parameterIndex += 1;
     }
 
-    values.push(options.limit);
+    const limitParameterIndex = parameterIndex;
+    values.push(this.normalizeLimit(options.limit));
+    parameterIndex += 1;
+    const offsetParameterIndex = parameterIndex;
+    values.push(this.normalizeOffset(options.offset));
 
     const result = await this.databaseService.query(
       `
@@ -1321,7 +1385,8 @@ export class AdmissionsRepository {
          AND allocation.is_current = TRUE
         WHERE ${conditions.join(' AND ')}
         ORDER BY student.created_at DESC
-        LIMIT $${parameterIndex}
+        LIMIT $${limitParameterIndex}::integer
+        OFFSET $${offsetParameterIndex}::integer
       `,
       values,
     );
@@ -1562,7 +1627,31 @@ export class AdmissionsRepository {
     };
   }
 
-  async listParents(tenantId: string) {
+  async listParents(
+    tenantId: string,
+    options: { search?: string; limit?: number; offset?: number } = {},
+  ) {
+    const values: unknown[] = [tenantId];
+    let parameterIndex = 2;
+    const search = this.normalizeSearch(options.search);
+    const searchCondition = search
+      ? `AND (
+          COALESCE(primary_guardian_name, parent_name) ILIKE $${parameterIndex}
+          OR COALESCE(primary_guardian_phone, parent_phone) ILIKE $${parameterIndex}
+        )`
+      : '';
+
+    if (search) {
+      values.push(`%${search}%`);
+      parameterIndex += 1;
+    }
+
+    const limitParameterIndex = parameterIndex;
+    values.push(this.normalizeLimit(options.limit));
+    parameterIndex += 1;
+    const offsetParameterIndex = parameterIndex;
+    values.push(this.normalizeOffset(options.offset));
+
     const result = await this.databaseService.query(
       `
         SELECT
@@ -1597,9 +1686,12 @@ export class AdmissionsRepository {
           WHERE application.tenant_id = $1
         ) parents
         WHERE COALESCE(primary_guardian_name, parent_name) IS NOT NULL
+          ${searchCondition}
         ORDER BY COALESCE(primary_guardian_name, parent_name) ASC
+        LIMIT $${limitParameterIndex}::integer
+        OFFSET $${offsetParameterIndex}::integer
       `,
-      [tenantId],
+      values,
     );
 
     return result.rows;
@@ -1648,15 +1740,45 @@ export class AdmissionsRepository {
     return result.rows[0];
   }
 
-  async listTransfers(tenantId: string) {
+  async listTransfers(
+    tenantId: string,
+    options: { search?: string; status?: string; limit?: number; offset?: number } = {},
+  ) {
+    const conditions = ['tenant_id = $1'];
+    const values: unknown[] = [tenantId];
+    let parameterIndex = 2;
+    const search = this.normalizeSearch(options.search);
+
+    if (search) {
+      conditions.push(
+        `(school_name ILIKE $${parameterIndex} OR reason ILIKE $${parameterIndex} OR transfer_type ILIKE $${parameterIndex})`,
+      );
+      values.push(`%${search}%`);
+      parameterIndex += 1;
+    }
+
+    if (options.status) {
+      conditions.push(`status = $${parameterIndex}`);
+      values.push(options.status);
+      parameterIndex += 1;
+    }
+
+    const limitParameterIndex = parameterIndex;
+    values.push(this.normalizeLimit(options.limit));
+    parameterIndex += 1;
+    const offsetParameterIndex = parameterIndex;
+    values.push(this.normalizeOffset(options.offset));
+
     const result = await this.databaseService.query(
       `
         SELECT id, student_id, application_id, transfer_type, school_name, reason, requested_on, status, notes
         FROM student_transfer_records
-        WHERE tenant_id = $1
+        WHERE ${conditions.join(' AND ')}
         ORDER BY requested_on DESC, created_at DESC
+        LIMIT $${limitParameterIndex}::integer
+        OFFSET $${offsetParameterIndex}::integer
       `,
-      [tenantId],
+      values,
     );
 
     return result.rows;
@@ -1702,5 +1824,31 @@ export class AdmissionsRepository {
       class_allocation_breakdown: allocationBreakdown.rows,
       document_verification_breakdown: documentVerification.rows,
     };
+  }
+
+  private normalizeLimit(value: number | undefined): number {
+    const candidate = Number(value);
+
+    if (!Number.isInteger(candidate) || candidate < 1) {
+      return 25;
+    }
+
+    return Math.min(candidate, 50);
+  }
+
+  private normalizeOffset(value: number | undefined): number {
+    const candidate = Number(value);
+
+    if (!Number.isInteger(candidate) || candidate < 0) {
+      return 0;
+    }
+
+    return candidate;
+  }
+
+  private normalizeSearch(value: string | undefined): string | undefined {
+    const search = value?.trim();
+
+    return search && search.length >= 2 ? search : undefined;
   }
 }

@@ -63,4 +63,6 @@ export class GenerateReportCardBatchDto {
   exam_series_id!: string;
   class_section_id?: string;
   stream_name?: string;
+  batch_size?: number;
+  offset?: number;
 }

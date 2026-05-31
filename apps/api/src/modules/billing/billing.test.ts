@@ -1475,11 +1475,31 @@ test('BillingService computes student balances from persisted invoices and unapp
     } as never,
     {} as never,
     {
-      listInvoices: async () => [invoice],
+      listStudentBalanceSummaries: async () => [
+        {
+          tenant_id: invoice.tenant_id,
+          student_id: studentId,
+          student_name: 'Jane Learner',
+          currency_code: invoice.currency_code,
+          invoiced_amount_minor: invoice.total_amount_minor,
+          paid_amount_minor: invoice.amount_paid_minor,
+          invoice_count: 1,
+          last_activity_at: invoice.issued_at,
+        },
+      ],
     } as never,
     undefined,
     {
-      list: async () => [unappliedCredit],
+      listUnappliedCreditSummaries: async () => [
+        {
+          tenant_id: unappliedCredit.tenant_id,
+          student_id: studentId,
+          student_name: null,
+          currency_code: unappliedCredit.currency_code,
+          credit_amount_minor: unappliedCredit.amount_minor,
+          last_activity_at: unappliedCredit.cleared_at ?? unappliedCredit.received_at,
+        },
+      ],
     } as never,
   );
 
@@ -1509,6 +1529,105 @@ test('BillingService computes student balances from persisted invoices and unapp
   assert.equal(response[0].credit_amount_minor, '10000');
   assert.equal(response[0].balance_amount_minor, '65000');
   assert.equal(response[0].invoice_count, 1);
+});
+
+test('BillingService lists student balances from tenant-scoped aggregate summaries', async () => {
+  const requestContext = new RequestContextService();
+  const studentId = '00000000-0000-0000-0000-000000000802';
+  let invoiceSummaryScopedToTenant: string | null = null;
+  let creditSummaryScopedToTenant: string | null = null;
+
+  const service = new BillingService(
+    requestContext,
+    {} as never,
+    {
+      invalidateTenant: async (): Promise<void> => undefined,
+    } as never,
+    {
+      buildOverview: () => ({}),
+      ensureCurrentLifecycle: async () => ({ subscription: null, overview: null }),
+      getNextRenewalWindow: () => ({
+        start_at: new Date('2026-05-01T00:00:00.000Z'),
+        end_at: new Date('2026-05-31T00:00:00.000Z'),
+      }),
+      toResponse: () => ({}),
+    } as never,
+    {
+      listSubscriptionNotifications: async () => [],
+    } as never,
+    {} as never,
+    {
+      listInvoices: async () => {
+        throw new Error('student balances should not load full invoice rows');
+      },
+      listStudentBalanceSummaries: async (
+        tenantId: string,
+        options: { limit?: number; offset?: number },
+      ) => {
+        invoiceSummaryScopedToTenant = tenantId;
+        assert.deepEqual(options, { limit: 25, offset: 0 });
+        return [
+          {
+            tenant_id: tenantId,
+            student_id: studentId,
+            student_name: 'Jane Learner',
+            currency_code: 'KES',
+            invoiced_amount_minor: '125000',
+            paid_amount_minor: '50000',
+            invoice_count: 1,
+            last_activity_at: new Date('2026-05-15T07:00:00.000Z'),
+          },
+        ];
+      },
+    } as never,
+    undefined,
+    {
+      list: async () => {
+        throw new Error('student balances should not load full receipt rows');
+      },
+      listUnappliedCreditSummaries: async (
+        tenantId: string,
+        options: { limit?: number; offset?: number },
+      ) => {
+        creditSummaryScopedToTenant = tenantId;
+        assert.deepEqual(options, { limit: 25, offset: 0 });
+        return [
+          {
+            tenant_id: tenantId,
+            student_id: studentId,
+            student_name: null,
+            currency_code: 'KES',
+            credit_amount_minor: '10000',
+            last_activity_at: new Date('2026-05-16T09:00:00.000Z'),
+          },
+        ];
+      },
+    } as never,
+  );
+
+  const response = await requestContext.run(
+    {
+      request_id: 'req-student-balance-summaries',
+      tenant_id: 'tenant-a',
+      user_id: '00000000-0000-0000-0000-000000000010',
+      role: 'bursar',
+      session_id: 'session-student-balance-summaries',
+      permissions: ['billing:read'],
+      is_authenticated: true,
+      client_ip: '127.0.0.1',
+      user_agent: 'test-suite',
+      method: 'GET',
+      path: '/billing/student-balances',
+      started_at: '2026-05-15T00:00:00.000Z',
+    },
+    () => service.listStudentBalances(),
+  );
+
+  assert.equal(invoiceSummaryScopedToTenant, 'tenant-a');
+  assert.equal(creditSummaryScopedToTenant, 'tenant-a');
+  assert.equal(response.length, 1);
+  assert.equal(response[0].student_id, studentId);
+  assert.equal(response[0].balance_amount_minor, '65000');
 });
 
 test('BillingService builds a student fee statement with running balances and pending receipts', async () => {
@@ -1570,11 +1689,11 @@ test('BillingService builds a student fee statement with running balances and pe
     } as never,
     {} as never,
     {
-      listInvoices: async () => [invoice],
+      listStudentInvoices: async () => [invoice],
     } as never,
     undefined,
     {
-      list: async () => [clearedReceipt, pendingCheque],
+      listStudentStatementPayments: async () => [clearedReceipt, pendingCheque],
     } as never,
   );
 
@@ -1682,11 +1801,11 @@ test('BillingService exports a student fee statement as CSV with a checksum', as
     } as never,
     {} as never,
     {
-      listInvoices: async () => [invoice],
+      listStudentInvoices: async () => [invoice],
     } as never,
     undefined,
     {
-      list: async () => [receipt],
+      listStudentStatementPayments: async () => [receipt],
     } as never,
   );
 
@@ -1805,7 +1924,29 @@ test('BillingService builds a finance reconciliation report by date and payment 
     } as never,
     undefined,
     {
-      list: async () => payments,
+      listForReconciliation: async (input: {
+        from: Date;
+        to: Date;
+        method: string | null;
+      }) =>
+        payments.filter((payment) => {
+          const occurredAt =
+            payment.status === 'reversed'
+              ? payment.reversed_at ?? payment.updated_at
+              : payment.status === 'bounced'
+                ? payment.bounced_at ?? payment.updated_at
+                : payment.status === 'cleared'
+                  ? payment.cleared_at ?? payment.received_at
+                  : payment.status === 'deposited'
+                    ? payment.deposited_at ?? payment.received_at
+                    : payment.received_at;
+
+          return (
+            occurredAt >= input.from &&
+            occurredAt <= input.to &&
+            (!input.method || payment.payment_method === input.method)
+          );
+        }),
     } as never,
   );
 
@@ -1860,6 +2001,99 @@ test('BillingService builds a finance reconciliation report by date and payment 
   );
 });
 
+test('BillingService builds finance reconciliation from date-scoped payment queries', async () => {
+  const requestContext = new RequestContextService();
+  const payment = makeManualFeePayment({
+    id: '00000000-0000-0000-0000-000000000737',
+    receipt_number: 'RCT-MPESA-SCOPED',
+    payment_method: 'mpesa_c2b',
+    status: 'cleared',
+    amount_minor: '40000',
+    received_at: new Date('2026-05-16T09:00:00.000Z'),
+    cleared_at: new Date('2026-05-16T09:01:00.000Z'),
+    external_reference: 'QFSCOPED1',
+  });
+  let reconciliationQuery:
+    | { tenantId: string; from: string; to: string; method: string | null }
+    | null = null;
+
+  const service = new BillingService(
+    requestContext,
+    {} as never,
+    {
+      invalidateTenant: async (): Promise<void> => undefined,
+    } as never,
+    {
+      buildOverview: () => ({}),
+      ensureCurrentLifecycle: async () => ({ subscription: null, overview: null }),
+      getNextRenewalWindow: () => ({
+        start_at: new Date('2026-05-01T00:00:00.000Z'),
+        end_at: new Date('2026-05-31T00:00:00.000Z'),
+      }),
+      toResponse: () => ({}),
+    } as never,
+    {
+      listSubscriptionNotifications: async () => [],
+    } as never,
+    {} as never,
+    {
+      listInvoices: async () => [],
+    } as never,
+    undefined,
+    {
+      list: async () => {
+        throw new Error('finance reconciliation should not load all payments');
+      },
+      listForReconciliation: async (input: {
+        tenantId: string;
+        from: Date;
+        to: Date;
+        method: string | null;
+      }) => {
+        reconciliationQuery = {
+          tenantId: input.tenantId,
+          from: input.from.toISOString(),
+          to: input.to.toISOString(),
+          method: input.method,
+        };
+        return [payment];
+      },
+    } as never,
+  );
+
+  const report = await requestContext.run(
+    {
+      request_id: 'req-finance-reconciliation-scoped',
+      tenant_id: 'tenant-a',
+      user_id: '00000000-0000-0000-0000-000000000010',
+      role: 'bursar',
+      session_id: 'session-finance-reconciliation-scoped',
+      permissions: ['billing:read'],
+      is_authenticated: true,
+      client_ip: '127.0.0.1',
+      user_agent: 'test-suite',
+      method: 'GET',
+      path: '/billing/reconciliation?from=2026-05-16&to=2026-05-16&method=mpesa_c2b',
+      started_at: '2026-05-16T00:00:00.000Z',
+    },
+    () =>
+      service.listFinanceReconciliation({
+        from: '2026-05-16',
+        to: '2026-05-16',
+        method: 'mpesa_c2b',
+      }),
+  );
+
+  assert.deepEqual(reconciliationQuery, {
+    tenantId: 'tenant-a',
+    from: '2026-05-16T00:00:00.000Z',
+    to: '2026-05-16T23:59:59.999Z',
+    method: 'mpesa_c2b',
+  });
+  assert.equal(report.rows.length, 1);
+  assert.equal(report.rows[0].receipt_number, 'RCT-MPESA-SCOPED');
+});
+
 test('BillingService exports finance reconciliation as CSV', async () => {
   const requestContext = new RequestContextService();
   const payments = [
@@ -1900,7 +2134,7 @@ test('BillingService exports finance reconciliation as CSV', async () => {
     } as never,
     undefined,
     {
-      list: async () => payments,
+      listForReconciliation: async () => payments,
     } as never,
   );
 
@@ -2114,6 +2348,106 @@ test('BillingLifecycleService computes restricted access after grace period laps
   assert.equal(overview.lifecycle_state, 'RESTRICTED');
   assert.equal(overview.access_mode, 'read_only');
   assert.equal(overview.renewal_required, true);
+});
+
+test('BillingService builds student statements from student-scoped ledger queries', async () => {
+  const requestContext = new RequestContextService();
+  const studentId = '00000000-0000-0000-0000-000000000802';
+  const invoice = makeInvoice({
+    id: '00000000-0000-0000-0000-000000000621',
+    invoice_number: 'INV-20260515-000021',
+    total_amount_minor: '125000',
+    amount_paid_minor: '40000',
+    issued_at: new Date('2026-05-15T07:00:00.000Z'),
+    metadata: {
+      student_id: studentId,
+      student_name: 'Jane Learner',
+    },
+  });
+  const clearedReceipt = makeManualFeePayment({
+    id: '00000000-0000-0000-0000-000000000721',
+    receipt_number: 'RCT-20260516-CLEARED1',
+    payment_method: 'cash',
+    status: 'cleared',
+    student_id: studentId,
+    invoice_id: invoice.id,
+    amount_minor: '40000',
+    received_at: new Date('2026-05-16T07:00:00.000Z'),
+    cleared_at: new Date('2026-05-16T09:00:00.000Z'),
+  });
+  let invoiceQuery: [string, string] | null = null;
+  let receiptQuery: { tenantId: string; studentId: string; invoiceIds: string[] } | null = null;
+
+  const service = new BillingService(
+    requestContext,
+    {} as never,
+    {
+      invalidateTenant: async (): Promise<void> => undefined,
+    } as never,
+    {
+      buildOverview: () => ({}),
+      ensureCurrentLifecycle: async () => ({ subscription: null, overview: null }),
+      getNextRenewalWindow: () => ({
+        start_at: new Date('2026-05-01T00:00:00.000Z'),
+        end_at: new Date('2026-05-31T00:00:00.000Z'),
+      }),
+      toResponse: () => ({}),
+    } as never,
+    {
+      listSubscriptionNotifications: async () => [],
+    } as never,
+    {} as never,
+    {
+      listInvoices: async () => {
+        throw new Error('student statements should not load all invoices');
+      },
+      listStudentInvoices: async (tenantId: string, scopedStudentId: string) => {
+        invoiceQuery = [tenantId, scopedStudentId];
+        return [invoice];
+      },
+    } as never,
+    undefined,
+    {
+      list: async () => {
+        throw new Error('student statements should not load all receipts');
+      },
+      listStudentStatementPayments: async (input: {
+        tenantId: string;
+        studentId: string;
+        invoiceIds: string[];
+      }) => {
+        receiptQuery = input;
+        return [clearedReceipt];
+      },
+    } as never,
+  );
+
+  const response = await requestContext.run(
+    {
+      request_id: 'req-student-statement-scoped',
+      tenant_id: 'tenant-a',
+      user_id: '00000000-0000-0000-0000-000000000010',
+      role: 'bursar',
+      session_id: 'session-student-statement-scoped',
+      permissions: ['billing:read'],
+      is_authenticated: true,
+      client_ip: '127.0.0.1',
+      user_agent: 'test-suite',
+      method: 'GET',
+      path: `/billing/student-balances/${studentId}/statement`,
+      started_at: '2026-05-15T00:00:00.000Z',
+    },
+    () => service.getStudentStatement(studentId),
+  );
+
+  assert.deepEqual(invoiceQuery, ['tenant-a', studentId]);
+  assert.deepEqual(receiptQuery, {
+    tenantId: 'tenant-a',
+    studentId,
+    invoiceIds: [invoice.id],
+  });
+  assert.equal(response.summary.student_id, studentId);
+  assert.equal(response.entries.length, 2);
 });
 
 test('Capability engine translates billing lifecycle into progressive API enforcement', () => {

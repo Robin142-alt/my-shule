@@ -230,16 +230,22 @@ export class LibraryService {
       borrower_id?: string;
       copy_id?: string;
       action?: string;
+      limit?: number;
+      offset?: number;
     } = {
       tenant_id: this.requireTenantId(),
     };
     const borrowerId = this.optionalText(query.borrower_id);
     const copyId = this.optionalText(query.copy_id);
     const action = this.optionalText(query.action);
+    const limit = this.optionalPositiveInteger(query.limit);
+    const offset = this.optionalNonNegativeInteger(query.offset);
 
     if (borrowerId) input.borrower_id = borrowerId;
     if (copyId) input.copy_id = copyId;
     if (action) input.action = action;
+    if (limit !== undefined) input.limit = limit;
+    if (offset !== undefined) input.offset = offset;
 
     return this.libraryRepository.listCirculation(input);
   }
@@ -274,5 +280,29 @@ export class LibraryService {
   private optionalText(value: string | undefined): string | undefined {
     const normalized = value?.trim() ?? '';
     return normalized || undefined;
+  }
+
+  private optionalPositiveInteger(value: string | undefined): number | undefined {
+    const normalized = value?.trim();
+
+    if (!normalized) {
+      return undefined;
+    }
+
+    const parsed = Number(normalized);
+
+    return Number.isFinite(parsed) && parsed > 0 ? Math.trunc(parsed) : undefined;
+  }
+
+  private optionalNonNegativeInteger(value: string | undefined): number | undefined {
+    const normalized = value?.trim();
+
+    if (!normalized) {
+      return undefined;
+    }
+
+    const parsed = Number(normalized);
+
+    return Number.isFinite(parsed) && parsed >= 0 ? Math.trunc(parsed) : undefined;
   }
 }

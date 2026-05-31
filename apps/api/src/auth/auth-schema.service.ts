@@ -1205,6 +1205,9 @@ export class AuthSchemaService implements OnModuleInit {
       CREATE INDEX IF NOT EXISTS ix_tenant_memberships_user_id ON tenant_memberships (user_id);
       CREATE UNIQUE INDEX IF NOT EXISTS ux_auth_action_tokens_hash ON auth_action_tokens (token_hash);
       CREATE INDEX IF NOT EXISTS ix_auth_action_tokens_tenant_email ON auth_action_tokens (tenant_id, lower(email), purpose);
+      CREATE INDEX IF NOT EXISTS ix_auth_action_tokens_tenant_invites
+        ON auth_action_tokens (tenant_id, purpose, consumed_at, expires_at, created_at DESC)
+        WHERE purpose = 'invite_acceptance';
       CREATE INDEX IF NOT EXISTS ix_auth_email_outbox_status ON auth_email_outbox (status, next_attempt_at);
       CREATE INDEX IF NOT EXISTS ix_auth_mfa_challenges_user_active
         ON auth_mfa_challenges (user_id, expires_at)

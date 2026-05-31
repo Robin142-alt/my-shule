@@ -340,8 +340,16 @@ export class InventorySchemaService implements OnModuleInit {
       CREATE INDEX IF NOT EXISTS ix_inventory_item_balances_location ON inventory_item_balances (tenant_id, location_code, item_id);
       CREATE INDEX IF NOT EXISTS ix_inventory_stock_counts_counted_at ON inventory_stock_count_snapshots (tenant_id, counted_at DESC);
       CREATE INDEX IF NOT EXISTS ix_inventory_movements_occurred_at ON inventory_stock_movements (tenant_id, occurred_at DESC);
+      CREATE INDEX IF NOT EXISTS ix_inventory_purchase_orders_tenant_status_created
+        ON inventory_purchase_orders (tenant_id, status, created_at DESC);
+      CREATE INDEX IF NOT EXISTS ix_inventory_requests_tenant_status_created
+        ON inventory_requests (tenant_id, status, created_at DESC);
       CREATE INDEX IF NOT EXISTS ix_inventory_reservations_request ON inventory_reservations (tenant_id, request_id, status);
       CREATE INDEX IF NOT EXISTS ix_inventory_backorders_request ON inventory_request_backorders (tenant_id, request_id, status);
+      CREATE INDEX IF NOT EXISTS ix_inventory_transfers_tenant_status_created
+        ON inventory_transfers (tenant_id, status, created_at DESC);
+      CREATE INDEX IF NOT EXISTS ix_inventory_incidents_tenant_status_reported
+        ON inventory_incidents (tenant_id, status, reported_at DESC);
 
       ALTER TABLE inventory_categories ADD COLUMN IF NOT EXISTS manager text;
       ALTER TABLE inventory_categories ADD COLUMN IF NOT EXISTS storage_zones text;

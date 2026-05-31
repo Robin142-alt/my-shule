@@ -150,23 +150,48 @@ export class BiometricAttendanceRepository {
     );
   }
 
-  async listTeacherLogs(input: { tenant_id: string; teacher_user_id?: string }) {
+  async listTeacherLogs(input: {
+    tenant_id: string;
+    teacher_user_id?: string;
+    limit?: number;
+    offset?: number;
+  }) {
+    const limit = this.normalizeLimit(input.limit);
+    const offset = this.normalizeOffset(input.offset);
     const result = await this.databaseService.query(
       `
-        SELECT *
+        SELECT
+          id::text,
+          tenant_id,
+          teacher_user_id::text,
+          attendance_date::text,
+          event_id::text,
+          event_type,
+          occurred_at::text,
+          device_id::text,
+          status,
+          rule_snapshot,
+          manual_override,
+          override_reason,
+          override_by::text,
+          created_at::text,
+          updated_at::text
         FROM teacher_attendance_logs
         WHERE tenant_id = $1
           AND ($2::uuid IS NULL OR teacher_user_id = $2::uuid)
         ORDER BY attendance_date DESC, created_at DESC
-        LIMIT 200
+        LIMIT $3::integer
+        OFFSET $4::integer
       `,
-      [input.tenant_id, input.teacher_user_id ?? null],
+      [input.tenant_id, input.teacher_user_id ?? null, limit, offset],
     );
 
     return result.rows;
   }
 
-  async listLiveFeed(input: { tenant_id: string; limit: number }) {
+  async listLiveFeed(input: { tenant_id: string; limit?: number; offset?: number }) {
+    const limit = this.normalizeLimit(input.limit);
+    const offset = this.normalizeOffset(input.offset);
     const result = await this.databaseService.query(
       `
         SELECT
@@ -191,9 +216,10 @@ export class BiometricAttendanceRepository {
          AND device.id = log.device_id
         WHERE log.tenant_id = $1
         ORDER BY log.created_at DESC
-        LIMIT $2
+        LIMIT $2::integer
+        OFFSET $3::integer
       `,
-      [input.tenant_id, input.limit],
+      [input.tenant_id, limit, offset],
     );
 
     return result.rows;
@@ -380,5 +406,25 @@ export class BiometricAttendanceRepository {
     const result = await this.databaseService.query(sql, values);
 
     return result.rows[0];
+  }
+
+  private normalizeLimit(value: number | undefined): number {
+    const candidate = Number(value);
+
+    if (!Number.isInteger(candidate) || candidate < 1) {
+      return 25;
+    }
+
+    return Math.min(candidate, 50);
+  }
+
+  private normalizeOffset(value: number | undefined): number {
+    const candidate = Number(value);
+
+    if (!Number.isInteger(candidate) || candidate < 0) {
+      return 0;
+    }
+
+    return candidate;
   }
 }

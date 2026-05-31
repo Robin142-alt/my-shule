@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Activity, BrainCircuit, RadioTower, ShieldCheck } from "lucide-react";
 
@@ -314,36 +314,42 @@ function getModuleLabel(moduleCode: string) {
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
+function getLiveUpdateLabel(channel: string) {
+  return getModuleLabel(channel.replace(/^principal[._-]?/i, ""))
+    .replace(/\bSms\b/g, "SMS")
+    .replace(/\bMpesa\b/g, "M-Pesa");
+}
+
 const PRINCIPAL_EXECUTIVE_ZONES: PrincipalExecutiveZoneConfig[] = [
   {
     id: "academic",
-    title: "Academic Intelligence",
+    title: "Academic Progress",
     category: "Academic quality",
-    description: "Exam performance, CBC/CBE progress, academic risk, and teacher accountability.",
+    description: "Exam performance, CBC/CBE progress, missing marks, and teacher follow-up.",
     moduleCodes: ["exams", "academics"],
-    fallbackMetrics: ["Mean score trends", "CBC/CBE progress", "Academic risk detection"],
+    fallbackMetrics: ["Mean score trends", "CBC/CBE progress", "Classes needing follow-up"],
   },
   {
     id: "finance",
-    title: "Financial Intelligence",
+    title: "Fee Collection",
     category: "Financial health",
-    description: "Fee collection, arrears, budget monitoring, payroll pressure, and financial risk.",
+    description: "Fee collection, arrears, budget pressure, receipts, and payment follow-up.",
     moduleCodes: ["finance"],
-    fallbackMetrics: ["Fee collection analytics", "Budget monitoring", "Payroll status"],
+    fallbackMetrics: ["Fee collection today", "Budget monitoring", "Payroll status"],
   },
   {
     id: "student",
-    title: "Student Intelligence",
+    title: "Student Welfare",
     category: "Student confidence",
-    description: "Enrollment, attendance, discipline, welfare, and parent confidence signals.",
+    description: "Enrollment, attendance, discipline, sick bay, and parent follow-up.",
     moduleCodes: ["students", "student_management", "discipline", "clinic_health", "guidance_counselling"],
-    fallbackMetrics: ["Enrollment overview", "Attendance heatmap", "Discipline intelligence"],
+    fallbackMetrics: ["Enrollment overview", "Attendance concerns", "Discipline follow-up"],
   },
   {
     id: "operations",
-    title: "Operations Intelligence",
+    title: "School Operations",
     category: "Operational resilience",
-    description: "Transport, inventory, maintenance, ICT health, and facility readiness.",
+    description: "Transport, inventory, maintenance, ICT, visitors, and facility readiness.",
     moduleCodes: ["transport", "inventory", "assets", "procurement"],
     fallbackMetrics: ["Transport status", "Inventory health", "Maintenance alerts"],
   },
@@ -357,11 +363,11 @@ const PRINCIPAL_EXECUTIVE_ZONES: PrincipalExecutiveZoneConfig[] = [
   },
   {
     id: "ai",
-    title: "AI insights",
-    category: "Predictive intelligence",
-    description: "Predictive school-risk insights, anomaly detection, and explainable recommendations.",
+    title: "School Insights",
+    category: "Principal briefing",
+    description: "Plain-language school patterns, concern areas, and recommended follow-ups.",
     moduleCodes: ["ai_insights"],
-    fallbackMetrics: ["Fee collection risk", "Academic risk prediction", "Operational anomaly detection"],
+    fallbackMetrics: ["Fee collection concern", "Academic follow-up", "Operations concern"],
   },
 ];
 
@@ -415,6 +421,22 @@ function zoneRiskTone(zone: PrincipalExecutiveZone): StatusTone {
       : "ok";
 }
 
+function principalZoneMessage(zone: PrincipalExecutiveZone) {
+  if (zone.state === "LOCKED") {
+    return "This school area is not active yet.";
+  }
+
+  if (zone.state === "FAILED") {
+    return "This school area needs attention before live data can appear.";
+  }
+
+  if (zone.state === "EMPTY") {
+    return "No records have been received for this school area yet.";
+  }
+
+  return zone.message;
+}
+
 function PrincipalExecutiveZoneCard({ zone }: { zone: PrincipalExecutiveZone }) {
   const activeWidgets = zone.section?.widgets.slice(0, 4) ?? [];
   const reports = zone.section?.reports.slice(0, 3) ?? [];
@@ -442,9 +464,9 @@ function PrincipalExecutiveZoneCard({ zone }: { zone: PrincipalExecutiveZone }) 
         </div>
       ) : (
         <div className="mt-5 rounded-[var(--radius-sm)] border border-border bg-surface-muted/75 px-3 py-3">
-          <p className="text-sm font-semibold text-foreground">{zone.message}</p>
+          <p className="text-sm font-semibold text-foreground">{principalZoneMessage(zone)}</p>
           <p className="mt-1 text-xs leading-5 text-muted">
-            The executive workspace remains mounted so the Principal dashboard never loses its layout.
+            This school area stays visible so the Principal can see what is available.
           </p>
         </div>
       )}
@@ -478,7 +500,7 @@ function PrincipalExecutiveZoneCard({ zone }: { zone: PrincipalExecutiveZone }) 
             type="button"
             className="inline-flex items-center rounded-[var(--radius-sm)] border border-border bg-surface-muted px-3 py-2 text-xs font-semibold text-foreground transition hover:border-accent/40 hover:bg-primary-soft/50"
           >
-            Request Module
+            Request Access
           </button>
         ) : (
           <div className="flex flex-wrap gap-2">
@@ -535,24 +557,24 @@ async function readPrincipalDashboardError(response: Response) {
 
 const viewCopy: Record<PrincipalCommandView, { eyebrow: string; title: string; description: string }> = {
   dashboard: {
-    eyebrow: "Principal Command",
-    title: "Executive command center",
-    description: "Oversight, approvals, risk detection, accountability, AI insights, and live governance across enabled modules only.",
+    eyebrow: "Principal Desk",
+    title: "Principal Command Center",
+    description: "Live school attendance, fees, welfare, approvals, staff activity, and urgent alerts in one place.",
   },
   analytics: {
-    eyebrow: "Executive Analytics",
-    title: "Institutional performance intelligence",
-    description: "Trend, posture, and module-level summaries for principal oversight without operational clutter.",
+    eyebrow: "School Overview",
+    title: "School performance overview",
+    description: "Trend and department summaries for principal oversight without operational clutter.",
   },
   risks: {
     eyebrow: "Alerts & Risks",
-    title: "Risk detection center",
-    description: "Critical signals, warning bands, and module-aware anomalies that need executive attention.",
+    title: "Urgent alerts center",
+    description: "Critical school signals and warning items that need principal attention.",
   },
   approvals: {
     eyebrow: "Approvals",
-    title: "Governance approval queue",
-    description: "Role-based approvals, escalation visibility, and release controls from enabled workflows only.",
+    title: "Approval queue",
+    description: "School approvals, escalations, and decisions waiting for principal action.",
   },
   staff: {
     eyebrow: "Users & Staff",
@@ -561,8 +583,8 @@ const viewCopy: Record<PrincipalCommandView, { eyebrow: string; title: string; d
   },
   audit: {
     eyebrow: "Audit Logs",
-    title: "Immutable accountability trail",
-    description: "Critical actions, release gates, and module events summarized for principal governance.",
+    title: "Action record summary",
+    description: "Important school actions and decisions summarized for principal review.",
   },
 };
 
@@ -581,6 +603,7 @@ export function PrincipalCommandCenter({
   const [loading, setLoading] = useState(liveDataEnabled);
   const [error, setError] = useState<string | null>(null);
   const [greetingDate, setGreetingDate] = useState<Date | null>(null);
+  const lastDashboardLoadRef = useRef(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -597,6 +620,7 @@ export function PrincipalCommandCenter({
       if (showLoading) {
         setLoading(true);
       }
+      lastDashboardLoadRef.current = Date.now();
       setError(null);
 
       try {
@@ -631,9 +655,18 @@ export function PrincipalCommandCenter({
     }
 
     void loadDashboard();
-    const refreshTimer = window.setInterval(() => {
-      void loadDashboard(false);
-    }, 45_000);
+    const refreshWhenUserReturns = () => {
+      if (document.visibilityState === "hidden") {
+        return;
+      }
+
+      if (Date.now() - lastDashboardLoadRef.current > 60_000) {
+        void loadDashboard(false);
+      }
+    };
+
+    window.addEventListener("focus", refreshWhenUserReturns);
+    document.addEventListener("visibilitychange", refreshWhenUserReturns);
 
     if (typeof EventSource !== "undefined") {
       eventSource = new EventSource(`/api/events/dashboard/stream${query}`, {
@@ -661,7 +694,8 @@ export function PrincipalCommandCenter({
 
     return () => {
       cancelled = true;
-      window.clearInterval(refreshTimer);
+      window.removeEventListener("focus", refreshWhenUserReturns);
+      document.removeEventListener("visibilitychange", refreshWhenUserReturns);
       eventSource?.close();
     };
   }, [liveDataEnabled, replaceRoute, tenantSlug]);
@@ -710,21 +744,21 @@ export function PrincipalCommandCenter({
   const healthScore = Math.max(44, 92 - criticalCount * 12 - warningCount * 5);
   const alertRows = alerts.length > 0
     ? alerts
-    : [{ id: "none", title: "No critical alerts", module_code: "all", message: "All enabled modules are within normal range.", severity: "warning" as const }];
+    : [{ id: "none", title: "No critical alerts", module_code: "all", message: "All active school areas are within normal range.", severity: "warning" as const }];
   const auditRows = [
     {
       id: "audit-generated",
-      action: "Executive dashboard generated",
-      module: "principal_dashboard",
-      actor: "system",
+      action: "Principal dashboard updated",
+      module: "Principal dashboard",
+      actor: "MyShule",
       state: dashboard?.generated_at ? new Date(dashboard.generated_at).toLocaleString("en-KE") : "pending",
       tone: "ok" as const,
     },
     ...alerts.slice(0, 5).map((alert) => ({
       id: `audit-${alert.id}`,
       action: alert.title,
-      module: alert.module_code,
-      actor: "risk engine",
+      module: getModuleLabel(alert.module_code),
+      actor: "MyShule alerts",
       state: alert.severity,
       tone: alert.severity === "critical" ? "critical" as const : "warning" as const,
     })),
@@ -762,12 +796,12 @@ export function PrincipalCommandCenter({
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <LiveIndicator label={loading ? "Syncing" : "Live"} tone={loading ? "warning" : "ok"} />
-            <StatusPill label={`${dashboard?.enabled_modules?.length ?? 0} modules`} tone="ok" />
+            <StatusPill label={`${dashboard?.enabled_modules?.length ?? 0} areas active`} tone="ok" />
           </div>
         }
         meta={
           <span className="badge badge-neutral">
-            Generated {dashboard?.generated_at ? new Date(dashboard.generated_at).toLocaleTimeString("en-KE") : "pending"}
+            Updated {dashboard?.generated_at ? new Date(dashboard.generated_at).toLocaleTimeString("en-KE") : "pending"}
           </span>
         }
       />
@@ -782,7 +816,7 @@ export function PrincipalCommandCenter({
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div className="min-w-0">
             <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-accent">
-              Executive briefing
+              Daily briefing
             </p>
             <h1 className="mt-2 text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
               {principalGreeting}, {principalDisplayName}
@@ -813,7 +847,7 @@ export function PrincipalCommandCenter({
         <Card className="p-5">
           <p className="eyebrow">School health</p>
           <div className="mt-5">
-            <ProgressRing value={healthScore} label="Executive posture" tone={healthScore < 60 ? "critical" : healthScore < 80 ? "warning" : "ok"} />
+            <ProgressRing value={healthScore} label="School readiness" tone={healthScore < 60 ? "critical" : healthScore < 80 ? "warning" : "ok"} />
           </div>
           <div className="mt-5">
             <RiskHeatmap
@@ -830,12 +864,12 @@ export function PrincipalCommandCenter({
 
       {view === "dashboard" || view === "analytics" ? (
         <>
-          <section aria-label="Academic and finance intelligence" className="grid gap-4 xl:grid-cols-2">
+          <section aria-label="Academic and finance overview" className="grid gap-4 xl:grid-cols-2">
             {academicFinanceZones.map((zone) => (
               <PrincipalExecutiveZoneCard key={zone.id} zone={zone} />
             ))}
           </section>
-          <section aria-label="Operational intelligence" className="grid gap-4 xl:grid-cols-2">
+          <section aria-label="School operations overview" className="grid gap-4 xl:grid-cols-2">
             {operationsZones.map((zone) => (
               <PrincipalExecutiveZoneCard key={zone.id} zone={zone} />
             ))}
@@ -847,10 +881,10 @@ export function PrincipalCommandCenter({
         <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px_360px]">
           <DataTable
           title="Alerts and risk center"
-          subtitle="Critical and warning signals from active modules only."
+          subtitle="Critical and warning signals from active school areas only."
           columns={[
             { id: "title", header: "Alert", render: (row) => row.title },
-            { id: "module", header: "Module", render: (row) => row.module_code },
+            { id: "module", header: "School area", render: (row) => getModuleLabel(row.module_code) },
             { id: "severity", header: "Severity", render: (row) => <StatusPill label={row.severity} tone={row.severity} /> },
           ]}
           rows={alertRows}
@@ -878,11 +912,11 @@ export function PrincipalCommandCenter({
 
       {view === "audit" ? (
         <DataTable
-          title="Audit trail summary"
-          subtitle="Immutable executive events surfaced without exposing operational clutter."
+          title="Action record summary"
+          subtitle="Important school actions surfaced without crowding the daily dashboard."
           columns={[
             { id: "action", header: "Action", render: (row) => row.action },
-            { id: "module", header: "Module", render: (row) => row.module },
+            { id: "module", header: "School area", render: (row) => row.module },
             { id: "actor", header: "Actor", render: (row) => row.actor },
             { id: "state", header: "State", render: (row) => <StatusPill label={row.state} tone={row.tone} /> },
           ]}
@@ -894,46 +928,46 @@ export function PrincipalCommandCenter({
       {view === "dashboard" || view === "analytics" ? (
         <section className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
           <CommandInsightCard
-            title="AI insights"
-            description={aiZone?.description ?? "Timestamped, explainable, and auditable insight stream filtered to enabled modules."}
-            value={aiZone?.state === "LOCKED" ? "Locked" : "Audited"}
+            title="School Insights"
+            description={aiZone?.description ?? "Plain-language school patterns and recommended follow-ups from active school areas."}
+            value={aiZone?.state === "LOCKED" ? "Needs access" : "Ready"}
             tone={aiZone ? widgetStateTone(aiZone.state === "LOCKED" ? "LOCKED" : "ACTIVE") : "warning"}
           >
             {aiZone?.state === "LOCKED" ? (
               <div className="rounded-[var(--radius-sm)] border border-border bg-surface-muted px-4 py-3">
-                <p className="text-sm font-semibold text-foreground">{aiZone.message}</p>
+                <p className="text-sm font-semibold text-foreground">{principalZoneMessage(aiZone)}</p>
                 <p className="mt-1 text-xs leading-5 text-muted">
-                  Predictive intelligence remains part of the static Principal command layout.
+                  School insight summaries stay in the Principal layout and open when access is enabled.
                 </p>
                 <button
                   type="button"
                   className="mt-3 inline-flex items-center rounded-[var(--radius-sm)] border border-border bg-surface-muted px-3 py-2 text-xs font-semibold text-foreground transition hover:border-accent/40 hover:bg-primary-soft/50"
                 >
-                  Request Module
+                  Request Access
                 </button>
               </div>
             ) : (
               <OperationalTimeline
                 items={[
-                  { id: "ai-fees", title: "Fee default risk", detail: "Explained by collection velocity and arrears aging.", timeLabel: "now", tone: "warning", icon: <BrainCircuit className="h-3.5 w-3.5 text-accent" /> },
-                  { id: "ai-attendance", title: "Attendance anomaly", detail: "Repeated morning absence pattern requires deputy review.", timeLabel: "12m", tone: "warning", icon: <Activity className="h-3.5 w-3.5 text-warning" /> },
-                  { id: "ai-audit", title: "Audit-ready output", detail: "All recommendations keep source modules, timestamp, and reason.", timeLabel: "live", tone: "ok", icon: <ShieldCheck className="h-3.5 w-3.5 text-success" /> },
+                  { id: "ai-fees", title: "High fee-balance concern", detail: "Based on collection pace and arrears age.", timeLabel: "now", tone: "warning", icon: <BrainCircuit className="h-3.5 w-3.5 text-accent" /> },
+                  { id: "ai-attendance", title: "Attendance concern", detail: "Repeated morning absence pattern requires deputy review.", timeLabel: "12m", tone: "warning", icon: <Activity className="h-3.5 w-3.5 text-warning" /> },
+                  { id: "ai-audit", title: "Source checked", detail: "Recommendations keep source school area, time, and reason.", timeLabel: "live", tone: "ok", icon: <ShieldCheck className="h-3.5 w-3.5 text-success" /> },
                 ]}
               />
             )}
           </CommandInsightCard>
 
           <CommandInsightCard
-          title="Realtime channels"
-          description="Live dashboard streams refresh automatically for executive updates."
-          value="Streaming"
+          title="Live school updates"
+          description="School updates refresh when important activity changes."
+          value="Live"
           tone="ok"
         >
           <OperationalTimeline
             items={(dashboard?.realtime_channels ?? ["principal.alerts"]).map((channel) => ({
               id: channel,
-              title: channel,
-              detail: "Subscribed for executive updates.",
+              title: getLiveUpdateLabel(channel),
+              detail: "Receiving school updates.",
               timeLabel: "live",
               tone: "ok" as const,
               icon: <RadioTower className="h-3.5 w-3.5 text-success" />,

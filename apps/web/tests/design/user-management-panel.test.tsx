@@ -59,6 +59,8 @@ describe("school user management", () => {
       "Security Officer",
       "Transport Manager",
       "Laboratory Technician",
+      "Admissions Officer",
+      "ICT / Computer Lab Manager",
     ]);
     expect(values).toEqual([
       "principal",
@@ -83,6 +85,8 @@ describe("school user management", () => {
       "security_officer",
       "transport_manager",
       "lab_technician",
+      "admissions_officer",
+      "ict_manager",
     ]);
   });
 
@@ -106,7 +110,7 @@ describe("school user management", () => {
 
     await waitFor(() =>
       expect(fetchMock).toHaveBeenCalledWith(
-        "/api/auth/invitations",
+        "/api/auth/invitations?limit=50&offset=0",
         expect.objectContaining({
           method: "GET",
           credentials: "same-origin",
@@ -329,7 +333,7 @@ describe("school user management", () => {
     expect(screen.getByRole("heading", { name: /invite user/i })).toBeVisible();
     await waitFor(() =>
       expect(fetchMock).toHaveBeenCalledWith(
-        "/api/auth/invitations",
+        "/api/auth/invitations?limit=50&offset=0",
         expect.objectContaining({ method: "GET" }),
       ),
     );

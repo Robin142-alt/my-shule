@@ -107,9 +107,13 @@ export class MpesaC2bController {
   @Permissions('billing:read')
   async listPayments(
     @Query('status') status?: MpesaC2bPaymentStatus,
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
   ): Promise<MpesaC2bPaymentEntity[]> {
     return this.mpesaC2bService.listC2bPayments({
       status: status ?? null,
+      limit,
+      offset,
     });
   }
 

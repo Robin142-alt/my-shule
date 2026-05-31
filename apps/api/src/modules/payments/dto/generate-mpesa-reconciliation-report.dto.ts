@@ -74,8 +74,14 @@ export class ListMpesaReconciliationReviewDto {
   @IsOptional()
   @IsInt()
   @Min(1)
-  @Max(500)
+  @Max(50)
   limit?: number;
+
+  @Type(() => Number)
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  offset?: number;
 }
 
 export class RequestFinanceApprovalDto {

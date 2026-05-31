@@ -334,6 +334,8 @@ export class ExamsSchemaService implements OnModuleInit {
         ON exam_marks (tenant_id, student_id, exam_series_id);
       CREATE INDEX IF NOT EXISTS ix_student_report_cards_student
         ON student_report_cards (tenant_id, student_id, published_at DESC);
+      CREATE INDEX IF NOT EXISTS ix_student_report_cards_tenant_published
+        ON student_report_cards (tenant_id, published_at DESC NULLS LAST, created_at DESC);
       CREATE INDEX IF NOT EXISTS ix_exam_mark_audit_logs_mark
         ON exam_mark_audit_logs (tenant_id, mark_id, created_at DESC);
       CREATE INDEX IF NOT EXISTS ix_exam_mark_versions_mark

@@ -159,8 +159,8 @@ const roleCodeByLabel: Record<string, string> = {
   "Security Officer": "security_officer",
   "Transport Manager": "transport_manager",
   "Laboratory Technician": "lab_technician",
-  "Admissions Officer": "admissions",
-  "ICT / Computer Lab user": "ict",
+  "Admissions Officer": "admissions_officer",
+  "ICT / Computer Lab user": "ict_manager",
 };
 
 const roleLabelByCode = Object.fromEntries(
@@ -210,17 +210,6 @@ function roleLabelForCode(code?: string, fallback?: string) {
   return roleLabelByCode[code] ?? fallback ?? code.split("_").map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(" ");
 }
 
-function randomToken() {
-  const bytes = new Uint8Array(12);
-
-  if (typeof crypto !== "undefined" && crypto.getRandomValues) {
-    crypto.getRandomValues(bytes);
-    return Array.from(bytes, (byte) => byte.toString(36).padStart(2, "0")).join("").slice(0, 18).toUpperCase();
-  }
-
-  return Math.random().toString(36).slice(2, 14).toUpperCase();
-}
-
 function inviteExpiryDate(days = 7) {
   const date = new Date();
   date.setDate(date.getDate() + days);
@@ -236,7 +225,7 @@ function initialInviteForm(): InviteFormState {
     department: "",
     assignment: "",
     identifier: "",
-    deliveryMethod: "SMS",
+    deliveryMethod: "Email",
     note: "",
   };
 }
@@ -333,7 +322,7 @@ function seedInvitations(schoolId: string, actorRole: string): UserInvitationRec
       department: "Sick Bay",
       assignment: "School clinic",
       identifier: "STAFF-NURSE-01",
-      deliveryMethod: "SMS",
+      deliveryMethod: "Email",
       note: "Join before Monday morning sick bay shift.",
       invitedByUserId: `${schoolId}-${slug(actorRole)}`,
       invitedByRole: actorRole,
@@ -378,7 +367,7 @@ function seedAudit(schoolId: string, actorRole: string, actorName: string): User
       actorRole,
       target: "Faith Akinyi",
       timestamp: "2026-05-24T08:30:00.000Z",
-      newValue: "Nurse invitation sent by SMS",
+      newValue: "Nurse invitation sent by email",
       reason: "Sick bay staffing",
       device: "School office browser",
     },
@@ -538,6 +527,8 @@ export function UserManagementWorkspace({
   const [error, setError] = useState<string | null>(null);
   const [selectedDetail, setSelectedDetail] = useState<SchoolUserRecord | UserInvitationRecord | null>(null);
   const [editingUser, setEditingUser] = useState<SchoolUserRecord | null>(null);
+  const [inviteBusy, setInviteBusy] = useState(false);
+  const [inviteActionBusy, setInviteActionBusy] = useState<string | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -562,7 +553,7 @@ export function UserManagementWorkspace({
       }
 
       try {
-        const response = await fetch("/api/auth/invitations", {
+        const response = await fetch("/api/auth/invitations?limit=50&offset=0", {
           method: "GET",
           credentials: "same-origin",
           cache: "no-store",
@@ -736,6 +727,10 @@ export function UserManagementWorkspace({
   }
 
   async function resendInvitation(invite: UserInvitationRecord) {
+    if (inviteActionBusy) {
+      return;
+    }
+
     if (invite.invitationStatus !== "Pending" && invite.invitationStatus !== "Email Failed") {
       setError("Only pending or failed-email invitations can be resent.");
       return;
@@ -744,82 +739,112 @@ export function UserManagementWorkspace({
     const expiryDate = inviteExpiryDate(7);
     let nextInvite = { ...invite, invitationStatus: "Pending" as InvitationStatus, expiryDate, updatedAt: nowIso() };
 
-    if (typeof fetch === "function") {
-      try {
-        const csrfToken = await getCsrfToken();
-        const response = await fetch(`/api/auth/invitations/${encodeURIComponent(invite.id)}/resend`, {
-          method: "POST",
-          credentials: "same-origin",
-          headers: {
-            "Content-Type": "application/json",
-            "x-myshule-csrf": csrfToken,
-          },
-        });
-        const payload = (await response.json().catch(() => null)) as { invitation?: ManagedUserApi; message?: string } | ManagedUserApi | null;
-
-        if (!response.ok) {
-          throw new Error((payload && "message" in payload ? payload.message : undefined) ?? "Unable to resend invitation.");
-        }
-
-        const apiInvite = readManagedInvitationPayload(payload);
-        if (apiInvite?.id) {
-          nextInvite = {
-            ...apiUserToInvitation({ ...apiInvite, kind: "invitation" }, schoolId, actorRole),
-            phone: apiInvite.phone ?? invite.phone,
-            department: apiInvite.department ?? invite.department,
-            assignment: apiInvite.assignment ?? invite.assignment,
-            expiryDate: apiInvite.expires_at ?? expiryDate,
-          };
-        }
-      } catch {
-        setNotice("Live invite service could not resend. Saved the new expiry locally.");
-      }
+    if (typeof fetch !== "function") {
+      setError("Invitation email service is not available in this browser session.");
+      return;
     }
 
-    updateSchoolRecord<UserInvitationRecord>(invitationModule, invite.id, { invitationStatus: "Pending", expiryDate, updatedAt: nowIso() }, schoolId);
-    setInvitations((current) =>
-      current.map((item) => (item.id === invite.id ? { ...item, ...nextInvite } : item)),
-    );
-    addUserAudit("Invitation resent", invite.invitedName, invite.expiryDate, nextInvite.expiryDate, "Invitation resent");
-    publishUserEvent("USER_INVITATION_RESENT", "Invitation resent", `${invite.invitedName} invitation was resent.`, invite.id);
-    setNotice(`Invitation resent to ${invite.invitedName}.`);
-    setError(null);
+    setInviteActionBusy(`resend:${invite.id}`);
+    try {
+      const csrfToken = await getCsrfToken();
+      const response = await fetch(`/api/auth/invitations/${encodeURIComponent(invite.id)}/resend`, {
+        method: "POST",
+        credentials: "same-origin",
+        headers: {
+          "Content-Type": "application/json",
+          "x-myshule-csrf": csrfToken,
+        },
+      });
+      const payload = (await response.json().catch(() => null)) as { invitation?: ManagedUserApi; message?: string } | ManagedUserApi | null;
+
+      if (!response.ok) {
+        throw new Error((payload && "message" in payload ? payload.message : undefined) ?? "Unable to resend invitation email.");
+      }
+
+      const apiInvite = readManagedInvitationPayload(payload);
+      if (apiInvite?.id) {
+        nextInvite = {
+          ...apiUserToInvitation({ ...apiInvite, kind: "invitation", status: apiInvite.status ?? "invited" }, schoolId, actorRole),
+          phone: apiInvite.phone ?? invite.phone,
+          department: apiInvite.department ?? invite.department,
+          assignment: apiInvite.assignment ?? invite.assignment,
+          identifier: invite.identifier,
+          deliveryMethod: "Email",
+          note: invite.note,
+          invitedByUserId: invite.invitedByUserId,
+          invitedByRole: invite.invitedByRole,
+          expiryDate: apiInvite.expires_at ?? expiryDate,
+        };
+      }
+
+      updateSchoolRecord<UserInvitationRecord>(invitationModule, invite.id, { invitationStatus: nextInvite.invitationStatus, expiryDate: nextInvite.expiryDate, updatedAt: nowIso() }, schoolId);
+      setInvitations((current) =>
+        current.map((item) => (item.id === invite.id ? { ...item, ...nextInvite } : item)),
+      );
+      addUserAudit("Invitation resent", invite.invitedName, invite.expiryDate, nextInvite.expiryDate, "Invitation email resent");
+      publishUserEvent("USER_INVITATION_RESENT", "Invitation email resent", `${invite.invitedName} invitation email was resent.`, invite.id);
+      setNotice(`Invitation email resent to ${invite.invitedName}.`);
+      setError(null);
+    } catch (resendError) {
+      const message = resendError instanceof Error ? resendError.message : "Unable to resend invitation email.";
+      addUserAudit("Invitation resend failed", invite.invitedName, invite.invitationStatus, "Failed", message);
+      publishUserEvent("USER_INVITATION_RESEND_FAILED", "Invitation resend failed", `${invite.invitedName} invitation email could not be resent: ${message}`, invite.id);
+      setError(message);
+      setNotice(null);
+    } finally {
+      setInviteActionBusy(null);
+    }
   }
 
   async function revokeInvitation(invite: UserInvitationRecord) {
+    if (inviteActionBusy) {
+      return;
+    }
+
     if (invite.invitationStatus !== "Pending") {
       setError("Only pending invitations can be revoked.");
       return;
     }
 
-    if (typeof fetch === "function") {
-      try {
-        const csrfToken = await getCsrfToken();
-        const response = await fetch(`/api/auth/invitations/${encodeURIComponent(invite.id)}`, {
-          method: "DELETE",
-          credentials: "same-origin",
-          headers: {
-            "Content-Type": "application/json",
-            "x-myshule-csrf": csrfToken,
-          },
-        });
-
-        if (!response.ok) {
-          throw new Error("Unable to revoke invitation.");
-        }
-      } catch {
-        setNotice("Live invite service could not revoke. Saved the revocation locally.");
-      }
+    if (typeof fetch !== "function") {
+      setError("Invitation service is not available in this browser session.");
+      return;
     }
 
-    updateSchoolRecord<UserInvitationRecord>(invitationModule, invite.id, { invitationStatus: "Revoked", updatedAt: nowIso() }, schoolId);
-    setInvitations((current) =>
-      current.map((item) => (item.id === invite.id ? { ...item, invitationStatus: "Revoked", updatedAt: nowIso() } : item)),
-    );
-    addUserAudit("Invitation revoked", invite.invitedName, "Pending", "Revoked", "Invitation revoked before acceptance");
-    publishUserEvent("USER_INVITATION_REVOKED", "Invitation revoked", `${invite.invitedName} invitation was revoked.`, invite.id);
-    setNotice(`Invitation revoked for ${invite.invitedName}.`);
-    setError(null);
+    setInviteActionBusy(`revoke:${invite.id}`);
+    try {
+      const csrfToken = await getCsrfToken();
+      const response = await fetch(`/api/auth/invitations/${encodeURIComponent(invite.id)}`, {
+        method: "DELETE",
+        credentials: "same-origin",
+        headers: {
+          "Content-Type": "application/json",
+          "x-myshule-csrf": csrfToken,
+        },
+      });
+      const payload = (await response.json().catch(() => null)) as { message?: string } | null;
+
+      if (!response.ok) {
+        throw new Error(payload?.message ?? "Unable to revoke invitation.");
+      }
+
+      updateSchoolRecord<UserInvitationRecord>(invitationModule, invite.id, { invitationStatus: "Revoked", updatedAt: nowIso() }, schoolId);
+      setInvitations((current) =>
+        current.map((item) => (item.id === invite.id ? { ...item, invitationStatus: "Revoked", updatedAt: nowIso() } : item)),
+      );
+      addUserAudit("Invitation revoked", invite.invitedName, "Pending", "Revoked", "Invitation revoked before acceptance");
+      publishUserEvent("USER_INVITATION_REVOKED", "Invitation revoked", `${invite.invitedName} invitation was revoked.`, invite.id);
+      setNotice(`Invitation revoked for ${invite.invitedName}.`);
+      setError(null);
+    } catch (revokeError) {
+      const message = revokeError instanceof Error ? revokeError.message : "Unable to revoke invitation.";
+      addUserAudit("Invitation revoke failed", invite.invitedName, invite.invitationStatus, "Failed", message);
+      publishUserEvent("USER_INVITATION_REVOKE_FAILED", "Invitation revoke failed", `${invite.invitedName} invitation could not be revoked: ${message}`, invite.id);
+      setError(message);
+      setNotice(null);
+    } finally {
+      setInviteActionBusy(null);
+    }
   }
 
   function clearExpiredInvitation(invite: UserInvitationRecord) {
@@ -836,6 +861,12 @@ export function UserManagementWorkspace({
   }
 
   function copyInvitation(invite: UserInvitationRecord) {
+    if (invite.inviteCode === "Hidden after delivery" || invite.inviteToken.includes(".live.")) {
+      setError("Secure invitation links are hidden after email delivery. Use Resend invitation to send a fresh email.");
+      setNotice(null);
+      return;
+    }
+
     const link = `https://myshule.online/invite/${encodeURIComponent(invite.inviteToken)}`;
     void navigator.clipboard?.writeText(link).catch(() => undefined);
     setNotice(`${invite.invitedName} invite link/code is ready: ${invite.inviteCode}`);
@@ -906,6 +937,10 @@ export function UserManagementWorkspace({
 
   async function createInvitation(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (inviteBusy) {
+      return;
+    }
+
     setError(null);
 
     if (!canInviteUsers) {
@@ -918,13 +953,8 @@ export function UserManagementWorkspace({
       return;
     }
 
-    if (!inviteForm.fullName.trim() || !inviteForm.phone.trim() || !inviteForm.role.trim()) {
-      setError("Full name, phone number, and role are required.");
-      return;
-    }
-
-    if (inviteForm.deliveryMethod === "Email" && !inviteForm.email.trim()) {
-      setError("Email address is required when sending an email invitation.");
+    if (!inviteForm.fullName.trim() || !inviteForm.role.trim()) {
+      setError("Full name and role are required.");
       return;
     }
 
@@ -940,143 +970,102 @@ export function UserManagementWorkspace({
       return;
     }
 
-    const token = `${schoolId}.${randomToken()}.${Date.now()}`;
-    const code = `INV-${randomToken().slice(0, 8)}`;
-    const invite: UserInvitationRecord = {
-      id: `invite-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-      schoolId,
-      invitedName: inviteForm.fullName.trim(),
-      phone: inviteForm.phone.trim(),
-      email: inviteForm.email.trim(),
-      role: inviteForm.role,
-      department: inviteForm.department.trim(),
-      assignment: inviteForm.assignment.trim(),
-      identifier: inviteForm.identifier.trim(),
-      deliveryMethod: inviteForm.deliveryMethod,
-      note: inviteForm.note.trim(),
-      invitedByUserId: `${schoolId}-${slug(actorName)}`,
-      invitedByRole: actorRole,
-      invitationStatus: "Pending",
-      inviteCode: code,
-      inviteToken: token,
-      expiryDate: inviteExpiryDate(7),
-      createdAt: nowIso(),
-      updatedAt: nowIso(),
-    };
+    const email = inviteForm.email.trim().toLowerCase();
+    if (!email || !/\S+@\S+\.\S+/.test(email)) {
+      setError("A valid email address is required so MyShule can send the invitation.");
+      return;
+    }
 
-    let saved: UserInvitationRecord | null = null;
+    if (typeof fetch !== "function") {
+      setError("Invitation email service is not available in this browser session.");
+      return;
+    }
 
-    if (typeof fetch === "function" && invite.email) {
-      try {
-        const csrfToken = await getCsrfToken();
-        const response = await fetch("/api/auth/invitations", {
-          method: "POST",
-          credentials: "same-origin",
-          headers: {
-            "Content-Type": "application/json",
-            "x-myshule-csrf": csrfToken,
-          },
-          body: JSON.stringify({
-            display_name: invite.invitedName,
-            email: invite.email,
-            role_code: roleCodeForLabel(invite.role),
-            phone: invite.phone,
-            department: invite.department,
-            assignment: invite.assignment,
-            identifier: invite.identifier,
-            delivery_method: invite.deliveryMethod,
-            note: invite.note,
-          }),
-        });
-        const payload = (await response.json().catch(() => null)) as { invitation?: ManagedUserApi; message?: string } | ManagedUserApi | null;
+    const invitedName = inviteForm.fullName.trim();
+    const role = inviteForm.role;
+    const phone = inviteForm.phone.trim();
+    const department = inviteForm.department.trim();
+    const assignment = inviteForm.assignment.trim();
+    const identifier = inviteForm.identifier.trim();
+    const note = inviteForm.note.trim();
+    const invitedByUserId = `${schoolId}-${slug(actorName)}`;
 
-        if (!response.ok) {
-          throw new Error((payload && "message" in payload ? payload.message : undefined) ?? "Unable to create invitation.");
-        }
+    setInviteBusy(true);
+    try {
+      const csrfToken = await getCsrfToken();
+      const response = await fetch("/api/auth/invitations", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: {
+          "Content-Type": "application/json",
+          "x-myshule-csrf": csrfToken,
+        },
+        body: JSON.stringify({
+          display_name: invitedName,
+          email,
+          role_code: roleCodeForLabel(role),
+          phone,
+          department,
+          assignment,
+          identifier,
+          delivery_method: "Email",
+          note,
+        }),
+      });
+      const payload = (await response.json().catch(() => null)) as { invitation?: ManagedUserApi; message?: string } | ManagedUserApi | null;
 
-        const apiInvite = readManagedInvitationPayload(payload);
-        if (apiInvite?.id) {
-          saved = {
-            ...apiUserToInvitation(
-              {
-                ...apiInvite,
-                kind: "invitation",
-                display_name: apiInvite.display_name ?? invite.invitedName,
-                phone: apiInvite.phone ?? invite.phone,
-                role_code: apiInvite.role_code ?? roleCodeForLabel(invite.role),
-                role_name: apiInvite.role_name ?? invite.role,
-                status: apiInvite.status ?? "invited",
-              },
-              schoolId,
-              actorRole,
-            ),
-            department: apiInvite.department ?? invite.department,
-            assignment: apiInvite.assignment ?? invite.assignment,
-            identifier: invite.identifier,
-            deliveryMethod: invite.deliveryMethod,
-            note: invite.note,
-            invitedByUserId: invite.invitedByUserId,
-            invitedByRole: invite.invitedByRole,
-          };
-        }
-      } catch (inviteError) {
-        const failedInvite: UserInvitationRecord = {
-          ...invite,
-          invitationStatus: invite.deliveryMethod === "Email" ? "Email Failed" : "Pending",
-          note: [
-            invite.note,
-            inviteError instanceof Error ? inviteError.message : "Invite delivery failed.",
-          ].filter(Boolean).join(" | "),
-          updatedAt: nowIso(),
-        };
-
-        const savedFailedInvite = addSchoolRecord<UserInvitationRecord>(invitationModule, failedInvite, schoolId);
-        saved = savedFailedInvite;
-        setInvitations((current) => [savedFailedInvite, ...current.filter((item) => item.id !== savedFailedInvite.id)]);
-        addUserAudit(
-          invite.deliveryMethod === "Email" ? "Invitation email failed" : "User invited locally",
-          invite.invitedName,
-          undefined,
-          `${invite.role} invitation via ${invite.deliveryMethod}`,
-          inviteError instanceof Error ? inviteError.message : "Invite delivery failed.",
-        );
-        publishUserEvent(
-          invite.deliveryMethod === "Email" ? "USER_INVITE_EMAIL_FAILED" : "USER_INVITED_LOCALLY",
-          invite.deliveryMethod === "Email" ? "Invitation email delivery failed" : "User invitation saved locally",
-          invite.deliveryMethod === "Email"
-            ? `${invite.invitedName} invitation was saved, but email delivery failed.`
-            : `${invite.invitedName} invitation was saved locally for ${schoolName}.`,
-          invite.id,
-        );
-        setInviteForm(initialInviteForm());
-        setActiveTab("invitations");
-        if (invite.deliveryMethod === "Email") {
-          setError(
-            `Email delivery failed for ${invite.invitedName}. The invitation was saved with Email Failed status; resend after email is available.`,
-          );
-          setNotice(null);
-        } else {
-          setNotice("Live invite service is unavailable. Created a local invite code for this school.");
-        }
-
-        return;
+      if (!response.ok) {
+        throw new Error((payload && "message" in payload ? payload.message : undefined) ?? "Unable to send invitation email.");
       }
-    }
 
-    if (!saved) {
-      saved = addSchoolRecord<UserInvitationRecord>(invitationModule, invite, schoolId);
-    }
+      const apiInvite = readManagedInvitationPayload(payload);
+      if (!apiInvite?.id) {
+        throw new Error("Invitation email provider returned no invitation record.");
+      }
 
-    setInvitations((current) => [saved, ...current.filter((item) => item.id !== saved.id)]);
-    addUserAudit("User invited", invite.invitedName, undefined, `${invite.role} invitation via ${invite.deliveryMethod}`, invite.note);
-    publishUserEvent("USER_INVITED", "User invited", `${invite.invitedName} was invited as ${invite.role} in ${schoolName}.`, invite.id);
-    setInviteForm(initialInviteForm());
-    setActiveTab("invitations");
-    setNotice(
-      invite.deliveryMethod === "Copy link"
-        ? `Invitation created for ${invite.invitedName}. Copy link/code: ${invite.inviteCode}`
-        : `Invitation created for ${invite.invitedName}. ${invite.deliveryMethod} invitation queued.`,
-    );
+      const saved = {
+        ...apiUserToInvitation(
+          {
+            ...apiInvite,
+            kind: "invitation",
+            display_name: apiInvite.display_name ?? invitedName,
+            email: apiInvite.email ?? email,
+            phone: apiInvite.phone ?? phone,
+            role_code: apiInvite.role_code ?? roleCodeForLabel(role),
+            role_name: apiInvite.role_name ?? role,
+            status: apiInvite.status ?? "invited",
+          },
+          schoolId,
+          actorRole,
+        ),
+        phone: apiInvite.phone ?? phone,
+        department: apiInvite.department ?? department,
+        assignment: apiInvite.assignment ?? assignment,
+        identifier,
+        deliveryMethod: "Email" as InviteDeliveryMethod,
+        note,
+        invitedByUserId,
+        invitedByRole: actorRole,
+      };
+
+      const savedInvite = addSchoolRecord<UserInvitationRecord>(invitationModule, saved, schoolId);
+      setInvitations((current) => [savedInvite, ...current.filter((item) => item.id !== savedInvite.id)]);
+      addUserAudit("User invited", invitedName, undefined, `${role} invitation email sent`, note);
+      publishUserEvent("USER_INVITED", "Invitation email sent", `${invitedName} was invited as ${role} in ${schoolName}.`, savedInvite.id);
+      setInviteForm(initialInviteForm());
+      setActiveTab("invitations");
+      setNotice(`Invitation email sent to ${invitedName}.`);
+      setError(null);
+    } catch (inviteError) {
+      const providerMessage = inviteError instanceof Error ? inviteError.message : "Unable to send invitation email.";
+      const message = `Email delivery failed: ${providerMessage}`;
+      addUserAudit("Invitation email failed", invitedName, undefined, `${role} invitation email failed`, providerMessage);
+      publishUserEvent("USER_INVITE_EMAIL_FAILED", "Invitation email failed", `${invitedName} invitation email failed: ${providerMessage}`, `${schoolId}-${slug(invitedName)}`);
+      setError(message);
+      setNotice(null);
+    } finally {
+      setInviteBusy(false);
+    }
   }
 
   return (
@@ -1187,6 +1176,7 @@ export function UserManagementWorkspace({
           </div>
           <InvitationsTable
             invitations={invitations}
+            busyAction={inviteActionBusy}
             onView={setSelectedDetail}
             onResend={resendInvitation}
             onRevoke={revokeInvitation}
@@ -1206,7 +1196,7 @@ export function UserManagementWorkspace({
           <form className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3" onSubmit={createInvitation}>
             <FormField label="Full name" value={inviteForm.fullName} onChange={(value) => setInviteForm((form) => ({ ...form, fullName: value }))} required />
             <FormField label="Phone number" value={inviteForm.phone} onChange={(value) => setInviteForm((form) => ({ ...form, phone: value }))} required />
-            <FormField label="Email address" value={inviteForm.email} onChange={(value) => setInviteForm((form) => ({ ...form, email: value }))} />
+            <FormField label="Email address" value={inviteForm.email} onChange={(value) => setInviteForm((form) => ({ ...form, email: value }))} required />
             <label className="grid gap-1 text-sm font-bold text-[#40608F]">
               Role
               <select
@@ -1227,18 +1217,11 @@ export function UserManagementWorkspace({
             <FormField label="Staff/student/parent identifier" value={inviteForm.identifier} onChange={(value) => setInviteForm((form) => ({ ...form, identifier: value }))} />
             <label className="grid gap-1 text-sm font-bold text-[#40608F]">
               Send invite by
-              <select
-                value={inviteForm.deliveryMethod}
-                onChange={(event) => {
-                  const value = event.currentTarget.value as InviteDeliveryMethod;
-                  setInviteForm((form) => ({ ...form, deliveryMethod: value }));
-                }}
-                className="rounded-xl border border-[#D7E0EF] bg-white px-3 py-2 text-sm font-semibold text-[#071D49] outline-none focus:border-[#9BC5FF]"
-              >
-                <option value="SMS">SMS</option>
-                <option value="Email">Email</option>
-                <option value="Copy link">Copy link</option>
-              </select>
+              <input
+                value="Email invitation"
+                readOnly
+                className="rounded-xl border border-[#D7E0EF] bg-[#F8FAFC] px-3 py-2 text-sm font-semibold text-[#071D49] outline-none"
+              />
             </label>
             <label className="grid gap-1 text-sm font-bold text-[#40608F] md:col-span-2 xl:col-span-3">
               Optional note/message
@@ -1249,8 +1232,8 @@ export function UserManagementWorkspace({
               />
             </label>
             <div className="flex flex-wrap gap-2 md:col-span-2 xl:col-span-3">
-              <button type="submit" className="rounded-xl border border-[#BFE8D7] bg-[#ECFDF5] px-4 py-2 text-sm font-black text-[#047857]">
-                Send Invitation
+              <button type="submit" disabled={inviteBusy} className="rounded-xl border border-[#BFE8D7] bg-[#ECFDF5] px-4 py-2 text-sm font-black text-[#047857] disabled:cursor-wait disabled:opacity-70">
+                {inviteBusy ? "Sending Invitation..." : "Send Invitation"}
               </button>
               <button type="button" onClick={() => setInviteForm(initialInviteForm())} className="rounded-xl border border-[#D7E0EF] bg-white px-4 py-2 text-sm font-black text-[#40608F]">
                 Clear Form
@@ -1457,6 +1440,7 @@ function UsersTable({
 
 function InvitationsTable({
   invitations,
+  busyAction,
   onView,
   onResend,
   onRevoke,
@@ -1464,6 +1448,7 @@ function InvitationsTable({
   onClear,
 }: {
   invitations: UserInvitationRecord[];
+  busyAction: string | null;
   onView: (invite: UserInvitationRecord) => void;
   onResend: (invite: UserInvitationRecord) => void;
   onRevoke: (invite: UserInvitationRecord) => void;
@@ -1509,9 +1494,25 @@ function InvitationsTable({
               <td className="px-3 py-3">
                 <div className="flex flex-wrap gap-1.5">
                   <SmallAction label="View details" icon={Eye} onClick={() => onView(invite)} />
-                  <SmallAction label="Resend invitation" icon={Mail} onClick={() => onResend(invite)} disabled={invite.invitationStatus !== "Pending" && invite.invitationStatus !== "Email Failed"} />
-                  <SmallAction label="Revoke invitation" onClick={() => onRevoke(invite)} disabled={invite.invitationStatus !== "Pending"} tone="danger" />
-                  <SmallAction label="Copy invite link/code" icon={Copy} onClick={() => onCopy(invite)} />
+                  {invite.invitationStatus === "Pending" || invite.invitationStatus === "Email Failed" ? (
+                    <SmallAction
+                      label={busyAction === `resend:${invite.id}` ? "Resending..." : "Resend invitation"}
+                      icon={Mail}
+                      onClick={() => onResend(invite)}
+                      disabled={busyAction !== null}
+                    />
+                  ) : null}
+                  {invite.invitationStatus === "Pending" ? (
+                    <SmallAction
+                      label={busyAction === `revoke:${invite.id}` ? "Revoking..." : "Revoke invitation"}
+                      onClick={() => onRevoke(invite)}
+                      disabled={busyAction !== null}
+                      tone="danger"
+                    />
+                  ) : null}
+                  {invite.inviteCode !== "Hidden after delivery" && !invite.inviteToken.includes(".live.") ? (
+                    <SmallAction label="Copy invite link/code" icon={Copy} onClick={() => onCopy(invite)} />
+                  ) : null}
                   {invite.invitationStatus === "Expired" || invite.invitationStatus === "Revoked" ? (
                     <SmallAction label="Clear expired" onClick={() => onClear(invite)} />
                   ) : null}
@@ -1527,6 +1528,7 @@ function InvitationsTable({
 
 function RolesPermissionsPanel({ users, actorRole }: { users: SchoolUserRecord[]; actorRole: string }) {
   const countsByRole = new Map<string, number>();
+  const [selectedRole, setSelectedRole] = useState<string | null>(null);
 
   users.forEach((user) => countsByRole.set(user.role, (countsByRole.get(user.role) ?? 0) + 1));
 
@@ -1561,12 +1563,31 @@ function RolesPermissionsPanel({ users, actorRole }: { users: SchoolUserRecord[]
                 <td className="px-3 py-3 text-[#52657F]">{rolePermissionSummary(role)}</td>
                 <td className="px-3 py-3"><StatusPill label={roleCanInvite(role) ? "Yes" : "No"} tone={roleCanInvite(role) ? "ok" : "warning"} compact /></td>
                 <td className="px-3 py-3"><StatusPill label={role === "Principal" || role === "Deputy Principal" ? "Yes" : "No"} tone={role === "Principal" || role === "Deputy Principal" ? "ok" : "warning"} compact /></td>
-                <td className="px-3 py-3"><SmallAction label="View permissions" icon={ShieldCheck} onClick={() => undefined} /></td>
+                <td className="px-3 py-3"><SmallAction label="View permissions" icon={ShieldCheck} onClick={() => setSelectedRole(role)} /></td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+      {selectedRole ? (
+        <div className="mt-4 rounded-xl border border-[#BFD7FF] bg-[#EEF6FF] p-3">
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.12em] text-[#40608F]">Role permission details</p>
+              <h4 className="mt-1 text-base font-black text-[#071D49]">{selectedRole}</h4>
+              <p className="mt-1 text-sm font-semibold text-[#40608F]">{rolePermissionSummary(selectedRole)}</p>
+            </div>
+            <button type="button" onClick={() => setSelectedRole(null)} className="rounded-lg border border-[#BFD7FF] bg-white px-3 py-1.5 text-xs font-black text-[#0B3A7A]">
+              Close
+            </button>
+          </div>
+          <div className="mt-3 grid gap-2 md:grid-cols-3">
+            <StatusPill label={roleCanInvite(selectedRole) ? "Can invite users" : "No invite permission"} tone={roleCanInvite(selectedRole) ? "ok" : "warning"} />
+            <StatusPill label={selectedRole === "Principal" || selectedRole === "Deputy Principal" ? "Can manage users" : "Workspace access only"} tone={selectedRole === "Principal" || selectedRole === "Deputy Principal" ? "ok" : "warning"} />
+            <StatusPill label="School-scoped access" tone="ok" />
+          </div>
+        </div>
+      ) : null}
     </Card>
   );
 }

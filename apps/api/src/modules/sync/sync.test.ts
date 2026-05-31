@@ -6,6 +6,8 @@ import { FinanceSyncConflictResolverService } from './conflict-resolvers/finance
 import { SYNC_SUPPORTED_ENTITIES } from './sync.constants';
 import { SyncService } from './sync.service';
 import { RequestContextService } from '../../common/request-context/request-context.service';
+import { AttendanceRecordsRepository } from './repositories/attendance-records.repository';
+import { SyncOperationLogsRepository } from './repositories/sync-operation-logs.repository';
 
 test('attendance and finance are active offline sync entities', () => {
   assert.deepEqual([...SYNC_SUPPORTED_ENTITIES], ['attendance', 'finance']);
@@ -126,4 +128,49 @@ test('SyncService pull returns ordered finance operations', async () => {
     response.operations.map((operation) => operation.version),
     ['5'],
   );
+});
+
+test('SyncOperationLogsRepository caps offline pull scans per tenant', async () => {
+  const calls: Array<{ sql: string; params: unknown[] }> = [];
+  const repository = new SyncOperationLogsRepository({
+    query: async (sql: string, params: unknown[]) => {
+      calls.push({ sql, params });
+      return { rows: [] };
+    },
+  } as never);
+
+  await repository.fetchByEntitySinceVersion('tenant-a', 'attendance', '0', 5000);
+  await repository.fetchByEntitiesAfterCursors(
+    'tenant-a',
+    ['attendance', 'finance'],
+    new Map([
+      ['attendance', '0'],
+      ['finance', '0'],
+    ]),
+    5000,
+  );
+
+  assert.match(calls[0]!.sql, /LIMIT \$4::integer/);
+  assert.equal(calls[0]!.params[3], 100);
+  assert.match(calls[1]!.sql, /LIMIT \$4::integer/);
+  assert.equal(calls[1]!.params[3], 800);
+});
+
+test('AttendanceRecordsRepository bounds student attendance history reads', async () => {
+  const calls: Array<{ sql: string; params: unknown[] }> = [];
+  const repository = new AttendanceRecordsRepository({
+    query: async (sql: string, params: unknown[]) => {
+      calls.push({ sql, params });
+      return { rows: [] };
+    },
+  } as never);
+
+  await repository.listByStudent('tenant-a', '00000000-0000-0000-0000-000000000301', {
+    limit: 5000,
+    offset: -10,
+  });
+
+  assert.match(calls[0]!.sql, /LIMIT \$5::integer\s+OFFSET \$6::integer/);
+  assert.equal(calls[0]!.params[4], 50);
+  assert.equal(calls[0]!.params[5], 0);
 });

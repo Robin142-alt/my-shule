@@ -528,6 +528,8 @@ export class BillingSchemaService implements OnModuleInit {
         ON invoices (tenant_id, status, due_at DESC);
       CREATE INDEX IF NOT EXISTS ix_invoices_payment_intent_id
         ON invoices (tenant_id, payment_intent_id);
+      CREATE INDEX IF NOT EXISTS ix_invoices_tenant_issued_created
+        ON invoices (tenant_id, issued_at DESC, created_at DESC);
       CREATE INDEX IF NOT EXISTS ix_usage_records_tenant_feature_recorded_at
         ON usage_records (tenant_id, feature_key, recorded_at DESC);
       CREATE INDEX IF NOT EXISTS ix_usage_records_subscription_period
@@ -543,6 +545,8 @@ export class BillingSchemaService implements OnModuleInit {
         WHERE status = 'active';
       CREATE INDEX IF NOT EXISTS ix_invoices_student_fee_allocation
         ON invoices (tenant_id, (metadata ->> 'student_id'), status, due_at ASC);
+      CREATE INDEX IF NOT EXISTS ix_invoices_student_fee_statement
+        ON invoices (tenant_id, (metadata ->> 'student_id'), issued_at ASC, created_at ASC);
       CREATE INDEX IF NOT EXISTS ix_student_fee_payment_allocations_student
         ON student_fee_payment_allocations (tenant_id, student_id, created_at DESC);
       CREATE INDEX IF NOT EXISTS ix_student_fee_credits_student_remaining
@@ -552,6 +556,14 @@ export class BillingSchemaService implements OnModuleInit {
       CREATE INDEX IF NOT EXISTS ix_manual_fee_payments_student
         ON manual_fee_payments (tenant_id, student_id, received_at DESC)
         WHERE student_id IS NOT NULL;
+      CREATE INDEX IF NOT EXISTS ix_manual_fee_payments_unapplied_student_credit
+        ON manual_fee_payments (tenant_id, student_id, currency_code, cleared_at DESC)
+        WHERE status = 'cleared' AND student_id IS NOT NULL AND invoice_id IS NULL;
+      CREATE INDEX IF NOT EXISTS ix_manual_fee_payments_reconciliation_received
+        ON manual_fee_payments (tenant_id, payment_method, received_at DESC);
+      CREATE INDEX IF NOT EXISTS ix_manual_fee_payments_reconciliation_cleared
+        ON manual_fee_payments (tenant_id, payment_method, cleared_at DESC)
+        WHERE cleared_at IS NOT NULL;
       CREATE INDEX IF NOT EXISTS ix_manual_fee_payments_invoice
         ON manual_fee_payments (tenant_id, invoice_id, received_at DESC)
         WHERE invoice_id IS NOT NULL;

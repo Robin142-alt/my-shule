@@ -47,7 +47,7 @@ export class CounsellingService {
 
     return this.counsellingRepository.listReferrals({
       tenant_id: this.requireTenantId(),
-      query,
+      query: this.normalizeListQuery(query),
     });
   }
 
@@ -95,7 +95,7 @@ export class CounsellingService {
 
     return this.counsellingRepository.listSessions({
       tenant_id: this.requireTenantId(),
-      query,
+      query: this.normalizeListQuery(query),
       can_read_all: this.hasPermission('counselling:manage') || this.hasPermission('discipline:manage'),
       actor_user_id: context.user_id,
     });
@@ -337,5 +337,37 @@ export class CounsellingService {
     }
 
     return text;
+  }
+
+  private normalizeListQuery(query: ListCounsellingQueryDto = {}): ListCounsellingQueryDto {
+    return {
+      ...query,
+      limit: this.parseBoundedInteger(query.limit, 25, 50),
+      offset: this.parseOffset(query.offset),
+    };
+  }
+
+  private parseBoundedInteger(
+    value: number | undefined,
+    fallback: number,
+    max: number,
+  ): number {
+    const candidate = Number(value);
+
+    if (!Number.isInteger(candidate) || candidate < 1) {
+      return fallback;
+    }
+
+    return Math.min(candidate, max);
+  }
+
+  private parseOffset(value: number | undefined): number {
+    const candidate = Number(value);
+
+    if (!Number.isInteger(candidate) || candidate < 0) {
+      return 0;
+    }
+
+    return candidate;
   }
 }

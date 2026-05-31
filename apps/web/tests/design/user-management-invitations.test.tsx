@@ -68,8 +68,37 @@ describe("school-scoped user management and invitations", () => {
     expect(within(commandCenter).getAllByRole("button", { name: /Audit Log/i }).length).toBeGreaterThan(0);
   }, 30000);
 
-  it("lets the Principal create a school-scoped invitation and audit record but not a Super Admin invite", async () => {
+  it("lets the Principal send a school-scoped email invitation and audit record but not a Super Admin invite", async () => {
     const user = userEvent.setup();
+    fetchMock.mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      const method = init?.method ?? "GET";
+
+      if (url.startsWith("/api/auth/invitations") && method === "GET") {
+        return Promise.resolve(jsonResponse({ users: [] }));
+      }
+
+      if (url === "/api/auth/csrf") {
+        return Promise.resolve(jsonResponse({ token: "csrf-principal-invite-token" }));
+      }
+
+      if (url === "/api/auth/invitations" && method === "POST") {
+        return Promise.resolve(jsonResponse({
+          id: "invite-grace",
+          kind: "invitation",
+          display_name: "Grace Njeri",
+          email: "grace.njeri@kisumuboys.ac.ke",
+          role_code: "teacher",
+          role_name: "Teacher",
+          status: "invited",
+          invitation_sent: true,
+          expires_at: "2026-06-08T09:00:00.000Z",
+        }));
+      }
+
+      return Promise.resolve(jsonResponse({}));
+    });
+    global.fetch = fetchMock as unknown as typeof fetch;
 
     renderWithProviders(<SchoolPages role="principal" tenantSlug="kisumu-boys" />);
 
@@ -87,10 +116,9 @@ describe("school-scoped user management and invitations", () => {
     await user.selectOptions(roleSelect, "Teacher");
     await user.type(within(commandCenter).getByLabelText(/Department/i), "Mathematics");
     await user.type(within(commandCenter).getByLabelText(/Class, grade, stream, or subject assignment/i), "Form 2 West");
-    await user.selectOptions(within(commandCenter).getByLabelText(/Send invite by/i), "SMS");
     await user.click(within(commandCenter).getByRole("button", { name: /Send Invitation/i }));
 
-    expect(await within(commandCenter).findByText(/Invitation created for Grace Njeri/i)).toBeVisible();
+    expect(await within(commandCenter).findByText(/Invitation email sent to Grace Njeri/i)).toBeVisible();
 
     await waitFor(() => {
       expect(readSchoolData("user-invitations", "kisumu-boys")).toEqual(
@@ -114,15 +142,23 @@ describe("school-scoped user management and invitations", () => {
         ]),
       );
     });
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/auth/invitations",
+      expect.objectContaining({
+        method: "POST",
+        credentials: "same-origin",
+        body: expect.stringContaining('"role_code":"teacher"'),
+      }),
+    );
   }, 30000);
 
-  it("uses the live invitation API contract when available and keeps local fallback audit behavior", async () => {
+  it("uses the live invitation API contract and does not create a local invite when email delivery fails", async () => {
     const user = userEvent.setup();
     fetchMock.mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
       const method = init?.method ?? "GET";
 
-      if (url === "/api/auth/invitations" && method === "GET") {
+      if (url.startsWith("/api/auth/invitations") && method === "GET") {
         return Promise.resolve(jsonResponse({
           users: [
             {
@@ -151,15 +187,7 @@ describe("school-scoped user management and invitations", () => {
         return Promise.resolve(jsonResponse({ token: "csrf-user-workspace-token" }));
       }
 
-      return Promise.resolve(jsonResponse({
-        id: "invite-2",
-        kind: "invitation",
-        display_name: "Brian Otieno",
-        email: "brian.parent@example.test",
-        role_code: "parent",
-        role_name: "Parent",
-        status: "invited",
-      }));
+      return Promise.resolve(jsonResponse({ message: "Transactional email provider is not configured." }, { status: 503 }));
     });
     global.fetch = fetchMock as unknown as typeof fetch;
 
@@ -179,9 +207,9 @@ describe("school-scoped user management and invitations", () => {
     await user.selectOptions(within(commandCenter).getByLabelText(/^Role$/i), "Parent");
     await user.click(within(commandCenter).getByRole("button", { name: /Send Invitation/i }));
 
-    await waitFor(() => expect(within(commandCenter).getByText(/Invitation created for Brian Otieno/i)).toBeVisible());
+    await waitFor(() => expect(within(commandCenter).getByText(/Transactional email provider is not configured/i)).toBeVisible());
     expect(fetchMock).toHaveBeenCalledWith(
-      "/api/auth/invitations",
+      "/api/auth/invitations?limit=50&offset=0",
       expect.objectContaining({
         method: "GET",
         credentials: "same-origin",
@@ -206,14 +234,8 @@ describe("school-scoped user management and invitations", () => {
         body: expect.stringContaining('"role_code":"parent"'),
       }),
     );
-    expect(readSchoolData("user-management-audit", "kisumu-boys")).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          action: "User invited",
-          target: "Brian Otieno",
-          schoolId: "kisumu-boys",
-        }),
-      ]),
+    expect(readSchoolData("user-invitations", "kisumu-boys")).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ invitedName: "Brian Otieno" })]),
     );
   }, 30000);
 
@@ -244,6 +266,7 @@ describe("school-scoped user management and invitations", () => {
     await user.click(within(commandCenter).getByRole("button", { name: /Invite New User/i }));
     await user.type(within(commandCenter).getByLabelText(/Full name/i), "Faith Akinyi");
     await user.type(within(commandCenter).getByLabelText(/Phone number/i), "0711111111");
+    await user.type(within(commandCenter).getByLabelText(/Email address/i), "faith.akinyi@kisumuboys.ac.ke");
     await user.selectOptions(within(commandCenter).getByLabelText(/^Role$/i), "Teacher");
     await user.click(within(commandCenter).getByRole("button", { name: /Send Invitation/i }));
 
@@ -252,6 +275,35 @@ describe("school-scoped user management and invitations", () => {
 
   it("adds the same dedicated workspace to the Deputy Principal dashboard with school-only invite powers", async () => {
     const user = userEvent.setup();
+    fetchMock.mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      const method = init?.method ?? "GET";
+
+      if (url.startsWith("/api/auth/invitations") && method === "GET") {
+        return Promise.resolve(jsonResponse({ users: [] }));
+      }
+
+      if (url === "/api/auth/csrf") {
+        return Promise.resolve(jsonResponse({ token: "csrf-deputy-invite-token" }));
+      }
+
+      if (url === "/api/auth/invitations" && method === "POST") {
+        return Promise.resolve(jsonResponse({
+          id: "invite-mr-otieno",
+          kind: "invitation",
+          display_name: "Mr. Otieno",
+          email: "otieno.accounts@kisumuboys.ac.ke",
+          role_code: "accountant",
+          role_name: "Accountant",
+          status: "invited",
+          invitation_sent: true,
+          expires_at: "2026-06-08T09:00:00.000Z",
+        }));
+      }
+
+      return Promise.resolve(jsonResponse({}));
+    });
+    global.fetch = fetchMock as unknown as typeof fetch;
 
     renderWithProviders(<SchoolPages role="deputy-principal" tenantSlug="kisumu-boys" />);
 
@@ -269,10 +321,11 @@ describe("school-scoped user management and invitations", () => {
     await user.click(within(commandCenter).getByRole("button", { name: /Invite New User/i }));
     await user.type(within(commandCenter).getByLabelText(/Full name/i), "Mr. Otieno");
     await user.type(within(commandCenter).getByLabelText(/Phone number/i), "0799001122");
+    await user.type(within(commandCenter).getByLabelText(/Email address/i), "otieno.accounts@kisumuboys.ac.ke");
     await user.selectOptions(within(commandCenter).getByLabelText(/^Role$/i), "Accountant");
     await user.click(within(commandCenter).getByRole("button", { name: /Send Invitation/i }));
 
-    expect(await within(commandCenter).findByText(/Invitation created for Mr. Otieno/i)).toBeVisible();
+    expect(await within(commandCenter).findByText(/Invitation email sent to Mr. Otieno/i)).toBeVisible();
     expect(readSchoolData("user-invitations", "kisumu-boys")).toEqual(
       expect.arrayContaining([
         expect.objectContaining({

@@ -70,24 +70,91 @@ export class ClinicRepository {
     return result.rows[0];
   }
 
-  async listMedicines(tenantId: string) {
+  async listMedicines(
+    tenantId: string,
+    options: {
+      search?: string;
+      category?: string;
+      limit?: number;
+      offset?: number;
+    } = {},
+  ) {
+    const safeLimit = Math.min(Math.max(Math.floor(options.limit ?? 25), 1), 50);
+    const safeOffset = Math.max(Math.floor(options.offset ?? 0), 0);
+    const conditions = [
+      'medicine.tenant_id = $1',
+      'medicine.is_active = TRUE',
+    ];
+    const values: unknown[] = [tenantId];
+    let parameterIndex = 2;
+
+    if (options.search) {
+      conditions.push(
+        `(medicine.medicine_name ILIKE $${parameterIndex}
+          OR medicine.generic_name ILIKE $${parameterIndex}
+          OR medicine.brand_name ILIKE $${parameterIndex}
+          OR medicine.barcode ILIKE $${parameterIndex})`,
+      );
+      values.push(`%${options.search}%`);
+      parameterIndex += 1;
+    }
+
+    if (options.category) {
+      conditions.push(`medicine.category = $${parameterIndex}`);
+      values.push(options.category);
+      parameterIndex += 1;
+    }
+
+    values.push(safeLimit, safeOffset);
     const result = await this.databaseService.query(
       `
         SELECT
-          medicine.*,
-          COALESCE(SUM(batch.quantity_available), 0)::numeric AS quantity_in_stock,
-          COUNT(batch.id)::int AS batch_count,
-          MIN(batch.expiry_date) FILTER (WHERE batch.status IN ('active', 'near_expiry')) AS nearest_expiry_date
+          medicine.id::text,
+          medicine.tenant_id,
+          medicine.medicine_name,
+          medicine.generic_name,
+          medicine.brand_name,
+          medicine.category,
+          medicine.supplier,
+          medicine.manufacturer,
+          medicine.unit_type,
+          medicine.storage_instructions,
+          medicine.side_effect_notes,
+          medicine.barcode,
+          medicine.qr_code,
+          medicine.storage_location,
+          medicine.clinic_location_id::text,
+          medicine.cost_price_minor,
+          medicine.internal_value_minor,
+          medicine.prescription_required,
+          medicine.is_emergency_supply,
+          medicine.is_active,
+          medicine.created_by_user_id::text,
+          medicine.created_at::text,
+          medicine.updated_at::text,
+          COALESCE(stock.quantity_in_stock, 0)::numeric AS quantity_in_stock,
+          COALESCE(stock.batch_count, 0)::int AS batch_count,
+          stock.nearest_expiry_date::text
         FROM clinic_medicines medicine
-        LEFT JOIN clinic_medicine_batches batch
-          ON batch.tenant_id = medicine.tenant_id
-         AND batch.medicine_id = medicine.id
-        WHERE medicine.tenant_id = $1
-          AND medicine.is_active = TRUE
-        GROUP BY medicine.id
+        LEFT JOIN (
+          SELECT
+            batch.tenant_id,
+            batch.medicine_id,
+            COALESCE(SUM(batch.quantity_available), 0)::numeric AS quantity_in_stock,
+            COUNT(batch.id)::int AS batch_count,
+            MIN(batch.expiry_date) FILTER (WHERE batch.status IN ('active', 'near_expiry')) AS nearest_expiry_date
+          FROM clinic_medicine_batches batch
+          WHERE batch.tenant_id = $1
+          GROUP BY batch.tenant_id, batch.medicine_id
+        ) stock
+          ON stock.tenant_id = medicine.tenant_id
+         AND stock.medicine_id = medicine.id
+        WHERE ${conditions.join(' AND ')}
         ORDER BY medicine.medicine_name ASC
+        LIMIT $${parameterIndex}::integer
+        OFFSET $${parameterIndex + 1}::integer
       `,
-      [tenantId],
+      values,
     );
 
     return result.rows;

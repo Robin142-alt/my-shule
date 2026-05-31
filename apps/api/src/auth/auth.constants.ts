@@ -36,6 +36,8 @@ export const DEFAULT_ROLE_BOARDING_MASTER = 'boarding_master';
 export const DEFAULT_ROLE_SECURITY_OFFICER = 'security_officer';
 export const DEFAULT_ROLE_TRANSPORT_MANAGER = 'transport_manager';
 export const DEFAULT_ROLE_LAB_TECHNICIAN = 'lab_technician';
+export const DEFAULT_ROLE_ADMISSIONS_OFFICER = 'admissions_officer';
+export const DEFAULT_ROLE_ICT_MANAGER = 'ict_manager';
 export const DEFAULT_ROLE_SUPPORT_AGENT = 'support_agent';
 export const DEFAULT_ROLE_SUPPORT_LEAD = 'support_lead';
 export const SUPERADMIN_ROLE_OWNER = 'platform_owner';
@@ -717,6 +719,41 @@ export const DEFAULT_ROLE_CATALOG = [
       'inventory:read',
       'procurement:read',
       'assets:read',
+      'reports:read',
+      'support:view',
+      'support:create',
+      'support:reply',
+    ],
+  },
+  {
+    code: DEFAULT_ROLE_ADMISSIONS_OFFICER,
+    name: 'Admissions Officer',
+    description: 'Admissions inquiries, applications, document checks, onboarding, and parent handoff access',
+    permissions: [
+      'auth:read',
+      'admissions:read',
+      'admissions:write',
+      'students:read',
+      'students:write',
+      'documents:read',
+      'documents:write',
+      'school_sms:send',
+      'reports:read',
+      'support:view',
+      'support:create',
+      'support:reply',
+    ],
+  },
+  {
+    code: DEFAULT_ROLE_ICT_MANAGER,
+    name: 'ICT / Computer Lab Manager',
+    description: 'ICT assets, lab devices, repairs, software licenses, and device support access',
+    permissions: [
+      'auth:read',
+      'assets:read',
+      'inventory:read',
+      'procurement:read',
+      'labs:read',
       'reports:read',
       'support:view',
       'support:create',

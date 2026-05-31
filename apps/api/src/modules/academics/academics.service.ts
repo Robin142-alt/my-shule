@@ -157,10 +157,16 @@ export class AcademicsService {
     return assignment;
   }
 
-  listTeacherAssignments(teacherUserId?: string) {
+  listTeacherAssignments(
+    teacherUserId?: string,
+    limit?: string | number,
+    offset?: string | number,
+  ) {
     return this.repository.listTeacherAssignments({
       tenantId: this.requireTenantId(),
       teacherUserId: teacherUserId?.trim() || undefined,
+      limit: this.resolveLimit(limit, 25, 1, 50),
+      offset: this.resolveOffset(offset),
     });
   }
 
@@ -206,5 +212,30 @@ export class AcademicsService {
     }
 
     return numericValue;
+  }
+
+  private resolveLimit(
+    value: string | number | undefined,
+    fallback: number,
+    minimum: number,
+    maximum: number,
+  ): number {
+    const parsed = Number(value ?? fallback);
+
+    if (!Number.isFinite(parsed)) {
+      return fallback;
+    }
+
+    return Math.min(Math.max(Math.floor(parsed), minimum), maximum);
+  }
+
+  private resolveOffset(value: string | number | undefined): number {
+    const parsed = Number(value ?? 0);
+
+    if (!Number.isFinite(parsed)) {
+      return 0;
+    }
+
+    return Math.max(Math.floor(parsed), 0);
   }
 }

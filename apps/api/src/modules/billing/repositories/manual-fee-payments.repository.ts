@@ -76,6 +76,15 @@ export interface CreateManualFeePaymentInput {
   created_by_user_id: string | null;
 }
 
+export interface StudentUnappliedCreditSummary {
+  tenant_id: string;
+  student_id: string;
+  student_name: string | null;
+  currency_code: string;
+  credit_amount_minor: string;
+  last_activity_at: Date | null;
+}
+
 @Injectable()
 export class ManualFeePaymentsRepository {
   constructor(private readonly databaseService: DatabaseService) {}
@@ -190,7 +199,16 @@ export class ManualFeePaymentsRepository {
   async list(input: {
     tenant_id: string;
     status?: ManualFeePaymentStatus | null;
+    limit?: number;
+    offset?: number;
   }): Promise<ManualFeePaymentEntity[]> {
+    const values: unknown[] = [input.tenant_id, input.status ?? null];
+    const paginationSql = input.limit === undefined
+      ? ''
+      : (() => {
+          values.push(normalizeManualFeePaymentListLimit(input.limit), normalizeManualFeePaymentListOffset(input.offset));
+          return 'LIMIT $3::integer OFFSET $4::integer';
+        })();
     const result = await this.databaseService.query<ManualFeePaymentRow>(
       `
         SELECT
@@ -227,8 +245,194 @@ export class ManualFeePaymentsRepository {
         WHERE tenant_id = $1
           AND ($2::text IS NULL OR status = $2::text)
         ORDER BY received_at DESC, created_at DESC
+        ${paginationSql}
       `,
-      [input.tenant_id, input.status ?? null],
+      values,
+    );
+
+    return result.rows.map((row) => this.mapPayment(row));
+  }
+
+  async listUnappliedCreditSummaries(
+    tenantId: string,
+    options: { limit?: number; offset?: number } = {},
+  ): Promise<StudentUnappliedCreditSummary[]> {
+    const result = await this.databaseService.query<StudentUnappliedCreditSummary>(
+      `
+        SELECT
+          tenant_id,
+          student_id::text AS student_id,
+          COALESCE(
+            MAX(NULLIF(metadata ->> 'student_name', '')),
+            MAX(NULLIF(payer_name, ''))
+          ) AS student_name,
+          currency_code,
+          COALESCE(SUM(amount_minor), 0)::text AS credit_amount_minor,
+          MAX(COALESCE(cleared_at, received_at)) AS last_activity_at
+        FROM manual_fee_payments
+        WHERE tenant_id = $1
+          AND status = 'cleared'
+          AND student_id IS NOT NULL
+          AND invoice_id IS NULL
+        GROUP BY tenant_id, student_id, currency_code
+        ORDER BY MAX(COALESCE(cleared_at, received_at)) DESC
+        LIMIT $2::integer OFFSET $3::integer
+      `,
+      [
+        tenantId,
+        normalizeManualFeePaymentListLimit(options.limit),
+        normalizeManualFeePaymentListOffset(options.offset),
+      ],
+    );
+
+    return result.rows;
+  }
+
+  async listStudentStatementPayments(input: {
+    tenantId: string;
+    studentId: string;
+    invoiceIds: string[];
+  }): Promise<ManualFeePaymentEntity[]> {
+    const result = await this.databaseService.query<ManualFeePaymentRow>(
+      `
+        SELECT
+          id,
+          tenant_id,
+          idempotency_key,
+          receipt_number,
+          payment_method,
+          status,
+          student_id,
+          invoice_id,
+          amount_minor::text,
+          currency_code,
+          payer_name,
+          received_at,
+          deposited_at,
+          cleared_at,
+          bounced_at,
+          reversed_at,
+          cheque_number,
+          drawer_bank,
+          deposit_reference,
+          external_reference,
+          asset_account_code,
+          fee_control_account_code,
+          ledger_transaction_id,
+          reversal_ledger_transaction_id,
+          notes,
+          metadata,
+          created_by_user_id,
+          created_at,
+          updated_at
+        FROM manual_fee_payments
+        WHERE tenant_id = $1
+          AND (
+            student_id::text = $2
+            OR invoice_id = ANY($3::uuid[])
+          )
+        ORDER BY COALESCE(cleared_at, deposited_at, received_at) ASC, created_at ASC
+      `,
+      [input.tenantId, input.studentId, input.invoiceIds],
+    );
+
+    return result.rows.map((row) => this.mapPayment(row));
+  }
+
+  async listForReconciliation(input: {
+    tenantId: string;
+    from: Date;
+    to: Date;
+    method: ManualFeePaymentMethod | null;
+  }): Promise<ManualFeePaymentEntity[]> {
+    const result = await this.databaseService.query<ManualFeePaymentRow>(
+      `
+        WITH scoped_payments AS (
+          SELECT
+            id,
+            tenant_id,
+            idempotency_key,
+            receipt_number,
+            payment_method,
+            status,
+            student_id,
+            invoice_id,
+            amount_minor,
+            currency_code,
+            payer_name,
+            received_at,
+            deposited_at,
+            cleared_at,
+            bounced_at,
+            reversed_at,
+            cheque_number,
+            drawer_bank,
+            deposit_reference,
+            external_reference,
+            asset_account_code,
+            fee_control_account_code,
+            ledger_transaction_id,
+            reversal_ledger_transaction_id,
+            notes,
+            metadata,
+            created_by_user_id,
+            created_at,
+            updated_at,
+            CASE
+              WHEN status = 'reversed' THEN COALESCE(reversed_at, updated_at)
+              WHEN status = 'bounced' THEN COALESCE(bounced_at, updated_at)
+              WHEN status = 'cleared' THEN COALESCE(cleared_at, received_at)
+              WHEN status = 'deposited' THEN COALESCE(deposited_at, received_at)
+              ELSE received_at
+            END AS reconciliation_at
+          FROM manual_fee_payments
+          WHERE tenant_id = $1
+            AND ($4::text IS NULL OR payment_method = $4::text)
+            AND (
+              received_at BETWEEN $2::timestamptz AND $3::timestamptz
+              OR deposited_at BETWEEN $2::timestamptz AND $3::timestamptz
+              OR cleared_at BETWEEN $2::timestamptz AND $3::timestamptz
+              OR bounced_at BETWEEN $2::timestamptz AND $3::timestamptz
+              OR reversed_at BETWEEN $2::timestamptz AND $3::timestamptz
+              OR updated_at BETWEEN $2::timestamptz AND $3::timestamptz
+            )
+        )
+        SELECT
+          id,
+          tenant_id,
+          idempotency_key,
+          receipt_number,
+          payment_method,
+          status,
+          student_id,
+          invoice_id,
+          amount_minor::text,
+          currency_code,
+          payer_name,
+          received_at,
+          deposited_at,
+          cleared_at,
+          bounced_at,
+          reversed_at,
+          cheque_number,
+          drawer_bank,
+          deposit_reference,
+          external_reference,
+          asset_account_code,
+          fee_control_account_code,
+          ledger_transaction_id,
+          reversal_ledger_transaction_id,
+          notes,
+          metadata,
+          created_by_user_id,
+          created_at,
+          updated_at
+        FROM scoped_payments
+        WHERE reconciliation_at >= $2::timestamptz
+          AND reconciliation_at <= $3::timestamptz
+        ORDER BY reconciliation_at DESC, created_at DESC
+      `,
+      [input.tenantId, input.from.toISOString(), input.to.toISOString(), input.method],
     );
 
     return result.rows.map((row) => this.mapPayment(row));
@@ -645,4 +849,24 @@ export class ManualFeePaymentsRepository {
       metadata: row.metadata ?? {},
     });
   }
+}
+
+function normalizeManualFeePaymentListLimit(limit: number | undefined): number {
+  const parsed = Number(limit ?? 25);
+
+  if (!Number.isFinite(parsed)) {
+    return 25;
+  }
+
+  return Math.min(Math.max(Math.trunc(parsed), 1), 50);
+}
+
+function normalizeManualFeePaymentListOffset(offset: number | undefined): number {
+  const parsed = Number(offset ?? 0);
+
+  if (!Number.isFinite(parsed)) {
+    return 0;
+  }
+
+  return Math.max(Math.trunc(parsed), 0);
 }

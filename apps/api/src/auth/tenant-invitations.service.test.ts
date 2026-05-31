@@ -165,10 +165,12 @@ test('TenantInvitationsService lists active users and pending tenant invitations
     {
       withRequestTransaction: async (callback: () => Promise<unknown>) => callback(),
       query: async (text: string, values: unknown[]) => {
-        assert.deepEqual(values, ['green-valley']);
+        assert.deepEqual(values, ['green-valley', null, null, null, 25, 0]);
         assert.match(text, /tenant_memberships/);
         assert.match(text, /auth_action_tokens/);
-        assert.match(text, /FROM\s+\(\s*SELECT \* FROM pending_invitations[\s\S]+UNION ALL[\s\S]+SELECT \* FROM current_members[\s\S]+\)\s+managed_users/);
+        assert.doesNotMatch(text, /SELECT \*/);
+        assert.match(text, /LIMIT \$5::integer/);
+        assert.match(text, /OFFSET \$6::integer/);
         assert.match(text, /ORDER BY\s+CASE managed_users\.kind WHEN 'invitation' THEN 0 ELSE 1 END/);
 
         return {
@@ -222,6 +224,55 @@ test('TenantInvitationsService lists active users and pending tenant invitations
   assert.equal(response.users[0]?.display_name, 'Mary Wanjiku');
   assert.equal(response.users[1]?.status, 'invited');
   assert.equal(JSON.stringify(response).includes('token'), false);
+});
+
+test('TenantInvitationsService scopes user search and caps page size', async () => {
+  const service = new TenantInvitationsService(
+    {
+      withRequestTransaction: async (callback: () => Promise<unknown>) => callback(),
+      query: async (text: string, values: unknown[]) => {
+        assert.deepEqual(values, ['green-valley', '%mary%', 'teacher', 'active', 50, 75]);
+        assert.match(text, /tm\.tenant_id = \$1/);
+        assert.match(text, /token\.tenant_id = \$1/);
+        assert.match(text, /managed_users\.role_code = \$3::text/);
+        assert.match(text, /managed_users\.status = \$4::text/);
+        assert.match(text, /LIMIT \$5::integer/);
+        assert.match(text, /OFFSET \$6::integer/);
+
+        return { rows: [] };
+      },
+    } as never,
+    {
+      ensureTenantAuthorizationBaseline: async () => undefined,
+      getRoleByCode: async () => ({ id: 'role-1' }),
+    } as never,
+    {
+      assertTransactionalEmailConfigured: () => undefined,
+      sendInvitationEmail: async () => undefined,
+    } as never,
+    { get: () => undefined } as never,
+    {
+      requireStore: () => ({
+        tenant_id: 'green-valley',
+        user_id: 'school-admin',
+      }),
+    } as never,
+  );
+
+  const response = await service.listTenantUsers({
+    search: ' Mary ',
+    role_code: 'teacher',
+    status: 'active',
+    limit: 1000,
+    offset: 75,
+  });
+
+  assert.deepEqual(response.users, []);
+  assert.deepEqual(response.pagination, {
+    limit: 50,
+    offset: 75,
+    returned: 0,
+  });
 });
 
 test('TenantInvitationsService resends a pending invitation with a rotated token', async () => {

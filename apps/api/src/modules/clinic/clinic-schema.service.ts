@@ -296,6 +296,8 @@ export class ClinicSchemaService implements OnModuleInit {
         ON clinic_medicine_batches (tenant_id, status, expiry_date);
       CREATE UNIQUE INDEX IF NOT EXISTS ux_clinic_medicines_name_brand
         ON clinic_medicines (tenant_id, lower(medicine_name), COALESCE(lower(brand_name), ''));
+      CREATE INDEX IF NOT EXISTS ix_clinic_medicines_tenant_active_category_name
+        ON clinic_medicines (tenant_id, is_active, category, medicine_name);
       CREATE INDEX IF NOT EXISTS ix_clinic_medicine_batches_stock
         ON clinic_medicine_batches (tenant_id, medicine_id, quantity_available);
       CREATE INDEX IF NOT EXISTS ix_clinic_visits_student_date

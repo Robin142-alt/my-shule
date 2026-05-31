@@ -161,8 +161,8 @@ export class InventoryController {
 
   @Get('purchase-orders')
   @Permissions('procurement:read')
-  listPurchaseOrders() {
-    return this.inventoryService.listPurchaseOrders();
+  listPurchaseOrders(@Query() query: ListInventoryQueryDto) {
+    return this.inventoryService.listPurchaseOrders(query);
   }
 
   @Post('purchase-orders')
@@ -182,8 +182,8 @@ export class InventoryController {
 
   @Get('requests')
   @Permissions('inventory:read')
-  listRequests() {
-    return this.inventoryService.listRequests();
+  listRequests(@Query() query: ListInventoryQueryDto) {
+    return this.inventoryService.listRequests(query);
   }
 
   @Post('requests')
@@ -203,8 +203,8 @@ export class InventoryController {
 
   @Get('transfers')
   @Permissions('transfers:read')
-  listTransfers() {
-    return this.inventoryService.listTransfers();
+  listTransfers(@Query() query: ListInventoryQueryDto) {
+    return this.inventoryService.listTransfers(query);
   }
 
   @Post('transfers')
@@ -224,8 +224,8 @@ export class InventoryController {
 
   @Get('incidents')
   @Permissions('inventory:read')
-  listIncidents() {
-    return this.inventoryService.listIncidents();
+  listIncidents(@Query() query: ListInventoryQueryDto) {
+    return this.inventoryService.listIncidents(query);
   }
 
   @Post('incidents')

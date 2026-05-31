@@ -11,10 +11,11 @@ export function buildDatabasePoolOptions(configService: ConfigService): PoolConf
   const statementTimeoutMs = Number(configService.get<number>('database.statementTimeoutMs') ?? 5000);
   const connectionTimeoutMs = Number(configService.get<number>('database.connectionTimeoutMs') ?? 10000);
   const appRuntime = configService.get<string>('app.runtime') ?? 'server';
+  const isServerlessRuntime = Boolean(configService.get<boolean>('app.isServerlessRuntime'));
   const apiMaxConnections = Number(
     configService.get<number>('database.apiMaxConnections')
       ?? configService.get<number>('database.maxConnections')
-      ?? 20,
+      ?? (isServerlessRuntime ? 3 : 20),
   );
   const workerMaxConnections = Number(configService.get<number>('database.workerMaxConnections') ?? 5);
   const maxConnections = appRuntime.includes('worker') ? workerMaxConnections : apiMaxConnections;
@@ -28,6 +29,7 @@ export function buildDatabasePoolOptions(configService: ConfigService): PoolConf
     statement_timeout: statementTimeoutMs,
     application_name: 'my-shule-api',
     keepAlive: true,
+    allowExitOnIdle: isServerlessRuntime,
     ssl: sslEnabled || connectionString?.includes('sslmode=require')
       ? { rejectUnauthorized: false }
       : undefined,

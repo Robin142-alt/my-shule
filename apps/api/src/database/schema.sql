@@ -1462,6 +1462,10 @@ CREATE UNIQUE INDEX ux_auth_action_tokens_hash
 CREATE INDEX ix_auth_action_tokens_tenant_email
   ON auth_action_tokens (tenant_id, lower(email::text), purpose);
 
+CREATE INDEX ix_auth_action_tokens_tenant_invites
+  ON auth_action_tokens (tenant_id, purpose, consumed_at, expires_at, created_at DESC)
+  WHERE purpose = 'invite_acceptance';
+
 CREATE INDEX ix_auth_email_outbox_status
   ON auth_email_outbox (status, next_attempt_at);
 
@@ -1496,6 +1500,9 @@ CREATE INDEX ix_outbox_events_published_at
 
 CREATE INDEX ix_outbox_events_tenant_status_available_at
   ON outbox_events (tenant_id, status, available_at, created_at);
+
+CREATE INDEX ix_outbox_events_tenant_status_created_id
+  ON outbox_events (tenant_id, status, created_at, id);
 
 CREATE INDEX ix_event_consumer_runs_outbox_consumer
   ON event_consumer_runs (tenant_id, outbox_event_id, consumer_name);
@@ -1600,6 +1607,9 @@ CREATE INDEX ix_invoices_tenant_status_due_at
 CREATE INDEX ix_invoices_payment_intent_id
   ON invoices (tenant_id, payment_intent_id);
 
+CREATE INDEX ix_invoices_tenant_issued_created
+  ON invoices (tenant_id, issued_at DESC, created_at DESC);
+
 CREATE INDEX ix_usage_records_tenant_feature_recorded_at
   ON usage_records (tenant_id, feature_key, recorded_at DESC);
 
@@ -1619,12 +1629,29 @@ CREATE UNIQUE INDEX ux_fee_structures_active_scope
   ON fee_structures (tenant_id, academic_year, term, grade_level, (COALESCE(class_name, '')))
   WHERE status = 'active';
 
+CREATE INDEX ix_invoices_student_fee_allocation
+  ON invoices (tenant_id, (metadata ->> 'student_id'), status, due_at ASC);
+
+CREATE INDEX ix_invoices_student_fee_statement
+  ON invoices (tenant_id, (metadata ->> 'student_id'), issued_at ASC, created_at ASC);
+
 CREATE INDEX ix_manual_fee_payments_status_received
   ON manual_fee_payments (tenant_id, status, received_at DESC);
 
 CREATE INDEX ix_manual_fee_payments_student
   ON manual_fee_payments (tenant_id, student_id, received_at DESC)
   WHERE student_id IS NOT NULL;
+
+CREATE INDEX ix_manual_fee_payments_unapplied_student_credit
+  ON manual_fee_payments (tenant_id, student_id, currency_code, cleared_at DESC)
+  WHERE status = 'cleared' AND student_id IS NOT NULL AND invoice_id IS NULL;
+
+CREATE INDEX ix_manual_fee_payments_reconciliation_received
+  ON manual_fee_payments (tenant_id, payment_method, received_at DESC);
+
+CREATE INDEX ix_manual_fee_payments_reconciliation_cleared
+  ON manual_fee_payments (tenant_id, payment_method, cleared_at DESC)
+  WHERE cleared_at IS NOT NULL;
 
 CREATE INDEX ix_manual_fee_payments_invoice
   ON manual_fee_payments (tenant_id, invoice_id, received_at DESC)

@@ -39,7 +39,7 @@ const tableContract: OperationalTableContract = {
         status: "Pending",
       },
       status: { label: "Pending", tone: "warning" },
-      actions: ["Review", "Reconcile", "Print", "Open Audit Trail"],
+      actions: ["Review", "Reconcile", "Print", "View Action Record"],
     },
   ],
   bulkActions: ["Reconcile selected", "Send SMS to selected parents"],
@@ -324,7 +324,7 @@ describe("universal operational form and table system", () => {
     expect(screen.getByText(/all queued families/i)).toBeVisible();
   });
 
-  it("keeps right-side detail, comments, attachments, history, workflow state, and audit trail available in one drawer", () => {
+  it("keeps right-side detail, comments, attachments, updates, progress, and action records available in one drawer", () => {
     renderWithProviders(
       <RightDetailsDrawer
         title="Brian Otieno Follow-up"
@@ -335,7 +335,7 @@ describe("universal operational form and table system", () => {
           attachments: ["attendance-report.pdf"],
           history: ["Marked absent 3 days", "Parent SMS sent"],
           workflow: ["Submitted", "Under Review", "Escalated"],
-          audit: ["actor: class-teacher", "tenant: greenfield-academy", "event: STUDENT_FOLLOWUP_ESCALATED"],
+          audit: ["Updated by class teacher", "School: Greenfield Academy", "Student follow-up escalated"],
         }}
       />,
     );
@@ -344,6 +344,6 @@ describe("universal operational form and table system", () => {
     expect(screen.getByText(/Grade 7 East/)).toBeVisible();
     expect(screen.getByText(/attendance-report\.pdf/)).toBeVisible();
     expect(screen.getByText(/Under Review/)).toBeVisible();
-    expect(screen.getByText(/STUDENT_FOLLOWUP_ESCALATED/)).toBeVisible();
+    expect(screen.getByText(/Student follow-up escalated/)).toBeVisible();
   });
 });

@@ -5297,7 +5297,7 @@ function GenericRoleOperationalCommandCenter({
 
   function printClinicSlip(id: string) {
     const visit = clinicVisits.find((item) => item.id === id);
-    addLocalExecutionLog(`${visit?.student ?? "Student"} medical slip opened`, ["Medical slip prepared", "Print dialog opened"]);
+    addLocalExecutionLog(`${visit?.student ?? "Student"} medical slip opened`, ["Medical slip prepared", "Print preview opened"]);
     setClinicNotice(`${visit?.student ?? "Student"} medical slip opened for printing.`);
     openSchoolPrintPreview({
       eyebrow: "Medical slip",
@@ -5319,7 +5319,7 @@ function GenericRoleOperationalCommandCenter({
       severity: "success",
       notifications: [{ audienceRoles: ["nurse", "principal"], title: "Sick bay register printed" }],
     });
-    addLocalExecutionLog("Sick bay register opened", ["Sick bay register prepared", "Print dialog opened"]);
+    addLocalExecutionLog("Sick bay register opened", ["Sick bay register prepared", "Print preview opened"]);
     setClinicNotice("Sick bay register opened for printing.");
     openSchoolPrintPreview({
       eyebrow: "Sick bay register",
@@ -5430,7 +5430,7 @@ function GenericRoleOperationalCommandCenter({
         status: shouldOnboard ? "Onboarded" : item.status,
       };
     }));
-    addAdmissionsExecutionLog(`${applicant?.applicant ?? "Applicant"} admission letter opened`, ["Admission letter prepared", "Print dialog opened"]);
+    addAdmissionsExecutionLog(`${applicant?.applicant ?? "Applicant"} admission letter opened`, ["Admission letter prepared", "Print preview opened"]);
     setAdmissionsNotice(`${applicant?.applicant ?? "Applicant"} admission letter opened for printing.`);
     openSchoolPrintPreview({
       eyebrow: "Admission letter",
@@ -5453,7 +5453,7 @@ function GenericRoleOperationalCommandCenter({
       severity: "success",
       notifications: [{ audienceRoles: ["admissions", "principal"], title: "Admissions pipeline printed" }],
     });
-    addAdmissionsExecutionLog("Admissions pipeline opened", ["Application pipeline prepared", "Print dialog opened"]);
+    addAdmissionsExecutionLog("Admissions pipeline opened", ["Application pipeline prepared", "Print preview opened"]);
     setAdmissionsNotice("Admissions pipeline opened for printing.");
     openSchoolPrintPreview({
       eyebrow: "Admissions pipeline",
@@ -5613,7 +5613,7 @@ function GenericRoleOperationalCommandCenter({
   function printLibrarySlip(id: string) {
     const loan = libraryLoans.find((item) => item.id === id);
 
-    addLibraryExecutionLog(`${loan?.bookTitle ?? "Book"} library slip opened`, ["Library slip prepared", "Print dialog opened"]);
+    addLibraryExecutionLog(`${loan?.bookTitle ?? "Book"} library slip opened`, ["Library slip prepared", "Print preview opened"]);
     setLibraryNotice(`${loan?.bookTitle ?? "Book"} slip opened for printing.`);
     openSchoolPrintPreview({
       eyebrow: "Library slip",
@@ -5637,7 +5637,7 @@ function GenericRoleOperationalCommandCenter({
       severity: "success",
       notifications: [{ audienceRoles: ["librarian", "principal"], title: "Library report printed" }],
     });
-    addLibraryExecutionLog("Library report opened", ["Library report prepared", "Print dialog opened"]);
+    addLibraryExecutionLog("Library report opened", ["Library report prepared", "Print preview opened"]);
     setLibraryNotice("Library report opened for printing.");
     openSchoolPrintPreview({
       eyebrow: "Library report",
@@ -5721,7 +5721,7 @@ function GenericRoleOperationalCommandCenter({
   function printStockSlip(id: string) {
     const movement = stockMovements.find((item) => item.id === id);
 
-    addStockExecutionLog(`${movement?.item ?? "Stock"} slip opened`, ["Stock slip prepared", "Print dialog opened"]);
+    addStockExecutionLog(`${movement?.item ?? "Stock"} slip opened`, ["Stock slip prepared", "Print preview opened"]);
     setStockNotice(`${movement?.item ?? "Stock"} issue slip opened for printing.`);
     openSchoolPrintPreview({
       eyebrow: "Stock issue slip",
@@ -6020,7 +6020,7 @@ function GenericRoleOperationalCommandCenter({
       severity: "success",
       notifications: [{ audienceRoles: ["boarding-master", "deputy-principal"], title: "Hostel roll call printed" }],
     });
-    addBoardingExecutionLog("Hostel roll call sheet opened", ["Roll call print view prepared", "Print dialog opened"]);
+    addBoardingExecutionLog("Hostel roll call sheet opened", ["Roll call print view prepared", "Print preview opened"]);
     setBoardingNotice("Hostel roll call sheet opened for printing.");
     openSchoolPrintPreview({
       eyebrow: "Hostel roll call",
@@ -6254,7 +6254,7 @@ function GenericRoleOperationalCommandCenter({
       severity: "success",
       notifications: [{ audienceRoles: ["transport-manager", "principal"], title: "Transport route list printed" }],
     });
-    addTransportExecutionLog("Transport route list opened", ["Route list prepared", "Print dialog opened"]);
+    addTransportExecutionLog("Transport route list opened", ["Route list prepared", "Print preview opened"]);
     setTransportNotice("Transport route list opened for printing.");
     openSchoolPrintPreview({
       eyebrow: "Transport routes",
@@ -6558,7 +6558,7 @@ function GenericRoleOperationalCommandCenter({
       severity: "success",
       notifications: [{ audienceRoles: ["laboratory-technician", "dean-academics"], title: "Lab practical checklist printed" }],
     });
-    addLabExecutionLog("Practical checklist opened", ["Lab checklist prepared", "Print dialog opened"]);
+    addLabExecutionLog("Practical checklist opened", ["Lab checklist prepared", "Print preview opened"]);
     setLabNotice("Practical checklist opened for printing.");
     openSchoolPrintPreview({
       eyebrow: "Lab practical checklist",
@@ -6686,7 +6686,7 @@ function GenericRoleOperationalCommandCenter({
         createdAt: new Date().toISOString(),
       }, schoolId);
     }
-    addFinanceExecutionLog(`${payment?.receiptNo ?? "Receipt"} opened`, ["Receipt print view prepared", "Print dialog opened"]);
+    addFinanceExecutionLog(`${payment?.receiptNo ?? "Receipt"} opened`, ["Receipt print view prepared", "Print preview opened"]);
     setFinanceNotice(`${payment?.receiptNo ?? "Receipt"} opened for printing.`);
     openSchoolPrintPreview({
       eyebrow: "Fee receipt",
@@ -6857,7 +6857,7 @@ function GenericRoleOperationalCommandCenter({
         notifications: [{ audienceRoles: ["security-officer", "secretary"], title: "Visitor slip printed" }],
       });
     }
-    addSecretaryExecutionLog(`${visitor?.visitor ?? "Visitor"} slip printed`, ["Visitor slip prepared", "Print dialog opened"]);
+    addSecretaryExecutionLog(`${visitor?.visitor ?? "Visitor"} slip printed`, ["Visitor slip prepared", "Print preview opened"]);
     setSecretaryNotice(`${visitor?.visitor ?? "Visitor"} visitor slip opened for printing.`);
     openSchoolPrintPreview({
       eyebrow: "Visitor slip",
@@ -6881,7 +6881,7 @@ function GenericRoleOperationalCommandCenter({
       severity: "success",
       notifications: [{ audienceRoles: ["secretary", "accountant"], title: "Fee statement printed" }],
     });
-    addSecretaryExecutionLog(`${student.student} fee statement printed`, ["Fee statement prepared", "Print dialog opened"]);
+    addSecretaryExecutionLog(`${student.student} fee statement printed`, ["Fee statement prepared", "Print preview opened"]);
     setSecretaryNotice(`${student.student} fee statement opened for printing.`);
     openSchoolPrintPreview({
       eyebrow: "Fee statement",
@@ -7180,9 +7180,23 @@ function GenericRoleOperationalCommandCenter({
       severity: "success",
       notifications: [{ audienceRoles: ["discipline-master", "deputy-principal"], title: "Discipline letter printed" }],
     });
-    addDisciplineExecutionLog(`${disciplineCase?.student ?? "Student"} discipline letter opened`, ["Printable letter prepared", "Document record saved"]);
-    setDisciplineNotice(`${disciplineCase?.student ?? "Student"} discipline letter opened.`);
-    window.print?.();
+    addDisciplineExecutionLog(`${disciplineCase?.student ?? "Student"} discipline letter opened`, ["Print preview prepared", "Document record saved"]);
+    setDisciplineNotice(`${disciplineCase?.student ?? "Student"} discipline letter preview opened.`);
+    openSchoolPrintPreview({
+      eyebrow: "Discipline letter",
+      title: `${disciplineCase?.student ?? "Student"} discipline letter`,
+      subtitle: "Prepared for parent/guardian follow-up and deputy review.",
+      rows: [
+        { label: "Student", value: disciplineCase?.student ?? "Student" },
+        { label: "Class/Form", value: disciplineCase?.className ?? "Not specified" },
+        { label: "Case type", value: disciplineCase?.caseType ?? "Discipline case" },
+        { label: "Severity", value: disciplineCase?.severity ?? "Not specified" },
+        { label: "Reported by", value: disciplineCase?.reportedBy ?? "School staff" },
+        { label: "Status", value: disciplineCase?.status ?? "Prepared" },
+        { label: "Prepared by", value: titleizeRole(role) },
+      ],
+      footer: "Parent/guardian signature: ____________________  School official: ____________________",
+    });
   }
 
   function resolveDisciplineCase(id: string) {
@@ -7366,9 +7380,24 @@ function GenericRoleOperationalCommandCenter({
       severity: "success",
       notifications: [{ audienceRoles: ["guidance-counselling", "deputy-principal"], title: "Counselling summary printed" }],
     });
-    addCounsellingExecutionLog(`${session?.student ?? "Student"} counselling summary opened`, ["Printable summary prepared", "Document record saved"]);
-    setCounsellingNotice(`${session?.student ?? "Student"} counselling summary opened.`);
-    window.print?.();
+    addCounsellingExecutionLog(`${session?.student ?? "Student"} counselling summary opened`, ["Print preview prepared", "Document record saved"]);
+    setCounsellingNotice(`${session?.student ?? "Student"} counselling summary preview opened.`);
+    openSchoolPrintPreview({
+      eyebrow: "Counselling summary",
+      title: `${session?.student ?? "Student"} counselling follow-up summary`,
+      subtitle: "Privacy-controlled school welfare record prepared for authorized staff.",
+      rows: [
+        { label: "Student", value: session?.student ?? "Student" },
+        { label: "Class/Form", value: session?.className ?? "Not specified" },
+        { label: "Referral source", value: session?.referralSource ?? "School staff" },
+        { label: "Session type", value: session?.sessionType ?? "Counselling session" },
+        { label: "Risk level", value: session?.riskLevel ?? "Not specified" },
+        { label: "Follow-up date", value: session?.followUpDate ?? "Not scheduled" },
+        { label: "Status", value: session?.status ?? "Prepared" },
+        { label: "Prepared by", value: titleizeRole(role) },
+      ],
+      footer: "This welfare record is confidential and may only be shared with authorized school staff.",
+    });
   }
 
   function closeCounsellingFollowUp(id: string) {

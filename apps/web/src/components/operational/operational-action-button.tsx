@@ -211,10 +211,8 @@ export function OperationalActionButton({
         }
       >
         <div className="space-y-3 text-sm text-muted">
-          <p>
-            {action.label} will be recorded under {action.workflowBinding} and linked to {action.auditEvent}.
-          </p>
-          <p>Related dashboard sections will show the update immediately in this working prototype.</p>
+          <p>{action.label} will update the related school record and keep a staff/time record for accountability.</p>
+          <p>Related dashboard sections will refresh after the action is completed.</p>
         </div>
       </Modal>
     </div>

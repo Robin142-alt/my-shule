@@ -93,8 +93,8 @@ export class ExamsController {
 
   @Get('report-cards')
   @Permissions('exams:read')
-  listReportCards(@Query('student_id') studentId?: string) {
-    return this.examsService.listReportCards(studentId);
+  listReportCards(@Query() query: Record<string, string | undefined>) {
+    return this.examsService.listReportCards(query);
   }
 
   @Get('report-cards/:reportCardId/parent-download')

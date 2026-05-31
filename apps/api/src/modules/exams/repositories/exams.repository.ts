@@ -501,7 +501,14 @@ export class ExamsRepository {
     tenant_id: string;
     class_section_id?: string | null;
     stream_name?: string | null;
+    limit?: number;
+    offset?: number;
   }): Promise<Array<{ id: string }>> {
+    const requestedLimit = Number.isFinite(input.limit) ? Math.floor(Number(input.limit)) : 200;
+    const requestedOffset = Number.isFinite(input.offset) ? Math.floor(Number(input.offset)) : 0;
+    const limit = requestedLimit > 0 ? Math.min(requestedLimit, 200) : 200;
+    const offset = Math.max(requestedOffset, 0);
+
     const result = await this.databaseService.query<{ id: string }>(
       `
         SELECT id::text
@@ -510,9 +517,10 @@ export class ExamsRepository {
           AND ($2::uuid IS NULL OR NULLIF(metadata->>'class_section_id', '')::uuid = $2::uuid)
           AND ($3::text IS NULL OR metadata->>'stream_name' = $3::text)
         ORDER BY admission_number ASC, created_at ASC
-        LIMIT 1000
+        LIMIT $4::integer
+        OFFSET $5::integer
       `,
-      [input.tenant_id, input.class_section_id ?? null, input.stream_name ?? null],
+      [input.tenant_id, input.class_section_id ?? null, input.stream_name ?? null, limit, offset],
     );
 
     return result.rows;
@@ -637,16 +645,40 @@ export class ExamsRepository {
     };
   }
 
-  async listReportCards(input: { tenant_id: string; student_id?: string }) {
+  async listReportCards(input: {
+    tenant_id: string;
+    student_id?: string;
+    limit?: number;
+    offset?: number;
+  }) {
+    const requestedLimit = Number.isFinite(input.limit) ? Math.floor(Number(input.limit)) : 25;
+    const requestedOffset = Number.isFinite(input.offset) ? Math.floor(Number(input.offset)) : 0;
+    const limit = requestedLimit > 0 ? Math.min(requestedLimit, 50) : 25;
+    const offset = Math.max(requestedOffset, 0);
+
     const result = await this.databaseService.query(
       `
-        SELECT *
-        FROM student_report_cards
-        WHERE tenant_id = $1
-          AND ($2::uuid IS NULL OR student_id = $2::uuid)
-        ORDER BY published_at DESC
+        SELECT
+          card.id::text,
+          card.tenant_id,
+          card.exam_series_id::text,
+          card.student_id::text,
+          card.report_snapshot_id,
+          card.status,
+          card.verification_code,
+          card.published_by_user_id::text,
+          card.published_at::text,
+          card.metadata,
+          card.created_at::text,
+          card.updated_at::text
+        FROM student_report_cards card
+        WHERE card.tenant_id = $1
+          AND ($2::uuid IS NULL OR card.student_id = $2::uuid)
+        ORDER BY card.published_at DESC NULLS LAST, card.created_at DESC
+        LIMIT $3::integer
+        OFFSET $4::integer
       `,
-      [input.tenant_id, input.student_id ?? null],
+      [input.tenant_id, input.student_id ?? null, limit, offset],
     );
 
     return result.rows;
@@ -768,7 +800,11 @@ export class ExamsRepository {
     exam_series_id?: string;
     class_section_id?: string;
     subject_id?: string;
+    limit?: number;
+    offset?: number;
   }) {
+    const limit = this.normalizeLimit(input.limit);
+    const offset = this.normalizeOffset(input.offset);
     const result = await this.databaseService.query(
       `
         SELECT
@@ -809,7 +845,8 @@ export class ExamsRepository {
           )
         GROUP BY window.id
         ORDER BY window.closes_at DESC, window.opens_at DESC
-        LIMIT 100
+        LIMIT $6::integer
+        OFFSET $7::integer
       `,
       [
         input.tenant_id,
@@ -817,6 +854,8 @@ export class ExamsRepository {
         input.class_section_id ?? null,
         input.subject_id ?? null,
         input.teacher_user_id ?? null,
+        limit,
+        offset,
       ],
     );
 
@@ -914,5 +953,25 @@ export class ExamsRepository {
         JSON.stringify(input.metadata ?? {}),
       ],
     );
+  }
+
+  private normalizeLimit(value: number | undefined): number {
+    const candidate = Number(value);
+
+    if (!Number.isInteger(candidate) || candidate < 1) {
+      return 25;
+    }
+
+    return Math.min(candidate, 50);
+  }
+
+  private normalizeOffset(value: number | undefined): number {
+    const candidate = Number(value);
+
+    if (!Number.isInteger(candidate) || candidate < 0) {
+      return 0;
+    }
+
+    return candidate;
   }
 }

@@ -76,6 +76,8 @@ const SCHOOL_ROLES = [
   'procurement_officer',
   'transport_manager',
   'lab_technician',
+  'admissions_officer',
+  'ict_manager',
 ] as const satisfies readonly BlueprintUserRole[];
 
 const CONTROLS = [
@@ -102,6 +104,8 @@ const ROLE_MODULE_REQUIREMENTS: Partial<Record<BlueprintUserRole, readonly strin
   hr_officer: ['staff'],
   procurement_officer: ['procurement'],
   lab_technician: ['lab_management'],
+  admissions_officer: ['admissions'],
+  ict_manager: ['lab_management'],
   dean_academics: ['exams'],
   exams_manager: ['exams'],
 };
@@ -144,6 +148,8 @@ const ROLE_PERMISSIONS: Partial<Record<BlueprintUserRole, readonly string[]>> = 
   procurement_officer: ['procurement:read', 'procurement:write'],
   transport_manager: ['transport:read', 'transport:write'],
   lab_technician: ['labs:read', 'labs:write', 'labs:inventory'],
+  admissions_officer: ['admissions:read', 'admissions:write', 'students:read', 'students:write'],
+  ict_manager: ['assets:read', 'inventory:read', 'labs:read', 'reports:read'],
 };
 
 const PRIVILEGED_ROLES = new Set<BlueprintUserRole>([

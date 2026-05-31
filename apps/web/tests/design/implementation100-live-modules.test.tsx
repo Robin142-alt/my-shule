@@ -23,6 +23,16 @@ type LiveModuleComponent = ComponentType<{
   initialDashboard?: typeof liveDashboard;
 }>;
 
+async function printFromPreview(user: { click: (element: Element) => Promise<void> }, printMock: jest.Mock) {
+  const preview = await screen.findByRole("dialog", { name: /print preview/i });
+  expect(preview).toBeVisible();
+  expect(printMock).not.toHaveBeenCalled();
+
+  await user.click(within(preview).getByRole("button", { name: /^print$/i }));
+  expect(printMock).toHaveBeenCalled();
+  await user.click(within(preview).getByRole("button", { name: /cancel/i }));
+}
+
 const liveDashboard = {
   total_records: 1,
   open_records: 1,
@@ -103,6 +113,7 @@ const modules: Array<{
 describe("Implementation 100 live module workspaces", () => {
   beforeEach(() => {
     window.localStorage.clear();
+    document.querySelectorAll("[data-myshule-print-preview]").forEach((preview) => preview.remove());
     global.fetch = jest.fn((input: RequestInfo | URL) => {
       if (String(input).includes("/api/school/modules/me")) {
         return Promise.resolve({
@@ -241,7 +252,7 @@ describe("Implementation 100 live module workspaces", () => {
     expect(screen.getByRole("status")).toHaveTextContent(/returned to ict store/i);
 
     await user.click(screen.getByRole("button", { name: /print asset tags/i }));
-    expect(printMock).toHaveBeenCalled();
+    await printFromPreview(user, printMock);
     expect(readSchoolData<Record<string, unknown>>("events", "barakaacademy")).toEqual(
       expect.arrayContaining([
         expect.objectContaining({

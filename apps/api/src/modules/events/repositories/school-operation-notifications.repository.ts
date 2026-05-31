@@ -18,6 +18,11 @@ export interface SchoolOperationNotificationView {
   sourceModule: string;
   relatedModule: string | null;
   relatedRecordId: string | null;
+  priority: string | null;
+  requestStatus: string | null;
+  actionType: string | null;
+  originRole: string | null;
+  targetRoles: string[];
   createdAt: string;
   readAt: string | null;
 }
@@ -194,6 +199,9 @@ export class SchoolOperationNotificationsRepository {
     const explicitHref = this.optionalText(
       metadata.actionUrl ?? metadata.action_url ?? metadata.href,
     );
+    const targetRoles = this.stringArray(
+      metadata.target_roles ?? metadata.targetRoles ?? metadata.audienceRoles,
+    );
 
     return {
       id: this.textOrDefault(row.id, ''),
@@ -205,6 +213,11 @@ export class SchoolOperationNotificationsRepository {
       sourceModule,
       relatedModule,
       relatedRecordId,
+      priority: this.optionalText(metadata.priority ?? metadata.severity),
+      requestStatus: this.optionalText(metadata.requestStatus ?? metadata.request_status),
+      actionType: this.optionalText(metadata.actionType ?? metadata.action_type ?? row.type),
+      originRole: this.optionalText(metadata.originRole ?? metadata.origin_role ?? metadata.createdBy),
+      targetRoles,
       createdAt: this.toIsoString(row.created_at),
       readAt: row.read_at ? this.toIsoString(row.read_at) : null,
     };
@@ -231,6 +244,14 @@ export class SchoolOperationNotificationsRepository {
 
   private optionalText(value: unknown): string | null {
     return typeof value === 'string' && value.trim() ? value.trim() : null;
+  }
+
+  private stringArray(value: unknown): string[] {
+    if (!Array.isArray(value)) {
+      return [];
+    }
+
+    return value.filter((item): item is string => typeof item === 'string' && Boolean(item.trim()));
   }
 
   private toTone(value: unknown): SchoolOperationNotificationView['tone'] {

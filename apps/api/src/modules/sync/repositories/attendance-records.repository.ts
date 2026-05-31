@@ -152,8 +152,11 @@ export class AttendanceRecordsRepository {
       from_date?: string;
       to_date?: string;
       limit?: number;
+      offset?: number;
     } = {},
   ): Promise<AttendanceRecordEntity[]> {
+    const limit = this.normalizeLimit(options.limit);
+    const offset = this.normalizeOffset(options.offset);
     const result = await this.databaseService.query<AttendanceRecordRow>(
       `
         SELECT
@@ -176,18 +179,40 @@ export class AttendanceRecordsRepository {
           AND ($3::date IS NULL OR attendance_date >= $3::date)
           AND ($4::date IS NULL OR attendance_date <= $4::date)
         ORDER BY attendance_date DESC
-        LIMIT $5
+        LIMIT $5::integer
+        OFFSET $6::integer
       `,
       [
         tenantId,
         studentId,
         options.from_date ?? null,
         options.to_date ?? null,
-        options.limit ?? 100,
+        limit,
+        offset,
       ],
     );
 
     return result.rows.map((row) => this.mapRow(row));
+  }
+
+  private normalizeLimit(value: number | undefined): number {
+    const candidate = Number(value);
+
+    if (!Number.isInteger(candidate) || candidate < 1) {
+      return 25;
+    }
+
+    return Math.min(candidate, 50);
+  }
+
+  private normalizeOffset(value: number | undefined): number {
+    const candidate = Number(value);
+
+    if (!Number.isInteger(candidate) || candidate < 0) {
+      return 0;
+    }
+
+    return candidate;
   }
 
   private mapRow(row: AttendanceRecordRow): AttendanceRecordEntity {

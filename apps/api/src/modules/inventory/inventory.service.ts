@@ -386,7 +386,10 @@ export class InventoryService {
   }
 
   async listStockMovements(query: ListInventoryQueryDto) {
-    return this.inventoryRepository.listStockMovements(this.requireTenantId(), query.limit ?? 50);
+    return this.inventoryRepository.listStockMovements(this.requireTenantId(), {
+      limit: query.limit ?? 50,
+      offset: query.offset ?? 0,
+    });
   }
 
   async issueDepartmentStock(dto: CreateStockIssueDto) {
@@ -610,8 +613,11 @@ export class InventoryService {
     }
   }
 
-  async listPurchaseOrders() {
-    return this.inventoryRepository.listPurchaseOrders(this.requireTenantId());
+  async listPurchaseOrders(query: ListInventoryQueryDto = {}) {
+    return this.inventoryRepository.listPurchaseOrders(this.requireTenantId(), {
+      limit: query.limit ?? 25,
+      offset: query.offset ?? 0,
+    });
   }
 
   async createPurchaseOrder(dto: CreatePurchaseOrderDto) {
@@ -728,8 +734,11 @@ export class InventoryService {
     });
   }
 
-  async listRequests() {
-    return this.inventoryRepository.listRequests(this.requireTenantId());
+  async listRequests(query: ListInventoryQueryDto = {}) {
+    return this.inventoryRepository.listRequests(this.requireTenantId(), {
+      limit: query.limit ?? 25,
+      offset: query.offset ?? 0,
+    });
   }
 
   async createRequest(dto: CreateInventoryRequestDto) {
@@ -912,8 +921,11 @@ export class InventoryService {
     });
   }
 
-  async listTransfers() {
-    return this.inventoryRepository.listTransfers(this.requireTenantId());
+  async listTransfers(query: ListInventoryQueryDto = {}) {
+    return this.inventoryRepository.listTransfers(this.requireTenantId(), {
+      limit: query.limit ?? 25,
+      offset: query.offset ?? 0,
+    });
   }
 
   async createTransfer(dto: CreateTransferDto) {
@@ -1107,8 +1119,11 @@ export class InventoryService {
     });
   }
 
-  async listIncidents() {
-    return this.inventoryRepository.listIncidents(this.requireTenantId());
+  async listIncidents(query: ListInventoryQueryDto = {}) {
+    return this.inventoryRepository.listIncidents(this.requireTenantId(), {
+      limit: query.limit ?? 25,
+      offset: query.offset ?? 0,
+    });
   }
 
   async createIncident(dto: CreateIncidentDto) {

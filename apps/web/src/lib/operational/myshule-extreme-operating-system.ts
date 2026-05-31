@@ -153,7 +153,7 @@ export const GLOBAL_OPERATING_SYSTEM_CONTRACT = {
       "empty state",
       "error state",
     ],
-    rowActions: ["View", "Edit", "Approve", "Reject", "Assign", "Print", "Export", "Send SMS", "Archive", "View Audit Trail"],
+    rowActions: ["View", "Edit", "Approve", "Reject", "Assign", "Print", "Export", "Send SMS", "Archive", "View Action Record"],
     bulkActions: ["Send SMS to selected parents", "Print selected records", "Export selected rows", "Approve selected requests"],
   },
   graphRules: {
@@ -1281,7 +1281,7 @@ const roleBlueprints: OperationalRoleBlueprint[] = [
     firstViewport: ["school setup issues", "module requests", "overdue schools", "support escalations", "infrastructure alerts"],
     sidebar: ["Dashboard", "Schools", "Modules", "Billing", "Support", "Infrastructure", "Audit Logs", "Settings"],
     primaryActions: ["Create School", "Enable Module", "Set Billing Status", "Suspend School", "View Details"],
-    tables: [table("Schools Table", ["School", "County", "State", "Modules", "Billing", "Status"], ["View", "Enable Module", "Set State", "Action History"], ["Export", "Notify selected"])],
+    tables: [table("Schools Table", ["School", "County", "State", "Modules", "Billing", "Status"], ["View", "Enable Module", "Set State", "View School Record"], ["Export", "Notify selected"])],
     forms: [form("School Setup Form", ["School name", "County", "Owner", "Modules", "Initial state", "Billing status"], ["Provision School"])],
     workflows: ["Provisioning -> Setup -> Verification -> Active -> Managed"],
     communicationTriggers: ["School notice", "Support update", "Billing warning"],

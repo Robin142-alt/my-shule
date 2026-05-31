@@ -10,7 +10,10 @@ import {
   simulateSms,
   startSchoolOperationalEventSyncRetryWorker,
   subscribeToSchoolDataUpdates,
+  listSchoolOperationalRequestsForRole,
+  updateSchoolOperationalRequestStatus,
   type SchoolOperationalEventSyncStatus,
+  type SchoolOperationalRequest,
 } from "@/lib/school/school-operational-store";
 
 function jsonResponse(body: unknown, init?: ResponseInit) {
@@ -287,5 +290,74 @@ describe("school operational store", () => {
     expect(listener).toHaveBeenCalledWith({ schoolId: "kb-high", moduleName: "smsLogs" });
 
     unsubscribe();
+  });
+
+  it("keeps cross-dashboard requests visible to origin and target roles and reflects completion back", () => {
+    publishSchoolOperationalEvent({
+      schoolId: "kb-high",
+      type: "STORE_ITEM_REQUESTED",
+      module: "inventory",
+      actorRole: "teacher",
+      title: "Exercise books requested",
+      body: "Form 2 West needs 40 exercise books.",
+      entityId: "store-request-88",
+      severity: "warning",
+      notifications: [
+        {
+          audienceRoles: ["storekeeper"],
+          relatedModule: "inventory",
+          relatedRecordId: "store-request-88",
+          title: "Store item requested",
+          requiresAction: true,
+        },
+      ],
+    });
+
+    expect(listSchoolOperationalRequestsForRole("teacher", "kb-high")).toEqual([
+      expect.objectContaining({
+        schoolId: "kb-high",
+        originRole: "teacher",
+        targetRoles: ["storekeeper"],
+        relatedRecordId: "store-request-88",
+        status: "Pending",
+      }),
+    ]);
+    expect(listSchoolOperationalRequestsForRole("storekeeper", "kb-high")).toEqual([
+      expect.objectContaining({
+        relatedRecordId: "store-request-88",
+        status: "Pending",
+      }),
+    ]);
+
+    updateSchoolOperationalRequestStatus({
+      schoolId: "kb-high",
+      relatedRecordId: "store-request-88",
+      sourceModule: "inventory",
+      status: "Issued",
+      statusDetail: "Issued 40 exercise books for collection at the store.",
+      actorRole: "storekeeper",
+      payload: { quantityIssued: 40 },
+    });
+
+    expect(readSchoolData<SchoolOperationalRequest>("operationalRequests", "kb-high")).toEqual([
+      expect.objectContaining({
+        relatedRecordId: "store-request-88",
+        status: "Issued",
+        statusDetail: "Issued 40 exercise books for collection at the store.",
+        lastActorRole: "storekeeper",
+        payload: expect.objectContaining({ quantityIssued: 40 }),
+      }),
+    ]);
+    expect(readSchoolData("notifications", "kb-high")).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          audienceRoles: ["teacher"],
+          relatedRecordId: "store-request-88",
+          requestStatus: "Issued",
+          requiresAction: false,
+        }),
+      ]),
+    );
+    expect(readSchoolData("notifications", "green-valley")).toEqual([]);
   });
 });

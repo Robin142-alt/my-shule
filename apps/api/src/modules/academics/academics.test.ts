@@ -3,6 +3,7 @@ import test from 'node:test';
 
 import { AcademicsSchemaService } from './academics-schema.service';
 import { AcademicsService } from './academics.service';
+import { AcademicsRepository } from './repositories/academics.repository';
 
 test('AcademicsSchemaService creates academic lifecycle tables with tenant RLS', async () => {
   let schemaSql = '';
@@ -117,4 +118,48 @@ test('AcademicsService assigns a student to a class and audits the assignment', 
 
   assert.equal(result.id, 'assignment-1');
   assert.deepEqual(calls, ['assign-student', 'audit:academics.student_class_assigned']);
+});
+
+test('AcademicsService bounds teacher assignment lists', async () => {
+  const observed: Record<string, unknown> = {};
+  const service = new AcademicsService(
+    { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'user-1' }) } as never,
+    {
+      listTeacherAssignments: async (input: Record<string, unknown>) => {
+        observed.input = input;
+        return [];
+      },
+    } as never,
+  );
+
+  await service.listTeacherAssignments(' teacher-1 ', '500', '-10');
+
+  assert.deepEqual(observed.input, {
+    tenantId: 'tenant-a',
+    teacherUserId: 'teacher-1',
+    limit: 50,
+    offset: 0,
+  });
+});
+
+test('AcademicsRepository lists teacher assignments with explicit columns and pagination', async () => {
+  const calls: Array<{ sql: string; params: unknown[] }> = [];
+  const repository = new AcademicsRepository({
+    query: async (sql: string, params: unknown[]) => {
+      calls.push({ sql, params });
+      return { rows: [] };
+    },
+  } as never);
+
+  await repository.listTeacherAssignments({
+    tenantId: 'tenant-a',
+    teacherUserId: 'teacher-1',
+    limit: 500,
+    offset: -10,
+  });
+
+  assert.doesNotMatch(calls[0]!.sql, /SELECT\s+\*/i);
+  assert.match(calls[0]!.sql, /LIMIT \$3::integer\s+OFFSET \$4::integer/);
+  assert.equal(calls[0]!.params[2], 50);
+  assert.equal(calls[0]!.params[3], 0);
 });

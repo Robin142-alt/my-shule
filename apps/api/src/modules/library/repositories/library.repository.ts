@@ -14,7 +14,17 @@ export class LibraryRepository {
   async findCopyForUpdate(tenantId: string, copyId: string) {
     const result = await this.databaseService.query(
       `
-        SELECT *
+        SELECT
+          id::text,
+          tenant_id,
+          catalog_item_id::text,
+          accession_number,
+          barcode,
+          qr_code,
+          shelf_location,
+          status,
+          created_at,
+          updated_at
         FROM library_copies
         WHERE tenant_id = $1
           AND id = $2::uuid
@@ -29,7 +39,17 @@ export class LibraryRepository {
   async findCopyByScanCodeForUpdate(tenantId: string, scanCode: string) {
     const result = await this.databaseService.query(
       `
-        SELECT *
+        SELECT
+          id::text,
+          tenant_id,
+          catalog_item_id::text,
+          accession_number,
+          barcode,
+          qr_code,
+          shelf_location,
+          status,
+          created_at,
+          updated_at
         FROM library_copies
         WHERE tenant_id = $1
           AND (
@@ -50,7 +70,14 @@ export class LibraryRepository {
   async findBorrowerByScanCode(tenantId: string, scanCode: string) {
     const result = await this.databaseService.query(
       `
-        SELECT *
+        SELECT
+          id::text,
+          tenant_id,
+          borrower_type,
+          subject_id::text,
+          scan_code,
+          restrictions,
+          created_at
         FROM library_borrowers
         WHERE tenant_id = $1
           AND (
@@ -117,7 +144,15 @@ export class LibraryRepository {
   async findLoanForReturn(tenantId: string, loanId: string) {
     const result = await this.databaseService.query(
       `
-        SELECT *
+        SELECT
+          id::text,
+          tenant_id,
+          copy_id::text,
+          borrower_id::text,
+          action,
+          metadata,
+          metadata ->> 'due_on' AS due_on,
+          created_at
         FROM library_circulation_ledger
         WHERE tenant_id = $1
           AND id = $2::uuid
@@ -133,7 +168,15 @@ export class LibraryRepository {
   async findActiveLoanByCopyId(tenantId: string, copyId: string) {
     const result = await this.databaseService.query(
       `
-        SELECT issue.*
+        SELECT
+          issue.id::text,
+          issue.tenant_id,
+          issue.copy_id::text,
+          issue.borrower_id::text,
+          issue.action,
+          issue.metadata,
+          issue.metadata ->> 'due_on' AS due_on,
+          issue.created_at
         FROM library_circulation_ledger issue
         WHERE issue.tenant_id = $1
           AND issue.copy_id = $2::uuid
@@ -212,6 +255,8 @@ export class LibraryRepository {
     borrower_id?: string;
     copy_id?: string;
     action?: string;
+    limit?: number;
+    offset?: number;
   }) {
     const result = await this.databaseService.query(
       `
@@ -241,13 +286,15 @@ export class LibraryRepository {
           AND ($3::uuid IS NULL OR ledger.copy_id = $3::uuid)
           AND ($4::text IS NULL OR ledger.action = $4)
         ORDER BY ledger.created_at DESC
-        LIMIT 500
+        LIMIT $5::integer OFFSET $6::integer
       `,
       [
         input.tenant_id,
         input.borrower_id ?? null,
         input.copy_id ?? null,
         input.action ?? null,
+        normalizeLibraryListLimit(input.limit),
+        normalizeLibraryListOffset(input.offset),
       ],
     );
 
@@ -281,4 +328,24 @@ export class LibraryRepository {
       ],
     );
   }
+}
+
+function normalizeLibraryListLimit(limit: number | undefined): number {
+  const parsed = Number(limit ?? 25);
+
+  if (!Number.isFinite(parsed)) {
+    return 25;
+  }
+
+  return Math.min(Math.max(Math.trunc(parsed), 1), 50);
+}
+
+function normalizeLibraryListOffset(offset: number | undefined): number {
+  const parsed = Number(offset ?? 0);
+
+  if (!Number.isFinite(parsed)) {
+    return 0;
+  }
+
+  return Math.max(Math.trunc(parsed), 0);
 }

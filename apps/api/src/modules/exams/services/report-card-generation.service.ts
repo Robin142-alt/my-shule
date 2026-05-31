@@ -20,6 +20,8 @@ export interface GenerateReportCardBatchInput {
   exam_series_id: string;
   class_section_id?: string;
   stream_name?: string;
+  batch_size?: number;
+  offset?: number;
 }
 
 export interface ReportCardBatchStatus {
@@ -142,6 +144,8 @@ export class ReportCardGenerationService {
       tenant_id: input.tenant_id,
       class_section_id: input.class_section_id ?? null,
       stream_name: input.stream_name ?? null,
+      limit: input.batch_size,
+      offset: input.offset,
     });
     const batch = await this.repository.createReportCardGenerationBatch({
       tenant_id: input.tenant_id,

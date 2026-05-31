@@ -7,8 +7,10 @@ import {
   IsOptional,
   IsString,
   IsUUID,
+  Max,
   Min,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 
 export const DISCIPLINE_SEVERITIES = ['low', 'medium', 'high', 'critical'] as const;
 export const DISCIPLINE_STATUSES = [
@@ -80,11 +82,14 @@ export class ListDisciplineIncidentsQueryDto {
   to?: string;
 
   @IsOptional()
+  @Type(() => Number)
   @IsInt()
   @Min(1)
+  @Max(50)
   limit?: number;
 
   @IsOptional()
+  @Type(() => Number)
   @IsInt()
   @Min(0)
   offset?: number;

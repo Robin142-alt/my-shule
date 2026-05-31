@@ -29,6 +29,9 @@ export type SchoolNotification = {
   actionUrl?: string;
   type?: string;
   priority?: SchoolOperationalSeverity;
+  requiresAction?: boolean;
+  requestStatus?: SchoolOperationalRequestStatus;
+  statusDetail?: string;
   title: string;
   body: string;
   severity: SchoolOperationalSeverity;
@@ -57,6 +60,37 @@ export type SchoolSmsLog = {
   sourceModule: string;
   status: "Queued" | "Sent";
   createdAt: string;
+};
+
+export type SchoolOperationalRequestStatus =
+  | "Pending"
+  | "Sent"
+  | "Approved"
+  | "Rejected"
+  | "Completed"
+  | "Issued"
+  | "Returned"
+  | "Failed"
+  | "Cancelled";
+
+export type SchoolOperationalRequest = {
+  id: string;
+  schoolId: string;
+  sourceModule: string;
+  targetModule: string;
+  relatedRecordId: string;
+  actionType: string;
+  title: string;
+  body: string;
+  originRole: string;
+  targetRoles: string[];
+  status: SchoolOperationalRequestStatus;
+  statusDetail: string;
+  lastActorRole: string;
+  actionUrl: string;
+  payload?: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
 };
 
 export type SchoolOperationalEventSyncStatus = {
@@ -101,6 +135,8 @@ export type PublishSchoolOperationalEventInput = {
     relatedRecordId?: string;
     actionUrl?: string;
     type?: string;
+    requiresAction?: boolean;
+    requestStatus?: SchoolOperationalRequestStatus;
   }>;
   sms?: Array<{
     recipient: string;
@@ -124,6 +160,14 @@ function nowIso() {
 
 function uniqueId(prefix: string) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function stableKey(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 96);
 }
 
 function normalizeErrorMessage(error: unknown) {
@@ -240,6 +284,195 @@ export function updateSchoolRecord<T extends { id: string; schoolId?: string }>(
 
   writeSchoolData(moduleName, next, schoolId);
   return next;
+}
+
+function normalizeOperationalRequestStatus(
+  value: unknown,
+  fallback: SchoolOperationalRequestStatus,
+): SchoolOperationalRequestStatus {
+  if (
+    value === "Pending"
+    || value === "Sent"
+    || value === "Approved"
+    || value === "Rejected"
+    || value === "Completed"
+    || value === "Issued"
+    || value === "Returned"
+    || value === "Failed"
+    || value === "Cancelled"
+  ) {
+    return value;
+  }
+
+  return fallback;
+}
+
+function inferOperationalRequestStatus(
+  eventType: string,
+  severity: SchoolOperationalSeverity,
+): SchoolOperationalRequestStatus {
+  const normalized = eventType.toLowerCase();
+
+  if (/reject|revoke|cancel/.test(normalized)) return "Rejected";
+  if (/approve|accepted/.test(normalized)) return "Approved";
+  if (/issue|dispense|release/.test(normalized)) return "Issued";
+  if (/return/.test(normalized)) return "Returned";
+  if (/complete|resolved|sent|printed|confirmed|recorded|saved/.test(normalized)) return "Completed";
+  if (/failed|error/.test(normalized) || severity === "critical") return "Failed";
+
+  return severity === "success" ? "Completed" : "Pending";
+}
+
+function shouldCreateOperationalRequest(input: {
+  type: string;
+  title: string;
+  severity: SchoolOperationalSeverity;
+  notification: { requiresAction?: boolean; title?: string; body?: string; relatedRecordId?: string };
+}) {
+  if (input.notification.requiresAction === false) {
+    return false;
+  }
+
+  if (input.notification.requiresAction === true) {
+    return true;
+  }
+
+  const searchable = `${input.type} ${input.title} ${input.notification.title ?? ""} ${input.notification.body ?? ""}`.toLowerCase();
+
+  return /request|approval|approve|reject|escalat|assign|issue|return|referral|alert|missing|failed|pending|follow-up|follow up|confirm|verify|resolve/.test(searchable);
+}
+
+export function upsertSchoolOperationalRequest(
+  input: Omit<SchoolOperationalRequest, "id" | "schoolId" | "createdAt" | "updatedAt"> & {
+    id?: string;
+    schoolId?: string | null;
+    createdAt?: string;
+  },
+) {
+  const schoolId = getCurrentSchoolId(input.schoolId);
+  const now = nowIso();
+  const targetRoles = Array.from(new Set(input.targetRoles.filter(Boolean)));
+  const id =
+    input.id
+    ?? `request-${stableKey(`${input.sourceModule}-${input.relatedRecordId}-${targetRoles.join("-")}`)}`;
+  const current = readSchoolData<SchoolOperationalRequest>("operationalRequests", schoolId);
+  const existing = current.find((request) => request.id === id);
+  const nextRequest: SchoolOperationalRequest = {
+    ...existing,
+    id,
+    schoolId,
+    sourceModule: input.sourceModule,
+    targetModule: input.targetModule,
+    relatedRecordId: input.relatedRecordId,
+    actionType: input.actionType,
+    title: input.title,
+    body: input.body,
+    originRole: input.originRole,
+    targetRoles,
+    status: input.status,
+    statusDetail: input.statusDetail,
+    lastActorRole: input.lastActorRole,
+    actionUrl: input.actionUrl,
+    payload: input.payload,
+    createdAt: existing?.createdAt ?? input.createdAt ?? now,
+    updatedAt: now,
+  };
+  const nextRecords = [
+    nextRequest,
+    ...current.filter((request) => request.id !== id),
+  ].slice(0, 200);
+
+  writeSchoolData("operationalRequests", nextRecords, schoolId);
+  return nextRequest;
+}
+
+export function updateSchoolOperationalRequestStatus(
+  input: {
+    id?: string;
+    relatedRecordId?: string;
+    sourceModule?: string;
+    status: SchoolOperationalRequestStatus;
+    statusDetail: string;
+    actorRole: string;
+    schoolId?: string | null;
+    payload?: Record<string, unknown>;
+  },
+) {
+  const schoolId = getCurrentSchoolId(input.schoolId);
+  const current = readSchoolData<SchoolOperationalRequest>("operationalRequests", schoolId);
+  const updatedRequests: SchoolOperationalRequest[] = [];
+  const next = current.map((request) => {
+    const idMatches = input.id && request.id === input.id;
+    const relatedMatches =
+      input.relatedRecordId
+      && request.relatedRecordId === input.relatedRecordId
+      && (!input.sourceModule || request.sourceModule === input.sourceModule);
+
+    if (!idMatches && !relatedMatches) {
+      return request;
+    }
+
+    const updatedRequest = {
+      ...request,
+      status: input.status,
+      statusDetail: input.statusDetail,
+      lastActorRole: input.actorRole,
+      payload: input.payload ? { ...request.payload, ...input.payload } : request.payload,
+      updatedAt: nowIso(),
+    };
+
+    updatedRequests.push(updatedRequest);
+    return updatedRequest;
+  });
+
+  writeSchoolData("operationalRequests", next, schoolId);
+  updatedRequests.forEach((request) => {
+    const reflectionRoles =
+      request.originRole && request.originRole !== input.actorRole
+        ? [request.originRole]
+        : request.targetRoles.filter((role) => role !== input.actorRole);
+
+    if (!reflectionRoles.length) {
+      return;
+    }
+
+    createNotification({
+      schoolId,
+      audienceRoles: Array.from(new Set(reflectionRoles)),
+      sourceModule: request.sourceModule,
+      relatedModule: request.targetModule,
+      relatedRecordId: request.relatedRecordId,
+      actionUrl: request.actionUrl,
+      type: `${request.actionType}_${input.status.toUpperCase()}`,
+      priority: input.status === "Rejected" || input.status === "Failed" ? "warning" : "success",
+      requiresAction: false,
+      requestStatus: input.status,
+      statusDetail: input.statusDetail,
+      title: `${request.title}: ${input.status}`,
+      body: input.statusDetail,
+      severity: input.status === "Rejected" || input.status === "Failed" ? "warning" : "success",
+      createdBy: input.actorRole,
+    });
+    createAuditLog({
+      schoolId,
+      action: `${request.actionType}_${input.status.toUpperCase()}`,
+      actorRole: input.actorRole,
+      module: request.sourceModule,
+      entityId: request.relatedRecordId,
+      title: `${request.title}: ${input.status}`,
+      body: input.statusDetail,
+    });
+  });
+  return next;
+}
+
+export function listSchoolOperationalRequestsForRole(
+  role: string,
+  schoolId = getCurrentSchoolId(),
+) {
+  return readSchoolData<SchoolOperationalRequest>("operationalRequests", schoolId)
+    .filter((request) => request.originRole === role || request.targetRoles.includes(role))
+    .sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt));
 }
 
 function upsertEventSyncStatus(status: SchoolOperationalEventSyncStatus) {
@@ -405,6 +638,9 @@ export function createNotification(
       actionUrl: input.actionUrl,
       type: input.type,
       priority: input.priority,
+      requiresAction: input.requiresAction,
+      requestStatus: input.requestStatus,
+      statusDetail: input.statusDetail,
       title: input.title,
       body: input.body,
       severity: input.severity,
@@ -495,6 +731,8 @@ export function publishSchoolOperationalEvent(input: PublishSchoolOperationalEve
     const actionUrl =
       notification.actionUrl
       ?? (relatedRecordId ? `/${relatedModule}?record=${encodeURIComponent(relatedRecordId)}` : `/${relatedModule}`);
+    const fallbackRequestStatus = inferOperationalRequestStatus(input.type, notification.severity ?? severity);
+    const requestStatus = normalizeOperationalRequestStatus(notification.requestStatus, fallbackRequestStatus);
 
     const createdNotification = createNotification({
       schoolId,
@@ -506,12 +744,44 @@ export function publishSchoolOperationalEvent(input: PublishSchoolOperationalEve
       actionUrl,
       type: notification.type ?? input.type,
       priority: notification.severity ?? severity,
+      requiresAction: notification.requiresAction,
+      requestStatus,
+      statusDetail: `${input.actorRole} ${requestStatus.toLowerCase()} ${notification.title ?? input.title}`,
       title: notification.title ?? input.title,
       body: notification.body ?? input.body,
       severity: notification.severity ?? severity,
       createdBy: input.actorRole,
     });
     createdNotifications.push(createdNotification);
+
+    if (shouldCreateOperationalRequest({
+      type: input.type,
+      title: input.title,
+      severity: notification.severity ?? severity,
+      notification,
+    })) {
+      const request = upsertSchoolOperationalRequest({
+        schoolId,
+        sourceModule: input.module,
+        targetModule: relatedModule,
+        relatedRecordId: relatedRecordId ?? input.entityId ?? event.id,
+        actionType: notification.type ?? input.type,
+        title: notification.title ?? input.title,
+        body: notification.body ?? input.body,
+        originRole: input.actorRole,
+        targetRoles: notification.audienceRoles,
+        status: requestStatus,
+        statusDetail: `${input.actorRole} ${requestStatus.toLowerCase()} ${notification.title ?? input.title}`,
+        lastActorRole: input.actorRole,
+        actionUrl,
+        payload: {
+          ...input.payload,
+          sourceEventId: event.id,
+          notificationId: createdNotification.id,
+        },
+      });
+      createdNotification.relatedRecordId = createdNotification.relatedRecordId ?? request.relatedRecordId;
+    }
   });
 
   input.sms?.forEach((sms) => {

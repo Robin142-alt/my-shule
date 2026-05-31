@@ -124,6 +124,8 @@ test('Default school invite catalog exposes the required school operating roles'
     'security_officer',
     'transport_manager',
     'lab_technician',
+    'admissions_officer',
+    'ict_manager',
   ];
 
   assert.deepEqual(TENANT_INVITABLE_ROLE_CODES, requiredSchoolRoles);

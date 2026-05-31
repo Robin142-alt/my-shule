@@ -111,7 +111,13 @@ async function refreshSchoolApiSession(request: Request, tenantSlug: string) {
 }
 
 function fetchSchoolApi(session: SchoolApiSession, input: SchoolProxyRequest) {
-  return fetch(`${session.baseUrl}${input.path}`, {
+  const requestUrl = new URL(input.request.url);
+  const query = requestUrl.searchParams.toString();
+  const upstreamPath = query
+    ? `${input.path}${input.path.includes("?") ? "&" : "?"}${query}`
+    : input.path;
+
+  return fetch(`${session.baseUrl}${upstreamPath}`, {
     method: input.method,
     headers: {
       Accept: "application/json",

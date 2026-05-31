@@ -249,16 +249,35 @@ export class AcademicsRepository {
     return result.rows[0];
   }
 
-  async listTeacherAssignments(input: { tenantId: string; teacherUserId?: string }) {
-    const values: unknown[] = [input.tenantId, input.teacherUserId ?? null];
+  async listTeacherAssignments(input: {
+    tenantId: string;
+    teacherUserId?: string;
+    limit?: number;
+    offset?: number;
+  }) {
+    const limit = this.normalizeLimit(input.limit);
+    const offset = this.normalizeOffset(input.offset);
+    const values: unknown[] = [input.tenantId, input.teacherUserId ?? null, limit, offset];
     const result = await this.databaseService.query(
       `
-        SELECT *
+        SELECT
+          id::text,
+          tenant_id,
+          academic_term_id::text,
+          class_section_id::text,
+          subject_id::text,
+          teacher_user_id::text,
+          status,
+          created_by_user_id::text,
+          created_at::text,
+          updated_at::text
         FROM teacher_subject_assignments
         WHERE tenant_id = $1
           AND ($2::uuid IS NULL OR teacher_user_id = $2::uuid)
           AND status = 'active'
         ORDER BY created_at DESC
+        LIMIT $3::integer
+        OFFSET $4::integer
       `,
       values,
     );
@@ -344,5 +363,25 @@ export class AcademicsRepository {
         JSON.stringify(input.metadata ?? {}),
       ],
     );
+  }
+
+  private normalizeLimit(value: number | undefined): number {
+    const candidate = Number(value);
+
+    if (!Number.isInteger(candidate) || candidate < 1) {
+      return 25;
+    }
+
+    return Math.min(candidate, 50);
+  }
+
+  private normalizeOffset(value: number | undefined): number {
+    const candidate = Number(value);
+
+    if (!Number.isInteger(candidate) || candidate < 0) {
+      return 0;
+    }
+
+    return candidate;
   }
 }

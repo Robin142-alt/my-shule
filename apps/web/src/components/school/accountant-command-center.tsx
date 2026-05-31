@@ -208,7 +208,7 @@ const sidebarGroups: Array<{
       { label: "Overspending Alerts", icon: ShieldAlert, href: "budgets" },
       { label: "Forecasts", icon: TrendingUp, href: "forecast" },
       { label: "Audit & Compliance", icon: LockKeyhole, href: "audit" },
-      { label: "Audit Trails", icon: LockKeyhole, href: "audit" },
+      { label: "Action Records", icon: LockKeyhole, href: "audit" },
       { label: "Financial Logs", icon: Activity, href: "audit" },
       { label: "Suspicious Activities", icon: AlertOctagon, href: "fraud" },
       { label: "Reports", icon: FileBarChart2, href: "reports" },

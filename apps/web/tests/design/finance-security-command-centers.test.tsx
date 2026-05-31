@@ -74,6 +74,9 @@ describe("finance and security command center interactions", () => {
 
     await user.click(screen.getAllByRole("button", { name: /print slip/i })[0]);
     expect(screen.getByText(/visitor slip opened for printing/i)).toBeVisible();
+    expect(screen.getByRole("dialog", { name: /visitor gate slip/i })).toBeVisible();
+    expect(printMock).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: /^print$/i }));
     expect(printMock).toHaveBeenCalled();
     expect(readSchoolData<Record<string, unknown>>("events", "kb-high")).toEqual(
       expect.arrayContaining([

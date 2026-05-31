@@ -435,9 +435,15 @@ export class SupportService {
   }
 
   async listKnowledgeBase(query: KnowledgeBaseQueryDto) {
+    const supportOperator = this.isSupportOperator();
+    const trimmedSearch = query.search?.trim() || '';
+
     return this.supportRepository.listKnowledgeBase({
-      search: query.search?.trim() || undefined,
+      tenantId: supportOperator ? undefined : this.requireTenantId(),
+      search: trimmedSearch.length >= 2 ? trimmedSearch : undefined,
       category: query.category?.trim() || undefined,
+      limit: this.parseBoundedInteger(query.limit, 25, 50),
+      offset: this.parseBoundedInteger(query.offset, 0, Number.MAX_SAFE_INTEGER),
     });
   }
 
@@ -581,6 +587,20 @@ export class SupportService {
     if (!this.isSupportOperator()) {
       throw new ForbiddenException('Support agent access is required for this operation');
     }
+  }
+
+  private parseBoundedInteger(
+    value: number | string | undefined,
+    fallback: number,
+    max: number,
+  ): number {
+    const parsed = typeof value === 'number' ? value : Number.parseInt(String(value ?? ''), 10);
+
+    if (!Number.isFinite(parsed)) {
+      return fallback;
+    }
+
+    return Math.min(Math.max(Math.floor(parsed), 0), max);
   }
 
   private async createAndDispatchNotifications(

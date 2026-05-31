@@ -32,6 +32,50 @@ test('InventoryRepository keeps missing supplier county empty instead of applyin
   assert.equal(queries[0]?.text.includes("'Nairobi'"), false);
 });
 
+test('InventoryRepository bounds stock movement dashboard reads with limit and offset', async () => {
+  const queries: Array<{ text: string; values: unknown[] }> = [];
+  const repository = new InventoryRepository({
+    query: async (text: string, values: unknown[]) => {
+      queries.push({ text, values });
+      return { rows: [] };
+    },
+  } as never);
+
+  await repository.listStockMovements('tenant-a', { limit: 500, offset: 12 });
+
+  const movementQuery = queries[0]?.text ?? '';
+  assert.match(movementQuery, /WHERE movement\.tenant_id = \$1/);
+  assert.match(movementQuery, /LIMIT \$2::integer/);
+  assert.match(movementQuery, /OFFSET \$3::integer/);
+  assert.deepEqual(queries[0]?.values, ['tenant-a', 100, 12]);
+});
+
+test('InventoryRepository bounds procurement and request workflow lists', async () => {
+  const queries: Array<{ text: string; values: unknown[] }> = [];
+  const repository = new InventoryRepository({
+    query: async (text: string, values: unknown[]) => {
+      queries.push({ text, values });
+      return { rows: [] };
+    },
+  } as never);
+
+  await repository.listPurchaseOrders('tenant-a', { limit: 200, offset: 4 });
+  await repository.listRequests('tenant-a', { limit: 0, offset: -5 });
+  await repository.listTransfers('tenant-a', { limit: 75, offset: 9 });
+  await repository.listIncidents('tenant-a', { limit: 250, offset: 11 });
+
+  for (const query of queries) {
+    assert.match(query.text, /WHERE .*tenant_id = \$1/s);
+    assert.match(query.text, /LIMIT \$2::integer/);
+    assert.match(query.text, /OFFSET \$3::integer/);
+  }
+
+  assert.deepEqual(queries[0]?.values, ['tenant-a', 100, 4]);
+  assert.deepEqual(queries[1]?.values, ['tenant-a', 25, 0]);
+  assert.deepEqual(queries[2]?.values, ['tenant-a', 75, 9]);
+  assert.deepEqual(queries[3]?.values, ['tenant-a', 100, 11]);
+});
+
 test('InventoryRepository accepts null supplier county during creation', async () => {
   const queries: Array<{ text: string; values: unknown[] }> = [];
   const repository = new InventoryRepository({
@@ -145,6 +189,67 @@ test('InventoryRepository increments supplier receipts atomically with cost upda
     690,
     '00000000-0000-0000-0000-000000000801',
   ]);
+});
+
+test('InventoryRepository returns explicit stock mutation columns instead of broad CTE rows', async () => {
+  const queries: Array<{ text: string; values: unknown[] }> = [];
+  const repository = new InventoryRepository({
+    query: async (text: string, values: unknown[]) => {
+      queries.push({ text, values });
+      return { rows: [] };
+    },
+  } as never);
+
+  await repository.setItemStockFromCount(
+    'tenant-a',
+    '00000000-0000-0000-0000-000000000401',
+    18,
+  );
+  await repository.adjustItemStockByVariance(
+    'tenant-a',
+    '00000000-0000-0000-0000-000000000401',
+    3,
+  );
+  await repository.decrementItemStock(
+    'tenant-a',
+    '00000000-0000-0000-0000-000000000401',
+    2,
+  );
+  await repository.incrementItemStock(
+    'tenant-a',
+    '00000000-0000-0000-0000-000000000401',
+    5,
+  );
+  await repository.incrementItemStockWithCost(
+    'tenant-a',
+    '00000000-0000-0000-0000-000000000401',
+    12,
+    690,
+    '00000000-0000-0000-0000-000000000801',
+  );
+  await repository.reserveRequestLine(
+    'tenant-a',
+    '00000000-0000-0000-0000-000000000603',
+    '00000000-0000-0000-0000-000000000401',
+    5,
+    '00000000-0000-0000-0000-000000000001',
+  );
+
+  for (const query of queries) {
+    assert.doesNotMatch(
+      query.text,
+      /SELECT\s+\*\s+FROM\s+(updated_item|upserted_reservation)/i,
+    );
+  }
+
+  const stockMutationQuery = queries[0]?.text ?? '';
+  assert.match(stockMutationQuery, /updated_item\.id/);
+  assert.match(stockMutationQuery, /updated_item\.before_quantity/);
+  assert.match(stockMutationQuery, /updated_item\.after_quantity/);
+
+  const reservationQuery = queries.at(-1)?.text ?? '';
+  assert.match(reservationQuery, /upserted_reservation\.id/);
+  assert.match(reservationQuery, /upserted_reservation\.status/);
 });
 
 test('InventoryRepository increments item location balances with an upsert', async () => {
@@ -723,5 +828,9 @@ test('InventorySchemaService makes stock movements append-only', async () => {
   assert.match(schemaSql, /ON inventory_suppliers\s+USING GIN/);
   assert.match(schemaSql, /supplier_name/);
   assert.match(schemaSql, /contact_person/);
+  assert.match(schemaSql, /CREATE INDEX IF NOT EXISTS ix_inventory_purchase_orders_tenant_status_created/);
+  assert.match(schemaSql, /CREATE INDEX IF NOT EXISTS ix_inventory_requests_tenant_status_created/);
+  assert.match(schemaSql, /CREATE INDEX IF NOT EXISTS ix_inventory_transfers_tenant_status_created/);
+  assert.match(schemaSql, /CREATE INDEX IF NOT EXISTS ix_inventory_incidents_tenant_status_reported/);
   assert.doesNotMatch(schemaSql, /attendance/i);
 });

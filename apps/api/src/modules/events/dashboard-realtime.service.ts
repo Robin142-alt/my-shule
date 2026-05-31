@@ -277,7 +277,7 @@ export class DashboardRealtimeService {
   }
 
   streamCurrentTenantEvents(): Observable<MessageEvent> {
-    const pollMs = Math.max(1000, Number(this.configService?.get<number>('events.dashboardRealtimePollMs') ?? 5000));
+    const pollMs = Math.max(5000, Number(this.configService?.get<number>('events.dashboardRealtimePollMs') ?? 15000));
     let cursor: string | null | undefined;
 
     return concat(of(0), interval(pollMs)).pipe(

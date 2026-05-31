@@ -105,6 +105,7 @@ interface FinanceApprovalRequestInput {
 interface AccountantReviewListInput {
   reconciliation_state?: string;
   limit?: number;
+  offset?: number;
 }
 
 const REVIEW_RECONCILIATION_STATES = [
@@ -501,6 +502,7 @@ export class MpesaReconciliationService {
       ? this.normalizeReviewState(input.reconciliation_state)
       : null;
     const limit = this.normalizeReviewLimit(input.limit);
+    const offset = this.normalizeReviewOffset(input.offset);
     const result = await this.databaseService.query<Record<string, unknown>>(
       `
         SELECT
@@ -518,7 +520,7 @@ export class MpesaReconciliationService {
           ledger_transaction_id::text,
           approving_user_id::text,
           resolution_status,
-          evidence,
+          evidence - 'raw_payload' AS evidence,
           created_at
         FROM mpesa_reconciliation_discrepancies
         WHERE tenant_id = $1
@@ -530,12 +532,14 @@ export class MpesaReconciliationService {
           occurred_at DESC,
           id DESC
         LIMIT $4::integer
+        OFFSET $5::integer
       `,
       [
         tenantId,
         REVIEW_RECONCILIATION_STATES,
         state,
         limit,
+        offset,
       ],
     );
     const items: Array<Record<string, unknown>> = result.rows.map((row) => ({
@@ -1052,7 +1056,29 @@ export class MpesaReconciliationService {
   private async loadFinanceApprovalRequest(tenantId: string, requestId: string) {
     const result = await this.databaseService.query<Record<string, unknown>>(
       `
-        SELECT *
+        SELECT
+          id::text,
+          tenant_id,
+          action,
+          status,
+          subject_type,
+          subject_id::text,
+          amount_minor::text,
+          currency_code,
+          reason,
+          reconciliation_batch_id::text,
+          reconciliation_discrepancy_id::text,
+          close_period_id::text,
+          requested_by_user_id::text,
+          first_approver_user_id::text,
+          first_approved_at::text,
+          second_approver_user_id::text,
+          second_approved_at::text,
+          rejected_by_user_id::text,
+          rejected_at::text,
+          evidence,
+          created_at::text,
+          updated_at::text
         FROM finance_approval_requests
         WHERE tenant_id = $1
           AND id = $2::uuid
@@ -1081,7 +1107,29 @@ export class MpesaReconciliationService {
         WHERE tenant_id = $1
           AND id = $2::uuid
           AND status = 'pending_first_approval'
-        RETURNING *
+        RETURNING
+          id::text,
+          tenant_id,
+          action,
+          status,
+          subject_type,
+          subject_id::text,
+          amount_minor::text,
+          currency_code,
+          reason,
+          reconciliation_batch_id::text,
+          reconciliation_discrepancy_id::text,
+          close_period_id::text,
+          requested_by_user_id::text,
+          first_approver_user_id::text,
+          first_approved_at::text,
+          second_approver_user_id::text,
+          second_approved_at::text,
+          rejected_by_user_id::text,
+          rejected_at::text,
+          evidence,
+          created_at::text,
+          updated_at::text
       `,
       [tenantId, requestId, actorUserId],
     );
@@ -1105,7 +1153,29 @@ export class MpesaReconciliationService {
         WHERE tenant_id = $1
           AND id = $2::uuid
           AND status = 'pending_second_approval'
-        RETURNING *
+        RETURNING
+          id::text,
+          tenant_id,
+          action,
+          status,
+          subject_type,
+          subject_id::text,
+          amount_minor::text,
+          currency_code,
+          reason,
+          reconciliation_batch_id::text,
+          reconciliation_discrepancy_id::text,
+          close_period_id::text,
+          requested_by_user_id::text,
+          first_approver_user_id::text,
+          first_approved_at::text,
+          second_approver_user_id::text,
+          second_approved_at::text,
+          rejected_by_user_id::text,
+          rejected_at::text,
+          evidence,
+          created_at::text,
+          updated_at::text
       `,
       [tenantId, requestId, actorUserId],
     );
@@ -1197,11 +1267,23 @@ export class MpesaReconciliationService {
 
   private normalizeReviewLimit(value: number | undefined): number {
     if (value == null) {
-      return 100;
+      return 25;
     }
 
-    if (!Number.isInteger(value) || value < 1 || value > 500) {
-      throw new BadRequestException('MPESA reconciliation review limit must be between 1 and 500');
+    if (!Number.isInteger(value) || value < 1) {
+      throw new BadRequestException('MPESA reconciliation review limit must be a positive integer');
+    }
+
+    return Math.min(value, 50);
+  }
+
+  private normalizeReviewOffset(value: number | undefined): number {
+    if (value == null) {
+      return 0;
+    }
+
+    if (!Number.isInteger(value) || value < 0) {
+      throw new BadRequestException('MPESA reconciliation review offset must be zero or greater');
     }
 
     return value;

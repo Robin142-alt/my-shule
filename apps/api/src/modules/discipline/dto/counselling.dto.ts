@@ -9,6 +9,7 @@ import {
   Max,
   Min,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 
 export const COUNSELLING_REFERRAL_STATUSES = [
   'open',
@@ -44,11 +45,14 @@ export class ListCounsellingQueryDto {
   status?: string;
 
   @IsOptional()
+  @Type(() => Number)
   @IsInt()
   @Min(1)
+  @Max(50)
   limit?: number;
 
   @IsOptional()
+  @Type(() => Number)
   @IsInt()
   @Min(0)
   offset?: number;

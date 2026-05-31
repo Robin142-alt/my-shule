@@ -80,19 +80,19 @@ describe("principal command center", () => {
     expect(workflows.map((workflow) => workflow.id)).not.toContain("medicine-disposal");
   });
 
-  it("keeps AI insight content mounted as locked until the school enables AI insights", async () => {
+  it("keeps school insight content mounted as inactive until the school enables it", async () => {
     fetchMock.mockResolvedValue(jsonResponse(dashboardPayload));
 
     renderWithProviders(<PrincipalCommandCenter />);
 
     await waitFor(() => expect(screen.getByText("Fee collection trends")).toBeVisible());
-    expect(screen.getByText("Executive command center")).toBeVisible();
-    expect(screen.getByText("AI insights")).toBeVisible();
-    expect(screen.getAllByText("Module not enabled for this school").length).toBeGreaterThan(0);
+    expect(screen.getByText("Principal Command Center")).toBeVisible();
+    expect(screen.getByText("School Insights")).toBeVisible();
+    expect(screen.getAllByText("This school area is not active yet.").length).toBeGreaterThan(0);
     expect(screen.getByText("Approval queue")).toBeVisible();
   });
 
-  it("shows AI insights only when ai_insights is enabled", async () => {
+  it("shows school insights only when ai_insights is enabled", async () => {
     fetchMock.mockResolvedValue(
       jsonResponse({
         ...dashboardPayload,
@@ -103,12 +103,12 @@ describe("principal command center", () => {
     renderWithProviders(<PrincipalCommandCenter view="analytics" />);
 
     await waitFor(() => expect(screen.getByText("Fee collection trends")).toBeVisible());
-    expect(screen.getByText("Institutional performance intelligence")).toBeVisible();
-    expect(screen.getByText("AI insights")).toBeVisible();
-    expect(screen.getByText("Audited")).toBeVisible();
+    expect(screen.getByText("School performance overview")).toBeVisible();
+    expect(screen.getByText("School Insights")).toBeVisible();
+    expect(screen.getByText("Ready")).toBeVisible();
   });
 
-  it("keeps fixed executive intelligence zones mounted when modules are disabled", async () => {
+  it("keeps fixed principal school areas mounted when access is inactive", async () => {
     fetchMock.mockResolvedValue(
       jsonResponse({
         ...dashboardPayload,
@@ -120,12 +120,12 @@ describe("principal command center", () => {
 
     renderWithProviders(<PrincipalCommandCenter />);
 
-    expect(await screen.findByText("Academic Intelligence")).toBeVisible();
-    expect(screen.getByText("Financial Intelligence")).toBeVisible();
-    expect(screen.getByText("Student Intelligence")).toBeVisible();
-    expect(screen.getByText("Operations Intelligence")).toBeVisible();
+    expect(await screen.findByText("Academic Progress")).toBeVisible();
+    expect(screen.getByText("Fee Collection")).toBeVisible();
+    expect(screen.getByText("Student Welfare")).toBeVisible();
+    expect(screen.getByText("School Operations")).toBeVisible();
     expect(screen.getByText("Communications & Parent Confidence")).toBeVisible();
-    expect(screen.getAllByText("Request Module").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Request Access").length).toBeGreaterThan(0);
   });
 
   it("renders live metrics when the API gateway wraps the dashboard payload", async () => {
@@ -136,8 +136,32 @@ describe("principal command center", () => {
     expect(await screen.findByText("842")).toBeVisible();
     expect(screen.getByText("51")).toBeVisible();
     expect(screen.getByText("34")).toBeVisible();
-    expect(screen.getByText("4 modules")).toBeVisible();
+    expect(screen.getByText("4 areas active")).toBeVisible();
     expect(screen.getByText("Fee collection trends")).toBeVisible();
+  });
+
+  it("does not refetch the principal dashboard on a background interval", async () => {
+    jest.useFakeTimers();
+    fetchMock.mockResolvedValue(jsonResponse(dashboardPayload));
+
+    try {
+      renderWithProviders(<PrincipalCommandCenter />);
+
+      await screen.findByText("Fee collection trends");
+      fetchMock.mockClear();
+
+      await act(async () => {
+        jest.advanceTimersByTime(90_000);
+        await Promise.resolve();
+      });
+
+      expect(fetchMock).not.toHaveBeenCalledWith(
+        expect.stringContaining("/api/admin-command/principal/dashboard"),
+        expect.any(Object),
+      );
+    } finally {
+      jest.useRealTimers();
+    }
   });
 
   it("renders a time-aware executive greeting for the principal", async () => {
@@ -207,9 +231,9 @@ describe("principal command center", () => {
     renderWithProviders(<PrincipalCommandCenter />);
 
     await waitFor(() => expect(screen.getByText("Live")).toBeVisible());
-    expect(screen.getByText("Executive command center")).toBeVisible();
-    expect(screen.getByText("0 modules")).toBeVisible();
-    expect(screen.getByText("Realtime channels")).toBeVisible();
+    expect(screen.getByText("Principal Command Center")).toBeVisible();
+    expect(screen.getByText("0 areas active")).toBeVisible();
+    expect(screen.getByText("Live school updates")).toBeVisible();
   });
 
   it("opens principal sections from cached module access while live access refreshes", async () => {

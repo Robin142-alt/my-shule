@@ -1,4 +1,4 @@
-import { screen } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { TeacherCommandCenter } from "@/components/school/teacher-command-center";
@@ -6,9 +6,20 @@ import { readSchoolData } from "@/lib/school/school-operational-store";
 
 import { renderWithProviders } from "./test-utils";
 
+async function printFromPreview(user: { click: (element: Element) => Promise<void> }, printMock: jest.Mock) {
+  const preview = await screen.findByRole("dialog", { name: /print preview/i });
+  expect(preview).toBeVisible();
+  expect(printMock).not.toHaveBeenCalled();
+
+  await user.click(within(preview).getByRole("button", { name: /^print$/i }));
+  expect(printMock).toHaveBeenCalled();
+  await user.click(within(preview).getByRole("button", { name: /cancel/i }));
+}
+
 describe("TeacherCommandCenter", () => {
   beforeEach(() => {
     window.localStorage.clear();
+    document.querySelectorAll("[data-myshule-print-preview]").forEach((preview) => preview.remove());
   });
 
   it("makes quick actions and teacher search open real workspaces with visible feedback", async () => {
@@ -40,7 +51,7 @@ describe("TeacherCommandCenter", () => {
 
     await user.click(screen.getByRole("button", { name: /print subject report/i }));
     expect(screen.getByText(/subject report opened for printing/i)).toBeVisible();
-    expect(printMock).toHaveBeenCalled();
+    await printFromPreview(user, printMock);
 
     const events = readSchoolData<Record<string, unknown>>("events", "kb-high");
     expect(events).toEqual(

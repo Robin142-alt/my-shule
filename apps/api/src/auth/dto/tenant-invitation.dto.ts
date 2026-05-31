@@ -1,4 +1,5 @@
-import { IsEmail, IsIn, IsString, MaxLength, MinLength } from 'class-validator';
+import { Transform, Type } from 'class-transformer';
+import { IsEmail, IsIn, IsInt, IsOptional, IsString, Max, MaxLength, Min, MinLength } from 'class-validator';
 
 export const TENANT_INVITABLE_ROLE_CODES = [
   'principal',
@@ -23,6 +24,8 @@ export const TENANT_INVITABLE_ROLE_CODES = [
   'security_officer',
   'transport_manager',
   'lab_technician',
+  'admissions_officer',
+  'ict_manager',
 ] as const;
 
 export type TenantInvitableRoleCode = (typeof TENANT_INVITABLE_ROLE_CODES)[number];
@@ -53,6 +56,40 @@ export class UpdateTenantMembershipRoleDto {
   role_code!: string;
 }
 
+const trim = ({ value }: { value: unknown }): unknown =>
+  typeof value === 'string' ? value.trim() : value;
+
+export class ListTenantUsersQueryDto {
+  @Transform(trim)
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  search?: string;
+
+  @Transform(trim)
+  @IsOptional()
+  @IsIn(TENANT_INVITABLE_ROLE_CODES)
+  role_code?: string;
+
+  @Transform(trim)
+  @IsOptional()
+  @IsIn(['active', 'suspended', 'invited', 'expired'])
+  status?: TenantManagedUserStatus;
+
+  @Type(() => Number)
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(50)
+  limit?: number;
+
+  @Type(() => Number)
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  offset?: number;
+}
+
 export type TenantInvitationResponseDto = {
   id?: string;
   tenant_id: string;
@@ -79,6 +116,11 @@ export type TenantManagedUserDto = {
 
 export type TenantManagedUsersResponseDto = {
   users: TenantManagedUserDto[];
+  pagination?: {
+    limit: number;
+    offset: number;
+    returned: number;
+  };
 };
 
 export type TenantInvitationActionResponseDto = {

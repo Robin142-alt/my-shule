@@ -420,6 +420,8 @@ export class ExamsService {
       exam_series_id: this.requireText(dto.exam_series_id, 'Exam series'),
       class_section_id: this.optionalText(dto.class_section_id),
       stream_name: this.optionalText(dto.stream_name),
+      batch_size: this.parsePageLimit(dto.batch_size, 200, 200),
+      offset: this.parsePageOffset(dto.offset),
     });
   }
 
@@ -437,10 +439,16 @@ export class ExamsService {
     });
   }
 
-  listReportCards(studentId?: string) {
+  listReportCards(queryOrStudentId?: string | Record<string, string | undefined>) {
+    const query = typeof queryOrStudentId === 'string'
+      ? { student_id: queryOrStudentId }
+      : queryOrStudentId ?? {};
+
     return this.repository.listReportCards({
       tenant_id: this.requireTenantId(),
-      student_id: studentId?.trim() || undefined,
+      student_id: this.optionalText(query.student_id),
+      limit: this.parsePageLimit(query.limit, 25, 50),
+      offset: this.parsePageOffset(query.offset),
     });
   }
 
@@ -565,6 +573,8 @@ export class ExamsService {
       exam_series_id?: string;
       class_section_id?: string;
       subject_id?: string;
+      limit?: number;
+      offset?: number;
     } = {
       tenant_id: this.requireTenantId(),
     };
@@ -577,6 +587,8 @@ export class ExamsService {
     if (examSeriesId) input.exam_series_id = examSeriesId;
     if (classSectionId) input.class_section_id = classSectionId;
     if (subjectId) input.subject_id = subjectId;
+    input.limit = this.parsePageLimit(query.limit, 25, 50);
+    input.offset = this.parsePageOffset(query.offset);
 
     return this.repository.listMarkSheets(input);
   }
@@ -780,6 +792,30 @@ export class ExamsService {
   private optionalText(value: string | undefined): string | undefined {
     const normalized = value?.trim() ?? '';
     return normalized || undefined;
+  }
+
+  private parsePageLimit(
+    value: string | number | undefined,
+    defaultLimit: number,
+    maxLimit: number,
+  ): number {
+    const numeric = Number(value);
+
+    if (!Number.isFinite(numeric) || numeric <= 0) {
+      return defaultLimit;
+    }
+
+    return Math.min(Math.floor(numeric), maxLimit);
+  }
+
+  private parsePageOffset(value: string | number | undefined): number {
+    const numeric = Number(value);
+
+    if (!Number.isFinite(numeric) || numeric < 0) {
+      return 0;
+    }
+
+    return Math.floor(numeric);
   }
 
   private requirePositiveNumber(value: number, fieldName: string): number {

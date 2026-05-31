@@ -24,6 +24,18 @@ function jsonResponse(body: unknown, init?: ResponseInit) {
   } as Response;
 }
 
+async function printFromPreview(user: { click: (element: Element) => Promise<void> }, printMock: jest.Mock) {
+  const preview = await screen.findByRole("dialog", { name: /print preview/i });
+  expect(preview).toBeVisible();
+  expect(printMock).not.toHaveBeenCalled();
+
+  await user.click(within(preview).getByRole("button", { name: /^print$/i }));
+  expect(printMock).toHaveBeenCalled();
+  printMock.mockClear();
+
+  await user.click(within(preview).getByRole("button", { name: /cancel/i }));
+}
+
 const schoolRoleBlueprints: Array<{ role: SchoolExperienceRole; blueprint: DocxRoleId }> = [
   { role: "principal", blueprint: "principal" },
   { role: "deputy-principal", blueprint: "deputy-principal" },
@@ -55,6 +67,7 @@ describe("STEP 4: Role tests", () => {
   beforeEach(() => {
     window.sessionStorage.clear();
     window.localStorage.clear();
+    document.querySelectorAll("[data-myshule-print-preview]").forEach((preview) => preview.remove());
     fetchMock.mockReset();
     fetchMock.mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
@@ -259,7 +272,7 @@ describe("STEP 4: Role tests", () => {
 
     await user.click(within(commandCenter).getByRole("button", { name: /print register/i }));
     expect(within(commandCenter).getByText(/sick bay register opened for printing/i)).toBeVisible();
-    expect(printMock).toHaveBeenCalled();
+    await printFromPreview(user, printMock);
 
     await user.type(within(commandCenter).getByLabelText(/new medicine name/i), "Antiseptic Cream");
     await user.type(within(commandCenter).getByLabelText(/batch number/i), "ANT-220");
@@ -289,7 +302,7 @@ describe("STEP 4: Role tests", () => {
 
     await user.click(within(commandCenter).getByRole("button", { name: /print pipeline/i }));
     expect(within(commandCenter).getByText(/admissions pipeline opened for printing/i)).toBeVisible();
-    expect(printMock).toHaveBeenCalled();
+    await printFromPreview(user, printMock);
 
     await user.clear(within(commandCenter).getByLabelText(/applicant name/i));
     await user.type(within(commandCenter).getByLabelText(/applicant name/i), "Sharon Achieng");
@@ -326,7 +339,7 @@ describe("STEP 4: Role tests", () => {
     expect(applicantRow).not.toBeNull();
     await user.click(within(applicantRow as HTMLElement).getByRole("button", { name: /print letter/i }));
     expect(within(commandCenter).getByText(/sharon achieng admission letter opened/i)).toBeVisible();
-    expect(printMock).toHaveBeenCalled();
+    await printFromPreview(user, printMock);
   }, 30000);
 
   it("makes the librarian desk practical with barcode add, issue, return, SMS, and slip printing", async () => {
@@ -381,7 +394,7 @@ describe("STEP 4: Role tests", () => {
     expect(loanRow).not.toBeNull();
     await user.click(within(loanRow as HTMLElement).getByRole("button", { name: /print slip/i }));
     expect(within(commandCenter).getByText(/agriculture form 3 slip opened/i)).toBeVisible();
-    expect(printMock).toHaveBeenCalled();
+    await printFromPreview(user, printMock);
 
     loanRow = within(commandCenter).getByText("Mary Wanjiku - KBI/2026/220").closest("tr");
     expect(loanRow).not.toBeNull();
@@ -390,7 +403,7 @@ describe("STEP 4: Role tests", () => {
 
     await user.click(within(commandCenter).getByRole("button", { name: /print library report/i }));
     expect(within(commandCenter).getByText(/library report opened for printing/i)).toBeVisible();
-    expect(printMock).toHaveBeenCalled();
+    await printFromPreview(user, printMock);
   }, 30000);
 
   it("makes the storekeeper desk practical with stock receiving, issuing, movement history, and slip printing", async () => {
@@ -457,7 +470,7 @@ describe("STEP 4: Role tests", () => {
     expect(movementRow).not.toBeNull();
     await user.click(within(movementRow as HTMLElement).getByRole("button", { name: /print slip/i }));
     expect(within(commandCenter).getByText(/printer paper reams issue slip opened/i)).toBeVisible();
-    expect(printMock).toHaveBeenCalled();
+    await printFromPreview(user, printMock);
 
     movementRow = within(commandCenter)
       .getAllByText(/Paper for report card printing/i)
@@ -577,7 +590,7 @@ describe("STEP 4: Role tests", () => {
 
     await user.click(within(commandCenter).getByRole("button", { name: /print roll call/i }));
     expect(within(commandCenter).getByText(/hostel roll call sheet opened/i)).toBeVisible();
-    expect(printMock).toHaveBeenCalled();
+    await printFromPreview(user, printMock);
     expect(
       readSchoolData<SchoolOperationalEvent>("events", schoolId).some((event) => event.type === "BOARDING_ROLL_CALL_PRINTED"),
     ).toBe(true);
@@ -660,7 +673,7 @@ describe("STEP 4: Role tests", () => {
 
     await user.click(within(commandCenter).getByRole("button", { name: /print route list/i }));
     expect(within(commandCenter).getByText(/transport route list opened/i)).toBeVisible();
-    expect(printMock).toHaveBeenCalled();
+    await printFromPreview(user, printMock);
     expect(
       readSchoolData<SchoolOperationalEvent>("events", schoolId).some((event) => event.type === "TRANSPORT_ROUTE_LIST_PRINTED"),
     ).toBe(true);
@@ -770,7 +783,7 @@ describe("STEP 4: Role tests", () => {
 
     await user.click(within(commandCenter).getByRole("button", { name: /print practical checklist/i }));
     expect(within(commandCenter).getByText(/practical checklist opened/i)).toBeVisible();
-    expect(printMock).toHaveBeenCalled();
+    await printFromPreview(user, printMock);
     expect(
       readSchoolData<SchoolOperationalEvent>("events", schoolId).some((event) => event.type === "LAB_PRACTICAL_CHECKLIST_PRINTED"),
     ).toBe(true);
@@ -824,7 +837,7 @@ describe("STEP 4: Role tests", () => {
 
     await user.click(within(commandCenter).getAllByRole("button", { name: /print receipt/i })[0]);
     expect(within(commandCenter).getByText(/opened for printing/i)).toBeVisible();
-    expect(printMock).toHaveBeenCalled();
+    await printFromPreview(user, printMock);
     expect(
       readSchoolData<SchoolOperationalEvent>("events", schoolId).some((event) => event.type === "FEE_RECEIPT_PRINTED"),
     ).toBe(true);
@@ -906,7 +919,7 @@ describe("STEP 4: Role tests", () => {
 
     await user.click(within(commandCenter).getAllByRole("button", { name: /print visitor slip/i })[0]);
     expect(within(commandCenter).getByText(/visitor slip opened for printing/i)).toBeVisible();
-    expect(printMock).toHaveBeenCalled();
+    await printFromPreview(user, printMock);
     expect(
       readSchoolData<{ documentType: string; visitor: string }>("printed-documents", schoolId).some(
         (document) => document.documentType === "Visitor Slip" && document.visitor === "Peter Ouma",
@@ -1072,8 +1085,8 @@ describe("STEP 4: Role tests", () => {
       .find(Boolean);
     expect(caseRow).not.toBeNull();
     await user.click(within(caseRow as HTMLElement).getByRole("button", { name: /print letter/i }));
-    expect(within(commandCenter).getByRole("status")).toHaveTextContent(/kevin maina discipline letter opened/i);
-    expect(printMock).toHaveBeenCalled();
+    expect(within(commandCenter).getByRole("status")).toHaveTextContent(/kevin maina discipline letter preview opened/i);
+    await printFromPreview(user, printMock);
     expect(
       readSchoolData<{ documentType: string; student: string }>("printed-documents", schoolId).some(
         (document) => document.documentType === "Discipline Letter" && document.student === "Kevin Maina",
@@ -1193,8 +1206,8 @@ describe("STEP 4: Role tests", () => {
       .find(Boolean);
     expect(sessionRow).not.toBeNull();
     await user.click(within(sessionRow as HTMLElement).getByRole("button", { name: /print summary/i }));
-    expect(within(commandCenter).getByRole("status")).toHaveTextContent(/faith akinyi counselling summary opened/i);
-    expect(printMock).toHaveBeenCalled();
+    expect(within(commandCenter).getByRole("status")).toHaveTextContent(/faith akinyi counselling summary preview opened/i);
+    await printFromPreview(user, printMock);
     expect(
       readSchoolData<{ documentType: string; student: string }>("printed-documents", schoolId).some(
         (document) => document.documentType === "Counselling Summary" && document.student === "Faith Akinyi",
@@ -1276,7 +1289,7 @@ describe("STEP 4: Role tests", () => {
     await user.click(within(commandCenter).getAllByRole("button", { name: /print fee statement/i })[0]);
 
     expect(within(commandCenter).getByText(/fee statement opened for printing/i)).toBeVisible();
-    expect(printMock).toHaveBeenCalled();
+    await printFromPreview(user, printMock);
   }, 30000);
 
   it("shows accountant payment status in the secretary student search", async () => {

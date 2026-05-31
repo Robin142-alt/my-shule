@@ -4,9 +4,9 @@ const sectionMeta = {
   details: { label: "Details", icon: ClipboardList },
   comments: { label: "Comments", icon: MessageSquareText },
   attachments: { label: "Attachments", icon: FileText },
-  history: { label: "History", icon: History },
-  workflow: { label: "Workflow State", icon: Archive },
-  audit: { label: "Audit Trail", icon: ShieldCheck },
+  history: { label: "Recent Updates", icon: History },
+  workflow: { label: "Progress", icon: Archive },
+  audit: { label: "Action Record", icon: ShieldCheck },
 } as const;
 
 export type RightDetailsDrawerSections = Record<keyof typeof sectionMeta, string[]>;
@@ -25,7 +25,7 @@ export function RightDetailsDrawer({
       aria-label={title}
       className="rounded-[var(--radius-xl)] border border-border bg-surface/95 p-5 shadow-[0_24px_70px_rgba(15,23,42,0.10)]"
     >
-      <p className="eyebrow">Operational drawer</p>
+      <p className="eyebrow">Details panel</p>
       <h2 className="mt-2 text-lg font-black text-foreground">{title}</h2>
       {subtitle ? <p className="mt-1 text-sm font-semibold text-muted">{subtitle}</p> : null}
 

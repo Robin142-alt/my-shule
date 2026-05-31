@@ -52,6 +52,17 @@ export interface StudentFeeInvoiceForAllocation {
   metadata: Record<string, unknown>;
 }
 
+export interface StudentInvoiceBalanceSummary {
+  tenant_id: string;
+  student_id: string;
+  student_name: string | null;
+  currency_code: string;
+  invoiced_amount_minor: string;
+  paid_amount_minor: string;
+  invoice_count: number;
+  last_activity_at: Date | null;
+}
+
 @Injectable()
 export class InvoicesRepository {
   constructor(
@@ -142,7 +153,15 @@ export class InvoicesRepository {
   async listInvoices(
     tenantId: string,
     status?: string,
+    options: { limit?: number; offset?: number } = {},
   ): Promise<InvoiceEntity[]> {
+    const values: unknown[] = [tenantId, status ?? null];
+    const paginationSql = options.limit === undefined
+      ? ''
+      : (() => {
+          values.push(normalizeListLimit(options.limit), normalizeListOffset(options.offset));
+          return 'LIMIT $3::integer OFFSET $4::integer';
+        })();
     const result = await this.databaseService.query<InvoiceRow>(
       `
         SELECT
@@ -170,8 +189,81 @@ export class InvoicesRepository {
         WHERE tenant_id = $1
           AND ($2::text IS NULL OR status = $2::text)
         ORDER BY issued_at DESC, created_at DESC
+        ${paginationSql}
       `,
-      [tenantId, status ?? null],
+      values,
+    );
+
+    return result.rows.map((row) => this.mapRow(row));
+  }
+
+  async listStudentBalanceSummaries(
+    tenantId: string,
+    options: { limit?: number; offset?: number } = {},
+  ): Promise<StudentInvoiceBalanceSummary[]> {
+    const result = await this.databaseService.query<StudentInvoiceBalanceSummary>(
+      `
+        SELECT
+          tenant_id,
+          metadata ->> 'student_id' AS student_id,
+          MAX(NULLIF(metadata ->> 'student_name', '')) AS student_name,
+          currency_code,
+          COALESCE(SUM(total_amount_minor), 0)::text AS invoiced_amount_minor,
+          COALESCE(SUM(amount_paid_minor), 0)::text AS paid_amount_minor,
+          COUNT(*)::integer AS invoice_count,
+          MAX(issued_at) AS last_activity_at
+        FROM invoices
+        WHERE tenant_id = $1
+          AND NULLIF(metadata ->> 'student_id', '') IS NOT NULL
+        GROUP BY tenant_id, metadata ->> 'student_id', currency_code
+        ORDER BY
+          COALESCE(SUM(total_amount_minor - amount_paid_minor), 0) DESC,
+          MAX(issued_at) DESC
+        LIMIT $2::integer OFFSET $3::integer
+      `,
+      [
+        tenantId,
+        normalizeListLimit(options.limit),
+        normalizeListOffset(options.offset),
+      ],
+    );
+
+    return result.rows;
+  }
+
+  async listStudentInvoices(
+    tenantId: string,
+    studentId: string,
+  ): Promise<InvoiceEntity[]> {
+    const result = await this.databaseService.query<InvoiceRow>(
+      `
+        SELECT
+          id,
+          tenant_id,
+          subscription_id,
+          invoice_number,
+          status,
+          currency_code,
+          description,
+          subtotal_amount_minor::text,
+          tax_amount_minor::text,
+          total_amount_minor::text,
+          amount_paid_minor::text,
+          billing_phone_number,
+          payment_intent_id,
+          issued_at,
+          due_at,
+          paid_at,
+          voided_at,
+          metadata,
+          created_at,
+          updated_at
+        FROM invoices
+        WHERE tenant_id = $1
+          AND metadata ->> 'student_id' = $2
+        ORDER BY issued_at ASC, created_at ASC
+      `,
+      [tenantId, studentId],
     );
 
     return result.rows.map((row) => this.mapRow(row));
@@ -855,4 +947,24 @@ export class InvoicesRepository {
       value,
     );
   }
+}
+
+function normalizeListLimit(limit: number | undefined): number {
+  const parsed = Number(limit ?? 25);
+
+  if (!Number.isFinite(parsed)) {
+    return 25;
+  }
+
+  return Math.min(Math.max(Math.trunc(parsed), 1), 50);
+}
+
+function normalizeListOffset(offset: number | undefined): number {
+  const parsed = Number(offset ?? 0);
+
+  if (!Number.isFinite(parsed)) {
+    return 0;
+  }
+
+  return Math.max(Math.trunc(parsed), 0);
 }

@@ -40,6 +40,7 @@ const schoolRoles: SchoolExperienceRole[] = [
 describe("production ERP hardening", () => {
   beforeEach(() => {
     window.localStorage.clear();
+    document.querySelector("[data-myshule-print-preview]")?.remove();
     jest.restoreAllMocks();
   });
 
@@ -51,19 +52,10 @@ describe("production ERP hardening", () => {
     expect(supportRoles).toEqual(["principal", "deputy-principal"]);
   });
 
-  it("opens a printable preview before the user prints", () => {
-    let printedHtml = "";
-    const popup = {
-      document: {
-        write: jest.fn((html: string) => {
-          printedHtml += html;
-        }),
-        close: jest.fn(),
-      },
-      focus: jest.fn(),
-      print: jest.fn(),
-    };
-    jest.spyOn(window, "open").mockReturnValue(popup as unknown as Window);
+  it("opens a printable preview before the user prints", async () => {
+    const user = userEvent.setup();
+    const printMock = jest.fn();
+    Object.defineProperty(window, "print", { value: printMock, writable: true });
 
     openPrintDocument({
       eyebrow: "Receipt preview",
@@ -73,11 +65,15 @@ describe("production ERP hardening", () => {
       footer: "Confirm before printing.",
     });
 
-    expect(popup.print).not.toHaveBeenCalled();
-    expect(printedHtml).toMatch(/Print/);
-    expect(printedHtml).toMatch(/Download PDF/);
-    expect(printedHtml).toMatch(/Cancel/);
-    expect(printedHtml).toMatch(/Fee Receipt/);
+    expect(screen.getByRole("dialog", { name: /fee receipt print preview/i })).toBeVisible();
+    expect(screen.getByRole("button", { name: /^print$/i })).toBeVisible();
+    expect(screen.getByRole("button", { name: /download pdf/i })).toBeVisible();
+    expect(screen.getByRole("button", { name: /cancel/i })).toBeVisible();
+    expect(screen.getByText("Fee Receipt")).toBeVisible();
+    expect(printMock).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: /^print$/i }));
+    expect(printMock).toHaveBeenCalled();
   });
 
   it("stores notifications with tenant scope and related record routing metadata", () => {
@@ -145,13 +141,14 @@ describe("production ERP hardening", () => {
     fireEvent.change(screen.getByLabelText(/full name/i), { target: { value: "Grace Njeri" } });
     fireEvent.change(screen.getByLabelText(/phone number/i), { target: { value: "0712 111 222" } });
     fireEvent.change(screen.getByLabelText(/email address/i), { target: { value: "grace.njeri@kisumuboys.ac.ke" } });
-    await user.selectOptions(screen.getByLabelText(/send invite by/i), "Email");
     await user.click(screen.getByRole("button", { name: /send invitation/i }));
 
     expect(await screen.findByText(/email delivery failed/i)).toBeVisible();
     expect(screen.queryByText(/invitation sent/i)).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: /pending invitations/i }));
-    expect(screen.getAllByText(/Email Failed/i).some((element) => element.textContent === "Email Failed")).toBe(true);
+    expect(readSchoolData("user-invitations", "kisumu-boys")).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ invitedName: "Grace Njeri" })]),
+    );
   });
 
   it("keeps school dashboard action labels free from phone-call and combined save actions", () => {

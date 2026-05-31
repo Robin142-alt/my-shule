@@ -140,7 +140,23 @@ export class DisciplineRepository {
   async listOffenseCategories(tenantId: string): Promise<OffenseCategoryEntity[]> {
     const result = await this.databaseService.query<OffenseCategoryEntity>(
       `
-        SELECT *
+        SELECT
+          id::text,
+          tenant_id,
+          school_id::text,
+          code,
+          name,
+          description,
+          default_severity,
+          default_points,
+          default_action_type,
+          notify_parent_by_default,
+          escalation_rules,
+          is_positive,
+          is_active,
+          created_by_user_id::text,
+          created_at::text,
+          updated_at::text
         FROM offense_categories
         WHERE tenant_id = $1
           AND is_active = TRUE
@@ -158,7 +174,23 @@ export class DisciplineRepository {
   ): Promise<OffenseCategoryEntity | null> {
     const result = await this.databaseService.query<OffenseCategoryEntity>(
       `
-        SELECT *
+        SELECT
+          id::text,
+          tenant_id,
+          school_id::text,
+          code,
+          name,
+          description,
+          default_severity,
+          default_points,
+          default_action_type,
+          notify_parent_by_default,
+          escalation_rules,
+          is_positive,
+          is_active,
+          created_by_user_id::text,
+          created_at::text,
+          updated_at::text
         FROM offense_categories
         WHERE tenant_id = $1
           AND id = $2::uuid
@@ -206,7 +238,23 @@ export class DisciplineRepository {
           is_positive = EXCLUDED.is_positive,
           is_active = TRUE,
           updated_at = NOW()
-        RETURNING *
+        RETURNING
+          id::text,
+          tenant_id,
+          school_id::text,
+          code,
+          name,
+          description,
+          default_severity,
+          default_points,
+          default_action_type,
+          notify_parent_by_default,
+          escalation_rules,
+          is_positive,
+          is_active,
+          created_by_user_id::text,
+          created_at::text,
+          updated_at::text
       `,
       [
         input.tenant_id,
@@ -342,6 +390,10 @@ export class DisciplineRepository {
     actor_user_id: string;
     can_read_all: boolean;
   }): Promise<DisciplineIncidentEntity[]> {
+    const search = input.query.q?.trim();
+    const queryText = search && search.length >= 2 ? search : null;
+    const limit = this.normalizeLimit(input.query.limit);
+    const offset = this.normalizeOffset(input.query.offset);
     const result = await this.databaseService.query<DisciplineIncidentEntity>(
       `
         SELECT
@@ -397,8 +449,8 @@ export class DisciplineRepository {
             OR assigned_staff_id = $13::uuid
           )
         ORDER BY occurred_at DESC, created_at DESC
-        LIMIT $14
-        OFFSET $15
+        LIMIT $14::integer
+        OFFSET $15::integer
       `,
       [
         input.tenant_id,
@@ -411,11 +463,11 @@ export class DisciplineRepository {
         input.query.academic_year_id ?? null,
         input.query.from ?? null,
         input.query.to ?? null,
-        input.query.q?.trim() || null,
+        queryText,
         input.can_read_all,
         input.actor_user_id,
-        Math.min(input.query.limit ?? 50, 100),
-        input.query.offset ?? 0,
+        limit,
+        offset,
       ],
     );
 
@@ -428,6 +480,8 @@ export class DisciplineRepository {
     limit?: number;
     offset?: number;
   }): Promise<DisciplineIncidentEntity[]> {
+    const limit = this.normalizeLimit(input.limit);
+    const offset = this.normalizeOffset(input.offset);
     const result = await this.databaseService.query<DisciplineIncidentEntity>(
       `
         SELECT
@@ -469,14 +523,14 @@ export class DisciplineRepository {
           AND di.deleted_at IS NULL
           AND di.parent_notification_status IN ('sent', 'acknowledged')
         ORDER BY di.occurred_at DESC, di.created_at DESC
-        LIMIT $3
-        OFFSET $4
+        LIMIT $3::integer
+        OFFSET $4::integer
       `,
       [
         input.tenant_id,
         input.parent_user_id,
-        Math.min(input.limit ?? 50, 100),
-        input.offset ?? 0,
+        limit,
+        offset,
       ],
     );
 
@@ -615,7 +669,35 @@ export class DisciplineRepository {
         WHERE tenant_id = $1
           AND id = $2::uuid
           AND deleted_at IS NULL
-        RETURNING *
+        RETURNING
+          id::text,
+          tenant_id,
+          school_id::text,
+          student_id::text,
+          class_id::text,
+          academic_term_id::text,
+          academic_year_id::text,
+          offense_category_id::text,
+          reporting_staff_id::text,
+          assigned_staff_id::text,
+          incident_number,
+          title,
+          severity,
+          status,
+          occurred_at::text,
+          reported_at::text,
+          location,
+          witnesses,
+          description,
+          action_taken,
+          recommendations,
+          linked_counselling_referral_id::text,
+          behavior_points_delta,
+          parent_notification_status,
+          metadata,
+          deleted_at::text,
+          created_at::text,
+          updated_at::text
       `,
       [input.tenant_id, input.incident_id, input.status],
     );
@@ -636,7 +718,35 @@ export class DisciplineRepository {
         WHERE tenant_id = $1
           AND id = $2::uuid
           AND deleted_at IS NULL
-        RETURNING *
+        RETURNING
+          id::text,
+          tenant_id,
+          school_id::text,
+          student_id::text,
+          class_id::text,
+          academic_term_id::text,
+          academic_year_id::text,
+          offense_category_id::text,
+          reporting_staff_id::text,
+          assigned_staff_id::text,
+          incident_number,
+          title,
+          severity,
+          status,
+          occurred_at::text,
+          reported_at::text,
+          location,
+          witnesses,
+          description,
+          action_taken,
+          recommendations,
+          linked_counselling_referral_id::text,
+          behavior_points_delta,
+          parent_notification_status,
+          metadata,
+          deleted_at::text,
+          created_at::text,
+          updated_at::text
       `,
       [input.tenant_id, input.incident_id, input.assigned_staff_id],
     );
@@ -670,7 +780,23 @@ export class DisciplineRepository {
           created_by_user_id
         )
         VALUES ($1, $2::uuid, $3::uuid, $4::uuid, $5, $6, $7, $8, $9::uuid, $10::timestamptz, $11, $12::jsonb, $13::uuid)
-        RETURNING *
+        RETURNING
+          id::text,
+          tenant_id,
+          incident_id::text,
+          action_type,
+          status,
+          title,
+          description,
+          assigned_staff_id::text,
+          due_at::text,
+          completed_at::text,
+          approved_by_user_id::text,
+          approved_at::text,
+          remarks,
+          metadata,
+          created_at::text,
+          updated_at::text
       `,
       [
         input.tenant_id,
@@ -695,7 +821,23 @@ export class DisciplineRepository {
   async listActions(tenantId: string, incidentId: string): Promise<DisciplineActionEntity[]> {
     const result = await this.databaseService.query<DisciplineActionEntity>(
       `
-        SELECT *
+        SELECT
+          id::text,
+          tenant_id,
+          incident_id::text,
+          action_type,
+          status,
+          title,
+          description,
+          assigned_staff_id::text,
+          due_at::text,
+          completed_at::text,
+          approved_by_user_id::text,
+          approved_at::text,
+          remarks,
+          metadata,
+          created_at::text,
+          updated_at::text
         FROM discipline_actions
         WHERE tenant_id = $1
           AND incident_id = $2::uuid
@@ -721,7 +863,23 @@ export class DisciplineRepository {
             updated_at = NOW()
         WHERE tenant_id = $1
           AND id = $2::uuid
-        RETURNING *
+        RETURNING
+          id::text,
+          tenant_id,
+          incident_id::text,
+          action_type,
+          status,
+          title,
+          description,
+          assigned_staff_id::text,
+          due_at::text,
+          completed_at::text,
+          approved_by_user_id::text,
+          approved_at::text,
+          remarks,
+          metadata,
+          created_at::text,
+          updated_at::text
       `,
       [input.tenant_id, input.action_id, input.completion_notes],
     );
@@ -743,12 +901,48 @@ export class DisciplineRepository {
             updated_at = NOW()
         WHERE tenant_id = $1
           AND id = $2::uuid
-        RETURNING *
+        RETURNING
+          id::text,
+          tenant_id,
+          incident_id::text,
+          action_type,
+          status,
+          title,
+          description,
+          assigned_staff_id::text,
+          due_at::text,
+          completed_at::text,
+          approved_by_user_id::text,
+          approved_at::text,
+          remarks,
+          metadata,
+          created_at::text,
+          updated_at::text
       `,
       [input.tenant_id, input.action_id, input.approved_by_user_id],
     );
 
     return result.rows[0] ?? null;
+  }
+
+  private normalizeLimit(value: number | undefined): number {
+    const candidate = Number(value);
+
+    if (!Number.isInteger(candidate) || candidate < 1) {
+      return 25;
+    }
+
+    return Math.min(candidate, 50);
+  }
+
+  private normalizeOffset(value: number | undefined): number {
+    const candidate = Number(value);
+
+    if (!Number.isInteger(candidate) || candidate < 0) {
+      return 0;
+    }
+
+    return candidate;
   }
 
   async createComment(input: CreateDisciplineCommentDto & {

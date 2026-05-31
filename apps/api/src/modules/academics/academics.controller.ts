@@ -62,7 +62,11 @@ export class AcademicsController {
 
   @Get('teacher-assignments')
   @Permissions('academics:read')
-  listTeacherAssignments(@Query('teacher_user_id') teacherUserId?: string) {
-    return this.academicsService.listTeacherAssignments(teacherUserId);
+  listTeacherAssignments(
+    @Query('teacher_user_id') teacherUserId?: string,
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
+  ) {
+    return this.academicsService.listTeacherAssignments(teacherUserId, limit, offset);
   }
 }

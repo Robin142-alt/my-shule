@@ -146,17 +146,24 @@ export class BiometricAttendanceService {
     return log;
   }
 
-  listTeacherLogs(teacherUserId?: string) {
+  listTeacherLogs(
+    teacherUserId?: string,
+    limit?: string | number,
+    offset?: string | number,
+  ) {
     return this.repository.listTeacherLogs({
       tenant_id: this.requireTenantId(),
       teacher_user_id: teacherUserId?.trim() || undefined,
+      limit: this.resolveLimit(limit, 25, 1, 50),
+      offset: this.resolveOffset(offset),
     });
   }
 
-  listLiveFeed(limit?: string | number) {
+  listLiveFeed(limit?: string | number, offset?: string | number) {
     return this.repository.listLiveFeed({
       tenant_id: this.requireTenantId(),
-      limit: this.resolveLimit(limit, 50, 1, 200),
+      limit: this.resolveLimit(limit, 25, 1, 50),
+      offset: this.resolveOffset(offset),
     });
   }
 
@@ -284,6 +291,16 @@ export class BiometricAttendanceService {
     }
 
     return Math.min(Math.max(Math.floor(parsed), minimum), maximum);
+  }
+
+  private resolveOffset(value: string | number | undefined): number {
+    const parsed = Number(value ?? 0);
+
+    if (!Number.isFinite(parsed)) {
+      return 0;
+    }
+
+    return Math.max(Math.floor(parsed), 0);
   }
 
   private resolveReportMonth(value?: string): string {

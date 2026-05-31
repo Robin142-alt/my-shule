@@ -190,7 +190,14 @@ export class TimetableRepository {
     tenant_id: string;
     academic_year?: string;
     term_name?: string;
+    limit?: number;
+    offset?: number;
   }) {
+    const requestedLimit = Number.isFinite(input.limit) ? Math.floor(Number(input.limit)) : 50;
+    const requestedOffset = Number.isFinite(input.offset) ? Math.floor(Number(input.offset)) : 0;
+    const limit = requestedLimit > 0 ? Math.min(requestedLimit, 100) : 50;
+    const offset = Math.max(requestedOffset, 0);
+
     const result = await this.databaseService.query(
       `
         SELECT
@@ -218,9 +225,10 @@ export class TimetableRepository {
           AND ($2::text IS NULL OR version.academic_year = $2)
           AND ($3::text IS NULL OR version.term_name = $3)
         ORDER BY version.published_at DESC NULLS LAST, slot.day_of_week, slot.starts_at, slot.class_section_id
-        LIMIT 500
+        LIMIT $4::integer
+        OFFSET $5::integer
       `,
-      [input.tenant_id, input.academic_year ?? null, input.term_name ?? null],
+      [input.tenant_id, input.academic_year ?? null, input.term_name ?? null, limit, offset],
     );
 
     return result.rows;

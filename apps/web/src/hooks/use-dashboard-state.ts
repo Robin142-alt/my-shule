@@ -47,7 +47,8 @@ export function useDashboardState(role: DashboardRole) {
   const dashboardQuery = useQuery({
     queryKey: ["dashboard", role, tenantId, online],
     queryFn: () => fetchDashboardSnapshot(role, tenantId, online),
-    refetchInterval: 45_000,
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
     placeholderData: (previous) => previous,
     enabled: tenantOptionsQuery.isSuccess,
   });

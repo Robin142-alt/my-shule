@@ -7,6 +7,7 @@ import { RequestContextService } from '../../common/request-context/request-cont
 import { CreateApplicationDto } from './dto/create-application.dto';
 import { AdmissionsSchemaService } from './admissions-schema.service';
 import { AdmissionsService } from './admissions.service';
+import { AdmissionsRepository } from './repositories/admissions.repository';
 
 test('CreateApplicationDto rejects blank required admissions fields', async () => {
   const dto = Object.assign(new CreateApplicationDto(), {
@@ -154,7 +155,7 @@ test('AdmissionsService registers an approved application into the student direc
 test('AdmissionsService exports applications as a server-side CSV artifact with checksum', async () => {
   const requestContext = new RequestContextService();
   let tenantUsed: string | null = null;
-  let listOptions: { search?: string; status?: string; limit: number } | null = null;
+  let listOptions: { search?: string; status?: string; limit: number; offset?: number } | null = null;
 
   const service = new AdmissionsService(
     requestContext,
@@ -162,7 +163,7 @@ test('AdmissionsService exports applications as a server-side CSV artifact with 
     {
       listApplications: async (
         tenantId: string,
-        options: { search?: string; status?: string; limit: number },
+        options: { search?: string; status?: string; limit: number; offset?: number },
       ) => {
         tenantUsed = tenantId;
         listOptions = options;
@@ -200,7 +201,7 @@ test('AdmissionsService exports applications as a server-side CSV artifact with 
   );
 
   assert.equal(tenantUsed, 'tenant-a');
-  assert.deepEqual(listOptions, { limit: 5000 });
+  assert.deepEqual(listOptions, { limit: 500, offset: 0 });
   assert.equal(artifact.report_id, 'applications');
   assert.equal(artifact.filename, 'admissions-applications.csv');
   assert.equal(artifact.content_type, 'text/csv; charset=utf-8');
@@ -213,6 +214,105 @@ test('AdmissionsService exports applications as a server-side CSV artifact with 
     artifact.checksum_sha256,
     createHash('sha256').update(artifact.csv).digest('hex'),
   );
+});
+
+test('AdmissionsService bounds admissions list pagination and suppresses one-letter searches', async () => {
+  const requestContext = new RequestContextService();
+  const observed: Record<string, unknown> = {};
+  const service = new AdmissionsService(
+    requestContext,
+    {} as never,
+    {
+      listApplications: async (_tenantId: string, options: Record<string, unknown>) => {
+        observed.applications = options;
+        return [];
+      },
+      listStudentDirectory: async (_tenantId: string, options: Record<string, unknown>) => {
+        observed.students = options;
+        return [];
+      },
+      listParents: async (_tenantId: string, options: Record<string, unknown>) => {
+        observed.parents = options;
+        return [];
+      },
+      listDocuments: async (_tenantId: string, options: Record<string, unknown>) => {
+        observed.documents = options;
+        return [];
+      },
+      listAllocations: async (_tenantId: string, options: Record<string, unknown>) => {
+        observed.allocations = options;
+        return [];
+      },
+      listTransfers: async (_tenantId: string, options: Record<string, unknown>) => {
+        observed.transfers = options;
+        return [];
+      },
+    } as never,
+    {} as never,
+    {} as never,
+  );
+  const context = {
+    request_id: 'req-admissions-list-bounds',
+    tenant_id: 'tenant-a',
+    user_id: '00000000-0000-0000-0000-000000000001',
+    role: 'admissions',
+    session_id: 'session-1',
+    permissions: ['admissions:*', 'documents:*', 'transfers:*'],
+    is_authenticated: true,
+    client_ip: '127.0.0.1',
+    user_agent: 'test-suite',
+    method: 'GET',
+    path: '/admissions/applications',
+    started_at: '2026-05-14T00:00:00.000Z',
+  };
+
+  await requestContext.run(context, () =>
+    service.listApplications({ search: 'a', limit: 500, offset: -10 } as never),
+  );
+  await requestContext.run(context, () =>
+    service.listStudents({ search: 'b', limit: 500, offset: Number.NaN } as never),
+  );
+  await requestContext.run(context, () => service.listParents({ limit: 500 } as never));
+  await requestContext.run(context, () => service.listDocuments({ offset: -5 } as never));
+  await requestContext.run(context, () => service.listAllocations({ limit: 500 } as never));
+  await requestContext.run(context, () => service.listTransfers({ limit: 500 } as never));
+
+  assert.deepEqual(observed.applications, { search: undefined, status: undefined, limit: 50, offset: 0 });
+  assert.deepEqual(observed.students, { search: undefined, limit: 50, offset: 0 });
+  assert.deepEqual(observed.parents, { search: undefined, limit: 50, offset: 0 });
+  assert.deepEqual(observed.documents, { search: undefined, status: undefined, limit: 25, offset: 0 });
+  assert.deepEqual(observed.allocations, { search: undefined, limit: 50, offset: 0 });
+  assert.deepEqual(observed.transfers, { search: undefined, status: undefined, limit: 50, offset: 0 });
+});
+
+test('AdmissionsRepository applies bounded LIMIT/OFFSET to large admissions lists', async () => {
+  const calls: Array<{ sql: string; params: unknown[] }> = [];
+  const repository = new AdmissionsRepository({
+    query: async (sql: string, params: unknown[]) => {
+      calls.push({ sql, params });
+      return { rows: [] };
+    },
+  } as never);
+
+  await repository.listApplications('tenant-a', { search: 'a', limit: 500, offset: -10 } as never);
+  await repository.listDocuments('tenant-a', { limit: 500, offset: -10 } as never);
+  await repository.listAllocations('tenant-a', { limit: 500, offset: -10 } as never);
+  await repository.listStudentDirectory('tenant-a', { search: 'a', limit: 500, offset: -10 } as never);
+  await repository.listParents('tenant-a', { limit: 500, offset: -10 } as never);
+  await repository.listTransfers('tenant-a', { limit: 500, offset: -10 } as never);
+
+  for (const call of calls) {
+    assert.match(call.sql, /tenant_id|tenant\.id/);
+    assert.match(call.sql, /LIMIT \$\d+::integer\s+OFFSET \$\d+::integer/);
+  }
+
+  assert.equal(calls[0]!.params.at(-2), 50);
+  assert.equal(calls[0]!.params.at(-1), 0);
+  assert.equal(calls[1]!.params.at(-2), 50);
+  assert.equal(calls[2]!.params.at(-2), 50);
+  assert.equal(calls[3]!.params.at(-2), 50);
+  assert.equal(calls[4]!.params.at(-2), 50);
+  assert.equal(calls[5]!.params.at(-2), 50);
 });
 
 test('AdmissionsService rejects unknown server-side report exports', async () => {

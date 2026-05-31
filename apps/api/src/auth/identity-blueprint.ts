@@ -48,6 +48,8 @@ export const BLUEPRINT_USER_ROLES = [
   'procurement_officer',
   'transport_manager',
   'lab_technician',
+  'admissions_officer',
+  'ict_manager',
 ] as const;
 
 export type BlueprintAuthenticationMethod = (typeof BLUEPRINT_AUTHENTICATION_METHODS)[number];
@@ -95,6 +97,11 @@ const blueprintRoleAliases: Record<string, BlueprintUserRole> = {
   'security officer': 'security_officer',
   lab: 'lab_technician',
   'lab technician': 'lab_technician',
+  admissions: 'admissions_officer',
+  'admissions officer': 'admissions_officer',
+  ict: 'ict_manager',
+  'ict manager': 'ict_manager',
+  'computer lab manager': 'ict_manager',
   transport: 'transport_manager',
   'transport manager': 'transport_manager',
   procurement: 'procurement_officer',

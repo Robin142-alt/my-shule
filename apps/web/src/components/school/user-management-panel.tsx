@@ -57,6 +57,8 @@ const roleOptions = [
   { value: "security_officer", label: "Security Officer" },
   { value: "transport_manager", label: "Transport Manager" },
   { value: "lab_technician", label: "Laboratory Technician" },
+  { value: "admissions_officer", label: "Admissions Officer" },
+  { value: "ict_manager", label: "ICT / Computer Lab Manager" },
 ];
 
 function roleLabel(roleCode: string) {
@@ -78,7 +80,7 @@ export function UserManagementPanel() {
 
     async function loadUsers() {
       try {
-        const response = await fetch("/api/auth/invitations", {
+        const response = await fetch("/api/auth/invitations?limit=50&offset=0", {
           method: "GET",
           credentials: "same-origin",
           cache: "no-store",
