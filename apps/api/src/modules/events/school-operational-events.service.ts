@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { RequestContextService } from '../../common/request-context/request-context.service';
 import { EventPublisherService } from './event-publisher.service';
 import { SchoolOperationRecordedPayload } from './events.types';
+import { SchoolOperationNotificationsRepository } from './repositories/school-operation-notifications.repository';
 
 interface SchoolOperationalEventInput {
   id?: unknown;
@@ -35,6 +36,7 @@ export class SchoolOperationalEventsService {
   constructor(
     private readonly requestContext: RequestContextService,
     private readonly eventPublisher: EventPublisherService,
+    private readonly schoolOperationNotificationsRepository: SchoolOperationNotificationsRepository,
   ) {}
 
   async recordSchoolOperation(dto: SchoolOperationalEventSyncDto) {
@@ -88,6 +90,16 @@ export class SchoolOperationalEventsService {
         actor_role: actorRole,
       },
     });
+
+    await Promise.all(
+      notifications.map((notification) =>
+        this.schoolOperationNotificationsRepository.upsertFromSchoolOperation({
+          tenantId,
+          operationId,
+          notification,
+        }),
+      ),
+    );
 
     return {
       status: 'accepted',

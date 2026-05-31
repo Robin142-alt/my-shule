@@ -109,6 +109,7 @@ test('EventPublisherService writes student.created events with request headers',
 test('SchoolOperationalEventsService records frontend school operations inside the current tenant only', async () => {
   const requestContext = new RequestContextService();
   let publishedInput: Record<string, unknown> | null = null;
+  const materializedNotifications: Record<string, unknown>[] = [];
   const service = new SchoolOperationalEventsService(requestContext, {
     publish: async (input: Record<string, unknown>) => {
       publishedInput = input;
@@ -129,6 +130,10 @@ test('SchoolOperationalEventsService records frontend school operations inside t
         created_at: '2026-05-31T06:30:00.000Z',
         updated_at: '2026-05-31T06:30:00.000Z',
       };
+    },
+  } as never, {
+    upsertFromSchoolOperation: async (input: Record<string, unknown>) => {
+      materializedNotifications.push(input);
     },
   } as never);
 
@@ -205,6 +210,25 @@ test('SchoolOperationalEventsService records frontend school operations inside t
   assert.equal(payload.module, 'finance');
   assert.equal(payload.entity_id, 'approval-400');
   assert.deepEqual(payload.target_roles, ['principal', 'deputy-principal']);
+  assert.deepEqual(materializedNotifications, [
+    {
+      tenantId: 'tenant-a',
+      operationId: 'event-local-1',
+      notification: {
+        id: 'notification-local-1',
+        schoolId: 'tenant-a',
+        title: 'Fee reversal requested',
+        body: 'Receipt KBI-RCPT-400 needs approval.',
+        audienceRoles: ['principal', 'deputy-principal'],
+        priority: 'urgent',
+        sourceModule: 'finance',
+        relatedModule: 'finance',
+        relatedRecordId: 'approval-400',
+        read: false,
+        createdAt: '2026-05-31T06:30:00.000Z',
+      },
+    },
+  ]);
 });
 
 test('SchoolOperationalEventsService rejects school operations posted to another tenant', async () => {
@@ -212,6 +236,10 @@ test('SchoolOperationalEventsService rejects school operations posted to another
   const service = new SchoolOperationalEventsService(requestContext, {
     publish: async () => {
       throw new Error('publish should not be called for cross-tenant data');
+    },
+  } as never, {
+    upsertFromSchoolOperation: async () => {
+      throw new Error('notification materialization should not be called for cross-tenant data');
     },
   } as never);
 

@@ -70,6 +70,17 @@ export type SchoolOperationalEventSyncStatus = {
   updatedAt: string;
 };
 
+type SchoolOperationalEventSyncQueueRecord = {
+  id: string;
+  schoolId: string;
+  eventId: string;
+  endpoint: string;
+  status: "Queued";
+  error: string;
+  payload: BackendOperationalEventSyncPayload;
+  createdAt: string;
+};
+
 export type PublishSchoolOperationalEventInput = {
   schoolId?: string | null;
   type: string;
@@ -242,20 +253,22 @@ function upsertEventSyncStatus(status: SchoolOperationalEventSyncStatus) {
 }
 
 function queueBackendEventSync(payload: BackendOperationalEventSyncPayload, error: unknown) {
-  addSchoolRecord(
-    "eventSyncQueue",
-    {
-      id: uniqueId("event-sync-queue"),
-      schoolId: payload.schoolId,
-      eventId: payload.event.id,
-      endpoint: "/api/events/school-operations",
-      status: "Queued",
-      error: normalizeErrorMessage(error),
-      payload,
-      createdAt: nowIso(),
-    },
-    payload.schoolId,
-  );
+  const currentQueue = readSchoolData<SchoolOperationalEventSyncQueueRecord>("eventSyncQueue", payload.schoolId);
+  const queuedRecord: SchoolOperationalEventSyncQueueRecord = {
+    id: currentQueue.find((record) => record.eventId === payload.event.id)?.id ?? uniqueId("event-sync-queue"),
+    schoolId: payload.schoolId,
+    eventId: payload.event.id,
+    endpoint: "/api/events/school-operations",
+    status: "Queued",
+    error: normalizeErrorMessage(error),
+    payload,
+    createdAt: currentQueue.find((record) => record.eventId === payload.event.id)?.createdAt ?? nowIso(),
+  };
+  const nextQueue = currentQueue.some((record) => record.eventId === payload.event.id)
+    ? currentQueue.map((record) => (record.eventId === payload.event.id ? queuedRecord : record))
+    : [queuedRecord, ...currentQueue];
+
+  writeSchoolData("eventSyncQueue", nextQueue, payload.schoolId);
   upsertEventSyncStatus({
     id: `event-sync-status-${payload.event.id}`,
     schoolId: payload.schoolId,
@@ -268,41 +281,107 @@ function queueBackendEventSync(payload: BackendOperationalEventSyncPayload, erro
   });
 }
 
+async function postBackendOperationalEvent(payload: BackendOperationalEventSyncPayload) {
+  const endpoint = "/api/events/school-operations";
+  const csrfToken = await getCsrfToken();
+  const response = await globalThis.fetch(endpoint, {
+    method: "POST",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+      "x-myshule-csrf": csrfToken,
+    },
+    credentials: "same-origin",
+    cache: "no-store",
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const body = (await response.json().catch(() => null)) as { message?: string } | null;
+    throw new Error(body?.message ?? `Backend event sync failed with ${response.status}`);
+  }
+
+  upsertEventSyncStatus({
+    id: `event-sync-status-${payload.event.id}`,
+    schoolId: payload.schoolId,
+    eventId: payload.event.id,
+    endpoint,
+    status: "Synced",
+    createdAt: nowIso(),
+    updatedAt: nowIso(),
+  });
+}
+
+function removeQueuedBackendEventSync(schoolId: string, eventId: string) {
+  const currentQueue = readSchoolData<SchoolOperationalEventSyncQueueRecord>("eventSyncQueue", schoolId);
+  writeSchoolData(
+    "eventSyncQueue",
+    currentQueue.filter((record) => record.eventId !== eventId),
+    schoolId,
+  );
+}
+
+export async function retrySchoolOperationalEventSyncQueue(schoolId = getCurrentSchoolId()) {
+  if (typeof window === "undefined" || typeof globalThis.fetch === "undefined") {
+    return { attempted: 0, synced: 0, failed: 0 };
+  }
+
+  const queue = readSchoolData<SchoolOperationalEventSyncQueueRecord>("eventSyncQueue", schoolId);
+  let synced = 0;
+  let failed = 0;
+
+  for (const record of queue) {
+    try {
+      await postBackendOperationalEvent(record.payload);
+      removeQueuedBackendEventSync(schoolId, record.eventId);
+      synced += 1;
+    } catch (error) {
+      failed += 1;
+      queueBackendEventSync(record.payload, error);
+    }
+  }
+
+  return { attempted: queue.length, synced, failed };
+}
+
+export function startSchoolOperationalEventSyncRetryWorker(
+  schoolId = getCurrentSchoolId(),
+  options: { intervalMs?: number } = {},
+) {
+  if (typeof window === "undefined") {
+    return () => undefined;
+  }
+
+  const intervalMs = Math.max(1000, options.intervalMs ?? 30000);
+  let running = false;
+
+  const retryQueuedEvents = () => {
+    if (running) {
+      return;
+    }
+
+    running = true;
+    void retrySchoolOperationalEventSyncQueue(schoolId).finally(() => {
+      running = false;
+    });
+  };
+
+  const timer = window.setInterval(retryQueuedEvents, intervalMs);
+  window.addEventListener("online", retryQueuedEvents);
+
+  return () => {
+    window.clearInterval(timer);
+    window.removeEventListener("online", retryQueuedEvents);
+  };
+}
+
 async function syncSchoolOperationalEventToBackend(payload: BackendOperationalEventSyncPayload) {
   if (typeof window === "undefined" || typeof globalThis.fetch === "undefined") {
     return;
   }
 
-  const endpoint = "/api/events/school-operations";
-
   try {
-    const csrfToken = await getCsrfToken();
-    const response = await globalThis.fetch(endpoint, {
-      method: "POST",
-      headers: {
-        Accept: "application/json",
-        "Content-Type": "application/json",
-        "x-myshule-csrf": csrfToken,
-      },
-      credentials: "same-origin",
-      cache: "no-store",
-      body: JSON.stringify(payload),
-    });
-
-    if (!response.ok) {
-      const body = (await response.json().catch(() => null)) as { message?: string } | null;
-      throw new Error(body?.message ?? `Backend event sync failed with ${response.status}`);
-    }
-
-    upsertEventSyncStatus({
-      id: `event-sync-status-${payload.event.id}`,
-      schoolId: payload.schoolId,
-      eventId: payload.event.id,
-      endpoint,
-      status: "Synced",
-      createdAt: nowIso(),
-      updatedAt: nowIso(),
-    });
+    await postBackendOperationalEvent(payload);
   } catch (error) {
     queueBackendEventSync(payload, error);
   }

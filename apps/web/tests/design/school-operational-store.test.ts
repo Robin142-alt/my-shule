@@ -6,7 +6,9 @@ import {
   getSchoolScopedStorageKey,
   publishSchoolOperationalEvent,
   readSchoolData,
+  retrySchoolOperationalEventSyncQueue,
   simulateSms,
+  startSchoolOperationalEventSyncRetryWorker,
   subscribeToSchoolDataUpdates,
   type SchoolOperationalEventSyncStatus,
 } from "@/lib/school/school-operational-store";
@@ -144,6 +146,122 @@ describe("school operational store", () => {
     expect(readSchoolData<SchoolOperationalEventSyncStatus>("eventSyncStatus", "kb-high")).toEqual([
       expect.objectContaining({ eventId: event.id, status: "Synced" }),
     ]);
+  });
+
+  it("retries queued school operation syncs and clears them after backend acceptance", async () => {
+    const fetchMock = jest.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      const backendAttempts = fetchMock.mock.calls.filter(([requestUrl]) =>
+        String(requestUrl) === "/api/events/school-operations"
+      ).length;
+
+      if (url === "/api/auth/csrf") {
+        return jsonResponse({ token: "csrf-token" });
+      }
+
+      if (url === "/api/events/school-operations" && backendAttempts === 1) {
+        return jsonResponse({ message: "API temporarily unavailable" }, { status: 503 });
+      }
+
+      if (url === "/api/events/school-operations") {
+        return jsonResponse({ status: "accepted" }, { status: 202 });
+      }
+
+      return jsonResponse({ message: "Unexpected request" }, { status: 404 });
+    });
+    Object.defineProperty(window, "fetch", {
+      configurable: true,
+      value: fetchMock,
+    });
+    Object.defineProperty(globalThis, "fetch", {
+      configurable: true,
+      value: fetchMock,
+    });
+
+    const event = publishSchoolOperationalEvent({
+      schoolId: "kb-high",
+      type: "STORE_ITEM_REQUESTED",
+      module: "inventory",
+      actorRole: "teacher",
+      title: "Chalk requested",
+      body: "Form 2 West needs two boxes of chalk.",
+      entityId: "stock-request-44",
+      notifications: [{ audienceRoles: ["storekeeper"], title: "Store item requested" }],
+    });
+
+    await waitFor(() =>
+      expect(readSchoolData<SchoolOperationalEventSyncStatus>("eventSyncStatus", "kb-high")).toEqual([
+        expect.objectContaining({ eventId: event.id, status: "Queued" }),
+      ]),
+    );
+
+    const result = await retrySchoolOperationalEventSyncQueue("kb-high");
+
+    expect(result).toEqual({ attempted: 1, synced: 1, failed: 0 });
+    expect(readSchoolData("eventSyncQueue", "kb-high")).toEqual([]);
+    expect(readSchoolData<SchoolOperationalEventSyncStatus>("eventSyncStatus", "kb-high")).toEqual([
+      expect.objectContaining({ eventId: event.id, status: "Synced" }),
+    ]);
+    expect(fetchMock.mock.calls.filter(([url]) => String(url) === "/api/events/school-operations")).toHaveLength(2);
+  });
+
+  it("starts a retry worker for queued school operation syncs", async () => {
+    jest.useFakeTimers();
+    const fetchMock = jest.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      const backendAttempts = fetchMock.mock.calls.filter(([requestUrl]) =>
+        String(requestUrl) === "/api/events/school-operations"
+      ).length;
+
+      if (url === "/api/auth/csrf") {
+        return jsonResponse({ token: "csrf-token" });
+      }
+
+      if (url === "/api/events/school-operations" && backendAttempts === 1) {
+        return jsonResponse({ message: "API temporarily unavailable" }, { status: 503 });
+      }
+
+      if (url === "/api/events/school-operations") {
+        return jsonResponse({ status: "accepted" }, { status: 202 });
+      }
+
+      return jsonResponse({ message: "Unexpected request" }, { status: 404 });
+    });
+    Object.defineProperty(window, "fetch", {
+      configurable: true,
+      value: fetchMock,
+    });
+    Object.defineProperty(globalThis, "fetch", {
+      configurable: true,
+      value: fetchMock,
+    });
+
+    const event = publishSchoolOperationalEvent({
+      schoolId: "kb-high",
+      type: "VISITOR_CHECKED_IN",
+      module: "visitors",
+      actorRole: "security-officer",
+      title: "Visitor checked in",
+      body: "Grace Njeri checked in for Principal office.",
+      notifications: [{ audienceRoles: ["principal", "secretary"], title: "Visitor checked in" }],
+    });
+
+    await waitFor(() =>
+      expect(readSchoolData<SchoolOperationalEventSyncStatus>("eventSyncStatus", "kb-high")).toEqual([
+        expect.objectContaining({ eventId: event.id, status: "Queued" }),
+      ]),
+    );
+
+    const stopWorker = startSchoolOperationalEventSyncRetryWorker("kb-high", { intervalMs: 1000 });
+    await jest.advanceTimersByTimeAsync(1000);
+
+    expect(readSchoolData("eventSyncQueue", "kb-high")).toEqual([]);
+    expect(readSchoolData<SchoolOperationalEventSyncStatus>("eventSyncStatus", "kb-high")).toEqual([
+      expect.objectContaining({ eventId: event.id, status: "Synced" }),
+    ]);
+
+    stopWorker();
+    jest.useRealTimers();
   });
 
   it("announces school-scoped updates so open dashboards can refresh", () => {

@@ -21,6 +21,7 @@ import { EventsConsumerWorker } from './queue/events-consumer.worker';
 import { AuditLogsRepository } from './repositories/audit-logs.repository';
 import { EventConsumerRunsRepository } from './repositories/event-consumer-runs.repository';
 import { OutboxEventsRepository } from './repositories/outbox-events.repository';
+import { SchoolOperationNotificationsRepository } from './repositories/school-operation-notifications.repository';
 
 @Module({
   controllers: [
@@ -40,6 +41,7 @@ import { OutboxEventsRepository } from './repositories/outbox-events.repository'
     EventConsumerRegistryService,
     EventsConsumerWorker,
     OutboxEventsRepository,
+    SchoolOperationNotificationsRepository,
     EventConsumerRunsRepository,
     AuditLogsRepository,
     OperationalWorkflowCompletedConsumer,
@@ -55,6 +57,7 @@ import { OutboxEventsRepository } from './repositories/outbox-events.repository'
     DashboardRealtimeService,
     OperationalWorkflowDispatcherService,
     SchoolOperationalEventsService,
+    SchoolOperationNotificationsRepository,
   ],
 })
 export class EventsModule {}

@@ -52,6 +52,7 @@ import {
   writeCachedSchoolModuleCodes,
 } from "@/lib/module-access/school-module-access-cache";
 import { toSchoolPath, toSchoolStudentPath } from "@/lib/routing/experience-routes";
+import { startSchoolOperationalEventSyncRetryWorker } from "@/lib/school/school-operational-store";
 import type { LearnerLookupItem } from "@/lib/students/student-lookup";
 
 type SchoolRouteMode = "hosted" | "public";
@@ -4810,6 +4811,13 @@ function SchoolPagesShell({
       cancelled = true;
     };
   }, [liveDataEnabled, replaceRoute, role, tenantSlug]);
+  useEffect(() => {
+    if (!liveDataEnabled) {
+      return () => undefined;
+    }
+
+    return startSchoolOperationalEventSyncRetryWorker(tenantSlug ?? undefined);
+  }, [liveDataEnabled, tenantSlug]);
 
   const accessLoading = !moduleAccessState.verified;
   const visibleModuleCodes = moduleAccessState.codes ?? new Set<string>();
