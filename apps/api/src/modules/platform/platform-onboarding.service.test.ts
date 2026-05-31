@@ -7,7 +7,13 @@ import { PlatformOnboardingService } from './platform-onboarding.service';
 test('PlatformOnboardingService creates a school and sends an invite without exposing the token', async () => {
   const queries: Array<{ text: string; values: unknown[] }> = [];
   const baselines: string[] = [];
-  const sentInvites: Array<{ to: string; inviteUrl: string }> = [];
+  const sentInvites: Array<{
+    to: string;
+    assignedRole?: string;
+    inviterName?: string;
+    inviteUrl: string;
+    supportNote?: string;
+  }> = [];
 
   const service = new PlatformOnboardingService(
     {
@@ -37,6 +43,10 @@ test('PlatformOnboardingService creates a school and sends an invite without exp
           return { rows: [{ id: '00000000-0000-0000-0000-000000000901' }] };
         }
 
+        if (text.includes('FROM users') && text.includes('display_name')) {
+          return { rows: [{ display_name: 'Platform Owner', email: 'owner@myshule.online' }] };
+        }
+
         return { rows: [] };
       },
     } as never,
@@ -47,7 +57,13 @@ test('PlatformOnboardingService creates a school and sends an invite without exp
     } as never,
     {
       assertTransactionalEmailConfigured: () => undefined,
-      sendInvitationEmail: async (input: { to: string; inviteUrl: string }) => {
+      sendInvitationEmail: async (input: {
+        to: string;
+        assignedRole?: string;
+        inviterName?: string;
+        inviteUrl: string;
+        supportNote?: string;
+      }) => {
         sentInvites.push(input);
       },
     } as never,
@@ -69,6 +85,9 @@ test('PlatformOnboardingService creates a school and sends an invite without exp
   assert.deepEqual(baselines, ['green-valley']);
   assert.equal(sentInvites.length, 1);
   assert.equal(sentInvites[0]?.to, 'principal@example.test');
+  assert.equal(sentInvites[0]?.assignedRole, 'School Principal/Admin');
+  assert.equal(sentInvites[0]?.inviterName, 'Platform Owner');
+  assert.match(sentInvites[0]?.supportNote ?? '', /MyShule support/i);
   assert.match(sentInvites[0]?.inviteUrl ?? '', /^https:\/\/my-shule-erp\.vercel\.app\/invite\/accept\?token=/);
   assert.match(sentInvites[0]?.inviteUrl ?? '', /[?&]tenant=green-valley(?:&|$)/);
   assert.equal(response.tenant_id, 'green-valley');
@@ -79,8 +98,14 @@ test('PlatformOnboardingService creates a school and sends an invite without exp
   const tokenInsert = queries.find((query) => query.text.includes('INSERT INTO auth_action_tokens'));
   assert.match(String(tokenInsert?.values[3]), /^[a-f0-9]{64}$/);
   assert.equal(String(tokenInsert?.values[2]), 'principal@example.test');
+  const tokenMetadata = JSON.parse(String(tokenInsert?.values[5] ?? '{}'));
+  assert.equal(tokenMetadata.role_name, 'School Principal/Admin');
+  assert.equal(tokenMetadata.invited_by_display_name, 'Platform Owner');
   const outboxInsert = queries.find((query) => query.text.includes('INSERT INTO auth_email_outbox'));
   assert.doesNotMatch(String(outboxInsert?.values[3] ?? ''), /token=|invite_url/);
+  const outboxPayload = JSON.parse(String(outboxInsert?.values[3] ?? '{}'));
+  assert.equal(outboxPayload.role_name, 'School Principal/Admin');
+  assert.equal(outboxPayload.invited_by_display_name, 'Platform Owner');
 });
 
 test('PlatformOnboardingService persists the full blueprint onboarding profile and tenant domain', async () => {
@@ -188,7 +213,12 @@ test('PlatformOnboardingService persists the full blueprint onboarding profile a
 test('PlatformOnboardingService rejects duplicate school URL slugs without sending an invite', async () => {
   const queries: Array<{ text: string; values: unknown[] }> = [];
   const baselines: string[] = [];
-  const sentInvites: Array<{ to: string; inviteUrl: string }> = [];
+  const sentInvites: Array<{
+    to: string;
+    assignedRole?: string;
+    inviterName?: string;
+    inviteUrl: string;
+  }> = [];
 
   const service = new PlatformOnboardingService(
     {
@@ -307,7 +337,12 @@ test('PlatformOnboardingService creates the school even when invitation delivery
 
 test('PlatformOnboardingService resends a school administrator invite with a rotated token', async () => {
   const queries: Array<{ text: string; values: unknown[] }> = [];
-  const sentInvites: Array<{ to: string; inviteUrl: string }> = [];
+  const sentInvites: Array<{
+    to: string;
+    assignedRole?: string;
+    inviterName?: string;
+    inviteUrl: string;
+  }> = [];
 
   const service = new PlatformOnboardingService(
     {
@@ -325,7 +360,11 @@ test('PlatformOnboardingService resends a school administrator invite with a rot
                 status: 'active',
                 created_at: new Date('2026-05-11T00:00:00.000Z'),
                 admin_email: 'principal@example.test',
-                invite_metadata: { display_name: 'Principal User' },
+                invite_metadata: {
+                  display_name: 'Principal User',
+                  role_name: 'School Principal/Admin',
+                  invited_by_display_name: 'Previous Super Admin',
+                },
               },
             ],
           };
@@ -339,6 +378,10 @@ test('PlatformOnboardingService resends a school administrator invite with a rot
           return { rows: [{ id: '00000000-0000-0000-0000-000000000902' }] };
         }
 
+        if (text.includes('FROM users') && text.includes('display_name')) {
+          return { rows: [{ display_name: 'Support Admin', email: 'support@myshule.online' }] };
+        }
+
         return { rows: [] };
       },
     } as never,
@@ -347,7 +390,12 @@ test('PlatformOnboardingService resends a school administrator invite with a rot
     } as never,
     {
       assertTransactionalEmailConfigured: () => undefined,
-      sendInvitationEmail: async (input: { to: string; inviteUrl: string }) => {
+      sendInvitationEmail: async (input: {
+        to: string;
+        assignedRole?: string;
+        inviterName?: string;
+        inviteUrl: string;
+      }) => {
         sentInvites.push(input);
       },
     } as never,
@@ -365,6 +413,8 @@ test('PlatformOnboardingService resends a school administrator invite with a rot
   assert.equal(response.invitation_status, 'sent');
   assert.equal(response.admin_email, 'principal@example.test');
   assert.equal(sentInvites.length, 1);
+  assert.equal(sentInvites[0]?.assignedRole, 'School Principal/Admin');
+  assert.equal(sentInvites[0]?.inviterName, 'Support Admin');
   assert.match(sentInvites[0]?.inviteUrl ?? '', /^https:\/\/my-shule-erp\.vercel\.app\/invite\/accept\?token=/);
   assert.match(sentInvites[0]?.inviteUrl ?? '', /[?&]tenant=green-valley(?:&|$)/);
   assert.equal(

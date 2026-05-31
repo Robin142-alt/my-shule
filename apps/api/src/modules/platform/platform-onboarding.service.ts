@@ -91,6 +91,8 @@ type InvitationAction = {
   schoolName: string;
   adminEmail: string;
   adminName: string;
+  assignedRole: string;
+  inviterName: string;
   inviteUrl: string;
   expiresAt: Date;
 };
@@ -1168,12 +1170,16 @@ export class PlatformOnboardingService {
     const tokenHash = this.hashToken(token);
     const expiresAt = new Date(Date.now() + this.getInvitationTtlMs());
     const inviteUrl = this.buildInvitationUrl(token, input.tenantId);
+    const assignedRole = 'School Principal/Admin';
+    const inviterName = await this.getInviterName(input.invitedByUserId, 'MyShule Super Admin');
     const payload = {
       tenant_id: input.tenantId,
       tenant_name: input.schoolName,
       role_code: 'owner',
+      role_name: assignedRole,
       display_name: input.adminName,
       invited_by_user_id: input.invitedByUserId,
+      invited_by_display_name: inviterName,
       purpose: 'school_admin_invitation',
       expires_at: expiresAt.toISOString(),
     };
@@ -1192,6 +1198,8 @@ export class PlatformOnboardingService {
       schoolName: input.schoolName,
       adminEmail: input.adminEmail,
       adminName: input.adminName,
+      assignedRole,
+      inviterName,
       inviteUrl,
       expiresAt,
     };
@@ -1276,8 +1284,11 @@ export class PlatformOnboardingService {
           to: input.adminEmail,
           displayName: input.adminName,
           schoolName: input.schoolName,
+          assignedRole: input.assignedRole,
+          inviterName: input.inviterName,
           inviteUrl: input.inviteUrl,
           expiresAt: input.expiresAt,
+          supportNote: 'Contact your school administrator or MyShule support if this invitation looks wrong.',
         }),
       );
       await this.markOutboxDelivery(input.outboxId, 'sent');
@@ -1828,6 +1839,33 @@ export class PlatformOnboardingService {
     );
 
     return Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : 26_000;
+  }
+
+  private async getInviterName(
+    userId: string | null | undefined,
+    fallback: string,
+  ): Promise<string> {
+    const trimmedUserId = userId?.trim();
+
+    if (!trimmedUserId) {
+      return fallback;
+    }
+
+    const result = await this.databaseService.query<{
+      display_name: string | null;
+      email: string | null;
+    }>(
+      `
+        SELECT display_name, email
+        FROM users
+        WHERE id::text = $1
+        LIMIT 1
+      `,
+      [trimmedUserId],
+    );
+    const row = result.rows[0];
+
+    return row?.display_name?.trim() || row?.email?.trim() || fallback;
   }
 
   private buildInvitationUrl(token: string, tenantId: string): string {

@@ -9,7 +9,15 @@ test('TenantInvitationsService sends a tenant-scoped role invitation without exp
   const queries: Array<{ text: string; values: unknown[] }> = [];
   const baselines: string[] = [];
   const roleLookups: Array<{ tenantId: string; code: string }> = [];
-  const sentInvites: Array<{ to: string; displayName: string; schoolName: string; inviteUrl: string }> = [];
+  const sentInvites: Array<{
+    to: string;
+    displayName: string;
+    schoolName: string;
+    assignedRole?: string;
+    inviterName?: string;
+    inviteUrl: string;
+    supportNote?: string;
+  }> = [];
 
   const service = new TenantInvitationsService(
     {
@@ -19,6 +27,10 @@ test('TenantInvitationsService sends a tenant-scoped role invitation without exp
 
         if (text.includes('SELECT name FROM tenants')) {
           return { rows: [{ name: 'Green Valley School' }] };
+        }
+
+        if (text.includes('FROM users') && text.includes('display_name')) {
+          return { rows: [{ display_name: 'Principal Wanjiku', email: 'principal@example.test' }] };
         }
 
         if (text.includes('INSERT INTO auth_action_tokens')) {
@@ -38,7 +50,7 @@ test('TenantInvitationsService sends a tenant-scoped role invitation without exp
       },
       getRoleByCode: async (tenantId: string, code: string) => {
         roleLookups.push({ tenantId, code });
-        return { id: 'role-1', code };
+        return { id: 'role-1', code, name: 'Teacher' };
       },
     } as never,
     {
@@ -47,7 +59,10 @@ test('TenantInvitationsService sends a tenant-scoped role invitation without exp
         to: string;
         displayName: string;
         schoolName: string;
+        assignedRole?: string;
+        inviterName?: string;
         inviteUrl: string;
+        supportNote?: string;
       }) => {
         sentInvites.push(input);
       },
@@ -73,6 +88,9 @@ test('TenantInvitationsService sends a tenant-scoped role invitation without exp
   assert.equal(sentInvites[0]?.to, 'teacher@example.test');
   assert.equal(sentInvites[0]?.displayName, 'Teacher One');
   assert.equal(sentInvites[0]?.schoolName, 'Green Valley School');
+  assert.equal(sentInvites[0]?.assignedRole, 'Teacher');
+  assert.equal(sentInvites[0]?.inviterName, 'Principal Wanjiku');
+  assert.match(sentInvites[0]?.supportNote ?? '', /school administrator or MyShule support/i);
   assert.match(sentInvites[0]?.inviteUrl ?? '', /^https:\/\/my-shule-erp\.vercel\.app\/invite\/accept\?token=/);
   assert.match(sentInvites[0]?.inviteUrl ?? '', /[?&]tenant=green-valley(?:&|$)/);
   assert.equal(response.tenant_id, 'green-valley');
@@ -83,10 +101,16 @@ test('TenantInvitationsService sends a tenant-scoped role invitation without exp
   const tokenInsert = queries.find((query) => query.text.includes('INSERT INTO auth_action_tokens'));
   assert.match(String(tokenInsert?.values[3]), /^[a-f0-9]{64}$/);
   assert.equal(String(tokenInsert?.values[2]), 'teacher@example.test');
+  const tokenMetadata = JSON.parse(String(tokenInsert?.values[5] ?? '{}'));
+  assert.equal(tokenMetadata.role_name, 'Teacher');
+  assert.equal(tokenMetadata.invited_by_display_name, 'Principal Wanjiku');
   const outboxInsert = queries.find((query) => query.text.includes('INSERT INTO auth_email_outbox'));
   const markDeliveryQuery = queries.find((query) => query.text.includes('app.mark_auth_email_outbox_delivery'));
   assert.match(markDeliveryQuery?.text ?? '', /\$1::uuid,\s*\$2::text/);
   assert.doesNotMatch(String(outboxInsert?.values[3] ?? ''), /token=|invite_url/);
+  const outboxPayload = JSON.parse(String(outboxInsert?.values[3] ?? '{}'));
+  assert.equal(outboxPayload.role_name, 'Teacher');
+  assert.equal(outboxPayload.invited_by_display_name, 'Principal Wanjiku');
 });
 
 test('TenantInvitationsService rejects unsupported tenant invitation roles before sending email', async () => {
@@ -202,7 +226,14 @@ test('TenantInvitationsService lists active users and pending tenant invitations
 
 test('TenantInvitationsService resends a pending invitation with a rotated token', async () => {
   const queries: Array<{ text: string; values: unknown[] }> = [];
-  const sentInvites: Array<{ to: string; displayName: string; schoolName: string; inviteUrl: string }> = [];
+  const sentInvites: Array<{
+    to: string;
+    displayName: string;
+    schoolName: string;
+    assignedRole?: string;
+    inviterName?: string;
+    inviteUrl: string;
+  }> = [];
 
   const service = new TenantInvitationsService(
     {
@@ -219,6 +250,8 @@ test('TenantInvitationsService resends a pending invitation with a rotated token
                 email: 'Parent@Example.test',
                 display_name: 'Jane Parent',
                 role_code: 'parent',
+                role_name: 'Parent',
+                invited_by_display_name: 'Principal Wanjiku',
                 expires_at: new Date('2026-05-14T09:00:00.000Z'),
               },
             ],
@@ -227,6 +260,10 @@ test('TenantInvitationsService resends a pending invitation with a rotated token
 
         if (text.includes('SELECT name FROM tenants')) {
           return { rows: [{ name: 'Green Valley School' }] };
+        }
+
+        if (text.includes('FROM users') && text.includes('display_name')) {
+          return { rows: [{ display_name: 'Deputy Otieno', email: 'deputy@example.test' }] };
         }
 
         if (text.includes('INSERT INTO auth_email_outbox')) {
@@ -238,7 +275,7 @@ test('TenantInvitationsService resends a pending invitation with a rotated token
     } as never,
     {
       ensureTenantAuthorizationBaseline: async () => undefined,
-      getRoleByCode: async () => ({ id: 'role-parent', code: 'parent' }),
+      getRoleByCode: async () => ({ id: 'role-parent', code: 'parent', name: 'Parent' }),
     } as never,
     {
       assertTransactionalEmailConfigured: () => undefined,
@@ -246,6 +283,8 @@ test('TenantInvitationsService resends a pending invitation with a rotated token
         to: string;
         displayName: string;
         schoolName: string;
+        assignedRole?: string;
+        inviterName?: string;
         inviteUrl: string;
       }) => {
         sentInvites.push(input);
@@ -266,12 +305,17 @@ test('TenantInvitationsService resends a pending invitation with a rotated token
   assert.equal(response.invitation_sent, true);
   assert.equal(sentInvites.length, 1);
   assert.equal(sentInvites[0]?.to, 'parent@example.test');
+  assert.equal(sentInvites[0]?.assignedRole, 'Parent');
+  assert.equal(sentInvites[0]?.inviterName, 'Deputy Otieno');
   assert.match(sentInvites[0]?.inviteUrl ?? '', /^https:\/\/my-shule-erp\.vercel\.app\/invite\/accept\?token=/);
   assert.match(sentInvites[0]?.inviteUrl ?? '', /[?&]tenant=green-valley(?:&|$)/);
   const tokenUpdate = queries.find((query) => query.text.includes('UPDATE auth_action_tokens'));
   const markDeliveryQuery = queries.find((query) => query.text.includes('app.mark_auth_email_outbox_delivery'));
   assert.equal(tokenUpdate?.values[0], 'invite-1');
   assert.match(String(tokenUpdate?.values[2]), /^[a-f0-9]{64}$/);
+  const tokenMetadata = JSON.parse(String(tokenUpdate?.values[4] ?? '{}'));
+  assert.equal(tokenMetadata.role_name, 'Parent');
+  assert.equal(tokenMetadata.invited_by_display_name, 'Deputy Otieno');
   assert.match(markDeliveryQuery?.text ?? '', /\$1::uuid,\s*\$2::text/);
 });
 

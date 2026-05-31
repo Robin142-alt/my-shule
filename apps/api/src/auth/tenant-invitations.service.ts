@@ -38,6 +38,8 @@ type PendingInvitationRow = {
   email: string;
   display_name: string;
   role_code: string;
+  role_name: string;
+  invited_by_display_name: string;
   expires_at: Date | string;
 };
 
@@ -72,9 +74,11 @@ export class TenantInvitationsService {
 
     return this.databaseService.withRequestTransaction(async () => {
       await this.authorizationRepository.ensureTenantAuthorizationBaseline(tenantId);
-      await this.authorizationRepository.getRoleByCode(tenantId, roleCode);
+      const role = await this.authorizationRepository.getRoleByCode(tenantId, roleCode);
 
       const schoolName = await this.getSchoolName(tenantId);
+      const roleName = this.displayRoleName(role.name, roleCode);
+      const inviterName = await this.getInviterName(context.user_id, 'Your school administrator');
       const token = randomBytes(32).toString('base64url');
       const tokenHash = this.hashToken(token);
       const expiresAt = new Date(Date.now() + this.getInvitationTtlMs());
@@ -83,8 +87,10 @@ export class TenantInvitationsService {
         tenant_id: tenantId,
         tenant_name: schoolName,
         role_code: roleCode,
+        role_name: roleName,
         display_name: displayName,
         invited_by_user_id: context.user_id,
+        invited_by_display_name: inviterName,
         purpose: 'tenant_user_invitation',
         expires_at: expiresAt.toISOString(),
       };
@@ -99,6 +105,8 @@ export class TenantInvitationsService {
         payload,
         inviteUrl,
         schoolName,
+        roleName,
+        inviterName,
       });
       await this.recordAudit('tenant.invitation.created', 'tenant_invitation', invitationId, {
         email,
@@ -196,7 +204,13 @@ export class TenantInvitationsService {
     return this.databaseService.withRequestTransaction(async () => {
       const invitation = await this.loadPendingTenantInvitationForUpdate(invitationId, tenantId);
       const roleCode = this.normalizeRoleCode(invitation.role_code);
+      const role = await this.authorizationRepository.getRoleByCode(tenantId, roleCode);
       const schoolName = await this.getSchoolName(tenantId);
+      const roleName = this.displayRoleName(role.name || invitation.role_name, roleCode);
+      const inviterName = await this.getInviterName(
+        this.requestContext.requireStore().user_id,
+        invitation.invited_by_display_name || 'Your school administrator',
+      );
       const token = randomBytes(32).toString('base64url');
       const expiresAt = new Date(Date.now() + this.getInvitationTtlMs());
       const inviteUrl = this.buildInvitationUrl(token, tenantId);
@@ -204,8 +218,10 @@ export class TenantInvitationsService {
         tenant_id: tenantId,
         tenant_name: schoolName,
         role_code: roleCode,
+        role_name: roleName,
         display_name: invitation.display_name,
         invited_by_user_id: this.requestContext.requireStore().user_id,
+        invited_by_display_name: inviterName,
         purpose: 'tenant_user_invitation',
         expires_at: expiresAt.toISOString(),
         resent_at: new Date().toISOString(),
@@ -244,8 +260,11 @@ export class TenantInvitationsService {
           to: invitation.email.toLowerCase(),
           displayName: invitation.display_name,
           schoolName,
+          assignedRole: roleName,
+          inviterName,
           inviteUrl,
           expiresAt,
+          supportNote: this.getInvitationSupportNote(),
         });
         await this.markOutboxDelivery(outboxId, 'sent');
       } catch (error) {
@@ -448,6 +467,8 @@ export class TenantInvitationsService {
     payload: Record<string, unknown>;
     inviteUrl: string;
     schoolName: string;
+    roleName: string;
+    inviterName: string;
   }): Promise<string> {
     await this.databaseService.query(
       `
@@ -518,8 +539,11 @@ export class TenantInvitationsService {
         to: input.email,
         displayName: input.displayName,
         schoolName: input.schoolName,
+        assignedRole: input.roleName,
+        inviterName: input.inviterName,
         inviteUrl: input.inviteUrl,
         expiresAt: input.expiresAt,
+        supportNote: this.getInvitationSupportNote(),
       });
       await this.markOutboxDelivery(outboxId, 'sent');
     } catch (error) {
@@ -571,6 +595,8 @@ export class TenantInvitationsService {
           lower(email) AS email,
           COALESCE(NULLIF(metadata->>'display_name', ''), email) AS display_name,
           COALESCE(NULLIF(metadata->>'role_code', ''), 'member') AS role_code,
+          COALESCE(NULLIF(metadata->>'role_name', ''), initcap(replace(COALESCE(NULLIF(metadata->>'role_code', ''), 'member'), '_', ' '))) AS role_name,
+          COALESCE(NULLIF(metadata->>'invited_by_display_name', ''), '') AS invited_by_display_name,
           expires_at
         FROM auth_action_tokens
         WHERE id = $1
@@ -652,6 +678,51 @@ export class TenantInvitationsService {
     const safeMinutes = Number.isFinite(ttlMinutes) && ttlMinutes > 0 ? ttlMinutes : 10080;
 
     return safeMinutes * 60 * 1000;
+  }
+
+  private displayRoleName(roleName: string | null | undefined, roleCode: string): string {
+    const trimmedRoleName = roleName?.trim();
+
+    if (trimmedRoleName) {
+      return trimmedRoleName;
+    }
+
+    return roleCode
+      .split('_')
+      .filter(Boolean)
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(' ');
+  }
+
+  private async getInviterName(
+    userId: string | null | undefined,
+    fallback: string,
+  ): Promise<string> {
+    const trimmedUserId = userId?.trim();
+
+    if (!trimmedUserId) {
+      return fallback;
+    }
+
+    const result = await this.databaseService.query<{
+      display_name: string | null;
+      email: string | null;
+    }>(
+      `
+        SELECT display_name, email
+        FROM users
+        WHERE id::text = $1
+        LIMIT 1
+      `,
+      [trimmedUserId],
+    );
+    const row = result.rows[0];
+
+    return row?.display_name?.trim() || row?.email?.trim() || fallback;
+  }
+
+  private getInvitationSupportNote(): string {
+    return 'If you need help, contact your school administrator or MyShule support.';
   }
 
   private buildInvitationUrl(token: string, tenantId: string): string {
