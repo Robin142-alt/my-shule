@@ -461,7 +461,14 @@ describe("role dashboard operational structure", () => {
 
     expect(within(commandCenter).getAllByText(/^Fee Structures$/i).length).toBeGreaterThanOrEqual(1);
     expect(within(commandCenter).getByText(/Fee Structures today's work/i)).toBeVisible();
+    expect(within(commandCenter).getAllByText(/Term 2 fee structure setup/i).length).toBeGreaterThanOrEqual(1);
     expect(within(commandCenter).queryByText(/Record payment and print receipt/i)).not.toBeInTheDocument();
+
+    await user.click(within(commandCenter).getByRole("button", { name: /Invoices/i }));
+
+    expect(within(commandCenter).getAllByText(/^Invoices$/i).length).toBeGreaterThanOrEqual(1);
+    expect(within(commandCenter).getAllByText(/Form 1 North invoice batch/i).length).toBeGreaterThanOrEqual(1);
+    expect(within(commandCenter).queryByText(/Term 2 fee structure setup/i)).not.toBeInTheDocument();
     accountant.unmount();
 
     renderWithProviders(<SchoolPages role="librarian" tenantSlug="kisumu-boys" />);
@@ -474,7 +481,14 @@ describe("role dashboard operational structure", () => {
 
     expect(within(libraryCenter).getAllByText(/^Returns$/i).length).toBeGreaterThanOrEqual(1);
     expect(within(libraryCenter).getByText(/Returns today's work/i)).toBeVisible();
+    expect(within(libraryCenter).getAllByText(/Overdue return at circulation desk/i).length).toBeGreaterThanOrEqual(1);
     expect(within(libraryCenter).queryByText(/Issue or return books quickly/i)).not.toBeInTheDocument();
+
+    await user.click(within(libraryCenter).getByRole("button", { name: /Book Catalog/i }));
+
+    expect(within(libraryCenter).getAllByText(/^Book Catalog$/i).length).toBeGreaterThanOrEqual(1);
+    expect(within(libraryCenter).getAllByText(/New book accession review/i).length).toBeGreaterThanOrEqual(1);
+    expect(within(libraryCenter).queryByText(/Overdue return at circulation desk/i)).not.toBeInTheDocument();
   }, 30000);
 
   it("keeps operational queues page-scrolled and operational tables horizontally scrollable on mobile", async () => {

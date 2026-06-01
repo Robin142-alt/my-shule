@@ -1170,16 +1170,96 @@ function workspaceActionLabels(kind: WorkspaceKind, workspace: string, blueprint
     audit: ["Review Update", "Retry Sync", "Retry Failed Job", "Assign to Staff Member", "Mark Issue Solved", "Download Report"],
     general: ["Open Item", "Assign Owner", "Update Status", "Escalate", "Generate Report", "View Details"],
   };
+  const workspaceActions = workspaceSpecificActionLabels(kind, workspace);
 
   if (kind === "command") {
-    return uniqueStrings([...rotateItems(blueprint.primaryActions, workspaceIndex, 4), ...byKind.command])
+    return uniqueStrings([...workspaceActions, ...rotateItems(blueprint.primaryActions, workspaceIndex, 4), ...byKind.command])
       .map(schoolFriendlyActionLabel)
       .slice(0, 6);
   }
 
-  return uniqueStrings([...byKind[kind], ...rotateItems(blueprint.primaryActions, workspaceIndex, 2)])
+  return uniqueStrings([...workspaceActions, ...byKind[kind], ...rotateItems(blueprint.primaryActions, workspaceIndex, 2)])
     .map(schoolFriendlyActionLabel)
     .slice(0, 6);
+}
+
+function workspaceSpecificActionLabels(kind: WorkspaceKind, workspace: string) {
+  const value = `${slug(workspace)} ${workspace.toLowerCase()}`;
+  const has = (...patterns: RegExp[]) => patterns.some((pattern) => pattern.test(value));
+
+  if (kind === "finance") {
+    if (has(/fee-structure|fee structure|vote-head|vote head|term-billing|term billing|boarding-fee|transport-fee|lunch-fee/)) {
+      return ["Create Fee Structure", "Add Vote Head", "Preview Fee Structure", "Request Approval", "Print Fee Structure"];
+    }
+    if (has(/invoice|billing/)) return ["Generate Invoices", "Preview Invoice Batch", "Send Parent SMS", "Export Invoice List"];
+    if (has(/payment|collection/)) return ["Record Payment", "Allocate Vote Heads", "Print Receipt", "Send Receipt SMS"];
+    if (has(/m-pesa|mpesa|reconciliation/)) return ["Confirm M-Pesa", "Retry Callback", "Match Student Account", "Export Reconciliation"];
+    if (has(/receipt/)) return ["Preview Receipt", "Print Receipt", "Send Receipt SMS", "Export Receipt Register"];
+    if (has(/waiver|bursar|bursary|refund|reversal|discount/)) return ["Open Request", "Request Approval", "Record Decision", "Notify Parent"];
+    if (has(/report/)) return ["Generate Collection Report", "Print Defaulters List", "Export Fee Balances", "Send Fee Reminders"];
+  }
+
+  if (kind === "library") {
+    if (has(/catalog|catalogue|stock-count/)) return ["Add Book", "Scan Barcode", "Generate Barcode Labels", "Export Catalogue"];
+    if (has(/issue/)) return ["Scan Student ID", "Scan Book Barcode", "Issue Book", "Print Issue Slip"];
+    if (has(/return/)) return ["Scan Return", "Mark Condition", "Print Return Slip", "Send Overdue SMS"];
+    if (has(/fine|lost|damaged/)) return ["Apply Fine", "Mark Lost", "Mark Damaged", "Notify Parent"];
+    if (has(/reservation/)) return ["Reserve Book", "Send Pickup Reminder", "Release Reservation", "View Borrower"];
+    if (has(/report/)) return ["Generate Library Report", "Print Overdue List", "Export Lost Books", "Print Stock Count"];
+  }
+
+  if (kind === "clinic") {
+    if (has(/medicine|stock|batch|expiry|expired|supplier/)) return ["Add Medicine Stock", "Dispense Medicine", "Record Batch", "Print Stock Report"];
+    if (has(/visit|vital|sick|bay/)) return ["Record Visit", "Capture Vitals", "Notify Parent", "Print Medical Slip"];
+    if (has(/referral|hospital/)) return ["Create Referral", "Notify Parent", "Notify Class Teacher", "Print Referral Slip"];
+    if (has(/emergency/)) return ["Escalate Case", "Notify Principal", "Notify Boarding Master", "Print Emergency Note"];
+  }
+
+  if (kind === "inventory") {
+    if (has(/receive|supplier|delivery/)) return ["Receive Stock", "Record Supplier", "Update Quantity", "Print Intake Slip"];
+    if (has(/issue|consumable/)) return ["Issue Item", "Confirm Receiver", "Print Issue Slip", "Notify Department"];
+    if (has(/asset|transfer|movement|high-value/)) return ["Request Movement Approval", "Issue Asset", "Return Asset", "Print Movement Slip"];
+    if (has(/procurement|request|low-stock/)) return ["Create Procurement Request", "Send For Approval", "Record Quotation", "Export Request"];
+    if (has(/stock-take|stock take/)) return ["Start Stock Take", "Record Count", "Resolve Difference", "Print Stock Take"];
+  }
+
+  if (kind === "boarding") {
+    if (has(/roll-call|roll call|morning|evening/)) return ["Mark Roll Call", "Alert Deputy", "Notify Parent", "Print Roll Call"];
+    if (has(/exeat|leave/)) return ["Review Exeat", "Approve Exeat", "Forward To Deputy", "Notify Parent"];
+    if (has(/dorm|bed/)) return ["Assign Bed", "Record Dorm Issue", "Request Supplies", "Print Dorm List"];
+    if (has(/sick|referral/)) return ["Refer To Nurse", "Notify Parent", "Notify Class Teacher", "Print Sick Referral"];
+  }
+
+  if (kind === "security") {
+    if (has(/visitor|inside|returning/)) return ["Check In Visitor", "Check Out Visitor", "Print Visitor Slip", "Notify Office"];
+    if (has(/gate-pass|gate pass/)) return ["Verify Gate Pass", "Print Gate Pass", "Mark Exit", "Notify Deputy"];
+    if (has(/vehicle/)) return ["Log Vehicle", "Mark Vehicle Exited", "Print Vehicle Log", "Notify Security Lead"];
+    if (has(/blocklist|emergency|incident|overstay/)) return ["Open Alert", "Notify Principal", "Mark Checked", "Print Emergency List"];
+  }
+
+  if (kind === "transport") {
+    if (has(/route/)) return ["Assign Route", "Print Route List", "Notify Parents", "Export Route List"];
+    if (has(/trip|attendance|picked|dropped/)) return ["Mark Picked", "Mark Dropped", "Send Parent Alert", "Print Trip Sheet"];
+    if (has(/fuel/)) return ["Add Fuel Record", "Verify Receipt", "Export Fuel Log", "Notify Accountant"];
+    if (has(/maintenance|vehicle|issue/)) return ["Report Vehicle Issue", "Schedule Maintenance", "Notify Principal", "Print Maintenance Note"];
+  }
+
+  if (kind === "laboratory") {
+    if (has(/practical|request/)) return ["Approve Practical Prep", "Print Checklist", "Alert Teacher", "Mark Ready"];
+    if (has(/chemical|stock/)) return ["Add Chemical Stock", "Record Expiry", "Print Chemical List", "Flag Low Stock"];
+    if (has(/apparatus|issue-return|issue|return/)) return ["Issue Apparatus", "Return Apparatus", "Record Condition", "Print Issue Slip"];
+    if (has(/breakage|hazard|safety/)) return ["Record Breakage", "Alert Teacher", "Escalate Safety Alert", "Print Hazard Note"];
+  }
+
+  if (kind === "admissions") {
+    if (has(/inquiry/)) return ["Add Inquiry", "Send Follow-up SMS", "Create Application", "Print Inquiry Note"];
+    if (has(/document/)) return ["Verify Documents", "Request Missing Document", "Upload Checklist", "Notify Parent"];
+    if (has(/interview|assessment/)) return ["Schedule Interview", "Record Assessment", "Notify Panel", "Print Interview List"];
+    if (has(/admission|decision|approve/)) return ["Approve Admission", "Generate Admission Number", "Print Admission Letter", "Notify Parent"];
+    if (has(/fee|parent|onboarding/)) return ["Assign Fee Structure", "Create Parent Account", "Send Onboarding SMS", "Print First Invoice"];
+  }
+
+  return [];
 }
 
 function workspaceColumns(kind: WorkspaceKind) {
@@ -1261,6 +1341,12 @@ function workspaceFilters(kind: WorkspaceKind) {
 }
 
 function workspaceRowTitles(kind: WorkspaceKind, workspace: string) {
+  const workspaceSpecificRows = workspaceSpecificRowTitles(kind, workspace);
+
+  if (workspaceSpecificRows.length > 0) {
+    return workspaceSpecificRows;
+  }
+
   const byKind: Record<WorkspaceKind, string[]> = {
     command: ["Urgent school action queue", "Blocked workflow needing owner", "Daily command follow-up"],
     approval: ["Report cards awaiting approval", "Budget request pending decision", "Student transfer needs review"],
@@ -1286,7 +1372,108 @@ function workspaceRowTitles(kind: WorkspaceKind, workspace: string) {
     general: [`${workspace} task`, `${workspace} follow-up`, `${workspace} exception`],
   };
 
-  return byKind[kind];
+  const genericRows = byKind[kind];
+  const value = workspace.toLowerCase();
+
+  if (kind === "command" || kind === "general" || /command|dashboard|overview|center/.test(value)) {
+    return genericRows;
+  }
+
+  return genericRows.map((row) => `${schoolFriendlyText(workspace)} - ${row}`);
+}
+
+function workspaceSpecificRowTitles(kind: WorkspaceKind, workspace: string) {
+  const value = `${slug(workspace)} ${workspace.toLowerCase()}`;
+  const has = (...patterns: RegExp[]) => patterns.some((pattern) => pattern.test(value));
+
+  if (kind === "finance") {
+    if (has(/fee-structure|fee structure|vote-head|vote head|term-billing|term billing/)) {
+      return ["Term 2 fee structure setup", "Boarding fee vote head review", "Transport and lunch fee setup"];
+    }
+    if (has(/invoice|billing/)) return ["Form 1 North invoice batch", "Grade 8 East invoice exception", "Term 2 billing approval"];
+    if (has(/payment|collection/)) return ["Brian Otieno payment posting", "Cash receipt banking follow-up", "M-Pesa payment allocation"];
+    if (has(/m-pesa|mpesa|reconciliation/)) return ["QEX7ABC123 M-Pesa reconciliation", "Unmatched Paybill reference", "Failed callback retry"];
+    if (has(/receipt/)) return ["Receipt KBH-RCPT-2041 print request", "Duplicate receipt review", "Parent receipt SMS queue"];
+    if (has(/waiver|bursar|bursary|refund|reversal|discount/)) return ["Bursary allocation review", "Waiver request awaiting principal approval", "Refund evidence check"];
+    if (has(/report/)) return ["Daily collection report", "Class fee balance report", "Defaulters export"];
+  }
+
+  if (kind === "library") {
+    if (has(/catalog|catalogue|stock-count/)) return ["New book accession review", "Barcode label batch", "Shelf location correction"];
+    if (has(/issue/)) return ["Brian Otieno book issue", "Student card scan pending", "Issue slip print queue"];
+    if (has(/return/)) return ["Overdue return at circulation desk", "Damaged return review", "Return slip print queue"];
+    if (has(/fine|lost|damaged/)) return ["Lost book fine approval", "Damaged book replacement follow-up", "Overdue fine SMS queue"];
+    if (has(/reservation/)) return ["Reserved set book pickup", "Reservation pickup reminder", "Reserved copy release"];
+    if (has(/report/)) return ["Overdue books report", "Book stock count report", "Lost and damaged report"];
+  }
+
+  if (kind === "clinic") {
+    if (has(/medicine|stock|batch|expiry|expired|supplier/)) return ["ORS sachets reorder", "Expired medicine batch check", "Dispensing stock deduction"];
+    if (has(/visit|vital|sick|bay/)) return ["Morning sick bay visit", "Temperature follow-up", "Parent pickup note"];
+    if (has(/referral|hospital/)) return ["Hospital referral slip", "Parent pickup referral", "Boarder nurse referral"];
+    if (has(/emergency/)) return ["Asthma emergency case", "Injury escalation", "Emergency parent alert"];
+    if (has(/report/)) return ["Daily sick bay register", "Medicine usage report", "Referral report"];
+  }
+
+  if (kind === "inventory") {
+    if (has(/receive|supplier|delivery/)) return ["Supplier delivery receipt", "Goods received note", "Batch cost verification"];
+    if (has(/issue|consumable/)) return ["Teacher chalk issue", "Dorm supplies issue", "Lab gloves issue"];
+    if (has(/asset|transfer|movement|high-value/)) return ["Projector movement request", "Office printer transfer", "Dorm mattress movement"];
+    if (has(/procurement|request|low-stock/)) return ["Low-stock procurement request", "High-value purchase approval", "Supplier quotation review"];
+    if (has(/stock-take|stock take/)) return ["Term stock take count", "Stock difference review", "Stock take approval sheet"];
+    if (has(/damaged|lost/)) return ["Damaged toner report", "Lost sports equipment follow-up", "Asset write-off approval"];
+  }
+
+  if (kind === "boarding") {
+    if (has(/roll-call|roll call|morning|evening/)) return ["Morning roll call review", "Evening roll call missing learner", "Weekend roll call sheet"];
+    if (has(/exeat|leave/)) return ["Exeat request pending", "Late return follow-up", "Parent SMS for exeat"];
+    if (has(/dorm|bed/)) return ["Dormitory bed allocation", "Dorm inspection issue", "Dorm supplies request"];
+    if (has(/sick|referral/)) return ["Boarder sick referral", "Nurse handover note", "Parent health SMS"];
+    if (has(/meal/)) return ["Dorm meal count update", "Special diet note", "Kitchen boarding count"];
+  }
+
+  if (kind === "security") {
+    if (has(/visitor|inside|returning/)) return ["Returning visitor check-in", "Visitor badge checkout", "Overstayed visitor alert"];
+    if (has(/gate-pass|gate pass/)) return ["Student gate pass verification", "Gate pass print queue", "Exit approval check"];
+    if (has(/vehicle/)) return ["Vehicle entry log", "Delivery vehicle checkout", "Vehicle sticker verification"];
+    if (has(/blocklist|emergency|incident|overstay/)) return ["Restricted visitor alert", "Gate incident report", "Emergency visitor list"];
+  }
+
+  if (kind === "transport") {
+    if (has(/route/)) return ["Route 4 parent update", "New student route assignment", "Printed route list"];
+    if (has(/trip|attendance|picked|dropped/)) return ["Morning pickup attendance", "Student not dropped alert", "Trip sheet confirmation"];
+    if (has(/fuel/)) return ["Fuel receipt verification", "Route 2 fuel variance", "Monthly fuel log"];
+    if (has(/maintenance|vehicle|issue/)) return ["Bus KDK 214F maintenance", "Tyre replacement request", "Vehicle issue parent alert"];
+  }
+
+  if (kind === "laboratory") {
+    if (has(/practical|request/)) return ["Chemistry practical setup", "Biology specimen request", "Physics apparatus prep"];
+    if (has(/chemical|stock/)) return ["Hydrochloric acid reorder", "Expired chemical check", "Chemical stock intake"];
+    if (has(/apparatus|issue-return|issue|return/)) return ["Microscope issue register", "Apparatus return check", "Damaged beaker review"];
+    if (has(/breakage|hazard|safety/)) return ["Microscope breakage record", "Hazard warning update", "Safety incident follow-up"];
+  }
+
+  if (kind === "admissions") {
+    if (has(/inquiry/)) return ["New parent inquiry", "Open day follow-up", "Admission inquiry SMS"];
+    if (has(/document/)) return ["Birth certificate missing", "Transfer letter verification", "Document checklist review"];
+    if (has(/interview|assessment/)) return ["Interview scheduling", "Assessment score entry", "Panel decision pending"];
+    if (has(/admission|decision|approve/)) return ["Admission letter print", "Admission number generation", "Approved learner onboarding"];
+    if (has(/fee|parent|onboarding/)) return ["Fee structure assignment", "Parent account onboarding", "First invoice generation"];
+  }
+
+  if (kind === "discipline") {
+    if (has(/case|incident|queue/)) return ["Dormitory bullying investigation", "Repeat lateness case", "Parent discipline meeting pending"];
+    if (has(/counsellor|counselor|referral/)) return ["Counsellor referral review", "Welfare follow-up note", "Confidential session request"];
+    if (has(/letter|print/)) return ["Discipline letter draft", "Parent meeting letter", "Suspension notice review"];
+  }
+
+  if (kind === "academic") {
+    if (has(/mark|missing|exam/)) return ["Grade 7 East missing marks", "Kiswahili marks validation", "Report card moderation"];
+    if (has(/subject|syllabus|lesson/)) return ["Mathematics performance review", "Syllabus coverage recovery", "Subject teacher follow-up"];
+    if (has(/report|performance/)) return ["Class performance report", "Subject performance analysis", "Principal academic summary"];
+  }
+
+  return [];
 }
 
 function workspaceCellValue(kind: WorkspaceKind, column: string, rowTitle: string, rowIndex: number) {
@@ -4533,10 +4720,24 @@ function kisumuBoysFeedMatchesWorkspace(
 function filterKisumuBoysFeedForWorkspace({
   feed,
   kind,
+  workspace,
 }: {
   feed: ReturnType<typeof getKisumuBoysRoleFeed>;
   kind: WorkspaceKind;
+  workspace: string;
 }) {
+  const specificPatterns = workspaceSpecificFeedPatterns(kind, workspace);
+
+  if (specificPatterns.length > 0 && kind !== "command" && kind !== "general") {
+    return feed
+      .filter((item) => {
+        const haystack = `${item.title} ${item.body} ${item.queue} ${item.action} ${item.eventType}`.toLowerCase();
+
+        return specificPatterns.some((pattern) => pattern.test(haystack));
+      })
+      .slice(0, 6);
+  }
+
   const filtered = feed.filter((item) => kisumuBoysFeedMatchesWorkspace(item, kind));
 
   if (kind === "command" || kind === "general") {
@@ -4544,6 +4745,82 @@ function filterKisumuBoysFeedForWorkspace({
   }
 
   return filtered.slice(0, 18);
+}
+
+function workspaceSpecificFeedPatterns(kind: WorkspaceKind, workspace: string) {
+  const value = `${slug(workspace)} ${workspace.toLowerCase()}`;
+  const has = (...patterns: RegExp[]) => patterns.some((pattern) => pattern.test(value));
+
+  if (kind === "finance") {
+    if (has(/fee-structure|fee structure|vote-head|vote head|term-billing|term billing/)) return [/fee structure|vote head|term billing|boarding fee|transport fee|lunch fee/];
+    if (has(/invoice|billing/)) return [/invoice|billing/];
+    if (has(/payment|collection/)) return [/payment|cash|collection/];
+    if (has(/m-pesa|mpesa|reconciliation/)) return [/m-pesa|mpesa|callback|reconciliation/];
+    if (has(/receipt/)) return [/receipt/];
+    if (has(/waiver|bursar|bursary|refund|reversal|discount/)) return [/waiver|bursary|refund|reversal|discount/];
+    if (has(/report/)) return [/report|defaulter|collection|balance/];
+  }
+
+  if (kind === "library") {
+    if (has(/catalog|catalogue|stock-count/)) return [/catalog|catalogue|barcode label|stock count|accession/];
+    if (has(/issue/)) return [/issue|borrow|student card/];
+    if (has(/return/)) return [/return/];
+    if (has(/fine|lost|damaged/)) return [/fine|lost|damaged/];
+    if (has(/reservation/)) return [/reservation|reserve/];
+    if (has(/report/)) return [/report|overdue|stock count/];
+  }
+
+  if (kind === "clinic") {
+    if (has(/medicine|stock|batch|expiry|expired|supplier/)) return [/medicine|stock|batch|expiry|supplier/];
+    if (has(/visit|vital|sick|bay/)) return [/visit|vital|sick bay|temperature/];
+    if (has(/referral|hospital/)) return [/referral|hospital/];
+    if (has(/emergency/)) return [/emergency|urgent|injury|asthma/];
+  }
+
+  if (kind === "inventory") {
+    if (has(/receive|supplier|delivery/)) return [/supplier|delivery|received|intake/];
+    if (has(/issue|consumable/)) return [/issue|consumable|chalk|gloves|supplies/];
+    if (has(/asset|transfer|movement|high-value/)) return [/asset|transfer|movement|projector|printer/];
+    if (has(/procurement|request|low-stock/)) return [/procurement|low stock|quotation|purchase/];
+    if (has(/stock-take|stock take/)) return [/stock take|count|variance/];
+  }
+
+  if (kind === "boarding") {
+    if (has(/roll-call|roll call|morning|evening/)) return [/roll call|missing boarder/];
+    if (has(/exeat|leave/)) return [/exeat|leave|late return/];
+    if (has(/dorm|bed/)) return [/dorm|bed|hostel/];
+  }
+
+  if (kind === "security") {
+    if (has(/visitor|inside|returning/)) return [/visitor|inside|badge/];
+    if (has(/gate-pass|gate pass/)) return [/gate pass|exit/];
+    if (has(/vehicle/)) return [/vehicle|delivery/];
+    if (has(/blocklist|emergency|incident|overstay/)) return [/blocklist|emergency|incident|overstay/];
+  }
+
+  if (kind === "transport") {
+    if (has(/route/)) return [/route/];
+    if (has(/trip|attendance|picked|dropped/)) return [/trip|picked|dropped|attendance/];
+    if (has(/fuel/)) return [/fuel/];
+    if (has(/maintenance|vehicle|issue/)) return [/maintenance|vehicle|issue/];
+  }
+
+  if (kind === "laboratory") {
+    if (has(/practical|request/)) return [/practical|request/];
+    if (has(/chemical|stock/)) return [/chemical|stock/];
+    if (has(/apparatus|issue-return|issue|return/)) return [/apparatus|issue|return/];
+    if (has(/breakage|hazard|safety/)) return [/breakage|hazard|safety/];
+  }
+
+  if (kind === "admissions") {
+    if (has(/inquiry/)) return [/inquiry/];
+    if (has(/document/)) return [/document/];
+    if (has(/interview|assessment/)) return [/interview|assessment/];
+    if (has(/admission|decision|approve/)) return [/admission|decision|approve/];
+    if (has(/fee|parent|onboarding/)) return [/fee|parent|onboarding/];
+  }
+
+  return [];
 }
 
 function kisumuBoysFeedToRuntimeEntries({
@@ -4907,6 +5184,7 @@ function GenericRoleOperationalCommandCenter({
   const kisumuBoysFeed = filterKisumuBoysFeedForWorkspace({
     feed: kisumuBoysRoleFeed,
     kind: activeWorkspaceKind,
+    workspace: resolvedWorkspace,
   });
   const demoWorkspaceEntries = kisumuBoysScore
     ? kisumuBoysFeedToRuntimeEntries({
