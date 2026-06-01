@@ -59,8 +59,13 @@ const roleHomePaths: Record<string, string> = {
   "dean-of-students": "/school/discipline-master",
   admissions: "/school/admissions",
   registrar: "/school/admissions",
+  student: "/school/student",
+  ict_manager: "/school/ict-manager",
+  "ict-manager": "/school/ict-manager",
+  ict: "/school/ict-manager",
+  computer_lab_manager: "/school/ict-manager",
+  "computer-lab-manager": "/school/ict-manager",
   parent: "/portal/dashboard",
-  student: "/portal/dashboard",
 };
 
 export function getRoleHomePath(role: string | null | undefined) {

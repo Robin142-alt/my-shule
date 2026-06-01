@@ -237,6 +237,25 @@ const schoolNavMap: Record<SchoolExperienceRole, ExperienceNavItem[]> = {
     { id: "inventory", label: "Inventory", href: toSchoolPath("inventory"), icon: Boxes, group: "Administration" },
     { id: "settings", label: "Settings", href: toSchoolPath("settings"), icon: Settings, group: "Administration" },
   ],
+  student: [
+    { id: "dashboard", label: "Dashboard", href: toSchoolPath("dashboard"), icon: LayoutGrid, group: "Overview" },
+    { id: "academics", label: "Learning", href: toSchoolPath("academics"), icon: GraduationCap, group: "Academics" },
+    { id: "exams", label: "Results", href: toSchoolPath("exams"), icon: BookOpenCheck, group: "Academics" },
+    { id: "lms", label: "Assignments", href: toSchoolPath("lms"), icon: GraduationCap, group: "Academics" },
+    { id: "library", label: "Library Books", href: toSchoolPath("library"), icon: BookOpenCheck, group: "School life" },
+    { id: "timetable", label: "Timetable", href: toSchoolPath("timetable"), icon: CalendarDays, group: "School life" },
+    { id: "communication", label: "Messages", href: toSchoolPath("communication"), icon: MessageSquareText, group: "School life" },
+    { id: "reports", label: "Downloads", href: toSchoolPath("reports"), icon: FileSpreadsheet, group: "School life" },
+  ],
+  "ict-manager": [
+    { id: "dashboard", label: "Dashboard", href: toSchoolPath("dashboard"), icon: LayoutGrid, group: "Overview" },
+    { id: "ict-assets", label: "ICT Assets", href: toSchoolPath("ict-assets"), icon: Cpu, group: "ICT" },
+    { id: "assets", label: "Device Assets", href: toSchoolPath("assets"), icon: Boxes, group: "ICT" },
+    { id: "labs", label: "Computer Lab", href: toSchoolPath("labs"), icon: FlaskConical, group: "ICT" },
+    { id: "iot", label: "Network Devices", href: toSchoolPath("iot"), icon: Cpu, group: "ICT" },
+    { id: "procurement", label: "Repair Requests", href: toSchoolPath("procurement"), icon: ShoppingCart, group: "ICT" },
+    { id: "reports", label: "Reports", href: toSchoolPath("reports"), icon: FileSpreadsheet, group: "ICT" },
+  ],
   storekeeper: [
     { id: "dashboard", label: "Dashboard", href: toSchoolPath("dashboard"), icon: LayoutGrid, group: "Overview" },
     { id: "inventory", label: "Inventory", href: toSchoolPath("inventory"), icon: Boxes, group: "Store operations" },
@@ -364,6 +383,8 @@ const roleToDashboardRole: Record<SchoolExperienceRole, DashboardRole> = {
   "class-teacher": "teacher",
   "grade-master": "teacher",
   admin: "admin",
+  student: "teacher",
+  "ict-manager": "admin",
   storekeeper: "storekeeper",
   librarian: "librarian",
   nurse: "admin",
@@ -497,6 +518,16 @@ function buildSchoolProfile(role: SchoolExperienceRole, schoolName: string): Exp
     admin: {
       name: "School Admin Naliaka",
       roleLabel: "School admin",
+      contextLabel: schoolName,
+    },
+    student: {
+      name: "Brian Otieno",
+      roleLabel: "Student",
+      contextLabel: schoolName,
+    },
+    "ict-manager": {
+      name: "ICT Manager Mwangi",
+      roleLabel: "ICT / Computer Lab",
       contextLabel: schoolName,
     },
     storekeeper: {

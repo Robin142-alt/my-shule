@@ -16,6 +16,7 @@ const reservedSchoolRouteSlugs = new Set([
   "grade-master",
   "head-of-department",
   "hod",
+  "ict-manager",
   "forgot-password",
   "librarian",
   "login",

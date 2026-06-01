@@ -8,6 +8,7 @@ import { AuthField } from "@/components/auth/auth-field";
 import { AuthMessage } from "@/components/auth/auth-message";
 import { AuthPasswordField } from "@/components/auth/auth-password-field";
 import { AuthSubmitButton } from "@/components/auth/auth-submit-button";
+import { buildInviteLoginHref, inviteLoginLabel } from "@/lib/auth/invite-redirect";
 import { acceptInvitation } from "@/lib/auth/invitation-client";
 
 export function InvitationAcceptanceView({
@@ -20,6 +21,7 @@ export function InvitationAcceptanceView({
   const [confirmPassword, setConfirmPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [successPath, setSuccessPath] = useState<string | null>(null);
+  const [successLabel, setSuccessLabel] = useState("Continue to School Login");
   const [generalError, setGeneralError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
@@ -52,13 +54,18 @@ export function InvitationAcceptanceView({
     setBusy(true);
 
     try {
-      await acceptInvitation({
+      const result = await acceptInvitation({
         token: initialToken,
         password,
         displayName: displayName.trim(),
       });
 
-      setSuccessPath("/login");
+      setSuccessPath(buildInviteLoginHref({
+        role: result.role,
+        email: result.email,
+        tenantId: result.tenantId,
+      }));
+      setSuccessLabel(inviteLoginLabel(result.role));
     } catch (error) {
       setGeneralError(
         error instanceof Error
@@ -123,8 +130,8 @@ export function InvitationAcceptanceView({
           </div>
         )}
 
-        <Link href={successPath ?? "/login"} className="inline-flex text-sm font-medium text-foreground underline-offset-4 hover:underline">
-          Continue to login
+        <Link href={successPath ?? "/school/login"} className="inline-flex text-sm font-medium text-foreground underline-offset-4 hover:underline">
+          {successPath ? successLabel : "Continue to School Login"}
         </Link>
       </div>
     </AuthCard>

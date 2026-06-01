@@ -23,7 +23,23 @@ export const metadata: Metadata = {
   },
 };
 
-export default async function SchoolLoginPage() {
+function readSearchParam(
+  searchParams: Record<string, string | string[] | undefined>,
+  key: string,
+) {
+  const value = searchParams[key];
+
+  return Array.isArray(value) ? value[0] ?? "" : value ?? "";
+}
+
+export default async function SchoolLoginPage({
+  searchParams,
+}: {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const resolvedSearchParams = (await searchParams) ?? {};
+  const initialEmail = readSearchParam(resolvedSearchParams, "email").trim();
+  const initialTenantSlug = readSearchParam(resolvedSearchParams, "tenant").trim() || null;
   const requestHeaders = await headers();
   const host =
     requestHeaders.get("x-forwarded-host") ??
@@ -61,7 +77,11 @@ export default async function SchoolLoginPage() {
         { id: "secure", label: "Secure session", icon: "lock" },
       ]}
     >
-      <SchoolLoginView resolution={resolution} />
+      <SchoolLoginView
+        resolution={resolution}
+        initialEmail={initialEmail}
+        initialTenantSlug={initialTenantSlug}
+      />
     </AuthShell>
   );
 }

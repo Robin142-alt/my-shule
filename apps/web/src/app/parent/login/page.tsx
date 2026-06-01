@@ -21,7 +21,24 @@ export const metadata: Metadata = {
   },
 };
 
-export default function ParentLoginPage() {
+function readSearchParam(
+  searchParams: Record<string, string | string[] | undefined>,
+  key: string,
+) {
+  const value = searchParams[key];
+
+  return Array.isArray(value) ? value[0] ?? "" : value ?? "";
+}
+
+export default async function ParentLoginPage({
+  searchParams,
+}: {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const resolvedSearchParams = (await searchParams) ?? {};
+  const initialEmail = readSearchParam(resolvedSearchParams, "email").trim();
+  const initialTenantSlug = readSearchParam(resolvedSearchParams, "tenant").trim() || null;
+
   return (
     <AuthShell
       eyebrow="Parent portal login"
@@ -53,7 +70,11 @@ export default function ParentLoginPage() {
         { id: "secure", label: "Secure session", icon: "lock" },
       ]}
     >
-      <PortalLoginView mode="parent" />
+      <PortalLoginView
+        mode="parent"
+        initialEmail={initialEmail}
+        initialTenantSlug={initialTenantSlug}
+      />
     </AuthShell>
   );
 }

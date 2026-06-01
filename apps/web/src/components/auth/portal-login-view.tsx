@@ -73,9 +73,19 @@ const portalCopy: Record<
   },
 };
 
-export function PortalLoginView({ mode = "family" }: { mode?: PortalMode }) {
+export function PortalLoginView({
+  mode = "family",
+  initialEmail = "",
+  initialTenantSlug = null,
+}: {
+  mode?: PortalMode;
+  initialEmail?: string;
+  initialTenantSlug?: string | null;
+}) {
   const router = useRouter();
-  const authSession = useExperienceSession("portal");
+  const authSession = useExperienceSession("portal", {
+    tenantSlug: initialTenantSlug?.trim() || null,
+  });
   const [loginMode, setLoginMode] = useState<"password" | "otp">("password");
   const [challengeId, setChallengeId] = useState<string | null>(null);
   const [otpMessage, setOtpMessage] = useState<string | null>(null);
@@ -88,7 +98,7 @@ export function PortalLoginView({ mode = "family" }: { mode?: PortalMode }) {
   } = useForm<PortalForm>({
     resolver: zodResolver(portalSchema),
     defaultValues: {
-      identifier: "",
+      identifier: initialEmail.trim().toLowerCase(),
       secret: "",
     },
   });

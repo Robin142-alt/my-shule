@@ -29,6 +29,7 @@ describe("SaaS identity role routing", () => {
     expect(getRoleHomePath("form-master")).toBe("/school/grade-master");
     expect(getRoleHomePath("registrar")).toBe("/school/admissions");
     expect(getRoleHomePath("admissions")).toBe("/school/admissions");
+    expect(getRoleHomePath("student")).toBe("/school/student");
     expect(getRoleHomePath("storekeeper")).toBe("/school/storekeeper");
     expect(getRoleHomePath("librarian")).toBe("/school/librarian");
     expect(getRoleHomePath("boarding_master")).toBe("/school/boarding-master");
@@ -41,6 +42,9 @@ describe("SaaS identity role routing", () => {
     expect(getRoleHomePath("laboratory_technician")).toBe("/school/laboratory-technician");
     expect(getRoleHomePath("lab-technician")).toBe("/school/laboratory-technician");
     expect(getRoleHomePath("laboratory-technician")).toBe("/school/laboratory-technician");
+    expect(getRoleHomePath("ict_manager")).toBe("/school/ict-manager");
+    expect(getRoleHomePath("ict-manager")).toBe("/school/ict-manager");
+    expect(getRoleHomePath("computer_lab_manager")).toBe("/school/ict-manager");
     expect(getRoleHomePath("school_counsellor")).toBe("/school/guidance-counselling");
     expect(getRoleHomePath("school-counsellor")).toBe("/school/guidance-counselling");
     expect(getRoleHomePath("counsellor")).toBe("/school/guidance-counselling");
@@ -67,6 +71,8 @@ describe("SaaS identity role routing", () => {
       "security-officer",
       "transport-manager",
       "laboratory-technician",
+      "student",
+      "ict-manager",
       "discipline-master",
     ];
 
@@ -95,6 +101,10 @@ describe("SaaS identity role routing", () => {
     expect(getSchoolRoleAlias("lab-technician")).toBe("laboratory-technician");
     expect(getSchoolRoleAlias("laboratory_technician")).toBe("laboratory-technician");
     expect(getSchoolRoleAlias("laboratory-technician")).toBeNull();
+    expect(getSchoolRoleAlias("ict_manager")).toBe("ict-manager");
+    expect(getSchoolRoleAlias("computer_lab_manager")).toBe("ict-manager");
+    expect(getSchoolRoleAlias("ict-manager")).toBeNull();
+    expect(getSchoolRoleAlias("student")).toBeNull();
     expect(getSchoolRoleAlias("school_counsellor")).toBe("guidance-counselling");
     expect(getSchoolRoleAlias("school-counsellor")).toBe("guidance-counselling");
     expect(getSchoolRoleAlias("counsellor")).toBe("guidance-counselling");

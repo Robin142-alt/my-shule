@@ -363,6 +363,38 @@ export const practicalRoleProfiles: Record<SchoolExperienceRole, PracticalRolePr
     urgentAlerts: ["Student document checklist missing", "Parent request pending", "Report export ready"],
     emptyState: "No school admin task waiting right now.",
   },
+  student: {
+    title: "Student School Desk",
+    subtitle: "Timetable, assignments, exam results, library books, notices, and teacher messages.",
+    sidebarTitle: "Student Desk",
+    sidebarSubtitle: "Learning and school life",
+    todayContext: "Lessons, assignments, notices, library due dates, exam results, and teacher messages for today.",
+    sectionNoun: "student desk",
+    summaryCards: [
+      { label: "Lessons Today", value: "7", helper: "Next: Mathematics", source: "From timetable", tone: "ok" },
+      { label: "Assignments Due", value: "2", helper: "English and Biology", source: "From teacher records", tone: "warning" },
+      { label: "Library Books", value: "1", helper: "Due Friday", source: "From library records", tone: "warning" },
+      { label: "Unread Notices", value: "3", helper: "Class and school notices", source: "From communication desk", tone: "warning" },
+    ],
+    urgentAlerts: ["Biology assignment due today", "Library book due this week", "Class teacher message unread"],
+    emptyState: "No urgent student task waiting right now.",
+  },
+  "ict-manager": {
+    title: "ICT and Computer Lab Desk",
+    subtitle: "Computers, projectors, routers, printers, software, lab bookings, repairs, and device status.",
+    sidebarTitle: "ICT Desk",
+    sidebarSubtitle: "Devices and labs",
+    todayContext: "Device faults, lab bookings, repair requests, assigned assets, software licences, and network alerts.",
+    sectionNoun: "ICT desk",
+    summaryCards: [
+      { label: "Working Devices", value: "84", helper: "6 under repair", source: "From ICT asset records", tone: "ok" },
+      { label: "Lab Bookings", value: "5", helper: "2 practical sessions today", source: "From lab timetable", tone: "warning" },
+      { label: "Repair Requests", value: "4", helper: "Projector and printers", source: "From staff requests", tone: "warning" },
+      { label: "Network Alerts", value: "1", helper: "Router check pending", source: "From system monitor", tone: "critical" },
+    ],
+    urgentAlerts: ["Router in computer lab needs restart", "Projector repair request pending", "Printer toner issue from secretary"],
+    emptyState: "No ICT device issue waiting right now.",
+  },
 };
 
 export function getPracticalRoleProfile(role: SchoolExperienceRole): PracticalRoleProfile {

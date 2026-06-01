@@ -41,14 +41,19 @@ type StaffLoginForm = z.infer<typeof staffLoginSchema>;
 
 export function SchoolLoginView({
   resolution,
+  initialEmail = "",
+  initialTenantSlug = null,
 }: {
   resolution: SchoolBrandingResolution;
+  initialEmail?: string;
+  initialTenantSlug?: string | null;
 }) {
   const router = useRouter();
   const [rememberMe, setRememberMe] = useState(true);
   const resolvedTenantSlug = resolution.status === "resolved" ? resolution.requestedSlug : null;
+  const effectiveTenantSlug = initialTenantSlug?.trim() || resolvedTenantSlug;
   const authSession = useExperienceSession("school", {
-    tenantSlug: resolvedTenantSlug,
+    tenantSlug: effectiveTenantSlug,
   });
   const {
     register,
@@ -58,7 +63,7 @@ export function SchoolLoginView({
   } = useForm<StaffLoginForm>({
     resolver: zodResolver(staffLoginSchema),
     defaultValues: {
-      identifier: "",
+      identifier: initialEmail.trim().toLowerCase(),
       password: "",
     },
   });
@@ -75,7 +80,7 @@ export function SchoolLoginView({
       : resolution.status === "default"
         ? {
             tone: "warning" as const,
-            title: "School access pending",
+            title: "School account lookup",
             description:
               "Use your email and password. My Shule will open the school linked to your account.",
           }
@@ -95,7 +100,7 @@ export function SchoolLoginView({
       const result = await authSession.login({
         identifier: values.identifier.trim(),
         password: values.password,
-        tenantSlug: resolvedTenantSlug,
+        tenantSlug: effectiveTenantSlug,
       });
       void router.push(result.redirectTo ?? "/dashboard");
     } catch (error) {
@@ -104,7 +109,7 @@ export function SchoolLoginView({
           audience: "school",
           identifier: values.identifier.trim(),
           password: values.password,
-          tenantSlug: resolvedTenantSlug,
+          tenantSlug: effectiveTenantSlug,
           redirectFallback: "/dashboard",
         });
         clearErrors();

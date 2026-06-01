@@ -47,6 +47,8 @@ export const schoolRoleGreetingNames: Record<SchoolExperienceRole, string> = {
   "class-teacher": "Mr. Kamau",
   "grade-master": "Mrs. Atieno",
   admin: "School Admin Naliaka",
+  student: "Brian Otieno",
+  "ict-manager": "ICT Manager Mwangi",
   storekeeper: "Mr. Mutua",
   librarian: "Ms. Chebet",
   nurse: "Nurse Wambui",

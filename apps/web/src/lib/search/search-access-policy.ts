@@ -205,6 +205,12 @@ const rolePolicies: Record<OperationalRoleKey, Omit<SearchAccessPolicy, "roleKey
     forbiddenEntities: ["receipt", "invoice", "mpesa", "healthCase", "counsellingCase", "platformTenant", "systemJob"],
     scopeTags: ["transport"],
   },
+  "ict-manager": {
+    mode: "MODULE_SCOPED",
+    allowedEntities: ["inventory", "document", "incident", "staff"],
+    forbiddenEntities: ["student", "parent", ...financeEntities, ...privateCaseEntities, "platformTenant", "systemJob"],
+    scopeTags: ["ict"],
+  },
   "laboratory-technician": {
     mode: "MODULE_SCOPED",
     allowedEntities: ["class", "subject", "inventory", "document", "incident"],
@@ -281,6 +287,7 @@ export function normalizeOperationalRoleKey(input: string | null | undefined): O
   if (normalized.includes("boarding")) return "boarding-master";
   if (normalized.includes("security")) return "security-officer";
   if (normalized.includes("transport")) return "transport-manager";
+  if (normalized.includes("ict") || normalized.includes("computer-lab")) return "ict-manager";
   if (normalized.includes("laboratory") || normalized.includes("lab")) return "laboratory-technician";
   if (normalized.includes("counsellor") || normalized.includes("counselling")) return "guidance-counselling";
   if (normalized.includes("discipline")) return "discipline-master";

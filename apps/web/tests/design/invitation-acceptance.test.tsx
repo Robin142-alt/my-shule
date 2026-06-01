@@ -56,4 +56,71 @@ describe("invite acceptance", () => {
       }),
     );
   });
+
+  it("sends accepted parent invites to parent login with the invited email filled", async () => {
+    const user = userEvent.setup();
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse({ token: "csrf-accept-invite-token" }))
+      .mockResolvedValueOnce(jsonResponse({
+        success: true,
+        message: "Invitation accepted. You can now sign in.",
+        tenantId: "kisumu-boys",
+        email: "parent@example.test",
+        displayName: "Grace Njeri",
+        role: "Parent",
+      }));
+
+    renderWithProviders(
+      <InviteAcceptanceView
+        initialToken="invite-token-with-enough-entropy-for-production-tests"
+        initialTenantSlug="kisumu-boys"
+      />,
+    );
+
+    await user.type(screen.getByLabelText(/^create password$/i), "StrongPass123");
+    await user.type(screen.getByLabelText(/confirm password/i), "StrongPass123");
+    await user.click(screen.getByRole("button", { name: /accept invitation/i }));
+
+    const loginLink = await screen.findByRole("link", { name: /continue to parent login/i });
+
+    expect(loginLink).toHaveAttribute("href", "/parent/login?email=parent%40example.test&tenant=kisumu-boys");
+    expect(loginLink).not.toHaveAttribute("href", expect.stringContaining("Grace"));
+  });
+
+  it.each([
+    ["Teacher", "/school/login?email=teacher%40example.test&tenant=kisumu-boys"],
+    ["Student", "/school/login?email=student%40example.test&tenant=kisumu-boys"],
+    ["Librarian", "/school/login?email=librarian%40example.test&tenant=kisumu-boys"],
+    ["Transport Manager", "/school/login?email=transport%40example.test&tenant=kisumu-boys"],
+    ["ICT / Computer Lab user", "/school/login?email=ict%40example.test&tenant=kisumu-boys"],
+  ])("sends accepted %s invites to school login", async (role, expectedHref) => {
+    const user = userEvent.setup();
+    const email = decodeURIComponent(expectedHref.match(/email=([^&]+)/)?.[1] ?? "");
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse({ token: "csrf-accept-invite-token" }))
+      .mockResolvedValueOnce(jsonResponse({
+        success: true,
+        message: "Invitation accepted. You can now sign in.",
+        tenantId: "kisumu-boys",
+        email,
+        displayName: `${role} User`,
+        role,
+      }));
+
+    renderWithProviders(
+      <InviteAcceptanceView
+        initialToken="invite-token-with-enough-entropy-for-production-tests"
+        initialTenantSlug="kisumu-boys"
+      />,
+    );
+
+    await user.type(screen.getByLabelText(/^create password$/i), "StrongPass123");
+    await user.type(screen.getByLabelText(/confirm password/i), "StrongPass123");
+    await user.click(screen.getByRole("button", { name: /accept invitation/i }));
+
+    const loginLink = await screen.findByRole("link", { name: /continue to school login/i });
+
+    expect(loginLink).toHaveAttribute("href", expectedHref);
+    expect(loginLink).not.toHaveAttribute("href", expect.stringContaining(`${role} User`));
+  });
 });

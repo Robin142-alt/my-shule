@@ -965,21 +965,29 @@ export class AuthSchemaService implements OnModuleInit {
           status = 'active',
           updated_at = NOW();
 
-        UPDATE student_guardians
-        SET
-          user_id = invited_user_id,
-          status = 'active',
-          accepted_at = COALESCE(accepted_at, NOW()),
-          updated_at = NOW()
-        WHERE tenant_id = invite_tenant_id
-          AND lower(email) = lower(invite_email)
-          AND (user_id IS NULL OR user_id = invited_user_id)
-          AND status IN ('invited', 'active');
+        IF invite_role_code = 'parent' THEN
+          UPDATE student_guardians
+          SET
+            user_id = invited_user_id,
+            status = 'active',
+            accepted_at = COALESCE(accepted_at, NOW()),
+            updated_at = NOW()
+          WHERE tenant_id = invite_tenant_id
+            AND lower(email) = lower(invite_email)
+            AND (user_id IS NULL OR user_id = invited_user_id)
+            AND status IN ('invited', 'active');
+        END IF;
 
         UPDATE auth_action_tokens
         SET
           consumed_at = NOW(),
-          user_id = invited_user_id
+          user_id = invited_user_id,
+          metadata = auth_action_tokens.metadata || jsonb_build_object(
+            'status', 'accepted',
+            'accepted_at', NOW(),
+            'accepted_by_user_id', invited_user_id,
+            'accepted_role_code', invite_role_code
+          )
         WHERE id = token_id;
 
         RETURN QUERY
