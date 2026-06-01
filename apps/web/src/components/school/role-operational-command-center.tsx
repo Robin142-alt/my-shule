@@ -1383,6 +1383,18 @@ function isCommandWorkspace(workspace: string, index: number) {
   return index === 0 || normalized === "command center" || normalized === "overview" || normalized === "dashboard";
 }
 
+function isPrimaryRoleWorkspace(workspace: string, index: number) {
+  const normalized = workspace.trim().toLowerCase();
+
+  return (
+    index === 0
+    || normalized === "command center"
+    || normalized === "overview"
+    || normalized === "dashboard"
+    || /command center|dashboard overview/.test(normalized)
+  );
+}
+
 function isDiagnosticsWorkspace(workspace: string) {
   return /audit|logs|system health|infrastructure|school updates|failed items/i.test(workspace);
 }
@@ -4877,17 +4889,18 @@ function GenericRoleOperationalCommandCenter({
   const resolvedWorkspace = sidebarItems.includes(activeWorkspace) ? activeWorkspace : sidebarItems[0] ?? "Command Center";
   const activeWorkspaceIndex = Math.max(0, sidebarItems.indexOf(resolvedWorkspace));
   const activeWorkspaceKind = workspaceKind(role, resolvedWorkspace);
-  const isNurseClinicWorkspace = role === "nurse" && (activeWorkspaceKind === "clinic" || /clinic command center/i.test(resolvedWorkspace));
-  const isAdmissionsWorkspace = role === "admissions" && (activeWorkspaceKind === "admissions" || /admissions command center/i.test(resolvedWorkspace));
-  const isLibraryWorkspace = role === "librarian" && (activeWorkspaceKind === "library" || /library command center|library operations|library desk/i.test(resolvedWorkspace));
-  const isStorekeeperWorkspace = role === "storekeeper" && (activeWorkspaceKind === "inventory" || /store command center|inventory command center|inventory operations|store desk|stock/i.test(resolvedWorkspace));
-  const isBoardingWorkspace = role === "boarding-master" && (activeWorkspaceKind === "boarding" || /boarding command center|hostel|dorm|roll call/i.test(resolvedWorkspace));
-  const isTransportWorkspace = role === "transport-manager" && (activeWorkspaceKind === "transport" || /dashboard overview|transport|fleet|route|vehicle/i.test(resolvedWorkspace));
-  const isLaboratoryWorkspace = role === "laboratory-technician" && (activeWorkspaceKind === "laboratory" || /dashboard|laboratory|lab|chemical|apparatus|practical|safety/i.test(resolvedWorkspace));
-  const isAccountantWorkspace = (role === "accountant" || role === "bursar") && (activeWorkspaceKind === "finance" || /dashboard|fee|finance|receipt|payment|m-pesa|mpesa|balance/i.test(resolvedWorkspace));
-  const isSecretaryWorkspace = (role === "secretary" || role === "admin") && (activeWorkspaceKind === "command" || activeWorkspaceKind === "communication" || /dashboard|front office|visitor|parent|document|appointment|communication/i.test(resolvedWorkspace));
-  const isDisciplineWorkspace = role === "discipline-master" && (activeWorkspaceKind === "command" || activeWorkspaceKind === "discipline" || /dashboard|incident|case|discipline|prefect|deputy|counsellor|evidence/i.test(resolvedWorkspace));
-  const isCounsellingWorkspace = role === "guidance-counselling" && (activeWorkspaceKind === "command" || activeWorkspaceKind === "counselling" || /dashboard|counselling|counseling|wellness|session|referral|follow-up|parent|welfare|risk/i.test(resolvedWorkspace));
+  const primaryRoleWorkspace = isPrimaryRoleWorkspace(resolvedWorkspace, activeWorkspaceIndex);
+  const isNurseClinicWorkspace = primaryRoleWorkspace && role === "nurse" && (activeWorkspaceKind === "clinic" || /clinic command center/i.test(resolvedWorkspace));
+  const isAdmissionsWorkspace = primaryRoleWorkspace && role === "admissions" && (activeWorkspaceKind === "admissions" || /admissions command center/i.test(resolvedWorkspace));
+  const isLibraryWorkspace = primaryRoleWorkspace && role === "librarian" && (activeWorkspaceKind === "library" || /library command center|library operations|library desk/i.test(resolvedWorkspace));
+  const isStorekeeperWorkspace = primaryRoleWorkspace && role === "storekeeper" && (activeWorkspaceKind === "inventory" || /store command center|inventory command center|inventory operations|store desk|stock/i.test(resolvedWorkspace));
+  const isBoardingWorkspace = primaryRoleWorkspace && role === "boarding-master" && (activeWorkspaceKind === "boarding" || /boarding command center|hostel|dorm|roll call/i.test(resolvedWorkspace));
+  const isTransportWorkspace = primaryRoleWorkspace && role === "transport-manager" && (activeWorkspaceKind === "transport" || /dashboard overview|transport|fleet|route|vehicle/i.test(resolvedWorkspace));
+  const isLaboratoryWorkspace = primaryRoleWorkspace && role === "laboratory-technician" && (activeWorkspaceKind === "laboratory" || /dashboard|laboratory|lab|chemical|apparatus|practical|safety/i.test(resolvedWorkspace));
+  const isAccountantWorkspace = primaryRoleWorkspace && (role === "accountant" || role === "bursar") && (activeWorkspaceKind === "finance" || /dashboard|fee|finance|receipt|payment|m-pesa|mpesa|balance/i.test(resolvedWorkspace));
+  const isSecretaryWorkspace = primaryRoleWorkspace && (role === "secretary" || role === "admin") && (activeWorkspaceKind === "command" || activeWorkspaceKind === "communication" || /dashboard|front office|visitor|parent|document|appointment|communication/i.test(resolvedWorkspace));
+  const isDisciplineWorkspace = primaryRoleWorkspace && role === "discipline-master" && (activeWorkspaceKind === "command" || activeWorkspaceKind === "discipline" || /dashboard|incident|case|discipline|prefect|deputy|counsellor|evidence/i.test(resolvedWorkspace));
+  const isCounsellingWorkspace = primaryRoleWorkspace && role === "guidance-counselling" && (activeWorkspaceKind === "command" || activeWorkspaceKind === "counselling" || /dashboard|counselling|counseling|wellness|session|referral|follow-up|parent|welfare|risk/i.test(resolvedWorkspace));
   const isUserManagementWorkspace = role === "deputy-principal" && /user|invitation|invite|role|permission/i.test(resolvedWorkspace);
   const diagnosticsWorkspace = isDiagnosticsWorkspace(resolvedWorkspace);
   const commandWorkspace = isCommandWorkspace(resolvedWorkspace, activeWorkspaceIndex);
@@ -7734,7 +7747,7 @@ function GenericRoleOperationalCommandCenter({
               <div className="flex flex-wrap gap-2">
                 <StatusPill label={`${visibleQueueContract.items.length} tasks`} tone="warning" />
                 <StatusPill label={`${tableContract.rows.length} records`} tone="ok" />
-                <StatusPill label="Updates saved" tone="ok" />
+                <StatusPill label="School-scoped" tone="ok" />
               </div>
             </div>
 

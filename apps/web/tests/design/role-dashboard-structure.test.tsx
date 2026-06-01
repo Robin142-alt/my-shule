@@ -377,7 +377,7 @@ describe("role dashboard operational structure", () => {
 
     await user.click(within(commandCenter).getByRole("button", { name: /Send Absence SMS/i }));
 
-    expect(await within(commandCenter).findByText(/Send Absence SMS sent from Attendance/i)).toBeVisible();
+    expect(await within(commandCenter).findByText(/Send Absence SMS (is being sent|completed|could not complete) from Attendance/i)).toBeVisible();
   }, 30000);
 
   it("keeps principal overview wide by replacing the permanent approvals rail with a compact approvals card", async () => {
@@ -446,6 +446,35 @@ describe("role dashboard operational structure", () => {
 
     expect(within(commandCenter).queryByRole("button", { name: /Close Deputy Principal menu overlay/i })).not.toBeInTheDocument();
     expect(sidebar?.className ?? "").toMatch(/-translate-x-full/);
+  }, 30000);
+
+  it("does not repeat the same specialized workspace for different role sidebar items", async () => {
+    const user = userEvent.setup();
+
+    const accountant = renderWithProviders(<SchoolPages role="accountant" tenantSlug="kisumu-boys" />);
+
+    const commandCenter = await screen.findByTestId("role-operational-command-center");
+
+    expect(within(commandCenter).getByText(/Record payment and print receipt/i)).toBeVisible();
+
+    await user.click(within(commandCenter).getByRole("button", { name: /Fee Structures/i }));
+
+    expect(within(commandCenter).getAllByText(/^Fee Structures$/i).length).toBeGreaterThanOrEqual(1);
+    expect(within(commandCenter).getByText(/Fee Structures today's work/i)).toBeVisible();
+    expect(within(commandCenter).queryByText(/Record payment and print receipt/i)).not.toBeInTheDocument();
+    accountant.unmount();
+
+    renderWithProviders(<SchoolPages role="librarian" tenantSlug="kisumu-boys" />);
+
+    const libraryCenter = await screen.findByTestId("role-operational-command-center");
+
+    expect(within(libraryCenter).getByText(/Issue or return books quickly/i)).toBeVisible();
+
+    await user.click(within(libraryCenter).getByRole("button", { name: /^Returns/i }));
+
+    expect(within(libraryCenter).getAllByText(/^Returns$/i).length).toBeGreaterThanOrEqual(1);
+    expect(within(libraryCenter).getByText(/Returns today's work/i)).toBeVisible();
+    expect(within(libraryCenter).queryByText(/Issue or return books quickly/i)).not.toBeInTheDocument();
   }, 30000);
 
   it("keeps operational queues page-scrolled and operational tables horizontally scrollable on mobile", async () => {

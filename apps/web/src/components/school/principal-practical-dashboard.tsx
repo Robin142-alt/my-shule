@@ -90,7 +90,7 @@ type ActionLogItem = {
   id: string;
   label: string;
   section: string;
-  status: "Sent" | "Will retry" | "Completed";
+  status: "Queued" | "Will retry" | "Completed";
   detail: string;
 };
 
@@ -967,7 +967,7 @@ function PracticalButton({
   return (
     <button
       type="button"
-      onClick={() => onAction(action, section)}
+      onClick={() => void onAction(action, section)}
       className={`inline-flex items-center justify-center gap-2 rounded-xl border px-3 py-2 text-xs font-black transition hover:-translate-y-0.5 ${actionToneClass(action.tone)}`}
     >
       <ClipboardCheck className="h-3.5 w-3.5" />
@@ -1350,63 +1350,99 @@ export function PrincipalPracticalCommandCenter({
     });
   }, [schoolId]);
 
-  function handleAction(action: PracticalAction, section: PrincipalSection) {
+  async function handleAction(action: PracticalAction, section: PrincipalSection) {
     if (action.target) {
       setActiveSection(action.target);
       setMobileNavOpen(false);
+      setActionNotice(`Opened ${sectionById(action.target, sections).label}.`);
+      return;
     }
 
     const logItem: ActionLogItem = {
       id: `${slug(section.id)}-${slug(action.label)}-${Date.now()}`,
       label: action.label,
       section: section.label,
-      status: "Sent",
-      detail: `${action.label} sent from ${section.label}.`,
+      status: "Queued",
+      detail: `${action.label} is being sent from ${section.label}.`,
     };
 
     setActionLog((items) => [logItem, ...items].slice(0, 8));
-    setActionNotice(`${action.label} sent from ${section.label}.`);
-    publishSchoolOperationalEvent({
-      schoolId,
-      actorRole: "principal",
-      type: "PRINCIPAL_ACTION_SENT",
-      module: section.id,
-      title: action.label,
-      body: `${action.label} sent from ${section.label}.`,
-      entityId: logItem.id,
-      severity: "success",
-      payload: {
-        schoolName,
-        section: section.label,
-        source: section.source,
-      },
-      notifications: [{ audienceRoles: ["principal"], title: action.label }],
-    });
+    setActionNotice(`${action.label} is being sent from ${section.label}.`);
 
-    void dispatchOperationalWorkflowAction({
-      role: "principal",
-      actionId: slug(action.label),
-      workflowBinding: `${section.label} school action`,
-      payload: {
-        schoolName,
-        actionLabel: action.label,
-        section: section.label,
-        source: section.source,
-      },
-    }).catch(() => {
-      setActionNotice(`${action.label} sent from ${section.label}. The system will retry when the school connection is ready.`);
+    try {
+      await dispatchOperationalWorkflowAction({
+        role: "principal",
+        actionId: slug(action.label),
+        workflowBinding: `${section.label} school action`,
+        payload: {
+          schoolName,
+          actionLabel: action.label,
+          section: section.label,
+          source: section.source,
+        },
+      });
+      const completedDetail = `${action.label} completed from ${section.label}.`;
+
+      setActionNotice(completedDetail);
+      setActionLog((items) =>
+        items.map((item) =>
+          item.id === logItem.id
+            ? {
+                ...item,
+                status: "Completed",
+                detail: completedDetail,
+              }
+            : item,
+        ),
+      );
+      publishSchoolOperationalEvent({
+        schoolId,
+        actorRole: "principal",
+        type: "PRINCIPAL_ACTION_COMPLETED",
+        module: section.id,
+        title: action.label,
+        body: completedDetail,
+        entityId: logItem.id,
+        severity: "success",
+        payload: {
+          schoolName,
+          section: section.label,
+          source: section.source,
+        },
+        notifications: [{ audienceRoles: ["principal"], title: action.label }],
+      });
+    } catch {
+      const retryDetail = `${action.label} could not complete from ${section.label}. The system will retry when the school connection is ready.`;
+
+      setActionNotice(retryDetail);
       setActionLog((items) =>
         items.map((item) =>
           item.id === logItem.id
             ? {
                 ...item,
                 status: "Will retry",
-                detail: `${action.label} sent from ${section.label}. The system will retry when the school connection is ready.`,
+                detail: retryDetail,
               }
             : item,
         ),
       );
-    });
+      publishSchoolOperationalEvent({
+        schoolId,
+        actorRole: "principal",
+        type: "PRINCIPAL_ACTION_SAVED_FOR_RETRY",
+        module: section.id,
+        title: `${action.label} needs retry`,
+        body: retryDetail,
+        entityId: logItem.id,
+        severity: "warning",
+        payload: {
+          schoolName,
+          section: section.label,
+          source: section.source,
+        },
+        notifications: [{ audienceRoles: ["principal", "system-monitor"], title: `${action.label} needs retry`, severity: "warning" }],
+      });
+    }
   }
 
   function openSearchResult(section: PrincipalSection, actionLabel: string) {
