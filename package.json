@@ -73,6 +73,7 @@
     "audit:coverage-review": "node -r ts-node/register/transpile-only -r tsconfig-paths/register apps/api/src/scripts/audit-coverage-review.ts",
     "monitor:synthetic": "node -r ts-node/register/transpile-only -r tsconfig-paths/register apps/api/src/scripts/synthetic-journey-monitor.ts",
     "smoke:providers": "node -r ts-node/register/transpile-only -r tsconfig-paths/register apps/api/src/scripts/provider-credential-smoke.ts",
+    "smoke:production-auth": "node scripts/production-auth-smoke.mjs",
     "ops:incident-drill": "node -r ts-node/register/transpile-only -r tsconfig-paths/register apps/api/src/scripts/incident-drill.ts",
     "release:readiness": "npm run build && node dist/apps/api/src/scripts/release-readiness-gate.js",
     "maintainability:scan": "node -r ts-node/register/transpile-only -r tsconfig-paths/register apps/api/src/scripts/maintainability-scan.ts",
