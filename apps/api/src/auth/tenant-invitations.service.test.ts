@@ -1,9 +1,43 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, ValidationPipe } from '@nestjs/common';
 
+import { CreateTenantInvitationDto } from './dto/tenant-invitation.dto';
 import { TenantInvitationsService } from './tenant-invitations.service';
+
+test('CreateTenantInvitationDto accepts school assignment fields sent by the user management form', async () => {
+  const pipe = new ValidationPipe({
+    whitelist: true,
+    transform: true,
+    forbidNonWhitelisted: true,
+  });
+
+  const dto = await pipe.transform(
+    {
+      email: 'teacher@example.test',
+      display_name: 'Teacher One',
+      role_code: 'teacher',
+      phone: '+254725236545',
+      department: 'Science',
+      assignment: 'Form 2 West Mathematics',
+      identifier: 'TSC-90871',
+      delivery_method: 'Email',
+      note: 'Invite to manage Form 2 West lessons.',
+    },
+    {
+      type: 'body',
+      metatype: CreateTenantInvitationDto,
+    },
+  );
+
+  assert.equal(dto.phone, '+254725236545');
+  assert.equal(dto.department, 'Science');
+  assert.equal(dto.assignment, 'Form 2 West Mathematics');
+  assert.equal(dto.identifier, 'TSC-90871');
+  assert.equal(dto.delivery_method, 'Email');
+  assert.equal(dto.note, 'Invite to manage Form 2 West lessons.');
+});
 
 test('TenantInvitationsService sends a tenant-scoped role invitation without exposing the token', async () => {
   const queries: Array<{ text: string; values: unknown[] }> = [];
@@ -80,6 +114,12 @@ test('TenantInvitationsService sends a tenant-scoped role invitation without exp
     email: 'Teacher@Example.test',
     display_name: 'Teacher One',
     role_code: 'teacher',
+    phone: '+254725236545',
+    department: 'Science',
+    assignment: 'Form 2 West Mathematics',
+    identifier: 'TSC-90871',
+    delivery_method: 'Email',
+    note: 'Invite to manage Form 2 West lessons.',
   });
 
   assert.deepEqual(baselines, ['green-valley']);
@@ -104,6 +144,15 @@ test('TenantInvitationsService sends a tenant-scoped role invitation without exp
   const tokenMetadata = JSON.parse(String(tokenInsert?.values[5] ?? '{}'));
   assert.equal(tokenMetadata.role_name, 'Teacher');
   assert.equal(tokenMetadata.invited_by_display_name, 'Principal Wanjiku');
+  assert.equal(tokenMetadata.phone, '+254725236545');
+  assert.equal(tokenMetadata.department, 'Science');
+  assert.equal(tokenMetadata.assignment, 'Form 2 West Mathematics');
+  assert.equal(tokenMetadata.identifier, 'TSC-90871');
+  assert.equal(tokenMetadata.delivery_method, 'Email');
+  assert.equal(tokenMetadata.note, 'Invite to manage Form 2 West lessons.');
+  assert.equal(response.phone, '+254725236545');
+  assert.equal(response.department, 'Science');
+  assert.equal(response.assignment, 'Form 2 West Mathematics');
   const outboxInsert = queries.find((query) => query.text.includes('INSERT INTO auth_email_outbox'));
   const markDeliveryQuery = queries.find((query) => query.text.includes('app.mark_auth_email_outbox_delivery'));
   assert.match(markDeliveryQuery?.text ?? '', /\$1::uuid,\s*\$2::text/);
@@ -111,6 +160,7 @@ test('TenantInvitationsService sends a tenant-scoped role invitation without exp
   const outboxPayload = JSON.parse(String(outboxInsert?.values[3] ?? '{}'));
   assert.equal(outboxPayload.role_name, 'Teacher');
   assert.equal(outboxPayload.invited_by_display_name, 'Principal Wanjiku');
+  assert.equal(outboxPayload.department, 'Science');
 });
 
 test('TenantInvitationsService rejects unsupported tenant invitation roles before sending email', async () => {

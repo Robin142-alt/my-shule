@@ -30,6 +30,12 @@ type TenantManagedUserRow = {
   role_code: string;
   role_name: string;
   status: 'active' | 'suspended' | 'invited' | 'expired';
+  phone?: string | null;
+  department?: string | null;
+  assignment?: string | null;
+  identifier?: string | null;
+  delivery_method?: string | null;
+  note?: string | null;
   expires_at: Date | string | null;
   created_at: Date | string;
 };
@@ -68,6 +74,7 @@ export class TenantInvitationsService {
     const roleCode = this.normalizeRoleCode(dto.role_code);
     const email = dto.email.trim().toLowerCase();
     const displayName = dto.display_name.trim();
+    const invitationDetails = this.normalizeInvitationDetails(dto);
 
     if (!displayName) {
       throw new BadRequestException('Invitee display name is required.');
@@ -94,6 +101,7 @@ export class TenantInvitationsService {
         invited_by_display_name: inviterName,
         purpose: 'tenant_user_invitation',
         expires_at: expiresAt.toISOString(),
+        ...invitationDetails,
       };
 
       const invitationId = await this.createInvitationAction({
@@ -113,6 +121,7 @@ export class TenantInvitationsService {
         email,
         display_name: displayName,
         role_code: roleCode,
+        ...invitationDetails,
         expires_at: expiresAt.toISOString(),
       });
 
@@ -122,6 +131,7 @@ export class TenantInvitationsService {
         email,
         display_name: displayName,
         role_code: roleCode,
+        ...invitationDetails,
         invitation_sent: true,
         expires_at: expiresAt.toISOString(),
       };
@@ -148,6 +158,12 @@ export class TenantInvitationsService {
             r.code AS role_code,
             r.name AS role_name,
             tm.status,
+            NULL::text AS phone,
+            NULL::text AS department,
+            NULL::text AS assignment,
+            NULL::text AS identifier,
+            NULL::text AS delivery_method,
+            NULL::text AS note,
             NULL::timestamptz AS expires_at,
             tm.created_at
           FROM tenant_memberships tm
@@ -176,6 +192,12 @@ export class TenantInvitationsService {
               WHEN token.expires_at <= NOW() THEN 'expired'
               ELSE 'invited'
             END AS status,
+            NULLIF(token.metadata->>'phone', '') AS phone,
+            NULLIF(token.metadata->>'department', '') AS department,
+            NULLIF(token.metadata->>'assignment', '') AS assignment,
+            NULLIF(token.metadata->>'identifier', '') AS identifier,
+            NULLIF(token.metadata->>'delivery_method', '') AS delivery_method,
+            NULLIF(token.metadata->>'note', '') AS note,
             token.expires_at,
             token.created_at
           FROM auth_action_tokens token
@@ -211,6 +233,12 @@ export class TenantInvitationsService {
             role_code,
             role_name,
             status,
+            phone,
+            department,
+            assignment,
+            identifier,
+            delivery_method,
+            note,
             expires_at,
             created_at
           FROM pending_invitations
@@ -223,6 +251,12 @@ export class TenantInvitationsService {
             role_code,
             role_name,
             status,
+            phone,
+            department,
+            assignment,
+            identifier,
+            delivery_method,
+            note,
             expires_at,
             created_at
           FROM current_members
@@ -407,6 +441,12 @@ export class TenantInvitationsService {
           r.code AS role_code,
           r.name AS role_name,
           tm.status,
+          NULL::text AS phone,
+          NULL::text AS department,
+          NULL::text AS assignment,
+          NULL::text AS identifier,
+          NULL::text AS delivery_method,
+          NULL::text AS note,
           NULL::timestamptz AS expires_at,
           tm.created_at
       `,
@@ -458,6 +498,12 @@ export class TenantInvitationsService {
           r.code AS role_code,
           r.name AS role_name,
           tm.status,
+          NULL::text AS phone,
+          NULL::text AS department,
+          NULL::text AS assignment,
+          NULL::text AS identifier,
+          NULL::text AS delivery_method,
+          NULL::text AS note,
           NULL::timestamptz AS expires_at,
           tm.created_at
       `,
@@ -487,6 +533,52 @@ export class TenantInvitationsService {
     }
 
     return normalizedRoleCode as TenantInvitableRoleCode;
+  }
+
+  private normalizeInvitationDetails(
+    dto: CreateTenantInvitationDto,
+  ): {
+    phone?: string;
+    department?: string;
+    assignment?: string;
+    identifier?: string;
+    delivery_method?: 'Email' | 'SMS' | 'Copy link';
+    note?: string;
+  } {
+    const details: {
+      phone?: string;
+      department?: string;
+      assignment?: string;
+      identifier?: string;
+      delivery_method?: 'Email' | 'SMS' | 'Copy link';
+      note?: string;
+    } = {};
+
+    if (dto.phone?.trim()) {
+      details.phone = dto.phone.trim();
+    }
+
+    if (dto.department?.trim()) {
+      details.department = dto.department.trim();
+    }
+
+    if (dto.assignment?.trim()) {
+      details.assignment = dto.assignment.trim();
+    }
+
+    if (dto.identifier?.trim()) {
+      details.identifier = dto.identifier.trim();
+    }
+
+    if (dto.delivery_method?.trim()) {
+      details.delivery_method = dto.delivery_method;
+    }
+
+    if (dto.note?.trim()) {
+      details.note = dto.note.trim();
+    }
+
+    return details;
   }
 
   private normalizeSearchTerm(search: string | undefined): string | null {
@@ -712,6 +804,12 @@ export class TenantInvitationsService {
       role_code: row.role_code,
       role_name: row.role_name,
       status: row.status,
+      phone: row.phone ?? null,
+      department: row.department ?? null,
+      assignment: row.assignment ?? null,
+      identifier: row.identifier ?? null,
+      delivery_method: row.delivery_method ?? null,
+      note: row.note ?? null,
       expires_at: this.toIsoStringOrNull(row.expires_at),
       created_at: this.toIsoString(row.created_at),
     };
