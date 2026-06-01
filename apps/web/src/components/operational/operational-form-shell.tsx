@@ -75,7 +75,7 @@ export function OperationalFormShell({
     action: OperationalFormFooterAction,
     contract: OperationalFormContract,
     values: OperationalFormValues,
-  ) => void;
+  ) => void | Promise<void>;
   showExecutionContract?: boolean;
 }) {
   const formId = fieldKey(contract.title);
@@ -88,6 +88,8 @@ export function OperationalFormShell({
     [contract.fields],
   );
   const [notice, setNotice] = useState<string | null>(null);
+  const [noticeTone, setNoticeTone] = useState<"success" | "warning" | "danger">("success");
+  const [busyAction, setBusyAction] = useState<OperationalFormFooterAction | null>(null);
   const [values, setValues] = useState<OperationalFormValues>(() => {
     if (typeof window === "undefined") {
       return defaultValues;
@@ -149,6 +151,25 @@ export function OperationalFormShell({
       rows,
       footer: "Generated from MyShule school desk. Confirm details before filing.",
     });
+  }
+
+  async function runAction(action: OperationalFormFooterAction, nextValues: OperationalFormValues) {
+    setBusyAction(action);
+
+    try {
+      await onAction?.(action, contract, nextValues);
+      setNoticeTone(action === "Save Draft" ? "warning" : "success");
+      setNotice(
+        action === "Save Draft"
+          ? "Draft saved locally for this school. It will not be treated as submitted until you submit it."
+          : `${action} completed after the connected workflow responded.`,
+      );
+    } catch (error) {
+      setNoticeTone("danger");
+      setNotice(error instanceof Error ? error.message : `${action} failed. Try again.`);
+    } finally {
+      setBusyAction(null);
+    }
   }
 
   function setFieldValue(field: OperationalFormField, value: string) {
@@ -231,8 +252,9 @@ export function OperationalFormShell({
           }
 
           clearDraft();
-          setNotice("Form submitted. Related records are being updated.");
-          onAction?.("Submit", contract, nextValues);
+          setNoticeTone("warning");
+          setNotice("Saving...");
+          void runAction("Submit", nextValues);
         }}
       >
         <div className="flex items-start gap-3">
@@ -295,53 +317,76 @@ export function OperationalFormShell({
                     setErrors({});
                     clearDraft();
                     currentForm?.reset();
+                    setNoticeTone("warning");
                     setNotice("Form cleared. No school record was changed.");
                     return;
                   } else if (action === "Preview") {
+                    setNoticeTone("warning");
                     setNotice("Preview prepared from the current form details.");
                   } else if (action === "Print") {
                     printValues(nextValues, `${contract.title} print copy`);
+                    setNoticeTone("success");
                     setNotice("Print copy prepared from the current form details.");
                   } else if (action === "Save Draft") {
                     persistDraft(nextValues);
-                    setNotice("Draft saved. It now appears in Today's Work.");
+                    void runAction(action, nextValues);
+                    return;
                   } else if (action === "Send SMS") {
                     if (!validate(nextValues)) {
+                      setNoticeTone("danger");
                       setNotice("Check the highlighted fields before sending SMS.");
                       return;
                     }
-                    setNotice("SMS queued for the selected contact.");
+                    setNoticeTone("warning");
+                    setNotice("Queuing SMS...");
+                    void runAction(action, nextValues);
+                    return;
                   } else if (action === "Preview Print") {
                     if (!validate(nextValues)) {
+                      setNoticeTone("danger");
                       setNotice("Check the highlighted fields before preparing the print preview.");
                       return;
                     }
                     printValues(nextValues, `${contract.title} print preview`);
+                    setNoticeTone("success");
                     setNotice("Printable preview prepared.");
                   } else if (action === "Submit for Approval") {
                     if (!validate(nextValues)) {
+                      setNoticeTone("danger");
                       setNotice("Check the highlighted fields before submitting for approval.");
                       return;
                     }
-                    setNotice("Submitted for approval and added to the review queue.");
+                    setNoticeTone("warning");
+                    setNotice("Submitting for approval...");
+                    void runAction(action, nextValues);
+                    return;
                   }
 
-                  onAction?.(action, contract, nextValues);
+                  if (action !== "Preview" && action !== "Print" && action !== "Preview Print") {
+                    void runAction(action, nextValues);
+                  }
                 }
               }}
+              disabled={busyAction !== null}
               className={`rounded-[var(--radius-xs)] border px-3 py-2 text-xs font-bold transition hover:-translate-y-0.5 ${
                 action === "Submit" || action === "Submit for Approval" || action === "Send SMS"
                   ? "border-accent/25 bg-accent-soft text-accent"
                   : "border-border bg-surface text-foreground"
               }`}
             >
-              {action}
+              {busyAction === action ? `${action}...` : action}
             </button>
           ))}
         </div>
 
         {notice ? (
-          <div className="mt-4 rounded-[var(--radius-sm)] border border-success/20 bg-success-soft px-3 py-2 text-xs font-bold text-success">
+          <div className={`mt-4 rounded-[var(--radius-sm)] border px-3 py-2 text-xs font-bold ${
+            noticeTone === "danger"
+              ? "border-danger/20 bg-danger-soft text-danger"
+              : noticeTone === "warning"
+                ? "border-warning/20 bg-warning-soft text-warning"
+                : "border-success/20 bg-success-soft text-success"
+          }`}>
             {notice}
           </div>
         ) : null}

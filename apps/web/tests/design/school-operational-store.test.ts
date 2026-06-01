@@ -5,6 +5,7 @@ import {
   createNotification,
   getSchoolScopedStorageKey,
   publishSchoolOperationalEvent,
+  publishSchoolOperationalEventAndSync,
   readSchoolData,
   retrySchoolOperationalEventSyncQueue,
   simulateSms,
@@ -69,7 +70,7 @@ describe("school operational store", () => {
       expect.objectContaining({ audienceRoles: ["principal", "parent"], read: false }),
     ]);
     expect(readSchoolData("smsLogs", "kb-high")).toEqual([
-      expect.objectContaining({ recipient: "0712345678", status: "Sent" }),
+      expect.objectContaining({ recipient: "0712345678", status: "Queued" }),
     ]);
   });
 
@@ -148,6 +149,95 @@ describe("school operational store", () => {
     );
     expect(readSchoolData<SchoolOperationalEventSyncStatus>("eventSyncStatus", "kb-high")).toEqual([
       expect.objectContaining({ eventId: event.id, status: "Synced" }),
+    ]);
+  });
+
+  it("returns truthful sync status before UI claims a school operation is saved", async () => {
+    const fetchMock = jest.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+
+      if (url === "/api/auth/csrf") {
+        return jsonResponse({ token: "csrf-token" });
+      }
+
+      if (url === "/api/events/school-operations") {
+        return jsonResponse({ status: "accepted" }, { status: 202 });
+      }
+
+      return jsonResponse({ message: "Unexpected request" }, { status: 404 });
+    });
+    Object.defineProperty(window, "fetch", {
+      configurable: true,
+      value: fetchMock,
+    });
+    Object.defineProperty(globalThis, "fetch", {
+      configurable: true,
+      value: fetchMock,
+    });
+
+    const result = await publishSchoolOperationalEventAndSync({
+      schoolId: "kb-high",
+      type: "DISCIPLINE_PARENT_SMS_REQUESTED",
+      module: "discipline",
+      actorRole: "discipline-master",
+      title: "Parent notification requested",
+      body: "Guardian should receive the discipline case notice.",
+      entityId: "case-77",
+      severity: "warning",
+      notifications: [{ audienceRoles: ["parent"], title: "Discipline case notice" }],
+      sms: [{ recipient: "0712345678", message: "Please check discipline notice for Brian Otieno." }],
+    });
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        status: "Synced",
+        event: expect.objectContaining({ type: "DISCIPLINE_PARENT_SMS_REQUESTED" }),
+      }),
+    );
+    expect(readSchoolData<SchoolOperationalEventSyncStatus>("eventSyncStatus", "kb-high")).toEqual([
+      expect.objectContaining({ eventId: result.event.id, status: "Synced" }),
+    ]);
+  });
+
+  it("returns queued sync status when backend persistence fails", async () => {
+    const fetchMock = jest.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+
+      if (url === "/api/auth/csrf") {
+        return jsonResponse({ token: "csrf-token" });
+      }
+
+      if (url === "/api/events/school-operations") {
+        return jsonResponse({ message: "Database temporarily unavailable" }, { status: 503 });
+      }
+
+      return jsonResponse({ message: "Unexpected request" }, { status: 404 });
+    });
+    Object.defineProperty(window, "fetch", {
+      configurable: true,
+      value: fetchMock,
+    });
+    Object.defineProperty(globalThis, "fetch", {
+      configurable: true,
+      value: fetchMock,
+    });
+
+    const result = await publishSchoolOperationalEventAndSync({
+      schoolId: "kb-high",
+      type: "STORE_ITEM_REQUESTED",
+      module: "inventory",
+      actorRole: "teacher",
+      title: "Exercise books requested",
+      body: "Form 2 West needs exercise books.",
+      entityId: "store-request-queued",
+      severity: "warning",
+      notifications: [{ audienceRoles: ["storekeeper"], title: "Store item requested" }],
+    });
+
+    expect(result.status).toBe("Queued");
+    expect(result.error).toMatch(/Database temporarily unavailable/);
+    expect(readSchoolData<SchoolOperationalEventSyncStatus>("eventSyncStatus", "kb-high")).toEqual([
+      expect.objectContaining({ eventId: result.event.id, status: "Queued" }),
     ]);
   });
 

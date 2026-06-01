@@ -53,7 +53,10 @@ export function OperationalTable({
   loadingMessage?: string;
   emptyMessage?: string;
   errorMessage?: string;
-  onAction?: (action: string, context: { scope: "export" | "print" | "filter" | "sort" | "bulk" | "row"; rowId?: string }) => void;
+  onAction?: (
+    action: string,
+    context: { scope: "export" | "print" | "filter" | "sort" | "bulk" | "row"; rowId?: string },
+  ) => void | Promise<void>;
   showStatePanels?: boolean;
 }) {
   const [rows, setRows] = useState<OperationalTableRow[]>(contract.rows);
@@ -61,6 +64,8 @@ export function OperationalTable({
   const [activeFilter, setActiveFilter] = useState<string | null>(null);
   const [activeSort, setActiveSort] = useState<string>(contract.sortOptions[0] ?? "Newest");
   const [notice, setNotice] = useState<string | null>(null);
+  const [noticeTone, setNoticeTone] = useState<"success" | "warning" | "danger">("success");
+  const [busyAction, setBusyAction] = useState<string | null>(null);
   const [selectedRows, setSelectedRows] = useState<Set<string>>(() => new Set());
   const [detailRow, setDetailRow] = useState<OperationalTableRow | null>(null);
   const [editRow, setEditRow] = useState<OperationalTableRow | null>(null);
@@ -212,7 +217,7 @@ export function OperationalTable({
     );
   }
 
-  function runRowAction(action: string, row: OperationalTableRow) {
+  async function runRowAction(action: string, row: OperationalTableRow) {
     const normalized = action.toLowerCase();
 
     if (/view|open|review|details|audit|history/.test(normalized)) {
@@ -230,7 +235,8 @@ export function OperationalTable({
     } else if (/resolve|mark returned|return|check out|checkout/.test(normalized)) {
       updateRowStatus(row.id, "Resolved", "ok");
     } else if (/sms|notify|reminder|alert/.test(normalized)) {
-      setNotice(`${action} queued for ${row.cells.student ?? row.cells.parent ?? row.cells.visitor ?? row.id}. SMS queued and related records updated.`);
+      setNoticeTone("warning");
+      setNotice(`${action} is being queued for ${row.cells.student ?? row.cells.parent ?? row.cells.visitor ?? row.id}.`);
     } else if (/print|slip|receipt|letter/.test(normalized)) {
       printRows([row], `${action} - ${row.id}`);
     } else if (/export/.test(normalized)) {
@@ -239,10 +245,10 @@ export function OperationalTable({
       updateRowStatus(row.id, `${action} done`, "ok");
     }
 
-    runAction(action, { scope: "row", rowId: row.id });
+    await runAction(action, { scope: "row", rowId: row.id });
   }
 
-  function runAction(
+  async function runAction(
     action: string,
     context: { scope: "export" | "print" | "filter" | "sort" | "bulk" | "row"; rowId?: string },
   ) {
@@ -255,15 +261,33 @@ export function OperationalTable({
           : " after selecting records"
         : "";
 
-    const actionNotice = /sms|notify|reminder|alert/i.test(action)
-      ? `${action}${suffix}: SMS queued. Related records have been updated.`
-      : `${action}${suffix} is ready. Related records have been updated.`;
+    if (!onAction) {
+      if (context.scope === "filter" || context.scope === "sort" || context.scope === "print" || context.scope === "export") {
+        return;
+      }
 
-    setNotice(actionNotice);
-    onAction?.(action, context);
+      setNoticeTone("danger");
+      setNotice(`${action}${suffix} could not complete because no working handler is connected.`);
+      return;
+    }
+
+    setBusyAction(`${context.scope}:${context.rowId ?? "all"}:${action}`);
+    setNoticeTone("warning");
+    setNotice(`${action}${suffix} is being processed...`);
+
+    try {
+      await onAction(action, context);
+      setNoticeTone("success");
+      setNotice(`${action}${suffix} completed after the connected workflow responded.`);
+    } catch (error) {
+      setNoticeTone("danger");
+      setNotice(error instanceof Error ? error.message : `${action}${suffix} failed. Try again.`);
+    } finally {
+      setBusyAction(null);
+    }
   }
 
-  function handleBulkAction(action: string) {
+  async function handleBulkAction(action: string) {
     const targetIds = selectedRows.size ? selectedRows : new Set(visibleRows.map((row) => row.id));
 
     if (/approve/i.test(action)) {
@@ -271,10 +295,11 @@ export function OperationalTable({
         current.map((row) => targetIds.has(row.id) ? { ...row, cells: { ...row.cells, status: "Approved" }, status: { label: "Approved", tone: "ok" } } : row),
       );
     } else if (/sms|reminder|notify/i.test(action)) {
-      setNotice(`${action} queued for ${targetIds.size} record${targetIds.size === 1 ? "" : "s"}.`);
+      setNoticeTone("warning");
+      setNotice(`${action} is being queued for ${targetIds.size} record${targetIds.size === 1 ? "" : "s"}.`);
     }
 
-    runAction(action, { scope: "bulk" });
+    await runAction(action, { scope: "bulk" });
   }
 
   function toggleRow(rowId: string, checked: boolean) {
@@ -321,7 +346,7 @@ export function OperationalTable({
             aria-label={contract.exportLabel}
             onClick={() => {
               exportRows(visibleRows);
-              runAction(contract.exportLabel, { scope: "export" });
+              void runAction(contract.exportLabel, { scope: "export" });
             }}
             className="inline-flex items-center gap-2 rounded-[var(--radius-xs)] border border-border bg-surface px-3 py-2 text-xs font-bold text-foreground transition hover:-translate-y-0.5"
           >
@@ -333,7 +358,7 @@ export function OperationalTable({
             aria-label={contract.printLabel}
             onClick={() => {
               printRows(visibleRows);
-              runAction(contract.printLabel, { scope: "print" });
+              void runAction(contract.printLabel, { scope: "print" });
             }}
             className="inline-flex items-center gap-2 rounded-[var(--radius-xs)] border border-border bg-surface px-3 py-2 text-xs font-bold text-foreground transition hover:-translate-y-0.5"
           >
@@ -353,7 +378,7 @@ export function OperationalTable({
             onChange={(event) => setSearch(event.target.value)}
             onKeyDown={(event) => {
               if (event.key === "Enter") {
-                runAction(`Search ${event.currentTarget.value}`, { scope: "filter" });
+                void runAction(`Search ${event.currentTarget.value}`, { scope: "filter" });
               }
             }}
             placeholder={contract.searchPlaceholder}
@@ -369,7 +394,7 @@ export function OperationalTable({
               aria-pressed={activeFilter === filter}
               onClick={() => {
                 setActiveFilter((current) => current === filter ? null : filter);
-                runAction(filter, { scope: "filter" });
+                void runAction(filter, { scope: "filter" });
               }}
               className={`rounded-[var(--radius-xs)] border px-3 py-2 text-xs font-bold transition hover:-translate-y-0.5 ${
                 activeFilter === filter
@@ -388,7 +413,7 @@ export function OperationalTable({
               aria-pressed={activeSort === sort}
               onClick={() => {
                 setActiveSort(sort);
-                runAction(sort, { scope: "sort" });
+                void runAction(sort, { scope: "sort" });
               }}
               className={`rounded-[var(--radius-xs)] border px-3 py-2 text-xs font-bold transition hover:-translate-y-0.5 ${
                 activeSort === sort
@@ -402,7 +427,7 @@ export function OperationalTable({
           <button
             type="button"
             aria-label="Columns"
-            onClick={() => runAction("Column display checked", { scope: "filter" })}
+            onClick={() => void runAction("Column display checked", { scope: "filter" })}
             className="inline-flex items-center gap-2 rounded-[var(--radius-xs)] border border-border bg-surface px-3 py-2 text-xs font-bold text-muted transition hover:-translate-y-0.5"
           >
             <SlidersHorizontal className="h-3.5 w-3.5" />
@@ -417,7 +442,8 @@ export function OperationalTable({
             key={action}
             type="button"
             aria-label={`Bulk ${action}`}
-            onClick={() => handleBulkAction(action)}
+            disabled={busyAction !== null}
+            onClick={() => void handleBulkAction(action)}
             className="rounded-[var(--radius-xs)] border border-accent/25 bg-accent-soft px-3 py-2 text-xs font-bold text-accent transition hover:-translate-y-0.5"
           >
             {action}
@@ -474,7 +500,8 @@ export function OperationalTable({
                         key={action}
                         type="button"
                         aria-label={`Row ${row.id} ${action}`}
-                        onClick={() => runRowAction(action, row)}
+                        disabled={busyAction !== null}
+                        onClick={() => void runRowAction(action, row)}
                         className="inline-flex items-center gap-1.5 rounded-[var(--radius-xs)] border border-border px-2.5 py-1.5 text-xs font-semibold text-foreground transition hover:-translate-y-0.5"
                       >
                         <Eye className="h-3 w-3 text-accent" />
@@ -503,7 +530,13 @@ export function OperationalTable({
       </div>
 
       {notice ? (
-        <div className="mt-3 rounded-[var(--radius-sm)] border border-success/20 bg-success-soft px-3 py-2 text-xs font-bold text-success">
+        <div className={`mt-3 rounded-[var(--radius-sm)] border px-3 py-2 text-xs font-bold ${
+          noticeTone === "danger"
+            ? "border-danger/20 bg-danger-soft text-danger"
+            : noticeTone === "warning"
+              ? "border-warning/20 bg-warning-soft text-warning"
+              : "border-success/20 bg-success-soft text-success"
+        }`}>
           {notice}
         </div>
       ) : null}
@@ -516,7 +549,7 @@ export function OperationalTable({
             state="DEGRADED"
             message={errorMessage}
             actionLabel="Retry sync"
-            onAction={() => runAction("Retry sync", { scope: "filter" })}
+            onAction={() => void runAction("Retry sync", { scope: "filter" })}
           />
         </div>
       ) : null}
@@ -567,7 +600,8 @@ export function OperationalTable({
                 setRows((current) =>
                   current.map((row) => row.id === editRow.id ? { ...row, cells: { ...row.cells, ...editValues } } : row),
                 );
-                setNotice(`Changes saved for ${editRow.id}.`);
+                setNoticeTone("warning");
+                setNotice(`Changes staged for ${editRow.id}. Use the connected save action to persist it.`);
                 setEditRow(null);
               }}
               className="rounded-[var(--radius-xs)] border border-accent/25 bg-accent-soft px-3 py-2 text-xs font-bold text-accent"
@@ -620,8 +654,9 @@ export function OperationalTable({
                   next.delete(deletedId);
                   return next;
                 });
-                setNotice(`${deletedId} removed from this working list.`);
-                runAction("Delete", { scope: "row", rowId: deletedId });
+                setNoticeTone("warning");
+                setNotice(`${deletedId} removed from this working list. Sending delete action...`);
+                void runAction("Delete", { scope: "row", rowId: deletedId });
                 setDeleteRow(null);
               }}
               className="rounded-[var(--radius-xs)] border border-danger/25 bg-danger-soft px-3 py-2 text-xs font-bold text-danger"

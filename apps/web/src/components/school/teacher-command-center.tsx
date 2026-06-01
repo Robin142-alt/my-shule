@@ -1027,7 +1027,7 @@ export function TeacherCommandCenter({ routeMode }: { routeMode: TeacherRouteMod
       actorRole: "teacher",
       type: "CLASS_SMS_SENT",
       module: "communication",
-      title: `SMS sent to ${record.audience}`,
+      title: `SMS queued for ${record.audience}`,
       body: record.body,
       entityId: newMessage.id,
       severity: "success",
@@ -1043,7 +1043,7 @@ export function TeacherCommandCenter({ routeMode }: { routeMode: TeacherRouteMod
     });
     setMessages((current) => [newMessage, ...current]);
     setActiveAction(null);
-    recordActivity(`SMS sent to ${record.audience}.`);
+    recordActivity(`SMS queued for ${record.audience}.`);
   }
 
   function printSubjectReport() {

@@ -301,7 +301,7 @@ const principalSections: PrincipalSection[] = [
       { label: "Students treated", value: "3", helper: "Today" },
       { label: "Referred cases", value: "1", helper: "Hospital referral slip ready" },
       { label: "Low-stock medicines", value: "2", helper: "ORS and inhalers" },
-      { label: "Parent SMS sent", value: "3", helper: "Guardian notifications" },
+      { label: "Parent SMS queued", value: "3", helper: "Guardian notifications" },
     ],
     actions: [
       { label: "View Sick Bay", target: "sick-bay" },
@@ -549,7 +549,7 @@ const principalSections: PrincipalSection[] = [
       { label: "Assign to Staff Member" },
     ],
     records: [
-      { item: "Fee reminder SMS sent", owner: "Accountant", nextAction: "View record", status: "Done" },
+      { item: "Fee reminder SMS queued", owner: "Accountant", nextAction: "View record", status: "Queued" },
       { item: "Visitor slip printed", owner: "Security Desk", nextAction: "View slip", status: "Done" },
       { item: "Exeat request opened", owner: "Boarding Master", nextAction: "Approve or return", status: "Open" },
     ],
@@ -767,7 +767,7 @@ function buildPrincipalSectionsForSchool(schoolId: string) {
           { label: "Students treated", value: String(clinicVisits.length), helper: "From nurse sick bay records" },
           { label: "Referred cases", value: String(referredClinicVisits.length), helper: "Hospital or parent pickup follow-up" },
           { label: "Low-stock medicines", value: String(lowStockMedicines.length), helper: "Below reorder level" },
-          { label: "Parent SMS sent", value: String(parentAlertsSent), helper: "Guardian notifications" },
+          { label: "Parent SMS queued", value: String(parentAlertsSent), helper: "Guardian notifications" },
         ],
         records: clinicRows.length ? [...clinicRows, ...section.records].slice(0, 8) : section.records,
       } satisfies PrincipalSection;
@@ -1292,7 +1292,7 @@ export function PrincipalPracticalCommandCenter({
   const [, setActionLog] = useState<ActionLogItem[]>([
     {
       id: "seed-fee-sms",
-      label: "Fee reminder SMS sent",
+      label: "Fee reminder SMS queued",
       section: "Fees",
       status: "Completed",
       detail: "42 parents with balances above KSh 10,000 queued for follow-up.",

@@ -507,7 +507,7 @@ const implementation1370RoleEnrichment: Record<DocxRoleId, RolePracticalityEnric
     firstViewport: ["vote heads", "boarding fees", "transport fees", "lunch fees", "M-Pesa confirmation", "principal dashboard"],
     sidebar: ["Vote Heads", "Term Billing", "Boarding Fees", "Transport Fees", "Lunch Fees", "Bursaries", "Refunds"],
     primaryActions: ["Apply Bursary", "Record Partial Payments", "Record Overpayments", "Track Refund", "Confirm M-Pesa"],
-    workflows: ["Payment captured -> Balance updated -> Receipt/SMS sent -> Principal dashboard refreshed"],
+    workflows: ["Payment captured -> Balance updated -> Receipt/SMS queued -> Principal dashboard refreshed"],
     communicationTriggers: ["Parent SMS receipt", "Fee reminder", "Principal dashboard update"],
     printOutputs: ["Daily collection report", "Class fee balance report", "Defaulters list"],
     dependencies: ["vote heads", "transport fees", "boarding fees", "lunch fees", "principal dashboard"],

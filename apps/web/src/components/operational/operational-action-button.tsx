@@ -116,13 +116,18 @@ export function OperationalActionButton({
 
   async function completeAction() {
     setIsSubmitting(true);
-    setLocalNotice(`${action.label} is being sent...`);
+    setLocalNotice(`${action.label} is being processed...`);
 
     try {
-      await onExecute?.(action);
-      setLocalNotice(`${action.label} sent. Related school records refreshed.`);
-    } catch {
-      setLocalNotice(`${action.label} could not complete. Retry remains available.`);
+      if (!onExecute) {
+        throw new Error("No working handler is connected for this action.");
+      }
+
+      await onExecute(action);
+      setLocalNotice(`${action.label} completed after the connected workflow responded.`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "The connected workflow failed.";
+      setLocalNotice(`${action.label} could not complete because ${message}`);
     } finally {
       setIsSubmitting(false);
     }
@@ -174,7 +179,11 @@ export function OperationalActionButton({
         </div>
       ) : null}
       {localNotice ? (
-        <p className="mt-2 rounded-[var(--radius-xs)] border border-success/20 bg-success-soft px-2 py-1.5 text-[10px] font-bold text-success">
+        <p className={`mt-2 rounded-[var(--radius-xs)] border px-2 py-1.5 text-[10px] font-bold ${
+          /could not|failed|no working handler/i.test(localNotice)
+            ? "border-danger/20 bg-danger-soft text-danger"
+            : "border-success/20 bg-success-soft text-success"
+        }`}>
           {localNotice}
         </p>
       ) : null}

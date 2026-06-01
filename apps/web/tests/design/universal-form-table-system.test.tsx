@@ -245,7 +245,7 @@ describe("universal operational form and table system", () => {
     expect(screen.getByText("Faith Akinyi Updated")).toBeVisible();
 
     await user.click(screen.getByRole("button", { name: /row row-2 send sms/i }));
-    expect(screen.getByText(/sms queued/i)).toBeVisible();
+    expect(screen.getByText(/send sms.*completed after the connected workflow responded/i)).toBeVisible();
 
     await user.click(screen.getByRole("button", { name: /export/i }));
     expect(createObjectUrlSpy).toHaveBeenCalled();
@@ -300,7 +300,7 @@ describe("universal operational form and table system", () => {
       expect.objectContaining({ title: "Parent SMS Follow-up" }),
       expect.objectContaining({ student: "Brian Otieno" }),
     );
-    expect(screen.getByText(/form submitted/i)).toBeVisible();
+    expect(screen.getByText(/submit completed after the connected workflow responded/i)).toBeVisible();
 
     await user.click(screen.getByRole("button", { name: /cancel/i }));
     expect(screen.getByLabelText(/student/i)).toHaveValue("");

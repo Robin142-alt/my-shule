@@ -840,7 +840,7 @@ export function buildSchoolErpModel({
       summary: [
         {
           id: "sms-sent",
-          label: "SMS sent today",
+          label: "SMS queued today",
           value: "0",
           helper: "No communication campaigns have been sent yet",
         },

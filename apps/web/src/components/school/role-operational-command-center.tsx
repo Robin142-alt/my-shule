@@ -1901,7 +1901,7 @@ function NurseClinicWorkspace({
     { label: "In Sick Bay", value: String(visits.filter((visit) => visit.status === "In sick bay").length), helper: "Monitoring vitals", Icon: Thermometer, tone: "warning" },
     { label: "Low Stock", value: String(lowStock.length), helper: "Medicine reorder alerts", Icon: Pill, tone: lowStock.length > 0 ? "critical" : "ok" },
     { label: "Referrals", value: String(referrals), helper: "Hospital follow-up", Icon: Hospital, tone: referrals > 0 ? "critical" : "ok" },
-    { label: "Parent Alerts", value: String(parentAlerts), helper: "SMS sent from clinic", Icon: MessageCircle, tone: "ok" },
+    { label: "Parent Alerts", value: String(parentAlerts), helper: "SMS queued from clinic", Icon: MessageCircle, tone: "ok" },
   ];
 
   return (
@@ -2800,7 +2800,7 @@ function BoardingWorkspace({
     { label: "Missing Boarders", value: String(missing.length), helper: "Deputy/security alert needed", tone: missing.length > 0 ? "critical" : "ok", Icon: ShieldCheck },
     { label: "Exeat Requests", value: String(pendingExeats.length), helper: "Parent approval follow-up", tone: pendingExeats.length > 0 ? "warning" : "ok", Icon: ClipboardList },
     { label: "Sick Boarders", value: String(sick.length), helper: "Nurse referral available", tone: sick.length > 0 ? "warning" : "ok", Icon: HeartPulse },
-    { label: "Parent Alerts", value: String(rollCalls.filter((item) => item.parentSmsSent).length), helper: "SMS sent from hostel", tone: "ok", Icon: MessageCircle },
+    { label: "Parent Alerts", value: String(rollCalls.filter((item) => item.parentSmsSent).length), helper: "SMS queued from hostel", tone: "ok", Icon: MessageCircle },
   ];
 
   return (
@@ -5089,10 +5089,11 @@ function GenericRoleOperationalCommandCenter({
           { audienceRoles: ["system-monitor", "principal", role], title: "Action saved for retry", severity: "warning" },
         ],
       });
+      throw new Error(message);
     }
   }
 
-  function executeFormAction(action: OperationalFormFooterAction, contract: OperationalFormContract, formData: OperationalFormValues) {
+  async function executeFormAction(action: OperationalFormFooterAction, contract: OperationalFormContract, formData: OperationalFormValues) {
     const formEntryActions: OperationalFormFooterAction[] = ["Save Draft", "Submit", "Submit for Approval", "Send SMS", "Preview Print"];
     const shouldMaterializeEntry = formEntryActions.includes(action);
     const entryId = runtimeId(`${role}-${slug(resolvedWorkspace)}`);
@@ -5104,7 +5105,7 @@ function GenericRoleOperationalCommandCenter({
       index: contract.footerActions.indexOf(action),
     });
 
-    void executeAction(actionToDispatch, {
+    await executeAction(actionToDispatch, {
       payload: {
         formTitle: contract.title,
         formData,
@@ -5125,8 +5126,8 @@ function GenericRoleOperationalCommandCenter({
     });
   }
 
-  function executeTableAction(action: string, context: { scope: string; rowId?: string }) {
-    void executeAction(actionContract({
+  async function executeTableAction(action: string, context: { scope: string; rowId?: string }) {
+    await executeAction(actionContract({
       role,
       label: action,
       workflowBinding: `${resolvedWorkspace} ${context.scope} action`,
@@ -5257,14 +5258,14 @@ function GenericRoleOperationalCommandCenter({
       type: "CLINIC_PARENT_SMS_SENT",
       module: "clinic",
       title: `${visit?.student ?? "Student"} parent notified`,
-      body: "Guardian SMS sent for sick bay visit.",
+      body: "Guardian SMS queued for sick bay visit.",
       entityId: id,
       severity: "success",
       sms: visit?.guardianPhone ? [{ recipient: visit.guardianPhone, message: `${visit.student} has been attended to at the school sick bay.` }] : undefined,
-      notifications: [{ audienceRoles: ["principal", "class-teacher"], title: "Sick bay parent SMS sent" }],
+      notifications: [{ audienceRoles: ["principal", "class-teacher"], title: "Sick bay parent SMS queued" }],
     });
-    addLocalExecutionLog(`${visit?.student ?? "Student"} parent notified`, ["Parent SMS sent", "Class teacher copy prepared"]);
-    setClinicNotice(`${visit?.student ?? "Student"} parent SMS sent.`);
+    addLocalExecutionLog(`${visit?.student ?? "Student"} parent notified`, ["Parent SMS queued", "Class teacher copy prepared"]);
+    setClinicNotice(`${visit?.student ?? "Student"} parent SMS queued.`);
   }
 
   function referClinicVisit(id: string) {
@@ -5412,8 +5413,8 @@ function GenericRoleOperationalCommandCenter({
         status: shouldOnboard ? "Onboarded" : item.status,
       };
     }));
-    addAdmissionsExecutionLog(`${applicant?.applicant ?? "Applicant"} parent SMS sent`, ["Parent onboarding SMS sent", "Admissions communication log updated"]);
-    setAdmissionsNotice(`${applicant?.applicant ?? "Applicant"} parent SMS sent to ${applicant?.parentPhone ?? "guardian"}.`);
+    addAdmissionsExecutionLog(`${applicant?.applicant ?? "Applicant"} parent SMS queued`, ["Parent onboarding SMS queued", "Admissions communication log updated"]);
+    setAdmissionsNotice(`${applicant?.applicant ?? "Applicant"} parent SMS queued to ${applicant?.parentPhone ?? "guardian"}.`);
   }
 
   function printAdmissionLetter(id: string) {
@@ -5599,15 +5600,15 @@ function GenericRoleOperationalCommandCenter({
     publishDashboardEvent({
       type: "LIBRARY_SMS_SENT",
       module: "library",
-      title: `${loan?.borrower ?? "Borrower"} library SMS sent`,
+      title: `${loan?.borrower ?? "Borrower"} library SMS queued`,
       body: `${loan?.bookTitle ?? "Book"} message sent to parent/student.`,
       entityId: id,
       severity: "success",
       sms: [{ recipient: loan?.admissionNo ?? "student", message: `Library update: ${loan?.bookTitle ?? "book"} requires attention.` }],
-      notifications: [{ audienceRoles: ["parent", "student"], title: "Library SMS sent" }],
+      notifications: [{ audienceRoles: ["parent", "student"], title: "Library SMS queued" }],
     });
-    addLibraryExecutionLog(`${loan?.borrower ?? "Borrower"} library SMS sent`, ["Overdue SMS sent", "Communication log updated"]);
-    setLibraryNotice(`${loan?.borrower ?? "Borrower"} parent/student SMS sent for ${loan?.bookTitle ?? "book"}.`);
+    addLibraryExecutionLog(`${loan?.borrower ?? "Borrower"} library SMS queued`, ["Overdue SMS queued", "Communication log updated"]);
+    setLibraryNotice(`${loan?.borrower ?? "Borrower"} parent/student SMS queued for ${loan?.bookTitle ?? "book"}.`);
   }
 
   function printLibrarySlip(id: string) {
@@ -5876,7 +5877,7 @@ function GenericRoleOperationalCommandCenter({
         sms: [{ recipient: boarderParentRecipient(updatedRecord), message: `Boarding alert: ${updatedRecord.student} is missing from ${updatedRecord.dorm} roll call. The school is following up immediately.` }],
       });
     }
-    addBoardingExecutionLog(`${record?.student ?? "Boarder"} marked missing`, ["Deputy alert ready", "Security alert ready", "Parent SMS sent"]);
+    addBoardingExecutionLog(`${record?.student ?? "Boarder"} marked missing`, ["Deputy alert ready", "Security alert ready", "Parent SMS queued"]);
     setBoardingNotice(`${record?.student ?? "Boarder"} marked missing. Parent, deputy, and security follow-up prepared.`);
   }
 
@@ -5890,16 +5891,16 @@ function GenericRoleOperationalCommandCenter({
       publishDashboardEvent({
         type: "BOARDING_PARENT_SMS_SENT",
         module: "boarding",
-        title: `${updatedRecord.student} boarding SMS sent`,
+        title: `${updatedRecord.student} boarding SMS queued`,
         body: `Parent/guardian was notified about ${updatedRecord.student}'s hostel status.`,
         entityId: id,
         severity: "success",
-        notifications: [{ audienceRoles: ["parent", "boarding-master", "class-teacher"], title: "Boarding parent SMS sent" }],
+        notifications: [{ audienceRoles: ["parent", "boarding-master", "class-teacher"], title: "Boarding parent SMS queued" }],
         sms: [{ recipient: boarderParentRecipient(updatedRecord), message: `Boarding update: ${updatedRecord.student} is currently marked ${updatedRecord.status.toLowerCase()} in ${updatedRecord.dorm}.` }],
       });
     }
-    addBoardingExecutionLog(`${record?.student ?? "Boarder"} parent notified`, ["Parent SMS sent", "Boarding communication log updated"]);
-    setBoardingNotice(`${record?.student ?? "Boarder"} parent SMS sent.`);
+    addBoardingExecutionLog(`${record?.student ?? "Boarder"} parent notified`, ["Parent SMS queued", "Boarding communication log updated"]);
+    setBoardingNotice(`${record?.student ?? "Boarder"} parent SMS queued.`);
   }
 
   function referBoarderToNurse(id: string) {
@@ -5934,7 +5935,7 @@ function GenericRoleOperationalCommandCenter({
         sms: [{ recipient: boarderParentRecipient(updatedRecord), message: `Health update: ${updatedRecord.student} has been referred to the school nurse from ${updatedRecord.dorm}.` }],
       });
     }
-    addBoardingExecutionLog(`${record?.student ?? "Boarder"} referred to nurse`, ["Nurse referral created", "Parent SMS sent", "Class teacher copy ready"]);
+    addBoardingExecutionLog(`${record?.student ?? "Boarder"} referred to nurse`, ["Nurse referral created", "Parent SMS queued", "Class teacher copy ready"]);
     setBoardingNotice(`${record?.student ?? "Boarder"} referred to nurse and parent notified.`);
   }
 
@@ -6113,7 +6114,7 @@ function GenericRoleOperationalCommandCenter({
         sms: [{ recipient: transportParentRecipient(updatedTrip), message: `Transport update: ${updatedTrip.student} has been picked on ${updatedTrip.route}.` }],
       });
     }
-    addTransportExecutionLog(`${trip?.student ?? "Student"} marked picked`, ["Trip attendance updated", "Parent pickup SMS sent"]);
+    addTransportExecutionLog(`${trip?.student ?? "Student"} marked picked`, ["Trip attendance updated", "Parent pickup SMS queued"]);
     setTransportNotice(`${trip?.student ?? "Student"} marked picked. Parent alert sent.`);
   }
 
@@ -6135,7 +6136,7 @@ function GenericRoleOperationalCommandCenter({
         sms: [{ recipient: transportParentRecipient(updatedTrip), message: `Transport update: ${updatedTrip.student} has been dropped at ${updatedTrip.stop}.` }],
       });
     }
-    addTransportExecutionLog(`${trip?.student ?? "Student"} marked dropped`, ["Drop-off saved", "Parent drop-off SMS sent"]);
+    addTransportExecutionLog(`${trip?.student ?? "Student"} marked dropped`, ["Drop-off saved", "Parent drop-off SMS queued"]);
     setTransportNotice(`${trip?.student ?? "Student"} marked dropped. Parent alert sent.`);
   }
 
@@ -6157,7 +6158,7 @@ function GenericRoleOperationalCommandCenter({
         sms: [{ recipient: transportParentRecipient(updatedTrip), message: `Transport update: ${updatedTrip.student} is currently marked ${updatedTrip.status.toLowerCase()} on ${updatedTrip.route}.` }],
       });
     }
-    addTransportExecutionLog(`${trip?.student ?? "Student"} parent transport alert sent`, ["Parent transport SMS sent", "Route communication updated"]);
+    addTransportExecutionLog(`${trip?.student ?? "Student"} parent transport alert queued`, ["Parent transport SMS queued", "Route communication updated"]);
     setTransportNotice(`${trip?.student ?? "Student"} parent transport alert sent.`);
   }
 
@@ -6545,7 +6546,7 @@ function GenericRoleOperationalCommandCenter({
         sms: [{ recipient: labTeacherRecipient(updatedRequest), message: `Lab update: ${updatedRequest.practical} is ready for ${updatedRequest.className}.` }],
       });
     }
-    addLabExecutionLog(`${request?.teacher ?? "Teacher"} lab alert sent`, ["Teacher SMS simulated", "Lab communication log updated"]);
+    addLabExecutionLog(`${request?.teacher ?? "Teacher"} lab alert queued`, ["Teacher SMS queued", "Lab communication log updated"]);
     setLabNotice(`${request?.teacher ?? "Teacher"} alerted about ${request?.practical ?? "the practical"}.`);
   }
 
@@ -6709,15 +6710,15 @@ function GenericRoleOperationalCommandCenter({
     publishDashboardEvent({
       type: "FEE_RECEIPT_SMS_SENT",
       module: "finance",
-      title: `${payment?.student ?? "Parent"} receipt SMS sent`,
-      body: `${payment?.receiptNo ?? "Receipt"} SMS sent to ${balanceRecord?.parentPhone ?? "parent"}.`,
+      title: `${payment?.student ?? "Parent"} receipt SMS queued`,
+      body: `${payment?.receiptNo ?? "Receipt"} SMS queued for ${balanceRecord?.parentPhone ?? "parent"}.`,
       entityId: id,
       severity: "success",
       sms: balanceRecord?.parentPhone && payment ? [{ recipient: balanceRecord.parentPhone, message: `Payment received. Receipt ${payment.receiptNo}. Amount KSh ${payment.amount.toLocaleString("en-KE")}.` }] : undefined,
-      notifications: [{ audienceRoles: ["parent", "secretary"], title: "Receipt SMS sent" }],
+      notifications: [{ audienceRoles: ["parent", "secretary"], title: "Receipt SMS queued" }],
     });
-    addFinanceExecutionLog(`${payment?.student ?? "Parent"} receipt SMS sent`, ["Receipt SMS simulated", "Parent communication updated"]);
-    setFinanceNotice(`${payment?.student ?? "Parent"} receipt SMS sent.`);
+    addFinanceExecutionLog(`${payment?.student ?? "Parent"} receipt SMS queued`, ["Receipt SMS queued", "Parent communication updated"]);
+    setFinanceNotice(`${payment?.student ?? "Parent"} receipt SMS queued.`);
   }
 
   function sendFeeReminder(studentId: string) {
@@ -6745,7 +6746,7 @@ function GenericRoleOperationalCommandCenter({
       sms: student?.parentPhone ? [{ recipient: student.parentPhone, message: `Fee reminder for ${student.student}: balance KSh ${student.balance.toLocaleString("en-KE")}.` }] : undefined,
       notifications: [{ audienceRoles: ["parent", "class-teacher", "principal"], title: "Fee reminder sent", severity: "warning" }],
     });
-    addFinanceExecutionLog(`${student?.student ?? "Student"} fee reminder sent`, ["Fee reminder SMS simulated", "Class teacher copy ready"]);
+    addFinanceExecutionLog(`${student?.student ?? "Student"} fee reminder queued`, ["Fee reminder SMS queued", "Class teacher copy ready"]);
     setFinanceNotice(`${student?.student ?? "Student"} fee reminder sent to ${student?.parentPhone ?? "parent"}.`);
   }
 
@@ -6977,15 +6978,15 @@ function GenericRoleOperationalCommandCenter({
     publishDashboardEvent({
       type: "PARENT_INQUIRY_SMS_SENT",
       module: "front-office",
-      title: `${inquiry?.parent ?? "Parent"} SMS sent`,
-      body: `SMS sent about ${inquiry?.issue ?? "front office request"}.`,
+      title: `${inquiry?.parent ?? "Parent"} SMS queued`,
+      body: `SMS queued about ${inquiry?.issue ?? "front office request"}.`,
       entityId: id,
       severity: "success",
       sms: inquiry?.phone ? [{ recipient: inquiry.phone, message: `MyShule update: ${inquiry.issue} is being handled by ${inquiry.department}.` }] : undefined,
-      notifications: [{ audienceRoles: ["secretary", "principal"], title: "Front office SMS sent" }],
+      notifications: [{ audienceRoles: ["secretary", "principal"], title: "Front office SMS queued" }],
     });
-    addSecretaryExecutionLog(`${inquiry?.parent ?? "Parent"} SMS sent`, ["Parent SMS simulated", "Communication log updated"]);
-    setSecretaryNotice(`${inquiry?.parent ?? "Parent"} SMS sent.`);
+    addSecretaryExecutionLog(`${inquiry?.parent ?? "Parent"} SMS queued`, ["Parent SMS queued", "Communication log updated"]);
+    setSecretaryNotice(`${inquiry?.parent ?? "Parent"} SMS queued.`);
   }
 
   function escalateSecretaryInquiry(id: string) {
@@ -7085,7 +7086,7 @@ function GenericRoleOperationalCommandCenter({
     publishDashboardEvent({
       type: "DISCIPLINE_PARENT_SMS_SENT",
       module: "discipline",
-      title: `${disciplineCase?.student ?? "Student"} parent SMS sent`,
+      title: `${disciplineCase?.student ?? "Student"} parent SMS queued`,
       body: `Parent/guardian notified about ${disciplineCase?.caseType ?? "discipline"} follow-up.`,
       entityId: id,
       severity: "success",
@@ -7093,10 +7094,10 @@ function GenericRoleOperationalCommandCenter({
         recipient: disciplineCase.guardianPhone,
         message: `MyShule discipline update: ${disciplineCase.student} has a ${disciplineCase.caseType} case under follow-up. Please contact the school office.`,
       }] : undefined,
-      notifications: [{ audienceRoles: ["discipline-master", "class-teacher", "deputy-principal"], title: "Discipline parent SMS sent" }],
+      notifications: [{ audienceRoles: ["discipline-master", "class-teacher", "deputy-principal"], title: "Discipline parent SMS queued" }],
     });
-    addDisciplineExecutionLog(`${disciplineCase?.student ?? "Student"} parent SMS sent`, ["Parent SMS simulated", "Communication log updated"]);
-    setDisciplineNotice(`${disciplineCase?.student ?? "Student"} parent SMS sent.`);
+    addDisciplineExecutionLog(`${disciplineCase?.student ?? "Student"} parent SMS queued`, ["Parent SMS queued", "Communication log updated"]);
+    setDisciplineNotice(`${disciplineCase?.student ?? "Student"} parent SMS queued.`);
   }
 
   function referDisciplineCounsellor(id: string) {
@@ -7293,7 +7294,7 @@ function GenericRoleOperationalCommandCenter({
     publishDashboardEvent({
       type: "COUNSELLING_GUARDIAN_SMS_SENT",
       module: "counselling",
-      title: `${session?.student ?? "Student"} guardian SMS sent`,
+      title: `${session?.student ?? "Student"} guardian SMS queued`,
       body: `Guardian notified about counselling follow-up for ${session?.student ?? "student"}.`,
       entityId: id,
       severity: "success",
@@ -7301,10 +7302,10 @@ function GenericRoleOperationalCommandCenter({
         recipient: session.guardianPhone,
         message: `MyShule counselling update: ${session.student} has a ${session.sessionType.toLowerCase()} follow-up scheduled. Please contact the school counsellor if needed.`,
       }] : undefined,
-      notifications: [{ audienceRoles: ["guidance-counselling", "class-teacher", "deputy-principal"], title: "Counselling guardian SMS sent" }],
+      notifications: [{ audienceRoles: ["guidance-counselling", "class-teacher", "deputy-principal"], title: "Counselling guardian SMS queued" }],
     });
-    addCounsellingExecutionLog(`${session?.student ?? "Student"} guardian SMS sent`, ["Guardian SMS simulated", "Communication record updated"]);
-    setCounsellingNotice(`${session?.student ?? "Student"} guardian SMS sent.`);
+    addCounsellingExecutionLog(`${session?.student ?? "Student"} guardian SMS queued`, ["Guardian SMS queued", "Communication record updated"]);
+    setCounsellingNotice(`${session?.student ?? "Student"} guardian SMS queued.`);
   }
 
   function scheduleCounsellingFollowUp(id: string) {

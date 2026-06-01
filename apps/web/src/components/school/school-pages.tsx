@@ -3899,7 +3899,7 @@ function SchoolCommunicationPage({
       ...currentRows,
     ]);
     setSmsError(null);
-    setSmsMessage(`SMS sent to ${trimmedAudience}.`);
+    setSmsMessage(`SMS queued for ${trimmedAudience}.`);
     setMessage("");
     setShowSmsModal(false);
   }

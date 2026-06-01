@@ -211,7 +211,7 @@ const records: KisumuBoysDemoScenario["records"] = {
     "Adrian Onyango asthma follow-up",
     "Noel Otieno football injury referral",
     "Ian Ouma headache treated and returned to class",
-    "Victor Mboya parent medical SMS sent",
+    "Victor Mboya parent medical SMS queued",
     "Calvin Were boarding master notified after clinic visit",
   ]),
   medicineStock: demoRecords("medicine", [
@@ -281,7 +281,7 @@ const records: KisumuBoysDemoScenario["records"] = {
   admissions: demoRecords("admission", [
     "Inquiry captured for Form 1 2026",
     "Application documents verified for new learner",
-    "Interview scheduled and SMS sent",
+    "Interview scheduled and SMS queued",
     "Admission decision ready for principal review",
     "Admission letter and first invoice generated",
   ]),

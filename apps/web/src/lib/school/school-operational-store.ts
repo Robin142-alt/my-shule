@@ -144,6 +144,14 @@ export type PublishSchoolOperationalEventInput = {
   }>;
 };
 
+export type SchoolOperationalEventSyncResult = {
+  event: SchoolOperationalEvent;
+  notifications: SchoolNotification[];
+  sms: SchoolSmsLog[];
+  status: "Synced" | "Queued";
+  error?: string;
+};
+
 type BackendOperationalEventSyncPayload = {
   schoolId: string;
   event: SchoolOperationalEvent;
@@ -620,6 +628,25 @@ async function syncSchoolOperationalEventToBackend(payload: BackendOperationalEv
   }
 }
 
+async function syncSchoolOperationalEventToBackendWithStatus(
+  payload: BackendOperationalEventSyncPayload,
+): Promise<Pick<SchoolOperationalEventSyncResult, "status" | "error">> {
+  if (typeof window === "undefined" || typeof globalThis.fetch === "undefined") {
+    queueBackendEventSync(payload, new Error("Backend sync is only available in the browser."));
+    return { status: "Queued", error: "Backend sync is only available in the browser." };
+  }
+
+  try {
+    await postBackendOperationalEvent(payload);
+    removeQueuedBackendEventSync(payload.schoolId, payload.event.id);
+    return { status: "Synced" };
+  } catch (error) {
+    const message = normalizeErrorMessage(error);
+    queueBackendEventSync(payload, error);
+    return { status: "Queued", error: message };
+  }
+}
+
 export function createNotification(
   input: Omit<SchoolNotification, "id" | "schoolId" | "read" | "createdAt"> & { schoolId?: string | null },
 ) {
@@ -685,14 +712,14 @@ export function simulateSms(input: Omit<SchoolSmsLog, "id" | "schoolId" | "statu
       recipient: input.recipient,
       message: input.message,
       sourceModule: input.sourceModule,
-      status: "Sent",
+      status: "Queued",
       createdAt: nowIso(),
     },
     schoolId,
   );
 }
 
-export function publishSchoolOperationalEvent(input: PublishSchoolOperationalEventInput) {
+function materializeSchoolOperationalEvent(input: PublishSchoolOperationalEventInput) {
   const schoolId = getCurrentSchoolId(input.schoolId);
   const severity = input.severity ?? "info";
   const createdSmsLogs: SchoolSmsLog[] = [];
@@ -794,14 +821,77 @@ export function publishSchoolOperationalEvent(input: PublishSchoolOperationalEve
     createdSmsLogs.push(createdSmsLog);
   });
 
-  void syncSchoolOperationalEventToBackend({
+  return {
     schoolId,
     event,
     notifications: createdNotifications,
     sms: createdSmsLogs,
+  };
+}
+
+export function publishSchoolOperationalEvent(input: PublishSchoolOperationalEventInput) {
+  const materialized = materializeSchoolOperationalEvent(input);
+
+  void syncSchoolOperationalEventToBackend({
+    schoolId: materialized.schoolId,
+    event: materialized.event,
+    notifications: materialized.notifications,
+    sms: materialized.sms,
   });
 
-  return event;
+  return materialized.event;
+}
+
+export async function publishSchoolOperationalEventAndSync(
+  input: PublishSchoolOperationalEventInput,
+): Promise<SchoolOperationalEventSyncResult> {
+  const materialized = materializeSchoolOperationalEvent(input);
+  const syncResult = await syncSchoolOperationalEventToBackendWithStatus({
+    schoolId: materialized.schoolId,
+    event: materialized.event,
+    notifications: materialized.notifications,
+    sms: materialized.sms,
+  });
+
+  return {
+    event: materialized.event,
+    notifications: materialized.notifications,
+    sms: materialized.sms,
+    ...syncResult,
+  };
+}
+
+export function syncExistingSchoolOperationalEvent(input: BackendOperationalEventSyncPayload) {
+  return syncSchoolOperationalEventToBackendWithStatus(input);
+}
+
+export function publishSchoolOperationalEventWithoutBackendSync(input: PublishSchoolOperationalEventInput) {
+  const materialized = materializeSchoolOperationalEvent(input);
+
+  upsertEventSyncStatus({
+    id: `event-sync-status-${materialized.event.id}`,
+    schoolId: materialized.schoolId,
+    eventId: materialized.event.id,
+    endpoint: "/api/events/school-operations",
+    status: "Queued",
+    error: "Backend sync was not attempted.",
+    createdAt: nowIso(),
+    updatedAt: nowIso(),
+  });
+
+  return materialized.event;
+}
+
+/*
+ * Backward-compatible alias for older UI surfaces that still expect fire-and-forget behavior.
+ */
+export function queueSchoolOperationalEventSync(input: BackendOperationalEventSyncPayload) {
+  void syncSchoolOperationalEventToBackend({
+    schoolId: input.schoolId,
+    event: input.event,
+    notifications: input.notifications,
+    sms: input.sms,
+  });
 }
 
 export function mergeSchoolRecordsById<T extends { id: string }>(baseRecords: T[], storedRecords: T[]) {

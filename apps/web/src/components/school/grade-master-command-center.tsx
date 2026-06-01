@@ -658,7 +658,7 @@ function ParentsWorkspace() {
         <div className="rounded-2xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
           <h3 className="font-black text-[#071D49]">Communication logs</h3>
           <div className="mt-3 space-y-2 text-sm font-semibold text-[#64748B]">
-            <p>SMS sent: absenteeism reminder.</p>
+            <p>SMS queued: absenteeism reminder.</p>
             <p>Contact note logged: parent meeting confirmed.</p>
             <p>Email queued: academic intervention summary.</p>
           </div>

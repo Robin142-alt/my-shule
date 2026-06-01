@@ -33,10 +33,11 @@ export function OperationalQueue({
   onExecute,
 }: {
   contract: OperationalQueueContract;
-  onExecute?: (action: OperationalActionContract) => void;
+  onExecute?: (action: OperationalActionContract) => void | Promise<void>;
 }) {
   const [items, setItems] = useState(() => contract.items);
   const [notice, setNotice] = useState<string | null>(null);
+  const [noticeTone, setNoticeTone] = useState<"success" | "warning" | "danger">("success");
 
   function updateItemPriority(itemId: string, label: string, tone: StatusTone) {
     setItems((current) =>
@@ -44,8 +45,19 @@ export function OperationalQueue({
     );
   }
 
-  function executeAction(action: OperationalActionContract, item?: OperationalQueueItem) {
+  async function executeAction(action: OperationalActionContract, item?: OperationalQueueItem) {
     const normalized = action.label.toLowerCase();
+
+    if (!onExecute) {
+      setNoticeTone("danger");
+      setNotice(`${action.label} could not complete because no working handler is connected.`);
+      throw new Error("No working handler is connected for this action.");
+    }
+
+    setNoticeTone("warning");
+    setNotice(`${action.label} is being processed...`);
+
+    await onExecute(action);
 
     if (item) {
       if (/approve/.test(normalized)) {
@@ -85,7 +97,7 @@ export function OperationalQueue({
       setNotice(`${action.label} completed for this queue.`);
     }
 
-    onExecute?.(action);
+    setNoticeTone("success");
   }
 
   return (
@@ -111,7 +123,13 @@ export function OperationalQueue({
       </div>
 
       {notice ? (
-        <div className="mt-3 rounded-[var(--radius-sm)] border border-success/20 bg-success-soft px-3 py-2 text-xs font-bold text-success">
+        <div className={`mt-3 rounded-[var(--radius-sm)] border px-3 py-2 text-xs font-bold ${
+          noticeTone === "danger"
+            ? "border-danger/20 bg-danger-soft text-danger"
+            : noticeTone === "warning"
+              ? "border-warning/20 bg-warning-soft text-warning"
+              : "border-success/20 bg-success-soft text-success"
+        }`}>
           {notice}
         </div>
       ) : null}
