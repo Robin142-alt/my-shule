@@ -127,7 +127,7 @@ export class AuthService {
     }
 
     const audience = this.requireTenantScopedAudience(dto.audience);
-    const user = await this.usersRepository.findByEmail(dto.email);
+    const user = await this.resolveLoginUser(dto.email);
 
     if (!user || user.status !== 'active') {
       throw new UnauthorizedException('Invalid email or password');
@@ -642,6 +642,17 @@ export class AuthService {
     }
 
     return tenantId;
+  }
+
+  private async resolveLoginUser(email: string): Promise<UserEntity | null> {
+    const requestContext = this.requestContext.getStore();
+    const currentTenantId = requestContext?.tenant_id;
+
+    if (currentTenantId && this.requiresCurrentTenantMembership(requestContext.tenant_source)) {
+      return this.usersRepository.findActiveTenantUserByEmail(currentTenantId, email);
+    }
+
+    return this.usersRepository.findByEmail(email);
   }
 
   private async resolveLoginMembership(userId: string): Promise<TenantMembershipEntity> {

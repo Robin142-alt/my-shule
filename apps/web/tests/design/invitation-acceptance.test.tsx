@@ -83,16 +83,16 @@ describe("invite acceptance", () => {
 
     const loginLink = await screen.findByRole("link", { name: /continue to parent login/i });
 
-    expect(loginLink).toHaveAttribute("href", "/parent/login?email=parent%40example.test&tenant=kisumu-boys");
+    expect(loginLink).toHaveAttribute("href", "/parent/login?accepted=1&email=parent%40example.test&tenant=kisumu-boys");
     expect(loginLink).not.toHaveAttribute("href", expect.stringContaining("Grace"));
   });
 
   it.each([
-    ["Teacher", "/school/login?email=teacher%40example.test&tenant=kisumu-boys"],
-    ["Student", "/school/login?email=student%40example.test&tenant=kisumu-boys"],
-    ["Librarian", "/school/login?email=librarian%40example.test&tenant=kisumu-boys"],
-    ["Transport Manager", "/school/login?email=transport%40example.test&tenant=kisumu-boys"],
-    ["ICT / Computer Lab user", "/school/login?email=ict%40example.test&tenant=kisumu-boys"],
+    ["Teacher", "/school/login?accepted=1&email=teacher%40example.test&tenant=kisumu-boys"],
+    ["Student", "/school/login?accepted=1&email=student%40example.test&tenant=kisumu-boys"],
+    ["Librarian", "/school/login?accepted=1&email=librarian%40example.test&tenant=kisumu-boys"],
+    ["Transport Manager", "/school/login?accepted=1&email=transport%40example.test&tenant=kisumu-boys"],
+    ["ICT / Computer Lab user", "/school/login?accepted=1&email=ict%40example.test&tenant=kisumu-boys"],
   ])("sends accepted %s invites to school login", async (role, expectedHref) => {
     const user = userEvent.setup();
     const email = decodeURIComponent(expectedHref.match(/email=([^&]+)/)?.[1] ?? "");

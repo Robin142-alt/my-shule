@@ -73,7 +73,7 @@ export class UsersRepository {
   async findActiveTenantUserByEmail(tenantId: string, email: string): Promise<UserEntity | null> {
     const result = await this.databaseService.query<UserRow>(
       `
-        SELECT u.id, u.tenant_id, u.email, u.password_hash, u.display_name, u.status, u.created_at, u.updated_at
+        SELECT u.id, u.tenant_id, u.email, u.password_hash, u.display_name, u.status, u.email_verified_at, u.mfa_enabled, u.mfa_verified_at, u.created_at, u.updated_at
         FROM users u
         INNER JOIN tenant_memberships tm
           ON tm.user_id = u.id

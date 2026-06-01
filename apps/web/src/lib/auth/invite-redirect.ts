@@ -23,6 +23,8 @@ export function buildInviteLoginHref(input: {
   const email = input.email?.trim().toLowerCase();
   const tenantId = input.tenantId?.trim();
 
+  params.set("accepted", "1");
+
   if (email) {
     params.set("email", email);
   }

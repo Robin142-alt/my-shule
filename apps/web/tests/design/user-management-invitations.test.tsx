@@ -116,6 +116,7 @@ describe("school-scoped user management and invitations", () => {
     await user.selectOptions(roleSelect, "Teacher");
     await user.type(within(commandCenter).getByLabelText(/Department/i), "Mathematics");
     await user.type(within(commandCenter).getByLabelText(/Class, grade, stream, or subject assignment/i), "Form 2 West");
+    await user.type(within(commandCenter).getByLabelText(/Optional note\/message/i), "Bring TSC number during onboarding.");
     await user.click(within(commandCenter).getByRole("button", { name: /Send Invitation/i }));
 
     expect(await within(commandCenter).findByText(/Invitation email sent to Grace Njeri/i)).toBeVisible();
@@ -127,6 +128,7 @@ describe("school-scoped user management and invitations", () => {
             schoolId: "kisumu-boys",
             invitedName: "Grace Njeri",
             role: "Teacher",
+            note: "Bring TSC number during onboarding.",
             invitationStatus: "Pending",
             invitedByRole: "Principal",
           }),

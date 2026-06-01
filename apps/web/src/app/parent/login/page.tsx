@@ -38,6 +38,7 @@ export default async function ParentLoginPage({
   const resolvedSearchParams = (await searchParams) ?? {};
   const initialEmail = readSearchParam(resolvedSearchParams, "email").trim();
   const initialTenantSlug = readSearchParam(resolvedSearchParams, "tenant").trim() || null;
+  const acceptedInvite = readSearchParam(resolvedSearchParams, "accepted").trim() === "1";
 
   return (
     <AuthShell
@@ -74,6 +75,7 @@ export default async function ParentLoginPage({
         mode="parent"
         initialEmail={initialEmail}
         initialTenantSlug={initialTenantSlug}
+        acceptedInvite={acceptedInvite}
       />
     </AuthShell>
   );

@@ -270,11 +270,14 @@ describe("enterprise authentication flows", () => {
         resolution={resolveSchoolBranding("myshule.online")}
         initialEmail="teacher.invited@example.test"
         initialTenantSlug="kisumu-boys"
+        acceptedInvite
       />,
     );
 
     expect(screen.getByLabelText(/email address/i)).toHaveValue("teacher.invited@example.test");
     expect(screen.queryByText(/school access pending/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/Use the password you just created/i)).toBeVisible();
+    expect(screen.getByLabelText(/^password$/i)).toHaveAttribute("autocomplete", "new-password");
 
     await user.type(screen.getByLabelText(/^password$/i), "managed-by-vault");
     await user.click(screen.getByRole("button", { name: /sign in securely/i }));

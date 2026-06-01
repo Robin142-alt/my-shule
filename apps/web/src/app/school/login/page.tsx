@@ -40,6 +40,7 @@ export default async function SchoolLoginPage({
   const resolvedSearchParams = (await searchParams) ?? {};
   const initialEmail = readSearchParam(resolvedSearchParams, "email").trim();
   const initialTenantSlug = readSearchParam(resolvedSearchParams, "tenant").trim() || null;
+  const acceptedInvite = readSearchParam(resolvedSearchParams, "accepted").trim() === "1";
   const requestHeaders = await headers();
   const host =
     requestHeaders.get("x-forwarded-host") ??
@@ -81,6 +82,7 @@ export default async function SchoolLoginPage({
         resolution={resolution}
         initialEmail={initialEmail}
         initialTenantSlug={initialTenantSlug}
+        acceptedInvite={acceptedInvite}
       />
     </AuthShell>
   );

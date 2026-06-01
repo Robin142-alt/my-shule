@@ -23,12 +23,12 @@ describe("invite acceptance redirect", () => {
       role: "Teacher",
       email: "Teacher.Invited@Example.Test",
       tenantId: "kisumu-boys",
-    })).toBe("/school/login?email=teacher.invited%40example.test&tenant=kisumu-boys");
+    })).toBe("/school/login?accepted=1&email=teacher.invited%40example.test&tenant=kisumu-boys");
 
     expect(buildInviteLoginHref({
       role: "Parent",
       email: "parent@example.test",
       tenantId: "kisumu-boys",
-    })).toBe("/parent/login?email=parent%40example.test&tenant=kisumu-boys");
+    })).toBe("/parent/login?accepted=1&email=parent%40example.test&tenant=kisumu-boys");
   });
 });

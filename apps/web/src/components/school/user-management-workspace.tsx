@@ -1227,7 +1227,10 @@ export function UserManagementWorkspace({
               Optional note/message
               <textarea
                 value={inviteForm.note}
-                onChange={(event) => setInviteForm((form) => ({ ...form, note: event.currentTarget.value }))}
+                onChange={(event) => {
+                  const value = event.currentTarget.value;
+                  setInviteForm((form) => ({ ...form, note: value }));
+                }}
                 className="min-h-24 rounded-xl border border-[#D7E0EF] bg-white px-3 py-2 text-sm font-semibold text-[#071D49] outline-none focus:border-[#9BC5FF]"
               />
             </label>

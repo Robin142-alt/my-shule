@@ -43,10 +43,12 @@ export function SchoolLoginView({
   resolution,
   initialEmail = "",
   initialTenantSlug = null,
+  acceptedInvite = false,
 }: {
   resolution: SchoolBrandingResolution;
   initialEmail?: string;
   initialTenantSlug?: string | null;
+  acceptedInvite?: boolean;
 }) {
   const router = useRouter();
   const [rememberMe, setRememberMe] = useState(true);
@@ -157,6 +159,14 @@ export function SchoolLoginView({
           description={tenantMessage.description}
         />
 
+        {acceptedInvite ? (
+          <AuthMessage
+            tone="success"
+            title="School access is active"
+            description="Use the password you just created. This login is linked to the invited email and school."
+          />
+        ) : null}
+
         <div className="space-y-4">
           <AuthField
             label="Email address"
@@ -166,7 +176,7 @@ export function SchoolLoginView({
           />
           <AuthPasswordField
             label="Password"
-            autoComplete="current-password"
+            autoComplete={acceptedInvite ? "new-password" : "current-password"}
             {...register("password")}
             error={errors.password?.message}
           />

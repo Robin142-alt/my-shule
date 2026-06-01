@@ -77,10 +77,12 @@ export function PortalLoginView({
   mode = "family",
   initialEmail = "",
   initialTenantSlug = null,
+  acceptedInvite = false,
 }: {
   mode?: PortalMode;
   initialEmail?: string;
   initialTenantSlug?: string | null;
+  acceptedInvite?: boolean;
 }) {
   const router = useRouter();
   const authSession = useExperienceSession("portal", {
@@ -192,6 +194,14 @@ export function PortalLoginView({
           description={loginMode === "otp" ? "Parents can receive a one-time code by SMS where a phone number is linked by the school." : copy.message}
         />
 
+        {acceptedInvite && loginMode === "password" ? (
+          <AuthMessage
+            tone="success"
+            title="Parent access is active"
+            description="Use the password you just created. This login is linked to the invited parent email and school."
+          />
+        ) : null}
+
         <div className="grid grid-cols-2 gap-2 rounded-2xl border border-border bg-surface-muted/80 p-1 text-sm font-bold text-muted">
           <button
             type="button"
@@ -228,7 +238,7 @@ export function PortalLoginView({
           />
           <AuthPasswordField
             label={loginMode === "otp" && challengeId ? "Verification code" : copy.secretLabel}
-            autoComplete={loginMode === "otp" ? "one-time-code" : "current-password"}
+            autoComplete={loginMode === "otp" ? "one-time-code" : acceptedInvite ? "new-password" : "current-password"}
             {...register("secret")}
             error={errors.secret?.message}
           />
