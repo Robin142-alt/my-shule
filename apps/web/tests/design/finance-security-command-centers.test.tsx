@@ -1,4 +1,4 @@
-import { screen } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { AccountantCommandCenter } from "@/components/school/accountant-command-center";
@@ -25,7 +25,20 @@ describe("finance and security command center interactions", () => {
     expect(screen.getByText(/m-pesa qex7abc123 opened in finance section/i)).toBeVisible();
 
     await user.click(screen.getByRole("button", { name: /^export$/i }));
-    expect(screen.getByText(/recent transactions exported for finance review/i)).toBeVisible();
+    const exportPreview = screen.getByRole("dialog", { name: /finance export preview/i });
+    expect(exportPreview).toBeVisible();
+    expect(within(exportPreview).getByText(/recent transactions/i)).toBeVisible();
+    await user.click(screen.getByRole("button", { name: /download csv/i }));
+    expect(screen.getByText(/recent transactions export downloaded/i)).toBeVisible();
+    expect(readSchoolData<Record<string, unknown>>("events", "kb-high")).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          schoolId: "kb-high",
+          type: "FINANCE_EXPORT_DOWNLOADED",
+          module: "finance",
+        }),
+      ]),
+    );
   });
 
   it("makes security search and emergency controls visible as working actions", async () => {

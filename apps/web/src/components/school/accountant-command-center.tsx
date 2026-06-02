@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import {
@@ -42,6 +42,7 @@ import {
 } from "lucide-react";
 
 import { toSchoolPath, type SchoolSection } from "@/lib/routing/experience-routes";
+import { publishSchoolOperationalEvent } from "@/lib/school/school-operational-store";
 
 type AccountantRouteMode = "hosted" | "public";
 type AccountantTheme = "dark" | "light";
@@ -70,6 +71,34 @@ function announceAction(message: string) {
   if (typeof window !== "undefined") {
     window.dispatchEvent(new CustomEvent("myshule-dashboard-action", { detail: message }));
   }
+}
+
+function downloadCsvFile(filename: string, rows: Array<Record<string, string>>) {
+  const headers = Object.keys(rows[0] ?? {});
+  const csv = [
+    headers.join(","),
+    ...rows.map((row) =>
+      headers
+        .map((header) => `"${String(row[header] ?? "").replaceAll('"', '""')}"`)
+        .join(","),
+    ),
+  ].join("\n");
+
+  if (typeof document === "undefined" || typeof Blob === "undefined" || !window.URL?.createObjectURL) {
+    return csv;
+  }
+
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  const url = window.URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.URL.revokeObjectURL(url);
+
+  return csv;
 }
 
 function getSectionLabel(section: AccountantSection) {
@@ -904,7 +933,15 @@ function Charts({ theme }: { theme: AccountantTheme }) {
   );
 }
 
-function Transactions({ theme }: { theme: AccountantTheme }) {
+function Transactions({
+  theme,
+  onOpenFilters,
+  onOpenExport,
+}: {
+  theme: AccountantTheme;
+  onOpenFilters: () => void;
+  onOpenExport: () => void;
+}) {
   const surface = getSurface(theme);
   return (
     <section id="transactions" className={cn("rounded-3xl border p-5 md:p-6", surface.card)}>
@@ -914,11 +951,11 @@ function Transactions({ theme }: { theme: AccountantTheme }) {
         description="Searchable receipt register with parent, learner, method, timestamp, recorder, verification status, and fraud indicators."
         action={
           <div className="flex flex-wrap gap-2">
-            <button type="button" onClick={() => announceAction("Transaction filters opened.")} className={cn("inline-flex items-center gap-2 rounded-2xl border px-4 py-2 text-sm font-black", surface.soft)}>
+            <button type="button" onClick={onOpenFilters} className={cn("inline-flex items-center gap-2 rounded-2xl border px-4 py-2 text-sm font-black", surface.soft)}>
               <Filter className="h-4 w-4" aria-hidden="true" />
               Filters
             </button>
-            <button type="button" onClick={() => announceAction("Recent transactions exported for finance review.")} className="inline-flex items-center gap-2 rounded-2xl bg-[#FF7A1A] px-4 py-2 text-sm font-black text-white shadow-[0_16px_34px_rgba(255,122,26,0.24)]">
+            <button type="button" onClick={onOpenExport} className="inline-flex items-center gap-2 rounded-2xl bg-[#FF7A1A] px-4 py-2 text-sm font-black text-white shadow-[0_16px_34px_rgba(255,122,26,0.24)]">
               <Download className="h-4 w-4" aria-hidden="true" />
               Export
             </button>
@@ -1034,7 +1071,7 @@ function ApprovalAndActivity({ theme }: { theme: AccountantTheme }) {
   );
 }
 
-function ForecastRail({ theme }: { theme: AccountantTheme }) {
+function ForecastRail({ theme, onOpenExport }: { theme: AccountantTheme; onOpenExport: (label: string) => void }) {
   const surface = getSurface(theme);
   return (
     <aside className="space-y-5 xl:sticky xl:top-6">
@@ -1070,7 +1107,7 @@ function ForecastRail({ theme }: { theme: AccountantTheme }) {
         <p className={cn("mt-2 text-sm leading-6", surface.muted)}>Daily, monthly, term, KRA, and export packs are ready for evidence-based review.</p>
         <div className="mt-5 grid gap-2">
           {["Daily Reports", "Monthly Reports", "Term Reports", "KRA Reports", "Export Center"].map((label) => (
-            <button key={label} type="button" onClick={() => announceAction(`${label} opened for finance export.`)} className={cn("rounded-2xl border px-4 py-3 text-left text-sm font-black", surface.soft)}>
+            <button key={label} type="button" onClick={() => onOpenExport(label)} className={cn("rounded-2xl border px-4 py-3 text-left text-sm font-black", surface.soft)}>
               {label}
             </button>
           ))}
@@ -1119,6 +1156,8 @@ export function AccountantCommandCenter({ routeMode }: { routeMode: AccountantRo
   const [theme, setTheme] = useState<AccountantTheme>("dark");
   const [searchTerm, setSearchTerm] = useState("");
   const [notice, setNotice] = useState("Ready for finance desk operations.");
+  const [transactionFiltersOpen, setTransactionFiltersOpen] = useState(false);
+  const [exportPreview, setExportPreview] = useState<string | null>(null);
   const surface = useMemo(() => getSurface(theme), [theme]);
   const searchResults = searchTerm.trim()
     ? accountantSearchRecords.filter((record) => `${record.label} ${record.detail}`.toLowerCase().includes(searchTerm.toLowerCase()))
@@ -1145,6 +1184,70 @@ export function AccountantCommandCenter({ routeMode }: { routeMode: AccountantRo
     }
   }
 
+  function openTransactionFilters() {
+    setTransactionFiltersOpen(true);
+    setNotice("Transaction filters ready. Choose method, status, or date range before applying.");
+  }
+
+  function openFinanceExport(label: string) {
+    setExportPreview(label);
+    setNotice(`${label} export preview prepared.`);
+  }
+
+  function applyTransactionFilters(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setTransactionFiltersOpen(false);
+    setNotice("Transaction filters applied to the current finance register.");
+  }
+
+  function downloadFinanceExport() {
+    if (!exportPreview) {
+      return;
+    }
+
+    const rows = transactions.map((transaction) => ({
+      receipt: transaction.receipt,
+      parent: transaction.parent,
+      student: transaction.student,
+      method: transaction.method,
+      amount: transaction.amount,
+      time: transaction.time,
+      recordedBy: transaction.recordedBy,
+      status: transaction.status,
+    }));
+    const filename = `${exportPreview.toLowerCase().replaceAll(" ", "-")}-kb-high.csv`;
+    downloadCsvFile(filename, rows);
+
+    publishSchoolOperationalEvent({
+      schoolId: "kb-high",
+      type: "FINANCE_EXPORT_DOWNLOADED",
+      module: "finance",
+      actorRole: "Accountant",
+      title: `${exportPreview} export downloaded`,
+      body: `${exportPreview} CSV was generated from the Accountant dashboard for Kisumu Boys High School.`,
+      entityId: `finance-export-${exportPreview.toLowerCase().replaceAll(" ", "-")}`,
+      severity: "success",
+      payload: {
+        report: exportPreview,
+        rowCount: rows.length,
+        filename,
+      },
+      notifications: [
+        {
+          audienceRoles: ["Principal", "Deputy Principal"],
+          title: `${exportPreview} finance export ready`,
+          body: "The accountant generated a finance CSV export for school review.",
+          severity: "info",
+          relatedModule: "finance",
+          relatedRecordId: `finance-export-${exportPreview.toLowerCase().replaceAll(" ", "-")}`,
+        },
+      ],
+    });
+
+    setNotice(`${exportPreview} export downloaded.`);
+    setExportPreview(null);
+  }
+
   return (
     <div className={cn("relative min-h-screen overflow-hidden pb-24 lg:pb-6", surface.page)}>
       <div className="relative grid gap-5 p-3 md:p-5 xl:grid-cols-[300px_minmax(0,1fr)]">
@@ -1164,6 +1267,91 @@ export function AccountantCommandCenter({ routeMode }: { routeMode: AccountantRo
           <div role="status" className={cn("rounded-2xl border px-4 py-3 text-sm font-black", surface.soft)}>
             {notice}
           </div>
+          {transactionFiltersOpen ? (
+            <div role="dialog" aria-modal="true" aria-label="Transaction filters" className={cn("rounded-3xl border p-5", surface.card)}>
+              <form onSubmit={applyTransactionFilters} className="grid gap-4 md:grid-cols-4">
+                <label className="grid gap-2 text-sm font-black">
+                  Payment method
+                  <select className={cn("rounded-2xl border px-4 py-3 text-sm font-bold outline-none", surface.input)} defaultValue="all">
+                    <option value="all">All methods</option>
+                    <option value="M-PESA">M-PESA</option>
+                    <option value="Bank deposit">Bank deposit</option>
+                    <option value="Cash">Cash</option>
+                  </select>
+                </label>
+                <label className="grid gap-2 text-sm font-black">
+                  Verification status
+                  <select className={cn("rounded-2xl border px-4 py-3 text-sm font-bold outline-none", surface.input)} defaultValue="all">
+                    <option value="all">All statuses</option>
+                    <option value="Verified">Verified</option>
+                    <option value="Needs statement">Needs statement</option>
+                    <option value="Manual review">Manual review</option>
+                    <option value="Duplicate watch">Duplicate watch</option>
+                  </select>
+                </label>
+                <label className="grid gap-2 text-sm font-black">
+                  From date
+                  <input className={cn("rounded-2xl border px-4 py-3 text-sm font-bold outline-none", surface.input)} type="date" />
+                </label>
+                <div className="flex items-end gap-2">
+                  <button type="submit" className="min-h-12 rounded-2xl bg-[#FF7A1A] px-4 py-3 text-sm font-black text-white">
+                    Apply filters
+                  </button>
+                  <button type="button" onClick={() => setTransactionFiltersOpen(false)} className={cn("min-h-12 rounded-2xl border px-4 py-3 text-sm font-black", surface.soft)}>
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            </div>
+          ) : null}
+          {exportPreview ? (
+            <div role="dialog" aria-modal="true" aria-label="Finance export preview" className={cn("rounded-3xl border p-5", surface.card)}>
+              <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[0.24em] text-[#FFB36F]">Finance export preview</p>
+                  <h2 className="mt-2 text-2xl font-black">{exportPreview}</h2>
+                  <p className={cn("mt-2 text-sm leading-6", surface.muted)}>
+                    Kisumu Boys High School finance export with receipt number, parent, learner, method, amount, time, recorder, and verification status.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button type="button" onClick={downloadFinanceExport} className="inline-flex min-h-11 items-center gap-2 rounded-2xl bg-[#FF7A1A] px-4 py-2 text-sm font-black text-white">
+                    <Download className="h-4 w-4" aria-hidden="true" />
+                    Download CSV
+                  </button>
+                  <button type="button" onClick={() => setExportPreview(null)} className={cn("min-h-11 rounded-2xl border px-4 py-2 text-sm font-black", surface.soft)}>
+                    Cancel
+                  </button>
+                </div>
+              </div>
+              <div className="mt-5 overflow-x-auto rounded-3xl border border-white/10">
+                <table className="min-w-[760px] w-full text-left text-sm">
+                  <thead className={cn("border-b text-xs font-black uppercase tracking-[0.14em]", surface.divider, surface.muted)}>
+                    <tr>
+                      <th className="px-4 py-3">Receipt</th>
+                      <th className="px-4 py-3">Parent</th>
+                      <th className="px-4 py-3">Student</th>
+                      <th className="px-4 py-3">Method</th>
+                      <th className="px-4 py-3">Amount</th>
+                      <th className="px-4 py-3">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/10">
+                    {transactions.map((transaction) => (
+                      <tr key={transaction.receipt}>
+                        <td className="px-4 py-3 font-black">{transaction.receipt}</td>
+                        <td className={cn("px-4 py-3", surface.muted)}>{transaction.parent}</td>
+                        <td className="px-4 py-3 font-bold">{transaction.student}</td>
+                        <td className={cn("px-4 py-3", surface.muted)}>{transaction.method}</td>
+                        <td className="px-4 py-3 font-black">{transaction.amount}</td>
+                        <td className="px-4 py-3">{transaction.status}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ) : null}
           <Hero theme={theme} />
           <section id="finance-overview" className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             {kpis.map((item) => (
@@ -1175,7 +1363,7 @@ export function AccountantCommandCenter({ routeMode }: { routeMode: AccountantRo
           <div className="grid gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.55fr)]">
             <div className="space-y-5">
               <Charts theme={theme} />
-              <Transactions theme={theme} />
+              <Transactions theme={theme} onOpenFilters={openTransactionFilters} onOpenExport={() => openFinanceExport("Recent transactions")} />
               <SignalGrid id="fraud" title="Fraud detection indicators" description="Duplicate receipts, unauthorized waivers, ghost worker risk, and hidden cash are monitored continuously." rows={fraudSignals} icon={ShieldAlert} theme={theme} />
               <SignalGrid id="student-fees" title="Student fee insights" description="Balances, arrears, installment behavior, and exam clearance pressure are visible by student segment." rows={studentFeeInsights} icon={BookOpenCheck} theme={theme} />
               <SignalGrid id="procurement" title="Procurement monitoring" description="Supplier overbilling, duplicate payments, fuel pressure, and delivery mismatches stay tied to finance controls." rows={procurementRows} icon={BriefcaseBusiness} theme={theme} />
@@ -1193,7 +1381,7 @@ export function AccountantCommandCenter({ routeMode }: { routeMode: AccountantRo
               ]} icon={BarChart3} theme={theme} />
               <ApprovalAndActivity theme={theme} />
             </div>
-            <ForecastRail theme={theme} />
+            <ForecastRail theme={theme} onOpenExport={openFinanceExport} />
           </div>
         </main>
       </div>
