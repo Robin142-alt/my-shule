@@ -1,14 +1,20 @@
-import { screen } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { GradeMasterCommandCenter } from "@/components/school/grade-master-command-center";
 import { HodCommandCenter } from "@/components/school/hod-command-center";
+import { readSchoolData } from "@/lib/school/school-operational-store";
 
 import { renderWithProviders } from "./test-utils";
 
 jest.setTimeout(20000);
 
 describe("academic command center interactions", () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+    window.localStorage.setItem("myshule.currentSchoolId", "kb-high");
+  });
+
   it("makes HOD search and table tools visible as working actions", async () => {
     const user = userEvent.setup();
 
@@ -21,7 +27,22 @@ describe("academic command center interactions", () => {
     expect(screen.getByText(/cat 2 moderation opened in exams & performance/i)).toBeVisible();
 
     await user.click(screen.getAllByRole("button", { name: /export/i })[0]);
-    expect(screen.getByText(/exam overview exported for department records/i)).toBeVisible();
+    const exportDialog = screen.getByRole("dialog", { name: /hod department export/i });
+    expect(exportDialog).toBeVisible();
+    expect(within(exportDialog).getByText(/exam overview/i)).toBeVisible();
+
+    await user.click(within(exportDialog).getByRole("button", { name: /save export request/i }));
+
+    expect(screen.getByText(/exam overview export saved for department records/i)).toBeVisible();
+    expect(readSchoolData<Record<string, unknown>>("events", "kb-high")).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          schoolId: "kb-high",
+          type: "HOD_DEPARTMENT_EXPORT_REQUESTED",
+          module: "academics",
+        }),
+      ]),
+    );
   });
 
   it("makes grade master search and report controls visible as working actions", async () => {

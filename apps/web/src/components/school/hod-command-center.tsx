@@ -23,6 +23,8 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
+import { getCurrentSchoolId, publishSchoolOperationalEvent } from "@/lib/school/school-operational-store";
+
 type HodRouteMode = "hosted" | "public";
 type Tone = "success" | "info" | "warning" | "danger" | "neutral";
 type HodView =
@@ -369,10 +371,12 @@ function DataTable({
   title,
   rows,
   columns,
+  onExport,
 }: {
   title: string;
   rows: ReadonlyArray<readonly string[]>;
   columns: string[];
+  onExport?: (title: string) => void;
 }) {
   return (
     <div className="overflow-hidden rounded-2xl border border-[#D8E0EC] bg-white/80">
@@ -381,7 +385,7 @@ function DataTable({
         <div className="flex gap-2">
           <button type="button" onClick={() => announceAction(`${title} search opened.`)} className="rounded-lg border border-[#D8E0EC] px-3 py-1.5 text-xs font-black text-[#071D49]">Search</button>
           <button type="button" onClick={() => announceAction(`${title} filters opened.`)} className="rounded-lg border border-[#D8E0EC] px-3 py-1.5 text-xs font-black text-[#071D49]">Filters</button>
-          <button type="button" onClick={() => announceAction(`${title} exported for department records.`)} className="rounded-lg border border-[#D8E0EC] px-3 py-1.5 text-xs font-black text-[#071D49]">Export</button>
+          <button type="button" onClick={() => (onExport ? onExport(title) : announceAction(`${title} exported for department records.`))} className="rounded-lg border border-[#D8E0EC] px-3 py-1.5 text-xs font-black text-[#071D49]">Export</button>
         </div>
       </div>
       <div className="overflow-x-auto">
@@ -546,7 +550,7 @@ function SyllabusWorkspace() {
   );
 }
 
-function ExamsWorkspace() {
+function ExamsWorkspace({ onExportAction }: { onExportAction: (tableTitle: string) => void }) {
   return (
     <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
       <Panel title="Exams & Performance Workspace" description="CATs, midterms, end terms, practical exams, departmental mean score, rankings, and stream comparisons." icon={BarChart3}>
@@ -558,6 +562,7 @@ function ExamsWorkspace() {
             ["Midterm", "71%", "Form 2 South", "C+ dominant", "4", "Moderate"],
             ["Practical exam", "74%", "Grade 8 Blue", "B dominant", "8", "Review"],
           ]}
+          onExport={onExportAction}
         />
       </Panel>
       <Panel title="Student risk detection" description="Struggling students, declining trends, and weak topics." icon={AlertTriangle}>
@@ -748,7 +753,13 @@ function SettingsWorkspace() {
   );
 }
 
-function ActiveWorkspace({ activeView }: { activeView: HodView }) {
+function ActiveWorkspace({
+  activeView,
+  onExportAction,
+}: {
+  activeView: HodView;
+  onExportAction: (tableTitle: string) => void;
+}) {
   switch (activeView) {
     case "teachers":
       return <TeachersWorkspace />;
@@ -757,7 +768,7 @@ function ActiveWorkspace({ activeView }: { activeView: HodView }) {
     case "syllabus":
       return <SyllabusWorkspace />;
     case "exams":
-      return <ExamsWorkspace />;
+      return <ExamsWorkspace onExportAction={onExportAction} />;
     case "lessonPlans":
       return <LessonPlansWorkspace />;
     case "attendance":
@@ -787,6 +798,7 @@ export function HodCommandCenter({ routeMode }: { routeMode: HodRouteMode }) {
   const [activeView, setActiveView] = useState<HodView>("overview");
   const [searchTerm, setSearchTerm] = useState("");
   const [notice, setNotice] = useState("Ready for department follow-up.");
+  const [selectedExport, setSelectedExport] = useState<string | null>(null);
   const searchResults = searchTerm.trim()
     ? hodSearchRecords.filter((record) => `${record.label} ${record.detail}`.toLowerCase().includes(searchTerm.toLowerCase()))
     : [];
@@ -814,6 +826,48 @@ export function HodCommandCenter({ routeMode }: { routeMode: HodRouteMode }) {
     setNotice(`${record.label} opened in ${getViewLabel(record.view)}.`);
   }
 
+  function openExportAction(tableTitle: string) {
+    setSelectedExport(tableTitle);
+    setNotice(`${tableTitle} export ready for department review.`);
+  }
+
+  function saveExportRequest() {
+    if (!selectedExport) return;
+
+    const schoolId = getCurrentSchoolId();
+    const exportSlug = selectedExport.toLowerCase().replaceAll(" ", "-");
+
+    publishSchoolOperationalEvent({
+      schoolId,
+      type: "HOD_DEPARTMENT_EXPORT_REQUESTED",
+      module: "academics",
+      actorRole: "Head of Department",
+      title: `${selectedExport} export requested`,
+      body: `Head of Department requested ${selectedExport} export for department records and academic follow-up.`,
+      entityId: `hod-export-${exportSlug}`,
+      severity: "info",
+      payload: {
+        tableTitle: selectedExport,
+        department: "Mathematics",
+        dashboard: "hod",
+      },
+      notifications: [
+        {
+          audienceRoles: ["Dean of Academics", "Exams Manager", "Principal"],
+          title: `${selectedExport} export requested by HOD`,
+          body: "Department export is ready for academic review.",
+          severity: "info",
+          relatedModule: "academics",
+          relatedRecordId: `hod-export-${exportSlug}`,
+          requestStatus: "Completed",
+        },
+      ],
+    });
+
+    setNotice(`${selectedExport} export saved for department records.`);
+    setSelectedExport(null);
+  }
+
   return (
     <div data-route-mode={routeMode} className="h-screen overflow-hidden bg-[#F3F6FA] text-[#071D49]">
       <div className="grid h-full gap-4 p-3 lg:grid-cols-[292px_minmax(0,1fr)]">
@@ -832,7 +886,22 @@ export function HodCommandCenter({ routeMode }: { routeMode: HodRouteMode }) {
               <div role="status" className="rounded-xl border border-[#BFDBFE] bg-[#EEF5FF] px-4 py-3 text-sm font-bold text-[#071D49]">
                 {notice}
               </div>
-              <ActiveWorkspace activeView={activeView} />
+              {selectedExport ? (
+                <div role="dialog" aria-modal="true" aria-label="HOD department export" className="rounded-2xl border border-[#D8E0EC] bg-white p-5 shadow-[0_18px_45px_rgba(7,29,73,0.12)]">
+                  <p className="text-xs font-black uppercase tracking-[0.16em] text-[#64748B]">HOD department export</p>
+                  <h2 className="mt-2 text-2xl font-black text-[#071D49]">{selectedExport}</h2>
+                  <p className="mt-2 text-sm font-semibold leading-6 text-[#64748B]">Save this department export request and notify academic leadership inside this school workspace.</p>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <button type="button" onClick={saveExportRequest} className="min-h-10 rounded-xl bg-[#071D49] px-4 text-sm font-black text-white">
+                      Save export request
+                    </button>
+                    <button type="button" onClick={() => setSelectedExport(null)} className="min-h-10 rounded-xl border border-[#D8E0EC] px-4 text-sm font-black text-[#071D49]">
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+              <ActiveWorkspace activeView={activeView} onExportAction={openExportAction} />
             </div>
           </main>
         </div>
