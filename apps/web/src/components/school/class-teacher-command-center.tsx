@@ -725,6 +725,35 @@ export function ClassTeacherCommandCenter({ routeMode }: { routeMode: ClassTeach
         return;
       }
 
+      publishSchoolOperationalEvent({
+        schoolId: getCurrentSchoolId(),
+        type: "CLASS_PARENT_MESSAGE_QUEUED",
+        module: "communications",
+        actorRole: "Class Teacher",
+        title: `Parent SMS queued for ${learnerAction.learnerName}`,
+        body: guardianMessage.trim(),
+        entityId: learnerAction.learnerName.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
+        severity: "info",
+        payload: {
+          learnerName: learnerAction.learnerName,
+          className: "Form 2 Blue",
+          channel: "SMS",
+          message: guardianMessage.trim(),
+        },
+        notifications: [
+          {
+            audienceRoles: ["Parent", "Deputy Principal"],
+            title: `Class follow-up sent for ${learnerAction.learnerName}`,
+            body: "A class teacher parent SMS was queued for delivery.",
+            severity: "info",
+            relatedModule: "communications",
+            relatedRecordId: learnerAction.learnerName,
+            requiresAction: false,
+            requestStatus: "Pending",
+          },
+        ],
+      });
+
       setNotice(`Parent SMS queued for ${learnerAction.learnerName}.`);
       setLearnerAction(null);
       return;
@@ -734,6 +763,34 @@ export function ClassTeacherCommandCenter({ routeMode }: { routeMode: ClassTeach
       setNotice("Class note cannot be empty.");
       return;
     }
+
+    publishSchoolOperationalEvent({
+      schoolId: getCurrentSchoolId(),
+      type: "CLASS_NOTE_RECORDED",
+      module: "class-teacher",
+      actorRole: "Class Teacher",
+      title: `Class note saved for ${learnerAction.learnerName}`,
+      body: classNote.trim(),
+      entityId: learnerAction.learnerName.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
+      severity: "info",
+      payload: {
+        learnerName: learnerAction.learnerName,
+        className: "Form 2 Blue",
+        note: classNote.trim(),
+      },
+      notifications: [
+        {
+          audienceRoles: ["Deputy Principal", "Grade/Form Master"],
+          title: `Class note recorded for ${learnerAction.learnerName}`,
+          body: "A class teacher note was recorded for follow-up visibility.",
+          severity: "info",
+          relatedModule: "class-teacher",
+          relatedRecordId: learnerAction.learnerName,
+          requiresAction: false,
+          requestStatus: "Completed",
+        },
+      ],
+    });
 
     setNotice(`Class note saved for ${learnerAction.learnerName}.`);
     setLearnerAction(null);

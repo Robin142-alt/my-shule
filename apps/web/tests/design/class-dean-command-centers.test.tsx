@@ -38,6 +38,15 @@ describe("class teacher and dean command center interactions", () => {
     await user.click(screen.getByRole("button", { name: /send message/i }));
 
     expect(screen.getByText(/parent sms queued for aisha njeri/i)).toBeVisible();
+    expect(readSchoolData<Record<string, unknown>>("events", "kb-high")).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          schoolId: "kb-high",
+          type: "CLASS_PARENT_MESSAGE_QUEUED",
+          module: "communications",
+        }),
+      ]),
+    );
 
     await user.click(screen.getAllByRole("button", { name: /^attendance$/i })[0]);
     await user.click(screen.getByRole("button", { name: /bulk present/i }));
