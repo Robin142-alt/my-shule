@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 
 import { ClassTeacherCommandCenter } from "@/components/school/class-teacher-command-center";
 import { DeanAcademicsCommandCenter } from "@/components/school/dean-academics-command-center";
+import { readSchoolData } from "@/lib/school/school-operational-store";
 
 import { renderWithProviders } from "./test-utils";
 
@@ -51,6 +52,20 @@ describe("class teacher and dean command center interactions", () => {
     expect(screen.getByText(/term 2 cat 1 opened in pending reviews/i)).toBeVisible();
 
     await user.click(screen.getByRole("button", { name: /approve batch/i }));
-    expect(screen.getByText(/approve batch started/i)).toBeVisible();
+    const approvalDialog = screen.getByRole("dialog", { name: /dean academic action/i });
+    expect(approvalDialog).toBeVisible();
+    expect(within(approvalDialog).getByText(/approve batch/i)).toBeVisible();
+
+    await user.click(within(approvalDialog).getByRole("button", { name: /save academic action/i }));
+    expect(screen.getByText(/approve batch saved for dean follow-up/i)).toBeVisible();
+    expect(readSchoolData<Record<string, unknown>>("events", "kb-high")).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          schoolId: "kb-high",
+          type: "ACADEMIC_DEAN_ACTION_RECORDED",
+          module: "academics",
+        }),
+      ]),
+    );
   });
 });

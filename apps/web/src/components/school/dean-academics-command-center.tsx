@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import {
   AlertTriangle,
   BookCheck,
@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 
 import type { WidgetState } from "@/lib/capability-engine/school-capability-engine";
+import { publishSchoolOperationalEvent } from "@/lib/school/school-operational-store";
 
 type DeanRouteMode = "hosted" | "public";
 type Tone = "success" | "info" | "warning" | "danger" | "neutral";
@@ -169,12 +170,6 @@ const deanSearchRecords = [
 
 type DeanSearchRecord = (typeof deanSearchRecords)[number];
 
-function announceAction(message: string) {
-  if (typeof window !== "undefined") {
-    window.dispatchEvent(new CustomEvent("myshule-dashboard-action", { detail: message }));
-  }
-}
-
 function getViewLabel(view: DeanView) {
   return navItems.find((item) => item.id === view)?.label ?? "Dean desk";
 }
@@ -233,13 +228,13 @@ function ShellCard({
   );
 }
 
-function ActionButton({ children }: { children: ReactNode }) {
+function ActionButton({ children, onAction }: { children: ReactNode; onAction: (label: string) => void }) {
   const label = typeof children === "string" ? children : "Dean action";
 
   return (
     <button
       type="button"
-      onClick={() => announceAction(`${label} started.`)}
+      onClick={() => onAction(label)}
       className="rounded-xl border border-[#C7D4E6] bg-white px-3 py-2 text-sm font-black text-[#071D49] shadow-sm transition hover:-translate-y-0.5 hover:border-[#0B63CE] hover:text-[#0B63CE]"
     >
       {children}
@@ -422,7 +417,7 @@ function DecisionFlow() {
   );
 }
 
-function PendingReviews({ capability }: { capability: DeanWidgetCapability }) {
+function PendingReviews({ capability, onAction }: { capability: DeanWidgetCapability; onAction: (label: string) => void }) {
   const widget = widgets.find((item) => item.id === "pending")!;
   return (
     <WidgetFrame widget={widget} capability={capability}>
@@ -446,10 +441,10 @@ function PendingReviews({ capability }: { capability: DeanWidgetCapability }) {
         ))}
       </div>
       <div className="mt-4 flex flex-wrap gap-2">
-        <ActionButton>Open review</ActionButton>
-        <ActionButton>Approve batch</ActionButton>
-        <ActionButton>Reject batch</ActionButton>
-        <ActionButton>Return for correction</ActionButton>
+        <ActionButton onAction={onAction}>Open review</ActionButton>
+        <ActionButton onAction={onAction}>Approve batch</ActionButton>
+        <ActionButton onAction={onAction}>Reject batch</ActionButton>
+        <ActionButton onAction={onAction}>Return for correction</ActionButton>
       </div>
     </WidgetFrame>
   );
@@ -629,13 +624,15 @@ function Overview({ capabilities }: { capabilities: Map<DeanView, DeanWidgetCapa
 function ActiveWorkspace({
   activeView,
   capabilities,
+  onDeanAction,
 }: {
   activeView: DeanView;
   capabilities: Map<DeanView, DeanWidgetCapability>;
+  onDeanAction: (label: string) => void;
 }) {
   switch (activeView) {
     case "pending":
-      return <PendingReviews capability={capabilities.get("pending")!} />;
+      return <PendingReviews capability={capabilities.get("pending")!} onAction={onDeanAction} />;
     case "moderation":
       return <Moderation capability={capabilities.get("moderation")!} />;
     case "reports":
@@ -667,6 +664,7 @@ export function DeanAcademicsCommandCenter({
   const [activeView, setActiveView] = useState<DeanView>("overview");
   const [searchTerm, setSearchTerm] = useState("");
   const [notice, setNotice] = useState("Ready for academic review decisions.");
+  const [selectedAction, setSelectedAction] = useState<string | null>(null);
   const searchResults = searchTerm.trim()
     ? deanSearchRecords.filter((record) => `${record.label} ${record.detail}`.toLowerCase().includes(searchTerm.toLowerCase()))
     : [];
@@ -683,18 +681,6 @@ export function DeanAcademicsCommandCenter({
     );
   }, [examsEnabled, rolePermitted]);
 
-  useEffect(() => {
-    function handleDashboardAction(event: Event) {
-      const message = (event as CustomEvent<string>).detail;
-      if (message) {
-        setNotice(message);
-      }
-    }
-
-    window.addEventListener("myshule-dashboard-action", handleDashboardAction);
-    return () => window.removeEventListener("myshule-dashboard-action", handleDashboardAction);
-  }, []);
-
   function openView(view: DeanView) {
     setActiveView(view);
     setNotice(`${getViewLabel(view)} opened.`);
@@ -704,6 +690,48 @@ export function DeanAcademicsCommandCenter({
     setActiveView(record.view);
     setSearchTerm("");
     setNotice(`${record.label} opened in ${getViewLabel(record.view)}.`);
+  }
+
+  function openDeanAction(label: string) {
+    setSelectedAction(label);
+    setNotice(`${label} ready for Dean review.`);
+  }
+
+  function saveDeanAction() {
+    if (!selectedAction) {
+      return;
+    }
+
+    const entityId = `dean-action-${selectedAction.toLowerCase().replaceAll(" ", "-")}`;
+    publishSchoolOperationalEvent({
+      schoolId: "kb-high",
+      type: "ACADEMIC_DEAN_ACTION_RECORDED",
+      module: "academics",
+      actorRole: "Dean of Academics",
+      title: `${selectedAction} recorded`,
+      body: `${selectedAction} was recorded for Term 2 CAT 1 academic review.`,
+      entityId,
+      severity: selectedAction.toLowerCase().includes("reject") ? "warning" : "success",
+      payload: {
+        action: selectedAction,
+        exam: "Term 2 CAT 1",
+        classStream: "Class 7B",
+        workspace: activeView,
+      },
+      notifications: [
+        {
+          audienceRoles: ["Exams Manager", "Principal", "Class Teacher"],
+          title: `${selectedAction} academic review update`,
+          body: "Dean of Academics updated the Term 2 CAT 1 review queue.",
+          severity: selectedAction.toLowerCase().includes("reject") ? "warning" : "info",
+          relatedModule: "academics",
+          relatedRecordId: entityId,
+        },
+      ],
+    });
+
+    setNotice(`${selectedAction} saved for Dean follow-up.`);
+    setSelectedAction(null);
   }
 
   return (
@@ -723,7 +751,28 @@ export function DeanAcademicsCommandCenter({
             <div role="status" className="mb-4 rounded-xl border border-[#BFDBFE] bg-[#EEF5FF] px-4 py-3 text-sm font-bold text-[#071D49]">
               {notice}
             </div>
-            <ActiveWorkspace activeView={activeView} capabilities={capabilities} />
+            {selectedAction ? (
+              <div role="dialog" aria-modal="true" aria-label="Dean academic action" className="mb-4 rounded-2xl border border-[#BFDBFE] bg-white p-5 shadow-[0_18px_50px_rgba(7,29,73,0.1)]">
+                <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                  <div>
+                    <p className="text-xs font-black uppercase tracking-[0.18em] text-[#0B63CE]">Dean academic action</p>
+                    <h2 className="mt-2 text-2xl font-black text-[#071D49]">{selectedAction}</h2>
+                    <p className="mt-2 text-sm leading-6 text-[#64748B]">
+                      Record this action against Term 2 CAT 1, notify Exams Manager and leadership, and keep the academic review trail school-scoped.
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <button type="button" onClick={saveDeanAction} className="min-h-11 rounded-xl bg-[#0B63CE] px-4 py-2 text-sm font-black text-white">
+                      Save academic action
+                    </button>
+                    <button type="button" onClick={() => setSelectedAction(null)} className="min-h-11 rounded-xl border border-[#C7D4E6] bg-white px-4 py-2 text-sm font-black text-[#071D49]">
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : null}
+            <ActiveWorkspace activeView={activeView} capabilities={capabilities} onDeanAction={openDeanAction} />
             <div className="mt-4">
               <ShellCard title="Dean Permission Model" description="This dashboard reviews and routes exam outputs. It never edits marks, publishes results, or overrides principal approval." icon={CheckCircle2}>
                 <div className="grid gap-3 md:grid-cols-4">
