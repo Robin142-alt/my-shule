@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import {
   AlertTriangle,
   Bell,
@@ -138,6 +138,10 @@ const classTeacherSearchRecords = [
 ] satisfies Array<{ id: string; label: string; detail: string; view: TeacherView }>;
 
 type ClassTeacherSearchRecord = (typeof classTeacherSearchRecords)[number];
+type LearnerAction = {
+  learnerName: string;
+  kind: "message" | "note";
+};
 
 function announceAction(message: string) {
   if (typeof window !== "undefined") {
@@ -398,7 +402,13 @@ function HomeWorkspace() {
   );
 }
 
-function MyClassWorkspace() {
+function MyClassWorkspace({
+  onMessageParent,
+  onRecordNote,
+}: {
+  onMessageParent: (learnerName: string) => void;
+  onRecordNote: (learnerName: string) => void;
+}) {
   const [rosterSearch, setRosterSearch] = useState("");
   const visibleStudents = students.filter((student) => student.join(" ").toLowerCase().includes(rosterSearch.toLowerCase()));
 
@@ -440,8 +450,8 @@ function MyClassWorkspace() {
             </div>
             <div className="mt-4 flex flex-wrap gap-2">
               <StatusChip label={`${risk} risk`} tone={risk === "High" ? "danger" : risk === "Medium" ? "warning" : "success"} />
-              <button type="button" onClick={() => announceAction(`Parent message opened for ${name}.`)} className="rounded-full bg-[#071D49] px-3 py-1 text-xs font-black text-white">Message parent</button>
-              <button type="button" onClick={() => announceAction(`Class note opened for ${name}.`)} className="rounded-full border border-[#D8E0EC] bg-white px-3 py-1 text-xs font-black text-[#071D49]">Record note</button>
+              <button type="button" onClick={() => onMessageParent(name)} className="rounded-full bg-[#071D49] px-3 py-1 text-xs font-black text-white">Message parent</button>
+              <button type="button" onClick={() => onRecordNote(name)} className="rounded-full border border-[#D8E0EC] bg-white px-3 py-1 text-xs font-black text-[#071D49]">Record note</button>
             </div>
           </article>
         ))}
@@ -503,12 +513,22 @@ function SimpleWorkspace({
   );
 }
 
-function ActiveWorkspace({ activeView }: { activeView: TeacherView }) {
+function ActiveWorkspace({
+  activeView,
+  onMessageParent,
+  onRecordNote,
+  onPreviewReport,
+}: {
+  activeView: TeacherView;
+  onMessageParent: (learnerName: string) => void;
+  onRecordNote: (learnerName: string) => void;
+  onPreviewReport: (reportName: string) => void;
+}) {
   switch (activeView) {
     case "home":
       return <HomeWorkspace />;
     case "class":
-      return <MyClassWorkspace />;
+      return <MyClassWorkspace onMessageParent={onMessageParent} onRecordNote={onRecordNote} />;
     case "attendance":
       return <AttendanceWorkspace />;
     case "performance":
@@ -563,7 +583,7 @@ function ActiveWorkspace({ activeView }: { activeView: TeacherView }) {
       return (
         <SimpleWorkspace title="Reports workspace" description="Generate attendance, performance, discipline, parent communication, and class summary exports." icon={FileText}>
           {["Attendance PDF", "Performance Excel", "Discipline summary", "Parent communication log", "Term class report", "Print-ready pack"].map((item) => (
-            <button key={item} type="button" onClick={() => announceAction(`${item} generated for Form 2 Blue.`)} className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 text-left font-bold text-[#071D49]">{item}</button>
+            <button key={item} type="button" onClick={() => onPreviewReport(item)} className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 text-left font-bold text-[#071D49]">{item}</button>
           ))}
         </SimpleWorkspace>
       );
@@ -600,6 +620,10 @@ export function ClassTeacherCommandCenter({ routeMode }: { routeMode: ClassTeach
   const [activeView, setActiveView] = useState<TeacherView>("home");
   const [searchTerm, setSearchTerm] = useState("");
   const [notice, setNotice] = useState("Ready for Form 2 Blue daily follow-up.");
+  const [learnerAction, setLearnerAction] = useState<LearnerAction | null>(null);
+  const [guardianMessage, setGuardianMessage] = useState("Please review today's class follow-up and reply through MyShule.");
+  const [classNote, setClassNote] = useState("");
+  const [reportPreview, setReportPreview] = useState<string | null>(null);
   const searchResults = searchTerm.trim()
     ? classTeacherSearchRecords.filter((record) => `${record.label} ${record.detail}`.toLowerCase().includes(searchTerm.toLowerCase()))
     : [];
@@ -627,6 +651,48 @@ export function ClassTeacherCommandCenter({ routeMode }: { routeMode: ClassTeach
     setNotice(`${record.label} opened in ${getViewLabel(record.view)}.`);
   }
 
+  function openParentMessage(learnerName: string) {
+    setGuardianMessage(`Hello, please review ${learnerName}'s class follow-up in MyShule today.`);
+    setLearnerAction({ learnerName, kind: "message" });
+  }
+
+  function openClassNote(learnerName: string) {
+    setClassNote(`${learnerName}: `);
+    setLearnerAction({ learnerName, kind: "note" });
+  }
+
+  function openReportPreview(reportName: string) {
+    setReportPreview(reportName);
+    setNotice(`${reportName} preview prepared for Form 2 Blue.`);
+  }
+
+  function submitLearnerAction(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!learnerAction) {
+      return;
+    }
+
+    if (learnerAction.kind === "message") {
+      if (!guardianMessage.trim()) {
+        setNotice("Message cannot be empty.");
+        return;
+      }
+
+      setNotice(`Parent SMS queued for ${learnerAction.learnerName}.`);
+      setLearnerAction(null);
+      return;
+    }
+
+    if (!classNote.trim()) {
+      setNotice("Class note cannot be empty.");
+      return;
+    }
+
+    setNotice(`Class note saved for ${learnerAction.learnerName}.`);
+    setLearnerAction(null);
+  }
+
   return (
     <div data-route-mode={routeMode} className="h-screen overflow-hidden bg-[#F3F6FA] text-[#071D49]">
       <div className="grid h-full gap-4 p-3 lg:grid-cols-[292px_minmax(0,1fr)]">
@@ -644,11 +710,117 @@ export function ClassTeacherCommandCenter({ routeMode }: { routeMode: ClassTeach
               <div role="status" className="rounded-xl border border-[#BFDBFE] bg-[#EEF5FF] px-4 py-3 text-sm font-bold text-[#071D49]">
                 {notice}
               </div>
-              <ActiveWorkspace activeView={activeView} />
+              <ActiveWorkspace
+                activeView={activeView}
+                onMessageParent={openParentMessage}
+                onRecordNote={openClassNote}
+                onPreviewReport={openReportPreview}
+              />
             </div>
           </main>
         </div>
       </div>
+      {learnerAction ? (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-[#071D49]/45 p-4">
+          <form
+            role="dialog"
+            aria-modal="true"
+            aria-label={learnerAction.kind === "message" ? "Send parent message" : "Record class note"}
+            onSubmit={submitLearnerAction}
+            className="w-full max-w-lg rounded-2xl border border-[#D8E0EC] bg-white p-5 shadow-2xl"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.14em] text-[#64748B]">Form 2 Blue</p>
+                <h2 className="mt-1 text-xl font-black text-[#071D49]">
+                  {learnerAction.kind === "message" ? "Send parent message" : "Record class note"}
+                </h2>
+                <p className="mt-1 text-sm font-semibold text-[#64748B]">{learnerAction.learnerName}</p>
+              </div>
+              <button type="button" onClick={() => setLearnerAction(null)} className="rounded-lg border border-[#D8E0EC] px-3 py-1.5 text-xs font-black text-[#071D49]">
+                Cancel
+              </button>
+            </div>
+            {learnerAction.kind === "message" ? (
+              <label className="mt-4 grid gap-1 text-sm font-bold text-[#40608F]">
+                Message to guardian
+                <textarea
+                  value={guardianMessage}
+                  onChange={(event) => setGuardianMessage(event.currentTarget.value)}
+                  required
+                  rows={5}
+                  className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] px-3 py-2 text-sm font-semibold text-[#071D49] outline-none focus:border-[#9BC5FF]"
+                />
+              </label>
+            ) : (
+              <label className="mt-4 grid gap-1 text-sm font-bold text-[#40608F]">
+                Class note
+                <textarea
+                  value={classNote}
+                  onChange={(event) => setClassNote(event.currentTarget.value)}
+                  required
+                  rows={5}
+                  className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] px-3 py-2 text-sm font-semibold text-[#071D49] outline-none focus:border-[#9BC5FF]"
+                />
+              </label>
+            )}
+            <div className="mt-4 flex flex-wrap justify-end gap-2">
+              <button type="button" onClick={() => setLearnerAction(null)} className="rounded-xl border border-[#D8E0EC] bg-white px-4 py-2 text-sm font-black text-[#071D49]">
+                Cancel
+              </button>
+              <button type="submit" className="rounded-xl bg-[#FF7A1A] px-4 py-2 text-sm font-black text-white">
+                {learnerAction.kind === "message" ? "Send Message" : "Save Note"}
+              </button>
+            </div>
+          </form>
+        </div>
+      ) : null}
+      {reportPreview ? (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-[#071D49]/45 p-4">
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-label="Class report preview"
+            className="w-full max-w-2xl rounded-2xl border border-[#D8E0EC] bg-white p-5 shadow-2xl"
+          >
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.14em] text-[#64748B]">Kisumu Boys High School</p>
+                <h2 className="mt-1 text-xl font-black text-[#071D49]">Class report preview</h2>
+                <p className="mt-1 text-sm font-semibold text-[#64748B]">Form 2 Blue - {reportPreview}</p>
+              </div>
+              <button type="button" onClick={() => setReportPreview(null)} className="rounded-lg border border-[#D8E0EC] px-3 py-1.5 text-xs font-black text-[#071D49]">
+                Cancel
+              </button>
+            </div>
+            <div className="mt-4 rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
+              <div className="grid gap-3 text-sm md:grid-cols-2">
+                <p><strong>Prepared by:</strong> Mr. Kamau</p>
+                <p><strong>Term:</strong> Term 2 2026</p>
+                <p><strong>Students:</strong> 46</p>
+                <p><strong>Attendance:</strong> 94% present today</p>
+                <p><strong>Parent follow-ups:</strong> 5 pending</p>
+                <p><strong>Document ref:</strong> CT-F2B-{reportPreview.toUpperCase().replace(/[^A-Z0-9]+/g, "-")}</p>
+              </div>
+            </div>
+            <div className="mt-4 flex flex-wrap justify-end gap-2">
+              <button type="button" onClick={() => setReportPreview(null)} className="rounded-xl border border-[#D8E0EC] bg-white px-4 py-2 text-sm font-black text-[#071D49]">
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setNotice(`${reportPreview} ready for printing.`);
+                  setReportPreview(null);
+                }}
+                className="rounded-xl bg-[#FF7A1A] px-4 py-2 text-sm font-black text-white"
+              >
+                Print Preview
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
     </div>
   );
 }

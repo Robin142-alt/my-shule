@@ -1,4 +1,5 @@
 import { screen } from "@testing-library/react";
+import { within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { ClassTeacherCommandCenter } from "@/components/school/class-teacher-command-center";
@@ -24,7 +25,18 @@ describe("class teacher and dean command center interactions", () => {
     expect(screen.getByText(/Aisha Njeri/i)).toBeVisible();
 
     await user.click(screen.getByRole("button", { name: /message parent/i }));
-    expect(screen.getByText(/parent message opened for aisha njeri/i)).toBeVisible();
+    expect(screen.getByRole("dialog", { name: /send parent message/i })).toBeVisible();
+    await user.clear(screen.getByLabelText(/message to guardian/i));
+    await user.type(screen.getByLabelText(/message to guardian/i), "Please review the homework diary today.");
+    await user.click(screen.getByRole("button", { name: /send message/i }));
+
+    expect(screen.getByText(/parent sms queued for aisha njeri/i)).toBeVisible();
+
+    await user.click(screen.getAllByRole("button", { name: /^reports$/i })[0]);
+    await user.click(screen.getByRole("button", { name: /attendance pdf/i }));
+    const preview = screen.getByRole("dialog", { name: /class report preview/i });
+    expect(preview).toBeVisible();
+    expect(within(preview).getByText(/attendance pdf/i)).toBeVisible();
   });
 
   it("makes dean search and approval actions visible as working actions", async () => {
