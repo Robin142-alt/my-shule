@@ -30,6 +30,7 @@ import {
   fetchDisciplineAnalytics,
   type DisciplineAnalytics,
 } from "@/lib/discipline/discipline-live";
+import { getCurrentSchoolId, publishSchoolOperationalEvent } from "@/lib/school/school-operational-store";
 
 type DisciplineRouteMode = "hosted" | "public";
 type Tone = "safe" | "authority" | "slate" | "amber" | "danger" | "emerald" | "neutral";
@@ -730,7 +731,7 @@ function IncidentFeed() {
   );
 }
 
-function HighRiskStudents() {
+function HighRiskStudents({ onStudentAction }: { onStudentAction: (student: RiskStudent) => void }) {
   return (
     <SectionCard
       id="risk-students"
@@ -752,7 +753,7 @@ function HighRiskStudents() {
                 <p className="mt-1 text-sm font-bold text-white/78">Guardian responsiveness: {student.response}</p>
                 <button
                   type="button"
-                  onClick={() => announceAction(`${student.action} opened for ${student.name}.`)}
+                  onClick={() => onStudentAction(student)}
                   className="mt-3 rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-black text-white transition hover:bg-white/15"
                 >
                   {student.action}
@@ -891,9 +892,11 @@ function DashboardOverview({ kpiItems }: { kpiItems: Kpi[] }) {
 function ActiveWorkspace({
   activeView,
   kpiItems,
+  onStudentAction,
 }: {
   activeView: DisciplineView;
   kpiItems: Kpi[];
+  onStudentAction: (student: RiskStudent) => void;
 }) {
   switch (activeView) {
     case "dashboard":
@@ -901,7 +904,7 @@ function ActiveWorkspace({
     case "incidents":
       return <IncidentFeed />;
     case "risk-students":
-      return <HighRiskStudents />;
+      return <HighRiskStudents onStudentAction={onStudentAction} />;
     case "analytics":
       return <BehaviourAnalytics />;
     case "prefects":
@@ -1051,6 +1054,7 @@ export function DisciplineMasterCommandCenter({
   const [activeView, setActiveView] = useState<DisciplineView>("dashboard");
   const [searchTerm, setSearchTerm] = useState("");
   const [notice, setNotice] = useState("Discipline desk ready for cases, parent contact, counselling referrals, and reports.");
+  const [selectedStudentAction, setSelectedStudentAction] = useState<RiskStudent | null>(null);
   const kpiItems = useMemo(() => buildLiveKpis(liveAnalytics), [liveAnalytics]);
   const searchResults = useMemo(() => {
     const query = searchTerm.trim().toLowerCase();
@@ -1116,6 +1120,53 @@ export function DisciplineMasterCommandCenter({
     setNotice(`${record.label} opened for discipline follow-up.`);
   }
 
+  function openStudentAction(student: RiskStudent) {
+    setSelectedStudentAction(student);
+    setNotice(`${student.action} ready for ${student.name}.`);
+  }
+
+  function saveStudentAction() {
+    if (!selectedStudentAction) return;
+
+    const schoolId = getCurrentSchoolId();
+    const action = selectedStudentAction.action;
+    const studentName = selectedStudentAction.name;
+    const recordId = `discipline-action-${studentName.toLowerCase().replaceAll(" ", "-")}-${action.toLowerCase().replaceAll(" ", "-")}`;
+
+    publishSchoolOperationalEvent({
+      schoolId,
+      type: "DISCIPLINE_CASE_ACTION_RECORDED",
+      module: "discipline",
+      actorRole: "Discipline Master",
+      title: `${action} saved for ${studentName}`,
+      body: `${action} was recorded for ${studentName}. Pattern: ${selectedStudentAction.pattern}`,
+      entityId: recordId,
+      severity: selectedStudentAction.tone === "danger" ? "critical" : selectedStudentAction.tone === "amber" ? "warning" : "info",
+      payload: {
+        action,
+        studentName,
+        riskScore: selectedStudentAction.score,
+        pattern: selectedStudentAction.pattern,
+        guardianResponsiveness: selectedStudentAction.response,
+      },
+      notifications: [
+        {
+          audienceRoles: ["Deputy Principal", "Class Teacher", "School Counsellor"],
+          title: `${action} recorded by Discipline Master`,
+          body: `${studentName} requires follow-up from discipline and welfare teams.`,
+          severity: selectedStudentAction.tone === "danger" ? "critical" : "warning",
+          relatedModule: "discipline",
+          relatedRecordId: recordId,
+          requiresAction: true,
+          requestStatus: "Pending",
+        },
+      ],
+    });
+
+    setNotice(`${action} saved for ${studentName}.`);
+    setSelectedStudentAction(null);
+  }
+
   return (
     <div id="top" data-route-mode={routeMode} className="h-screen overflow-hidden bg-[#F2F5F9]">
       <div className="grid h-full gap-5 p-3 md:p-5 xl:grid-cols-[300px_minmax(0,1fr)]">
@@ -1133,6 +1184,22 @@ export function DisciplineMasterCommandCenter({
               {notice}
             </div>
           </div>
+          {selectedStudentAction ? (
+            <div role="dialog" aria-modal="true" aria-label="Discipline case action" className="mt-4 rounded-2xl border border-[#D4DEEC] bg-white p-5 text-[#071D49] shadow-[0_18px_45px_rgba(7,29,73,0.12)]">
+              <p className="text-xs font-black uppercase tracking-[0.16em] text-[#5A6D8D]">Discipline case action</p>
+              <h2 className="mt-2 text-2xl font-black">{selectedStudentAction.action}</h2>
+              <p className="mt-2 text-sm font-black">{selectedStudentAction.name}</p>
+              <p className="mt-2 text-sm font-semibold leading-6 text-[#5A6D8D]">{selectedStudentAction.pattern}</p>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <button type="button" onClick={saveStudentAction} className="min-h-10 rounded-xl bg-[#071D49] px-4 text-sm font-black text-white">
+                  Save discipline action
+                </button>
+                <button type="button" onClick={() => setSelectedStudentAction(null)} className="min-h-10 rounded-xl border border-[#D4DEEC] px-4 text-sm font-black text-[#071D49]">
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : null}
           <motion.div
             key={activeView}
             initial={false}
@@ -1140,7 +1207,7 @@ export function DisciplineMasterCommandCenter({
             transition={{ duration: 0.22 }}
             className="space-y-5"
           >
-            <ActiveWorkspace activeView={activeView} kpiItems={kpiItems} />
+            <ActiveWorkspace activeView={activeView} kpiItems={kpiItems} onStudentAction={openStudentAction} />
           </motion.div>
         </main>
       </div>
