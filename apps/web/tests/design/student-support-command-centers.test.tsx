@@ -111,6 +111,19 @@ describe("student support and admissions command center interactions", () => {
     expect(screen.getByText(/faith akinyi opened in admissions records/i)).toBeVisible();
 
     await user.click(screen.getByRole("button", { name: /quick actions/i }));
-    expect(screen.getByText(/quick admissions actions opened/i)).toBeVisible();
+    const admissionsDialog = screen.getByRole("dialog", { name: /admissions quick action/i });
+    expect(admissionsDialog).toBeVisible();
+    await user.click(within(admissionsDialog).getByRole("button", { name: /save admissions action/i }));
+
+    expect(screen.getByText(/quick admissions action saved/i)).toBeVisible();
+    expect(readSchoolData<Record<string, unknown>>("events", "kb-high")).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          schoolId: "kb-high",
+          type: "ADMISSIONS_QUICK_ACTION_RECORDED",
+          module: "admissions",
+        }),
+      ]),
+    );
   });
 });

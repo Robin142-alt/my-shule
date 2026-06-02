@@ -32,6 +32,11 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
+import {
+  getCurrentSchoolId,
+  publishSchoolOperationalEvent,
+} from "@/lib/school/school-operational-store";
+
 type RegistrarRouteMode = "hosted" | "public";
 type Tone = "secure" | "info" | "success" | "warning" | "danger" | "cyan";
 
@@ -430,11 +435,13 @@ function Sidebar() {
 function TopHeader({
   searchTerm,
   searchResults,
+  onQuickActions,
   onSearchResult,
   onSearchTermChange,
 }: {
   searchTerm: string;
   searchResults: RegistrarSearchRecord[];
+  onQuickActions: () => void;
   onSearchResult: (record: RegistrarSearchRecord) => void;
   onSearchTermChange: (value: string) => void;
 }) {
@@ -502,7 +509,7 @@ function TopHeader({
             <LightStatusChip icon={BrainCircuit} label="AI insights ready" tone="cyan" />
             <button
               type="button"
-              onClick={() => announceAction("Quick admissions actions opened.")}
+              onClick={onQuickActions}
               className="inline-flex min-h-9 items-center gap-2 rounded-[var(--radius)] bg-[#071D49] px-3 text-xs font-black text-white"
             >
               <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
@@ -901,6 +908,7 @@ function MobileActions() {
 export function RegistrarCommandCenter({ routeMode }: { routeMode: RegistrarRouteMode }) {
   const [searchTerm, setSearchTerm] = useState("");
   const [notice, setNotice] = useState("Admissions desk ready for inquiries, applications, documents, interviews, and onboarding.");
+  const [quickActionsOpen, setQuickActionsOpen] = useState(false);
   const searchResults = useMemo(() => {
     const query = searchTerm.trim().toLowerCase();
     if (!query) return [];
@@ -932,6 +940,46 @@ export function RegistrarCommandCenter({ routeMode }: { routeMode: RegistrarRout
     }
   }
 
+  function openQuickActions() {
+    setQuickActionsOpen(true);
+    setNotice("Quick admissions action ready.");
+  }
+
+  function saveAdmissionsAction() {
+    const schoolId = getCurrentSchoolId();
+
+    publishSchoolOperationalEvent({
+      schoolId,
+      type: "ADMISSIONS_QUICK_ACTION_RECORDED",
+      module: "admissions",
+      actorRole: "Admissions Officer",
+      title: "Quick admissions action saved",
+      body: "Admissions Officer recorded a same-school admissions follow-up action.",
+      entityId: "admissions-quick-action",
+      severity: "info",
+      payload: {
+        action: "Quick admissions action",
+        source: "registrar-command-center",
+        nextStep: "Verify documents and notify parent",
+      },
+      notifications: [
+        {
+          audienceRoles: ["Secretary", "Accountant", "Class Teacher", "Principal"],
+          title: "Admissions follow-up recorded",
+          body: "Admissions recorded a quick action for document, fee, class placement, or parent onboarding follow-up.",
+          severity: "info",
+          relatedModule: "admissions",
+          relatedRecordId: "admissions-quick-action",
+          requiresAction: true,
+          requestStatus: "Pending",
+        },
+      ],
+    });
+
+    setQuickActionsOpen(false);
+    setNotice("Quick admissions action saved.");
+  }
+
   return (
     <div data-route-mode={routeMode} className="min-h-screen bg-[#F3F4F6] pb-24 lg:pb-6">
       <div className="grid gap-5 p-3 md:p-5 xl:grid-cols-[300px_minmax(0,1fr)]">
@@ -940,12 +988,56 @@ export function RegistrarCommandCenter({ routeMode }: { routeMode: RegistrarRout
           <TopHeader
             searchTerm={searchTerm}
             searchResults={searchResults}
+            onQuickActions={openQuickActions}
             onSearchResult={openSearchRecord}
             onSearchTermChange={setSearchTerm}
           />
           <div role="status" className="rounded-[var(--radius-lg)] border border-[#C8D5EA] bg-white px-4 py-3 text-sm font-black text-[#071D49] shadow-[0_12px_30px_rgba(7,29,73,0.08)]">
             {notice}
           </div>
+          {quickActionsOpen ? (
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-label="Admissions quick action"
+              className="rounded-[var(--radius-xl)] border border-[#C8D5EA] bg-white p-5 text-[#071D49] shadow-[0_18px_55px_rgba(7,29,73,0.12)]"
+            >
+              <p className="text-xs font-black uppercase tracking-[0.16em] text-[#5F6F89]">Same-school admissions workflow</p>
+              <h2 className="mt-2 text-xl font-black">Quick admissions action</h2>
+              <p className="mt-2 max-w-3xl text-sm font-semibold leading-6 text-[#5F6F89]">
+                This records an admissions follow-up and alerts Secretary, Accountant, Class Teacher, and Principal where action is needed.
+              </p>
+              <div className="mt-4 grid gap-3 md:grid-cols-3">
+                {[
+                  ["Action", "Verify documents and parent contact"],
+                  ["Next office", "Secretary, Accountant, Class Teacher"],
+                  ["Scope", "Current school only"],
+                ].map(([label, value]) => (
+                  <div key={label} className="rounded-[var(--radius-lg)] border border-[#C8D5EA] bg-[#F8FAFC] p-3">
+                    <p className="text-xs font-black uppercase tracking-[0.12em] text-[#5F6F89]">{label}</p>
+                    <p className="mt-1 text-sm font-black">{value}</p>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-5 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={saveAdmissionsAction}
+                  className="inline-flex min-h-10 items-center gap-2 rounded-[var(--radius)] bg-[#071D49] px-4 text-sm font-black text-white"
+                >
+                  <Sparkles className="h-4 w-4" aria-hidden="true" />
+                  Save admissions action
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setQuickActionsOpen(false)}
+                  className="inline-flex min-h-10 items-center rounded-[var(--radius)] border border-[#C8D5EA] bg-white px-4 text-sm font-black text-[#071D49]"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : null}
           <Hero />
           <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5" aria-label="Registrar KPI summary">
             {kpis.map((item, index) => (
