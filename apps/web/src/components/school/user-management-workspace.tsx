@@ -1,6 +1,6 @@
 "use client";
 
-import { Copy, Eye, Mail, RotateCcw, Search, ShieldCheck, UserPlus } from "lucide-react";
+import { Copy, Eye, Lock, Mail, RotateCcw, Search, ShieldCheck, UserPlus } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { Card } from "@/components/ui/card";
@@ -529,6 +529,13 @@ export function UserManagementWorkspace({
   const [editingUser, setEditingUser] = useState<SchoolUserRecord | null>(null);
   const [inviteBusy, setInviteBusy] = useState(false);
   const [inviteActionBusy, setInviteActionBusy] = useState<string | null>(null);
+  const explainManagePermission = () => {
+    setNotice(
+      actorRole === "Deputy Principal"
+        ? "User management changes require the Deputy Principal manage-users permission for this school."
+        : "User management changes require school administrator permission.",
+    );
+  };
 
   useEffect(() => {
     let mounted = true;
@@ -1148,6 +1155,7 @@ export function UserManagementWorkspace({
           <UsersTable
             users={filteredUsers}
             canManageUsers={canManageUsers}
+            onPermissionDenied={explainManagePermission}
             onView={setSelectedDetail}
             onEdit={setEditingUser}
             onSuspend={(user) => updateUserStatus(user, "Suspended", "Suspended from school user management")}
@@ -1259,6 +1267,7 @@ export function UserManagementWorkspace({
           <UsersTable
             users={inactiveUsers}
             canManageUsers={canManageUsers}
+            onPermissionDenied={explainManagePermission}
             onView={setSelectedDetail}
             onEdit={setEditingUser}
             onSuspend={(user) => updateUserStatus(user, "Suspended", "Suspended from school user management")}
@@ -1367,6 +1376,7 @@ function UsersTable({
   onReactivate,
   onRemove,
   onResetPassword,
+  onPermissionDenied,
 }: {
   users: SchoolUserRecord[];
   canManageUsers: boolean;
@@ -1377,6 +1387,7 @@ function UsersTable({
   onReactivate: (user: SchoolUserRecord) => void;
   onRemove: (user: SchoolUserRecord) => void;
   onResetPassword: (user: SchoolUserRecord) => void;
+  onPermissionDenied: () => void;
 }) {
   if (!users.length) {
     return (
@@ -1419,18 +1430,18 @@ function UsersTable({
               <td className="px-3 py-3">
                 <div className="flex flex-wrap gap-1.5">
                   <SmallAction label="View details" icon={Eye} onClick={() => onView(user)} />
-                  <SmallAction label="Edit user" onClick={() => onEdit(user)} disabled={!canManageUsers} />
-                  <SmallAction label="Change role" onClick={() => onEdit(user)} disabled={!canManageUsers} />
+                  <SmallAction label="Edit user" onClick={canManageUsers ? () => onEdit(user) : onPermissionDenied} locked={!canManageUsers} />
+                  <SmallAction label="Change role" onClick={canManageUsers ? () => onEdit(user) : onPermissionDenied} locked={!canManageUsers} />
                   {user.status === "Active" ? (
                     <>
-                      <SmallAction label="Suspend" onClick={() => onSuspend(user)} disabled={!canManageUsers} tone="warning" />
-                      <SmallAction label="Deactivate" onClick={() => onDeactivate(user)} disabled={!canManageUsers} tone="danger" />
+                      <SmallAction label="Suspend" onClick={canManageUsers ? () => onSuspend(user) : onPermissionDenied} locked={!canManageUsers} tone="warning" />
+                      <SmallAction label="Deactivate" onClick={canManageUsers ? () => onDeactivate(user) : onPermissionDenied} locked={!canManageUsers} tone="danger" />
                     </>
                   ) : (
-                    <SmallAction label="Reactivate" icon={RotateCcw} onClick={() => onReactivate(user)} disabled={!canManageUsers} />
+                    <SmallAction label="Reactivate" icon={RotateCcw} onClick={canManageUsers ? () => onReactivate(user) : onPermissionDenied} locked={!canManageUsers} />
                   )}
                   <SmallAction label="Reset password" onClick={() => onResetPassword(user)} />
-                  {user.status === "Deactivated" ? <SmallAction label="Remove" onClick={() => onRemove(user)} disabled={!canManageUsers} tone="danger" /> : null}
+                  {user.status === "Deactivated" ? <SmallAction label="Remove" onClick={canManageUsers ? () => onRemove(user) : onPermissionDenied} locked={!canManageUsers} tone="danger" /> : null}
                 </div>
               </td>
             </tr>
@@ -1722,12 +1733,14 @@ function SmallAction({
   label,
   onClick,
   disabled,
+  locked,
   tone,
   icon: Icon,
 }: {
   label: string;
   onClick: () => void;
   disabled?: boolean;
+  locked?: boolean;
   tone?: "warning" | "danger";
   icon?: typeof Eye;
 }) {
@@ -1741,10 +1754,12 @@ function SmallAction({
     <button
       type="button"
       disabled={disabled}
+      aria-disabled={locked ? "true" : undefined}
       onClick={onClick}
-      className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-xs font-black disabled:cursor-not-allowed disabled:opacity-50 ${toneClass}`}
+      className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-xs font-black disabled:cursor-wait disabled:opacity-70 ${locked ? "border-[#D7E0EF] bg-[#F8FAFC] text-[#597091]" : toneClass}`}
     >
       {Icon ? <Icon className="h-3.5 w-3.5" /> : null}
+      {locked ? <Lock className="h-3.5 w-3.5" /> : null}
       {label}
     </button>
   );

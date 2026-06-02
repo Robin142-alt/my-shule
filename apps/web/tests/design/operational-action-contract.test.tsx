@@ -93,6 +93,10 @@ describe("OperationalActionButton", () => {
     expect(screen.getByRole("button", { name: /return correction retry available/i })).toBeVisible();
     expect(screen.getByRole("button", { name: /retry dispatch needs retry/i })).toBeVisible();
 
+    await user.click(screen.getByRole("button", { name: /approve results no permission/i }));
+    expect(screen.getByText(/approve results requires can_approve_results permission/i)).toBeVisible();
+    expect(onExecute).not.toHaveBeenCalled();
+
     await user.click(screen.getByRole("button", { name: /send to dean ready/i }));
 
     expect(onExecute).toHaveBeenCalledWith(

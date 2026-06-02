@@ -109,7 +109,7 @@ export function OperationalActionButton({
 }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const Icon = isSubmitting ? Clock3 : action.icon ?? healthIcon[action.health];
-  const disabled = action.health === "LOCKED" || action.health === "LOADING" || isSubmitting;
+  const disabled = action.health === "LOADING" || isSubmitting;
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [localNotice, setLocalNotice] = useState<string | null>(null);
   const displayState = isSubmitting ? "Sending" : healthDisplay[action.health];
@@ -134,6 +134,11 @@ export function OperationalActionButton({
   }
 
   function requestAction() {
+    if (action.health === "LOCKED") {
+      setLocalNotice(`${action.label} requires ${action.capability} permission.`);
+      return;
+    }
+
     if (disabled) {
       return;
     }
