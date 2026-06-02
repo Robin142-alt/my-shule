@@ -36,6 +36,11 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
+import {
+  getCurrentSchoolId,
+  publishSchoolOperationalEvent,
+} from "@/lib/school/school-operational-store";
+
 type LaboratoryRouteMode = "hosted" | "public";
 type Tone = "safe" | "info" | "warning" | "danger" | "cyan" | "neutral";
 
@@ -97,6 +102,11 @@ type TimelineItem = {
   time: string;
   tone: Tone;
   actions?: string[];
+};
+
+type LabSessionAction = {
+  action: string;
+  session: SessionItem;
 };
 
 const labSearchRecords = [
@@ -804,7 +814,7 @@ function KpiCard({ item, index }: { item: Kpi; index: number }) {
   );
 }
 
-function LabSessionManagement() {
+function LabSessionManagement({ onSessionAction }: { onSessionAction: (sessionAction: LabSessionAction) => void }) {
   return (
     <SectionCard
       id="lab-sessions"
@@ -837,7 +847,7 @@ function LabSessionManagement() {
                   <button
                     key={action}
                     type="button"
-                    onClick={() => announceAction(`${action} opened for ${session.className}.`)}
+                    onClick={() => onSessionAction({ action, session })}
                     className="rounded-2xl border border-white/12 bg-white/[0.07] px-3 py-2 text-left text-xs font-black text-white transition hover:border-cyan-300/40 hover:bg-cyan-300/12"
                   >
                     {action}
@@ -1173,6 +1183,7 @@ export function LaboratoryTechnicianCommandCenter({ routeMode }: { routeMode: La
   const [now, setNow] = useState<Date | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [notice, setNotice] = useState("Laboratory desk ready for practical setup, chemicals, equipment, breakages, and safety logs.");
+  const [activeSessionAction, setActiveSessionAction] = useState<LabSessionAction | null>(null);
   const kpiItems = useMemo(() => kpis, []);
   const searchResults = useMemo(() => {
     const query = searchTerm.trim().toLowerCase();
@@ -1216,6 +1227,55 @@ export function LaboratoryTechnicianCommandCenter({ routeMode }: { routeMode: La
     }
   }
 
+  function openLabSessionAction(sessionAction: LabSessionAction) {
+    setActiveSessionAction(sessionAction);
+    setNotice(`${sessionAction.action} ready for ${sessionAction.session.className}.`);
+  }
+
+  function saveLabSessionAction() {
+    if (!activeSessionAction) {
+      return;
+    }
+
+    const schoolId = getCurrentSchoolId();
+    const { action, session } = activeSessionAction;
+
+    publishSchoolOperationalEvent({
+      schoolId,
+      type: "LAB_SESSION_ACTION_RECORDED",
+      module: "laboratory",
+      actorRole: "Laboratory Technician",
+      title: `${action} saved for ${session.className}`,
+      body: `${action} was recorded for ${session.className} in ${session.lab}.`,
+      entityId: `${session.time}-${session.className}`.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
+      severity: action.toLowerCase().includes("cancel") ? "warning" : "info",
+      payload: {
+        action,
+        className: session.className,
+        teacher: session.teacher,
+        lab: session.lab,
+        chemicals: session.chemicals,
+        apparatus: session.apparatus,
+        sessionStatus: session.status,
+      },
+      notifications: [
+        {
+          audienceRoles: ["Teacher", "Dean of Academics", "Principal"],
+          title: `${action} recorded`,
+          body: `${session.className} lab session was updated by the Laboratory Technician.`,
+          severity: action.toLowerCase().includes("cancel") ? "warning" : "info",
+          relatedModule: "laboratory",
+          relatedRecordId: session.className,
+          requiresAction: false,
+          requestStatus: "Completed",
+        },
+      ],
+    });
+
+    setNotice(`${action} saved for ${session.className}.`);
+    setActiveSessionAction(null);
+  }
+
   return (
     <div id="top" data-route-mode={routeMode} className="min-h-screen bg-[#F3F4F6] pb-24 lg:pb-6">
       <div className="grid gap-5 p-3 md:p-5 xl:grid-cols-[300px_minmax(0,1fr)]">
@@ -1231,13 +1291,57 @@ export function LaboratoryTechnicianCommandCenter({ routeMode }: { routeMode: La
           <div role="status" className="rounded-2xl border border-[#C8D5EA] bg-white px-4 py-3 text-sm font-black text-[#071D49] shadow-[0_12px_30px_rgba(7,29,73,0.08)]">
             {notice}
           </div>
+          {activeSessionAction ? (
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-label="Laboratory session action"
+              className="rounded-[24px] border border-[#C8D5EA] bg-white p-5 text-[#071D49] shadow-[0_18px_55px_rgba(7,29,73,0.12)]"
+            >
+              <p className="text-xs font-black uppercase tracking-[0.16em] text-[#5F6F89]">Same-school lab session update</p>
+              <h2 className="mt-2 text-xl font-black">{activeSessionAction.action}</h2>
+              <p className="mt-2 max-w-3xl text-sm font-semibold leading-6 text-[#5F6F89]">
+                This records the lab action, notifies the teacher and school leadership, and keeps the update scoped to the current school.
+              </p>
+              <div className="mt-4 grid gap-3 md:grid-cols-4">
+                {[
+                  ["Class", activeSessionAction.session.className],
+                  ["Teacher", activeSessionAction.session.teacher],
+                  ["Lab", activeSessionAction.session.lab],
+                  ["Materials", `${activeSessionAction.session.chemicals}; ${activeSessionAction.session.apparatus}`],
+                ].map(([label, value]) => (
+                  <div key={label} className="rounded-2xl border border-[#C8D5EA] bg-[#F8FAFC] p-3">
+                    <p className="text-xs font-black uppercase tracking-[0.12em] text-[#5F6F89]">{label}</p>
+                    <p className="mt-1 text-sm font-black">{value}</p>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-5 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={saveLabSessionAction}
+                  className="inline-flex min-h-10 items-center gap-2 rounded-2xl bg-[#071D49] px-4 text-sm font-black text-white"
+                >
+                  <ClipboardCheck className="h-4 w-4" aria-hidden="true" />
+                  Save lab session update
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveSessionAction(null)}
+                  className="inline-flex min-h-10 items-center rounded-2xl border border-[#C8D5EA] bg-white px-4 text-sm font-black text-[#071D49]"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : null}
           <Hero />
           <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {kpiItems.map((item, index) => (
               <KpiCard key={item.label} item={item} index={index} />
             ))}
           </section>
-          <LabSessionManagement />
+          <LabSessionManagement onSessionAction={openLabSessionAction} />
           <ChemicalManagement />
           <EquipmentTracking />
           <BreakagesAndSafety />

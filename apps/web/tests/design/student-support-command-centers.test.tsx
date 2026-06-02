@@ -84,7 +84,20 @@ describe("student support and admissions command center interactions", () => {
     expect(screen.getByText(/ethanol stock opened in lab records/i)).toBeVisible();
 
     await user.click(screen.getAllByRole("button", { name: /mark lab ready/i })[0]);
-    expect(screen.getByText(/mark lab ready opened for/i)).toBeVisible();
+    const labDialog = screen.getByRole("dialog", { name: /laboratory session action/i });
+    expect(labDialog).toBeVisible();
+    await user.click(within(labDialog).getByRole("button", { name: /save lab session update/i }));
+
+    expect(screen.getByText(/mark lab ready saved for/i)).toBeVisible();
+    expect(readSchoolData<Record<string, unknown>>("events", "kb-high")).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          schoolId: "kb-high",
+          type: "LAB_SESSION_ACTION_RECORDED",
+          module: "laboratory",
+        }),
+      ]),
+    );
   });
 
   it("makes admissions search and application actions visible as working controls", async () => {
