@@ -57,7 +57,20 @@ describe("student support and admissions command center interactions", () => {
     expect(screen.getByText(/faith akinyi referral opened in counselling records/i)).toBeVisible();
 
     await user.click(screen.getByRole("button", { name: /quick-add session/i }));
-    expect(screen.getByText(/quick-add counselling session form opened/i)).toBeVisible();
+    const sessionDialog = screen.getByRole("dialog", { name: /counselling session action/i });
+    expect(sessionDialog).toBeVisible();
+    await user.click(within(sessionDialog).getByRole("button", { name: /save counselling session/i }));
+
+    expect(screen.getByText(/quick-add counselling session saved/i)).toBeVisible();
+    expect(readSchoolData<Record<string, unknown>>("events", "kb-high")).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          schoolId: "kb-high",
+          type: "COUNSELLING_SESSION_RECORDED",
+          module: "counselling",
+        }),
+      ]),
+    );
   });
 
   it("makes laboratory search and practical setup actions visible as working controls", async () => {

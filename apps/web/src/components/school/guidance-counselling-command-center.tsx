@@ -30,6 +30,10 @@ import {
   fetchCounsellingDashboard,
   type CounsellingDashboard,
 } from "@/lib/discipline/discipline-live";
+import {
+  getCurrentSchoolId,
+  publishSchoolOperationalEvent,
+} from "@/lib/school/school-operational-store";
 
 type GuidanceRouteMode = "hosted" | "public";
 type Tone = "calm" | "safe" | "teal" | "lavender" | "amber" | "critical" | "neutral";
@@ -513,12 +517,14 @@ function TopNav({
   now,
   searchTerm,
   searchResults,
+  onQuickAddSession,
   onSearchResult,
   onSearchTermChange,
 }: {
   now: Date | null;
   searchTerm: string;
   searchResults: GuidanceSearchRecord[];
+  onQuickAddSession: () => void;
   onSearchResult: (record: GuidanceSearchRecord) => void;
   onSearchTermChange: (value: string) => void;
 }) {
@@ -579,7 +585,7 @@ function TopNav({
             <LightStatusChip icon={LockKeyhole} label="Confidential mode" tone="lavender" />
             <button
               type="button"
-              onClick={() => announceAction("Quick-add counselling session form opened.")}
+              onClick={onQuickAddSession}
               className="inline-flex min-h-9 items-center gap-2 rounded-2xl bg-[#071D49] px-3 text-xs font-black text-white"
             >
               <MessageCircleHeart className="h-3.5 w-3.5" aria-hidden="true" />
@@ -1031,6 +1037,7 @@ export function GuidanceCounsellingCommandCenter({
   const [liveDashboard, setLiveDashboard] = useState<CounsellingDashboard | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [notice, setNotice] = useState("Counselling desk ready for referrals, sessions, follow-ups, and parent meetings.");
+  const [sessionDialogOpen, setSessionDialogOpen] = useState(false);
   const kpiItems = useMemo(() => buildLiveKpis(liveDashboard), [liveDashboard]);
   const searchResults = useMemo(() => {
     const query = searchTerm.trim().toLowerCase();
@@ -1100,6 +1107,46 @@ export function GuidanceCounsellingCommandCenter({
     }
   }
 
+  function openQuickAddSession() {
+    setSessionDialogOpen(true);
+    setNotice("Quick-add counselling session ready.");
+  }
+
+  function saveCounsellingSession() {
+    const schoolId = getCurrentSchoolId();
+
+    publishSchoolOperationalEvent({
+      schoolId,
+      type: "COUNSELLING_SESSION_RECORDED",
+      module: "counselling",
+      actorRole: "School Counsellor",
+      title: "Quick-add counselling session saved",
+      body: "School Counsellor recorded a quick-add counselling session for same-school welfare follow-up.",
+      entityId: "counselling-session-quick-add",
+      severity: "info",
+      payload: {
+        source: "quick-add-session",
+        dashboard: "guidance-counselling",
+        sessionType: "Quick-add counselling session",
+      },
+      notifications: [
+        {
+          audienceRoles: ["Deputy Principal", "Class Teacher", "Principal"],
+          title: "Counselling session recorded",
+          body: "A counselling session was saved for welfare follow-up.",
+          severity: "info",
+          relatedModule: "counselling",
+          relatedRecordId: "counselling-session-quick-add",
+          requiresAction: false,
+          requestStatus: "Completed",
+        },
+      ],
+    });
+
+    setSessionDialogOpen(false);
+    setNotice("Quick-add counselling session saved.");
+  }
+
   return (
     <div id="top" data-route-mode={routeMode} className="min-h-screen bg-[#F4F7FA] pb-24 lg:pb-6">
       <div className="grid gap-5 p-3 md:p-5 xl:grid-cols-[300px_minmax(0,1fr)]">
@@ -1109,12 +1156,56 @@ export function GuidanceCounsellingCommandCenter({
             now={now}
             searchTerm={searchTerm}
             searchResults={searchResults}
+            onQuickAddSession={openQuickAddSession}
             onSearchResult={openSearchRecord}
             onSearchTermChange={setSearchTerm}
           />
           <div role="status" className="rounded-2xl border border-[#C8D5EA] bg-white px-4 py-3 text-sm font-black text-[#071D49] shadow-[0_12px_30px_rgba(7,29,73,0.08)]">
             {notice}
           </div>
+          {sessionDialogOpen ? (
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-label="Counselling session action"
+              className="rounded-[24px] border border-[#C8D5EA] bg-white p-5 text-[#071D49] shadow-[0_18px_55px_rgba(7,29,73,0.12)]"
+            >
+              <p className="text-xs font-black uppercase tracking-[0.16em] text-[#5F6F89]">Same-school counselling record</p>
+              <h2 className="mt-2 text-xl font-black">Quick-add counselling session</h2>
+              <p className="mt-2 max-w-3xl text-sm font-semibold leading-6 text-[#5F6F89]">
+                This records a counselling session, notifies the relevant school leadership and class follow-up roles, and keeps the event scoped to the current school workspace.
+              </p>
+              <div className="mt-4 grid gap-3 md:grid-cols-3">
+                {[
+                  ["Session type", "Quick welfare check-in"],
+                  ["Follow-up owner", "School Counsellor"],
+                  ["Linked dashboard", "Deputy, Principal, Class Teacher"],
+                ].map(([label, value]) => (
+                  <div key={label} className="rounded-2xl border border-[#C8D5EA] bg-[#F8FAFC] p-3">
+                    <p className="text-xs font-black uppercase tracking-[0.12em] text-[#5F6F89]">{label}</p>
+                    <p className="mt-1 text-sm font-black">{value}</p>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-5 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={saveCounsellingSession}
+                  className="inline-flex min-h-10 items-center gap-2 rounded-2xl bg-[#071D49] px-4 text-sm font-black text-white"
+                >
+                  <MessageCircleHeart className="h-4 w-4" aria-hidden="true" />
+                  Save counselling session
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSessionDialogOpen(false)}
+                  className="inline-flex min-h-10 items-center rounded-2xl border border-[#C8D5EA] bg-white px-4 text-sm font-black text-[#071D49]"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : null}
           <Hero />
           <CriticalAlerts />
           <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
