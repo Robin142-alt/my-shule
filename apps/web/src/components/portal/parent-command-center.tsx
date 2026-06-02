@@ -25,7 +25,6 @@ import {
   LockKeyhole,
   Mail,
   MessageCircle,
-  PhoneCall,
   ReceiptText,
   Route,
   ShieldAlert,
@@ -886,11 +885,11 @@ export function ParentCommandCenter({ routeMode }: ParentCommandCenterProps) {
               </button>
               <button
                 type="button"
-                onClick={() => setNotice("Emergency hotline opened. Direct school line: +254 700 000 111.")}
+                onClick={() => setNotice("Emergency contacts opened. School office: +254 700 000 111.")}
                 className="inline-flex h-10 items-center gap-2 rounded-[var(--radius)] border border-red-300/35 bg-red-400/14 px-3 text-xs font-bold text-red-100 transition hover:bg-red-400/22"
               >
-                <PhoneCall className="h-4 w-4" />
-                Emergency hotline
+                <ShieldAlert className="h-4 w-4" />
+                Emergency contacts
               </button>
               <span className="grid h-10 w-10 place-items-center rounded-[var(--radius)] border border-white/12 bg-white/12 text-xs font-black">
                 MW
@@ -1206,7 +1205,7 @@ export function ParentCommandCenter({ routeMode }: ParentCommandCenterProps) {
                 <div className="grid gap-4 lg:grid-cols-2">
                   <FeedRow item={{ id: "principal", title: "Principal notice", detail: "Mid-term academic brief will be sent Friday evening.", time: "new", tone: "info", icon: Bell }} />
                   <FeedRow item={{ id: "teacher", title: "Class teacher message", detail: "Please confirm Brian's mathematics revision time at home.", time: "2 unread", tone: "warning", icon: MessageCircle }} />
-                  <FeedRow item={{ id: "sms", title: "SMS delivery", detail: "Fee reminder delivered to +254 7XX XXX 214.", time: "sent", tone: "good", icon: PhoneCall }} />
+                  <FeedRow item={{ id: "sms", title: "SMS delivery", detail: "Fee reminder delivered to +254 7XX XXX 214.", time: "sent", tone: "good", icon: MessageCircle }} />
                   <FeedRow item={{ id: "meeting", title: "Meeting request", detail: "Class teacher available Tuesday 4:30 PM.", time: "open", tone: "info", icon: CalendarDays }} />
                 </div>
               </GlassCard>
@@ -1328,15 +1327,15 @@ export function ParentCommandCenter({ routeMode }: ParentCommandCenterProps) {
               </GlassCard>
 
               <GlassCard id="emergency" className="p-5 ring-1 ring-red-300/20">
-                <SectionHeader icon={PhoneCall} label="Always visible" title="Emergency panel" />
+                <SectionHeader icon={ShieldAlert} label="Always visible" title="Emergency contacts" />
                 <div className="space-y-3">
                   <button
                     type="button"
-                    onClick={() => setNotice("Emergency hotline opened. Direct school line: +254 700 000 111.")}
+                    onClick={() => setNotice("Emergency contacts opened. School office: +254 700 000 111.")}
                     className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-[var(--radius)] bg-red-500 px-4 text-sm font-black text-white shadow-[0_18px_40px_rgba(239,68,68,0.28)] transition hover:-translate-y-0.5 hover:bg-red-600"
                   >
-                    <PhoneCall className="h-4 w-4" />
-                    Emergency hotline
+                    <ShieldAlert className="h-4 w-4" />
+                    View emergency contacts
                   </button>
                   <div className="rounded-[var(--radius)] border border-red-300/25 bg-red-400/10 p-4">
                     <p className="text-sm font-black text-red-100">Direct school line</p>

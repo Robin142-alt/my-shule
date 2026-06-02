@@ -16,7 +16,6 @@ import {
   LockKeyhole,
   MessageCircle,
   MessageCircleHeart,
-  PhoneCall,
   Search,
   Settings,
   ShieldAlert,
@@ -302,7 +301,7 @@ const criticalAlerts: FeedItem[] = [
     detail: "Anonymous report and teacher note both referenced hopelessness. Immediate intervention workflow is open.",
     time: "Now",
     tone: "critical",
-    actions: ["Notify principal", "Contact guardian", "Refer to clinic"],
+    actions: ["Notify principal", "Notify guardian", "Refer to clinic"],
   },
   {
     title: "Abuse allegation received",
@@ -865,7 +864,7 @@ function BehaviourAndParents() {
 function MentalHealthAndWorkflow() {
   const interventionActions: Array<[string, LucideIcon, Tone]> = [
     ["Notify principal", Siren, "critical"],
-    ["Contact guardian", PhoneCall, "amber"],
+    ["Notify guardian", MessageCircle, "amber"],
     ["Refer to clinic", Stethoscope, "teal"],
     ["Emergency escalation", ShieldAlert, "critical"],
   ];
@@ -950,7 +949,7 @@ function MobileQuickActions() {
     ["Session", CalendarClock],
     ["Lookup", Search],
     ["Notes", MessageCircleHeart],
-    ["Open Contact Details", PhoneCall],
+    ["Open Contact Details", MessageCircle],
   ] as const;
 
   return (

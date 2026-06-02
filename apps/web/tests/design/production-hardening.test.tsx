@@ -157,9 +157,11 @@ describe("production ERP hardening", () => {
       "src/components/school/principal-practical-dashboard.tsx",
       "src/components/school/deputy-principal-command-center.tsx",
       "src/components/school/discipline-master-command-center.tsx",
+      "src/components/school/guidance-counselling-command-center.tsx",
       "src/components/school/boarding-master-command-center.tsx",
       "src/components/school/security-command-center.tsx",
       "src/components/school/role-operational-command-center.tsx",
+      "src/components/portal/parent-command-center.tsx",
       "src/components/operational/operational-form-shell.tsx",
       "src/lib/operational/myshule-extreme-operating-system.ts",
       "src/lib/operational/extreme-erp-blueprints.ts",
@@ -168,6 +170,9 @@ describe("production ERP hardening", () => {
     const source = files.map((file) => readFileSync(join(root, file), "utf8")).join("\n");
 
     expect(source).not.toMatch(/\bCall (Parent|Teacher|Staff|Nurse|Driver|Accountant|Student|Security|Admin|guardian|emergency contacts)\b/i);
+    expect(source).not.toMatch(/\bcall logs?\b/i);
+    expect(source).not.toMatch(/\bEmergency hotline\b/i);
+    expect(source).not.toMatch(/\bContact guardian\b/i);
     expect(source).not.toMatch(/\b(Call teacher and submit register|Save and Send SMS|Save and Print|Save and Continue|Save and Notify Parent|Print and SMS parent)\b/i);
   });
 

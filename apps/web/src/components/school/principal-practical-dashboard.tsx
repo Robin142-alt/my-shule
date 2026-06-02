@@ -477,7 +477,7 @@ const principalSections: PrincipalSection[] = [
       { label: "SMS Parent Onboarding" },
     ],
     records: [
-      { item: "Application document gap", owner: "Admissions Officer", nextAction: "Contact guardian", status: "Open" },
+      { item: "Application document gap", owner: "Admissions Officer", nextAction: "Notify guardian", status: "Open" },
       { item: "Admission interview schedule", owner: "Secretary", nextAction: "Confirm meeting", status: "Today" },
       { item: "Admission letter ready", owner: "Admissions Office", nextAction: "Print letter", status: "Ready" },
     ],

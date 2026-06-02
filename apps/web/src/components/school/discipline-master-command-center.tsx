@@ -15,7 +15,6 @@ import {
   Home,
   LockKeyhole,
   MessageCircle,
-  PhoneCall,
   Search,
   Settings,
   ShieldAlert,
@@ -183,7 +182,7 @@ const navItems: NavItem[] = [
   { id: "analytics", label: "Bullying Reports", icon: AlertTriangle, group: "Patterns" },
   { id: "incidents", label: "Drug & Substance Cases", icon: Siren, group: "Patterns" },
   { id: "quick-actions", label: "Suspensions", icon: LockKeyhole, group: "Actions" },
-  { id: "parents", label: "Parent Meetings", icon: PhoneCall, group: "Communication" },
+  { id: "parents", label: "Parent Meetings", icon: MessageCircle, group: "Communication" },
   { id: "intervention", label: "Counselling Referrals", icon: Stethoscope, group: "Intervention" },
   { id: "analytics", label: "Behaviour Analytics", icon: Gauge, group: "Insights" },
   { id: "prefects", label: "Teacher Complaints", icon: MessageCircle, group: "Reports" },
@@ -249,7 +248,7 @@ const kpis: Kpi[] = [
     detail: "Guardian meetings, unreachable parents, warning letters, and escalation notes.",
     trend: "5 overdue",
     tone: "slate",
-    icon: PhoneCall,
+    icon: MessageCircle,
     points: [14, 13, 13, 12, 12, 12, 12],
   },
   {
@@ -361,7 +360,7 @@ const interventionCards = [
 ] as const;
 
 const parentCards = [
-  ["Parents contacted", "37", "SMS delivery status, call logs, and guardian acknowledgement are visible.", PhoneCall, "safe"],
+  ["Parents contacted", "37", "SMS delivery status, contact notes, and guardian acknowledgement are visible.", MessageCircle, "safe"],
   ["Pending meetings", "12", "Warning letter generation and meeting scheduling remain ready.", ClipboardList, "amber"],
   ["Unreachable guardians", "5", "Escalation list for principal and class teacher follow-up.", AlertTriangle, "danger"],
 ] as const;
@@ -816,7 +815,7 @@ function QuickActionsPanel() {
   const actions: Array<[string, LucideIcon, Tone]> = [
     ["Record New Case", ClipboardList, "authority"],
     ["Suspend Student", LockKeyhole, "danger"],
-    ["Notify Parent", PhoneCall, "amber"],
+    ["Notify Parent", MessageCircle, "amber"],
     ["Print Discipline Slip", FileBarChart2, "slate"],
     ["Refer to Counsellor", Stethoscope, "safe"],
     ["Alert Security", Siren, "danger"],
@@ -1020,7 +1019,7 @@ function MobileQuickActions({ onViewChange }: { onViewChange: (view: DisciplineV
     ["Alert", Siren, "incidents"],
     ["Case", ClipboardList, "quick-actions"],
     ["Lookup", Search, "risk-students"],
-    ["Parent", PhoneCall, "parents"],
+    ["Parent", MessageCircle, "parents"],
     ["Counsel", Stethoscope, "intervention"],
   ] as const;
 

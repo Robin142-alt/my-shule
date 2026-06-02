@@ -206,7 +206,7 @@ export function PublicSchoolLoginView({
             School login
           </Link>
           <p className="text-muted sm:col-span-2">
-            Need setup help? Call My Shule on 0769622589.
+            Need setup help? Contact My Shule support on 0769622589.
           </p>
         </div>
       </form>
