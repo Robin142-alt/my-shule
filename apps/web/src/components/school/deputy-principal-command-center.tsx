@@ -30,6 +30,8 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
+import { publishSchoolOperationalEvent } from "@/lib/school/school-operational-store";
+
 type DeputyRouteMode = "hosted" | "public";
 type Tone = "calm" | "info" | "success" | "warning" | "danger" | "cyan";
 
@@ -84,12 +86,6 @@ const deputySearchRecords = [
 ] satisfies Array<{ id: string; label: string; detail: string; sectionId: string }>;
 
 type DeputySearchRecord = (typeof deputySearchRecords)[number];
-
-function announceAction(message: string) {
-  if (typeof window !== "undefined") {
-    window.dispatchEvent(new CustomEvent("myshule-deputy-action", { detail: message }));
-  }
-}
 
 function cn(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
@@ -400,11 +396,15 @@ function TopHeader({
   searchResults,
   onSearchResult,
   onSearchTermChange,
+  onEmergency,
+  onNotifications,
 }: {
   searchTerm: string;
   searchResults: DeputySearchRecord[];
   onSearchResult: (record: DeputySearchRecord) => void;
   onSearchTermChange: (value: string) => void;
+  onEmergency: () => void;
+  onNotifications: () => void;
 }) {
   const [now, setNow] = useState<Date | null>(null);
 
@@ -475,7 +475,7 @@ function TopHeader({
             <StatusChip icon={Clock} label="2 teachers late right now" tone="info" />
             <button
               type="button"
-              onClick={() => announceAction("Emergency response panel opened for deputy review.")}
+              onClick={onEmergency}
               className="inline-flex min-h-9 items-center gap-2 rounded-[var(--radius)] bg-rose-600 px-3 text-xs font-black text-white shadow-[0_12px_28px_rgba(225,29,72,0.24)]"
             >
               <Siren className="h-3.5 w-3.5" aria-hidden="true" />
@@ -483,7 +483,7 @@ function TopHeader({
             </button>
             <button
               type="button"
-              onClick={() => announceAction("Deputy notifications opened.")}
+              onClick={onNotifications}
               className="grid h-9 w-9 place-items-center rounded-[var(--radius)] border border-[#C8D5EA] bg-white text-[#071D49]"
             >
               <Bell className="h-4 w-4" aria-hidden="true" />
@@ -610,7 +610,7 @@ function SectionTitle({
   );
 }
 
-function CriticalAlertCenter() {
+function CriticalAlertCenter({ onAlertAction }: { onAlertAction: (alert: CriticalAlert, action: string) => void }) {
   return (
     <DarkSection id="critical-alerts" className="bg-[radial-gradient(circle_at_top_left,rgba(225,29,72,0.16),transparent_24%),linear-gradient(135deg,#071D49_0%,#0D244D_100%)]">
       <SectionTitle
@@ -641,7 +641,7 @@ function CriticalAlertCenter() {
                 <button
                   key={action}
                   type="button"
-                  onClick={() => announceAction(`${action} opened for ${alert.title}.`)}
+                  onClick={() => onAlertAction(alert, action)}
                   className="min-h-10 rounded-[var(--radius)] border border-white/14 bg-white/10 px-3 text-xs font-black text-white transition hover:-translate-y-0.5 hover:bg-white/15"
                 >
                   {action}
@@ -878,7 +878,13 @@ function BoardingOperations() {
   );
 }
 
-function QuickActionsAndReports() {
+function QuickActionsAndReports({
+  onQuickAction,
+  onReportAction,
+}: {
+  onQuickAction: (action: string) => void;
+  onReportAction: (report: string) => void;
+}) {
   return (
     <div className="grid gap-5 xl:grid-cols-[1fr_1fr]">
       <DarkSection id="quick-actions">
@@ -888,7 +894,7 @@ function QuickActionsAndReports() {
             <button
               key={action}
               type="button"
-              onClick={() => announceAction(`${action} form opened for deputy action.`)}
+              onClick={() => onQuickAction(action)}
               className="min-h-12 rounded-[var(--radius-lg)] border border-white/12 bg-white/[0.07] px-4 text-left text-sm font-black text-white transition hover:-translate-y-0.5 hover:border-cyan-300/35 hover:bg-cyan-400/12"
             >
               {action}
@@ -903,7 +909,7 @@ function QuickActionsAndReports() {
             <button
               key={item}
               type="button"
-              onClick={() => announceAction(`${item} prepared for deputy reporting.`)}
+              onClick={() => onReportAction(item)}
               className="flex items-center justify-between rounded-[var(--radius-lg)] border border-white/10 bg-white/[0.055] px-4 py-3 text-left transition hover:border-cyan-300/35 hover:bg-cyan-400/12"
             >
               <span className="font-black">{item}</span>
@@ -967,6 +973,9 @@ function MobileActions() {
 export function DeputyPrincipalCommandCenter({ routeMode }: { routeMode: DeputyRouteMode }) {
   const [searchTerm, setSearchTerm] = useState("");
   const [notice, setNotice] = useState("Deputy desk ready for discipline, attendance, staff duty, and parent follow-up.");
+  const [emergencyOpen, setEmergencyOpen] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [selectedAlertAction, setSelectedAlertAction] = useState<{ alert: CriticalAlert; action: string } | null>(null);
   const searchResults = useMemo(() => {
     const query = searchTerm.trim().toLowerCase();
     if (!query) return [];
@@ -976,18 +985,6 @@ export function DeputyPrincipalCommandCenter({ routeMode }: { routeMode: DeputyR
     );
   }, [searchTerm]);
 
-  useEffect(() => {
-    function handleDeputyAction(event: Event) {
-      const detail = (event as CustomEvent<string>).detail;
-      if (detail) {
-        setNotice(detail);
-      }
-    }
-
-    window.addEventListener("myshule-deputy-action", handleDeputyAction);
-    return () => window.removeEventListener("myshule-deputy-action", handleDeputyAction);
-  }, []);
-
   function openSearchRecord(record: DeputySearchRecord) {
     setSearchTerm("");
     setNotice(`${record.label} opened for deputy follow-up.`);
@@ -996,6 +993,125 @@ export function DeputyPrincipalCommandCenter({ routeMode }: { routeMode: DeputyR
       const target = document.getElementById(record.sectionId);
       target?.scrollIntoView?.({ behavior: "smooth", block: "start" });
     }
+  }
+
+  function openEmergencyResponse() {
+    setEmergencyOpen(true);
+    setNotice("Emergency response ready for deputy review.");
+  }
+
+  function recordEmergencyResponse() {
+    publishSchoolOperationalEvent({
+      schoolId: "kb-high",
+      type: "DEPUTY_EMERGENCY_RESPONSE_RECORDED",
+      module: "operations",
+      actorRole: "Deputy Principal",
+      title: "Emergency response recorded",
+      body: "Deputy Principal recorded the emergency response review for active school operations.",
+      entityId: "deputy-emergency-response",
+      severity: "critical",
+      payload: {
+        dashboard: "deputy-principal",
+        responseArea: "critical-alerts",
+      },
+      notifications: [
+        {
+          audienceRoles: ["Principal", "Security Officer", "Discipline Master"],
+          title: "Deputy emergency response recorded",
+          body: "Deputy Principal reviewed the emergency response queue.",
+          severity: "critical",
+          relatedModule: "operations",
+          relatedRecordId: "deputy-emergency-response",
+          requiresAction: true,
+          requestStatus: "Pending",
+        },
+      ],
+    });
+    setEmergencyOpen(false);
+    setNotice("Emergency response recorded for deputy follow-up.");
+  }
+
+  function openDeputyNotifications() {
+    setNotificationsOpen(true);
+    setNotice("Deputy notifications ready.");
+  }
+
+  function openAlertAction(alert: CriticalAlert, action: string) {
+    setSelectedAlertAction({ alert, action });
+    setNotice(`${action} ready for ${alert.title}.`);
+  }
+
+  function saveAlertAction() {
+    if (!selectedAlertAction) return;
+
+    const { alert, action } = selectedAlertAction;
+    const relatedRecordId = `deputy-alert-${alert.title.toLowerCase().replaceAll(" ", "-")}-${action.toLowerCase().replaceAll(" ", "-")}`;
+    const severity = alert.tone === "danger" ? "critical" : alert.tone === "warning" ? "warning" : "info";
+
+    publishSchoolOperationalEvent({
+      schoolId: "kb-high",
+      type: "DEPUTY_ALERT_ACTION_RECORDED",
+      module: "operations",
+      actorRole: "Deputy Principal",
+      title: `${action} saved for ${alert.title}`,
+      body: alert.detail,
+      entityId: relatedRecordId,
+      severity,
+      payload: {
+        action,
+        affected: alert.affected,
+        alertTitle: alert.title,
+        status: alert.status,
+      },
+      notifications: [
+        {
+          audienceRoles: ["Principal", "Class Teacher", "Discipline Master"],
+          title: `${action} deputy follow-up`,
+          body: alert.detail,
+          severity,
+          relatedModule: "operations",
+          relatedRecordId,
+          requiresAction: true,
+          requestStatus: "Pending",
+        },
+      ],
+    });
+    setSelectedAlertAction(null);
+    setNotice(`${action} saved for ${alert.title}.`);
+  }
+
+  function openQuickAction(action: string) {
+    setSelectedAlertAction({
+      action,
+      alert: {
+        title: "Deputy quick action",
+        detail: `${action} is ready for deputy recording and same-school follow-up.`,
+        time: "Now",
+        affected: "Deputy operations desk",
+        status: "Action capture pending",
+        tone: "info",
+        actions: [action],
+      },
+    });
+    setNotice(`${action} ready for deputy action.`);
+  }
+
+  function prepareReport(report: string) {
+    publishSchoolOperationalEvent({
+      schoolId: "kb-high",
+      type: "DEPUTY_REPORT_PREVIEW_REQUESTED",
+      module: "reports",
+      actorRole: "Deputy Principal",
+      title: `${report} prepared for deputy reporting`,
+      body: "Deputy Principal prepared a school-scoped report preview.",
+      entityId: `deputy-report-${report.toLowerCase().replaceAll(" ", "-")}`,
+      severity: "info",
+      payload: {
+        report,
+        dashboard: "deputy-principal",
+      },
+    });
+    setNotice(`${report} prepared for deputy reporting.`);
   }
 
   return (
@@ -1008,17 +1124,64 @@ export function DeputyPrincipalCommandCenter({ routeMode }: { routeMode: DeputyR
             searchResults={searchResults}
             onSearchResult={openSearchRecord}
             onSearchTermChange={setSearchTerm}
+            onEmergency={openEmergencyResponse}
+            onNotifications={openDeputyNotifications}
           />
           <div role="status" className="rounded-[var(--radius-lg)] border border-[#C8D5EA] bg-white px-4 py-3 text-sm font-black text-[#071D49] shadow-[0_14px_34px_rgba(7,29,73,0.08)]">
             {notice}
           </div>
+          {emergencyOpen ? (
+            <div role="dialog" aria-modal="true" aria-label="Deputy emergency response" className="rounded-[var(--radius-xl)] border border-rose-200 bg-white p-5 text-[#071D49] shadow-[0_18px_50px_rgba(225,29,72,0.14)]">
+              <p className="text-xs font-black uppercase tracking-[0.16em] text-rose-700">Deputy emergency response</p>
+              <h2 className="mt-2 text-2xl font-black">Emergency response review</h2>
+              <p className="mt-2 text-sm font-semibold leading-6 text-[#5F6F89]">Record that the deputy has reviewed active critical alerts and sent the response to Principal, Security, and Discipline teams inside Kisumu Boys High School.</p>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <button type="button" onClick={recordEmergencyResponse} className="min-h-10 rounded-[var(--radius)] bg-[#071D49] px-4 text-sm font-black text-white">
+                  Record emergency response
+                </button>
+                <button type="button" onClick={() => setEmergencyOpen(false)} className="min-h-10 rounded-[var(--radius)] border border-[#C8D5EA] px-4 text-sm font-black text-[#071D49]">
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : null}
+          {selectedAlertAction ? (
+            <div role="dialog" aria-modal="true" aria-label="Deputy alert action" className="rounded-[var(--radius-xl)] border border-[#C8D5EA] bg-white p-5 text-[#071D49] shadow-[0_18px_50px_rgba(7,29,73,0.12)]">
+              <p className="text-xs font-black uppercase tracking-[0.16em] text-[#5F6F89]">Deputy alert action</p>
+              <h2 className="mt-2 text-2xl font-black">{selectedAlertAction.action}</h2>
+              <p className="mt-2 text-sm font-black text-[#071D49]">{selectedAlertAction.alert.title}</p>
+              <p className="mt-2 text-sm font-semibold leading-6 text-[#5F6F89]">{selectedAlertAction.alert.detail}</p>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <button type="button" onClick={saveAlertAction} className="min-h-10 rounded-[var(--radius)] bg-[#071D49] px-4 text-sm font-black text-white">
+                  Save deputy action
+                </button>
+                <button type="button" onClick={() => setSelectedAlertAction(null)} className="min-h-10 rounded-[var(--radius)] border border-[#C8D5EA] px-4 text-sm font-black text-[#071D49]">
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : null}
+          {notificationsOpen ? (
+            <div role="dialog" aria-modal="true" aria-label="Deputy notifications" className="rounded-[var(--radius-xl)] border border-[#C8D5EA] bg-white p-5 text-[#071D49] shadow-[0_18px_50px_rgba(7,29,73,0.12)]">
+              <p className="text-xs font-black uppercase tracking-[0.16em] text-[#5F6F89]">Deputy notifications</p>
+              <h2 className="mt-2 text-2xl font-black">Urgent school updates</h2>
+              <div className="mt-4 grid gap-2">
+                {criticalAlerts.slice(0, 3).map((alert) => (
+                  <p key={alert.title} className="rounded-[var(--radius)] border border-[#C8D5EA] bg-[#F8FAFC] px-3 py-2 text-sm font-bold text-[#5F6F89]">{alert.title}</p>
+                ))}
+              </div>
+              <button type="button" onClick={() => setNotificationsOpen(false)} className="mt-4 min-h-10 rounded-[var(--radius)] bg-[#071D49] px-4 text-sm font-black text-white">
+                Close notifications
+              </button>
+            </div>
+          ) : null}
           <Hero />
           <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4" aria-label="Deputy principal KPI summary">
             {kpis.map((item, index) => (
               <KpiCard key={item.label} item={item} index={index} />
             ))}
           </section>
-          <CriticalAlertCenter />
+          <CriticalAlertCenter onAlertAction={openAlertAction} />
           <DisciplineIntelligence />
           <AcademicWarRoom />
           <MetricGridSection id="teachers" eyebrow="Staff accountability" title="Teacher oversight center" description="Teacher attendance, lesson attendance, syllabus progress, late teachers, missed lessons, marking delays, workload, class coverage, and substitute needs." rows={teacherRows} icon={UsersRound} />
@@ -1027,7 +1190,7 @@ export function DeputyPrincipalCommandCenter({ routeMode }: { routeMode: DeputyR
           <AiInsights />
           <ParentCommunicationHub />
           <BoardingOperations />
-          <QuickActionsAndReports />
+          <QuickActionsAndReports onQuickAction={openQuickAction} onReportAction={prepareReport} />
           <SupportSignals />
         </main>
       </div>
