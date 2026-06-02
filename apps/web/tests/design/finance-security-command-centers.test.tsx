@@ -41,6 +41,31 @@ describe("finance and security command center interactions", () => {
     );
   });
 
+  it("opens accountant finance intelligence actions as traceable school work", async () => {
+    const user = userEvent.setup();
+
+    renderWithProviders(<AccountantCommandCenter routeMode="hosted" />);
+
+    await user.click(screen.getByRole("button", { name: /generate arrears campaign/i }));
+
+    const intelligenceDialog = screen.getByRole("dialog", { name: /finance intelligence action/i });
+    expect(intelligenceDialog).toBeVisible();
+    expect(within(intelligenceDialog).getByText(/fee collection dropped 14% compared to last month/i)).toBeVisible();
+
+    await user.click(within(intelligenceDialog).getByRole("button", { name: /create finance task/i }));
+
+    expect(screen.getByText(/generate arrears campaign task created/i)).toBeVisible();
+    expect(readSchoolData<Record<string, unknown>>("events", "kb-high")).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          schoolId: "kb-high",
+          type: "FINANCE_INTELLIGENCE_TASK_CREATED",
+          module: "finance",
+        }),
+      ]),
+    );
+  });
+
   it("makes security search and emergency controls visible as working actions", async () => {
     const user = userEvent.setup();
 

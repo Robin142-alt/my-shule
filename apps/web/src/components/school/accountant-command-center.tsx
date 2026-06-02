@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useMemo, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import {
@@ -66,12 +66,6 @@ const accountantSearchRecords = [
 ] satisfies Array<{ id: string; label: string; detail: string; section: AccountantSection }>;
 
 type AccountantSearchRecord = (typeof accountantSearchRecords)[number];
-
-function announceAction(message: string) {
-  if (typeof window !== "undefined") {
-    window.dispatchEvent(new CustomEvent("myshule-dashboard-action", { detail: message }));
-  }
-}
 
 function downloadCsvFile(filename: string, rows: Array<Record<string, string>>) {
   const headers = Object.keys(rows[0] ?? {});
@@ -410,6 +404,7 @@ const aiInsights = [
     tone: "warning" as Tone,
   },
 ];
+type FinanceInsight = (typeof aiInsights)[number];
 
 const charts = [
   { title: "Fee Collection Trend", label: "Daily receipts", tone: "success" as Tone, values: [32, 44, 41, 58, 63, 77, 86] },
@@ -874,7 +869,7 @@ function AlertCenter({ theme }: { theme: AccountantTheme }) {
   );
 }
 
-function InsightPanel({ theme }: { theme: AccountantTheme }) {
+function InsightPanel({ theme, onOpenAction }: { theme: AccountantTheme; onOpenAction: (insight: FinanceInsight) => void }) {
   const surface = getSurface(theme);
   return (
     <section id="ai-insights" className={cn("rounded-3xl border p-5 md:p-6", surface.card)}>
@@ -893,7 +888,7 @@ function InsightPanel({ theme }: { theme: AccountantTheme }) {
             </div>
             <h3 className="mt-5 text-xl font-black">{insight.title}</h3>
             <p className={cn("mt-3 text-sm leading-6", surface.muted)}>{insight.detail}</p>
-            <button type="button" onClick={() => announceAction(`${insight.action} opened from finance intelligence.`)} className="mt-5 rounded-2xl border border-[#FF7A1A]/40 bg-[#FF7A1A]/14 px-4 py-2 text-sm font-black text-[#FFE1C8]">
+            <button type="button" onClick={() => onOpenAction(insight)} className="mt-5 rounded-2xl border border-[#FF7A1A]/40 bg-[#FF7A1A]/14 px-4 py-2 text-sm font-black text-[#FFE1C8]">
               {insight.action}
             </button>
           </article>
@@ -1158,22 +1153,11 @@ export function AccountantCommandCenter({ routeMode }: { routeMode: AccountantRo
   const [notice, setNotice] = useState("Ready for finance desk operations.");
   const [transactionFiltersOpen, setTransactionFiltersOpen] = useState(false);
   const [exportPreview, setExportPreview] = useState<string | null>(null);
+  const [selectedInsight, setSelectedInsight] = useState<FinanceInsight | null>(null);
   const surface = useMemo(() => getSurface(theme), [theme]);
   const searchResults = searchTerm.trim()
     ? accountantSearchRecords.filter((record) => `${record.label} ${record.detail}`.toLowerCase().includes(searchTerm.toLowerCase()))
     : [];
-
-  useEffect(() => {
-    function handleDashboardAction(event: Event) {
-      const message = (event as CustomEvent<string>).detail;
-      if (message) {
-        setNotice(message);
-      }
-    }
-
-    window.addEventListener("myshule-dashboard-action", handleDashboardAction);
-    return () => window.removeEventListener("myshule-dashboard-action", handleDashboardAction);
-  }, []);
 
   function openSearchRecord(record: AccountantSearchRecord) {
     setSearchTerm("");
@@ -1192,6 +1176,49 @@ export function AccountantCommandCenter({ routeMode }: { routeMode: AccountantRo
   function openFinanceExport(label: string) {
     setExportPreview(label);
     setNotice(`${label} export preview prepared.`);
+  }
+
+  function openFinanceInsightAction(insight: FinanceInsight) {
+    setSelectedInsight(insight);
+    setNotice(`${insight.action} action details opened.`);
+  }
+
+  function createFinanceInsightTask() {
+    if (!selectedInsight) {
+      return;
+    }
+
+    const entityId = `finance-intelligence-${selectedInsight.action.toLowerCase().replaceAll(" ", "-")}`;
+    publishSchoolOperationalEvent({
+      schoolId: "kb-high",
+      type: "FINANCE_INTELLIGENCE_TASK_CREATED",
+      module: "finance",
+      actorRole: "Accountant",
+      title: `${selectedInsight.action} task created`,
+      body: selectedInsight.detail,
+      entityId,
+      severity: selectedInsight.tone === "critical" ? "critical" : selectedInsight.tone === "warning" ? "warning" : "info",
+      payload: {
+        insightTitle: selectedInsight.title,
+        confidence: selectedInsight.confidence,
+        action: selectedInsight.action,
+      },
+      notifications: [
+        {
+          audienceRoles: ["Principal", "Deputy Principal"],
+          title: `${selectedInsight.action} finance task`,
+          body: selectedInsight.detail,
+          severity: selectedInsight.tone === "critical" ? "critical" : "warning",
+          relatedModule: "finance",
+          relatedRecordId: entityId,
+          requiresAction: true,
+          requestStatus: "Pending",
+        },
+      ],
+    });
+
+    setNotice(`${selectedInsight.action} task created.`);
+    setSelectedInsight(null);
   }
 
   function applyTransactionFilters(event: FormEvent<HTMLFormElement>) {
@@ -1267,6 +1294,28 @@ export function AccountantCommandCenter({ routeMode }: { routeMode: AccountantRo
           <div role="status" className={cn("rounded-2xl border px-4 py-3 text-sm font-black", surface.soft)}>
             {notice}
           </div>
+          {selectedInsight ? (
+            <div role="dialog" aria-modal="true" aria-label="Finance intelligence action" className={cn("rounded-3xl border p-5", surface.card)}>
+              <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[0.24em] text-[#FFB36F]">Finance intelligence action</p>
+                  <h2 className="mt-2 text-2xl font-black">{selectedInsight.action}</h2>
+                  <p className={cn("mt-2 text-base font-black", surface.muted)}>{selectedInsight.title}</p>
+                  <p className={cn("mt-2 text-sm leading-6", surface.muted)}>{selectedInsight.detail}</p>
+                  <p className="mt-3 text-sm font-black text-[#FFB36F]">{selectedInsight.confidence}</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button type="button" onClick={createFinanceInsightTask} className="inline-flex min-h-11 items-center gap-2 rounded-2xl bg-[#FF7A1A] px-4 py-2 text-sm font-black text-white">
+                    <ClipboardCheck className="h-4 w-4" aria-hidden="true" />
+                    Create finance task
+                  </button>
+                  <button type="button" onClick={() => setSelectedInsight(null)} className={cn("min-h-11 rounded-2xl border px-4 py-2 text-sm font-black", surface.soft)}>
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : null}
           {transactionFiltersOpen ? (
             <div role="dialog" aria-modal="true" aria-label="Transaction filters" className={cn("rounded-3xl border p-5", surface.card)}>
               <form onSubmit={applyTransactionFilters} className="grid gap-4 md:grid-cols-4">
@@ -1359,7 +1408,7 @@ export function AccountantCommandCenter({ routeMode }: { routeMode: AccountantRo
             ))}
           </section>
           <AlertCenter theme={theme} />
-          <InsightPanel theme={theme} />
+          <InsightPanel theme={theme} onOpenAction={openFinanceInsightAction} />
           <div className="grid gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.55fr)]">
             <div className="space-y-5">
               <Charts theme={theme} />
