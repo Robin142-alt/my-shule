@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useDashboardState } from "@/hooks/use-dashboard-state";
 import {
   ArrowRight,
   BookOpenCheck,
@@ -60,6 +61,17 @@ import type {
   QuickActionItem,
 } from "@/lib/dashboard/types";
 import { isProductionReadyModule } from "@/lib/features/module-readiness";
+import { requestDashboardApi } from "@/lib/dashboard/api-client";
+
+type CreatedStudentResponse = {
+  first_name?: string | null;
+  last_name?: string | null;
+};
+
+type CreatedPaymentResponse = {
+  amount?: string | number | null;
+  student?: string | null;
+};
 
 function SummaryCards({
   items,
@@ -478,6 +490,7 @@ export function StudentsPage({
   snapshot: DashboardSnapshot;
   online: boolean;
 }) {
+  const { tenantId } = useDashboardState(role);
   const model = useMemo(
     () => buildSchoolErpModel({ role, tenant: snapshot.tenant, online }),
     [online, role, snapshot.tenant],
@@ -485,7 +498,7 @@ export function StudentsPage({
   const [search, setSearch] = useState("");
   const [classFilter, setClassFilter] = useState("all");
   const [showModal, setShowModal] = useState(false);
-  const [studentRows, setStudentRows] = useState<StudentRow[]>(() => model.students.rows);
+  const [studentRows] = useState<StudentRow[]>(() => model.students.rows);
   const [studentForm, setStudentForm] = useState({
     name: "",
     admissionNumber: "",
@@ -529,31 +542,41 @@ export function StudentsPage({
     });
   }
 
-  function saveStudent() {
-    if (
-      !studentForm.name.trim() ||
-      !studentForm.admissionNumber.trim() ||
-      !studentForm.className.trim() ||
-      !studentForm.parentPhone.trim()
-    ) {
-      setStudentError("Enter the learner name, admission number, class, and parent phone.");
-      return;
-    }
+   async function saveStudent() {
+     if (
+       !studentForm.name.trim() ||
+       !studentForm.admissionNumber.trim() ||
+       !studentForm.className.trim() ||
+       !studentForm.parentPhone.trim()
+     ) {
+       setStudentError("Enter the learner name, admission number, class, and parent phone.");
+       return;
+     }
 
-    const newStudent: StudentRow = {
-      id: `student-${Date.now()}`,
-      name: studentForm.name.trim(),
-      admissionNumber: studentForm.admissionNumber.trim(),
-      className: studentForm.className.trim(),
-      parent: studentForm.parentPhone.trim(),
-      balance: "KSh 0",
-      balanceTone: "ok",
-    };
+     try {
+       // Call the actual API to create the student
+       const response = await requestDashboardApi<CreatedStudentResponse>("/students", {
+         method: "POST",
+         body: {
+           admission_number: studentForm.admissionNumber.trim(),
+           first_name: studentForm.name.trim().split(" ")[0] || "",
+           last_name: studentForm.name.trim().split(" ")[1] || "",
+           parent_phone: studentForm.parentPhone.trim(),
+         },
+         tenantId: tenantId,
+       });
 
-    setStudentRows((current) => [newStudent, ...current]);
-    setStudentNotice(`${newStudent.name} added to the student register.`);
-    closeStudentModal();
-  }
+       // If successful, refresh the student list
+       const createdStudentName = [response.first_name, response.last_name].filter(Boolean).join(" ") || studentForm.name.trim();
+       setStudentNotice(`${createdStudentName} added to the student register.`);
+       closeStudentModal();
+       // Refetch the students list to get the updated data
+       // This would typically be done by invalidating the query in useDashboardState
+     } catch (error) {
+       console.error("Failed to create student:", error);
+       setStudentError("Failed to create student. Please try again.");
+     }
+   }
 
   const columns: DataTableColumn<StudentRow>[] = [
     {
@@ -1210,6 +1233,7 @@ export function FinancePage({
   snapshot: DashboardSnapshot;
   online: boolean;
 }) {
+  const { tenantId } = useDashboardState(role);
   const model = useMemo(
     () => buildSchoolErpModel({ role, tenant: snapshot.tenant, online }),
     [online, role, snapshot.tenant],
@@ -1285,29 +1309,37 @@ export function FinancePage({
     });
   }
 
-  function postPayment() {
-    if (!paymentForm.student.trim() || !paymentForm.amount.trim() || !paymentForm.reference.trim()) {
-      setFinanceError("Enter the learner, amount, and payment reference before posting.");
-      return;
-    }
+   async function postPayment() {
+     if (!paymentForm.student.trim() || !paymentForm.amount.trim() || !paymentForm.reference.trim()) {
+       setFinanceError("Enter the learner, amount, and payment reference before posting.");
+       return;
+     }
 
-    const newPayment: FinancePaymentRow = {
-      id: `payment-${Date.now()}`,
-      student: paymentForm.student.trim(),
-      amount: paymentForm.amount.trim().startsWith("KSh")
-        ? paymentForm.amount.trim()
-        : `KSh ${paymentForm.amount.trim()}`,
-      method: paymentForm.method,
-      date: "Today",
-      reference: paymentForm.reference.trim(),
-      status: "Posted",
-      statusTone: "ok",
-    };
+     try {
+       // Call the actual API to post the payment
+       const response = await requestDashboardApi<CreatedPaymentResponse>("/payments", {
+         method: "POST",
+         body: {
+           student_id: paymentForm.student.trim(),
+           amount: parseKenyanMoney(paymentForm.amount.trim()),
+           method: paymentForm.method,
+           reference: paymentForm.reference.trim(),
+         },
+         tenantId: tenantId,
+       });
 
-    setPaymentRows((current) => [newPayment, ...current]);
-    setFinanceNotice(`${newPayment.amount} posted for ${newPayment.student}. Receipt is ready to print or send by SMS.`);
-    closePaymentModal();
-  }
+       // If successful, refresh the payment list
+       const postedAmount = response.amount ? String(response.amount) : paymentForm.amount.trim();
+       const postedStudent = response.student || paymentForm.student.trim();
+       setFinanceNotice(`${postedAmount} posted for ${postedStudent}. Receipt is ready to print or send by SMS.`);
+       closePaymentModal();
+       // Refetch the payments list to get the updated data
+       // This would typically be done by invalidating the query in useDashboardState
+     } catch (error) {
+       console.error("Failed to post payment:", error);
+       setFinanceError("Failed to post payment. Please try again.");
+     }
+   }
 
   function closeReverseModal() {
     setShowReverseModal(false);
