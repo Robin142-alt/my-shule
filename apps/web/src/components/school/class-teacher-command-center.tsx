@@ -23,6 +23,11 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
+import {
+  getCurrentSchoolId,
+  publishSchoolOperationalEvent,
+} from "@/lib/school/school-operational-store";
+
 type ClassTeacherRouteMode = "hosted" | "public";
 type Tone = "success" | "info" | "warning" | "danger" | "neutral";
 type TeacherView =
@@ -460,7 +465,7 @@ function MyClassWorkspace({
   );
 }
 
-function AttendanceWorkspace() {
+function AttendanceWorkspace({ onAttendanceAction }: { onAttendanceAction: (action: "Bulk present" | "Attendance register") => void }) {
   return (
     <Panel
       title="Attendance workspace"
@@ -468,8 +473,8 @@ function AttendanceWorkspace() {
       icon={ClipboardCheck}
       actions={
         <div className="flex flex-wrap gap-2">
-          <button type="button" onClick={() => announceAction("Bulk present applied to Form 2 Blue attendance.")} className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-black text-white">Bulk present</button>
-          <button type="button" onClick={() => announceAction("Attendance register saved locally for Form 2 Blue.")} className="rounded-xl border border-[#D8E0EC] bg-white px-4 py-2 text-sm font-black text-[#071D49]">Quick save</button>
+          <button type="button" onClick={() => onAttendanceAction("Bulk present")} className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-black text-white">Bulk present</button>
+          <button type="button" onClick={() => onAttendanceAction("Attendance register")} className="rounded-xl border border-[#D8E0EC] bg-white px-4 py-2 text-sm font-black text-[#071D49]">Quick save</button>
         </div>
       }
     >
@@ -515,11 +520,13 @@ function SimpleWorkspace({
 
 function ActiveWorkspace({
   activeView,
+  onAttendanceAction,
   onMessageParent,
   onRecordNote,
   onPreviewReport,
 }: {
   activeView: TeacherView;
+  onAttendanceAction: (action: "Bulk present" | "Attendance register") => void;
   onMessageParent: (learnerName: string) => void;
   onRecordNote: (learnerName: string) => void;
   onPreviewReport: (reportName: string) => void;
@@ -530,7 +537,7 @@ function ActiveWorkspace({
     case "class":
       return <MyClassWorkspace onMessageParent={onMessageParent} onRecordNote={onRecordNote} />;
     case "attendance":
-      return <AttendanceWorkspace />;
+      return <AttendanceWorkspace onAttendanceAction={onAttendanceAction} />;
     case "performance":
       return (
         <SimpleWorkspace title="Academic performance workspace" description="Class averages, weak subjects, rankings, trends, missing marks, and exam comparison." icon={GraduationCap}>
@@ -666,6 +673,45 @@ export function ClassTeacherCommandCenter({ routeMode }: { routeMode: ClassTeach
     setNotice(`${reportName} preview prepared for Form 2 Blue.`);
   }
 
+  function recordAttendanceAction(action: "Bulk present" | "Attendance register") {
+    const schoolId = getCurrentSchoolId();
+    const isBulkPresent = action === "Bulk present";
+
+    publishSchoolOperationalEvent({
+      schoolId,
+      type: "CLASS_ATTENDANCE_ACTION_RECORDED",
+      module: "attendance",
+      actorRole: "Class Teacher",
+      title: `${action} saved for Form 2 Blue`,
+      body: isBulkPresent
+        ? "Class Teacher marked the class present in the Form 2 Blue attendance workspace."
+        : "Class Teacher saved the Form 2 Blue attendance register.",
+      entityId: "form-2-blue-attendance",
+      severity: "info",
+      payload: {
+        className: "Form 2 Blue",
+        action,
+        presentCount: isBulkPresent ? 43 : 41,
+        absentCount: isBulkPresent ? 0 : 3,
+        lateCount: isBulkPresent ? 0 : 2,
+      },
+      notifications: [
+        {
+          audienceRoles: ["Deputy Principal", "Principal", "Grade/Form Master"],
+          title: `${action} recorded`,
+          body: `${action} was saved for Form 2 Blue by the Class Teacher.`,
+          severity: "info",
+          relatedModule: "attendance",
+          relatedRecordId: "form-2-blue-attendance",
+          requiresAction: false,
+          requestStatus: "Completed",
+        },
+      ],
+    });
+
+    setNotice(isBulkPresent ? "Bulk present saved for Form 2 Blue." : "Attendance register saved for Form 2 Blue.");
+  }
+
   function submitLearnerAction(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
@@ -712,6 +758,7 @@ export function ClassTeacherCommandCenter({ routeMode }: { routeMode: ClassTeach
               </div>
               <ActiveWorkspace
                 activeView={activeView}
+                onAttendanceAction={recordAttendanceAction}
                 onMessageParent={openParentMessage}
                 onRecordNote={openClassNote}
                 onPreviewReport={openReportPreview}

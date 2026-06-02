@@ -39,6 +39,21 @@ describe("class teacher and dean command center interactions", () => {
 
     expect(screen.getByText(/parent sms queued for aisha njeri/i)).toBeVisible();
 
+    await user.click(screen.getAllByRole("button", { name: /^attendance$/i })[0]);
+    await user.click(screen.getByRole("button", { name: /bulk present/i }));
+    expect(screen.getByText(/bulk present saved for form 2 blue/i)).toBeVisible();
+    await user.click(screen.getByRole("button", { name: /quick save/i }));
+    expect(screen.getByText(/attendance register saved for form 2 blue/i)).toBeVisible();
+    expect(readSchoolData<Record<string, unknown>>("events", "kb-high")).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          schoolId: "kb-high",
+          type: "CLASS_ATTENDANCE_ACTION_RECORDED",
+          module: "attendance",
+        }),
+      ]),
+    );
+
     await user.click(screen.getAllByRole("button", { name: /^reports$/i })[0]);
     await user.click(screen.getByRole("button", { name: /attendance pdf/i }));
     const preview = screen.getByRole("dialog", { name: /class report preview/i });
