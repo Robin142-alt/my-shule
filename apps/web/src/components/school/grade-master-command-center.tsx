@@ -20,6 +20,8 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
+import { getCurrentSchoolId, publishSchoolOperationalEvent } from "@/lib/school/school-operational-store";
+
 type GradeRouteMode = "hosted" | "public";
 type Tone = "success" | "info" | "warning" | "danger" | "neutral";
 type GradeView =
@@ -703,7 +705,7 @@ function MeetingsWorkspace() {
   );
 }
 
-function ReportsWorkspace() {
+function ReportsWorkspace({ onReportAction }: { onReportAction: (report: string) => void }) {
   return (
     <Panel title="Reports" description="Generate grade reports, stream reports, attendance summaries, discipline summaries, academic analysis, and intervention reports." icon={ClipboardList}>
       <div className="grid gap-3 md:grid-cols-3">
@@ -711,7 +713,7 @@ function ReportsWorkspace() {
           <button
             key={item}
             type="button"
-            onClick={() => announceAction(`${item} opened for review and export.`)}
+            onClick={() => onReportAction(item)}
             className="rounded-2xl border border-[#D8E0EC] bg-[#EEF2FF] p-4 text-left font-black text-[#071D49] transition hover:-translate-y-0.5 hover:shadow-md"
           >
             {item}
@@ -758,8 +760,10 @@ function SettingsWorkspace() {
 
 function ActiveWorkspace({
   activeView,
+  onReportAction,
 }: {
   activeView: GradeView;
+  onReportAction: (report: string) => void;
 }) {
   switch (activeView) {
     case "streams":
@@ -781,7 +785,7 @@ function ActiveWorkspace({
     case "meetings":
       return <MeetingsWorkspace />;
     case "reports":
-      return <ReportsWorkspace />;
+      return <ReportsWorkspace onReportAction={onReportAction} />;
     case "notifications":
       return <NotificationsWorkspace />;
     case "settings":
@@ -795,6 +799,7 @@ export function GradeMasterCommandCenter({ routeMode }: { routeMode: GradeRouteM
   const [activeView, setActiveView] = useState<GradeView>("overview");
   const [searchTerm, setSearchTerm] = useState("");
   const [notice, setNotice] = useState("Ready for grade follow-up.");
+  const [selectedReport, setSelectedReport] = useState<string | null>(null);
   const searchResults = searchTerm.trim()
     ? gradeSearchRecords.filter((record) => `${record.label} ${record.detail}`.toLowerCase().includes(searchTerm.toLowerCase()))
     : [];
@@ -822,6 +827,49 @@ export function GradeMasterCommandCenter({ routeMode }: { routeMode: GradeRouteM
     setNotice(`${record.label} opened in ${getViewLabel(record.view)}.`);
   }
 
+  function openReportAction(report: string) {
+    setSelectedReport(report);
+    setNotice(`${report} ready for grade master review.`);
+  }
+
+  function saveReportRequest() {
+    if (!selectedReport) return;
+
+    const schoolId = getCurrentSchoolId();
+    const reportSlug = selectedReport.toLowerCase().replaceAll(" ", "-");
+
+    publishSchoolOperationalEvent({
+      schoolId,
+      type: "GRADE_MASTER_REPORT_REQUESTED",
+      module: "reports",
+      actorRole: "Grade/Form Master",
+      title: `${selectedReport} requested`,
+      body: `Grade/Form Master requested ${selectedReport} for Form 2 oversight, review, and export.`,
+      entityId: `grade-master-report-${reportSlug}`,
+      severity: "info",
+      payload: {
+        report: selectedReport,
+        grade: "Form 2",
+        dashboard: "grade-master",
+      },
+      notifications: [
+        {
+          audienceRoles: ["Principal", "Deputy Principal", "Dean of Academics"],
+          title: `${selectedReport} requested by Grade/Form Master`,
+          body: `Form 2 ${selectedReport.toLowerCase()} is ready for review and export.`,
+          severity: "info",
+          relatedModule: "reports",
+          relatedRecordId: `grade-master-report-${reportSlug}`,
+          requiresAction: false,
+          requestStatus: "Completed",
+        },
+      ],
+    });
+
+    setNotice(`${selectedReport} saved for review and export.`);
+    setSelectedReport(null);
+  }
+
   return (
     <div data-route-mode={routeMode} className="h-screen overflow-hidden bg-[#F3F6FA] text-[#071D49]">
       <div className="grid h-full gap-4 p-3 lg:grid-cols-[292px_minmax(0,1fr)]">
@@ -840,7 +888,22 @@ export function GradeMasterCommandCenter({ routeMode }: { routeMode: GradeRouteM
               <div role="status" className="rounded-xl border border-[#DDD6FE] bg-[#EEF2FF] px-4 py-3 text-sm font-bold text-[#071D49]">
                 {notice}
               </div>
-              <ActiveWorkspace activeView={activeView} />
+              {selectedReport ? (
+                <div role="dialog" aria-modal="true" aria-label="Grade report action" className="rounded-2xl border border-[#D8E0EC] bg-white p-5 shadow-[0_18px_45px_rgba(7,29,73,0.12)]">
+                  <p className="text-xs font-black uppercase tracking-[0.16em] text-[#64748B]">Grade report action</p>
+                  <h2 className="mt-2 text-2xl font-black text-[#071D49]">{selectedReport}</h2>
+                  <p className="mt-2 text-sm font-semibold leading-6 text-[#64748B]">Save this report request for Form 2 and notify the Principal, Deputy Principal, and Dean of Academics inside this school workspace.</p>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <button type="button" onClick={saveReportRequest} className="min-h-10 rounded-xl bg-[#071D49] px-4 text-sm font-black text-white">
+                      Save report request
+                    </button>
+                    <button type="button" onClick={() => setSelectedReport(null)} className="min-h-10 rounded-xl border border-[#D8E0EC] px-4 text-sm font-black text-[#071D49]">
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+              <ActiveWorkspace activeView={activeView} onReportAction={openReportAction} />
             </div>
           </main>
         </div>

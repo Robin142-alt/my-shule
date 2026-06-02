@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 
 import { ClassTeacherCommandCenter } from "@/components/school/class-teacher-command-center";
 import { DeanAcademicsCommandCenter } from "@/components/school/dean-academics-command-center";
+import { GradeMasterCommandCenter } from "@/components/school/grade-master-command-center";
 import { readSchoolData } from "@/lib/school/school-operational-store";
 
 import { renderWithProviders } from "./test-utils";
@@ -11,6 +12,11 @@ import { renderWithProviders } from "./test-utils";
 jest.setTimeout(20000);
 
 describe("class teacher and dean command center interactions", () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+    window.localStorage.setItem("myshule.currentSchoolId", "kb-high");
+  });
+
   it("makes class teacher search, roster search, and learner actions visible as working actions", async () => {
     const user = userEvent.setup();
 
@@ -64,6 +70,32 @@ describe("class teacher and dean command center interactions", () => {
           schoolId: "kb-high",
           type: "ACADEMIC_DEAN_ACTION_RECORDED",
           module: "academics",
+        }),
+      ]),
+    );
+  });
+
+  it("makes grade master report actions save tenant-scoped report events", async () => {
+    const user = userEvent.setup();
+
+    renderWithProviders(<GradeMasterCommandCenter routeMode="hosted" />);
+
+    await user.click(screen.getByRole("button", { name: /^reports$/i }));
+    await user.click(screen.getByRole("button", { name: /grade report/i }));
+
+    const reportDialog = screen.getByRole("dialog", { name: /grade report action/i });
+    expect(reportDialog).toBeVisible();
+    expect(within(reportDialog).getByRole("heading", { name: /^grade report$/i })).toBeVisible();
+
+    await user.click(within(reportDialog).getByRole("button", { name: /save report request/i }));
+
+    expect(screen.getByText(/grade report saved for review and export/i)).toBeVisible();
+    expect(readSchoolData<Record<string, unknown>>("events", "kb-high")).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          schoolId: "kb-high",
+          type: "GRADE_MASTER_REPORT_REQUESTED",
+          module: "reports",
         }),
       ]),
     );
