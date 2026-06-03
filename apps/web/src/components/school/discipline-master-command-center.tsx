@@ -95,12 +95,6 @@ const disciplineSearchRecords = [
 
 type DisciplineSearchRecord = (typeof disciplineSearchRecords)[number];
 
-function announceAction(message: string) {
-  if (typeof window !== "undefined") {
-    window.dispatchEvent(new CustomEvent("myshule-discipline-action", { detail: message }));
-  }
-}
-
 function cn(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
 }
@@ -603,7 +597,7 @@ function TopHeader({
   );
 }
 
-function Hero() {
+function Hero({ onQuickAction }: { onQuickAction: (action: string) => void }) {
   return (
     <section className="overflow-hidden rounded-[1.75rem] border border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.16),transparent_34%),linear-gradient(135deg,#071D49_0%,#0B2A63_54%,#111827_100%)] p-5 text-white shadow-[0_24px_70px_rgba(7,29,73,0.24)]">
       <div className="grid gap-5 xl:grid-cols-[1.35fr_0.65fr]">
@@ -627,7 +621,7 @@ function Hero() {
               <button
                 key={label}
                 type="button"
-                onClick={() => announceAction(`${label} opened for discipline office action.`)}
+                onClick={() => onQuickAction(label)}
                 className="rounded-2xl border border-white/15 bg-white/10 px-4 py-3 text-left text-sm font-black text-white transition hover:-translate-y-1 hover:bg-white/15"
               >
                 {label}
@@ -812,7 +806,7 @@ function SmallCardGrid({
   );
 }
 
-function QuickActionsPanel() {
+function QuickActionsPanel({ onQuickAction }: { onQuickAction: (action: string) => void }) {
   const actions: Array<[string, LucideIcon, Tone]> = [
     ["Record New Case", ClipboardList, "authority"],
     ["Suspend Student", LockKeyhole, "danger"],
@@ -835,7 +829,7 @@ function QuickActionsPanel() {
           <button
             key={label}
             type="button"
-            onClick={() => announceAction(`${label} opened for discipline office action.`)}
+            onClick={() => onQuickAction(label)}
             className={cn("flex min-h-14 items-center gap-3 rounded-2xl border px-4 py-3 text-left font-black text-white transition hover:-translate-y-1", toneStyles[tone].border, toneStyles[tone].bg)}
           >
             <IconFrame icon={Icon} tone={tone} />
@@ -872,10 +866,16 @@ function ReportsAndSettings({ activeView }: { activeView: "reports" | "settings"
   );
 }
 
-function DashboardOverview({ kpiItems }: { kpiItems: Kpi[] }) {
+function DashboardOverview({
+  kpiItems,
+  onQuickAction,
+}: {
+  kpiItems: Kpi[];
+  onQuickAction: (action: string) => void;
+}) {
   return (
     <>
-      <Hero />
+      <Hero onQuickAction={onQuickAction} />
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4" aria-label="Discipline KPI summary">
         {kpiItems.slice(0, 4).map((item, index) => (
           <KpiCard key={item.label} item={item} index={index} />
@@ -883,7 +883,7 @@ function DashboardOverview({ kpiItems }: { kpiItems: Kpi[] }) {
       </section>
       <div className="grid gap-5 xl:grid-cols-[1.08fr_0.92fr]">
         <IncidentFeed />
-        <QuickActionsPanel />
+        <QuickActionsPanel onQuickAction={onQuickAction} />
       </div>
     </>
   );
@@ -892,15 +892,17 @@ function DashboardOverview({ kpiItems }: { kpiItems: Kpi[] }) {
 function ActiveWorkspace({
   activeView,
   kpiItems,
+  onQuickAction,
   onStudentAction,
 }: {
   activeView: DisciplineView;
   kpiItems: Kpi[];
+  onQuickAction: (action: string) => void;
   onStudentAction: (student: RiskStudent) => void;
 }) {
   switch (activeView) {
     case "dashboard":
-      return <DashboardOverview kpiItems={kpiItems} />;
+      return <DashboardOverview kpiItems={kpiItems} onQuickAction={onQuickAction} />;
     case "incidents":
       return <IncidentFeed />;
     case "risk-students":
@@ -1008,12 +1010,12 @@ function ActiveWorkspace({
         </SectionCard>
       );
     case "quick-actions":
-      return <QuickActionsPanel />;
+      return <QuickActionsPanel onQuickAction={onQuickAction} />;
     case "reports":
     case "settings":
       return <ReportsAndSettings activeView={activeView} />;
     default:
-      return <DashboardOverview kpiItems={kpiItems} />;
+      return <DashboardOverview kpiItems={kpiItems} onQuickAction={onQuickAction} />;
   }
 }
 
@@ -1055,6 +1057,7 @@ export function DisciplineMasterCommandCenter({
   const [searchTerm, setSearchTerm] = useState("");
   const [notice, setNotice] = useState("Discipline desk ready for cases, parent contact, counselling referrals, and reports.");
   const [selectedStudentAction, setSelectedStudentAction] = useState<RiskStudent | null>(null);
+  const [activeQuickAction, setActiveQuickAction] = useState<string | null>(null);
   const kpiItems = useMemo(() => buildLiveKpis(liveAnalytics), [liveAnalytics]);
   const searchResults = useMemo(() => {
     const query = searchTerm.trim().toLowerCase();
@@ -1102,18 +1105,6 @@ export function DisciplineMasterCommandCenter({
     };
   }, [liveDataEnabled, tenantSlug]);
 
-  useEffect(() => {
-    function handleDisciplineAction(event: Event) {
-      const detail = (event as CustomEvent<string>).detail;
-      if (detail) {
-        setNotice(detail);
-      }
-    }
-
-    window.addEventListener("myshule-discipline-action", handleDisciplineAction);
-    return () => window.removeEventListener("myshule-discipline-action", handleDisciplineAction);
-  }, []);
-
   function openSearchRecord(record: DisciplineSearchRecord) {
     setSearchTerm("");
     setActiveView(record.view);
@@ -1123,6 +1114,11 @@ export function DisciplineMasterCommandCenter({
   function openStudentAction(student: RiskStudent) {
     setSelectedStudentAction(student);
     setNotice(`${student.action} ready for ${student.name}.`);
+  }
+
+  function openQuickAction(action: string) {
+    setActiveQuickAction(action);
+    setNotice(`${action} ready for discipline office.`);
   }
 
   function saveStudentAction() {
@@ -1167,6 +1163,45 @@ export function DisciplineMasterCommandCenter({
     setSelectedStudentAction(null);
   }
 
+  function saveQuickAction() {
+    if (!activeQuickAction) return;
+
+    const schoolId = getCurrentSchoolId();
+    const actionId = activeQuickAction.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+    const seriousAction = ["suspend", "security", "parent"].some((keyword) => activeQuickAction.toLowerCase().includes(keyword));
+
+    publishSchoolOperationalEvent({
+      schoolId,
+      type: "DISCIPLINE_QUICK_ACTION_RECORDED",
+      module: "discipline",
+      actorRole: "Discipline Master",
+      title: `${activeQuickAction} saved for discipline office`,
+      body: `${activeQuickAction} was recorded by the Discipline Master and routed to the same-school follow-up queue.`,
+      entityId: `discipline-quick-${actionId}`,
+      severity: seriousAction ? "warning" : "info",
+      payload: {
+        action: activeQuickAction,
+        source: "discipline-master-command-center",
+        scope: "current-school",
+      },
+      notifications: [
+        {
+          audienceRoles: ["Deputy Principal", "Class Teacher", "School Counsellor", "Principal"],
+          title: `${activeQuickAction} recorded`,
+          body: "The Discipline Master recorded a discipline office quick action for same-school follow-up.",
+          severity: seriousAction ? "warning" : "info",
+          relatedModule: "discipline",
+          relatedRecordId: `discipline-quick-${actionId}`,
+          requiresAction: seriousAction,
+          requestStatus: "Pending",
+        },
+      ],
+    });
+
+    setNotice(`${activeQuickAction} saved for discipline office.`);
+    setActiveQuickAction(null);
+  }
+
   return (
     <div id="top" data-route-mode={routeMode} className="h-screen overflow-hidden bg-[#F2F5F9]">
       <div className="grid h-full gap-5 p-3 md:p-5 xl:grid-cols-[300px_minmax(0,1fr)]">
@@ -1200,6 +1235,35 @@ export function DisciplineMasterCommandCenter({
               </div>
             </div>
           ) : null}
+          {activeQuickAction ? (
+            <div role="dialog" aria-modal="true" aria-label="Discipline quick action" className="mt-4 rounded-2xl border border-[#D4DEEC] bg-white p-5 text-[#071D49] shadow-[0_18px_45px_rgba(7,29,73,0.12)]">
+              <p className="text-xs font-black uppercase tracking-[0.16em] text-[#5A6D8D]">Same-school discipline workflow</p>
+              <h2 className="mt-2 text-2xl font-black">{activeQuickAction}</h2>
+              <p className="mt-2 max-w-3xl text-sm font-semibold leading-6 text-[#5A6D8D]">
+                This records the discipline office action and notifies Deputy Principal, Class Teacher, Counsellor, and Principal where follow-up is needed.
+              </p>
+              <div className="mt-4 grid gap-3 md:grid-cols-3">
+                {[
+                  ["Action", activeQuickAction],
+                  ["Owner", "Discipline Master"],
+                  ["Scope", "Current school only"],
+                ].map(([label, value]) => (
+                  <div key={label} className="rounded-xl border border-[#D4DEEC] bg-[#F8FAFC] p-3">
+                    <p className="text-xs font-black uppercase tracking-[0.12em] text-[#5A6D8D]">{label}</p>
+                    <p className="mt-1 text-sm font-black">{value}</p>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <button type="button" onClick={saveQuickAction} className="min-h-10 rounded-xl bg-[#071D49] px-4 text-sm font-black text-white">
+                  Save quick discipline action
+                </button>
+                <button type="button" onClick={() => setActiveQuickAction(null)} className="min-h-10 rounded-xl border border-[#D4DEEC] px-4 text-sm font-black text-[#071D49]">
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : null}
           <motion.div
             key={activeView}
             initial={false}
@@ -1207,7 +1271,7 @@ export function DisciplineMasterCommandCenter({
             transition={{ duration: 0.22 }}
             className="space-y-5"
           >
-            <ActiveWorkspace activeView={activeView} kpiItems={kpiItems} onStudentAction={openStudentAction} />
+            <ActiveWorkspace activeView={activeView} kpiItems={kpiItems} onQuickAction={openQuickAction} onStudentAction={openStudentAction} />
           </motion.div>
         </main>
       </div>

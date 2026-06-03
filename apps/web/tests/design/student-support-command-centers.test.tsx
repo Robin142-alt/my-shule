@@ -35,11 +35,24 @@ describe("student support and admissions command center interactions", () => {
     await user.click(within(actionDialog).getByRole("button", { name: /save discipline action/i }));
 
     expect(screen.getByText(/assign follow-up saved for kevin o/i)).toBeVisible();
+
+    await user.click(screen.getByRole("button", { name: /^case$/i }));
+    await user.click(screen.getByRole("button", { name: /record new case/i }));
+    const quickDisciplineDialog = screen.getByRole("dialog", { name: /discipline quick action/i });
+    expect(quickDisciplineDialog).toBeVisible();
+    await user.click(within(quickDisciplineDialog).getByRole("button", { name: /save quick discipline action/i }));
+
+    expect(screen.getByText(/record new case saved for discipline office/i)).toBeVisible();
     expect(readSchoolData<Record<string, unknown>>("events", "kb-high")).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           schoolId: "kb-high",
           type: "DISCIPLINE_CASE_ACTION_RECORDED",
+          module: "discipline",
+        }),
+        expect.objectContaining({
+          schoolId: "kb-high",
+          type: "DISCIPLINE_QUICK_ACTION_RECORDED",
           module: "discipline",
         }),
       ]),
