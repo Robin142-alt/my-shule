@@ -336,26 +336,25 @@ export function buildKisumuBoysDemoAccessSummary() {
     school_login: '/school/login?tenant=kb-high',
     parent_login: '/parent/login?tenant=kb-high',
     common_password_supported: false,
-    note: 'This seed does not create direct password credentials because MyShule production auth is invitation-only. Use the existing KB High principal/admin account, then invite role users from Users & Invitations.',
+    note: 'This seed does not create direct password credentials because MyShule production auth is invitation-only. Use the existing Kisumu Boys principal/admin account, then invite role users from Users & Invitations.',
   };
 }
 
+const KISUMU_BOYS_NOT_FOUND_MESSAGE = "ERROR: Existing demo school 'Kisumu Boys' not found. Seed aborted.";
+
 export function assertKisumuBoysTenantSelection(rows: TenantSelectionRow[]): TenantSelectionRow {
   if (rows.length !== 1) {
-    throw new Error(`Expected exactly one Kisumu Boys tenant, found ${rows.length}. Refusing to seed demo data.`);
+    throw new Error(KISUMU_BOYS_NOT_FOUND_MESSAGE);
   }
 
   const tenant = rows[0];
-  const normalizedName = tenant.name.trim().toLowerCase();
 
   if (
     tenant.tenant_id !== 'kb-high'
     || tenant.subdomain !== 'kb-high'
-    || normalizedName !== 'kisumu boys'
+    || tenant.name !== 'Kisumu Boys'
   ) {
-    throw new Error(
-      `Kisumu demo seed refuses tenant ${tenant.tenant_id}/${tenant.name}/${tenant.subdomain}.`,
-    );
+    throw new Error(KISUMU_BOYS_NOT_FOUND_MESSAGE);
   }
 
   return tenant;
@@ -601,9 +600,7 @@ async function resolveTenant(client: Client): Promise<TenantSelectionRow> {
     `
       SELECT id::text, tenant_id, name, subdomain
       FROM tenants
-      WHERE tenant_id = 'kb-high'
-        OR subdomain = 'kb-high'
-        OR lower(name) = 'kisumu boys'
+      WHERE name = 'Kisumu Boys'
     `,
   );
 

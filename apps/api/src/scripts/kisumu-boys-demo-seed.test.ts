@@ -14,14 +14,21 @@ import {
 test('Kisumu Boys demo seed refuses missing, wrong, or ambiguous tenants', () => {
   assert.throws(
     () => assertKisumuBoysTenantSelection([]),
-    /Expected exactly one Kisumu Boys tenant/,
+    /ERROR: Existing demo school 'Kisumu Boys' not found. Seed aborted./,
   );
   assert.throws(
     () =>
       assertKisumuBoysTenantSelection([
-        { tenant_id: 'other-school', name: 'Other School', subdomain: 'other-school', id: 'tenant-1' },
+        { tenant_id: 'kb-high', name: 'Kisumu Boys High School', subdomain: 'kb-high', id: 'tenant-1' },
       ]),
-    /refuses tenant/,
+    /ERROR: Existing demo school 'Kisumu Boys' not found. Seed aborted./,
+  );
+  assert.throws(
+    () =>
+      assertKisumuBoysTenantSelection([
+        { tenant_id: 'kb-high', name: 'kisumu boys', subdomain: 'kb-high', id: 'tenant-1' },
+      ]),
+    /ERROR: Existing demo school 'Kisumu Boys' not found. Seed aborted./,
   );
   assert.throws(
     () =>
@@ -29,7 +36,7 @@ test('Kisumu Boys demo seed refuses missing, wrong, or ambiguous tenants', () =>
         { tenant_id: 'kb-high', name: 'Kisumu Boys', subdomain: 'kb-high', id: 'tenant-1' },
         { tenant_id: 'kisumu-boys', name: 'Kisumu Boys', subdomain: 'kisumu-boys', id: 'tenant-2' },
       ]),
-    /Expected exactly one Kisumu Boys tenant/,
+    /ERROR: Existing demo school 'Kisumu Boys' not found. Seed aborted./,
   );
 
   assert.equal(
