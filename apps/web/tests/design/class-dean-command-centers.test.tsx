@@ -190,6 +190,26 @@ describe("class teacher and dean command center interactions", () => {
         }),
       ]),
     );
+
+    await user.click(screen.getByRole("button", { name: /streams & classes/i }));
+    await user.click(screen.getByRole("button", { name: /open stream detail/i }));
+
+    const streamDialog = screen.getByRole("dialog", { name: /grade stream detail/i });
+    expect(streamDialog).toBeVisible();
+    expect(within(streamDialog).getByText(/form 2 stream detail/i)).toBeVisible();
+
+    await user.click(within(streamDialog).getByRole("button", { name: /save stream detail review/i }));
+
+    expect(screen.getByText(/form 2 stream detail review saved/i)).toBeVisible();
+    expect(readSchoolData<Record<string, unknown>>("events", "kb-high")).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          schoolId: "kb-high",
+          type: "GRADE_MASTER_STREAM_DETAIL_REVIEWED",
+          module: "grade-master",
+        }),
+      ]),
+    );
   });
 
   it("makes HOD table search and filter controls executable", async () => {

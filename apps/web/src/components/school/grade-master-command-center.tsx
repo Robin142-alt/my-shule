@@ -148,6 +148,7 @@ const gradeSearchRecords = [
 ] satisfies Array<{ id: string; label: string; detail: string; view: GradeView }>;
 
 type GradeSearchRecord = (typeof gradeSearchRecords)[number];
+type GradeStreamDetailReview = { title: string };
 
 function announceAction(message: string) {
   if (typeof window !== "undefined") {
@@ -550,7 +551,7 @@ function OverviewWorkspace() {
   );
 }
 
-function StreamsWorkspace() {
+function StreamsWorkspace({ onStreamDetail }: { onStreamDetail: (title: string) => void }) {
   return (
     <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
       <Panel title="Streams & Classes" description="Manage all streams under Form 2 without mixing unrelated modules." icon={Users}>
@@ -576,7 +577,7 @@ function StreamsWorkspace() {
       <Panel title="Stream detail workspace" description="Open a selected stream without leaving the Grade/Form Master context." icon={LayoutDashboard}>
         <button
           type="button"
-          onClick={() => announceAction("Form 2 stream detail opened.")}
+          onClick={() => onStreamDetail("Form 2 stream detail")}
           className="w-full rounded-xl bg-[#071D49] px-4 py-3 text-left text-sm font-black text-white"
         >
           Open stream detail
@@ -830,13 +831,15 @@ function SettingsWorkspace() {
 function ActiveWorkspace({
   activeView,
   onReportAction,
+  onStreamDetail,
 }: {
   activeView: GradeView;
   onReportAction: (report: string) => void;
+  onStreamDetail: (title: string) => void;
 }) {
   switch (activeView) {
     case "streams":
-      return <StreamsWorkspace />;
+      return <StreamsWorkspace onStreamDetail={onStreamDetail} />;
     case "attendance":
       return <AttendanceWorkspace />;
     case "discipline":
@@ -869,6 +872,7 @@ export function GradeMasterCommandCenter({ routeMode }: { routeMode: GradeRouteM
   const [searchTerm, setSearchTerm] = useState("");
   const [notice, setNotice] = useState("Ready for grade follow-up.");
   const [selectedReport, setSelectedReport] = useState<string | null>(null);
+  const [streamDetailReview, setStreamDetailReview] = useState<GradeStreamDetailReview | null>(null);
   const searchResults = searchTerm.trim()
     ? gradeSearchRecords.filter((record) => `${record.label} ${record.detail}`.toLowerCase().includes(searchTerm.toLowerCase()))
     : [];
@@ -899,6 +903,49 @@ export function GradeMasterCommandCenter({ routeMode }: { routeMode: GradeRouteM
   function openReportAction(report: string) {
     setSelectedReport(report);
     setNotice(`${report} ready for grade master review.`);
+  }
+
+  function openStreamDetailReview(title: string) {
+    setStreamDetailReview({ title });
+    setNotice(`${title} opened for Form 2 review.`);
+  }
+
+  function saveStreamDetailReview() {
+    if (!streamDetailReview) return;
+
+    const schoolId = getCurrentSchoolId();
+    const streamSlug = streamDetailReview.title.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+
+    publishSchoolOperationalEvent({
+      schoolId,
+      type: "GRADE_MASTER_STREAM_DETAIL_REVIEWED",
+      module: "grade-master",
+      actorRole: "Grade/Form Master",
+      title: `${streamDetailReview.title} review saved`,
+      body: `Grade/Form Master saved ${streamDetailReview.title.toLowerCase()} for Form 2 attendance, academic, and discipline coordination.`,
+      entityId: `grade-master-stream-${streamSlug}`,
+      severity: "info",
+      payload: {
+        streamDetail: streamDetailReview.title,
+        grade: "Form 2",
+        streams: ["North", "East", "West", "South"],
+        dashboard: "grade-master",
+      },
+      notifications: [
+        {
+          audienceRoles: ["Deputy Principal", "Principal", "Class Teacher"],
+          title: "Form 2 stream detail reviewed",
+          body: "Grade/Form Master saved a stream detail review for same-school follow-up.",
+          severity: "info",
+          relatedModule: "grade-master",
+          relatedRecordId: `grade-master-stream-${streamSlug}`,
+          requestStatus: "Completed",
+        },
+      ],
+    });
+
+    setNotice(`${streamDetailReview.title} review saved.`);
+    setStreamDetailReview(null);
   }
 
   function saveReportRequest() {
@@ -972,7 +1019,29 @@ export function GradeMasterCommandCenter({ routeMode }: { routeMode: GradeRouteM
                   </div>
                 </div>
               ) : null}
-              <ActiveWorkspace activeView={activeView} onReportAction={openReportAction} />
+              {streamDetailReview ? (
+                <div role="dialog" aria-modal="true" aria-label="Grade stream detail" className="rounded-2xl border border-[#D8E0EC] bg-white p-5 shadow-[0_18px_45px_rgba(7,29,73,0.12)]">
+                  <p className="text-xs font-black uppercase tracking-[0.16em] text-[#64748B]">Grade stream detail</p>
+                  <h2 className="mt-2 text-2xl font-black text-[#071D49]">{streamDetailReview.title}</h2>
+                  <p className="mt-2 text-sm font-semibold leading-6 text-[#64748B]">
+                    Save this Form 2 stream review and notify class teachers, Deputy Principal, and Principal inside this school workspace.
+                  </p>
+                  <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                    {["4 streams", "428 students", "Attendance, discipline, academics"].map((item) => (
+                      <div key={item} className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-3 text-sm font-black text-[#071D49]">{item}</div>
+                    ))}
+                  </div>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <button type="button" onClick={saveStreamDetailReview} className="min-h-10 rounded-xl bg-[#071D49] px-4 text-sm font-black text-white">
+                      Save stream detail review
+                    </button>
+                    <button type="button" onClick={() => setStreamDetailReview(null)} className="min-h-10 rounded-xl border border-[#D8E0EC] px-4 text-sm font-black text-[#071D49]">
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+              <ActiveWorkspace activeView={activeView} onReportAction={openReportAction} onStreamDetail={openStreamDetailReview} />
             </div>
           </main>
         </div>
