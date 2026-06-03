@@ -88,6 +88,42 @@ type DemoLibraryCatalogItem = {
   }>;
 };
 
+type DemoMedicineCatalogItem = {
+  name: string;
+  category: string;
+  unitType: 'tablets' | 'bottles' | 'sachets' | 'units';
+  reorderLevel: number;
+  quantityReceived: number;
+  quantityAvailable: number;
+  expiryDate: string;
+  lowStock?: boolean;
+};
+
+type DemoInventoryCatalogItem = {
+  name: string;
+  sku: string;
+  category: string;
+  unit: string;
+  kind: 'consumable' | 'asset';
+  quantity: number;
+  reorderLevel: number;
+  unitCost: number;
+  location: string;
+  department?: string;
+  status?: 'active' | 'damaged' | 'maintenance';
+};
+
+type DemoTransportRoute = {
+  name: string;
+  code: string;
+  zone: string;
+  fareAmountMinor: number;
+  stops: Array<{
+    name: string;
+    plannedTime: string;
+  }>;
+};
+
 type SeedSummary = {
   tenant_id: string;
   tenant_name: string;
@@ -191,9 +227,14 @@ const PLAN_OPERATIONS: DemoSeedOperation[] = [
   { moduleCode: 'inventory', table: 'inventory_items', tenantScoped: true },
   { moduleCode: 'inventory', table: 'inventory_locations', tenantScoped: true },
   { moduleCode: 'inventory', table: 'inventory_item_balances', tenantScoped: true },
+  { moduleCode: 'inventory', table: 'inventory_stock_count_snapshots', tenantScoped: true },
   { moduleCode: 'inventory', table: 'inventory_stock_movements', tenantScoped: true },
   { moduleCode: 'inventory', table: 'inventory_purchase_orders', tenantScoped: true },
   { moduleCode: 'inventory', table: 'inventory_requests', tenantScoped: true },
+  { moduleCode: 'inventory', table: 'inventory_reservations', tenantScoped: true },
+  { moduleCode: 'inventory', table: 'inventory_request_backorders', tenantScoped: true },
+  { moduleCode: 'inventory', table: 'inventory_transfers', tenantScoped: true },
+  { moduleCode: 'inventory', table: 'inventory_incidents', tenantScoped: true },
   { moduleCode: 'transport', table: 'transport_routes', tenantScoped: true },
   { moduleCode: 'transport', table: 'transport_route_stops', tenantScoped: true },
   { moduleCode: 'transport', table: 'transport_vehicles', tenantScoped: true },
@@ -203,6 +244,8 @@ const PLAN_OPERATIONS: DemoSeedOperation[] = [
   { moduleCode: 'transport', table: 'transport_trips', tenantScoped: true },
   { moduleCode: 'transport', table: 'transport_trip_events', tenantScoped: true },
   { moduleCode: 'transport', table: 'transport_alerts', tenantScoped: true },
+  { moduleCode: 'transport', table: 'vehicle_service_logs', tenantScoped: true },
+  { moduleCode: 'transport', table: 'transport_audit_logs', tenantScoped: true },
   { moduleCode: 'procurement', table: 'procurement_suppliers', tenantScoped: true },
   { moduleCode: 'procurement', table: 'procurement_requests', tenantScoped: true },
   { moduleCode: 'procurement', table: 'procurement_request_items', tenantScoped: true },
@@ -213,9 +256,12 @@ const PLAN_OPERATIONS: DemoSeedOperation[] = [
   { moduleCode: 'clinic_health', table: 'clinic_locations', tenantScoped: true },
   { moduleCode: 'clinic_health', table: 'clinic_medicines', tenantScoped: true },
   { moduleCode: 'clinic_health', table: 'clinic_medicine_batches', tenantScoped: true },
+  { moduleCode: 'clinic_health', table: 'clinic_stock_movements', tenantScoped: true },
   { moduleCode: 'clinic_health', table: 'clinic_visits', tenantScoped: true },
   { moduleCode: 'clinic_health', table: 'clinic_medicine_dispenses', tenantScoped: true },
+  { moduleCode: 'clinic_health', table: 'clinic_procurement_recommendations', tenantScoped: true },
   { moduleCode: 'clinic_health', table: 'clinic_alerts', tenantScoped: true },
+  { moduleCode: 'clinic_health', table: 'clinic_audit_logs', tenantScoped: true },
   { moduleCode: 'lab_management', table: 'lab_departments', tenantScoped: true },
   { moduleCode: 'lab_management', table: 'labs', tenantScoped: true },
   { moduleCode: 'lab_management', table: 'lab_sessions', tenantScoped: true },
@@ -405,6 +451,54 @@ export function buildKisumuBoysDemoLibraryCatalog(): DemoLibraryCatalogItem[] {
       };
     }),
   }));
+}
+
+export function buildKisumuBoysDemoMedicineCatalog(): DemoMedicineCatalogItem[] {
+  return [
+    { name: 'Paracetamol', category: 'analgesic', unitType: 'tablets', reorderLevel: 100, quantityReceived: 500, quantityAvailable: 430, expiryDate: '2027-02-28' },
+    { name: 'ORS', category: 'rehydration', unitType: 'sachets', reorderLevel: 80, quantityReceived: 200, quantityAvailable: 45, expiryDate: '2027-04-30', lowStock: true },
+    { name: 'Antacid', category: 'digestive', unitType: 'tablets', reorderLevel: 70, quantityReceived: 180, quantityAvailable: 62, expiryDate: '2027-03-31', lowStock: true },
+    { name: 'Bandages', category: 'first_aid', unitType: 'units', reorderLevel: 60, quantityReceived: 300, quantityAvailable: 188, expiryDate: '2028-01-31' },
+    { name: 'Antiseptic', category: 'first_aid', unitType: 'bottles', reorderLevel: 20, quantityReceived: 60, quantityAvailable: 24, expiryDate: '2027-06-30' },
+    { name: 'Thermometer covers', category: 'diagnostic', unitType: 'units', reorderLevel: 150, quantityReceived: 400, quantityAvailable: 310, expiryDate: '2028-08-31' },
+    { name: 'Gloves', category: 'protective', unitType: 'units', reorderLevel: 200, quantityReceived: 800, quantityAvailable: 520, expiryDate: '2028-03-31' },
+  ];
+}
+
+export function buildKisumuBoysDemoInventoryCatalog(): DemoInventoryCatalogItem[] {
+  return [
+    { name: 'Whiteboard markers', sku: 'KB-STORE-MKR', category: 'Stationery', unit: 'boxes', kind: 'consumable', quantity: 48, reorderLevel: 20, unitCost: 850, location: 'Main Store', department: 'Academics' },
+    { name: 'Chalk cartons', sku: 'KB-STORE-CHK', category: 'Stationery', unit: 'cartons', kind: 'consumable', quantity: 35, reorderLevel: 15, unitCost: 1200, location: 'Main Store', department: 'Academics' },
+    { name: 'A4 exercise books', sku: 'KB-STORE-EXB', category: 'Stationery', unit: 'pieces', kind: 'consumable', quantity: 1200, reorderLevel: 500, unitCost: 25, location: 'Main Store', department: 'Academics' },
+    { name: 'Printer paper reams', sku: 'KB-STORE-PPR', category: 'Office Supplies', unit: 'reams', kind: 'consumable', quantity: 86, reorderLevel: 40, unitCost: 620, location: 'Admin Store', department: 'Secretary' },
+    { name: 'Toner cartridges', sku: 'KB-STORE-TNR', category: 'Office Supplies', unit: 'pieces', kind: 'consumable', quantity: 8, reorderLevel: 6, unitCost: 7800, location: 'Admin Store', department: 'Secretary' },
+    { name: 'Cleaning detergent', sku: 'KB-STORE-DET', category: 'Cleaning Supplies', unit: 'litres', kind: 'consumable', quantity: 140, reorderLevel: 50, unitCost: 180, location: 'Main Store', department: 'Boarding' },
+    { name: 'Brooms', sku: 'KB-STORE-BRM', category: 'Cleaning Supplies', unit: 'pieces', kind: 'consumable', quantity: 64, reorderLevel: 25, unitCost: 220, location: 'Main Store', department: 'Boarding' },
+    { name: 'Disinfectant', sku: 'KB-STORE-DIS', category: 'Cleaning Supplies', unit: 'litres', kind: 'consumable', quantity: 38, reorderLevel: 20, unitCost: 350, location: 'Main Store', department: 'Clinic' },
+    { name: 'Lab gloves', sku: 'KB-STORE-LGL', category: 'Laboratory', unit: 'boxes', kind: 'consumable', quantity: 16, reorderLevel: 12, unitCost: 950, location: 'Science Store', department: 'Science' },
+    { name: 'Laboratory goggles', sku: 'KB-STORE-GOG', category: 'Laboratory', unit: 'pieces', kind: 'consumable', quantity: 72, reorderLevel: 30, unitCost: 450, location: 'Science Store', department: 'Science' },
+    { name: 'First aid refill packs', sku: 'KB-STORE-FAR', category: 'Clinic Supplies', unit: 'packs', kind: 'consumable', quantity: 10, reorderLevel: 8, unitCost: 2500, location: 'Clinic Store', department: 'Clinic' },
+    { name: 'Mattresses', sku: 'KB-STORE-MAT', category: 'Boarding Supplies', unit: 'pieces', kind: 'consumable', quantity: 28, reorderLevel: 15, unitCost: 4200, location: 'Hostel Store', department: 'Boarding' },
+    { name: 'Football balls', sku: 'KB-STORE-FBL', category: 'Sports', unit: 'pieces', kind: 'consumable', quantity: 18, reorderLevel: 8, unitCost: 1800, location: 'Sports Store', department: 'Games' },
+    { name: 'Office files', sku: 'KB-STORE-FIL', category: 'Office Supplies', unit: 'pieces', kind: 'consumable', quantity: 210, reorderLevel: 80, unitCost: 75, location: 'Admin Store', department: 'Secretary' },
+    { name: 'Food storage sacks', sku: 'KB-STORE-SCK', category: 'Kitchen Supplies', unit: 'pieces', kind: 'consumable', quantity: 90, reorderLevel: 30, unitCost: 160, location: 'Kitchen Store', department: 'Kitchen' },
+    { name: 'Projector Epson EB-X49', sku: 'KB-ASSET-PRJ-001', category: 'ICT Assets', unit: 'piece', kind: 'asset', quantity: 3, reorderLevel: 1, unitCost: 98000, location: 'ICT Store', department: 'ICT' },
+    { name: 'HP laptops', sku: 'KB-ASSET-LAP-001', category: 'ICT Assets', unit: 'piece', kind: 'asset', quantity: 14, reorderLevel: 2, unitCost: 65000, location: 'Computer Lab', department: 'ICT' },
+    { name: 'Laser printers', sku: 'KB-ASSET-PRN-001', category: 'ICT Assets', unit: 'piece', kind: 'asset', quantity: 4, reorderLevel: 1, unitCost: 42000, location: 'Admin Block', department: 'Secretary' },
+    { name: 'Dormitory metal beds', sku: 'KB-ASSET-BED-001', category: 'Boarding Assets', unit: 'piece', kind: 'asset', quantity: 60, reorderLevel: 5, unitCost: 7500, location: 'Victoria House', department: 'Boarding' },
+    { name: 'Security CCTV cameras', sku: 'KB-ASSET-CCTV-001', category: 'Security Assets', unit: 'piece', kind: 'asset', quantity: 16, reorderLevel: 2, unitCost: 12500, location: 'Security Office', department: 'Security', status: 'maintenance' },
+  ];
+}
+
+export function buildKisumuBoysDemoTransportRoutes(): DemoTransportRoute[] {
+  return [
+    { name: 'Milimani Route', code: 'KB-TR-MIL', zone: 'Milimani', fareAmountMinor: 850000, stops: [{ name: 'Milimani Estate', plannedTime: '06:05' }, { name: 'Mega City', plannedTime: '06:20' }, { name: 'School Gate', plannedTime: '06:45' }] },
+    { name: 'Mamboleo Route', code: 'KB-TR-MAMB', zone: 'Mamboleo', fareAmountMinor: 900000, stops: [{ name: 'Mamboleo Junction', plannedTime: '06:00' }, { name: 'Kondele Stage', plannedTime: '06:30' }, { name: 'School Gate', plannedTime: '06:50' }] },
+    { name: 'Manyatta Route', code: 'KB-TR-MAN', zone: 'Manyatta', fareAmountMinor: 750000, stops: [{ name: 'Manyatta Market', plannedTime: '06:15' }, { name: 'Kibuye Stage', plannedTime: '06:35' }, { name: 'School Gate', plannedTime: '06:55' }] },
+    { name: 'Kisian Route', code: 'KB-TR-KIS', zone: 'Kisian', fareAmountMinor: 1100000, stops: [{ name: 'Kisian Junction', plannedTime: '05:55' }, { name: 'Dunga Stage', plannedTime: '06:25' }, { name: 'School Gate', plannedTime: '06:50' }] },
+    { name: 'Nyamasaria Route', code: 'KB-TR-NYA', zone: 'Nyamasaria', fareAmountMinor: 950000, stops: [{ name: 'Nyamasaria Stage', plannedTime: '06:10' }, { name: 'Nyalenda Junction', plannedTime: '06:30' }, { name: 'School Gate', plannedTime: '06:55' }] },
+    { name: 'Riat Route', code: 'KB-TR-RIAT', zone: 'Riat', fareAmountMinor: 1000000, stops: [{ name: 'Riat Hills', plannedTime: '06:05' }, { name: 'Obunga Stage', plannedTime: '06:35' }, { name: 'School Gate', plannedTime: '06:55' }] },
+  ];
 }
 
 export function summarizeExistingSchoolUsersByRole(rows: Array<{ user_id: string; role_code: string }>): Record<string, number> {
@@ -1131,24 +1225,182 @@ async function seedDemoRows(writer: DemoSeedWriter, context: DemoContext): Promi
   await writer.insertOnce('library_circulation_ledger', { id: demoUuid('library-damaged-case-1'), tenant_id: tenantId, borrower_id: libraryBorrowerIds[12], copy_id: libraryCopyIds[28], action: 'damaged', metadata: meta({ title: 'Damaged book case: Top Mark Mathematics Form 4', billing_reference: 'KB-LIB-DMG-001' }) });
   await writer.insertOnce('library_audit_logs', { id: demoUuid('library-audit-issue-1'), tenant_id: tenantId, actor_user_id: context.librarianUserId, action: 'library.demo_books_and_loans_seeded', entity_type: 'library_demo_seed', entity_id: demoUuid('library-demo-summary'), metadata: meta({ catalog_items: libraryCatalog.length, copies: libraryCopyIds.length, active_loans: 18, returned_loans: 8, overdue_loans: 5 }) });
 
-  await writer.upsert('inventory_categories', { id: inventoryCategoryId, tenant_id: tenantId, code: 'KB-DEMO-STATIONERY', name: 'Demo Stationery', status: 'active' });
-  await writer.upsert('inventory_suppliers', { id: demoUuid('inventory-supplier-1'), tenant_id: tenantId, supplier_name: 'Kisumu Demo Supplies Ltd', contact_phone: '+254733100001', metadata: meta() });
-  await writer.upsert('inventory_items', { id: inventoryItemId, tenant_id: tenantId, category_id: inventoryCategoryId, item_name: 'A4 Exercise Books', sku: 'KB-DEMO-EXB', unit: 'pieces', reorder_level: 500, status: 'active' });
-  await writer.upsert('inventory_locations', { id: inventoryLocationId, tenant_id: tenantId, code: 'MAIN', name: 'Main Store', status: 'active' });
-  await writer.upsert('inventory_item_balances', { id: demoUuid('inventory-balance-1'), tenant_id: tenantId, item_id: inventoryItemId, location_code: 'MAIN', quantity_on_hand: 1200, quantity_reserved: 120 });
-  await writer.upsert('inventory_stock_movements', { id: demoUuid('inventory-movement-1'), tenant_id: tenantId, item_id: inventoryItemId, movement_type: 'receipt', quantity: 1200, unit_cost_minor: 2500, reference: 'KB-DEMO-GRN-001' });
-  await writer.upsert('inventory_purchase_orders', { id: demoUuid('inventory-po-1'), tenant_id: tenantId, po_number: 'KB-INV-PO-001', supplier_name: 'Kisumu Demo Supplies Ltd', status: 'approved' });
-  await writer.upsert('inventory_requests', { id: demoUuid('inventory-request-1'), tenant_id: tenantId, request_number: 'KB-INV-REQ-001', department: 'Mathematics', requested_by: 'Shiro Wanjiru', status: 'pending' });
+  const inventoryCatalog = buildKisumuBoysDemoInventoryCatalog();
+  const inventoryCategoryIds = new Map<string, string>();
+  const inventorySupplierId = demoUuid('inventory-supplier-kisumu-demo-supplies');
+  const inventoryLocations = [
+    { code: 'MAIN', name: 'Main Store' },
+    { code: 'ADMIN', name: 'Admin Store' },
+    { code: 'SCI', name: 'Science Store' },
+    { code: 'CLINIC', name: 'Clinic Store' },
+    { code: 'HOSTEL', name: 'Hostel Store' },
+    { code: 'ICT', name: 'ICT Store' },
+    { code: 'SPORTS', name: 'Sports Store' },
+    { code: 'KITCHEN', name: 'Kitchen Store' },
+  ];
 
-  await writer.upsert('transport_routes', { id: transportRouteId, tenant_id: tenantId, name: 'Mamboleo Route', code: 'KB-TR-MAMB', status: 'active' });
-  await writer.upsert('transport_route_stops', { id: transportStopId, tenant_id: tenantId, route_id: transportRouteId, name: 'Kondele Stage', stop_sequence: 1, pickup_time: '06:30' });
-  await writer.upsert('transport_vehicles', { id: transportVehicleId, tenant_id: tenantId, registration_number: 'KCB 123D', capacity: 51, ownership_type: 'school_owned', status: 'active' });
-  await writer.upsert('transport_drivers', { id: transportDriverId, tenant_id: tenantId, name: 'John Owino', phone_number: '+254744100001', status: 'active' });
-  await writer.upsert('transport_manifests', { id: transportManifestId, tenant_id: tenantId, route_id: transportRouteId, effective_from: '2026-05-04', status: 'active' });
-  await writer.upsert('transport_manifest_students', { id: demoUuid('transport-manifest-student-1'), tenant_id: tenantId, manifest_id: transportManifestId, student_id: studentIds[0], pickup_stop_id: transportStopId, dropoff_stop_id: transportStopId, boarding_status: 'active' });
-  await writer.upsert('transport_trips', { id: transportTripId, tenant_id: tenantId, route_id: transportRouteId, vehicle_id: transportVehicleId, driver_id: transportDriverId, trip_date: '2026-05-24', direction: 'morning', status: 'completed' });
-  await writer.upsert('transport_trip_events', { id: demoUuid('transport-trip-event-1'), tenant_id: tenantId, trip_id: transportTripId, event_type: 'departed', event_time: '2026-05-24T03:30:00.000Z', metadata: meta() });
-  await writer.upsert('transport_alerts', { id: demoUuid('transport-alert-1'), tenant_id: tenantId, title: 'Bus service due', message: 'Demo bus service log due next week.', severity: 'warning', metadata: meta() });
+  await writer.upsert('inventory_suppliers', { id: inventorySupplierId, tenant_id: tenantId, supplier_name: 'Kisumu Demo Supplies Ltd', contact_person: 'Grace Njeri', email: 'supplies@kisumuboys.demo', phone: '+254733100001', county: 'Kisumu', metadata: meta() });
+
+  for (const [index, location] of inventoryLocations.entries()) {
+    await writer.upsert('inventory_locations', { id: demoUuid(`inventory-location-${location.code.toLowerCase()}`), tenant_id: tenantId, code: location.code, name: location.name, status: 'active' });
+  }
+
+  for (const item of inventoryCatalog) {
+    if (!inventoryCategoryIds.has(item.category)) {
+      const categoryId = demoUuid(`inventory-category-${item.category.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`);
+      inventoryCategoryIds.set(item.category, categoryId);
+      await writer.upsert('inventory_categories', { id: categoryId, tenant_id: tenantId, code: `KB-${item.category.toUpperCase().replace(/[^A-Z0-9]+/g, '-').slice(0, 18)}`, name: item.category, manager: item.department ?? 'Storekeeper', storage_zones: item.location, description: `Kisumu Boys ${item.category.toLowerCase()} demo catalogue` });
+    }
+  }
+
+  const inventoryItemIds: string[] = [];
+  for (const [index, item] of inventoryCatalog.entries()) {
+    const itemId = demoUuid(`inventory-item-${item.sku.toLowerCase()}`);
+    inventoryItemIds.push(itemId);
+    const locationCode = inventoryLocations.find((location) => item.location.toLowerCase().includes(location.name.toLowerCase().split(' ')[0]))?.code ?? 'MAIN';
+
+    await writer.upsert('inventory_items', {
+      id: itemId,
+      tenant_id: tenantId,
+      category_id: inventoryCategoryIds.get(item.category),
+      supplier_id: inventorySupplierId,
+      item_name: item.name,
+      sku: item.sku,
+      unit: item.unit,
+      quantity_on_hand: item.quantity,
+      unit_price: item.unitCost,
+      reorder_level: item.reorderLevel,
+      storage_location: item.location,
+      notes: `${item.kind === 'asset' ? 'High-value traceable asset' : 'Daily school consumable'} for ${item.department ?? 'school operations'}.`,
+      status: item.status === 'maintenance' ? 'active' : item.status ?? 'active',
+    });
+    await writer.upsert('inventory_item_balances', { tenant_id: tenantId, item_id: itemId, location_code: locationCode, quantity_on_hand: item.quantity }, ['tenant_id', 'item_id', 'location_code']);
+    await writer.insertOnce('inventory_stock_movements', {
+      id: demoUuid(`inventory-receipt-${item.sku.toLowerCase()}`),
+      tenant_id: tenantId,
+      item_id: itemId,
+      movement_type: 'receipt',
+      quantity: item.quantity,
+      unit_cost: item.unitCost,
+      reference: `KB-GRN-${String(index + 1).padStart(3, '0')}`,
+      before_quantity: 0,
+      after_quantity: item.quantity,
+      department: item.department,
+      counterparty: 'Kisumu Demo Supplies Ltd',
+      actor_user_id: context.actorUserId,
+      notes: `Demo opening balance for ${item.name}`,
+    });
+  }
+
+  await writer.upsert('inventory_purchase_orders', {
+    id: demoUuid('inventory-po-1'),
+    tenant_id: tenantId,
+    po_number: 'KB-INV-PO-001',
+    supplier_id: inventorySupplierId,
+    status: 'approved',
+    expected_delivery_date: '2026-06-07',
+    ordered_at: '2026-05-24',
+    approved_by_user_id: context.actorUserId,
+    total_amount: 248500,
+    lines: meta({ items: inventoryCatalog.slice(0, 6).map((item) => ({ sku: item.sku, name: item.name, quantity: Math.min(item.quantity, 20) })) }),
+  });
+
+  const inventoryRequests = [
+    { department: 'Mathematics', requestedBy: 'Shiro Wanjiru', itemIndex: 0, quantity: 6, status: 'fulfilled', priority: 'normal' },
+    { department: 'Boarding', requestedBy: 'Mr Otieno', itemIndex: 5, quantity: 20, status: 'pending', priority: 'high' },
+    { department: 'Science', requestedBy: 'Mr Mwangi', itemIndex: 8, quantity: 4, status: 'approved', priority: 'high' },
+    { department: 'Clinic', requestedBy: 'Mrs Achieng', itemIndex: 10, quantity: 3, status: 'pending', priority: 'urgent' },
+    { department: 'ICT', requestedBy: 'Brian Otieno', itemIndex: 15, quantity: 1, status: 'pending', priority: 'high' },
+  ];
+  for (const [index, request] of inventoryRequests.entries()) {
+    const requestId = demoUuid(`inventory-request-${index + 1}`);
+    const requestedItem = inventoryCatalog[request.itemIndex];
+    const requestedItemId = inventoryItemIds[request.itemIndex];
+
+    await writer.upsert('inventory_requests', {
+      id: requestId,
+      tenant_id: tenantId,
+      request_number: `KB-INV-REQ-${String(index + 1).padStart(3, '0')}`,
+      department: request.department,
+      requested_by: request.requestedBy,
+      status: request.status,
+      needed_by: '2026-06-05',
+      priority: request.priority,
+      lines: meta({ items: [{ sku: requestedItem?.sku, item: requestedItem?.name, quantity: request.quantity }] }),
+      notes: `${request.department} request for active dashboard communication demo.`,
+      approved_by_user_id: request.status !== 'pending' ? context.actorUserId : undefined,
+    });
+    if (request.status === 'approved' || request.status === 'fulfilled') {
+      await writer.upsert('inventory_reservations', { id: demoUuid(`inventory-reservation-${index + 1}`), tenant_id: tenantId, request_id: requestId, item_id: requestedItemId, quantity: request.quantity, status: request.status === 'fulfilled' ? 'fulfilled' : 'reserved', reserved_by_user_id: context.actorUserId });
+    }
+  }
+  await writer.upsert('inventory_request_backorders', { id: demoUuid('inventory-backorder-1'), tenant_id: tenantId, request_id: demoUuid('inventory-request-4'), item_id: inventoryItemIds[10], requested_quantity: 12, reserved_quantity: 3, backordered_quantity: 9, status: 'open' });
+  await writer.upsert('inventory_transfers', { id: demoUuid('inventory-transfer-1'), tenant_id: tenantId, transfer_number: 'KB-INV-TRF-001', from_location: 'MAIN', to_location: 'HOSTEL', status: 'pending', requested_by: 'Boarding Master', approved_by: 'Principal Wanjiku', lines: meta({ items: [{ item: 'Mattresses', quantity: 8 }] }), notes: 'Dormitory refill waiting for collection.' });
+  await writer.upsert('inventory_incidents', { id: demoUuid('inventory-incident-cctv-1'), tenant_id: tenantId, incident_number: 'KB-INV-INC-001', item_id: inventoryItemIds[19], incident_type: 'maintenance', quantity: 2, reason: 'Two CCTV cameras offline near back gate', responsible_department: 'Security', cost_impact: 25000, status: 'logged', notes: 'Visible to Principal, Security, ICT, and System Monitor dashboards.' });
+  await writer.upsert('inventory_stock_count_snapshots', { id: demoUuid('inventory-stock-count-1'), tenant_id: tenantId, snapshot_number: 'KB-INV-STK-001', location_code: 'MAIN', counted_by_user_id: context.actorUserId, status: 'posted', variance_count: 3, lines: meta({ counts: inventoryCatalog.slice(0, 10).map((item) => ({ sku: item.sku, expected: item.quantity, counted: item.quantity - (item.reorderLevel > item.quantity ? 1 : 0) })) }), notes: 'Demo stock take snapshot for operational dashboards.' });
+
+  const transportRoutes = buildKisumuBoysDemoTransportRoutes();
+  const transportRouteIds: string[] = [];
+  const transportStopIds: string[][] = [];
+  const transportVehicleIds = [
+    demoUuid('transport-vehicle-kcb-123d'),
+    demoUuid('transport-vehicle-kdc-448m'),
+    demoUuid('transport-vehicle-kde-781n'),
+    demoUuid('transport-vehicle-kdh-902p'),
+  ];
+  const transportDriverIds = [
+    demoUuid('transport-driver-john-owino'),
+    demoUuid('transport-driver-peter-odede'),
+    demoUuid('transport-driver-david-otieno'),
+    demoUuid('transport-driver-samuel-ochieng'),
+  ];
+
+  const vehicles = [
+    { id: transportVehicleIds[0], registration: 'KCB 123D', capacity: 51, status: 'active', serviceDue: '2026-06-10' },
+    { id: transportVehicleIds[1], registration: 'KDC 448M', capacity: 51, status: 'maintenance', serviceDue: '2026-06-02' },
+    { id: transportVehicleIds[2], registration: 'KDE 781N', capacity: 33, status: 'active', serviceDue: '2026-07-15' },
+    { id: transportVehicleIds[3], registration: 'KDH 902P', capacity: 29, status: 'active', serviceDue: '2026-06-28' },
+  ];
+  const drivers = [
+    { id: transportDriverIds[0], name: 'John Owino', phone: '+254744100001', license: 'DL-KB-001' },
+    { id: transportDriverIds[1], name: 'Peter Odede', phone: '+254744100002', license: 'DL-KB-002' },
+    { id: transportDriverIds[2], name: 'David Otieno', phone: '+254744100003', license: 'DL-KB-003' },
+    { id: transportDriverIds[3], name: 'Samuel Ochieng', phone: '+254744100004', license: 'DL-KB-004' },
+  ];
+
+  for (const vehicle of vehicles) {
+    await writer.upsert('transport_vehicles', { id: vehicle.id, tenant_id: tenantId, registration_number: vehicle.registration, capacity: vehicle.capacity, ownership_type: 'school_owned', make: 'Isuzu', model: 'NQR School Bus', service_due_date: vehicle.serviceDue, insurance_expiry_date: '2027-01-31', status: vehicle.status, created_by_user_id: context.actorUserId });
+  }
+  for (const driver of drivers) {
+    await writer.upsert('transport_drivers', { id: driver.id, tenant_id: tenantId, name: driver.name, phone: driver.phone, license_number: driver.license, license_expiry_date: '2027-08-31', status: 'active', created_by_user_id: context.actorUserId });
+  }
+
+  for (const [routeIndex, route] of transportRoutes.entries()) {
+    const routeId = demoUuid(`transport-route-${route.code.toLowerCase()}`);
+    const manifestId = demoUuid(`transport-manifest-${route.code.toLowerCase()}`);
+    const tripId = demoUuid(`transport-trip-${route.code.toLowerCase()}`);
+    transportRouteIds.push(routeId);
+    transportStopIds[routeIndex] = [];
+
+    await writer.upsert('transport_routes', { id: routeId, tenant_id: tenantId, name: route.name, code: route.code, zone: route.zone, fare_amount_minor: route.fareAmountMinor, status: 'active', created_by_user_id: context.actorUserId });
+    for (const [stopIndex, stop] of route.stops.entries()) {
+      const stopId = demoUuid(`transport-stop-${route.code.toLowerCase()}-${stopIndex + 1}`);
+      transportStopIds[routeIndex].push(stopId);
+      await writer.upsert('transport_route_stops', { id: stopId, tenant_id: tenantId, route_id: routeId, name: stop.name, stop_sequence: stopIndex + 1, planned_time: stop.plannedTime, notes: stopIndex === route.stops.length - 1 ? 'School destination' : 'Morning pickup point' });
+    }
+
+    await writer.upsert('transport_manifests', { id: manifestId, tenant_id: tenantId, route_id: routeId, academic_term_id: termId, effective_from: '2026-05-04', status: 'active', created_by_user_id: context.actorUserId });
+    for (let offset = 0; offset < 2; offset += 1) {
+      const studentIndex = routeIndex * 2 + offset;
+      await writer.upsert('transport_manifest_students', { id: demoUuid(`transport-manifest-student-${routeIndex + 1}-${offset + 1}`), tenant_id: tenantId, manifest_id: manifestId, student_id: studentIds[studentIndex], pickup_stop_id: transportStopIds[routeIndex][0], dropoff_stop_id: transportStopIds[routeIndex][2], boarding_status: 'active', guardian_contact: studentRoster[studentIndex]?.guardian.phone, notes: `${studentRoster[studentIndex]?.firstName} ${studentRoster[studentIndex]?.lastName} assigned to ${route.name}` });
+    }
+    await writer.upsert('transport_trips', { id: tripId, tenant_id: tenantId, route_id: routeId, vehicle_id: transportVehicleIds[routeIndex % transportVehicleIds.length], driver_id: transportDriverIds[routeIndex % transportDriverIds.length], manifest_id: manifestId, trip_date: '2026-05-24', direction: 'morning', scheduled_start_at: route.stops[0]?.plannedTime, actual_start_at: '2026-05-24T03:05:00.000Z', actual_end_at: '2026-05-24T03:58:00.000Z', learner_count: 2, status: routeIndex === 1 ? 'incident' : 'completed', started_by_user_id: context.actorUserId });
+    await writer.insertOnce('transport_trip_events', { id: demoUuid(`transport-trip-event-${routeIndex + 1}-departed`), tenant_id: tenantId, trip_id: tripId, event_type: 'departed', stop_id: transportStopIds[routeIndex][0], event_time: '2026-05-24T03:05:00.000Z', notes: `${route.name} departed first stop`, recorded_by_user_id: context.actorUserId, metadata: meta({ route: route.name }) });
+    await writer.insertOnce('transport_trip_events', { id: demoUuid(`transport-trip-event-${routeIndex + 1}-arrived`), tenant_id: tenantId, trip_id: tripId, event_type: routeIndex === 1 ? 'delay' : 'arrived', stop_id: transportStopIds[routeIndex][2], event_time: '2026-05-24T03:58:00.000Z', notes: routeIndex === 1 ? 'Delayed by mechanical inspection near Kondele' : `${route.name} arrived at school`, recorded_by_user_id: context.actorUserId, metadata: meta({ route: route.name }) });
+  }
+  await writer.upsert('transport_alerts', { id: demoUuid('transport-alert-maintenance-1'), tenant_id: tenantId, route_id: transportRouteIds[1], vehicle_id: transportVehicleIds[1], title: 'Bus marked for maintenance', message: 'KDC 448M needs service before afternoon route.', severity: 'warning', status: 'open', notify_parent: true, metadata: meta({ source_dashboard: 'Transport Manager', visible_to: ['Principal', 'System Monitor', 'Parent'] }) });
+  await writer.upsert('vehicle_service_logs', { id: demoUuid('vehicle-service-kdc-448m-1'), tenant_id: tenantId, vehicle_id: transportVehicleIds[1], service_date: '2026-05-24', odometer_reading: 84220, next_service_date: '2026-06-02', cost_minor: 1850000, service_provider: 'Kisumu Bus Care Garage', notes: 'Brake inspection and oil service booked.', recorded_by_user_id: context.actorUserId });
+  await writer.insertOnce('transport_audit_logs', { id: demoUuid('transport-audit-seed-1'), tenant_id: tenantId, actor_user_id: context.actorUserId, action: 'transport.demo_routes_seeded', resource_type: 'transport_demo_seed', resource_id: transportRouteIds[0], metadata: meta({ routes: transportRoutes.length, vehicles: vehicles.length, drivers: drivers.length, active_students: 12 }) });
 
   await writer.upsert('procurement_suppliers', { id: procurementSupplierId, tenant_id: tenantId, name: 'Lake Demo Traders', contact_phone: '+254755100001', status: 'active' });
   await writer.upsert('procurement_requests', { id: procurementRequestId, tenant_id: tenantId, title: 'Chemistry reagents restock', department: 'Science', requested_by_user_id: context.teacherUserId, status: 'submitted' });
@@ -1158,12 +1410,41 @@ async function seedDemoRows(writer: DemoSeedWriter, context: DemoContext): Promi
   await writer.upsert('purchase_order_items', { id: demoUuid('purchase-order-item-1'), tenant_id: tenantId, purchase_order_id: purchaseOrderId, item_name: 'Exercise books', quantity: 600, unit_cost_minor: 2500 });
   await writer.upsert('supplier_invoices', { id: demoUuid('supplier-invoice-1'), tenant_id: tenantId, purchase_order_id: purchaseOrderId, invoice_number: 'SUP-KB-DEMO-001', amount_minor: 1500000, attached_by_user_id: context.actorUserId, status: 'attached' });
 
-  await writer.upsert('clinic_locations', { id: clinicLocationId, tenant_id: tenantId, name: 'Main Sick Bay', location_type: 'clinic', status: 'active' });
-  await writer.upsert('clinic_medicines', { id: clinicMedicineId, tenant_id: tenantId, clinic_location_id: clinicLocationId, medicine_name: 'Paracetamol', category: 'analgesic', unit_type: 'tablets', reorder_level: 100, status: 'active' });
-  await writer.upsert('clinic_medicine_batches', { id: clinicBatchId, tenant_id: tenantId, medicine_id: clinicMedicineId, batch_number: 'PCM-KB-DEMO-001', expiry_date: '2027-02-28', quantity_received: 500, quantity_available: 430 });
-  await writer.upsert('clinic_visits', { id: clinicVisitId, tenant_id: tenantId, clinic_location_id: clinicLocationId, student_id: studentIds[0], recorded_by_user_id: context.actorUserId, visit_reason: 'Headache', status: 'completed' });
-  await writer.upsert('clinic_medicine_dispenses', { id: demoUuid('clinic-dispense-1'), tenant_id: tenantId, visit_id: clinicVisitId, medicine_id: clinicMedicineId, batch_id: clinicBatchId, quantity_dispensed: 2, dosage: 'One tablet twice daily', dispensed_by_user_id: context.actorUserId });
-  await writer.upsert('clinic_alerts', { id: demoUuid('clinic-alert-1'), tenant_id: tenantId, alert_type: 'low_stock', severity: 'warning', title: 'Oral rehydration salts low', message: 'Demo clinic stock threshold reached.', metadata: meta() });
+  await writer.upsert('clinic_locations', { id: clinicLocationId, tenant_id: tenantId, name: 'Main Sick Bay', branch_type: 'main', location: 'Administration Block', is_active: true });
+  const medicineCatalog = buildKisumuBoysDemoMedicineCatalog();
+  const clinicMedicineIds: string[] = [];
+  const clinicBatchIds: string[] = [];
+  for (const [index, medicine] of medicineCatalog.entries()) {
+    const medicineKey = medicine.name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+    const medicineId = demoUuid(`clinic-medicine-${medicineKey}`);
+    const batchId = demoUuid(`clinic-batch-${medicineKey}`);
+    clinicMedicineIds.push(medicineId);
+    clinicBatchIds.push(batchId);
+
+    await writer.upsert('clinic_medicines', { id: medicineId, tenant_id: tenantId, clinic_location_id: clinicLocationId, medicine_name: medicine.name, category: medicine.category, supplier: 'Kisumu Demo Supplies Ltd', unit_type: medicine.unitType, storage_location: 'Main Sick Bay', cost_price_minor: index < 3 ? 500 : 1200, created_by_user_id: context.actorUserId });
+    await writer.upsert('clinic_medicine_batches', { id: batchId, tenant_id: tenantId, medicine_id: medicineId, batch_number: `KB-CLINIC-${String(index + 1).padStart(3, '0')}`, expiry_date: medicine.expiryDate, date_received: '2026-05-04', quantity_received: medicine.quantityReceived, quantity_available: medicine.quantityAvailable, minimum_stock_threshold: medicine.reorderLevel, storage_location: 'Main Sick Bay', status: 'active', created_by_user_id: context.actorUserId });
+    await writer.insertOnce('clinic_stock_movements', { id: demoUuid(`clinic-stock-received-${medicineKey}`), tenant_id: tenantId, medicine_id: medicineId, batch_id: batchId, movement_type: 'received', quantity: medicine.quantityReceived, before_quantity: 0, after_quantity: medicine.quantityReceived, reference: `KB-CLINIC-GRN-${String(index + 1).padStart(3, '0')}`, reason: 'Opening demo clinic stock', actor_user_id: context.actorUserId, metadata: meta({ medicine: medicine.name }) });
+
+    if (medicine.lowStock) {
+      await writer.upsert('clinic_alerts', { id: demoUuid(`clinic-alert-low-${medicineKey}`), tenant_id: tenantId, alert_type: 'low_stock', severity: 'warning', medicine_id: medicineId, batch_id: batchId, title: `${medicine.name} low stock`, message: `${medicine.name} is below the reorder level at Kisumu Boys sick bay.`, status: 'open', notify_principal: true, metadata: meta({ quantity_available: medicine.quantityAvailable, reorder_level: medicine.reorderLevel }) });
+      await writer.upsert('clinic_procurement_recommendations', { id: demoUuid(`clinic-procurement-${medicineKey}`), tenant_id: tenantId, medicine_id: medicineId, batch_id: batchId, item_name: medicine.name, batch_number: `KB-CLINIC-${String(index + 1).padStart(3, '0')}`, quantity_available: medicine.quantityAvailable, minimum_stock_threshold: medicine.reorderLevel, shortage_quantity: medicine.reorderLevel - medicine.quantityAvailable, recommended_order_quantity: medicine.reorderLevel * 2, recommendation_status: 'open', metadata: meta({ source: 'nurse_low_stock_alert' }) });
+    }
+  }
+
+  const clinicVisits = [
+    { studentIndex: 0, symptoms: 'Headache and mild fever', diagnosis: 'Suspected viral infection', treatment: 'Paracetamol issued and parent SMS sent', medicineIndex: 0, quantity: 2, status: 'completed' },
+    { studentIndex: 6, symptoms: 'Stomach upset after breakfast', diagnosis: 'Indigestion', treatment: 'Antacid issued, class teacher notified', medicineIndex: 2, quantity: 2, status: 'completed' },
+    { studentIndex: 11, symptoms: 'Dehydration after games', diagnosis: 'Mild dehydration', treatment: 'ORS issued and monitored in sick bay', medicineIndex: 1, quantity: 1, status: 'completed' },
+    { studentIndex: 18, symptoms: 'Cut on left hand during lab practical', diagnosis: 'Minor cut', treatment: 'Cleaned and bandaged', medicineIndex: 3, quantity: 1, status: 'completed' },
+    { studentIndex: 24, symptoms: 'Persistent cough and high temperature', diagnosis: 'Referral recommended', treatment: 'Guardian notified for hospital review', medicineIndex: 0, quantity: 2, status: 'referred' },
+  ];
+  for (const [index, visit] of clinicVisits.entries()) {
+    const visitId = demoUuid(`clinic-visit-${index + 1}`);
+    await writer.upsert('clinic_visits', { id: visitId, tenant_id: tenantId, clinic_location_id: clinicLocationId, student_id: studentIds[visit.studentIndex], recorded_by_user_id: context.actorUserId, visit_date: '2026-05-24', visit_time: ['07:40', '08:15', '09:05', '10:20', '11:30'][index], symptoms_summary: visit.symptoms, diagnosis_summary: visit.diagnosis, treatment_summary: visit.treatment, status: visit.status });
+    await writer.upsert('clinic_medicine_dispenses', { id: demoUuid(`clinic-dispense-${index + 1}`), tenant_id: tenantId, visit_id: visitId, medicine_id: clinicMedicineIds[visit.medicineIndex], batch_id: clinicBatchIds[visit.medicineIndex], quantity_dispensed: visit.quantity, dosage: visit.medicineIndex === 3 ? 'Applied once' : 'As directed by nurse', duration: '1 day', instructions: visit.treatment, dispensed_by_user_id: context.actorUserId });
+    await writer.insertOnce('clinic_stock_movements', { id: demoUuid(`clinic-stock-dispensed-${index + 1}`), tenant_id: tenantId, medicine_id: clinicMedicineIds[visit.medicineIndex], batch_id: clinicBatchIds[visit.medicineIndex], visit_id: visitId, movement_type: 'dispensed', quantity: visit.quantity, reference: `KB-CLINIC-DISP-${String(index + 1).padStart(3, '0')}`, reason: visit.symptoms, actor_user_id: context.actorUserId, metadata: meta({ student_id: studentIds[visit.studentIndex], parent_notified: true }) });
+  }
+  await writer.insertOnce('clinic_audit_logs', { id: demoUuid('clinic-audit-seed-1'), tenant_id: tenantId, actor_user_id: context.actorUserId, action: 'clinic.demo_sick_bay_seeded', resource_type: 'clinic_demo_seed', resource_id: clinicLocationId, metadata: meta({ medicines: medicineCatalog.length, visits: clinicVisits.length, low_stock_alerts: medicineCatalog.filter((medicine) => medicine.lowStock).length }) });
 
   await writer.upsert('lab_departments', { id: labDepartmentId, tenant_id: tenantId, name: 'Science Department', type: 'SCIENCE', status: 'active' });
   await writer.upsert('labs', { id: labId, tenant_id: tenantId, department_id: labDepartmentId, name: 'Chemistry Lab 1', capacity: 40, status: 'active' });

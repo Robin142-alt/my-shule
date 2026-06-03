@@ -5,8 +5,11 @@ import test from 'node:test';
 import {
   DEMO_MODULE_CODES,
   buildKisumuBoysDemoAccessSummary,
+  buildKisumuBoysDemoInventoryCatalog,
   buildKisumuBoysDemoLibraryCatalog,
+  buildKisumuBoysDemoMedicineCatalog,
   buildKisumuBoysDemoStudentRoster,
+  buildKisumuBoysDemoTransportRoutes,
   KISUMU_BOYS_DEMO_SEED_KEY,
   assertKisumuBoysTenantSelection,
   buildKisumuBoysDemoSeedPlan,
@@ -144,4 +147,19 @@ test('Kisumu Boys demo role summary groups existing school users without creatin
     teacher: 2,
     nurse: 1,
   });
+});
+
+test('Kisumu Boys operational blueprints cover clinic, store, assets, and transport', () => {
+  const medicines = buildKisumuBoysDemoMedicineCatalog();
+  const inventory = buildKisumuBoysDemoInventoryCatalog();
+  const routes = buildKisumuBoysDemoTransportRoutes();
+
+  assert.deepEqual(
+    medicines.map((medicine) => medicine.name),
+    ['Paracetamol', 'ORS', 'Antacid', 'Bandages', 'Antiseptic', 'Thermometer covers', 'Gloves'],
+  );
+  assert.equal(inventory.length, 20);
+  assert.equal(inventory.filter((item) => item.kind === 'asset').length, 5);
+  assert.equal(routes.length, 6);
+  assert.equal(routes.some((route) => route.name === 'Milimani Route'), true);
 });
