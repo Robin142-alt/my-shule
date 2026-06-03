@@ -371,11 +371,15 @@ function DataTable({
   title,
   rows,
   columns,
+  onSearch,
+  onFilter,
   onExport,
 }: {
   title: string;
   rows: ReadonlyArray<readonly string[]>;
   columns: string[];
+  onSearch?: (title: string) => void;
+  onFilter?: (title: string) => void;
   onExport?: (title: string) => void;
 }) {
   return (
@@ -383,8 +387,8 @@ function DataTable({
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#D8E0EC] bg-[#F8FAFC] px-4 py-3">
         <h3 className="text-sm font-black uppercase tracking-[0.14em] text-[#071D49]">{title}</h3>
         <div className="flex gap-2">
-          <button type="button" onClick={() => announceAction(`${title} search opened.`)} className="rounded-lg border border-[#D8E0EC] px-3 py-1.5 text-xs font-black text-[#071D49]">Search</button>
-          <button type="button" onClick={() => announceAction(`${title} filters opened.`)} className="rounded-lg border border-[#D8E0EC] px-3 py-1.5 text-xs font-black text-[#071D49]">Filters</button>
+          <button type="button" onClick={() => (onSearch ? onSearch(title) : announceAction(`${title} search opened.`))} className="rounded-lg border border-[#D8E0EC] px-3 py-1.5 text-xs font-black text-[#071D49]">Search</button>
+          <button type="button" onClick={() => (onFilter ? onFilter(title) : announceAction(`${title} filters opened.`))} className="rounded-lg border border-[#D8E0EC] px-3 py-1.5 text-xs font-black text-[#071D49]">Filters</button>
           <button type="button" onClick={() => (onExport ? onExport(title) : announceAction(`${title} exported for department records.`))} className="rounded-lg border border-[#D8E0EC] px-3 py-1.5 text-xs font-black text-[#071D49]">Export</button>
         </div>
       </div>
@@ -475,7 +479,13 @@ function OverviewWorkspace() {
   );
 }
 
-function TeachersWorkspace() {
+function TeachersWorkspace({
+  onFilterAction,
+  onSearchAction,
+}: {
+  onFilterAction: (tableTitle: string) => void;
+  onSearchAction: (tableTitle: string) => void;
+}) {
   return (
     <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
       <Panel title="Teachers Workspace" description="Manage teacher performance, attendance, syllabus progress, lesson plan compliance, and exam submission status." icon={Users}>
@@ -483,6 +493,8 @@ function TeachersWorkspace() {
           title="Teacher performance table"
           columns={["Teacher", "Subjects Taught", "Classes Assigned", "Attendance", "Syllabus", "Lesson Plan", "Exam Submission"]}
           rows={teachers}
+          onFilter={onFilterAction}
+          onSearch={onSearchAction}
         />
       </Panel>
       <Panel title="Teacher review panel" description="Observations, recommendations, and follow-ups remain in context." icon={ClipboardList}>
@@ -756,13 +768,17 @@ function SettingsWorkspace() {
 function ActiveWorkspace({
   activeView,
   onExportAction,
+  onFilterAction,
+  onSearchAction,
 }: {
   activeView: HodView;
   onExportAction: (tableTitle: string) => void;
+  onFilterAction: (tableTitle: string) => void;
+  onSearchAction: (tableTitle: string) => void;
 }) {
   switch (activeView) {
     case "teachers":
-      return <TeachersWorkspace />;
+      return <TeachersWorkspace onFilterAction={onFilterAction} onSearchAction={onSearchAction} />;
     case "subjects":
       return <SubjectsWorkspace />;
     case "syllabus":
@@ -799,6 +815,7 @@ export function HodCommandCenter({ routeMode }: { routeMode: HodRouteMode }) {
   const [searchTerm, setSearchTerm] = useState("");
   const [notice, setNotice] = useState("Ready for department follow-up.");
   const [selectedExport, setSelectedExport] = useState<string | null>(null);
+  const [tableAction, setTableAction] = useState<{ mode: "filter" | "search"; title: string } | null>(null);
   const searchResults = searchTerm.trim()
     ? hodSearchRecords.filter((record) => `${record.label} ${record.detail}`.toLowerCase().includes(searchTerm.toLowerCase()))
     : [];
@@ -829,6 +846,52 @@ export function HodCommandCenter({ routeMode }: { routeMode: HodRouteMode }) {
   function openExportAction(tableTitle: string) {
     setSelectedExport(tableTitle);
     setNotice(`${tableTitle} export ready for department review.`);
+  }
+
+  function openTableAction(mode: "filter" | "search", tableTitle: string) {
+    setTableAction({ mode, title: tableTitle });
+    setNotice(`${tableTitle} ${mode === "search" ? "search" : "filters"} opened.`);
+  }
+
+  function saveTableAction() {
+    if (!tableAction) return;
+
+    const schoolId = getCurrentSchoolId();
+    const tableSlug = tableAction.title.toLowerCase().replaceAll(" ", "-");
+    const isSearch = tableAction.mode === "search";
+
+    publishSchoolOperationalEvent({
+      schoolId,
+      type: isSearch ? "HOD_TABLE_SEARCH_SAVED" : "HOD_TABLE_FILTERS_APPLIED",
+      module: "academics",
+      actorRole: "Head of Department",
+      title: isSearch ? `${tableAction.title} search saved` : `${tableAction.title} filters applied`,
+      body: isSearch
+        ? `Head of Department saved a search request for ${tableAction.title}.`
+        : `Head of Department applied department table filters for ${tableAction.title}.`,
+      entityId: `hod-${tableAction.mode}-${tableSlug}`,
+      severity: "info",
+      payload: {
+        mode: tableAction.mode,
+        tableTitle: tableAction.title,
+        department: "Mathematics",
+        filters: ["Pending lesson plans", "Missing marks", "Low syllabus coverage"],
+      },
+      notifications: [
+        {
+          audienceRoles: ["Dean of Academics", "Principal"],
+          title: isSearch ? "HOD table search saved" : "HOD table filters applied",
+          body: `${tableAction.title} ${isSearch ? "search" : "filters"} updated for department review.`,
+          severity: "info",
+          relatedModule: "academics",
+          relatedRecordId: `hod-${tableAction.mode}-${tableSlug}`,
+          requestStatus: "Completed",
+        },
+      ],
+    });
+
+    setNotice(isSearch ? `${tableAction.title} search saved.` : `${tableAction.title} filters applied.`);
+    setTableAction(null);
   }
 
   function saveExportRequest() {
@@ -901,7 +964,38 @@ export function HodCommandCenter({ routeMode }: { routeMode: HodRouteMode }) {
                   </div>
                 </div>
               ) : null}
-              <ActiveWorkspace activeView={activeView} onExportAction={openExportAction} />
+              {tableAction ? (
+                <div
+                  role="dialog"
+                  aria-modal="true"
+                  aria-label={tableAction.mode === "search" ? "HOD table search" : "HOD table filters"}
+                  className="rounded-2xl border border-[#D8E0EC] bg-white p-5 shadow-[0_18px_45px_rgba(7,29,73,0.12)]"
+                >
+                  <p className="text-xs font-black uppercase tracking-[0.16em] text-[#64748B]">
+                    {tableAction.mode === "search" ? "HOD table search" : "Department table filters"}
+                  </p>
+                  <h2 className="mt-2 text-2xl font-black text-[#071D49]">{tableAction.title}</h2>
+                  <p className="mt-2 text-sm font-semibold leading-6 text-[#64748B]">
+                    {tableAction.mode === "search"
+                      ? "Save this table search so department follow-up stays visible in the same school workspace."
+                      : "Apply filters for pending lesson plans, missing marks, and low syllabus coverage inside this school workspace."}
+                  </p>
+                  <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                    {["Mathematics", "Term 2 2026", "Kisumu Boys High School"].map((item) => (
+                      <div key={item} className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-3 text-sm font-black text-[#071D49]">{item}</div>
+                    ))}
+                  </div>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <button type="button" onClick={saveTableAction} className="min-h-10 rounded-xl bg-[#071D49] px-4 text-sm font-black text-white">
+                      {tableAction.mode === "search" ? "Save search request" : "Apply filters"}
+                    </button>
+                    <button type="button" onClick={() => setTableAction(null)} className="min-h-10 rounded-xl border border-[#D8E0EC] px-4 text-sm font-black text-[#071D49]">
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+              <ActiveWorkspace activeView={activeView} onExportAction={openExportAction} onFilterAction={(title) => openTableAction("filter", title)} onSearchAction={(title) => openTableAction("search", title)} />
             </div>
           </main>
         </div>

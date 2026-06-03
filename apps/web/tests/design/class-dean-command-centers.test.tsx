@@ -5,6 +5,7 @@ import userEvent from "@testing-library/user-event";
 import { ClassTeacherCommandCenter } from "@/components/school/class-teacher-command-center";
 import { DeanAcademicsCommandCenter } from "@/components/school/dean-academics-command-center";
 import { GradeMasterCommandCenter } from "@/components/school/grade-master-command-center";
+import { HodCommandCenter } from "@/components/school/hod-command-center";
 import { readSchoolData } from "@/lib/school/school-operational-store";
 
 import { renderWithProviders } from "./test-utils";
@@ -120,6 +121,44 @@ describe("class teacher and dean command center interactions", () => {
           schoolId: "kb-high",
           type: "GRADE_MASTER_REPORT_REQUESTED",
           module: "reports",
+        }),
+      ]),
+    );
+  });
+
+  it("makes HOD table search and filter controls executable", async () => {
+    const user = userEvent.setup();
+
+    renderWithProviders(<HodCommandCenter routeMode="hosted" />);
+
+    await user.click(screen.getByRole("button", { name: /^teachers$/i }));
+    await user.click(screen.getByRole("button", { name: /^search$/i }));
+
+    const searchDialog = screen.getByRole("dialog", { name: /hod table search/i });
+    expect(searchDialog).toBeVisible();
+    expect(within(searchDialog).getByText(/teacher performance table/i)).toBeVisible();
+
+    await user.click(within(searchDialog).getByRole("button", { name: /save search request/i }));
+    expect(screen.getByText(/teacher performance table search saved/i)).toBeVisible();
+
+    await user.click(screen.getByRole("button", { name: /^filters$/i }));
+    const filterDialog = screen.getByRole("dialog", { name: /hod table filters/i });
+    expect(filterDialog).toBeVisible();
+    expect(within(filterDialog).getByText(/department table filters/i)).toBeVisible();
+
+    await user.click(within(filterDialog).getByRole("button", { name: /apply filters/i }));
+    expect(screen.getByText(/teacher performance table filters applied/i)).toBeVisible();
+    expect(readSchoolData<Record<string, unknown>>("events", "kb-high")).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          schoolId: "kb-high",
+          type: "HOD_TABLE_SEARCH_SAVED",
+          module: "academics",
+        }),
+        expect.objectContaining({
+          schoolId: "kb-high",
+          type: "HOD_TABLE_FILTERS_APPLIED",
+          module: "academics",
         }),
       ]),
     );
