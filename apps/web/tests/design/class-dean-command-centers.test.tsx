@@ -32,6 +32,13 @@ describe("class teacher and dean command center interactions", () => {
     await user.type(screen.getByPlaceholderText(/search roster or admission number/i), "ADM-2077");
     expect(screen.getByText(/Aisha Njeri/i)).toBeVisible();
 
+    await user.click(screen.getByRole("button", { name: /stream selector/i }));
+    const rosterDialog = screen.getByRole("dialog", { name: /class roster control/i });
+    expect(rosterDialog).toBeVisible();
+    await user.click(within(rosterDialog).getByRole("button", { name: /save roster control/i }));
+
+    expect(screen.getByText(/stream selector saved for form 2 blue/i)).toBeVisible();
+
     await user.click(screen.getByRole("button", { name: /message parent/i }));
     expect(screen.getByRole("dialog", { name: /send parent message/i })).toBeVisible();
     await user.clear(screen.getByLabelText(/message to guardian/i));
@@ -44,6 +51,28 @@ describe("class teacher and dean command center interactions", () => {
         expect.objectContaining({
           schoolId: "kb-high",
           type: "CLASS_PARENT_MESSAGE_QUEUED",
+          module: "communications",
+        }),
+      ]),
+    );
+
+    await user.click(screen.getByRole("button", { name: /quick actions/i }));
+    await user.click(screen.getByRole("button", { name: /absenteeism notice/i }));
+    const templateDialog = screen.getByRole("dialog", { name: /parent communication template/i });
+    expect(templateDialog).toBeVisible();
+    await user.click(within(templateDialog).getByRole("button", { name: /save parent template/i }));
+
+    expect(screen.getByText(/absenteeism notice parent template saved/i)).toBeVisible();
+    expect(readSchoolData<Record<string, unknown>>("events", "kb-high")).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          schoolId: "kb-high",
+          type: "CLASS_ROSTER_CONTROL_RECORDED",
+          module: "class-teacher",
+        }),
+        expect.objectContaining({
+          schoolId: "kb-high",
+          type: "CLASS_PARENT_TEMPLATE_PREPARED",
           module: "communications",
         }),
       ]),

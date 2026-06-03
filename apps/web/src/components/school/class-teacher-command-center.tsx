@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { useState, type FormEvent, type ReactNode } from "react";
 import {
   AlertTriangle,
   Bell,
@@ -148,11 +148,13 @@ type LearnerAction = {
   kind: "message" | "note";
 };
 
-function announceAction(message: string) {
-  if (typeof window !== "undefined") {
-    window.dispatchEvent(new CustomEvent("myshule-dashboard-action", { detail: message }));
-  }
-}
+type ClassRosterControl = {
+  label: "Stream selector" | "Risk filters";
+};
+
+type ParentTemplateAction = {
+  label: string;
+};
 
 function cn(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
@@ -310,7 +312,6 @@ function Topbar({
             type="button"
             onClick={() => {
               onQuickView("parents");
-              announceAction("Parent communication quick actions opened.");
             }}
             className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#FF7A1A] px-4 text-sm font-black text-white shadow-[0_14px_30px_rgba(255,122,26,0.25)]"
           >
@@ -410,9 +411,11 @@ function HomeWorkspace() {
 function MyClassWorkspace({
   onMessageParent,
   onRecordNote,
+  onRosterControl,
 }: {
   onMessageParent: (learnerName: string) => void;
   onRecordNote: (learnerName: string) => void;
+  onRosterControl: (control: ClassRosterControl) => void;
 }) {
   const [rosterSearch, setRosterSearch] = useState("");
   const visibleStudents = students.filter((student) => student.join(" ").toLowerCase().includes(rosterSearch.toLowerCase()));
@@ -431,8 +434,8 @@ function MyClassWorkspace({
           className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] px-3 py-2 text-sm font-semibold outline-none"
           placeholder="Search roster or admission number"
         />
-        <button type="button" onClick={() => announceAction("Form 2 Blue stream selector opened.")} className="rounded-xl border border-[#D8E0EC] bg-white px-4 py-2 text-sm font-black text-[#071D49]">Stream selector</button>
-        <button type="button" onClick={() => announceAction("Student risk filters opened.")} className="rounded-xl border border-[#D8E0EC] bg-white px-4 py-2 text-sm font-black text-[#071D49]">Risk filters</button>
+        <button type="button" onClick={() => onRosterControl({ label: "Stream selector" })} className="rounded-xl border border-[#D8E0EC] bg-white px-4 py-2 text-sm font-black text-[#071D49]">Stream selector</button>
+        <button type="button" onClick={() => onRosterControl({ label: "Risk filters" })} className="rounded-xl border border-[#D8E0EC] bg-white px-4 py-2 text-sm font-black text-[#071D49]">Risk filters</button>
       </div>
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         {visibleStudents.length === 0 ? (
@@ -524,18 +527,22 @@ function ActiveWorkspace({
   onMessageParent,
   onRecordNote,
   onPreviewReport,
+  onRosterControl,
+  onParentTemplate,
 }: {
   activeView: TeacherView;
   onAttendanceAction: (action: "Bulk present" | "Attendance register") => void;
   onMessageParent: (learnerName: string) => void;
   onRecordNote: (learnerName: string) => void;
   onPreviewReport: (reportName: string) => void;
+  onRosterControl: (control: ClassRosterControl) => void;
+  onParentTemplate: (template: ParentTemplateAction) => void;
 }) {
   switch (activeView) {
     case "home":
       return <HomeWorkspace />;
     case "class":
-      return <MyClassWorkspace onMessageParent={onMessageParent} onRecordNote={onRecordNote} />;
+      return <MyClassWorkspace onMessageParent={onMessageParent} onRecordNote={onRecordNote} onRosterControl={onRosterControl} />;
     case "attendance":
       return <AttendanceWorkspace onAttendanceAction={onAttendanceAction} />;
     case "performance":
@@ -566,7 +573,7 @@ function ActiveWorkspace({
       return (
         <SimpleWorkspace title="Parent communication workspace" description="Inbox, SMS logs, meeting requests, templates, unread replies, and communication history." icon={MessageCircle}>
           {["Absenteeism notice", "Low performance concern", "Assignment reminder", "Behavior concern", "Appreciation message", "Meeting request"].map((item) => (
-            <button key={item} type="button" onClick={() => announceAction(`${item} parent message opened.`)} className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 text-left font-bold text-[#071D49]">{item}</button>
+            <button key={item} type="button" onClick={() => onParentTemplate({ label: item })} className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 text-left font-bold text-[#071D49]">{item}</button>
           ))}
         </SimpleWorkspace>
       );
@@ -631,21 +638,11 @@ export function ClassTeacherCommandCenter({ routeMode }: { routeMode: ClassTeach
   const [guardianMessage, setGuardianMessage] = useState("Please review today's class follow-up and reply through MyShule.");
   const [classNote, setClassNote] = useState("");
   const [reportPreview, setReportPreview] = useState<string | null>(null);
+  const [rosterControl, setRosterControl] = useState<ClassRosterControl | null>(null);
+  const [parentTemplate, setParentTemplate] = useState<ParentTemplateAction | null>(null);
   const searchResults = searchTerm.trim()
     ? classTeacherSearchRecords.filter((record) => `${record.label} ${record.detail}`.toLowerCase().includes(searchTerm.toLowerCase()))
     : [];
-
-  useEffect(() => {
-    function handleDashboardAction(event: Event) {
-      const message = (event as CustomEvent<string>).detail;
-      if (message) {
-        setNotice(message);
-      }
-    }
-
-    window.addEventListener("myshule-dashboard-action", handleDashboardAction);
-    return () => window.removeEventListener("myshule-dashboard-action", handleDashboardAction);
-  }, []);
 
   function openView(view: TeacherView) {
     setActiveView(view);
@@ -671,6 +668,93 @@ export function ClassTeacherCommandCenter({ routeMode }: { routeMode: ClassTeach
   function openReportPreview(reportName: string) {
     setReportPreview(reportName);
     setNotice(`${reportName} preview prepared for Form 2 Blue.`);
+  }
+
+  function openRosterControl(control: ClassRosterControl) {
+    setRosterControl(control);
+    setNotice(`${control.label} ready for Form 2 Blue.`);
+  }
+
+  function openParentTemplate(template: ParentTemplateAction) {
+    setParentTemplate(template);
+    setNotice(`${template.label} parent template ready.`);
+  }
+
+  function saveRosterControl() {
+    if (!rosterControl) return;
+
+    const schoolId = getCurrentSchoolId();
+    const entityId = `form-2-blue-${rosterControl.label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
+
+    publishSchoolOperationalEvent({
+      schoolId,
+      type: "CLASS_ROSTER_CONTROL_RECORDED",
+      module: "class-teacher",
+      actorRole: "Class Teacher",
+      title: `${rosterControl.label} saved for Form 2 Blue`,
+      body: `Class Teacher saved ${rosterControl.label.toLowerCase()} settings for Form 2 Blue roster follow-up.`,
+      entityId,
+      severity: "info",
+      payload: {
+        className: "Form 2 Blue",
+        control: rosterControl.label,
+        rosterCount: 46,
+        visibleStudents: students.length,
+      },
+      notifications: [
+        {
+          audienceRoles: ["Grade/Form Master", "Deputy Principal"],
+          title: `${rosterControl.label} saved`,
+          body: `${rosterControl.label} was saved for Form 2 Blue roster review.`,
+          severity: "info",
+          relatedModule: "class-teacher",
+          relatedRecordId: entityId,
+          requiresAction: false,
+          requestStatus: "Completed",
+        },
+      ],
+    });
+
+    setNotice(`${rosterControl.label} saved for Form 2 Blue.`);
+    setRosterControl(null);
+  }
+
+  function saveParentTemplate() {
+    if (!parentTemplate) return;
+
+    const schoolId = getCurrentSchoolId();
+    const entityId = `parent-template-${parentTemplate.label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
+
+    publishSchoolOperationalEvent({
+      schoolId,
+      type: "CLASS_PARENT_TEMPLATE_PREPARED",
+      module: "communications",
+      actorRole: "Class Teacher",
+      title: `${parentTemplate.label} parent template saved`,
+      body: `Class Teacher prepared the ${parentTemplate.label.toLowerCase()} message template for Form 2 Blue guardians.`,
+      entityId,
+      severity: "info",
+      payload: {
+        className: "Form 2 Blue",
+        template: parentTemplate.label,
+        channel: "SMS",
+      },
+      notifications: [
+        {
+          audienceRoles: ["Deputy Principal", "Grade/Form Master"],
+          title: `${parentTemplate.label} template prepared`,
+          body: "A parent communication template was prepared for same-school follow-up visibility.",
+          severity: "info",
+          relatedModule: "communications",
+          relatedRecordId: entityId,
+          requiresAction: false,
+          requestStatus: "Completed",
+        },
+      ],
+    });
+
+    setNotice(`${parentTemplate.label} parent template saved.`);
+    setParentTemplate(null);
   }
 
   function recordAttendanceAction(action: "Bulk present" | "Attendance register") {
@@ -819,6 +903,8 @@ export function ClassTeacherCommandCenter({ routeMode }: { routeMode: ClassTeach
                 onMessageParent={openParentMessage}
                 onRecordNote={openClassNote}
                 onPreviewReport={openReportPreview}
+                onRosterControl={openRosterControl}
+                onParentTemplate={openParentTemplate}
               />
             </div>
           </main>
@@ -877,6 +963,83 @@ export function ClassTeacherCommandCenter({ routeMode }: { routeMode: ClassTeach
               </button>
             </div>
           </form>
+        </div>
+      ) : null}
+      {rosterControl ? (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-[#071D49]/45 p-4">
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-label="Class roster control"
+            className="w-full max-w-xl rounded-2xl border border-[#D8E0EC] bg-white p-5 shadow-2xl"
+          >
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.14em] text-[#64748B]">Form 2 Blue roster</p>
+                <h2 className="mt-1 text-xl font-black text-[#071D49]">{rosterControl.label}</h2>
+                <p className="mt-1 text-sm font-semibold leading-6 text-[#64748B]">
+                  Save this roster control so the class teacher desk, Grade/Form Master, and Deputy dashboards can use the same class view.
+                </p>
+              </div>
+              <button type="button" onClick={() => setRosterControl(null)} className="rounded-lg border border-[#D8E0EC] px-3 py-1.5 text-xs font-black text-[#071D49]">
+                Cancel
+              </button>
+            </div>
+            <div className="mt-4 grid gap-3 sm:grid-cols-3">
+              {[
+                ["Class", "Form 2 Blue"],
+                ["Students", "46"],
+                ["Scope", getCurrentSchoolId()],
+              ].map(([label, value]) => (
+                <div key={label} className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-3">
+                  <p className="text-xs font-black uppercase tracking-[0.12em] text-[#64748B]">{label}</p>
+                  <p className="mt-1 text-sm font-black text-[#071D49]">{value}</p>
+                </div>
+              ))}
+            </div>
+            <div className="mt-4 flex flex-wrap justify-end gap-2">
+              <button type="button" onClick={() => setRosterControl(null)} className="rounded-xl border border-[#D8E0EC] bg-white px-4 py-2 text-sm font-black text-[#071D49]">
+                Cancel
+              </button>
+              <button type="button" onClick={saveRosterControl} className="rounded-xl bg-[#FF7A1A] px-4 py-2 text-sm font-black text-white">
+                Save roster control
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
+      {parentTemplate ? (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-[#071D49]/45 p-4">
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-label="Parent communication template"
+            className="w-full max-w-xl rounded-2xl border border-[#D8E0EC] bg-white p-5 shadow-2xl"
+          >
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.14em] text-[#64748B]">Parent SMS template</p>
+                <h2 className="mt-1 text-xl font-black text-[#071D49]">{parentTemplate.label}</h2>
+                <p className="mt-1 text-sm font-semibold leading-6 text-[#64748B]">
+                  Prepare this template for Form 2 Blue guardians and record the communication task for same-school follow-up.
+                </p>
+              </div>
+              <button type="button" onClick={() => setParentTemplate(null)} className="rounded-lg border border-[#D8E0EC] px-3 py-1.5 text-xs font-black text-[#071D49]">
+                Cancel
+              </button>
+            </div>
+            <div className="mt-4 rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 text-sm font-semibold leading-6 text-[#334155]">
+              Hello guardian, this is a Form 2 Blue class follow-up from MyShule. Please review the learner update and respond through the parent portal.
+            </div>
+            <div className="mt-4 flex flex-wrap justify-end gap-2">
+              <button type="button" onClick={() => setParentTemplate(null)} className="rounded-xl border border-[#D8E0EC] bg-white px-4 py-2 text-sm font-black text-[#071D49]">
+                Cancel
+              </button>
+              <button type="button" onClick={saveParentTemplate} className="rounded-xl bg-[#FF7A1A] px-4 py-2 text-sm font-black text-white">
+                Save parent template
+              </button>
+            </div>
+          </section>
         </div>
       ) : null}
       {reportPreview ? (
