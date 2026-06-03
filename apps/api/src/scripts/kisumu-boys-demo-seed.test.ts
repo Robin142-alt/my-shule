@@ -5,10 +5,12 @@ import test from 'node:test';
 import {
   DEMO_MODULE_CODES,
   buildKisumuBoysDemoAccessSummary,
+  buildKisumuBoysDemoLibraryCatalog,
   buildKisumuBoysDemoStudentRoster,
   KISUMU_BOYS_DEMO_SEED_KEY,
   assertKisumuBoysTenantSelection,
   buildKisumuBoysDemoSeedPlan,
+  summarizeExistingSchoolUsersByRole,
 } from './kisumu-boys-demo-seed';
 
 test('Kisumu Boys demo seed refuses missing, wrong, or ambiguous tenants', () => {
@@ -72,6 +74,10 @@ test('Kisumu Boys demo seed plan covers every active product module with tenant-
     plan.operations.some((operation) => operation.table === 'school_module_access'),
     true,
   );
+  assert.equal(
+    plan.operations.some((operation) => ['users', 'tenant_memberships', 'roles'].includes(operation.table)),
+    false,
+  );
 });
 
 test('Kisumu Boys demo student roster contains 30 male learners with linked guardians', () => {
@@ -100,6 +106,7 @@ test('package exposes a safe KB High demo seed command', () => {
 
   assert.match(packageJson.scripts?.['seed:kb-high'] ?? '', /kisumu-boys-demo-seed\.ts/);
   assert.match(packageJson.scripts?.['seed:kb-high'] ?? '', /--confirm-kisumu-boys-only/);
+  assert.equal(packageJson.scripts?.['seed:kb-high-data'], packageJson.scripts?.['seed:kb-high']);
 });
 
 test('Kisumu Boys demo access summary is truthful about invitation-only login', () => {
@@ -108,4 +115,33 @@ test('Kisumu Boys demo access summary is truthful about invitation-only login', 
   assert.equal(access.common_password_supported, false);
   assert.match(access.note, /invitation/i);
   assert.match(access.school_login, /\/school\/login/);
+});
+
+test('Kisumu Boys library blueprint seeds 40 titles and 80 barcode copies', () => {
+  const catalog = buildKisumuBoysDemoLibraryCatalog();
+
+  assert.equal(catalog.length, 40);
+  assert.equal(catalog.reduce((total, item) => total + item.copies.length, 0), 80);
+  assert.equal(new Set(catalog.flatMap((item) => item.copies.map((copy) => copy.barcode))).size, 80);
+  assert.equal(
+    ['Literature', 'Science', 'Mathematics', 'Revision', 'History', 'Computer Studies'].every((category) =>
+      catalog.some((item) => item.category === category),
+    ),
+    true,
+  );
+});
+
+test('Kisumu Boys demo role summary groups existing school users without creating users', () => {
+  const summary = summarizeExistingSchoolUsersByRole([
+    { user_id: 'principal-1', role_code: 'principal' },
+    { user_id: 'teacher-1', role_code: 'teacher' },
+    { user_id: 'teacher-2', role_code: 'teacher' },
+    { user_id: 'nurse-1', role_code: 'nurse' },
+  ]);
+
+  assert.deepEqual(summary, {
+    principal: 1,
+    teacher: 2,
+    nurse: 1,
+  });
 });

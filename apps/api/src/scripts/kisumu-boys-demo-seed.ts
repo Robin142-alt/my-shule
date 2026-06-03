@@ -76,6 +76,18 @@ type DemoStudentRosterEntry = {
   };
 };
 
+type DemoLibraryCatalogItem = {
+  title: string;
+  author: string;
+  isbn: string;
+  category: 'Literature' | 'Science' | 'Mathematics' | 'Revision' | 'History' | 'Computer Studies';
+  copies: Array<{
+    accessionNumber: string;
+    barcode: string;
+    status: 'available' | 'issued' | 'lost' | 'damaged';
+  }>;
+};
+
 type SeedSummary = {
   tenant_id: string;
   tenant_name: string;
@@ -84,6 +96,7 @@ type SeedSummary = {
   tables: Record<string, number>;
   skipped_tables: string[];
   access: ReturnType<typeof buildKisumuBoysDemoAccessSummary>;
+  existing_users_by_role: Record<string, number>;
   module_access_enabled: number;
   outside_demo_rows: number;
 };
@@ -99,6 +112,7 @@ type DemoContext = {
   teacherUserId: string;
   librarianUserId: string;
   billingSubscriptionId: string;
+  existingUsersByRole: Record<string, number>;
   now: Date;
 };
 
@@ -170,6 +184,8 @@ const PLAN_OPERATIONS: DemoSeedOperation[] = [
   { moduleCode: 'library', table: 'library_copies', tenantScoped: true },
   { moduleCode: 'library', table: 'library_borrowers', tenantScoped: true },
   { moduleCode: 'library', table: 'library_circulation_ledger', tenantScoped: true },
+  { moduleCode: 'library', table: 'library_fines', tenantScoped: true },
+  { moduleCode: 'library', table: 'library_audit_logs', tenantScoped: true },
   { moduleCode: 'inventory', table: 'inventory_categories', tenantScoped: true },
   { moduleCode: 'inventory', table: 'inventory_suppliers', tenantScoped: true },
   { moduleCode: 'inventory', table: 'inventory_items', tenantScoped: true },
@@ -331,6 +347,79 @@ export function buildKisumuBoysDemoStudentRoster(): DemoStudentRosterEntry[] {
   });
 }
 
+export function buildKisumuBoysDemoLibraryCatalog(): DemoLibraryCatalogItem[] {
+  const books = [
+    ['Blossoms of the Savannah', 'Henry Ole Kulet', 'Literature'],
+    ['The River and the Source', 'Margaret Ogola', 'Literature'],
+    ['A Doll House', 'Henrik Ibsen', 'Literature'],
+    ['The Pearl', 'John Steinbeck', 'Literature'],
+    ['Fathers of Nations', 'Paul B. Vitta', 'Literature'],
+    ['KCSE Chemistry Revision', 'Longhorn Publishers', 'Revision'],
+    ['KCSE Biology Revision', 'Moran Publishers', 'Revision'],
+    ['KCSE Physics Revision', 'Spotlight Publishers', 'Revision'],
+    ['Top Mark Mathematics Form 3', 'Oxford Kenya', 'Mathematics'],
+    ['Top Mark Mathematics Form 4', 'Oxford Kenya', 'Mathematics'],
+    ['Secondary Mathematics Students Book 3', 'KLB', 'Mathematics'],
+    ['Secondary Mathematics Students Book 4', 'KLB', 'Mathematics'],
+    ['Chemistry Form 3 Students Book', 'KLB', 'Science'],
+    ['Chemistry Form 4 Students Book', 'KLB', 'Science'],
+    ['Biology Form 3 Students Book', 'KLB', 'Science'],
+    ['Biology Form 4 Students Book', 'KLB', 'Science'],
+    ['Physics Form 3 Students Book', 'KLB', 'Science'],
+    ['Physics Form 4 Students Book', 'KLB', 'Science'],
+    ['Certificate Geography Form 3', 'Oxford Kenya', 'History'],
+    ['Certificate Geography Form 4', 'Oxford Kenya', 'History'],
+    ['History and Government Form 3', 'KLB', 'History'],
+    ['History and Government Form 4', 'KLB', 'History'],
+    ['CRE Form 3 Students Book', 'KLB', 'History'],
+    ['CRE Form 4 Students Book', 'KLB', 'History'],
+    ['Computer Studies Form 3', 'KLB', 'Computer Studies'],
+    ['Computer Studies Form 4', 'KLB', 'Computer Studies'],
+    ['Computer Studies Practical Guide', 'Moran Publishers', 'Computer Studies'],
+    ['Introduction to Python for Schools', 'Demo ICT Press', 'Computer Studies'],
+    ['Business Studies Form 3', 'KLB', 'Revision'],
+    ['Business Studies Form 4', 'KLB', 'Revision'],
+    ['English Grammar for Secondary Schools', 'Longhorn Publishers', 'Revision'],
+    ['Kiswahili Fasihi na Lugha', 'Moran Publishers', 'Revision'],
+    ['Agriculture Form 3 Students Book', 'KLB', 'Science'],
+    ['Agriculture Form 4 Students Book', 'KLB', 'Science'],
+    ['Sports Science for Senior School', 'Demo Education Press', 'Science'],
+    ['Atlas for Kenyan Secondary Schools', 'Oxford Kenya', 'History'],
+    ['Mathematical Tables and Formulae', 'KNEC', 'Mathematics'],
+    ['Set Book Study Guide', 'Spotlight Publishers', 'Literature'],
+    ['Practical Chemistry Handbook', 'Demo Science Press', 'Science'],
+    ['ICT Projects and Safety', 'Demo ICT Press', 'Computer Studies'],
+  ] as const;
+
+  return books.map(([title, author, category], index) => ({
+    title,
+    author,
+    isbn: `KB-LIB-ISBN-${String(index + 1).padStart(3, '0')}`,
+    category,
+    copies: [1, 2].map((copyIndex) => {
+      const copyNumber = index * 2 + copyIndex;
+      return {
+        accessionNumber: `KB-LIB-${String(copyNumber).padStart(4, '0')}`,
+        barcode: `KB-BAR-${String(copyNumber).padStart(4, '0')}`,
+        status: copyNumber === 17 ? 'lost' : copyNumber === 29 ? 'damaged' : copyNumber <= 18 ? 'issued' : 'available',
+      };
+    }),
+  }));
+}
+
+export function summarizeExistingSchoolUsersByRole(rows: Array<{ user_id: string; role_code: string }>): Record<string, number> {
+  return rows.reduce<Record<string, number>>((summary, row) => {
+    const role = row.role_code.trim();
+
+    if (!role) {
+      return summary;
+    }
+
+    summary[role] = (summary[role] ?? 0) + 1;
+    return summary;
+  }, {});
+}
+
 export function buildKisumuBoysDemoAccessSummary() {
   return {
     school_login: '/school/login?tenant=kb-high',
@@ -398,6 +487,7 @@ class DemoSeedWriter {
       tables: {},
       skipped_tables: [],
       access: buildKisumuBoysDemoAccessSummary(),
+      existing_users_by_role: {},
       module_access_enabled: 0,
       outside_demo_rows: 0,
     };
@@ -426,6 +516,10 @@ class DemoSeedWriter {
 
   hasTable(table: string): boolean {
     return this.tableColumns.has(table);
+  }
+
+  setExistingUsersByRole(summary: Record<string, number>): void {
+    this.summary.existing_users_by_role = summary;
   }
 
   async upsert(table: string, row: Row, conflictColumns = ['id']): Promise<string | null> {
@@ -489,6 +583,66 @@ class DemoSeedWriter {
     }
 
     this.summary.tables[table] = (this.summary.tables[table] ?? 0) + 1;
+    return result.rows[0]?.id ?? (typeof filtered.id === 'string' ? filtered.id : null);
+  }
+
+  async insertOnce(table: string, row: Row, conflictColumns = ['id']): Promise<string | null> {
+    const columns = this.tableColumns.get(table);
+
+    if (!columns) {
+      if (!this.summary.skipped_tables.includes(table)) {
+        this.summary.skipped_tables.push(table);
+      }
+      return null;
+    }
+
+    const filtered: Row = {};
+
+    for (const [column, value] of Object.entries(row)) {
+      const columnDefinition = columns.get(column);
+
+      if (!columnDefinition || value === undefined) {
+        continue;
+      }
+
+      filtered[column] = ['json', 'jsonb'].includes(columnDefinition.data_type) && value !== null
+        ? JSON.stringify(value)
+        : value;
+    }
+
+    if (!Object.keys(filtered).includes('tenant_id')) {
+      throw new Error(`Seed row for ${table} is missing tenant_id.`);
+    }
+
+    if (filtered.tenant_id !== this.tenant.tenant_id) {
+      throw new Error(`Seed row for ${table} targets ${String(filtered.tenant_id)} instead of ${this.tenant.tenant_id}.`);
+    }
+
+    const presentConflictColumns = conflictColumns.filter((column) => column in filtered);
+    const entries = Object.entries(filtered);
+    const columnSql = entries.map(([column]) => quoteIdentifier(column)).join(', ');
+    const valueSql = entries.map((_, index) => `$${index + 1}`).join(', ');
+    const values = entries.map(([, value]) => value);
+    const conflictSql = presentConflictColumns.length > 0
+      ? ` ON CONFLICT (${presentConflictColumns.map(quoteIdentifier).join(', ')}) DO NOTHING`
+      : '';
+    const returning = columns.has('id') ? ' RETURNING id::text' : '';
+    let result;
+
+    try {
+      result = await this.client.query(
+        `INSERT INTO ${quoteIdentifier(table)} (${columnSql}) VALUES (${valueSql})${conflictSql}${returning}`,
+        values,
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(`Failed to seed ${table}: ${message}`);
+    }
+
+    if ((result.rowCount ?? 0) > 0) {
+      this.summary.tables[table] = (this.summary.tables[table] ?? 0) + 1;
+    }
+
     return result.rows[0]?.id ?? (typeof filtered.id === 'string' ? filtered.id : null);
   }
 
@@ -641,6 +795,7 @@ async function resolveUsers(client: Client, tenantId: string) {
     actorUserId,
     teacherUserId: result.rows.find((row) => row.role_code === 'teacher')?.user_id ?? actorUserId,
     librarianUserId: result.rows.find((row) => row.role_code === 'librarian')?.user_id ?? actorUserId,
+    existingUsersByRole: summarizeExistingSchoolUsersByRole(result.rows),
   };
 }
 
@@ -698,9 +853,6 @@ async function seedDemoRows(writer: DemoSeedWriter, context: DemoContext): Promi
   const examSeriesId = demoUuid('exam-series-midterm');
   const examAssessmentId = demoUuid('exam-assessment-math');
   const gradingPolicyId = demoUuid('grading-policy-main');
-  const libraryItemId = demoUuid('library-item-blossoms');
-  const libraryCopyId = demoUuid('library-copy-blossoms-1');
-  const libraryBorrowerId = demoUuid('library-borrower-student-1');
   const inventoryCategoryId = demoUuid('inventory-category-science');
   const inventoryItemId = demoUuid('inventory-item-exercise-books');
   const inventoryLocationId = demoUuid('inventory-location-main-store');
@@ -888,10 +1040,96 @@ async function seedDemoRows(writer: DemoSeedWriter, context: DemoContext): Promi
   await writer.upsert('timetable_slots', { id: demoUuid('timetable-slot-1'), tenant_id: tenantId, academic_year: '2026', term_name: 'Term 2', class_section_id: String(classIds[0]), subject_id: String(subjectIds[0]), teacher_id: context.teacherUserId, day_of_week: 1, starts_at: '08:00', ends_at: '08:40', room_label: 'Block A Room 1' });
   await writer.upsert('timetable_lessons', { id: demoUuid('timetable-lesson-1'), tenant_id: tenantId, academic_term_id: termId, stream_id: streamIds[0], class_subject_assignment_id: classSubjectId, weekday: 1, period_number: 1, starts_at: '08:00', ends_at: '08:40', room_label: 'Block A Room 1', metadata: meta() });
 
-  await writer.upsert('library_catalog_items', { id: libraryItemId, tenant_id: tenantId, title: 'Blossoms of the Savannah', author: 'Henry Ole Kulet', isbn: 'KB-DEMO-ISBN-001', category: 'Set Book', status: 'active' });
-  await writer.upsert('library_copies', { id: libraryCopyId, tenant_id: tenantId, catalog_item_id: libraryItemId, accession_number: 'KB-LIB-DEMO-001', status: 'issued' });
-  await writer.upsert('library_borrowers', { id: libraryBorrowerId, tenant_id: tenantId, borrower_type: 'student', subject_id: studentIds[0], status: 'active' });
-  await writer.upsert('library_circulation_ledger', { id: demoUuid('library-ledger-1'), tenant_id: tenantId, borrower_id: libraryBorrowerId, copy_id: libraryCopyId, action: 'borrowed', due_at: '2026-06-15T12:00:00.000Z', metadata: meta() });
+  const libraryCatalog = buildKisumuBoysDemoLibraryCatalog();
+  const libraryCopyIds: string[] = [];
+
+  for (const [itemIndex, item] of libraryCatalog.entries()) {
+    const catalogItemId = demoUuid(`library-item-${itemIndex + 1}`);
+    await writer.upsert('library_catalog_items', {
+      id: catalogItemId,
+      tenant_id: tenantId,
+      title: item.title,
+      author: item.author,
+      isbn: item.isbn,
+      category: item.category,
+      status: 'active',
+      metadata: meta({ category: item.category }),
+    });
+
+    for (const [copyIndex, copy] of item.copies.entries()) {
+      const copyId = demoUuid(`library-copy-${itemIndex + 1}-${copyIndex + 1}`);
+      libraryCopyIds.push(copyId);
+      await writer.upsert('library_copies', {
+        id: copyId,
+        tenant_id: tenantId,
+        catalog_item_id: catalogItemId,
+        accession_number: copy.accessionNumber,
+        barcode: copy.barcode,
+        status: copy.status,
+        metadata: meta({ title: item.title, category: item.category }),
+      });
+    }
+  }
+
+  const libraryBorrowerIds = studentIds.map((studentId, index) => demoUuid(`library-borrower-student-${index + 1}`));
+  for (const [index, borrowerId] of libraryBorrowerIds.entries()) {
+    await writer.upsert('library_borrowers', {
+      id: borrowerId,
+      tenant_id: tenantId,
+      borrower_type: 'student',
+      subject_id: studentIds[index],
+      scan_code: studentRoster[index]?.admissionNumber,
+      status: 'active',
+      metadata: meta({ student_name: `${studentRoster[index]?.firstName} ${studentRoster[index]?.lastName}` }),
+    });
+  }
+
+  for (let index = 0; index < 18; index += 1) {
+    await writer.insertOnce('library_circulation_ledger', {
+      id: demoUuid(`library-active-loan-${index + 1}`),
+      tenant_id: tenantId,
+      borrower_id: libraryBorrowerIds[index],
+      copy_id: libraryCopyIds[index],
+      action: 'borrowed',
+      due_at: index < 5 ? '2026-05-28T12:00:00.000Z' : '2026-06-15T12:00:00.000Z',
+      metadata: meta({
+        slip_number: `KB-LIB-SLIP-${String(index + 1).padStart(3, '0')}`,
+        status: index < 5 ? 'overdue' : 'active',
+        notice: index < 5 ? `Overdue library book for ${studentRoster[index]?.firstName} ${studentRoster[index]?.lastName}` : 'Active issue',
+      }),
+    });
+  }
+
+  for (let index = 0; index < 8; index += 1) {
+    await writer.insertOnce('library_circulation_ledger', {
+      id: demoUuid(`library-returned-loan-${index + 1}`),
+      tenant_id: tenantId,
+      borrower_id: libraryBorrowerIds[index + 18],
+      copy_id: libraryCopyIds[index + 18],
+      action: 'returned',
+      metadata: meta({
+        slip_number: `KB-LIB-RETURN-${String(index + 1).padStart(3, '0')}`,
+        condition: index % 3 === 0 ? 'minor wear noted' : 'good',
+      }),
+    });
+  }
+
+  for (let index = 0; index < 4; index += 1) {
+    await writer.upsert('library_fines', {
+      id: demoUuid(`library-fine-${index + 1}`),
+      tenant_id: tenantId,
+      borrower_id: libraryBorrowerIds[index],
+      copy_id: libraryCopyIds[index],
+      reason: index === 3 ? 'Damaged book handling fee' : 'Overdue library book fine',
+      amount_minor: [15000, 25000, 30000, 50000][index],
+      billing_reference: `KB-LIB-FINE-${String(index + 1).padStart(3, '0')}`,
+      metadata: meta({ student_id: studentIds[index] }),
+    });
+  }
+
+  await writer.insertOnce('library_circulation_ledger', { id: demoUuid('library-lost-case-1'), tenant_id: tenantId, borrower_id: libraryBorrowerIds[7], copy_id: libraryCopyIds[16], action: 'lost', metadata: meta({ title: 'Lost book case: KCSE Chemistry Revision', billing_reference: 'KB-LIB-LOST-001' }) });
+  await writer.insertOnce('library_circulation_ledger', { id: demoUuid('library-damaged-case-1'), tenant_id: tenantId, borrower_id: libraryBorrowerIds[12], copy_id: libraryCopyIds[28], action: 'damaged', metadata: meta({ title: 'Damaged book case: Top Mark Mathematics Form 4', billing_reference: 'KB-LIB-DMG-001' }) });
+  await writer.insertOnce('library_audit_logs', { id: demoUuid('library-audit-issue-1'), tenant_id: tenantId, actor_user_id: context.librarianUserId, action: 'library.demo_books_and_loans_seeded', entity_type: 'library_demo_seed', entity_id: demoUuid('library-demo-summary'), metadata: meta({ catalog_items: libraryCatalog.length, copies: libraryCopyIds.length, active_loans: 18, returned_loans: 8, overdue_loans: 5 }) });
 
   await writer.upsert('inventory_categories', { id: inventoryCategoryId, tenant_id: tenantId, code: 'KB-DEMO-STATIONERY', name: 'Demo Stationery', status: 'active' });
   await writer.upsert('inventory_suppliers', { id: demoUuid('inventory-supplier-1'), tenant_id: tenantId, supplier_name: 'Kisumu Demo Supplies Ltd', contact_phone: '+254733100001', metadata: meta() });
@@ -1017,6 +1255,7 @@ async function runSeed(apply: boolean): Promise<SeedSummary> {
     const billingSubscriptionId = await resolveActiveSubscriptionId(client, tenant.tenant_id);
     const writer = new DemoSeedWriter(client, tenant, !apply);
     await writer.loadSchema();
+    writer.setExistingUsersByRole(users.existingUsersByRole);
 
     if (!apply) {
       await writer.countTaggedDemoRowsOutsideTarget();
