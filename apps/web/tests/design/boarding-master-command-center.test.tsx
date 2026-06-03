@@ -41,6 +41,19 @@ describe("BoardingMasterCommandCenter", () => {
     );
 
     await user.click(screen.getByRole("button", { name: /start roll call/i }));
-    expect(screen.getByText(/start roll call opened for boarding desk action/i)).toBeVisible();
+    const deskActionDialog = screen.getByRole("dialog", { name: /boarding desk action/i });
+    expect(deskActionDialog).toBeVisible();
+    await user.click(within(deskActionDialog).getByRole("button", { name: /save boarding desk action/i }));
+
+    expect(screen.getByText(/start roll call saved for boarding desk action/i)).toBeVisible();
+    expect(readSchoolData<Record<string, unknown>>("events", "kb-high")).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          schoolId: "kb-high",
+          type: "BOARDING_DESK_ACTION_RECORDED",
+          module: "boarding",
+        }),
+      ]),
+    );
   });
 });

@@ -92,6 +92,16 @@ type FeedItem = {
   actions?: string[];
 };
 
+type BoardingTimelineAction = {
+  action: string;
+  item: FeedItem;
+};
+
+type BoardingDeskAction = {
+  label: string;
+  source: "quick-actions" | "mobile";
+};
+
 const boardingSearchRecords = [
   { id: "kevin-roll-call", label: "Kevin Otieno", detail: "Missed 3 night roll calls this month", sectionId: "roll-call" },
   { id: "dorm-b", label: "Dorm B", detail: "Noise and movement incidents require review", sectionId: "live-hostel-status" },
@@ -101,12 +111,6 @@ const boardingSearchRecords = [
 ] satisfies Array<{ id: string; label: string; detail: string; sectionId: string }>;
 
 type BoardingSearchRecord = (typeof boardingSearchRecords)[number];
-
-function announceAction(message: string) {
-  if (typeof window !== "undefined") {
-    window.dispatchEvent(new CustomEvent("myshule-boarding-action", { detail: message }));
-  }
-}
 
 function cn(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
@@ -728,7 +732,13 @@ function StudentWelfareMonitor() {
   );
 }
 
-function TimelineList({ items }: { items: FeedItem[] }) {
+function TimelineList({
+  items,
+  onTimelineAction,
+}: {
+  items: FeedItem[];
+  onTimelineAction: (action: BoardingTimelineAction) => void;
+}) {
   return (
     <div className="space-y-3">
       {items.map((item) => (
@@ -747,7 +757,7 @@ function TimelineList({ items }: { items: FeedItem[] }) {
                     <button
                       key={action}
                       type="button"
-                      onClick={() => announceAction(`${action} opened for ${item.title}.`)}
+                      onClick={() => onTimelineAction({ action, item })}
                       className="rounded-full border border-white/14 bg-white/10 px-3 py-1.5 text-xs font-black text-white/82"
                     >
                       {action}
@@ -763,7 +773,11 @@ function TimelineList({ items }: { items: FeedItem[] }) {
   );
 }
 
-function NightAndDiscipline() {
+function NightAndDiscipline({
+  onTimelineAction,
+}: {
+  onTimelineAction: (action: BoardingTimelineAction) => void;
+}) {
   return (
     <div className="grid gap-5 xl:grid-cols-2">
       <SectionCard
@@ -772,7 +786,7 @@ function NightAndDiscipline() {
         title="Night operations"
         description="Night patrol timeline records rounds completed, officer on duty, dorm inspected, notes, incidents, photo uploads, and voice notes."
       >
-        <TimelineList items={patrolTimeline} />
+        <TimelineList items={patrolTimeline} onTimelineAction={onTimelineAction} />
       </SectionCard>
       <SectionCard
         id="discipline"
@@ -780,7 +794,7 @@ function NightAndDiscipline() {
         title="Discipline command center"
         description="Live incidents feed keeps sneaking, bullying, contraband, vandalism, and unauthorized phone cases action-ready."
       >
-        <TimelineList items={incidents} />
+        <TimelineList items={incidents} onTimelineAction={onTimelineAction} />
       </SectionCard>
     </div>
   );
@@ -875,7 +889,11 @@ function AiInsights() {
   );
 }
 
-function QuickActionsPanel() {
+function QuickActionsPanel({
+  onDeskAction,
+}: {
+  onDeskAction: (action: BoardingDeskAction) => void;
+}) {
   return (
     <SectionCard
       id="quick-actions"
@@ -888,7 +906,7 @@ function QuickActionsPanel() {
           <button
             key={label}
             type="button"
-            onClick={() => announceAction(`${label} opened for boarding desk action.`)}
+            onClick={() => onDeskAction({ label, source: "quick-actions" })}
             className="group flex min-h-20 items-center gap-3 rounded-[var(--radius-lg)] border border-white/12 bg-white/[0.07] p-4 text-left font-black text-white transition hover:-translate-y-1 hover:border-cyan-300/40 hover:bg-cyan-300/12"
           >
             <span className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl border border-cyan-300/30 bg-cyan-300/12 text-cyan-100">
@@ -946,7 +964,11 @@ function SupportPanels() {
   );
 }
 
-function MobileQuickActions() {
+function MobileQuickActions({
+  onDeskAction,
+}: {
+  onDeskAction: (action: BoardingDeskAction) => void;
+}) {
   const actions = [
     ["Roll Call", ClipboardCheck],
     ["Incident", ShieldAlert],
@@ -962,7 +984,7 @@ function MobileQuickActions() {
           <button
             key={label}
             type="button"
-            onClick={() => announceAction(`${label} opened from mobile boarding actions.`)}
+            onClick={() => onDeskAction({ label, source: "mobile" })}
             className="grid min-h-12 place-items-center rounded-[var(--radius)] text-[11px] font-black text-white/82"
           >
             <Icon className="h-4 w-4" aria-hidden="true" />
@@ -979,6 +1001,8 @@ export function BoardingMasterCommandCenter({ routeMode }: { routeMode: Boarding
   const [searchTerm, setSearchTerm] = useState("");
   const [notice, setNotice] = useState("Boarding desk ready for roll call, exeats, incidents, sick referrals, and parent SMS.");
   const [quickResponseOpen, setQuickResponseOpen] = useState(false);
+  const [activeDeskAction, setActiveDeskAction] = useState<BoardingDeskAction | null>(null);
+  const [activeTimelineAction, setActiveTimelineAction] = useState<BoardingTimelineAction | null>(null);
   const kpiItems = useMemo(() => kpis, []);
   const searchResults = useMemo(() => {
     const query = searchTerm.trim().toLowerCase();
@@ -1000,18 +1024,6 @@ export function BoardingMasterCommandCenter({ routeMode }: { routeMode: Boarding
     };
   }, []);
 
-  useEffect(() => {
-    function handleBoardingAction(event: Event) {
-      const detail = (event as CustomEvent<string>).detail;
-      if (detail) {
-        setNotice(detail);
-      }
-    }
-
-    window.addEventListener("myshule-boarding-action", handleBoardingAction);
-    return () => window.removeEventListener("myshule-boarding-action", handleBoardingAction);
-  }, []);
-
   function openSearchRecord(record: BoardingSearchRecord) {
     setSearchTerm("");
     setNotice(`${record.label} opened in boarding records.`);
@@ -1025,6 +1037,16 @@ export function BoardingMasterCommandCenter({ routeMode }: { routeMode: Boarding
   function openQuickResponse() {
     setQuickResponseOpen(true);
     setNotice("Quick boarding response ready.");
+  }
+
+  function openDeskAction(action: BoardingDeskAction) {
+    setActiveDeskAction(action);
+    setNotice(`${action.label} ready for boarding desk action.`);
+  }
+
+  function openTimelineAction(action: BoardingTimelineAction) {
+    setActiveTimelineAction(action);
+    setNotice(`${action.action} ready for ${action.item.title}.`);
   }
 
   function saveQuickResponse() {
@@ -1061,6 +1083,86 @@ export function BoardingMasterCommandCenter({ routeMode }: { routeMode: Boarding
 
     setQuickResponseOpen(false);
     setNotice("Quick boarding response saved.");
+  }
+
+  function saveDeskAction() {
+    if (!activeDeskAction) return;
+
+    const schoolId = getCurrentSchoolId();
+    const entityId = `boarding-desk-${activeDeskAction.label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
+    const isUrgent = /emergency|alert|security|incident|sick/i.test(activeDeskAction.label);
+
+    publishSchoolOperationalEvent({
+      schoolId,
+      type: "BOARDING_DESK_ACTION_RECORDED",
+      module: "boarding",
+      actorRole: "Boarding Master",
+      title: `${activeDeskAction.label} saved for boarding desk action`,
+      body: `Boarding Master recorded ${activeDeskAction.label.toLowerCase()} from ${activeDeskAction.source} controls.`,
+      entityId,
+      severity: isUrgent ? "critical" : "info",
+      payload: {
+        action: activeDeskAction.label,
+        source: activeDeskAction.source,
+        dashboard: "boarding-master",
+      },
+      notifications: [
+        {
+          audienceRoles: ["Deputy Principal", "Principal", "Security Officer", "Nurse"],
+          title: `${activeDeskAction.label} recorded`,
+          body: `${activeDeskAction.label} was saved from the Boarding Master dashboard.`,
+          severity: isUrgent ? "critical" : "info",
+          relatedModule: "boarding",
+          relatedRecordId: entityId,
+          requiresAction: isUrgent,
+          requestStatus: "Pending",
+        },
+      ],
+    });
+
+    setNotice(`${activeDeskAction.label} saved for boarding desk action.`);
+    setActiveDeskAction(null);
+  }
+
+  function saveTimelineAction() {
+    if (!activeTimelineAction) return;
+
+    const schoolId = getCurrentSchoolId();
+    const entityId = `boarding-timeline-${activeTimelineAction.item.title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
+    const isUrgent = activeTimelineAction.item.tone === "danger" || activeTimelineAction.item.tone === "warning";
+
+    publishSchoolOperationalEvent({
+      schoolId,
+      type: "BOARDING_TIMELINE_ACTION_RECORDED",
+      module: "boarding",
+      actorRole: "Boarding Master",
+      title: `${activeTimelineAction.action} saved for ${activeTimelineAction.item.title}`,
+      body: `Boarding Master recorded ${activeTimelineAction.action.toLowerCase()} for ${activeTimelineAction.item.title}.`,
+      entityId,
+      severity: isUrgent ? "critical" : "info",
+      payload: {
+        action: activeTimelineAction.action,
+        itemTitle: activeTimelineAction.item.title,
+        itemDetail: activeTimelineAction.item.detail,
+        itemTime: activeTimelineAction.item.time,
+        dashboard: "boarding-master",
+      },
+      notifications: [
+        {
+          audienceRoles: ["Deputy Principal", "Principal", "Security Officer", "Discipline Master"],
+          title: `${activeTimelineAction.action} recorded`,
+          body: `${activeTimelineAction.action} was saved for ${activeTimelineAction.item.title}.`,
+          severity: isUrgent ? "critical" : "info",
+          relatedModule: "boarding",
+          relatedRecordId: entityId,
+          requiresAction: isUrgent,
+          requestStatus: "Pending",
+        },
+      ],
+    });
+
+    setNotice(`${activeTimelineAction.action} saved for ${activeTimelineAction.item.title}.`);
+    setActiveTimelineAction(null);
   }
 
   return (
@@ -1126,6 +1228,100 @@ export function BoardingMasterCommandCenter({ routeMode }: { routeMode: Boarding
               </div>
             </div>
           ) : null}
+          {activeDeskAction ? (
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-label="Boarding desk action"
+              className="rounded-[var(--radius-xl)] border border-[#C8D5EA] bg-white p-4 text-[#071D49] shadow-[0_18px_55px_rgba(7,29,73,0.12)] md:p-5"
+            >
+              <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[0.16em] text-[#5F6F89]">Same-school boarding action</p>
+                  <h2 className="mt-2 text-2xl font-black">{activeDeskAction.label}</h2>
+                  <p className="mt-2 max-w-3xl text-sm font-semibold leading-6 text-[#5F6F89]">
+                    Save this boarding action so the connected Deputy, Principal, Security, and Nurse desks can see the update inside this school only.
+                  </p>
+                  <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                    {[
+                      ["Action source", activeDeskAction.source === "mobile" ? "Mobile boarding actions" : "Quick actions panel"],
+                      ["Follow-up owner", "Boarding Master"],
+                      ["Linked desks", "Deputy, Principal, Security, Nurse"],
+                      ["Scope", getCurrentSchoolId()],
+                    ].map(([label, value]) => (
+                      <div key={label} className="rounded-[var(--radius-lg)] border border-[#C8D5EA] bg-[#F8FAFC] p-3">
+                        <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[#5F6F89]">{label}</p>
+                        <p className="mt-1 text-sm font-black">{value}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2 lg:justify-end">
+                  <button
+                    type="button"
+                    onClick={saveDeskAction}
+                    className="inline-flex min-h-10 items-center justify-center rounded-[var(--radius)] bg-[#071D49] px-4 text-sm font-black text-white"
+                  >
+                    Save boarding desk action
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveDeskAction(null)}
+                    className="inline-flex min-h-10 items-center justify-center rounded-[var(--radius)] border border-[#C8D5EA] bg-white px-4 text-sm font-black text-[#071D49]"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : null}
+          {activeTimelineAction ? (
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-label="Boarding timeline action"
+              className="rounded-[var(--radius-xl)] border border-[#C8D5EA] bg-white p-4 text-[#071D49] shadow-[0_18px_55px_rgba(7,29,73,0.12)] md:p-5"
+            >
+              <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[0.16em] text-[#5F6F89]">Same-school timeline action</p>
+                  <h2 className="mt-2 text-2xl font-black">{activeTimelineAction.action}</h2>
+                  <p className="mt-2 max-w-3xl text-sm font-semibold leading-6 text-[#5F6F89]">
+                    Record this action against the selected boarding timeline item and notify the relevant school operations desks.
+                  </p>
+                  <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                    {[
+                      ["Related item", activeTimelineAction.item.title],
+                      ["Timeline", activeTimelineAction.item.time],
+                      ["Follow-up desks", "Deputy, Principal, Security, Discipline"],
+                      ["Scope", getCurrentSchoolId()],
+                    ].map(([label, value]) => (
+                      <div key={label} className="rounded-[var(--radius-lg)] border border-[#C8D5EA] bg-[#F8FAFC] p-3">
+                        <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[#5F6F89]">{label}</p>
+                        <p className="mt-1 text-sm font-black">{value}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2 lg:justify-end">
+                  <button
+                    type="button"
+                    onClick={saveTimelineAction}
+                    className="inline-flex min-h-10 items-center justify-center rounded-[var(--radius)] bg-[#071D49] px-4 text-sm font-black text-white"
+                  >
+                    Save timeline action
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTimelineAction(null)}
+                    className="inline-flex min-h-10 items-center justify-center rounded-[var(--radius)] border border-[#C8D5EA] bg-white px-4 text-sm font-black text-[#071D49]"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : null}
           <Hero />
           <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {kpiItems.map((item, index) => (
@@ -1135,15 +1331,15 @@ export function BoardingMasterCommandCenter({ routeMode }: { routeMode: Boarding
           <LiveHostelStatus />
           <RollCallCenter />
           <StudentWelfareMonitor />
-          <NightAndDiscipline />
+          <NightAndDiscipline onTimelineAction={openTimelineAction} />
           <ClinicVisitorDining />
           <AiInsights />
-          <QuickActionsPanel />
+          <QuickActionsPanel onDeskAction={openDeskAction} />
           <AnalyticsCharts />
           <SupportPanels />
         </main>
       </div>
-      <MobileQuickActions />
+      <MobileQuickActions onDeskAction={openDeskAction} />
     </div>
   );
 }
