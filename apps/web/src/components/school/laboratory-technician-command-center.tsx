@@ -109,6 +109,16 @@ type LabSessionAction = {
   session: SessionItem;
 };
 
+type LabTimelineAction = {
+  action: string;
+  item: TimelineItem;
+};
+
+type LabQuickAction = {
+  label: string;
+  source: "quick-add" | "quick-panel" | "mobile";
+};
+
 const labSearchRecords = [
   { id: "chem-ethanol", label: "Ethanol stock", detail: "Restricted chemical | usage audit required", sectionId: "chemicals" },
   { id: "microscope-12", label: "Microscope 12", detail: "Under repair | maintenance history open", sectionId: "equipment" },
@@ -117,12 +127,6 @@ const labSearchRecords = [
 ] satisfies Array<{ id: string; label: string; detail: string; sectionId: string }>;
 
 type LabSearchRecord = (typeof labSearchRecords)[number];
-
-function announceAction(message: string) {
-  if (typeof window !== "undefined") {
-    window.dispatchEvent(new CustomEvent("myshule-lab-action", { detail: message }));
-  }
-}
 
 function cn(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
@@ -643,12 +647,14 @@ function TopNav({
   now,
   searchTerm,
   searchResults,
+  onQuickAction,
   onSearchResult,
   onSearchTermChange,
 }: {
   now: Date | null;
   searchTerm: string;
   searchResults: LabSearchRecord[];
+  onQuickAction: (action: LabQuickAction) => void;
   onSearchResult: (record: LabSearchRecord) => void;
   onSearchTermChange: (value: string) => void;
 }) {
@@ -718,7 +724,7 @@ function TopNav({
                   <button
                     key={label}
                     type="button"
-                    onClick={() => announceAction(`${label} opened from quick add.`)}
+                    onClick={() => onQuickAction({ label, source: "quick-add" })}
                     className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-xs font-black hover:bg-[#F3F4F6]"
                   >
                     <Icon className="h-4 w-4 text-cyan-700" aria-hidden="true" />
@@ -926,7 +932,13 @@ function EquipmentTracking() {
   );
 }
 
-function TimelineList({ items }: { items: TimelineItem[] }) {
+function TimelineList({
+  items,
+  onTimelineAction,
+}: {
+  items: TimelineItem[];
+  onTimelineAction: (action: LabTimelineAction) => void;
+}) {
   return (
     <div className="space-y-3">
       {items.map((item) => (
@@ -945,7 +957,7 @@ function TimelineList({ items }: { items: TimelineItem[] }) {
                     <button
                       key={action}
                       type="button"
-                      onClick={() => announceAction(`${action} opened for ${item.title}.`)}
+                      onClick={() => onTimelineAction({ action, item })}
                       className="rounded-full border border-white/14 bg-white/10 px-3 py-1.5 text-xs font-black text-white/82"
                     >
                       {action}
@@ -961,7 +973,7 @@ function TimelineList({ items }: { items: TimelineItem[] }) {
   );
 }
 
-function BreakagesAndSafety() {
+function BreakagesAndSafety({ onTimelineAction }: { onTimelineAction: (action: LabTimelineAction) => void }) {
   return (
     <div className="grid gap-5 xl:grid-cols-2">
       <SectionCard
@@ -970,7 +982,7 @@ function BreakagesAndSafety() {
         title="Breakages & incidents"
         description="Accountability records who caused damage, class involved, supervising teacher, estimated repair cost, incident description, attached photos, disciplinary recommendation, approval workflow, parent notification, and insurance reporting."
       >
-        <TimelineList items={breakageItems} />
+        <TimelineList items={breakageItems} onTimelineAction={onTimelineAction} />
       </SectionCard>
       <SectionCard
         id="safety"
@@ -1036,7 +1048,7 @@ function InventoryAndExams() {
   );
 }
 
-function MaintenanceManagement() {
+function MaintenanceManagement({ onTimelineAction }: { onTimelineAction: (action: LabTimelineAction) => void }) {
   return (
     <SectionCard
       id="maintenance"
@@ -1044,7 +1056,7 @@ function MaintenanceManagement() {
       title="Maintenance management"
       description="Repairs, calibration schedules, technician visits, servicing, maintenance calendar, warranty tracking, cost analysis, and vendor contacts are status-controlled."
     >
-      <TimelineList items={maintenanceItems} />
+      <TimelineList items={maintenanceItems} onTimelineAction={onTimelineAction} />
     </SectionCard>
   );
 }
@@ -1073,7 +1085,7 @@ function AiInsights() {
   );
 }
 
-function QuickActionsPanel() {
+function QuickActionsPanel({ onQuickAction }: { onQuickAction: (action: LabQuickAction) => void }) {
   return (
     <SectionCard
       id="requests"
@@ -1086,7 +1098,7 @@ function QuickActionsPanel() {
           <button
             key={label}
             type="button"
-            onClick={() => announceAction(`${label} opened for lab desk action.`)}
+            onClick={() => onQuickAction({ label, source: "quick-panel" })}
             className="group flex min-h-20 items-center gap-3 rounded-2xl border border-white/12 bg-white/[0.07] p-4 text-left font-black text-white transition hover:-translate-y-1 hover:border-cyan-300/40 hover:bg-cyan-300/12"
           >
             <span className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl border border-cyan-300/30 bg-cyan-300/12 text-cyan-100">
@@ -1151,7 +1163,7 @@ function EmptyStatesAndSupport() {
   );
 }
 
-function MobileQuickActions() {
+function MobileQuickActions({ onQuickAction }: { onQuickAction: (action: LabQuickAction) => void }) {
   const actions = [
     ["Session", CalendarClock],
     ["Chemical", TestTube],
@@ -1167,7 +1179,7 @@ function MobileQuickActions() {
           <button
             key={label}
             type="button"
-            onClick={() => announceAction(`${label} opened from mobile lab actions.`)}
+            onClick={() => onQuickAction({ label, source: "mobile" })}
             className="grid min-h-12 place-items-center rounded-2xl text-[11px] font-black text-white/82"
           >
             <Icon className="h-4 w-4" aria-hidden="true" />
@@ -1184,6 +1196,8 @@ export function LaboratoryTechnicianCommandCenter({ routeMode }: { routeMode: La
   const [searchTerm, setSearchTerm] = useState("");
   const [notice, setNotice] = useState("Laboratory desk ready for practical setup, chemicals, equipment, breakages, and safety logs.");
   const [activeSessionAction, setActiveSessionAction] = useState<LabSessionAction | null>(null);
+  const [activeTimelineAction, setActiveTimelineAction] = useState<LabTimelineAction | null>(null);
+  const [activeQuickAction, setActiveQuickAction] = useState<LabQuickAction | null>(null);
   const kpiItems = useMemo(() => kpis, []);
   const searchResults = useMemo(() => {
     const query = searchTerm.trim().toLowerCase();
@@ -1205,18 +1219,6 @@ export function LaboratoryTechnicianCommandCenter({ routeMode }: { routeMode: La
     };
   }, []);
 
-  useEffect(() => {
-    function handleLabAction(event: Event) {
-      const detail = (event as CustomEvent<string>).detail;
-      if (detail) {
-        setNotice(detail);
-      }
-    }
-
-    window.addEventListener("myshule-lab-action", handleLabAction);
-    return () => window.removeEventListener("myshule-lab-action", handleLabAction);
-  }, []);
-
   function openSearchRecord(record: LabSearchRecord) {
     setSearchTerm("");
     setNotice(`${record.label} opened in lab records.`);
@@ -1230,6 +1232,16 @@ export function LaboratoryTechnicianCommandCenter({ routeMode }: { routeMode: La
   function openLabSessionAction(sessionAction: LabSessionAction) {
     setActiveSessionAction(sessionAction);
     setNotice(`${sessionAction.action} ready for ${sessionAction.session.className}.`);
+  }
+
+  function openTimelineAction(timelineAction: LabTimelineAction) {
+    setActiveTimelineAction(timelineAction);
+    setNotice(`${timelineAction.action} ready for ${timelineAction.item.title}.`);
+  }
+
+  function openQuickAction(quickAction: LabQuickAction) {
+    setActiveQuickAction(quickAction);
+    setNotice(`${quickAction.label} ready for laboratory desk.`);
   }
 
   function saveLabSessionAction() {
@@ -1276,6 +1288,89 @@ export function LaboratoryTechnicianCommandCenter({ routeMode }: { routeMode: La
     setActiveSessionAction(null);
   }
 
+  function saveTimelineAction() {
+    if (!activeTimelineAction) {
+      return;
+    }
+
+    const schoolId = getCurrentSchoolId();
+    const { action, item } = activeTimelineAction;
+    const itemId = item.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+
+    publishSchoolOperationalEvent({
+      schoolId,
+      type: "LAB_TIMELINE_ACTION_RECORDED",
+      module: "laboratory",
+      actorRole: "Laboratory Technician",
+      title: `${action} saved for ${item.title}`,
+      body: `${action} was recorded for ${item.title} in the laboratory incident or maintenance timeline.`,
+      entityId: `lab-timeline-${itemId}`,
+      severity: item.tone === "danger" ? "warning" : "info",
+      payload: {
+        action,
+        timelineTitle: item.title,
+        detail: item.detail,
+        time: item.time,
+        source: "laboratory-technician-command-center",
+      },
+      notifications: [
+        {
+          audienceRoles: ["Dean of Academics", "Principal", "System Monitor"],
+          title: `${action} recorded in lab timeline`,
+          body: `${item.title} has a new laboratory follow-up action.`,
+          severity: item.tone === "danger" ? "warning" : "info",
+          relatedModule: "laboratory",
+          relatedRecordId: `lab-timeline-${itemId}`,
+          requiresAction: action.toLowerCase().includes("approval") || action.toLowerCase().includes("escalate"),
+          requestStatus: "Pending",
+        },
+      ],
+    });
+
+    setNotice(`${action} saved for ${item.title}.`);
+    setActiveTimelineAction(null);
+  }
+
+  function saveQuickAction() {
+    if (!activeQuickAction) {
+      return;
+    }
+
+    const schoolId = getCurrentSchoolId();
+    const actionId = activeQuickAction.label.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+
+    publishSchoolOperationalEvent({
+      schoolId,
+      type: "LAB_QUICK_ACTION_RECORDED",
+      module: "laboratory",
+      actorRole: "Laboratory Technician",
+      title: `${activeQuickAction.label} saved for laboratory desk`,
+      body: `${activeQuickAction.label} was recorded from the ${activeQuickAction.source.replace("-", " ")} laboratory action surface.`,
+      entityId: `lab-quick-${actionId}`,
+      severity: activeQuickAction.label.toLowerCase().includes("emergency") || activeQuickAction.label.toLowerCase().includes("incident") ? "warning" : "info",
+      payload: {
+        action: activeQuickAction.label,
+        source: activeQuickAction.source,
+        scope: "current-school",
+      },
+      notifications: [
+        {
+          audienceRoles: ["Teacher", "Dean of Academics", "Principal", "Storekeeper"],
+          title: `${activeQuickAction.label} recorded`,
+          body: "The laboratory desk recorded a quick action requiring same-school follow-up where applicable.",
+          severity: activeQuickAction.label.toLowerCase().includes("emergency") || activeQuickAction.label.toLowerCase().includes("incident") ? "warning" : "info",
+          relatedModule: "laboratory",
+          relatedRecordId: `lab-quick-${actionId}`,
+          requiresAction: activeQuickAction.label.toLowerCase().includes("maintenance") || activeQuickAction.label.toLowerCase().includes("incident"),
+          requestStatus: "Pending",
+        },
+      ],
+    });
+
+    setNotice(`${activeQuickAction.label} saved for laboratory desk.`);
+    setActiveQuickAction(null);
+  }
+
   return (
     <div id="top" data-route-mode={routeMode} className="min-h-screen bg-[#F3F4F6] pb-24 lg:pb-6">
       <div className="grid gap-5 p-3 md:p-5 xl:grid-cols-[300px_minmax(0,1fr)]">
@@ -1285,6 +1380,7 @@ export function LaboratoryTechnicianCommandCenter({ routeMode }: { routeMode: La
             now={now}
             searchTerm={searchTerm}
             searchResults={searchResults}
+            onQuickAction={openQuickAction}
             onSearchResult={openSearchRecord}
             onSearchTermChange={setSearchTerm}
           />
@@ -1335,6 +1431,92 @@ export function LaboratoryTechnicianCommandCenter({ routeMode }: { routeMode: La
               </div>
             </div>
           ) : null}
+          {activeTimelineAction ? (
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-label="Laboratory timeline action"
+              className="rounded-[24px] border border-[#C8D5EA] bg-white p-5 text-[#071D49] shadow-[0_18px_55px_rgba(7,29,73,0.12)]"
+            >
+              <p className="text-xs font-black uppercase tracking-[0.16em] text-[#5F6F89]">Same-school lab timeline update</p>
+              <h2 className="mt-2 text-xl font-black">{activeTimelineAction.action}</h2>
+              <p className="mt-2 max-w-3xl text-sm font-semibold leading-6 text-[#5F6F89]">
+                This records a lab incident or maintenance follow-up, alerts the relevant school offices, and keeps the action traceable.
+              </p>
+              <div className="mt-4 grid gap-3 md:grid-cols-3">
+                {[
+                  ["Record", activeTimelineAction.item.title],
+                  ["Time", activeTimelineAction.item.time],
+                  ["Detail", activeTimelineAction.item.detail],
+                ].map(([label, value]) => (
+                  <div key={label} className="rounded-2xl border border-[#C8D5EA] bg-[#F8FAFC] p-3">
+                    <p className="text-xs font-black uppercase tracking-[0.12em] text-[#5F6F89]">{label}</p>
+                    <p className="mt-1 text-sm font-black">{value}</p>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-5 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={saveTimelineAction}
+                  className="inline-flex min-h-10 items-center gap-2 rounded-2xl bg-[#071D49] px-4 text-sm font-black text-white"
+                >
+                  <ClipboardCheck className="h-4 w-4" aria-hidden="true" />
+                  Save timeline action
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTimelineAction(null)}
+                  className="inline-flex min-h-10 items-center rounded-2xl border border-[#C8D5EA] bg-white px-4 text-sm font-black text-[#071D49]"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : null}
+          {activeQuickAction ? (
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-label="Laboratory quick action"
+              className="rounded-[24px] border border-[#C8D5EA] bg-white p-5 text-[#071D49] shadow-[0_18px_55px_rgba(7,29,73,0.12)]"
+            >
+              <p className="text-xs font-black uppercase tracking-[0.16em] text-[#5F6F89]">Laboratory desk action</p>
+              <h2 className="mt-2 text-xl font-black">{activeQuickAction.label}</h2>
+              <p className="mt-2 max-w-3xl text-sm font-semibold leading-6 text-[#5F6F89]">
+                This records the lab desk action and creates same-school follow-up notifications for the offices that need visibility.
+              </p>
+              <div className="mt-4 grid gap-3 md:grid-cols-3">
+                {[
+                  ["Action", activeQuickAction.label],
+                  ["Opened from", activeQuickAction.source.replace("-", " ")],
+                  ["Scope", "Current school only"],
+                ].map(([label, value]) => (
+                  <div key={label} className="rounded-2xl border border-[#C8D5EA] bg-[#F8FAFC] p-3">
+                    <p className="text-xs font-black uppercase tracking-[0.12em] text-[#5F6F89]">{label}</p>
+                    <p className="mt-1 text-sm font-black capitalize">{value}</p>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-5 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={saveQuickAction}
+                  className="inline-flex min-h-10 items-center gap-2 rounded-2xl bg-[#071D49] px-4 text-sm font-black text-white"
+                >
+                  <ClipboardCheck className="h-4 w-4" aria-hidden="true" />
+                  Save lab quick action
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveQuickAction(null)}
+                  className="inline-flex min-h-10 items-center rounded-2xl border border-[#C8D5EA] bg-white px-4 text-sm font-black text-[#071D49]"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : null}
           <Hero />
           <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {kpiItems.map((item, index) => (
@@ -1344,16 +1526,16 @@ export function LaboratoryTechnicianCommandCenter({ routeMode }: { routeMode: La
           <LabSessionManagement onSessionAction={openLabSessionAction} />
           <ChemicalManagement />
           <EquipmentTracking />
-          <BreakagesAndSafety />
+          <BreakagesAndSafety onTimelineAction={openTimelineAction} />
           <InventoryAndExams />
-          <MaintenanceManagement />
+          <MaintenanceManagement onTimelineAction={openTimelineAction} />
           <AiInsights />
-          <QuickActionsPanel />
+          <QuickActionsPanel onQuickAction={openQuickAction} />
           <ReportsAnalytics />
           <EmptyStatesAndSupport />
         </main>
       </div>
-      <MobileQuickActions />
+      <MobileQuickActions onQuickAction={openQuickAction} />
     </div>
   );
 }

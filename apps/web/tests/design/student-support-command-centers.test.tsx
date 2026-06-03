@@ -89,11 +89,35 @@ describe("student support and admissions command center interactions", () => {
     await user.click(within(labDialog).getByRole("button", { name: /save lab session update/i }));
 
     expect(screen.getByText(/mark lab ready saved for/i)).toBeVisible();
+
+    await user.click(screen.getByRole("button", { name: /attach evidence/i }));
+    const labTimelineDialog = screen.getByRole("dialog", { name: /laboratory timeline action/i });
+    expect(labTimelineDialog).toBeVisible();
+    await user.click(within(labTimelineDialog).getByRole("button", { name: /save timeline action/i }));
+
+    expect(screen.getByText(/attach evidence saved for burette cracked during titration/i)).toBeVisible();
+
+    await user.click(screen.getAllByRole("button", { name: /add chemical/i })[1]);
+    const labQuickDialog = screen.getByRole("dialog", { name: /laboratory quick action/i });
+    expect(labQuickDialog).toBeVisible();
+    await user.click(within(labQuickDialog).getByRole("button", { name: /save lab quick action/i }));
+
+    expect(screen.getByText(/add chemical saved for laboratory desk/i)).toBeVisible();
     expect(readSchoolData<Record<string, unknown>>("events", "kb-high")).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           schoolId: "kb-high",
           type: "LAB_SESSION_ACTION_RECORDED",
+          module: "laboratory",
+        }),
+        expect.objectContaining({
+          schoolId: "kb-high",
+          type: "LAB_TIMELINE_ACTION_RECORDED",
+          module: "laboratory",
+        }),
+        expect.objectContaining({
+          schoolId: "kb-high",
+          type: "LAB_QUICK_ACTION_RECORDED",
           module: "laboratory",
         }),
       ]),
