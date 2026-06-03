@@ -74,6 +74,16 @@ type FeedItem = {
   actions?: string[];
 };
 
+type CounsellingTimelineAction = {
+  action: string;
+  item: FeedItem;
+};
+
+type CounsellingInterventionAction = {
+  label: string;
+  source: "intervention" | "mobile";
+};
+
 const guidanceSearchRecords = [
   { id: "faith-referral", label: "Faith Akinyi referral", detail: "High-risk welfare follow-up due today", sectionId: "risk-table" },
   { id: "parent-meeting", label: "Parent meeting", detail: "Guardian meeting scheduled after lunch", sectionId: "parents" },
@@ -82,12 +92,6 @@ const guidanceSearchRecords = [
 ] satisfies Array<{ id: string; label: string; detail: string; sectionId: string }>;
 
 type GuidanceSearchRecord = (typeof guidanceSearchRecords)[number];
-
-function announceAction(message: string) {
-  if (typeof window !== "undefined") {
-    window.dispatchEvent(new CustomEvent("myshule-guidance-action", { detail: message }));
-  }
-}
 
 function cn(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
@@ -676,7 +680,13 @@ function KpiCard({ item, index }: { item: Kpi; index: number }) {
   );
 }
 
-function TimelineList({ items }: { items: FeedItem[] }) {
+function TimelineList({
+  items,
+  onTimelineAction,
+}: {
+  items: FeedItem[];
+  onTimelineAction: (action: CounsellingTimelineAction) => void;
+}) {
   return (
     <div className="space-y-3">
       {items.map((item) => (
@@ -695,7 +705,7 @@ function TimelineList({ items }: { items: FeedItem[] }) {
                     <button
                       key={action}
                       type="button"
-                      onClick={() => announceAction(`${action} opened for ${item.title}.`)}
+                      onClick={() => onTimelineAction({ action, item })}
                       className="rounded-full border border-white/14 bg-white/10 px-3 py-1.5 text-xs font-black text-white/82"
                     >
                       {action}
@@ -711,7 +721,11 @@ function TimelineList({ items }: { items: FeedItem[] }) {
   );
 }
 
-function CriticalAlerts() {
+function CriticalAlerts({
+  onTimelineAction,
+}: {
+  onTimelineAction: (action: CounsellingTimelineAction) => void;
+}) {
   return (
     <SectionCard
       id="emergency"
@@ -719,7 +733,7 @@ function CriticalAlerts() {
       title="Critical emergency alerts"
       description="Self-harm alerts, abuse reports, bullying escalations, violent behaviour warnings, drug abuse suspicions, and suicidal indicators stay visible without making the whole page harsh."
     >
-      <TimelineList items={criticalAlerts} />
+      <TimelineList items={criticalAlerts} onTimelineAction={onTimelineAction} />
     </SectionCard>
   );
 }
@@ -787,7 +801,11 @@ function AiInsights() {
   );
 }
 
-function SessionsAndCases() {
+function SessionsAndCases({
+  onTimelineAction,
+}: {
+  onTimelineAction: (action: CounsellingTimelineAction) => void;
+}) {
   return (
     <div className="grid gap-5 xl:grid-cols-2">
       <SectionCard
@@ -796,7 +814,7 @@ function SessionsAndCases() {
         title="Counselling session manager"
         description="Calendar and appointments system for upcoming sessions, emergency walk-ins, teacher referrals, self-referrals, parent-requested counselling, notes, and rescheduling."
       >
-        <TimelineList items={sessions} />
+        <TimelineList items={sessions} onTimelineAction={onTimelineAction} />
       </SectionCard>
       <SectionCard
         id="case-files"
@@ -867,7 +885,11 @@ function BehaviourAndParents() {
   );
 }
 
-function MentalHealthAndWorkflow() {
+function MentalHealthAndWorkflow({
+  onInterventionAction,
+}: {
+  onInterventionAction: (action: CounsellingInterventionAction) => void;
+}) {
   const interventionActions: Array<[string, LucideIcon, Tone]> = [
     ["Notify principal", Siren, "critical"],
     ["Notify guardian", MessageCircle, "amber"],
@@ -915,7 +937,7 @@ function MentalHealthAndWorkflow() {
             <button
               key={label}
               type="button"
-              onClick={() => announceAction(`${label} opened for counselling intervention.`)}
+              onClick={() => onInterventionAction({ label, source: "intervention" })}
               className={cn("flex min-h-20 items-center gap-3 rounded-2xl border p-4 text-left font-black text-white transition hover:-translate-y-1", toneStyles[tone].border, toneStyles[tone].bg)}
             >
               <IconFrame icon={Icon} tone={tone} />
@@ -949,7 +971,11 @@ function ReportsAndSettings() {
   );
 }
 
-function MobileQuickActions() {
+function MobileQuickActions({
+  onInterventionAction,
+}: {
+  onInterventionAction: (action: CounsellingInterventionAction) => void;
+}) {
   const actions = [
     ["Alert", Siren],
     ["Session", CalendarClock],
@@ -965,7 +991,7 @@ function MobileQuickActions() {
           <button
             key={label}
             type="button"
-            onClick={() => announceAction(`${label} opened from mobile counselling actions.`)}
+            onClick={() => onInterventionAction({ label, source: "mobile" })}
             className="grid min-h-12 place-items-center rounded-2xl text-[11px] font-black text-white/82"
           >
             <Icon className="h-4 w-4" aria-hidden="true" />
@@ -1038,6 +1064,8 @@ export function GuidanceCounsellingCommandCenter({
   const [searchTerm, setSearchTerm] = useState("");
   const [notice, setNotice] = useState("Counselling desk ready for referrals, sessions, follow-ups, and parent meetings.");
   const [sessionDialogOpen, setSessionDialogOpen] = useState(false);
+  const [activeTimelineAction, setActiveTimelineAction] = useState<CounsellingTimelineAction | null>(null);
+  const [activeInterventionAction, setActiveInterventionAction] = useState<CounsellingInterventionAction | null>(null);
   const kpiItems = useMemo(() => buildLiveKpis(liveDashboard), [liveDashboard]);
   const searchResults = useMemo(() => {
     const query = searchTerm.trim().toLowerCase();
@@ -1085,18 +1113,6 @@ export function GuidanceCounsellingCommandCenter({
     };
   }, [liveDataEnabled, tenantSlug]);
 
-  useEffect(() => {
-    function handleGuidanceAction(event: Event) {
-      const detail = (event as CustomEvent<string>).detail;
-      if (detail) {
-        setNotice(detail);
-      }
-    }
-
-    window.addEventListener("myshule-guidance-action", handleGuidanceAction);
-    return () => window.removeEventListener("myshule-guidance-action", handleGuidanceAction);
-  }, []);
-
   function openSearchRecord(record: GuidanceSearchRecord) {
     setSearchTerm("");
     setNotice(`${record.label} opened in counselling records.`);
@@ -1110,6 +1126,16 @@ export function GuidanceCounsellingCommandCenter({
   function openQuickAddSession() {
     setSessionDialogOpen(true);
     setNotice("Quick-add counselling session ready.");
+  }
+
+  function openTimelineAction(action: CounsellingTimelineAction) {
+    setActiveTimelineAction(action);
+    setNotice(`${action.action} ready for ${action.item.title}.`);
+  }
+
+  function openInterventionAction(action: CounsellingInterventionAction) {
+    setActiveInterventionAction(action);
+    setNotice(`${action.label} ready for counselling intervention.`);
   }
 
   function saveCounsellingSession() {
@@ -1145,6 +1171,86 @@ export function GuidanceCounsellingCommandCenter({
 
     setSessionDialogOpen(false);
     setNotice("Quick-add counselling session saved.");
+  }
+
+  function saveTimelineAction() {
+    if (!activeTimelineAction) return;
+
+    const schoolId = getCurrentSchoolId();
+    const entityId = `counselling-timeline-${activeTimelineAction.item.title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
+
+    publishSchoolOperationalEvent({
+      schoolId,
+      type: "COUNSELLING_TIMELINE_ACTION_RECORDED",
+      module: "counselling",
+      actorRole: "School Counsellor",
+      title: `${activeTimelineAction.action} saved for ${activeTimelineAction.item.title}`,
+      body: `School Counsellor recorded ${activeTimelineAction.action.toLowerCase()} for ${activeTimelineAction.item.title}.`,
+      entityId,
+      severity: activeTimelineAction.item.tone === "critical" ? "critical" : "info",
+      payload: {
+        source: "timeline-action",
+        dashboard: "guidance-counselling",
+        action: activeTimelineAction.action,
+        itemTitle: activeTimelineAction.item.title,
+        itemDetail: activeTimelineAction.item.detail,
+        itemTime: activeTimelineAction.item.time,
+      },
+      notifications: [
+        {
+          audienceRoles: ["Deputy Principal", "Class Teacher", "Principal"],
+          title: `${activeTimelineAction.action} recorded`,
+          body: `${activeTimelineAction.action} was saved for ${activeTimelineAction.item.title}.`,
+          severity: activeTimelineAction.item.tone === "critical" ? "critical" : "info",
+          relatedModule: "counselling",
+          relatedRecordId: entityId,
+          requiresAction: activeTimelineAction.item.tone === "critical",
+          requestStatus: "Completed",
+        },
+      ],
+    });
+
+    setNotice(`${activeTimelineAction.action} saved for ${activeTimelineAction.item.title}.`);
+    setActiveTimelineAction(null);
+  }
+
+  function saveInterventionAction() {
+    if (!activeInterventionAction) return;
+
+    const schoolId = getCurrentSchoolId();
+    const entityId = `counselling-intervention-${activeInterventionAction.label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
+    const isUrgent = /emergency|principal|guardian/i.test(activeInterventionAction.label);
+
+    publishSchoolOperationalEvent({
+      schoolId,
+      type: "COUNSELLING_INTERVENTION_ACTION_RECORDED",
+      module: "counselling",
+      actorRole: "School Counsellor",
+      title: `${activeInterventionAction.label} saved for counselling intervention`,
+      body: `School Counsellor recorded ${activeInterventionAction.label.toLowerCase()} from ${activeInterventionAction.source} counselling controls.`,
+      entityId,
+      severity: isUrgent ? "critical" : "info",
+      payload: {
+        source: activeInterventionAction.source,
+        dashboard: "guidance-counselling",
+        action: activeInterventionAction.label,
+      },
+      notifications: [
+        {
+          audienceRoles: ["Principal", "Deputy Principal", "Nurse", "Class Teacher"],
+          title: `${activeInterventionAction.label} recorded`,
+          body: `${activeInterventionAction.label} was saved for a same-school counselling intervention.`,
+          severity: isUrgent ? "critical" : "info",
+          relatedModule: "counselling",
+          relatedRecordId: entityId,
+          requiresAction: isUrgent,
+          requestStatus: "Completed",
+        },
+      ],
+    });
+
+    setNotice(`${activeInterventionAction.label} saved for counselling intervention.`);
+    setActiveInterventionAction(null);
   }
 
   return (
@@ -1206,22 +1312,108 @@ export function GuidanceCounsellingCommandCenter({
               </div>
             </div>
           ) : null}
+          {activeInterventionAction ? (
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-label="Counselling intervention action"
+              className="rounded-[24px] border border-[#C8D5EA] bg-white p-5 text-[#071D49] shadow-[0_18px_55px_rgba(7,29,73,0.12)]"
+            >
+              <p className="text-xs font-black uppercase tracking-[0.16em] text-[#5F6F89]">Same-school intervention record</p>
+              <h2 className="mt-2 text-xl font-black">{activeInterventionAction.label}</h2>
+              <p className="mt-2 max-w-3xl text-sm font-semibold leading-6 text-[#5F6F89]">
+                This saves the counselling intervention, creates role-specific notifications, and keeps the follow-up inside the current school workspace.
+              </p>
+              <div className="mt-4 grid gap-3 md:grid-cols-3">
+                {[
+                  ["Action source", activeInterventionAction.source === "mobile" ? "Mobile counselling actions" : "Emergency intervention workflow"],
+                  ["Follow-up roles", "Principal, Deputy, Nurse, Class Teacher"],
+                  ["School scope", getCurrentSchoolId()],
+                ].map(([label, value]) => (
+                  <div key={label} className="rounded-2xl border border-[#C8D5EA] bg-[#F8FAFC] p-3">
+                    <p className="text-xs font-black uppercase tracking-[0.12em] text-[#5F6F89]">{label}</p>
+                    <p className="mt-1 text-sm font-black">{value}</p>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-5 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={saveInterventionAction}
+                  className="inline-flex min-h-10 items-center gap-2 rounded-2xl bg-[#071D49] px-4 text-sm font-black text-white"
+                >
+                  <ShieldAlert className="h-4 w-4" aria-hidden="true" />
+                  Save intervention action
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveInterventionAction(null)}
+                  className="inline-flex min-h-10 items-center rounded-2xl border border-[#C8D5EA] bg-white px-4 text-sm font-black text-[#071D49]"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : null}
+          {activeTimelineAction ? (
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-label="Counselling timeline action"
+              className="rounded-[24px] border border-[#C8D5EA] bg-white p-5 text-[#071D49] shadow-[0_18px_55px_rgba(7,29,73,0.12)]"
+            >
+              <p className="text-xs font-black uppercase tracking-[0.16em] text-[#5F6F89]">Same-school timeline record</p>
+              <h2 className="mt-2 text-xl font-black">{activeTimelineAction.action}</h2>
+              <p className="mt-2 max-w-3xl text-sm font-semibold leading-6 text-[#5F6F89]">
+                This records the selected counselling timeline action, notifies the connected school roles, and keeps the update traceable to the original case.
+              </p>
+              <div className="mt-4 grid gap-3 md:grid-cols-3">
+                {[
+                  ["Related item", activeTimelineAction.item.title],
+                  ["Timeline detail", activeTimelineAction.item.time],
+                  ["Follow-up roles", "Deputy, Principal, Class Teacher"],
+                ].map(([label, value]) => (
+                  <div key={label} className="rounded-2xl border border-[#C8D5EA] bg-[#F8FAFC] p-3">
+                    <p className="text-xs font-black uppercase tracking-[0.12em] text-[#5F6F89]">{label}</p>
+                    <p className="mt-1 text-sm font-black">{value}</p>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-5 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={saveTimelineAction}
+                  className="inline-flex min-h-10 items-center gap-2 rounded-2xl bg-[#071D49] px-4 text-sm font-black text-white"
+                >
+                  <CalendarClock className="h-4 w-4" aria-hidden="true" />
+                  Save timeline action
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTimelineAction(null)}
+                  className="inline-flex min-h-10 items-center rounded-2xl border border-[#C8D5EA] bg-white px-4 text-sm font-black text-[#071D49]"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : null}
           <Hero />
-          <CriticalAlerts />
+          <CriticalAlerts onTimelineAction={openTimelineAction} />
           <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {kpiItems.map((item, index) => (
               <KpiCard key={item.label} item={item} index={index} />
             ))}
           </section>
           <RiskAnalyticsTable />
-          <SessionsAndCases />
+          <SessionsAndCases onTimelineAction={openTimelineAction} />
           <AiInsights />
           <BehaviourAndParents />
-          <MentalHealthAndWorkflow />
+          <MentalHealthAndWorkflow onInterventionAction={openInterventionAction} />
           <ReportsAndSettings />
         </main>
       </div>
-      <MobileQuickActions />
+      <MobileQuickActions onInterventionAction={openInterventionAction} />
     </div>
   );
 }

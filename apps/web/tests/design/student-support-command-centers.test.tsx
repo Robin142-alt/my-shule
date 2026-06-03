@@ -75,11 +75,35 @@ describe("student support and admissions command center interactions", () => {
     await user.click(within(sessionDialog).getByRole("button", { name: /save counselling session/i }));
 
     expect(screen.getByText(/quick-add counselling session saved/i)).toBeVisible();
+
+    await user.click(screen.getAllByRole("button", { name: /notify principal/i })[1]);
+    const interventionDialog = screen.getByRole("dialog", { name: /counselling intervention action/i });
+    expect(interventionDialog).toBeVisible();
+    await user.click(within(interventionDialog).getByRole("button", { name: /save intervention action/i }));
+
+    expect(screen.getByText(/notify principal saved for counselling intervention/i)).toBeVisible();
+
+    await user.click(screen.getAllByRole("button", { name: /start session/i })[0]);
+    const timelineDialog = screen.getByRole("dialog", { name: /counselling timeline action/i });
+    expect(timelineDialog).toBeVisible();
+    await user.click(within(timelineDialog).getByRole("button", { name: /save timeline action/i }));
+
+    expect(screen.getByText(/start session saved for/i)).toBeVisible();
     expect(readSchoolData<Record<string, unknown>>("events", "kb-high")).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           schoolId: "kb-high",
           type: "COUNSELLING_SESSION_RECORDED",
+          module: "counselling",
+        }),
+        expect.objectContaining({
+          schoolId: "kb-high",
+          type: "COUNSELLING_INTERVENTION_ACTION_RECORDED",
+          module: "counselling",
+        }),
+        expect.objectContaining({
+          schoolId: "kb-high",
+          type: "COUNSELLING_TIMELINE_ACTION_RECORDED",
           module: "counselling",
         }),
       ]),
