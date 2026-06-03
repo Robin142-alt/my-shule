@@ -638,13 +638,13 @@ function VisitorManagement({
   visitors,
   onAddVisitor,
   onCheckOut,
-  onAction,
+  onAlertOffice,
   onPrintSlip,
 }: {
   visitors: VisitorRecord[];
   onAddVisitor: (visitor: Omit<VisitorRecord, "id" | "entryTime" | "expectedExit" | "status" | "tone">) => void;
   onCheckOut: (id: string) => void;
-  onAction: (message: string) => void;
+  onAlertOffice: (visitor: VisitorRecord) => void;
   onPrintSlip: (visitor: VisitorRecord) => void;
 }) {
   const [name, setName] = useState("");
@@ -714,7 +714,7 @@ function VisitorManagement({
                   <button type="button" onClick={() => onCheckOut(visitor.id)} className="rounded-[var(--radius)] border border-emerald-300/35 bg-emerald-400/12 px-3 py-1.5 text-xs font-black text-emerald-100">Check Out</button>
                 ) : null}
                 <button type="button" onClick={() => onPrintSlip(visitor)} className="rounded-[var(--radius)] border border-white/12 bg-white/10 px-3 py-1.5 text-xs font-black text-white">Print Slip</button>
-                <button type="button" onClick={() => onAction(`Office alerted about ${visitor.name}.`)} className="rounded-[var(--radius)] border border-orange-300/35 bg-[#FF7A1A]/14 px-3 py-1.5 text-xs font-black text-[#FFE1C8]">Alert Office</button>
+                <button type="button" onClick={() => onAlertOffice(visitor)} className="rounded-[var(--radius)] border border-orange-300/35 bg-[#FF7A1A]/14 px-3 py-1.5 text-xs font-black text-[#FFE1C8]">Alert Office</button>
               </div>
             </article>
           ))}
@@ -1009,7 +1009,7 @@ function ActiveSecuritySection({
   onAddVisitor,
   onCheckOutVisitor,
   onPrintVisitorSlip,
-  onNotice,
+  onAlertOffice,
 }: {
   activeSection: string;
   visitors: VisitorRecord[];
@@ -1017,7 +1017,7 @@ function ActiveSecuritySection({
   onAddVisitor: (visitor: Omit<VisitorRecord, "id" | "entryTime" | "expectedExit" | "status" | "tone">) => void;
   onCheckOutVisitor: (id: string) => void;
   onPrintVisitorSlip: (visitor: VisitorRecord) => void;
-  onNotice: (message: string) => void;
+  onAlertOffice: (visitor: VisitorRecord) => void;
 }) {
   if (activeSection === "top") {
     return (
@@ -1035,7 +1035,7 @@ function ActiveSecuritySection({
 
   if (activeSection === "live-gate-monitor") return <LiveActivityFeed />;
   if (activeSection === "visitor-management") {
-    return <VisitorManagement visitors={visitors} onAddVisitor={onAddVisitor} onCheckOut={onCheckOutVisitor} onAction={onNotice} onPrintSlip={onPrintVisitorSlip} />;
+    return <VisitorManagement visitors={visitors} onAddVisitor={onAddVisitor} onCheckOut={onCheckOutVisitor} onAlertOffice={onAlertOffice} onPrintSlip={onPrintVisitorSlip} />;
   }
   if (activeSection === "student-exit-control") return <StudentExitControl />;
   if (activeSection === "boarding-security") return <BoardingSecurity />;
@@ -1227,6 +1227,33 @@ export function SecurityCommandCenter({ routeMode }: { routeMode: SecurityRouteM
     });
   }
 
+  function alertOffice(visitor: VisitorRecord) {
+    publishSchoolOperationalEvent({
+      schoolId,
+      actorRole: "security",
+      type: "SECURITY_OFFICE_ALERT_SENT",
+      module: "security",
+      title: `Office alerted about ${visitor.name}`,
+      body: `Security alerted the office about ${visitor.name}, who is visiting ${visitor.personVisiting} for ${visitor.purpose}.`,
+      entityId: visitor.id,
+      severity: visitor.tone === "danger" ? "critical" : "warning",
+      payload: { visitor },
+      notifications: [
+        {
+          audienceRoles: ["secretary", "principal", "deputy principal"],
+          title: "Security office alert",
+          body: `${visitor.name} needs office attention at the gate desk.`,
+          severity: visitor.tone === "danger" ? "critical" : "warning",
+          relatedModule: "security",
+          relatedRecordId: visitor.id,
+          requiresAction: true,
+          requestStatus: "Pending",
+        },
+      ],
+    });
+    setNotice(`Office alerted about ${visitor.name}.`);
+  }
+
   return (
     <div data-route-mode={routeMode} className="min-h-screen bg-[#F3F4F6] pb-24 lg:pb-6">
       <div className="grid gap-5 p-3 md:p-5 xl:grid-cols-[300px_minmax(0,1fr)]">
@@ -1295,7 +1322,7 @@ export function SecurityCommandCenter({ routeMode }: { routeMode: SecurityRouteM
             onAddVisitor={addVisitor}
             onCheckOutVisitor={checkOutVisitor}
             onPrintVisitorSlip={printVisitorSlip}
-            onNotice={setNotice}
+            onAlertOffice={alertOffice}
           />
         </main>
       </div>

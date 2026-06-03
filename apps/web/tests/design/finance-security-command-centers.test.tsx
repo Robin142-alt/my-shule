@@ -125,6 +125,18 @@ describe("finance and security command center interactions", () => {
       ]),
     );
 
+    await user.click(screen.getAllByRole("button", { name: /alert office/i })[0]);
+    expect(screen.getByText(/office alerted about peter ouma/i)).toBeVisible();
+    expect(readSchoolData<Record<string, unknown>>("events", "kb-high")).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          schoolId: "kb-high",
+          type: "SECURITY_OFFICE_ALERT_SENT",
+          module: "security",
+        }),
+      ]),
+    );
+
     await user.click(screen.getAllByRole("button", { name: /print slip/i })[0]);
     expect(screen.getByText(/visitor slip opened for printing/i)).toBeVisible();
     expect(screen.getByRole("dialog", { name: /visitor gate slip/i })).toBeVisible();
