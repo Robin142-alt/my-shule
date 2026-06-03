@@ -36,6 +36,7 @@ import {
   Wrench,
   type LucideIcon,
 } from "lucide-react";
+import { getCurrentSchoolId, publishSchoolOperationalEvent } from "@/lib/school/school-operational-store";
 
 type BoardingRouteMode = "hosted" | "public";
 type Tone = "safe" | "info" | "warning" | "danger" | "cyan" | "neutral";
@@ -435,12 +436,14 @@ function TopNav({
   now,
   searchTerm,
   searchResults,
+  onQuickResponse,
   onSearchResult,
   onSearchTermChange,
 }: {
   now: Date | null;
   searchTerm: string;
   searchResults: BoardingSearchRecord[];
+  onQuickResponse: () => void;
   onSearchResult: (record: BoardingSearchRecord) => void;
   onSearchTermChange: (value: string) => void;
 }) {
@@ -507,7 +510,7 @@ function TopNav({
             <LightStatusChip icon={BrainCircuit} label="AI assistant" tone="cyan" />
             <button
               type="button"
-              onClick={() => announceAction("Quick response panel opened for hostel follow-up.")}
+              onClick={onQuickResponse}
               className="inline-flex min-h-9 items-center gap-2 rounded-[var(--radius)] bg-[#071D49] px-3 text-xs font-black text-white"
             >
               <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
@@ -975,6 +978,7 @@ export function BoardingMasterCommandCenter({ routeMode }: { routeMode: Boarding
   const [now, setNow] = useState<Date | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [notice, setNotice] = useState("Boarding desk ready for roll call, exeats, incidents, sick referrals, and parent SMS.");
+  const [quickResponseOpen, setQuickResponseOpen] = useState(false);
   const kpiItems = useMemo(() => kpis, []);
   const searchResults = useMemo(() => {
     const query = searchTerm.trim().toLowerCase();
@@ -1018,6 +1022,47 @@ export function BoardingMasterCommandCenter({ routeMode }: { routeMode: Boarding
     }
   }
 
+  function openQuickResponse() {
+    setQuickResponseOpen(true);
+    setNotice("Quick boarding response ready.");
+  }
+
+  function saveQuickResponse() {
+    const schoolId = getCurrentSchoolId();
+
+    publishSchoolOperationalEvent({
+      schoolId,
+      type: "BOARDING_QUICK_RESPONSE_RECORDED",
+      module: "boarding",
+      actorRole: "Boarding Master",
+      title: "Quick boarding response saved",
+      body: "Boarding Master recorded a hostel follow-up response for roll call, safety, clinic, or parent SMS follow-up.",
+      entityId: "boarding-quick-response",
+      severity: "info",
+      payload: {
+        action: "Quick boarding response",
+        dorm: "Dorm B",
+        learner: "Kevin Otieno",
+        followUp: "Roll call and hostel welfare follow-up",
+      },
+      notifications: [
+        {
+          audienceRoles: ["Deputy Principal", "Principal", "Security Officer", "Nurse"],
+          title: "Boarding response recorded",
+          body: "Boarding Master saved a hostel follow-up response for same-school action visibility.",
+          severity: "info",
+          relatedModule: "boarding",
+          relatedRecordId: "boarding-quick-response",
+          requiresAction: true,
+          requestStatus: "Pending",
+        },
+      ],
+    });
+
+    setQuickResponseOpen(false);
+    setNotice("Quick boarding response saved.");
+  }
+
   return (
     <div id="top" data-route-mode={routeMode} className="min-h-screen bg-[#F3F4F6] pb-24 lg:pb-6">
       <div className="grid gap-5 p-3 md:p-5 xl:grid-cols-[300px_minmax(0,1fr)]">
@@ -1027,12 +1072,60 @@ export function BoardingMasterCommandCenter({ routeMode }: { routeMode: Boarding
             now={now}
             searchTerm={searchTerm}
             searchResults={searchResults}
+            onQuickResponse={openQuickResponse}
             onSearchResult={openSearchRecord}
             onSearchTermChange={setSearchTerm}
           />
           <div role="status" className="rounded-[var(--radius-lg)] border border-[#C8D5EA] bg-white px-4 py-3 text-sm font-black text-[#071D49] shadow-[0_14px_34px_rgba(7,29,73,0.08)]">
             {notice}
           </div>
+          {quickResponseOpen ? (
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-label="Boarding quick response"
+              className="rounded-[var(--radius-xl)] border border-[#C8D5EA] bg-white p-4 text-[#071D49] shadow-[0_18px_55px_rgba(7,29,73,0.12)] md:p-5"
+            >
+              <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[0.16em] text-[#5F6F89]">Same-school hostel follow-up</p>
+                  <h2 className="mt-2 text-2xl font-black">Quick boarding response</h2>
+                  <p className="mt-2 max-w-3xl text-sm font-semibold leading-6 text-[#5F6F89]">
+                    Save a boarding follow-up that is visible to Principal, Deputy, Security, and Nurse dashboards inside this school only.
+                  </p>
+                  <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                    {[
+                      ["Dorm", "Dorm B"],
+                      ["Learner", "Kevin Otieno"],
+                      ["Linked desks", "Deputy, Security, Nurse"],
+                      ["Scope", "Current school only"],
+                    ].map(([label, value]) => (
+                      <div key={label} className="rounded-[var(--radius-lg)] border border-[#C8D5EA] bg-[#F8FAFC] p-3">
+                        <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[#5F6F89]">{label}</p>
+                        <p className="mt-1 text-sm font-black">{value}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2 lg:justify-end">
+                  <button
+                    type="button"
+                    onClick={saveQuickResponse}
+                    className="inline-flex min-h-10 items-center justify-center rounded-[var(--radius)] bg-[#071D49] px-4 text-sm font-black text-white"
+                  >
+                    Save boarding response
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setQuickResponseOpen(false)}
+                    className="inline-flex min-h-10 items-center justify-center rounded-[var(--radius)] border border-[#C8D5EA] bg-white px-4 text-sm font-black text-[#071D49]"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : null}
           <Hero />
           <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {kpiItems.map((item, index) => (
