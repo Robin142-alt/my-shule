@@ -110,6 +110,20 @@ describe("student support and admissions command center interactions", () => {
 
     expect(screen.getByText(/faith akinyi opened in admissions records/i)).toBeVisible();
 
+    await user.click(screen.getByRole("button", { name: /pending/i }));
+    const filterDialog = screen.getByRole("dialog", { name: /admissions applicant filter/i });
+    expect(filterDialog).toBeVisible();
+    await user.click(within(filterDialog).getByRole("button", { name: /apply applicant filter/i }));
+
+    expect(screen.getByText(/pending applicant filter applied/i)).toBeVisible();
+
+    await user.click(screen.getAllByRole("button", { name: /preview/i })[0]);
+    const previewDialog = screen.getByRole("dialog", { name: /admission application preview/i });
+    expect(previewDialog).toBeVisible();
+    await user.click(within(previewDialog).getByRole("button", { name: /record preview review/i }));
+
+    expect(screen.getByText(/amina wanjiru application preview recorded/i)).toBeVisible();
+
     await user.click(screen.getByRole("button", { name: /quick actions/i }));
     const admissionsDialog = screen.getByRole("dialog", { name: /admissions quick action/i });
     expect(admissionsDialog).toBeVisible();
@@ -121,6 +135,16 @@ describe("student support and admissions command center interactions", () => {
         expect.objectContaining({
           schoolId: "kb-high",
           type: "ADMISSIONS_QUICK_ACTION_RECORDED",
+          module: "admissions",
+        }),
+        expect.objectContaining({
+          schoolId: "kb-high",
+          type: "ADMISSIONS_APPLICANT_FILTER_APPLIED",
+          module: "admissions",
+        }),
+        expect.objectContaining({
+          schoolId: "kb-high",
+          type: "ADMISSIONS_APPLICATION_PREVIEW_RECORDED",
           module: "admissions",
         }),
       ]),

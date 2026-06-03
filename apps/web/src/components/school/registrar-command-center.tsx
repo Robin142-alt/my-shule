@@ -79,6 +79,8 @@ type ApplicantRow = {
   tone: Tone;
 };
 
+type ApplicantFilter = "All statuses" | "Pending" | "Verified" | "Interview Scheduled" | "Approved" | "Rejected" | "Waitlisted";
+
 type Insight = {
   title: string;
   detail: string;
@@ -101,12 +103,6 @@ const registrarSearchRecords = [
 ] satisfies Array<{ id: string; label: string; detail: string; sectionId: string }>;
 
 type RegistrarSearchRecord = (typeof registrarSearchRecords)[number];
-
-function announceAction(message: string) {
-  if (typeof window !== "undefined") {
-    window.dispatchEvent(new CustomEvent("myshule-registrar-action", { detail: message }));
-  }
-}
 
 function cn(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
@@ -653,7 +649,13 @@ function AdmissionsFunnel() {
   );
 }
 
-function ApplicationManagement() {
+function ApplicationManagement({
+  onApplicantFilter,
+  onApplicationPreview,
+}: {
+  onApplicantFilter: (filter: ApplicantFilter) => void;
+  onApplicationPreview: (applicant: ApplicantRow) => void;
+}) {
   return (
     <DarkSection id="applications">
       <SectionTitle
@@ -663,11 +665,11 @@ function ApplicationManagement() {
         action={<StatusChip icon={ClipboardList} label="Bulk actions ready" tone="info" />}
       />
       <div className="mt-5 flex flex-wrap gap-2">
-        {["All statuses", "Pending", "Verified", "Interview Scheduled", "Approved", "Rejected", "Waitlisted"].map((filter) => (
+        {(["All statuses", "Pending", "Verified", "Interview Scheduled", "Approved", "Rejected", "Waitlisted"] satisfies ApplicantFilter[]).map((filter) => (
           <button
             key={filter}
             type="button"
-            onClick={() => announceAction(`${filter} applicant filter applied.`)}
+            onClick={() => onApplicantFilter(filter)}
             className="rounded-full border border-white/12 bg-white/[0.07] px-3 py-1.5 text-xs font-black text-white/76 hover:bg-white/12"
           >
             {filter}
@@ -699,7 +701,7 @@ function ApplicationManagement() {
                 <td className="px-4 py-4">
                   <button
                     type="button"
-                    onClick={() => announceAction(`${applicant.name} application preview opened.`)}
+                    onClick={() => onApplicationPreview(applicant)}
                     className="rounded-[var(--radius)] border border-cyan-300/30 bg-cyan-400/12 px-3 py-2 text-xs font-black text-cyan-100"
                   >
                     Preview
@@ -845,7 +847,7 @@ function AuditCompliance() {
   );
 }
 
-function QuickActionsAndSupport() {
+function QuickActionsAndSupport({ onQuickAction }: { onQuickAction: () => void }) {
   return (
     <div className="grid gap-5 xl:grid-cols-[1fr_1fr_1fr]">
       <DarkSection id="quick-actions">
@@ -855,7 +857,7 @@ function QuickActionsAndSupport() {
             <button
               key={action}
               type="button"
-              onClick={() => announceAction(`${action} opened for admissions processing.`)}
+              onClick={onQuickAction}
               className="min-h-12 rounded-[var(--radius-lg)] border border-white/12 bg-white/[0.07] px-4 text-left text-sm font-black text-white transition hover:-translate-y-0.5 hover:border-cyan-300/35 hover:bg-cyan-400/12"
             >
               {action}
@@ -909,6 +911,8 @@ export function RegistrarCommandCenter({ routeMode }: { routeMode: RegistrarRout
   const [searchTerm, setSearchTerm] = useState("");
   const [notice, setNotice] = useState("Admissions desk ready for inquiries, applications, documents, interviews, and onboarding.");
   const [quickActionsOpen, setQuickActionsOpen] = useState(false);
+  const [activeApplicantFilter, setActiveApplicantFilter] = useState<ApplicantFilter | null>(null);
+  const [selectedApplicantPreview, setSelectedApplicantPreview] = useState<ApplicantRow | null>(null);
   const searchResults = useMemo(() => {
     const query = searchTerm.trim().toLowerCase();
     if (!query) return [];
@@ -917,18 +921,6 @@ export function RegistrarCommandCenter({ routeMode }: { routeMode: RegistrarRout
       [record.label, record.detail, record.sectionId].some((value) => value.toLowerCase().includes(query)),
     );
   }, [searchTerm]);
-
-  useEffect(() => {
-    function handleRegistrarAction(event: Event) {
-      const detail = (event as CustomEvent<string>).detail;
-      if (detail) {
-        setNotice(detail);
-      }
-    }
-
-    window.addEventListener("myshule-registrar-action", handleRegistrarAction);
-    return () => window.removeEventListener("myshule-registrar-action", handleRegistrarAction);
-  }, []);
 
   function openSearchRecord(record: RegistrarSearchRecord) {
     setSearchTerm("");
@@ -943,6 +935,98 @@ export function RegistrarCommandCenter({ routeMode }: { routeMode: RegistrarRout
   function openQuickActions() {
     setQuickActionsOpen(true);
     setNotice("Quick admissions action ready.");
+  }
+
+  function openApplicantFilter(filter: ApplicantFilter) {
+    setActiveApplicantFilter(filter);
+    setNotice(`${filter} applicant filter ready to apply.`);
+  }
+
+  function openApplicationPreview(applicant: ApplicantRow) {
+    setSelectedApplicantPreview(applicant);
+    setNotice(`${applicant.name} application preview ready.`);
+  }
+
+  function applyApplicantFilter() {
+    if (!activeApplicantFilter) return;
+
+    const schoolId = getCurrentSchoolId();
+    const filterId = activeApplicantFilter.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+
+    publishSchoolOperationalEvent({
+      schoolId,
+      type: "ADMISSIONS_APPLICANT_FILTER_APPLIED",
+      module: "admissions",
+      actorRole: "Admissions Officer",
+      title: `${activeApplicantFilter} applicant filter applied`,
+      body: `Admissions Officer applied the ${activeApplicantFilter} filter to the school applicant table.`,
+      entityId: `admissions-filter-${filterId}`,
+      severity: "info",
+      payload: {
+        filter: activeApplicantFilter,
+        source: "registrar-command-center",
+        visibleRecords: applicants.filter((applicant) => activeApplicantFilter === "All statuses" || applicant.status === activeApplicantFilter).length,
+      },
+      notifications: [
+        {
+          audienceRoles: ["Secretary", "Principal"],
+          title: "Admissions applicant list filtered",
+          body: `Admissions is reviewing ${activeApplicantFilter.toLowerCase()} applications for current school follow-up.`,
+          severity: "info",
+          relatedModule: "admissions",
+          relatedRecordId: `admissions-filter-${filterId}`,
+          requiresAction: false,
+          requestStatus: "Completed",
+        },
+      ],
+    });
+
+    setNotice(`${activeApplicantFilter} applicant filter applied.`);
+    setActiveApplicantFilter(null);
+  }
+
+  function recordApplicationPreview() {
+    if (!selectedApplicantPreview) return;
+
+    const schoolId = getCurrentSchoolId();
+    const applicantId = selectedApplicantPreview.admissionNumber === "Pending"
+      ? selectedApplicantPreview.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")
+      : selectedApplicantPreview.admissionNumber.toLowerCase();
+
+    publishSchoolOperationalEvent({
+      schoolId,
+      type: "ADMISSIONS_APPLICATION_PREVIEW_RECORDED",
+      module: "admissions",
+      actorRole: "Admissions Officer",
+      title: `${selectedApplicantPreview.name} application preview recorded`,
+      body: `Admissions Officer reviewed ${selectedApplicantPreview.name}'s application, document status, fee status, interview status, and risk notes.`,
+      entityId: `admissions-preview-${applicantId}`,
+      severity: selectedApplicantPreview.tone === "danger" ? "warning" : "info",
+      payload: {
+        applicantName: selectedApplicantPreview.name,
+        admissionNumber: selectedApplicantPreview.admissionNumber,
+        grade: selectedApplicantPreview.grade,
+        status: selectedApplicantPreview.status,
+        feeStatus: selectedApplicantPreview.fee,
+        documentStatus: selectedApplicantPreview.documents,
+        risk: selectedApplicantPreview.risk,
+      },
+      notifications: [
+        {
+          audienceRoles: ["Secretary", "Accountant", "Class Teacher", "Principal"],
+          title: "Admission application reviewed",
+          body: `${selectedApplicantPreview.name}'s application preview was recorded for office, fee, class placement, and leadership follow-up.`,
+          severity: selectedApplicantPreview.tone === "danger" ? "warning" : "info",
+          relatedModule: "admissions",
+          relatedRecordId: `admissions-preview-${applicantId}`,
+          requiresAction: selectedApplicantPreview.status !== "Approved",
+          requestStatus: selectedApplicantPreview.status === "Approved" ? "Completed" : "Pending",
+        },
+      ],
+    });
+
+    setNotice(`${selectedApplicantPreview.name} application preview recorded.`);
+    setSelectedApplicantPreview(null);
   }
 
   function saveAdmissionsAction() {
@@ -995,6 +1079,101 @@ export function RegistrarCommandCenter({ routeMode }: { routeMode: RegistrarRout
           <div role="status" className="rounded-[var(--radius-lg)] border border-[#C8D5EA] bg-white px-4 py-3 text-sm font-black text-[#071D49] shadow-[0_12px_30px_rgba(7,29,73,0.08)]">
             {notice}
           </div>
+          {activeApplicantFilter ? (
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-label="Admissions applicant filter"
+              className="rounded-[var(--radius-xl)] border border-[#C8D5EA] bg-white p-5 text-[#071D49] shadow-[0_18px_55px_rgba(7,29,73,0.12)]"
+            >
+              <p className="text-xs font-black uppercase tracking-[0.16em] text-[#5F6F89]">Applicant table control</p>
+              <h2 className="mt-2 text-xl font-black">Apply {activeApplicantFilter} filter</h2>
+              <p className="mt-2 max-w-3xl text-sm font-semibold leading-6 text-[#5F6F89]">
+                This filters the admissions table for current-school follow-up and records the review for the office team.
+              </p>
+              <div className="mt-4 grid gap-3 md:grid-cols-3">
+                <div className="rounded-[var(--radius-lg)] border border-[#C8D5EA] bg-[#F8FAFC] p-3">
+                  <p className="text-xs font-black uppercase tracking-[0.12em] text-[#5F6F89]">Filter</p>
+                  <p className="mt-1 text-sm font-black">{activeApplicantFilter}</p>
+                </div>
+                <div className="rounded-[var(--radius-lg)] border border-[#C8D5EA] bg-[#F8FAFC] p-3">
+                  <p className="text-xs font-black uppercase tracking-[0.12em] text-[#5F6F89]">Records matched</p>
+                  <p className="mt-1 text-sm font-black">
+                    {applicants.filter((applicant) => activeApplicantFilter === "All statuses" || applicant.status === activeApplicantFilter).length}
+                  </p>
+                </div>
+                <div className="rounded-[var(--radius-lg)] border border-[#C8D5EA] bg-[#F8FAFC] p-3">
+                  <p className="text-xs font-black uppercase tracking-[0.12em] text-[#5F6F89]">Scope</p>
+                  <p className="mt-1 text-sm font-black">Current school only</p>
+                </div>
+              </div>
+              <div className="mt-5 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={applyApplicantFilter}
+                  className="inline-flex min-h-10 items-center gap-2 rounded-[var(--radius)] bg-[#071D49] px-4 text-sm font-black text-white"
+                >
+                  <ClipboardList className="h-4 w-4" aria-hidden="true" />
+                  Apply applicant filter
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveApplicantFilter(null)}
+                  className="inline-flex min-h-10 items-center rounded-[var(--radius)] border border-[#C8D5EA] bg-white px-4 text-sm font-black text-[#071D49]"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : null}
+          {selectedApplicantPreview ? (
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-label="Admission application preview"
+              className="rounded-[var(--radius-xl)] border border-[#C8D5EA] bg-white p-5 text-[#071D49] shadow-[0_18px_55px_rgba(7,29,73,0.12)]"
+            >
+              <p className="text-xs font-black uppercase tracking-[0.16em] text-[#5F6F89]">Applicant review</p>
+              <h2 className="mt-2 text-xl font-black">{selectedApplicantPreview.name}</h2>
+              <p className="mt-2 max-w-3xl text-sm font-semibold leading-6 text-[#5F6F89]">
+                Review the application details before routing follow-up to Secretary, Accountant, Class Teacher, and Principal.
+              </p>
+              <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                {[
+                  ["Admission no.", selectedApplicantPreview.admissionNumber],
+                  ["Grade applying", selectedApplicantPreview.grade],
+                  ["Parent contact", selectedApplicantPreview.parent],
+                  ["Status", selectedApplicantPreview.status],
+                  ["Fee status", selectedApplicantPreview.fee],
+                  ["Documents", selectedApplicantPreview.documents],
+                  ["Interview", selectedApplicantPreview.interview],
+                  ["Risk flag", selectedApplicantPreview.risk],
+                ].map(([label, value]) => (
+                  <div key={label} className="rounded-[var(--radius-lg)] border border-[#C8D5EA] bg-[#F8FAFC] p-3">
+                    <p className="text-xs font-black uppercase tracking-[0.12em] text-[#5F6F89]">{label}</p>
+                    <p className="mt-1 text-sm font-black">{value}</p>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-5 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={recordApplicationPreview}
+                  className="inline-flex min-h-10 items-center gap-2 rounded-[var(--radius)] bg-[#071D49] px-4 text-sm font-black text-white"
+                >
+                  <FileText className="h-4 w-4" aria-hidden="true" />
+                  Record preview review
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedApplicantPreview(null)}
+                  className="inline-flex min-h-10 items-center rounded-[var(--radius)] border border-[#C8D5EA] bg-white px-4 text-sm font-black text-[#071D49]"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : null}
           {quickActionsOpen ? (
             <div
               role="dialog"
@@ -1045,14 +1224,14 @@ export function RegistrarCommandCenter({ routeMode }: { routeMode: RegistrarRout
             ))}
           </section>
           <AdmissionsFunnel />
-          <ApplicationManagement />
+          <ApplicationManagement onApplicantFilter={openApplicantFilter} onApplicationPreview={openApplicationPreview} />
           <DocumentCenter />
           <ClassAllocation />
           <InterviewAndTransfers />
           <CommunicationAndReports />
           <AiInsights />
           <AuditCompliance />
-          <QuickActionsAndSupport />
+          <QuickActionsAndSupport onQuickAction={openQuickActions} />
         </main>
       </div>
       <MobileActions />
