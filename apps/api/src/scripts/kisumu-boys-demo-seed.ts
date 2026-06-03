@@ -60,12 +60,30 @@ type DemoSeedPlan = {
   operations: DemoSeedOperation[];
 };
 
+type DemoStudentRosterEntry = {
+  firstName: string;
+  lastName: string;
+  gender: 'male';
+  admissionNumber: string;
+  className: 'Grade 10 Blue' | 'Form 3 West' | 'Form 4 South';
+  classIndex: number;
+  guardian: {
+    fullName: string;
+    phone: string;
+    email: string;
+    relationship: 'father' | 'mother' | 'guardian';
+    occupation: string;
+  };
+};
+
 type SeedSummary = {
   tenant_id: string;
   tenant_name: string;
   seed_key: string;
   dry_run: boolean;
   tables: Record<string, number>;
+  skipped_tables: string[];
+  access: ReturnType<typeof buildKisumuBoysDemoAccessSummary>;
   module_access_enabled: number;
   outside_demo_rows: number;
 };
@@ -252,6 +270,76 @@ export function buildKisumuBoysDemoSeedPlan(): DemoSeedPlan {
   };
 }
 
+export function buildKisumuBoysDemoStudentRoster(): DemoStudentRosterEntry[] {
+  const names = [
+    ['Brian', 'Otieno'],
+    ['Kevin', 'Omondi'],
+    ['Allan', 'Ochieng'],
+    ['Felix', 'Odhiambo'],
+    ['Victor', 'Onyango'],
+    ['Samuel', 'Ouma'],
+    ['Martin', 'Okello'],
+    ['Dennis', 'Achieng'],
+    ['George', 'Mboya'],
+    ['Ibrahim', 'Juma'],
+    ['Collins', 'Were'],
+    ['Patrick', 'Oduor'],
+    ['Caleb', 'Kiptoo'],
+    ['David', 'Mwangi'],
+    ['Emmanuel', 'Njoroge'],
+    ['Francis', 'Kariuki'],
+    ['Gabriel', 'Mutiso'],
+    ['Hussein', 'Abdi'],
+    ['Isaac', 'Barasa'],
+    ['Joseph', 'Kiplagat'],
+    ['Leon', 'Okoth'],
+    ['Michael', 'Odede'],
+    ['Nathan', 'Wekesa'],
+    ['Oscar', 'Kiprono'],
+    ['Peter', 'Maina'],
+    ['Raymond', 'Okumu'],
+    ['Simon', 'Muriuki'],
+    ['Timothy', 'Koech'],
+    ['Vincent', 'Mugambi'],
+    ['Zachary', 'Owino'],
+  ] as const;
+  const classes = [
+    { className: 'Grade 10 Blue' as const, classIndex: 0 },
+    { className: 'Form 3 West' as const, classIndex: 1 },
+    { className: 'Form 4 South' as const, classIndex: 2 },
+  ];
+
+  return names.map(([firstName, lastName], index) => {
+    const assignedClass = classes[Math.floor(index / 10)] ?? classes[2];
+    const phone = `+25471120${String(index + 1).padStart(2, '0')}`;
+    const email = `guardian${index + 1}@kisumuboys.demo`;
+
+    return {
+      firstName,
+      lastName,
+      gender: 'male',
+      admissionNumber: `KB-DEMO-${String(index + 1).padStart(3, '0')}`,
+      ...assignedClass,
+      guardian: {
+        fullName: `${index % 2 === 0 ? 'Mr' : 'Mrs'} ${lastName}`,
+        phone,
+        email,
+        relationship: index % 3 === 0 ? 'father' : index % 3 === 1 ? 'mother' : 'guardian',
+        occupation: ['Trader', 'Teacher', 'Engineer', 'Nurse', 'Farmer', 'Civil Servant'][index % 6],
+      },
+    };
+  });
+}
+
+export function buildKisumuBoysDemoAccessSummary() {
+  return {
+    school_login: '/school/login?tenant=kb-high',
+    parent_login: '/parent/login?tenant=kb-high',
+    common_password_supported: false,
+    note: 'This seed does not create direct password credentials because MyShule production auth is invitation-only. Use the existing KB High principal/admin account, then invite role users from Users & Invitations.',
+  };
+}
+
 export function assertKisumuBoysTenantSelection(rows: TenantSelectionRow[]): TenantSelectionRow {
   if (rows.length !== 1) {
     throw new Error(`Expected exactly one Kisumu Boys tenant, found ${rows.length}. Refusing to seed demo data.`);
@@ -309,6 +397,8 @@ class DemoSeedWriter {
       seed_key: KISUMU_BOYS_DEMO_SEED_KEY,
       dry_run: dryRun,
       tables: {},
+      skipped_tables: [],
+      access: buildKisumuBoysDemoAccessSummary(),
       module_access_enabled: 0,
       outside_demo_rows: 0,
     };
@@ -343,6 +433,9 @@ class DemoSeedWriter {
     const columns = this.tableColumns.get(table);
 
     if (!columns) {
+      if (!this.summary.skipped_tables.includes(table)) {
+        this.summary.skipped_tables.push(table);
+      }
       return null;
     }
 
@@ -582,17 +675,23 @@ async function seedDemoRows(writer: DemoSeedWriter, context: DemoContext): Promi
   const tenantId = context.tenant.tenant_id;
   const yearId = demoUuid('academic-year-2026');
   const termId = demoUuid('academic-term-2026-term-2');
-  const levelIds = ['form-1', 'form-2', 'form-3', 'form-4'].map((key) => demoUuid(`level-${key}`));
-  const classIds = ['form-1-north', 'form-2-east', 'form-3-west', 'form-4-south'].map((key) => demoUuid(`class-${key}`));
-  const streamIds = ['form-1-north', 'form-2-east', 'form-3-west', 'form-4-south'].map((key) => demoUuid(`stream-${key}`));
+  const classDefinitions = [
+    { key: 'grade-10-blue', code: 'G10B', name: 'Grade 10', stream: 'Blue', gradeOrder: 10, level: 'senior-school' },
+    { key: 'form-3-west', code: 'F3W', name: 'Form 3', stream: 'West', gradeOrder: 3, level: 'secondary' },
+    { key: 'form-4-south', code: 'F4S', name: 'Form 4', stream: 'South', gradeOrder: 4, level: 'secondary' },
+  ] as const;
+  const levelIds = classDefinitions.map(({ key }) => demoUuid(`level-${key}`));
+  const classIds = classDefinitions.map(({ key }) => demoUuid(`class-${key}`));
+  const streamIds = classDefinitions.map(({ key }) => demoUuid(`stream-${key}`));
   const subjectIds = ['mathematics', 'english', 'kiswahili', 'biology', 'chemistry', 'physics', 'history', 'business'].map((key) => demoUuid(`subject-${key}`));
-  const studentIds = Array.from({ length: 12 }, (_, index) => demoUuid(`student-${index + 1}`));
-  const guardianIds = Array.from({ length: 12 }, (_, index) => demoUuid(`guardian-${index + 1}`));
+  const studentRoster = buildKisumuBoysDemoStudentRoster();
+  const studentIds = studentRoster.map((_, index) => demoUuid(`student-${index + 1}`));
+  const guardianIds = studentRoster.map((_, index) => demoUuid(`guardian-${index + 1}`));
   const staffProfileIds = ['principal', 'math-teacher', 'lab-tech', 'nurse', 'bursar', 'librarian'].map((key) => demoUuid(`staff-${key}`));
   const classSubjectId = demoUuid('class-subject-math-form-1-north');
   const subscriptionId = context.billingSubscriptionId;
-  const feeStructureId = demoUuid('fee-form-1-term-2');
-  const invoiceIds = [demoUuid('invoice-1'), demoUuid('invoice-2'), demoUuid('invoice-3')];
+  const feeStructureId = demoUuid('fee-grade-10-term-2');
+  const invoiceIds = studentRoster.map((_, index) => demoUuid(`invoice-${index + 1}`));
   const paymentId = demoUuid('manual-payment-1');
   const idempotencyId = demoUuid('idempotency-payment-1');
   const accountBank = demoUuid('account-bank');
@@ -650,12 +749,14 @@ async function seedDemoRows(writer: DemoSeedWriter, context: DemoContext): Promi
   await writer.upsert('staff_members', { id: staffProfileIds[1], tenant_id: tenantId, user_id: context.teacherUserId, employee_number: 'KB-STF-002', full_name: 'Shiro Wanjiru', staff_type: 'teacher', phone_number: '+25470010002', email: 'teacher@kisumuboys.demo', metadata: meta() });
   await writer.upsert('staff_members', { id: staffProfileIds[5], tenant_id: tenantId, user_id: context.librarianUserId, employee_number: 'KB-STF-006', full_name: 'Tabitha Njuguna', staff_type: 'admin', phone_number: '+25470010006', email: 'librarian@kisumuboys.demo', metadata: meta() });
 
-  for (const [index, name] of ['Form 1', 'Form 2', 'Form 3', 'Form 4'].entries()) {
-    await writer.upsert('academic_levels', { id: levelIds[index], tenant_id: tenantId, system_type: '8-4-4', name, order_index: index + 1, is_active: true });
-    await writer.upsert('class_sections', { id: classIds[index], tenant_id: tenantId, academic_year_id: yearId, academic_level_id: levelIds[index], name, grade_level: name, stream: ['North', 'East', 'West', 'South'][index], capacity: 45, status: 'active', is_active: true, created_by_user_id: context.actorUserId });
-    await writer.upsert('class_streams', { id: streamIds[index], tenant_id: tenantId, class_section_id: classIds[index], name: ['North', 'East', 'West', 'South'][index], capacity: 45, class_teacher_id: context.teacherUserId, is_active: true });
-    await writer.upsert('school_classes', { id: classIds[index], tenant_id: tenantId, code: `F${index + 1}`, name, grade_order: index + 1, level: 'junior-school', metadata: meta() });
-    await writer.upsert('streams', { id: streamIds[index], tenant_id: tenantId, school_class_id: classIds[index], code: ['N', 'E', 'W', 'S'][index], name: ['North', 'East', 'West', 'South'][index], homeroom_staff_id: staffProfileIds[1], metadata: meta() });
+  for (const [index, classDefinition] of classDefinitions.entries()) {
+    const classLabel = `${classDefinition.name} ${classDefinition.stream}`;
+
+    await writer.upsert('academic_levels', { id: levelIds[index], tenant_id: tenantId, system_type: classDefinition.name.startsWith('Grade') ? 'cbc' : '8-4-4', name: classDefinition.name, order_index: index + 1, is_active: true });
+    await writer.upsert('class_sections', { id: classIds[index], tenant_id: tenantId, academic_year_id: yearId, academic_level_id: levelIds[index], name: classDefinition.name, grade_level: classDefinition.name, stream: classDefinition.stream, capacity: 45, status: 'active', is_active: true, created_by_user_id: context.actorUserId });
+    await writer.upsert('class_streams', { id: streamIds[index], tenant_id: tenantId, class_section_id: classIds[index], name: classDefinition.stream, capacity: 45, class_teacher_id: context.teacherUserId, is_active: true });
+    await writer.upsert('school_classes', { id: classIds[index], tenant_id: tenantId, code: classDefinition.code, name: classDefinition.name, grade_order: classDefinition.gradeOrder, level: classDefinition.level, metadata: meta({ label: classLabel }) });
+    await writer.upsert('streams', { id: streamIds[index], tenant_id: tenantId, school_class_id: classIds[index], code: classDefinition.stream.slice(0, 1).toUpperCase(), name: classDefinition.stream, homeroom_staff_id: staffProfileIds[1], metadata: meta({ label: classLabel }) });
   }
 
   const subjects = [
@@ -699,48 +800,32 @@ async function seedDemoRows(writer: DemoSeedWriter, context: DemoContext): Promi
 
   await writer.upsert('staff_leave_requests', { id: demoUuid('leave-request-1'), tenant_id: tenantId, staff_profile_id: staffProfileIds[1], leave_type: 'annual', requested_days: 3, starts_on: '2026-06-15', ends_on: '2026-06-17', status: 'requested' });
 
-  const studentNames = [
-    ['Brian', 'Otieno', 'male'],
-    ['Kevin', 'Omondi', 'male'],
-    ['Allan', 'Ochieng', 'male'],
-    ['Felix', 'Odhiambo', 'male'],
-    ['Victor', 'Onyango', 'male'],
-    ['Samuel', 'Ouma', 'male'],
-    ['Martin', 'Okello', 'male'],
-    ['Dennis', 'Achieng', 'male'],
-    ['George', 'Mboya', 'male'],
-    ['Ibrahim', 'Juma', 'male'],
-    ['Collins', 'Were', 'male'],
-    ['Patrick', 'Oduor', 'male'],
-  ] as const;
-
-  for (const [index, [firstName, lastName, gender]] of studentNames.entries()) {
-    const admissionNumber = `KB-DEMO-${String(index + 1).padStart(3, '0')}`;
-    const guardianPhone = `+25471120${String(index + 1).padStart(2, '0')}`;
+  for (const [index, learner] of studentRoster.entries()) {
+    const classIndex = learner.classIndex;
 
     await writer.upsert('students', {
       id: studentIds[index],
       tenant_id: tenantId,
-      admission_number: admissionNumber,
-      first_name: firstName,
-      last_name: lastName,
-      gender,
-      date_of_birth: `201${index % 4}-0${(index % 8) + 1}-15`,
+      admission_number: learner.admissionNumber,
+      first_name: learner.firstName,
+      last_name: learner.lastName,
+      gender: learner.gender,
+      date_of_birth: `200${8 + (index % 3)}-0${(index % 8) + 1}-15`,
       status: 'active',
-      primary_guardian_name: `Guardian ${lastName}`,
-      primary_guardian_phone: guardianPhone,
+      primary_guardian_name: learner.guardian.fullName,
+      primary_guardian_phone: learner.guardian.phone,
       created_by_user_id: context.actorUserId,
-      metadata: meta({ stream: streamIds[index % streamIds.length] }),
+      metadata: meta({ class_name: learner.className, stream: streamIds[classIndex] }),
     });
     await writer.upsert('guardians', {
       id: guardianIds[index],
       tenant_id: tenantId,
-      full_name: `Guardian ${lastName}`,
-      phone_number: guardianPhone,
-      phone_lookup_key: guardianPhone,
-      email: `guardian${index + 1}@kisumuboys.demo`,
-      email_lookup_key: `guardian${index + 1}@kisumuboys.demo`,
-      occupation: ['Trader', 'Teacher', 'Engineer', 'Nurse'][index % 4],
+      full_name: learner.guardian.fullName,
+      phone_number: learner.guardian.phone,
+      phone_lookup_key: learner.guardian.phone,
+      email: learner.guardian.email,
+      email_lookup_key: learner.guardian.email,
+      occupation: learner.guardian.occupation,
       metadata: meta(),
     });
     await writer.upsert('student_guardians', {
@@ -748,22 +833,22 @@ async function seedDemoRows(writer: DemoSeedWriter, context: DemoContext): Promi
       tenant_id: tenantId,
       student_id: studentIds[index],
       guardian_id: guardianIds[index],
-      relationship: index % 2 === 0 ? 'father' : 'mother',
+      relationship: learner.guardian.relationship,
       is_primary: true,
       can_receive_sms: true,
-      display_name: `Guardian ${lastName}`,
-      email: `guardian${index + 1}@kisumuboys.demo`,
-      phone: guardianPhone,
+      display_name: learner.guardian.fullName,
+      email: learner.guardian.email,
+      phone: learner.guardian.phone,
       status: 'active',
       metadata: meta(),
     });
-    await writer.upsert('student_class_assignments', { id: demoUuid(`student-class-${index + 1}`), tenant_id: tenantId, student_id: studentIds[index], class_section_id: classIds[index % classIds.length], stream_id: streamIds[index % streamIds.length], academic_level_id: levelIds[index % levelIds.length], academic_year_id: yearId, status: 'active', metadata: meta() });
-    await writer.upsert('student_enrollments', { id: demoUuid(`student-enrollment-${index + 1}`), tenant_id: tenantId, student_id: studentIds[index], academic_year_id: yearId, academic_term_id: termId, school_class_id: classIds[index % classIds.length], stream_id: streamIds[index % streamIds.length], status: 'active', metadata: meta() });
-    await writer.upsert('attendance_records', { id: demoUuid(`attendance-${index + 1}`), tenant_id: tenantId, student_id: studentIds[index], attendance_date: '2026-05-24', status: index % 6 === 0 ? 'late' : 'present', notes: 'Demo attendance register', last_modified_at: context.now, metadata: meta() });
+    await writer.upsert('student_class_assignments', { id: demoUuid(`student-class-${index + 1}`), tenant_id: tenantId, student_id: studentIds[index], class_section_id: classIds[classIndex], stream_id: streamIds[classIndex], academic_level_id: levelIds[classIndex], academic_year_id: yearId, status: 'active', metadata: meta({ class_name: learner.className }) });
+    await writer.upsert('student_enrollments', { id: demoUuid(`student-enrollment-${index + 1}`), tenant_id: tenantId, student_id: studentIds[index], academic_year_id: yearId, academic_term_id: termId, school_class_id: classIds[classIndex], stream_id: streamIds[classIndex], status: 'active', metadata: meta({ class_name: learner.className }) });
+    await writer.upsert('attendance_records', { id: demoUuid(`attendance-${index + 1}`), tenant_id: tenantId, student_id: studentIds[index], attendance_date: '2026-05-24', status: index % 11 === 0 ? 'absent' : index % 6 === 0 ? 'late' : 'present', notes: 'Demo attendance register', last_modified_at: context.now, metadata: meta({ class_name: learner.className }) });
   }
 
   await writer.upsert('subscriptions', { id: subscriptionId, tenant_id: tenantId, plan_code: 'enterprise', status: 'active', current_period_start: '2026-01-01', current_period_end: '2026-12-31', metadata: meta({ billing_control: 'manual_superadmin' }) });
-  await writer.upsert('fee_structures', { id: feeStructureId, tenant_id: tenantId, academic_year_id: yearId, academic_term_id: termId, school_class_id: classIds[0], name: 'Form 1 Term 2 Boarding Fees', academic_year: '2026', term: 'Term 2', grade_level: 'Form 1', tuition_amount_minor: 4500000, transport_amount_minor: 0, lunch_amount_minor: 1200000, total_amount_minor: 5700000, metadata: meta() });
+  await writer.upsert('fee_structures', { id: feeStructureId, tenant_id: tenantId, academic_year_id: yearId, academic_term_id: termId, school_class_id: classIds[0], name: 'Grade 10 Term 2 Boarding Fees', academic_year: '2026', term: 'Term 2', grade_level: 'Grade 10', tuition_amount_minor: 4500000, transport_amount_minor: 0, lunch_amount_minor: 1200000, total_amount_minor: 5700000, metadata: meta() });
   await writer.upsert('accounts', { id: accountBank, tenant_id: tenantId, code: 'KB-BANK', name: 'Kisumu Boys Demo Bank', category: 'asset', normal_balance: 'debit', currency_code: 'KES', metadata: meta() });
   await writer.upsert('accounts', { id: accountFees, tenant_id: tenantId, code: 'KB-FEES', name: 'Fee Income Demo', category: 'revenue', normal_balance: 'credit', currency_code: 'KES', metadata: meta() });
   await writer.upsert('idempotency_keys', { id: idempotencyId, tenant_id: tenantId, scope: 'demo-fee-payment', idempotency_key: 'KB-DEMO-FEE-PAYMENT-1', request_method: 'POST', request_path: '/demo/kisumu-boys/fee-payment', request_hash: 'kisumu-boys-demo-fee-payment', status: 'completed', response_status_code: 201, response_body: meta(), completed_at: context.now, expires_at: '2027-05-24T00:00:00.000Z' });
@@ -772,7 +857,8 @@ async function seedDemoRows(writer: DemoSeedWriter, context: DemoContext): Promi
   await writer.upsert('ledger_entries', { id: demoUuid('ledger-credit-1'), tenant_id: tenantId, transaction_id: transactionId, account_id: accountFees, line_number: 2, direction: 'credit', amount_minor: 3000000, currency_code: 'KES', metadata: meta() });
 
   for (const [index, invoiceId] of invoiceIds.entries()) {
-    await writer.upsert('invoices', { id: invoiceId, tenant_id: tenantId, subscription_id: subscriptionId, student_id: studentIds[index], fee_structure_id: feeStructureId, invoice_number: `KB-DEMO-INV-${String(index + 1).padStart(3, '0')}`, description: 'Demo school fee invoice', subtotal_amount_minor: 5700000, total_amount_minor: 5700000, amount_paid_minor: index === 0 ? 3000000 : 0, status: 'open', due_at: '2026-06-30T12:00:00.000Z', metadata: meta() });
+    const paidMinor = index % 5 === 0 ? 5700000 : index % 3 === 0 ? 3000000 : 0;
+    await writer.upsert('invoices', { id: invoiceId, tenant_id: tenantId, subscription_id: subscriptionId, student_id: studentIds[index], fee_structure_id: feeStructureId, invoice_number: `KB-DEMO-INV-${String(index + 1).padStart(3, '0')}`, description: 'Demo school fee invoice', subtotal_amount_minor: 5700000, total_amount_minor: 5700000, amount_paid_minor: paidMinor, status: paidMinor >= 5700000 ? 'paid' : 'open', due_at: '2026-06-30T12:00:00.000Z', metadata: meta({ class_name: studentRoster[index]?.className }) });
   }
 
   await writer.upsert('manual_fee_payments', { id: paymentId, tenant_id: tenantId, idempotency_key: 'KB-DEMO-MANUAL-PAYMENT-1', receipt_number: 'KB-DEMO-RCPT-001', invoice_id: invoiceIds[0], payment_method: 'mpesa_c2b', amount_minor: 3000000, paid_at: '2026-05-20T09:30:00.000Z', status: 'received', payer_name: 'Guardian Otieno', metadata: meta() });
@@ -911,7 +997,7 @@ async function seedDemoRows(writer: DemoSeedWriter, context: DemoContext): Promi
   await writer.upsert('duty_rosters', { id: demoUuid('duty-roster-1'), tenant_id: tenantId, duty_type: 'morning', duty_date: '2026-05-24', start_time: '06:30', end_time: '07:30', assigned_user_id: context.teacherUserId, status: 'scheduled' });
   await writer.upsert('principal_alerts', { id: demoUuid('principal-alert-1'), tenant_id: tenantId, module_code: 'finance', severity: 'warning', title: 'Fee arrears follow-up', message: 'Demo principal alert: 2 Form 1 accounts need follow-up.', status: 'open', metadata: meta() });
   await writer.upsert('report_snapshots', { id: demoUuid('report-snapshot-1'), tenant_id: tenantId, snapshot_id: 'KB-DEMO-REPORT-001', module: 'finance', report_id: 'fee-summary', title: 'Kisumu Boys Fee Summary Demo', format: 'pdf', artifact: { object_key: 'demo/kisumu-boys/fee-summary.pdf' }, manifest: { seed_key: KISUMU_BOYS_DEMO_SEED_KEY }, manifest_checksum_sha256: createHash('sha256').update('kb-demo-report').digest('hex') });
-  await writer.upsert('dashboard_summary_snapshots', { id: demoUuid('dashboard-summary-1'), tenant_id: tenantId, module: 'principal_dashboard', summary_id: 'KB-DEMO-EXECUTIVE', role: 'principal', metrics: { students: 12, teachers: 2, invoices: 3 }, checksum_sha256: createHash('sha256').update('kb-demo-dashboard').digest('hex') });
+  await writer.upsert('dashboard_summary_snapshots', { id: demoUuid('dashboard-summary-1'), tenant_id: tenantId, module: 'principal_dashboard', summary_id: 'KB-DEMO-EXECUTIVE', role: 'principal', metrics: { students: studentRoster.length, guardians: guardianIds.length, teachers: 2, invoices: invoiceIds.length, classes: classDefinitions.length }, checksum_sha256: createHash('sha256').update('kb-demo-dashboard').digest('hex') });
   await writer.upsert('consent_records', { id: demoUuid('consent-record-1'), tenant_id: tenantId, consent_type: 'parent_portal', status: 'granted', policy_version: '2026.1', student_id: studentIds[0], guardian_id: guardianIds[0], metadata: meta() });
   await writer.upsert('data_subject_requests', { id: demoUuid('data-subject-request-1'), tenant_id: tenantId, request_type: 'access_request', status: 'submitted', due_at: '2026-06-20T12:00:00.000Z', requester_name: 'Guardian Otieno' });
 }

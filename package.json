@@ -32,6 +32,7 @@
     "auth:production-cleanup": "node -r ts-node/register/transpile-only -r tsconfig-paths/register apps/api/src/scripts/production-auth-cleanup.ts",
     "auth:production-verify": "node -r ts-node/register/transpile-only -r tsconfig-paths/register apps/api/src/scripts/verify-production-auth-cleanup.ts",
     "auth:rotate-owner-password": "node -r ts-node/register/transpile-only -r tsconfig-paths/register apps/api/src/scripts/rotate-platform-owner-password.ts",
+    "seed:kb-high": "node -r ts-node/register/transpile-only -r tsconfig-paths/register apps/api/src/scripts/kisumu-boys-demo-seed.ts --apply --confirm-kisumu-boys-only",
     "monitor:create-service-account": "node -r ts-node/register/transpile-only -r tsconfig-paths/register apps/api/src/scripts/create-monitoring-service-account.ts",
     "build:sms-relay": "npm --prefix apps/sms-relay run build",
     "test:sms-relay": "npm --prefix apps/sms-relay run test",

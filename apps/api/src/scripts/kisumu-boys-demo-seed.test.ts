@@ -1,8 +1,11 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 import {
   DEMO_MODULE_CODES,
+  buildKisumuBoysDemoAccessSummary,
+  buildKisumuBoysDemoStudentRoster,
   KISUMU_BOYS_DEMO_SEED_KEY,
   assertKisumuBoysTenantSelection,
   buildKisumuBoysDemoSeedPlan,
@@ -62,4 +65,40 @@ test('Kisumu Boys demo seed plan covers every active product module with tenant-
     plan.operations.some((operation) => operation.table === 'school_module_access'),
     true,
   );
+});
+
+test('Kisumu Boys demo student roster contains 30 male learners with linked guardians', () => {
+  const roster = buildKisumuBoysDemoStudentRoster();
+
+  assert.equal(roster.length, 30);
+  assert.equal(
+    roster.every((learner) => learner.gender === 'male'),
+    true,
+  );
+  assert.equal(new Set(roster.map((learner) => learner.admissionNumber)).size, 30);
+  assert.equal(
+    roster.every((learner) => learner.guardian.email.endsWith('@kisumuboys.demo')),
+    true,
+  );
+  assert.deepEqual(
+    [...new Set(roster.map((learner) => learner.className))].sort(),
+    ['Form 3 West', 'Form 4 South', 'Grade 10 Blue'].sort(),
+  );
+});
+
+test('package exposes a safe KB High demo seed command', () => {
+  const packageJson = JSON.parse(readFileSync('package.json', 'utf8')) as {
+    scripts?: Record<string, string>;
+  };
+
+  assert.match(packageJson.scripts?.['seed:kb-high'] ?? '', /kisumu-boys-demo-seed\.ts/);
+  assert.match(packageJson.scripts?.['seed:kb-high'] ?? '', /--confirm-kisumu-boys-only/);
+});
+
+test('Kisumu Boys demo access summary is truthful about invitation-only login', () => {
+  const access = buildKisumuBoysDemoAccessSummary();
+
+  assert.equal(access.common_password_supported, false);
+  assert.match(access.note, /invitation/i);
+  assert.match(access.school_login, /\/school\/login/);
 });
