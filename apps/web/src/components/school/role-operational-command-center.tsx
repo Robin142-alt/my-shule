@@ -5174,7 +5174,7 @@ function GenericRoleOperationalCommandCenter({
   const isBoardingWorkspace = primaryRoleWorkspace && role === "boarding-master" && (activeWorkspaceKind === "boarding" || /boarding command center|hostel|dorm|roll call/i.test(resolvedWorkspace));
   const isTransportWorkspace = primaryRoleWorkspace && role === "transport-manager" && (activeWorkspaceKind === "transport" || /dashboard overview|transport|fleet|route|vehicle/i.test(resolvedWorkspace));
   const isLaboratoryWorkspace = primaryRoleWorkspace && role === "laboratory-technician" && (activeWorkspaceKind === "laboratory" || /dashboard|laboratory|lab|chemical|apparatus|practical|safety/i.test(resolvedWorkspace));
-  const isAccountantWorkspace = primaryRoleWorkspace && (role === "accountant" || role === "bursar") && (activeWorkspaceKind === "finance" || /dashboard|fee|finance|receipt|payment|m-pesa|mpesa|balance/i.test(resolvedWorkspace));
+  const isAccountantWorkspace = (role === "accountant" || role === "bursar") && /finance command center|dashboard|payment|collection|receipt|m-pesa|mpesa|balance/i.test(resolvedWorkspace);
   const isSecretaryWorkspace = primaryRoleWorkspace && (role === "secretary" || role === "admin") && (activeWorkspaceKind === "command" || activeWorkspaceKind === "communication" || /dashboard|front office|visitor|parent|document|appointment|communication/i.test(resolvedWorkspace));
   const isDisciplineWorkspace = primaryRoleWorkspace && role === "discipline-master" && (activeWorkspaceKind === "command" || activeWorkspaceKind === "discipline" || /dashboard|incident|case|discipline|prefect|deputy|counsellor|evidence/i.test(resolvedWorkspace));
   const isCounsellingWorkspace = primaryRoleWorkspace && role === "guidance-counselling" && (activeWorkspaceKind === "command" || activeWorkspaceKind === "counselling" || /dashboard|counselling|counseling|wellness|session|referral|follow-up|parent|welfare|risk/i.test(resolvedWorkspace));
@@ -5380,7 +5380,6 @@ function GenericRoleOperationalCommandCenter({
           { audienceRoles: ["system-monitor", "principal", role], title: "Action saved for retry", severity: "warning" },
         ],
       });
-      throw new Error(message);
     }
   }
 

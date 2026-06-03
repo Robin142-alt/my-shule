@@ -29,6 +29,11 @@ describe("portal and platform command center interactions", () => {
 
     await user.click(screen.getByRole("button", { name: /enter marks/i }));
     expect(screen.getByText(/marks entry sheet opened for selected class and subject/i)).toBeVisible();
+
+    await user.click(screen.getByRole("button", { name: /exam builder/i }));
+    await user.click(screen.getByRole("button", { name: /save configuration/i }));
+    expect(screen.getByText(/exam configuration saved for dean review/i)).toBeVisible();
+    expect(screen.getByText(/Form 4 Mock Series configuration/i)).toBeVisible();
   });
 
   it("makes parent topbar and emergency controls visible as working actions", async () => {
@@ -39,8 +44,8 @@ describe("portal and platform command center interactions", () => {
     await user.click(screen.getByRole("button", { name: /notifications/i }));
     expect(screen.getByText(/parent notifications opened/i)).toBeVisible();
 
-    await user.click(screen.getAllByRole("button", { name: /emergency hotline/i })[0]);
-    expect(screen.getByText(/emergency hotline opened/i)).toBeVisible();
+    await user.click(screen.getAllByRole("button", { name: /emergency contacts/i })[0]);
+    expect(screen.getByText(/emergency contacts opened/i)).toBeVisible();
   });
 
   it("makes student dashboard quick actions visible as working controls", async () => {

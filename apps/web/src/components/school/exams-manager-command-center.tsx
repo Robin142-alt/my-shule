@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 
 import type { WidgetState } from "@/lib/capability-engine/school-capability-engine";
+import { addSchoolRecord, getCurrentSchoolId } from "@/lib/school/school-operational-store";
 
 type ExamsManagerRouteMode = "hosted" | "public";
 type Tone = "success" | "info" | "warning" | "danger" | "neutral";
@@ -45,6 +46,14 @@ type ExamsManagerWidget = {
   icon: LucideIcon;
   tone: Tone;
   hasData: boolean;
+};
+
+type SavedExamConfiguration = {
+  id: string;
+  title: string;
+  status: string;
+  reviewer: string;
+  savedAt: string;
 };
 
 const examsSearchRecords = [
@@ -338,7 +347,17 @@ function OverviewGrid({
   );
 }
 
-function ActiveWidgetContent({ view, onNotice }: { view: ExamsManagerView; onNotice: (message: string) => void }) {
+function ActiveWidgetContent({
+  view,
+  onNotice,
+  onSaveConfiguration,
+  savedConfigurations,
+}: {
+  view: ExamsManagerView;
+  onNotice: (message: string) => void;
+  onSaveConfiguration: () => void;
+  savedConfigurations: SavedExamConfiguration[];
+}) {
   if (view === "overview") {
     return (
       <div className="space-y-4">
@@ -378,8 +397,23 @@ function ActiveWidgetContent({ view, onNotice }: { view: ExamsManagerView; onNot
           <p className="text-sm font-black uppercase tracking-[0.18em] text-[#64748B]">Allowed actions</p>
           <div className="mt-4 flex flex-wrap gap-2">
             <ActionButton tone="success" onClick={() => onNotice("Exam draft form opened.")}>Create exam draft</ActionButton>
-            <ActionButton onClick={() => onNotice("Exam configuration saved locally for review.")}>Save configuration</ActionButton>
+            <ActionButton onClick={onSaveConfiguration}>Save configuration</ActionButton>
             <ActionButton tone="warning" onClick={() => onNotice("Term alignment check completed with timetable warnings visible.")}>Check term alignment</ActionButton>
+          </div>
+          <div className="mt-4 space-y-2">
+            {savedConfigurations.length > 0 ? (
+              savedConfigurations.map((configuration) => (
+                <ListRow
+                  key={configuration.id}
+                  title={configuration.title}
+                  detail={`Saved ${configuration.savedAt} for ${configuration.reviewer}`}
+                  value={configuration.status}
+                  tone="success"
+                />
+              ))
+            ) : (
+              <ListRow title="Saved configurations" detail="No exam configuration has been saved for review yet." value="Empty" tone="neutral" />
+            )}
           </div>
         </div>
       </div>
@@ -507,10 +541,14 @@ function MainWorkspace({
   view,
   capabilities,
   onNotice,
+  onSaveConfiguration,
+  savedConfigurations,
 }: {
   view: ExamsManagerView;
   capabilities: Map<ExamsManagerView, ExamsManagerWidgetCapability>;
   onNotice: (message: string) => void;
+  onSaveConfiguration: () => void;
+  savedConfigurations: SavedExamConfiguration[];
 }) {
   if (view === "overview") {
     return <OverviewGrid capabilities={capabilities} />;
@@ -521,7 +559,12 @@ function MainWorkspace({
 
   return (
     <WidgetFrame widget={widget} capability={capability}>
-      <ActiveWidgetContent view={view} onNotice={onNotice} />
+      <ActiveWidgetContent
+        view={view}
+        onNotice={onNotice}
+        onSaveConfiguration={onSaveConfiguration}
+        savedConfigurations={savedConfigurations}
+      />
     </WidgetFrame>
   );
 }
@@ -538,6 +581,7 @@ export function ExamsManagerCommandCenter({
   const [activeView, setActiveView] = useState<ExamsManagerView>("overview");
   const [searchTerm, setSearchTerm] = useState("");
   const [notice, setNotice] = useState("Exams desk ready for exam setup, marks entry, validation, and draft report cards.");
+  const [savedConfigurations, setSavedConfigurations] = useState<SavedExamConfiguration[]>([]);
   const capabilities = useMemo(() => {
     return new Map(
       widgets.map((widget) => [
@@ -565,6 +609,35 @@ export function ExamsManagerCommandCenter({
     setActiveView(record.view);
     setSearchTerm("");
     setNotice(`${record.label} opened in exams records.`);
+  }
+
+  function saveExamConfiguration() {
+    const savedAt = new Date().toLocaleString("en-KE", {
+      dateStyle: "medium",
+      timeStyle: "short",
+    });
+    const configuration: SavedExamConfiguration = {
+      id: `exam-config-${Date.now()}`,
+      title: "Form 4 Mock Series configuration",
+      status: "Dean review",
+      reviewer: "Dean of Academics",
+      savedAt,
+    };
+
+    addSchoolRecord(
+      "exam-configurations",
+      {
+        ...configuration,
+        examName: "Form 4 Mock Series",
+        term: "Term 2 2026",
+        classes: ["Form 4 North", "Form 4 South"],
+        subjects: ["Mathematics", "English", "Kiswahili", "Chemistry"],
+        savedByRole: "Exams Manager",
+      },
+      getCurrentSchoolId(),
+    );
+    setSavedConfigurations((current) => [configuration, ...current].slice(0, 4));
+    setNotice("Exam configuration saved for Dean review.");
   }
 
   return (
@@ -679,7 +752,13 @@ export function ExamsManagerCommandCenter({
               </div>
             )}
 
-            <MainWorkspace view={activeView} capabilities={capabilities} onNotice={setNotice} />
+            <MainWorkspace
+              view={activeView}
+              capabilities={capabilities}
+              onNotice={setNotice}
+              onSaveConfiguration={saveExamConfiguration}
+              savedConfigurations={savedConfigurations}
+            />
           </main>
         </div>
       </div>

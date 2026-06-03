@@ -12,22 +12,17 @@ export interface LibrarySyncResult {
 
 export function buildLibraryBorrowSyncPayload(input: LibraryBorrowInput) {
   return {
-    member_id: input.memberId,
-    book_id: input.bookId,
-    due_date: input.dueDate,
-    submission_id: input.submissionId,
-    notes: `Issued by ${input.issuedBy}`,
+    borrower_id: input.memberId,
+    copy_id: input.bookId,
+    due_on: input.dueDate,
   };
 }
 
 export function buildLibraryReturnSyncPayload(input: LibraryReturnInput) {
   return {
-    borrowing_id: input.borrowingId,
-    condition: input.condition,
-    returned_at: input.returnedAt,
-    notes: [input.notes?.trim(), `Received by ${input.receivedBy}`]
-      .filter(Boolean)
-      .join(" | "),
+    loan_id: input.borrowingId,
+    returned_on: input.returnedAt,
+    daily_fine_minor: 1000,
   };
 }
 

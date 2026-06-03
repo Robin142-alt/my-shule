@@ -732,7 +732,7 @@ export function LibraryWorkspace({
         setDataset(result.dataset);
         setLastBorrowReceipt(result.borrowReceipt);
         setBorrowModalOpen(false);
-        setSyncMessage("Borrowing saved locally. Syncing with live library API...");
+        setSyncMessage("Borrowing validated in the library desk. Syncing with the school database...");
         void syncLibraryBorrowing(input)
           .then((syncResult) => setSyncMessage(syncResult.message))
           .catch((error: unknown) => setSyncMessage(getErrorMessage(error)));
@@ -756,7 +756,7 @@ export function LibraryWorkspace({
         setDataset(result.dataset);
         setLastReturnReceipt(result.returnReceipt);
         setReturnModalOpen(false);
-        setSyncMessage("Return saved locally. Syncing with live library API...");
+        setSyncMessage("Return validated in the library desk. Syncing with the school database...");
         void syncLibraryReturn(input)
           .then((syncResult) => setSyncMessage(syncResult.message))
           .catch((error: unknown) => setSyncMessage(getErrorMessage(error)));

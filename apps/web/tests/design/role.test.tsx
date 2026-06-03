@@ -268,7 +268,7 @@ describe("STEP 4: Role tests", () => {
     expect(within(commandCenter).getByText(/Paracetamol x3/i)).toBeVisible();
 
     await user.click(within(commandCenter).getAllByRole("button", { name: /notify parent/i })[0]);
-    expect(within(commandCenter).getByText(/parent sms sent/i)).toBeVisible();
+    expect(within(commandCenter).getByText(/parent sms queued/i)).toBeVisible();
 
     await user.click(within(commandCenter).getByRole("button", { name: /print register/i }));
     expect(within(commandCenter).getByText(/sick bay register opened for printing/i)).toBeVisible();
@@ -333,7 +333,7 @@ describe("STEP 4: Role tests", () => {
     applicantRow = within(commandCenter).getByText("Sharon Achieng").closest("tr");
     expect(applicantRow).not.toBeNull();
     await user.click(within(applicantRow as HTMLElement).getByRole("button", { name: /send parent sms/i }));
-    expect(within(commandCenter).getByText(/sharon achieng parent sms sent/i)).toBeVisible();
+    expect(within(commandCenter).getByText(/sharon achieng parent sms queued/i)).toBeVisible();
 
     applicantRow = within(commandCenter).getByText("Sharon Achieng").closest("tr");
     expect(applicantRow).not.toBeNull();
@@ -388,7 +388,7 @@ describe("STEP 4: Role tests", () => {
     let loanRow = within(commandCenter).getByText("Mary Wanjiku - KBI/2026/220").closest("tr");
     expect(loanRow).not.toBeNull();
     await user.click(within(loanRow as HTMLElement).getByRole("button", { name: /send overdue sms/i }));
-    expect(within(commandCenter).getByText(/mary wanjiku parent\/student sms sent/i)).toBeVisible();
+    expect(within(commandCenter).getByText(/mary wanjiku parent\/student sms queued/i)).toBeVisible();
 
     loanRow = within(commandCenter).getByText("Mary Wanjiku - KBI/2026/220").closest("tr");
     expect(loanRow).not.toBeNull();
@@ -538,7 +538,7 @@ describe("STEP 4: Role tests", () => {
       .find(Boolean);
     expect(rollCallRow).not.toBeNull();
     await user.click(within(rollCallRow as HTMLElement).getByRole("button", { name: /notify parent/i }));
-    expect(within(commandCenter).getByText(/peter ouma parent sms sent/i)).toBeVisible();
+    expect(within(commandCenter).getByText(/peter ouma parent sms queued/i)).toBeVisible();
     expect(
       readSchoolData<SchoolSmsLog>("smsLogs", schoolId).some(
         (sms) => sms.sourceModule === "boarding" && /Peter Ouma/i.test(sms.message),
@@ -843,7 +843,7 @@ describe("STEP 4: Role tests", () => {
     ).toBe(true);
 
     await user.click(within(commandCenter).getAllByRole("button", { name: /send receipt sms/i })[0]);
-    expect(within(commandCenter).getByText(/receipt sms sent/i)).toBeVisible();
+    expect(within(commandCenter).getByText(/receipt sms queued/i)).toBeVisible();
     expect(
       readSchoolData<SchoolSmsLog>("smsLogs", schoolId).some((sms) => sms.sourceModule === "finance" && /Receipt KBI-RCPT-/i.test(sms.message)),
     ).toBe(true);
@@ -954,7 +954,7 @@ describe("STEP 4: Role tests", () => {
     ).toBe(true);
 
     await user.click(within(commandCenter).getAllByRole("button", { name: /^send sms$/i })[0]);
-    expect(within(commandCenter).getByRole("status")).toHaveTextContent(/sms sent/i);
+    expect(within(commandCenter).getByRole("status")).toHaveTextContent(/sms queued/i);
     expect(
       readSchoolData<SchoolSmsLog>("smsLogs", schoolId).some((sms) => sms.sourceModule === "front-office" && /Medical follow-up request/i.test(sms.message)),
     ).toBe(true);
@@ -1040,7 +1040,7 @@ describe("STEP 4: Role tests", () => {
       .find(Boolean);
     expect(caseRow).not.toBeNull();
     await user.click(within(caseRow as HTMLElement).getByRole("button", { name: /notify parent/i }));
-    expect(within(commandCenter).getByRole("status")).toHaveTextContent(/kevin maina parent sms sent/i);
+    expect(within(commandCenter).getByRole("status")).toHaveTextContent(/kevin maina parent sms queued/i);
     expect(
       readSchoolData<SchoolSmsLog>("smsLogs", schoolId).some(
         (sms) => sms.sourceModule === "discipline" && /Kevin Maina/i.test(sms.message) && /discipline/i.test(sms.message),
@@ -1169,7 +1169,7 @@ describe("STEP 4: Role tests", () => {
       .find(Boolean);
     expect(sessionRow).not.toBeNull();
     await user.click(within(sessionRow as HTMLElement).getByRole("button", { name: /notify guardian/i }));
-    expect(within(commandCenter).getByRole("status")).toHaveTextContent(/faith akinyi guardian sms sent/i);
+    expect(within(commandCenter).getByRole("status")).toHaveTextContent(/faith akinyi guardian sms queued/i);
     expect(
       readSchoolData<SchoolSmsLog>("smsLogs", schoolId).some(
         (sms) => sms.sourceModule === "counselling" && /Faith Akinyi/i.test(sms.message) && /counselling/i.test(sms.message),

@@ -87,7 +87,7 @@ describe("STEP 1: Layout tests", () => {
     expect(screen.getAllByText(/brian otieno/i).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/aisha wanjiku/i).length).toBeGreaterThan(0);
   expect(screen.getAllByRole("button", { name: /ai assistant/i }).length).toBeGreaterThan(0);
-    expect(screen.getAllByRole("button", { name: /emergency hotline/i }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("button", { name: /emergency contacts/i }).length).toBeGreaterThan(0);
     expect(screen.getByRole("heading", { name: /real-time alerts center/i })).toBeVisible();
     expect(screen.getByRole("heading", { name: /academic performance overview/i })).toBeVisible();
     expect(screen.getByRole("heading", { name: /attendance intelligence/i })).toBeVisible();
@@ -98,7 +98,7 @@ describe("STEP 1: Layout tests", () => {
     expect(screen.getByRole("heading", { name: /communication center/i })).toBeVisible();
     expect(screen.getByRole("heading", { name: /homework & assignments/i })).toBeVisible();
     expect(screen.getByRole("heading", { name: /ai insights & recommendations/i })).toBeVisible();
-    expect(screen.getByRole("heading", { name: /emergency panel/i })).toBeVisible();
+    expect(screen.getByRole("heading", { name: /emergency contacts/i })).toBeVisible();
     expect(screen.getAllByRole("link", { name: /pay with m-pesa/i }).length).toBeGreaterThan(0);
     expect(screen.getAllByRole("link", { name: /download receipt/i }).length).toBeGreaterThan(0);
   });

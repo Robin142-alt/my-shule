@@ -62,6 +62,7 @@ import type {
 } from "@/lib/dashboard/types";
 import { isProductionReadyModule } from "@/lib/features/module-readiness";
 import { requestDashboardApi } from "@/lib/dashboard/api-client";
+import { publishSchoolOperationalEventAndSync } from "@/lib/school/school-operational-store";
 
 type CreatedStudentResponse = {
   first_name?: string | null;
@@ -2147,7 +2148,80 @@ export function CommunicationPage({
     () => buildSchoolErpModel({ role, tenant: snapshot.tenant, online }),
     [online, role, snapshot.tenant],
   );
-  const [sent, setSent] = useState(false);
+  const [audience, setAudience] = useState("Defaulters");
+  const [message, setMessage] = useState("");
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [isSending, setIsSending] = useState(false);
+  const [historyRows, setHistoryRows] = useState<SmsHistoryRow[]>(model.communication.history);
+
+  async function sendSmsNotice() {
+    const normalizedMessage = message.trim();
+
+    if (!normalizedMessage) {
+      setStatusMessage("Write a message before sending SMS.");
+      return;
+    }
+
+    setIsSending(true);
+    setStatusMessage("Sending SMS notice...");
+
+    try {
+      const result = await publishSchoolOperationalEventAndSync({
+        type: "COMMUNICATION_SMS_NOTICE_SENT",
+        module: "communication",
+        actorRole: role,
+        title: `${audience} SMS notice`,
+        body: normalizedMessage,
+        severity: "success",
+        payload: {
+          audience,
+        },
+        notifications: [
+          {
+            audienceRoles: ["principal", "deputy-principal", "secretary"],
+            title: `${audience} SMS notice`,
+            body: normalizedMessage,
+            severity: "info",
+            relatedModule: "communication",
+            actionUrl: "/school/principal/reports?source=communication",
+          },
+        ],
+        sms: [
+          {
+            recipient: audience,
+            message: normalizedMessage,
+          },
+        ],
+      });
+      const statusLabel = result.status === "Synced" ? "Sent" : "Queued";
+      const sentAt = new Date().toLocaleString("en-KE", {
+        dateStyle: "medium",
+        timeStyle: "short",
+      });
+
+      setHistoryRows((current) => [
+        {
+          id: `sms-${result.event.id}`,
+          audience,
+          message: normalizedMessage,
+          sentAt,
+          status: statusLabel,
+          statusTone: result.status === "Synced" ? "ok" : "warning",
+        },
+        ...current,
+      ]);
+      setStatusMessage(
+        result.status === "Synced"
+          ? "SMS notice saved and synced to the school communication log."
+          : "SMS notice saved and queued for sync. Retry will continue in the background.",
+      );
+      setMessage("");
+    } catch (error) {
+      setStatusMessage(error instanceof Error ? error.message : "SMS notice failed. Try again.");
+    } finally {
+      setIsSending(false);
+    }
+  }
 
   const columns: DataTableColumn<SmsHistoryRow>[] = [
     { id: "audience", header: "Audience", render: (row) => row.audience },
@@ -2219,7 +2293,7 @@ export function CommunicationPage({
           <div className="mt-6 grid gap-4">
             <label className="space-y-2">
               <span className="text-sm font-semibold text-foreground">Audience</span>
-              <select className="input-base">
+              <select className="input-base" value={audience} onChange={(event) => setAudience(event.target.value)}>
                 <option>Defaulters</option>
                 <option>All parents</option>
                 <option>Class group</option>
@@ -2228,15 +2302,17 @@ export function CommunicationPage({
             <label className="space-y-2">
               <span className="text-sm font-semibold text-foreground">Message</span>
               <textarea
+                value={message}
+                onChange={(event) => setMessage(event.target.value)}
                 className="min-h-32 input-base"
                 placeholder="Write the school notice to send"
               />
             </label>
             <div className="flex flex-wrap items-center justify-between gap-3">
-              {sent ? <StatusPill label="Message queued" tone="ok" /> : <span />}
-              <Button disabled={!online} onClick={() => setSent(true)}>
+              {statusMessage ? <StatusPill label={statusMessage} tone={statusMessage.includes("failed") || statusMessage.includes("Write") ? "critical" : "ok"} /> : <span />}
+              <Button disabled={!online || isSending} onClick={() => void sendSmsNotice()}>
                 <Send className="h-4 w-4" />
-                Send SMS
+                {isSending ? "Sending..." : "Send SMS"}
               </Button>
             </div>
           </div>
@@ -2247,7 +2323,7 @@ export function CommunicationPage({
         title="SMS history"
         subtitle="Recent communication stays visible for follow-up and accountability."
         columns={columns}
-        rows={model.communication.history}
+        rows={historyRows}
         getRowKey={(row) => row.id}
       />
     </div>

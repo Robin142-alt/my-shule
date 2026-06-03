@@ -60,7 +60,7 @@ export async function POST(request: NextRequest) {
   if (!isDashboardApiConfigured() || !tenantId || !accessToken) {
     return NextResponse.json(
       { synced: false, message: "Live library API is not configured." },
-      { status: 202 },
+      { status: 503 },
     );
   }
 

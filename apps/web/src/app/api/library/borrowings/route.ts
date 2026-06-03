@@ -61,14 +61,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         synced: false,
-        message: "Live library API is not configured; borrowing was saved locally.",
+        message: "Live library API is not configured. The borrowing was not saved to the school database.",
       },
-      { status: 202 },
+      { status: 503 },
     );
   }
 
   try {
-    const upstream = await requestDashboardApi("/library/borrowings", {
+    const upstream = await requestDashboardApi("/library/issues", {
       method: "POST",
       tenantId,
       accessToken,
