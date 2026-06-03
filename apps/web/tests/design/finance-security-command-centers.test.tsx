@@ -111,6 +111,49 @@ describe("finance and security command center interactions", () => {
         }),
       ]),
     );
+
+    await user.click(screen.getByRole("button", { name: /^activate lockdown$/i }));
+    const lockdownDialog = screen.getByRole("dialog", { name: /security lockdown checklist/i });
+    expect(lockdownDialog).toBeVisible();
+    expect(within(lockdownDialog).getByText(/lock all school exits/i)).toBeVisible();
+    await user.click(within(lockdownDialog).getByRole("button", { name: /start lockdown checklist/i }));
+
+    expect(screen.getByText(/emergency lockdown checklist started/i)).toBeVisible();
+
+    await user.click(screen.getByRole("button", { name: /open emergency contacts/i }));
+    const contactsDialog = screen.getByRole("dialog", { name: /security emergency contacts/i });
+    expect(contactsDialog).toBeVisible();
+    expect(within(contactsDialog).getByText(/principal wanjiku/i)).toBeVisible();
+    await user.click(within(contactsDialog).getByRole("button", { name: /save contact review/i }));
+
+    expect(screen.getByText(/emergency contact list reviewed/i)).toBeVisible();
+
+    await user.click(within(screen.getByRole("complementary", { name: /security dashboard navigation/i })).getByRole("button", { name: /^reports$/i }));
+    await user.click(screen.getByRole("button", { name: /open reports/i }));
+    const reportDialog = screen.getByRole("dialog", { name: /security report review/i });
+    expect(reportDialog).toBeVisible();
+    await user.click(within(reportDialog).getByRole("button", { name: /save report review/i }));
+
+    expect(screen.getByText(/reports report review saved/i)).toBeVisible();
+    expect(readSchoolData<Record<string, unknown>>("events", "kb-high")).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          schoolId: "kb-high",
+          type: "SECURITY_LOCKDOWN_CHECKLIST_STARTED",
+          module: "security",
+        }),
+        expect.objectContaining({
+          schoolId: "kb-high",
+          type: "SECURITY_EMERGENCY_CONTACTS_REVIEWED",
+          module: "security",
+        }),
+        expect.objectContaining({
+          schoolId: "kb-high",
+          type: "SECURITY_REPORT_REVIEW_RECORDED",
+          module: "security",
+        }),
+      ]),
+    );
   });
 
   it("lets security check in and check out a visitor from the active visitor desk", async () => {

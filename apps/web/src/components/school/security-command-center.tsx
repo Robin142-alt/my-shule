@@ -850,7 +850,13 @@ function IncidentReporting() {
   );
 }
 
-function EmergencyMode() {
+function EmergencyMode({
+  onOpenContacts,
+  onOpenLockdownChecklist,
+}: {
+  onOpenContacts: () => void;
+  onOpenLockdownChecklist: () => void;
+}) {
   return (
     <DarkSection id="emergency-mode" className="border-rose-300/40 bg-[radial-gradient(circle_at_top_left,rgba(225,29,72,0.2),transparent_26%),linear-gradient(135deg,#071D49_0%,#2A1028_100%)]">
       <SectionTitle
@@ -869,8 +875,8 @@ function EmergencyMode() {
         ))}
       </div>
       <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-        <button type="button" onClick={() => announceAction("Emergency lockdown checklist opened.")} className="min-h-12 flex-1 rounded-[var(--radius-lg)] bg-rose-600 px-5 py-3 text-sm font-black text-white shadow-[0_18px_42px_rgba(225,29,72,0.28)] transition hover:-translate-y-0.5">Activate lockdown</button>
-        <button type="button" onClick={() => announceAction("Emergency contact list opened.")} className="min-h-12 flex-1 rounded-[var(--radius-lg)] border border-white/14 bg-white/10 px-5 py-3 text-sm font-black text-white transition hover:-translate-y-0.5">Open emergency contacts</button>
+        <button type="button" onClick={onOpenLockdownChecklist} className="min-h-12 flex-1 rounded-[var(--radius-lg)] bg-rose-600 px-5 py-3 text-sm font-black text-white shadow-[0_18px_42px_rgba(225,29,72,0.28)] transition hover:-translate-y-0.5">Activate lockdown</button>
+        <button type="button" onClick={onOpenContacts} className="min-h-12 flex-1 rounded-[var(--radius-lg)] border border-white/14 bg-white/10 px-5 py-3 text-sm font-black text-white transition hover:-translate-y-0.5">Open emergency contacts</button>
       </div>
     </DarkSection>
   );
@@ -911,7 +917,7 @@ function AnalyticsAndEmptyStates() {
   );
 }
 
-function SupportModuleSection({ id }: { id: string }) {
+function SupportModuleSection({ id, onOpenReportReview }: { id: string; onOpenReportReview: (title: string) => void }) {
   if (id === "vehicle-tracking") {
     return (
       <DarkSection id="vehicle-tracking">
@@ -969,7 +975,7 @@ function SupportModuleSection({ id }: { id: string }) {
       <SectionTitle eyebrow={eyebrow} title={title} description={description} />
       <div className="mt-5 rounded-[var(--radius-xl)] border border-white/10 bg-white/[0.055] p-5">
         <p className="text-sm font-semibold leading-6 text-white/70">Use this desk to review records, print reports, and escalate security follow-up to the office or principal.</p>
-        <button type="button" onClick={() => announceAction(`${title} report opened for review.`)} className="mt-4 rounded-[var(--radius-lg)] border border-cyan-300/35 bg-cyan-400/12 px-4 py-2 text-sm font-black text-cyan-100">Open {title}</button>
+        <button type="button" onClick={() => onOpenReportReview(title)} className="mt-4 rounded-[var(--radius-lg)] border border-cyan-300/35 bg-cyan-400/12 px-4 py-2 text-sm font-black text-cyan-100">Open {title}</button>
       </div>
     </DarkSection>
   );
@@ -1012,6 +1018,9 @@ function ActiveSecuritySection({
   onCheckOutVisitor,
   onPrintVisitorSlip,
   onAlertOffice,
+  onOpenEmergencyContacts,
+  onOpenLockdownChecklist,
+  onOpenReportReview,
 }: {
   activeSection: string;
   visitors: VisitorRecord[];
@@ -1020,6 +1029,9 @@ function ActiveSecuritySection({
   onCheckOutVisitor: (id: string) => void;
   onPrintVisitorSlip: (visitor: VisitorRecord) => void;
   onAlertOffice: (visitor: VisitorRecord) => void;
+  onOpenEmergencyContacts: () => void;
+  onOpenLockdownChecklist: () => void;
+  onOpenReportReview: (title: string) => void;
 }) {
   if (activeSection === "top") {
     return (
@@ -1043,10 +1055,10 @@ function ActiveSecuritySection({
   if (activeSection === "boarding-security") return <BoardingSecurity />;
   if (activeSection === "ai-threat-detection") return <AiThreatDetection />;
   if (activeSection === "incident-reports") return <IncidentReporting />;
-  if (activeSection === "emergency-mode") return <EmergencyMode />;
+  if (activeSection === "emergency-mode") return <EmergencyMode onOpenContacts={onOpenEmergencyContacts} onOpenLockdownChecklist={onOpenLockdownChecklist} />;
   if (activeSection === "analytics") return <AnalyticsAndEmptyStates />;
 
-  return <SupportModuleSection id={activeSection} />;
+  return <SupportModuleSection id={activeSection} onOpenReportReview={onOpenReportReview} />;
 }
 
 export function SecurityCommandCenter({ routeMode }: { routeMode: SecurityRouteMode }) {
@@ -1057,6 +1069,9 @@ export function SecurityCommandCenter({ routeMode }: { routeMode: SecurityRouteM
   const [visitors, setVisitors] = useState<VisitorRecord[]>(initialVisitorRows);
   const [panicDialogOpen, setPanicDialogOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [lockdownChecklistOpen, setLockdownChecklistOpen] = useState(false);
+  const [emergencyContactsOpen, setEmergencyContactsOpen] = useState(false);
+  const [reportReview, setReportReview] = useState<string | null>(null);
   const searchResults = searchTerm.trim()
     ? securitySearchRecords.filter((record) => `${record.label} ${record.detail}`.toLowerCase().includes(searchTerm.toLowerCase()))
     : [];
@@ -1099,6 +1114,123 @@ export function SecurityCommandCenter({ routeMode }: { routeMode: SecurityRouteM
   function openNotifications() {
     setNotificationsOpen(true);
     setNotice("Security notifications opened.");
+  }
+
+  function openLockdownChecklist() {
+    setLockdownChecklistOpen(true);
+    setNotice("Emergency lockdown checklist opened.");
+  }
+
+  function openEmergencyContacts() {
+    setEmergencyContactsOpen(true);
+    setNotice("Emergency contact list opened.");
+  }
+
+  function openReportReview(title: string) {
+    setReportReview(title);
+    setNotice(`${title} report opened for review.`);
+  }
+
+  function startLockdownChecklist() {
+    const checklistId = runtimeId("security-lockdown");
+
+    publishSchoolOperationalEvent({
+      schoolId,
+      actorRole: "security",
+      type: "SECURITY_LOCKDOWN_CHECKLIST_STARTED",
+      module: "security",
+      title: "Emergency lockdown checklist started",
+      body: "Security started the emergency lockdown checklist for exits, leadership alerts, and incident command response.",
+      entityId: checklistId,
+      severity: "critical",
+      payload: {
+        checklistId,
+        steps: ["Lock all school exits", "Notify leadership", "Open command panel"],
+        status: "Started",
+      },
+      notifications: [
+        {
+          audienceRoles: ["principal", "deputy principal", "security", "system monitor"],
+          title: "Emergency lockdown checklist started",
+          body: "Security started the lockdown checklist for same-school emergency response.",
+          severity: "critical",
+          relatedModule: "security",
+          relatedRecordId: checklistId,
+          requiresAction: true,
+          requestStatus: "Pending",
+        },
+      ],
+    });
+
+    setLockdownChecklistOpen(false);
+    setNotice("Emergency lockdown checklist started.");
+  }
+
+  function saveEmergencyContactReview() {
+    const reviewId = runtimeId("security-contacts");
+
+    publishSchoolOperationalEvent({
+      schoolId,
+      actorRole: "security",
+      type: "SECURITY_EMERGENCY_CONTACTS_REVIEWED",
+      module: "security",
+      title: "Emergency contact list reviewed",
+      body: "Security reviewed the emergency contact list for leadership, nurse, boarding, and transport escalation.",
+      entityId: reviewId,
+      severity: "success",
+      payload: {
+        contacts: ["Principal Wanjiku", "Deputy Principal Otieno", "Nurse Achieng", "Transport Manager Mwangi"],
+      },
+      notifications: [
+        {
+          audienceRoles: ["principal", "deputy principal", "security"],
+          title: "Emergency contacts reviewed",
+          body: "Security reviewed emergency contacts for same-school response readiness.",
+          severity: "success",
+          relatedModule: "security",
+          relatedRecordId: reviewId,
+          requestStatus: "Completed",
+        },
+      ],
+    });
+
+    setEmergencyContactsOpen(false);
+    setNotice("Emergency contact list reviewed.");
+  }
+
+  function saveReportReview() {
+    if (!reportReview) return;
+
+    const reportSlug = reportReview.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+
+    publishSchoolOperationalEvent({
+      schoolId,
+      actorRole: "security",
+      type: "SECURITY_REPORT_REVIEW_RECORDED",
+      module: "security",
+      title: `${reportReview} report review saved`,
+      body: `Security saved ${reportReview.toLowerCase()} report review for same-school leadership and audit follow-up.`,
+      entityId: `security-report-${reportSlug}`,
+      severity: "info",
+      payload: {
+        reportTitle: reportReview,
+        desk: "Security Command Center",
+      },
+      notifications: [
+        {
+          audienceRoles: ["principal", "deputy principal", "security"],
+          title: `${reportReview} report reviewed`,
+          body: "Security report review was saved for same-school operations follow-up.",
+          severity: "info",
+          relatedModule: "security",
+          relatedRecordId: `security-report-${reportSlug}`,
+          requestStatus: "Completed",
+        },
+      ],
+    });
+
+    setNotice(`${reportReview} report review saved.`);
+    setReportReview(null);
   }
 
   function reviewSecurityNotifications() {
@@ -1397,6 +1529,87 @@ export function SecurityCommandCenter({ routeMode }: { routeMode: SecurityRouteM
               </div>
             </div>
           ) : null}
+          {lockdownChecklistOpen ? (
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-label="Security lockdown checklist"
+              className="rounded-[var(--radius-xl)] border border-rose-300/55 bg-white p-4 text-[#071D49] shadow-[0_22px_70px_rgba(225,29,72,0.2)] md:p-5"
+            >
+              <p className="text-xs font-black uppercase tracking-[0.16em] text-rose-700">Emergency lockdown checklist</p>
+              <h2 className="mt-2 text-2xl font-black">Start lockdown response?</h2>
+              <p className="mt-2 text-sm font-semibold leading-6 text-[#5F6F89]">
+                This starts the same-school lockdown checklist and notifies leadership. It records the action for audit and follow-up.
+              </p>
+              <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                {["Lock all school exits", "Notify leadership", "Open command panel"].map((step) => (
+                  <div key={step} className="rounded-[var(--radius-lg)] border border-[#C8D5EA] bg-[#F8FAFC] p-3 text-sm font-black text-[#071D49]">{step}</div>
+                ))}
+              </div>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <button type="button" onClick={startLockdownChecklist} className="inline-flex min-h-10 items-center justify-center rounded-[var(--radius)] bg-rose-600 px-4 text-sm font-black text-white">
+                  Start lockdown checklist
+                </button>
+                <button type="button" onClick={() => setLockdownChecklistOpen(false)} className="inline-flex min-h-10 items-center justify-center rounded-[var(--radius)] border border-[#C8D5EA] bg-white px-4 text-sm font-black text-[#071D49]">
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : null}
+          {emergencyContactsOpen ? (
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-label="Security emergency contacts"
+              className="rounded-[var(--radius-xl)] border border-[#C8D5EA] bg-white p-4 text-[#071D49] shadow-[0_18px_55px_rgba(7,29,73,0.12)] md:p-5"
+            >
+              <p className="text-xs font-black uppercase tracking-[0.16em] text-[#5F6F89]">Emergency contacts</p>
+              <h2 className="mt-2 text-2xl font-black">Review emergency contact list</h2>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                {[
+                  ["Principal Wanjiku", "Principal"],
+                  ["Deputy Principal Otieno", "Deputy"],
+                  ["Nurse Achieng", "Sick bay"],
+                  ["Transport Manager Mwangi", "Transport"],
+                ].map(([name, role]) => (
+                  <div key={name} className="rounded-[var(--radius-lg)] border border-[#C8D5EA] bg-[#F8FAFC] p-3">
+                    <p className="text-sm font-black">{name}</p>
+                    <p className="mt-1 text-xs font-bold text-[#5F6F89]">{role}</p>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <button type="button" onClick={saveEmergencyContactReview} className="inline-flex min-h-10 items-center justify-center rounded-[var(--radius)] bg-[#071D49] px-4 text-sm font-black text-white">
+                  Save contact review
+                </button>
+                <button type="button" onClick={() => setEmergencyContactsOpen(false)} className="inline-flex min-h-10 items-center justify-center rounded-[var(--radius)] border border-[#C8D5EA] bg-white px-4 text-sm font-black text-[#071D49]">
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : null}
+          {reportReview ? (
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-label="Security report review"
+              className="rounded-[var(--radius-xl)] border border-[#C8D5EA] bg-white p-4 text-[#071D49] shadow-[0_18px_55px_rgba(7,29,73,0.12)] md:p-5"
+            >
+              <p className="text-xs font-black uppercase tracking-[0.16em] text-[#5F6F89]">Security report review</p>
+              <h2 className="mt-2 text-2xl font-black">{reportReview}</h2>
+              <p className="mt-2 text-sm font-semibold leading-6 text-[#5F6F89]">
+                Save this report review for same-school leadership visibility and security audit follow-up.
+              </p>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <button type="button" onClick={saveReportReview} className="inline-flex min-h-10 items-center justify-center rounded-[var(--radius)] bg-[#071D49] px-4 text-sm font-black text-white">
+                  Save report review
+                </button>
+                <button type="button" onClick={() => setReportReview(null)} className="inline-flex min-h-10 items-center justify-center rounded-[var(--radius)] border border-[#C8D5EA] bg-white px-4 text-sm font-black text-[#071D49]">
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : null}
           <ActiveSecuritySection
             activeSection={activeSection}
             visitors={visitors}
@@ -1405,6 +1618,9 @@ export function SecurityCommandCenter({ routeMode }: { routeMode: SecurityRouteM
             onCheckOutVisitor={checkOutVisitor}
             onPrintVisitorSlip={printVisitorSlip}
             onAlertOffice={alertOffice}
+            onOpenEmergencyContacts={openEmergencyContacts}
+            onOpenLockdownChecklist={openLockdownChecklist}
+            onOpenReportReview={openReportReview}
           />
         </main>
       </div>
