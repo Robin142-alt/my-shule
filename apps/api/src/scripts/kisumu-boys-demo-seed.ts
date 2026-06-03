@@ -124,6 +124,49 @@ type DemoTransportRoute = {
   }>;
 };
 
+type DemoBoardingHouse = {
+  name: string;
+  capacity: number;
+  present: number;
+  missing: number;
+  issue?: string;
+};
+
+type DemoVisitorRecord = {
+  name: string;
+  phoneOrId: string;
+  visiting: string;
+  reason: string;
+  status: 'inside' | 'waiting' | 'exited' | 'overstayed';
+  priority: 'normal' | 'high' | 'critical';
+};
+
+type DemoFinanceEvents = {
+  payments: Array<{
+    studentIndex: number;
+    method: 'cash' | 'bank_deposit' | 'mpesa_c2b';
+    amountMinor: number;
+    receipt: string;
+    status: 'received' | 'cleared';
+  }>;
+  mpesa: Array<{
+    studentIndex: number;
+    transId: string;
+    amountMinor: number;
+    status: 'verified_matched' | 'manual_review_required' | 'received_unverified';
+  }>;
+};
+
+type DemoOperationalNotification = {
+  key: string;
+  type: string;
+  title: string;
+  body: string;
+  audienceRoles: string[];
+  priority: 'normal' | 'important' | 'urgent';
+  targetGuardianIndex?: number;
+};
+
 type SeedSummary = {
   tenant_id: string;
   tenant_name: string;
@@ -307,6 +350,7 @@ const PLAN_OPERATIONS: DemoSeedOperation[] = [
   { moduleCode: 'iot', table: 'iot_alerts', tenantScoped: true },
   { moduleCode: 'communication_sms', table: 'school_sms_wallets', tenantScoped: true },
   { moduleCode: 'communication_sms', table: 'sms_logs', tenantScoped: true },
+  { moduleCode: 'communication_sms', table: 'notifications', tenantScoped: true },
   { moduleCode: 'communication_sms', table: 'school_integrations', tenantScoped: true },
   { moduleCode: 'communication_sms', table: 'integration_logs', tenantScoped: true },
   { moduleCode: 'admin_command_centers', table: 'admin_incidents', tenantScoped: true },
@@ -498,6 +542,63 @@ export function buildKisumuBoysDemoTransportRoutes(): DemoTransportRoute[] {
     { name: 'Kisian Route', code: 'KB-TR-KIS', zone: 'Kisian', fareAmountMinor: 1100000, stops: [{ name: 'Kisian Junction', plannedTime: '05:55' }, { name: 'Dunga Stage', plannedTime: '06:25' }, { name: 'School Gate', plannedTime: '06:50' }] },
     { name: 'Nyamasaria Route', code: 'KB-TR-NYA', zone: 'Nyamasaria', fareAmountMinor: 950000, stops: [{ name: 'Nyamasaria Stage', plannedTime: '06:10' }, { name: 'Nyalenda Junction', plannedTime: '06:30' }, { name: 'School Gate', plannedTime: '06:55' }] },
     { name: 'Riat Route', code: 'KB-TR-RIAT', zone: 'Riat', fareAmountMinor: 1000000, stops: [{ name: 'Riat Hills', plannedTime: '06:05' }, { name: 'Obunga Stage', plannedTime: '06:35' }, { name: 'School Gate', plannedTime: '06:55' }] },
+  ];
+}
+
+export function buildKisumuBoysDemoBoardingHouses(): DemoBoardingHouse[] {
+  return [
+    { name: 'Victoria House', capacity: 220, present: 214, missing: 1, issue: 'One Form 3 boarder late from evening prep' },
+    { name: 'Winam House', capacity: 200, present: 198, missing: 0 },
+    { name: 'Rusinga House', capacity: 180, present: 176, missing: 2, issue: 'Two exeats waiting for deputy approval' },
+    { name: 'Ndere House', capacity: 160, present: 158, missing: 0 },
+  ];
+}
+
+export function buildKisumuBoysDemoVisitors(): DemoVisitorRecord[] {
+  return [
+    { name: 'Mrs Grace Onyango', phoneOrId: 'ID 23456781', visiting: 'Brian Otieno', reason: 'Fee statement and class teacher meeting', status: 'inside', priority: 'normal' },
+    { name: 'Mr Samuel Ouma', phoneOrId: 'ID 24567892', visiting: 'Principal Wanjiku', reason: 'Board meeting preparation', status: 'inside', priority: 'high' },
+    { name: 'County Education Officer', phoneOrId: 'GOV-CEB-018', visiting: 'Principal Office', reason: 'Routine school inspection', status: 'inside', priority: 'high' },
+    { name: 'Mr Peter Mwangi', phoneOrId: 'ID 25678903', visiting: 'Accounts Office', reason: 'M-Pesa payment confirmation', status: 'waiting', priority: 'normal' },
+    { name: 'Mrs Faith Akinyi', phoneOrId: 'ID 26789014', visiting: 'Nurse', reason: 'Medical follow-up', status: 'inside', priority: 'normal' },
+    { name: 'Kisumu Demo Supplies Courier', phoneOrId: 'KDS-COURIER-04', visiting: 'Storekeeper', reason: 'Delivery note signing', status: 'inside', priority: 'normal' },
+    { name: 'Mr David Kiptoo', phoneOrId: 'ID 27890125', visiting: 'Deputy Principal', reason: 'Discipline follow-up', status: 'overstayed', priority: 'critical' },
+    { name: 'St. John Ambulance Trainer', phoneOrId: 'ORG-STJ-001', visiting: 'Nurse', reason: 'First aid club training', status: 'exited', priority: 'normal' },
+  ];
+}
+
+export function buildKisumuBoysDemoFinanceEvents(): DemoFinanceEvents {
+  return {
+    payments: [
+      { studentIndex: 0, method: 'mpesa_c2b', amountMinor: 3000000, receipt: 'KB-DEMO-RCPT-001', status: 'received' },
+      { studentIndex: 3, method: 'cash', amountMinor: 1250000, receipt: 'KB-DEMO-RCPT-002', status: 'received' },
+      { studentIndex: 7, method: 'bank_deposit', amountMinor: 4200000, receipt: 'KB-DEMO-RCPT-003', status: 'cleared' },
+      { studentIndex: 12, method: 'mpesa_c2b', amountMinor: 1800000, receipt: 'KB-DEMO-RCPT-004', status: 'received' },
+      { studentIndex: 18, method: 'cash', amountMinor: 950000, receipt: 'KB-DEMO-RCPT-005', status: 'received' },
+      { studentIndex: 24, method: 'mpesa_c2b', amountMinor: 2500000, receipt: 'KB-DEMO-RCPT-006', status: 'received' },
+    ],
+    mpesa: [
+      { studentIndex: 0, transId: 'KBDEMO001', amountMinor: 3000000, status: 'verified_matched' },
+      { studentIndex: 12, transId: 'KBDEMO002', amountMinor: 1800000, status: 'verified_matched' },
+      { studentIndex: 24, transId: 'KBDEMO003', amountMinor: 2500000, status: 'verified_matched' },
+      { studentIndex: 5, transId: 'KBDEMO004', amountMinor: 1200000, status: 'manual_review_required' },
+      { studentIndex: 9, transId: 'KBDEMO005', amountMinor: 800000, status: 'received_unverified' },
+    ],
+  };
+}
+
+export function buildKisumuBoysDemoOperationalNotifications(): DemoOperationalNotification[] {
+  return [
+    { key: 'attendance-missing-registers', type: 'attendance.alert', title: '7 attendance registers missing', body: 'Class teachers should submit pending morning registers before 9:00 AM.', audienceRoles: ['principal', 'deputy_principal', 'class_teacher'], priority: 'urgent' },
+    { key: 'fees-arrears-follow-up', type: 'finance.alert', title: '42 students above KSh 10,000 balance', body: 'Accountant has prepared fee reminder SMS for approval.', audienceRoles: ['principal', 'accountant', 'secretary'], priority: 'important' },
+    { key: 'clinic-parent-notified', type: 'clinic.notice', title: 'Parent notified after sick bay visit', body: 'Nurse treated a Grade 10 learner and sent parent update.', audienceRoles: ['nurse', 'class_teacher', 'principal'], priority: 'normal', targetGuardianIndex: 0 },
+    { key: 'library-overdue-fine', type: 'library.alert', title: 'Overdue library books need follow-up', body: 'Five borrowers have overdue books and fine notices.', audienceRoles: ['librarian', 'class_teacher', 'parent'], priority: 'important', targetGuardianIndex: 1 },
+    { key: 'boarding-late-return', type: 'boarding.alert', title: 'Boarding late return recorded', body: 'Victoria House has one late return requiring deputy review.', audienceRoles: ['boarding_master', 'deputy_principal', 'principal'], priority: 'urgent', targetGuardianIndex: 2 },
+    { key: 'transport-maintenance', type: 'transport.alert', title: 'Bus service required today', body: 'KDC 448M is marked for maintenance before afternoon route.', audienceRoles: ['transport_manager', 'principal', 'system_monitor'], priority: 'important' },
+    { key: 'store-request-approved', type: 'inventory.notice', title: 'Science request approved', body: 'Lab gloves request approved and reserved for collection.', audienceRoles: ['storekeeper', 'teacher', 'hod'], priority: 'normal' },
+    { key: 'visitor-overstay', type: 'security.alert', title: 'One visitor overstayed', body: 'Security flagged a visitor waiting for deputy follow-up.', audienceRoles: ['security_officer', 'secretary', 'deputy_principal'], priority: 'urgent' },
+    { key: 'admission-onboarding', type: 'admissions.notice', title: 'Accepted applicant needs onboarding', body: 'Secretary and accountant have pending onboarding steps.', audienceRoles: ['admissions_officer', 'secretary', 'accountant'], priority: 'important' },
+    { key: 'ict-cctv-fault', type: 'system.alert', title: 'CCTV maintenance ticket open', body: 'Two cameras near back gate are offline and visible in System Monitor.', audienceRoles: ['ict_manager', 'system_monitor', 'principal'], priority: 'important' },
   ];
 }
 
@@ -1104,11 +1205,60 @@ async function seedDemoRows(writer: DemoSeedWriter, context: DemoContext): Promi
     await writer.upsert('invoices', { id: invoiceId, tenant_id: tenantId, subscription_id: subscriptionId, student_id: studentIds[index], fee_structure_id: feeStructureId, invoice_number: `KB-DEMO-INV-${String(index + 1).padStart(3, '0')}`, description: 'Demo school fee invoice', subtotal_amount_minor: 5700000, total_amount_minor: 5700000, amount_paid_minor: paidMinor, status: paidMinor >= 5700000 ? 'paid' : 'open', due_at: '2026-06-30T12:00:00.000Z', metadata: meta({ class_name: studentRoster[index]?.className }) });
   }
 
-  await writer.upsert('manual_fee_payments', { id: paymentId, tenant_id: tenantId, idempotency_key: 'KB-DEMO-MANUAL-PAYMENT-1', receipt_number: 'KB-DEMO-RCPT-001', invoice_id: invoiceIds[0], payment_method: 'mpesa_c2b', amount_minor: 3000000, paid_at: '2026-05-20T09:30:00.000Z', status: 'received', payer_name: 'Guardian Otieno', metadata: meta() });
-  await writer.upsert('manual_fee_payment_allocations', { id: demoUuid('manual-payment-allocation-1'), tenant_id: tenantId, manual_payment_id: paymentId, invoice_id: invoiceIds[0], allocation_type: 'invoice', amount_minor: 3000000, metadata: meta() });
-  await writer.upsert('billing_notifications', { id: demoUuid('billing-notification-1'), tenant_id: tenantId, subscription_id: subscriptionId, notification_key: 'KB-DEMO-BILLING-OK', channel: 'email', audience: 'owner', lifecycle_state: 'ACTIVE', title: 'Billing active for Kisumu Boys demo', body: 'Manual billing state is active.', status: 'sent', metadata: meta() });
+  const financeEvents = buildKisumuBoysDemoFinanceEvents();
+  for (const [index, feePayment] of financeEvents.payments.entries()) {
+    const manualPaymentId = index === 0 ? paymentId : demoUuid(`manual-payment-${index + 1}`);
+    await writer.upsert('manual_fee_payments', {
+      id: manualPaymentId,
+      tenant_id: tenantId,
+      idempotency_key: `KB-DEMO-MANUAL-PAYMENT-${index + 1}`,
+      receipt_number: feePayment.receipt,
+      invoice_id: invoiceIds[feePayment.studentIndex],
+      student_id: studentIds[feePayment.studentIndex],
+      payment_method: feePayment.method,
+      amount_minor: feePayment.amountMinor,
+      received_at: `2026-05-2${index}T09:30:00.000Z`,
+      status: feePayment.status,
+      payer_name: studentRoster[feePayment.studentIndex]?.guardian.fullName,
+      created_by_user_id: context.actorUserId,
+      metadata: meta({ student_name: `${studentRoster[feePayment.studentIndex]?.firstName} ${studentRoster[feePayment.studentIndex]?.lastName}` }),
+    });
+    await writer.upsert('manual_fee_payment_allocations', { id: demoUuid(`manual-payment-allocation-${index + 1}`), tenant_id: tenantId, manual_payment_id: manualPaymentId, invoice_id: invoiceIds[feePayment.studentIndex], student_id: studentIds[feePayment.studentIndex], allocation_type: 'invoice', amount_minor: feePayment.amountMinor, metadata: meta() });
+  }
+
+  const billingNotifications = [
+    { key: 'KB-DEMO-BILLING-OK', channel: 'email', audience: 'owner', title: 'Billing active for Kisumu Boys demo', body: 'Manual billing state is active.', status: 'sent' },
+    { key: 'KB-DEMO-FEE-REMINDER-SMS', channel: 'sms', audience: 'parents', title: 'Fee reminder SMS queued', body: '42 balance reminders are ready for parent SMS delivery.', status: 'queued' },
+    { key: 'KB-DEMO-MPESA-FAILED', channel: 'admin', audience: 'accountant', title: 'M-Pesa confirmation needs review', body: 'One M-Pesa callback requires manual review before receipt posting.', status: 'failed' },
+  ];
+  for (const [index, notice] of billingNotifications.entries()) {
+    await writer.upsert('billing_notifications', { id: demoUuid(`billing-notification-${index + 1}`), tenant_id: tenantId, subscription_id: subscriptionId, notification_key: notice.key, channel: notice.channel, audience: notice.audience, lifecycle_state: 'ACTIVE', title: notice.title, body: notice.body, status: notice.status, metadata: meta() });
+  }
+
   await writer.upsert('payment_intents', { id: demoUuid('payment-intent-1'), tenant_id: tenantId, idempotency_key_id: idempotencyId, account_reference: 'KB-DEMO-001', transaction_desc: 'Kisumu Boys demo fee payment', phone_number: '+25471120001', amount_minor: 3000000, status: 'completed', metadata: meta() });
-  await writer.upsert('mpesa_c2b_payments', { id: demoUuid('mpesa-c2b-1'), tenant_id: tenantId, trans_id: 'KBDEMO001', transaction_type: 'Pay Bill', business_short_code: '123456', bill_ref_number: 'KB-DEMO-001', amount_minor: 3000000, received_at: '2026-05-20T09:30:00.000Z', metadata: meta() });
+  for (const [index, mpesa] of financeEvents.mpesa.entries()) {
+    await writer.upsert('mpesa_c2b_payments', {
+      id: demoUuid(`mpesa-c2b-${index + 1}`),
+      tenant_id: tenantId,
+      trans_id: mpesa.transId,
+      transaction_type: 'Pay Bill',
+      business_short_code: '123456',
+      bill_ref_number: studentRoster[mpesa.studentIndex]?.admissionNumber,
+      invoice_number: `KB-DEMO-INV-${String(mpesa.studentIndex + 1).padStart(3, '0')}`,
+      amount_minor: mpesa.amountMinor,
+      phone_number: studentRoster[mpesa.studentIndex]?.guardian.phone,
+      payer_name: studentRoster[mpesa.studentIndex]?.guardian.fullName,
+      status: mpesa.status,
+      matched_invoice_id: mpesa.status === 'verified_matched' ? invoiceIds[mpesa.studentIndex] : undefined,
+      matched_student_id: mpesa.status === 'verified_matched' ? studentIds[mpesa.studentIndex] : undefined,
+      manual_fee_payment_id: mpesa.status === 'verified_matched' && index < financeEvents.payments.length ? (index === 0 ? paymentId : demoUuid(`manual-payment-${index + 1}`)) : undefined,
+      received_at: `2026-05-2${index}T09:30:00.000Z`,
+      matched_at: mpesa.status === 'verified_matched' ? `2026-05-2${index}T09:35:00.000Z` : undefined,
+      raw_payload: meta({ demo_provider: 'safaricom_sandbox', trans_id: mpesa.transId }),
+      payload_sha256: createHash('sha256').update(`kb-demo-mpesa-${mpesa.transId}`).digest('hex'),
+      metadata: meta({ dashboard_status: mpesa.status }),
+    });
+  }
 
   await writer.upsert('admission_applications', { id: admissionApplicationId, tenant_id: tenantId, application_number: 'KB-ADM-DEMO-001', full_name: 'Moses Onyango', date_of_birth: '2012-03-14', gender: 'male', birth_certificate_number: 'KBDEMOBC001', nationality: 'Kenyan', class_applying: 'Form 1', parent_name: 'Grace Onyango', parent_phone: '+254722100001', relationship: 'mother', status: 'under_review' });
   await writer.upsert('student_allocations', { id: demoUuid('student-allocation-1'), tenant_id: tenantId, student_id: studentIds[0], class_name: 'Form 1', stream_name: 'North', dormitory_name: 'Victoria House', transport_route: 'Mamboleo Route', effective_from: '2026-05-04', is_current: true, notes: 'Kisumu Boys demo allocation' });
@@ -1461,10 +1611,33 @@ async function seedDemoRows(writer: DemoSeedWriter, context: DemoContext): Promi
   await writer.upsert('counselling_sessions', { id: demoUuid('counselling-session-1'), tenant_id: tenantId, school_id: context.tenant.id, student_id: studentIds[2], counsellor_user_id: context.actorUserId, scheduled_for: '2026-05-27T08:00:00.000Z', status: 'scheduled' });
   await writer.upsert('behavior_points', { id: demoUuid('behavior-points-1'), tenant_id: tenantId, school_id: context.tenant.id, student_id: studentIds[1], class_id: classIds[0], academic_term_id: termId, academic_year_id: yearId, source_type: 'commendation', source_id: demoUuid('commendation-1'), points_delta: 5, reason: 'Demo positive conduct', metadata: meta() });
 
-  await writer.upsert('boarding_students', { id: demoUuid('boarding-student-1'), tenant_id: tenantId, student_id: studentIds[0], dormitory: 'Victoria House', bed_label: 'V-12', status: 'active' });
-  await writer.upsert('boarding_meals', { id: demoUuid('boarding-meal-1'), tenant_id: tenantId, meal_type: 'supper', served_on: '2026-05-24', expected_count: 840, served_count: 826, status: 'served' });
-  await writer.upsert('boarding_dormitory_checks', { id: demoUuid('boarding-check-1'), tenant_id: tenantId, dormitory: 'Victoria House', checked_at: '2026-05-24T18:30:00.000Z', status: 'clear' });
-  await writer.upsert('boarding_incidents', { id: demoUuid('boarding-incident-1'), tenant_id: tenantId, title: 'Broken window latch', dormitory: 'Victoria House', severity: 'low', status: 'open' });
+  const boardingHouses = buildKisumuBoysDemoBoardingHouses();
+  const boardingHouseIds = boardingHouses.map((house) => demoUuid(`boarding-house-${house.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`));
+  for (const [index, house] of boardingHouses.entries()) {
+    const houseId = boardingHouseIds[index];
+    await writer.upsert('boarding_houses', {
+      id: houseId,
+      tenant_id: tenantId,
+      title: house.name,
+      category: 'hostel',
+      owner_name: index % 2 === 0 ? 'Boarding Master Otieno' : 'Assistant Boarding Master Achieng',
+      status: house.missing > 0 ? 'open' : 'active',
+      priority: house.missing > 0 ? 'critical' : 'normal',
+      metric_count: house.present,
+      notes: house.issue ?? `${house.name} roll call clear.`,
+      metadata: meta({ capacity: house.capacity, present: house.present, missing: house.missing }),
+      created_by_user_id: context.actorUserId,
+    });
+    await writer.upsert('boarding_meals', { id: demoUuid(`boarding-meal-${index + 1}`), tenant_id: tenantId, house_id: houseId, meal_date: '2026-05-24', meal_type: 'supper', planned_count: house.capacity, consumed_count: house.present, status: 'served' });
+    await writer.upsert('boarding_dormitory_checks', { id: demoUuid(`boarding-check-${index + 1}`), tenant_id: tenantId, house_id: houseId, checked_by_user_id: context.actorUserId, check_status: house.missing > 0 ? 'attention_required' : 'clear', notes: house.issue ?? 'Roll call complete.', checked_at: '2026-05-24T18:30:00.000Z' });
+  }
+  for (let index = 0; index < 18; index += 1) {
+    const houseIndex = index % boardingHouses.length;
+    await writer.upsert('boarding_students', { id: demoUuid(`boarding-student-${index + 1}`), tenant_id: tenantId, house_id: boardingHouseIds[houseIndex], student_id: studentIds[index], bed_label: `${boardingHouses[houseIndex]?.name.slice(0, 1).toUpperCase()}-${String(index + 10).padStart(2, '0')}`, status: index === 2 ? 'late_return' : 'active' });
+  }
+  await writer.upsert('boarding_incidents', { id: demoUuid('boarding-incident-1'), tenant_id: tenantId, house_id: boardingHouseIds[0], student_id: studentIds[2], title: 'Late return after evening prep', severity: 'critical', status: 'open' });
+  await writer.upsert('boarding_incidents', { id: demoUuid('boarding-incident-2'), tenant_id: tenantId, house_id: boardingHouseIds[2], student_id: studentIds[12], title: 'Exeat approval waiting', severity: 'warning', status: 'open' });
+  await writer.insertOnce('boarding_audit_logs', { id: demoUuid('boarding-audit-seed-1'), tenant_id: tenantId, actor_user_id: context.actorUserId, action: 'boarding.demo_roll_call_seeded', resource_type: 'boarding_demo_seed', resource_id: boardingHouseIds[0], metadata: meta({ houses: boardingHouses.length, boarders_seeded: 18, missing: boardingHouses.reduce((total, house) => total + house.missing, 0) }) });
   await writer.upsert('hostel_rooms', { id: hostelRoomId, tenant_id: tenantId, room_name: 'A1', capacity: 8, status: 'active' });
   await writer.upsert('hostel_allocations', { id: demoUuid('hostel-allocation-1'), tenant_id: tenantId, student_id: studentIds[0], room_id: hostelRoomId, bed_label: 'A1-04', status: 'active' });
   await writer.upsert('hostel_issues', { id: demoUuid('hostel-issue-1'), tenant_id: tenantId, title: 'Locker repair', room_id: hostelRoomId, priority: 'medium', status: 'open' });
@@ -1483,9 +1656,29 @@ async function seedDemoRows(writer: DemoSeedWriter, context: DemoContext): Promi
   await writer.upsert('ai_forecasts', { id: demoUuid('ai-forecast-1'), tenant_id: tenantId, forecast_type: 'fee_collection', value: 83, confidence_score: 0.86, status: 'active' });
   await writer.upsert('ai_anomalies', { id: demoUuid('ai-anomaly-1'), tenant_id: tenantId, anomaly_type: 'attendance_drop', severity: 'warning', status: 'open' });
   await writer.upsert('ai_recommendations', { id: demoUuid('ai-recommendation-1'), tenant_id: tenantId, title: 'Follow up Form 1 fee arrears', priority: 'medium', status: 'open' });
-  await writer.upsert('visitor_appointments', { id: visitorAppointmentId, tenant_id: tenantId, visitor_name: 'County Education Officer', appointment_at: '2026-05-28T07:00:00.000Z', purpose: 'Demo inspection', status: 'scheduled' });
-  await writer.upsert('visitor_badges', { id: visitorBadgeId, tenant_id: tenantId, badge_number: 'KB-VIS-DEMO-001', visitor_appointment_id: visitorAppointmentId, status: 'issued' });
-  await writer.upsert('visitor_emergency_logs', { id: demoUuid('visitor-emergency-1'), tenant_id: tenantId, event_type: 'drill', summary: 'Visitor evacuation demo drill', status: 'closed' });
+  const visitors = buildKisumuBoysDemoVisitors();
+  for (const [index, visitor] of visitors.entries()) {
+    const checkinId = demoUuid(`visitor-checkin-${index + 1}`);
+    const appointmentId = index === 0 ? visitorAppointmentId : demoUuid(`visitor-appointment-${index + 1}`);
+    const badgeId = index === 0 ? visitorBadgeId : demoUuid(`visitor-badge-${index + 1}`);
+    await writer.upsert('visitor_checkins', {
+      id: checkinId,
+      tenant_id: tenantId,
+      title: visitor.name,
+      category: visitor.reason,
+      owner_name: visitor.visiting,
+      status: visitor.status,
+      priority: visitor.priority,
+      metric_count: visitor.status === 'inside' ? 1 : 0,
+      notes: `${visitor.phoneOrId} visiting ${visitor.visiting}.`,
+      metadata: meta({ phone_or_id: visitor.phoneOrId, reason: visitor.reason, checkin_time: `2026-05-24T0${Math.min(index + 6, 9)}:15:00.000Z` }),
+      created_by_user_id: context.actorUserId,
+    });
+    await writer.upsert('visitor_appointments', { id: appointmentId, tenant_id: tenantId, visitor_name: visitor.name, host_user_id: index === 1 || index === 2 ? context.actorUserId : context.teacherUserId, appointment_at: `2026-05-24T0${Math.min(index + 6, 9)}:00:00.000Z`, status: visitor.status === 'exited' ? 'completed' : 'scheduled' });
+    await writer.upsert('visitor_badges', { id: badgeId, tenant_id: tenantId, checkin_id: checkinId, badge_number: `KB-VIS-DEMO-${String(index + 1).padStart(3, '0')}`, status: visitor.status === 'exited' ? 'returned' : 'issued', returned_at: visitor.status === 'exited' ? '2026-05-24T10:30:00.000Z' : undefined });
+  }
+  await writer.upsert('visitor_emergency_logs', { id: demoUuid('visitor-emergency-1'), tenant_id: tenantId, checkin_id: demoUuid('visitor-checkin-7'), event_type: 'overstay', severity: 'critical', notes: 'Deputy Principal notified about overstayed discipline follow-up visitor.' });
+  await writer.insertOnce('visitor_audit_logs', { id: demoUuid('visitor-audit-seed-1'), tenant_id: tenantId, actor_user_id: context.actorUserId, action: 'visitors.demo_gate_rush_seeded', resource_type: 'visitor_demo_seed', resource_id: demoUuid('visitor-checkin-1'), metadata: meta({ visitors: visitors.length, inside: visitors.filter((visitor) => visitor.status === 'inside').length, overstayed: visitors.filter((visitor) => visitor.status === 'overstayed').length }) });
   await writer.upsert('asset_assignments', { id: demoUuid('asset-assignment-1'), tenant_id: tenantId, asset_tag: 'KB-ASSET-PROJ-001', assigned_to_type: 'department', assigned_to_label: 'Science Department', status: 'active' });
   await writer.upsert('asset_repairs', { id: demoUuid('asset-repair-1'), tenant_id: tenantId, asset_tag: 'KB-ASSET-PROJ-001', issue_title: 'Projector lamp replacement', status: 'open' });
   await writer.upsert('asset_depreciation_entries', { id: demoUuid('asset-depreciation-1'), tenant_id: tenantId, asset_tag: 'KB-ASSET-PROJ-001', depreciation_month: '2026-05-01', amount_minor: 45000 });
@@ -1496,7 +1689,29 @@ async function seedDemoRows(writer: DemoSeedWriter, context: DemoContext): Promi
   await writer.upsert('iot_alerts', { id: demoUuid('iot-alert-1'), tenant_id: tenantId, title: 'Water level stable', message: 'Demo IoT water tank reading normal.', severity: 'info', metadata: meta() });
 
   await writer.upsert('school_sms_wallets', { id: demoUuid('sms-wallet-1'), tenant_id: tenantId, sms_balance: 2500, monthly_used: 120, allow_negative_balance: false });
-  await writer.upsert('sms_logs', { id: demoUuid('sms-log-1'), tenant_id: tenantId, recipient_ciphertext: 'demo-redacted', recipient_hash: 'kb-demo-recipient', status: 'delivered', message_body: 'Kisumu Boys demo SMS notice' });
+  const smsMessages = [
+    { key: 'absence', status: 'delivered', body: 'Kisumu Boys: Your son was marked absent today. Please contact the class teacher.' },
+    { key: 'fee-reminder', status: 'queued', body: 'Kisumu Boys: Kindly clear the pending fee balance before the end of the week.' },
+    { key: 'clinic', status: 'delivered', body: 'Kisumu Boys: Your son was attended to at the sick bay and is stable.' },
+    { key: 'library', status: 'queued', body: 'Kisumu Boys: Library book is overdue. Please remind your son to return it.' },
+    { key: 'boarding', status: 'failed', body: 'Kisumu Boys: Boarding office has recorded a late return requiring follow-up.' },
+  ];
+  for (const [index, sms] of smsMessages.entries()) {
+    await writer.upsert('sms_logs', { id: demoUuid(`sms-log-${sms.key}`), tenant_id: tenantId, recipient_ciphertext: `demo-redacted-${index + 1}`, recipient_hash: `kb-demo-recipient-${index + 1}`, status: sms.status, message_body: sms.body, metadata: meta({ guardian_id: guardianIds[index], student_id: studentIds[index] }) });
+  }
+  for (const notification of buildKisumuBoysDemoOperationalNotifications()) {
+    await writer.upsert('notifications', {
+      id: demoUuid(`notification-${notification.key}`),
+      tenant_id: tenantId,
+      notification_key: `KB-DEMO-${notification.key}`,
+      recipient_guardian_id: notification.targetGuardianIndex === undefined ? undefined : guardianIds[notification.targetGuardianIndex],
+      type: notification.type,
+      title: notification.title,
+      body: notification.body,
+      status: notification.priority === 'normal' ? 'sent' : 'unread',
+      metadata: meta({ audience_roles: notification.audienceRoles, priority: notification.priority, source: 'kisumu_boys_demo_seed' }),
+    });
+  }
   await writer.upsert('school_integrations', { id: demoUuid('school-integration-sms'), tenant_id: tenantId, integration_type: 'mpesa_daraja', environment: 'sandbox', provider_name: 'SMS relay demo', status: 'configured' });
   await writer.upsert('integration_logs', { id: demoUuid('integration-log-1'), tenant_id: tenantId, integration_type: 'mpesa_daraja', operation: 'send_notice', status: 'success' });
 

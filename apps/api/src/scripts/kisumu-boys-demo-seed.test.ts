@@ -4,12 +4,16 @@ import test from 'node:test';
 
 import {
   DEMO_MODULE_CODES,
+  buildKisumuBoysDemoBoardingHouses,
   buildKisumuBoysDemoAccessSummary,
+  buildKisumuBoysDemoFinanceEvents,
   buildKisumuBoysDemoInventoryCatalog,
   buildKisumuBoysDemoLibraryCatalog,
   buildKisumuBoysDemoMedicineCatalog,
+  buildKisumuBoysDemoOperationalNotifications,
   buildKisumuBoysDemoStudentRoster,
   buildKisumuBoysDemoTransportRoutes,
+  buildKisumuBoysDemoVisitors,
   KISUMU_BOYS_DEMO_SEED_KEY,
   assertKisumuBoysTenantSelection,
   buildKisumuBoysDemoSeedPlan,
@@ -162,4 +166,22 @@ test('Kisumu Boys operational blueprints cover clinic, store, assets, and transp
   assert.equal(inventory.filter((item) => item.kind === 'asset').length, 5);
   assert.equal(routes.length, 6);
   assert.equal(routes.some((route) => route.name === 'Milimani Route'), true);
+});
+
+test('Kisumu Boys cross-dashboard blueprints cover boarding, visitors, finance, and notifications', () => {
+  const houses = buildKisumuBoysDemoBoardingHouses();
+  const visitors = buildKisumuBoysDemoVisitors();
+  const financeEvents = buildKisumuBoysDemoFinanceEvents();
+  const notifications = buildKisumuBoysDemoOperationalNotifications();
+
+  assert.equal(houses.length, 4);
+  assert.equal(visitors.length, 8);
+  assert.equal(visitors.filter((visitor) => visitor.status === 'inside').length, 5);
+  assert.equal(financeEvents.payments.length, 6);
+  assert.equal(financeEvents.mpesa.length, 5);
+  assert.equal(notifications.length, 10);
+  assert.equal(
+    notifications.every((notification) => notification.audienceRoles.length > 0),
+    true,
+  );
 });
