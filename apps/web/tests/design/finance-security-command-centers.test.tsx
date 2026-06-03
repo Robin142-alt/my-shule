@@ -77,7 +77,22 @@ describe("finance and security command center interactions", () => {
     expect(screen.getByText(/grace achieng opened in security records/i)).toBeVisible();
 
     await user.click(screen.getByRole("button", { name: /emergency panic/i }));
-    expect(screen.getByText(/emergency panic confirmation opened/i)).toBeVisible();
+    const panicDialog = screen.getByRole("dialog", { name: /security emergency panic/i });
+    expect(panicDialog).toBeVisible();
+    expect(within(panicDialog).getAllByText(/principal, deputy, security team, and system monitor/i).length).toBeGreaterThan(0);
+
+    await user.click(within(panicDialog).getByRole("button", { name: /raise emergency alert/i }));
+
+    expect(screen.getByText(/emergency panic alert raised/i)).toBeVisible();
+    expect(readSchoolData<Record<string, unknown>>("events", "kb-high")).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          schoolId: "kb-high",
+          type: "SECURITY_EMERGENCY_PANIC_RAISED",
+          module: "security",
+        }),
+      ]),
+    );
   });
 
   it("lets security check in and check out a visitor from the active visitor desk", async () => {

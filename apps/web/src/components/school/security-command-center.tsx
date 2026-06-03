@@ -404,11 +404,13 @@ function Sidebar({
 function TopHeader({
   searchTerm,
   searchResults,
+  onEmergencyPanic,
   onSearchTermChange,
   onSearchResult,
 }: {
   searchTerm: string;
   searchResults: typeof securitySearchRecords;
+  onEmergencyPanic: () => void;
   onSearchTermChange: (value: string) => void;
   onSearchResult: (record: SecuritySearchRecord) => void;
 }) {
@@ -474,7 +476,7 @@ function TopHeader({
             <StatusChip icon={ShieldCheck} label="Campus Secure" tone="secure" />
             <StatusChip icon={Sparkles} label="AI watching" tone="cyan" />
             <StatusChip icon={AlertOctagon} label="2 active incidents" tone="danger" />
-            <button type="button" onClick={() => announceAction("Emergency panic confirmation opened for the security desk.")} className="inline-flex items-center gap-2 rounded-[var(--radius-lg)] bg-rose-600 px-4 py-2 text-sm font-black text-white shadow-[0_16px_34px_rgba(225,29,72,0.24)] transition hover:-translate-y-0.5">
+            <button type="button" onClick={onEmergencyPanic} className="inline-flex items-center gap-2 rounded-[var(--radius-lg)] bg-rose-600 px-4 py-2 text-sm font-black text-white shadow-[0_16px_34px_rgba(225,29,72,0.24)] transition hover:-translate-y-0.5">
               <Siren className="h-4 w-4" aria-hidden="true" />
               Emergency panic
             </button>
@@ -1051,6 +1053,7 @@ export function SecurityCommandCenter({ routeMode }: { routeMode: SecurityRouteM
   const [notice, setNotice] = useState("Security desk ready for gate operations.");
   const [activeSection, setActiveSection] = useState("top");
   const [visitors, setVisitors] = useState<VisitorRecord[]>(initialVisitorRows);
+  const [panicDialogOpen, setPanicDialogOpen] = useState(false);
   const searchResults = searchTerm.trim()
     ? securitySearchRecords.filter((record) => `${record.label} ${record.detail}`.toLowerCase().includes(searchTerm.toLowerCase()))
     : [];
@@ -1083,6 +1086,48 @@ export function SecurityCommandCenter({ routeMode }: { routeMode: SecurityRouteM
     setActiveSection(sectionId);
     const label = securityNav.find((item) => item.sectionId === sectionId)?.label ?? "Security desk";
     setNotice(`${label} opened.`);
+  }
+
+  function openEmergencyPanic() {
+    setPanicDialogOpen(true);
+    setNotice("Emergency panic confirmation opened.");
+  }
+
+  function raiseEmergencyPanic() {
+    const incidentId = runtimeId("security-panic");
+
+    publishSchoolOperationalEvent({
+      schoolId,
+      actorRole: "security",
+      type: "SECURITY_EMERGENCY_PANIC_RAISED",
+      module: "security",
+      title: "Emergency panic alert raised",
+      body: "Security raised an emergency panic alert for immediate school leadership and system monitor attention.",
+      entityId: incidentId,
+      severity: "critical",
+      payload: {
+        incidentId,
+        gate: "Main Gate",
+        responseDesk: "Security Command Center",
+        status: "Raised",
+      },
+      notifications: [
+        {
+          audienceRoles: ["principal", "deputy principal", "security", "system monitor"],
+          title: "Emergency panic alert raised",
+          body: "Security raised an urgent panic alert. Principal, Deputy, Security team, and System Monitor need immediate visibility.",
+          severity: "critical",
+          relatedModule: "security",
+          relatedRecordId: incidentId,
+          requiresAction: true,
+          requestStatus: "Pending",
+        },
+      ],
+    });
+
+    setPanicDialogOpen(false);
+    setActiveSection("emergency-mode");
+    setNotice("Emergency panic alert raised.");
   }
 
   function addVisitor(visitor: Omit<VisitorRecord, "id" | "entryTime" | "expectedExit" | "status" | "tone">) {
@@ -1190,12 +1235,59 @@ export function SecurityCommandCenter({ routeMode }: { routeMode: SecurityRouteM
           <TopHeader
             searchTerm={searchTerm}
             searchResults={searchResults}
+            onEmergencyPanic={openEmergencyPanic}
             onSearchTermChange={setSearchTerm}
             onSearchResult={openSearchRecord}
           />
           <div role="status" className="rounded-[var(--radius-lg)] border border-[#C8D5EA] bg-white px-4 py-3 text-sm font-black text-[#071D49] shadow-[0_12px_30px_rgba(7,29,73,0.08)]">
             {notice}
           </div>
+          {panicDialogOpen ? (
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-label="Security emergency panic"
+              className="rounded-[var(--radius-xl)] border border-rose-300/55 bg-white p-4 text-[#071D49] shadow-[0_22px_70px_rgba(225,29,72,0.2)] md:p-5"
+            >
+              <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[0.16em] text-rose-700">Emergency confirmation</p>
+                  <h2 className="mt-2 text-2xl font-black">Raise security panic alert?</h2>
+                  <p className="mt-2 max-w-3xl text-sm font-semibold leading-6 text-[#5F6F89]">
+                    This creates a critical same-school alert for Principal, Deputy, Security team, and System Monitor. Use it only for urgent gate, learner, intruder, or safety emergencies.
+                  </p>
+                  <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                    {[
+                      ["Scope", "Kisumu Boys High School"],
+                      ["Recipients", "Principal, Deputy, Security team, and System Monitor"],
+                      ["Status", "Pending emergency response"],
+                    ].map(([label, value]) => (
+                      <div key={label} className="rounded-[var(--radius-lg)] border border-[#C8D5EA] bg-[#F8FAFC] p-3">
+                        <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[#5F6F89]">{label}</p>
+                        <p className="mt-1 text-sm font-black">{value}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2 lg:justify-end">
+                  <button
+                    type="button"
+                    onClick={raiseEmergencyPanic}
+                    className="inline-flex min-h-10 items-center justify-center rounded-[var(--radius)] bg-rose-600 px-4 text-sm font-black text-white"
+                  >
+                    Raise emergency alert
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPanicDialogOpen(false)}
+                    className="inline-flex min-h-10 items-center justify-center rounded-[var(--radius)] border border-[#C8D5EA] bg-white px-4 text-sm font-black text-[#071D49]"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : null}
           <ActiveSecuritySection
             activeSection={activeSection}
             visitors={visitors}
