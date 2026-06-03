@@ -93,6 +93,24 @@ describe("finance and security command center interactions", () => {
         }),
       ]),
     );
+
+    await user.click(screen.getByRole("button", { name: /security notifications/i }));
+    const notificationsDialog = screen.getByRole("dialog", { name: /security notifications/i });
+    expect(notificationsDialog).toBeVisible();
+    expect(within(notificationsDialog).getByText(/active security incidents/i)).toBeVisible();
+
+    await user.click(within(notificationsDialog).getByRole("button", { name: /mark urgent alerts reviewed/i }));
+
+    expect(screen.getByText(/security notifications reviewed/i)).toBeVisible();
+    expect(readSchoolData<Record<string, unknown>>("events", "kb-high")).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          schoolId: "kb-high",
+          type: "SECURITY_NOTIFICATIONS_REVIEWED",
+          module: "security",
+        }),
+      ]),
+    );
   });
 
   it("lets security check in and check out a visitor from the active visitor desk", async () => {

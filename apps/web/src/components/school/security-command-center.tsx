@@ -405,12 +405,14 @@ function TopHeader({
   searchTerm,
   searchResults,
   onEmergencyPanic,
+  onOpenNotifications,
   onSearchTermChange,
   onSearchResult,
 }: {
   searchTerm: string;
   searchResults: typeof securitySearchRecords;
   onEmergencyPanic: () => void;
+  onOpenNotifications: () => void;
   onSearchTermChange: (value: string) => void;
   onSearchResult: (record: SecuritySearchRecord) => void;
 }) {
@@ -480,7 +482,7 @@ function TopHeader({
               <Siren className="h-4 w-4" aria-hidden="true" />
               Emergency panic
             </button>
-            <button type="button" onClick={() => announceAction("Security notifications opened.")} aria-label="Security notifications" className="grid h-10 w-10 place-items-center rounded-[var(--radius)] border border-[#C8D5EA] bg-white text-[#071D49]">
+            <button type="button" onClick={onOpenNotifications} aria-label="Security notifications" className="grid h-10 w-10 place-items-center rounded-[var(--radius)] border border-[#C8D5EA] bg-white text-[#071D49]">
               <Bell className="h-4 w-4" aria-hidden="true" />
             </button>
           </div>
@@ -1054,6 +1056,7 @@ export function SecurityCommandCenter({ routeMode }: { routeMode: SecurityRouteM
   const [activeSection, setActiveSection] = useState("top");
   const [visitors, setVisitors] = useState<VisitorRecord[]>(initialVisitorRows);
   const [panicDialogOpen, setPanicDialogOpen] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
   const searchResults = searchTerm.trim()
     ? securitySearchRecords.filter((record) => `${record.label} ${record.detail}`.toLowerCase().includes(searchTerm.toLowerCase()))
     : [];
@@ -1091,6 +1094,41 @@ export function SecurityCommandCenter({ routeMode }: { routeMode: SecurityRouteM
   function openEmergencyPanic() {
     setPanicDialogOpen(true);
     setNotice("Emergency panic confirmation opened.");
+  }
+
+  function openNotifications() {
+    setNotificationsOpen(true);
+    setNotice("Security notifications opened.");
+  }
+
+  function reviewSecurityNotifications() {
+    publishSchoolOperationalEvent({
+      schoolId,
+      actorRole: "security",
+      type: "SECURITY_NOTIFICATIONS_REVIEWED",
+      module: "security",
+      title: "Security notifications reviewed",
+      body: "Security reviewed urgent gate, visitor, incident, and emergency notifications.",
+      entityId: "security-notifications",
+      severity: "success",
+      payload: {
+        reviewedQueues: ["Active security incidents", "Visitors currently inside", "Boarding night alerts"],
+        remainingUrgent: 2,
+      },
+      notifications: [
+        {
+          audienceRoles: ["principal", "deputy principal", "security"],
+          title: "Security notifications reviewed",
+          body: "Security desk reviewed urgent security notifications and kept unresolved issues visible.",
+          severity: "success",
+          relatedModule: "security",
+          relatedRecordId: "security-notifications",
+          requestStatus: "Completed",
+        },
+      ],
+    });
+    setNotificationsOpen(false);
+    setNotice("Security notifications reviewed.");
   }
 
   function raiseEmergencyPanic() {
@@ -1263,6 +1301,7 @@ export function SecurityCommandCenter({ routeMode }: { routeMode: SecurityRouteM
             searchTerm={searchTerm}
             searchResults={searchResults}
             onEmergencyPanic={openEmergencyPanic}
+            onOpenNotifications={openNotifications}
             onSearchTermChange={setSearchTerm}
             onSearchResult={openSearchRecord}
           />
@@ -1307,6 +1346,49 @@ export function SecurityCommandCenter({ routeMode }: { routeMode: SecurityRouteM
                   <button
                     type="button"
                     onClick={() => setPanicDialogOpen(false)}
+                    className="inline-flex min-h-10 items-center justify-center rounded-[var(--radius)] border border-[#C8D5EA] bg-white px-4 text-sm font-black text-[#071D49]"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : null}
+          {notificationsOpen ? (
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-label="Security notifications"
+              className="rounded-[var(--radius-xl)] border border-[#C8D5EA] bg-white p-4 text-[#071D49] shadow-[0_18px_55px_rgba(7,29,73,0.12)] md:p-5"
+            >
+              <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[0.16em] text-[#5F6F89]">Urgent security inbox</p>
+                  <h2 className="mt-2 text-2xl font-black">Security notifications</h2>
+                  <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                    {[
+                      ["Active security incidents", "2 need guard follow-up"],
+                      ["Visitors currently inside", `${visitorsInside} marked inside`],
+                      ["Boarding night alerts", "4 curfew checks pending"],
+                    ].map(([label, value]) => (
+                      <div key={label} className="rounded-[var(--radius-lg)] border border-[#C8D5EA] bg-[#F8FAFC] p-3">
+                        <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[#5F6F89]">{label}</p>
+                        <p className="mt-1 text-sm font-black">{value}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2 lg:justify-end">
+                  <button
+                    type="button"
+                    onClick={reviewSecurityNotifications}
+                    className="inline-flex min-h-10 items-center justify-center rounded-[var(--radius)] bg-[#071D49] px-4 text-sm font-black text-white"
+                  >
+                    Mark urgent alerts reviewed
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setNotificationsOpen(false)}
                     className="inline-flex min-h-10 items-center justify-center rounded-[var(--radius)] border border-[#C8D5EA] bg-white px-4 text-sm font-black text-[#071D49]"
                   >
                     Cancel
