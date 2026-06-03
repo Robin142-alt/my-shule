@@ -372,15 +372,84 @@ function DataTable({
   rows: ReadonlyArray<readonly string[]>;
   columns: string[];
 }) {
+  const [actionMode, setActionMode] = useState<"export" | "filter" | null>(null);
+
+  function saveTableAction() {
+    if (!actionMode) return;
+
+    const schoolId = getCurrentSchoolId();
+    const tableSlug = title.toLowerCase().replaceAll(" ", "-");
+    const isExport = actionMode === "export";
+
+    publishSchoolOperationalEvent({
+      schoolId,
+      type: isExport ? "GRADE_MASTER_TABLE_EXPORT_REQUESTED" : "GRADE_MASTER_TABLE_FILTERS_APPLIED",
+      module: isExport ? "reports" : "academics",
+      actorRole: "Grade/Form Master",
+      title: isExport ? `${title} export requested` : `${title} filters applied`,
+      body: isExport
+        ? `Grade/Form Master requested ${title} export for Form 2 oversight.`
+        : `Grade/Form Master applied filters to ${title} for Form 2 follow-up.`,
+      entityId: `grade-master-${actionMode}-${tableSlug}`,
+      severity: "info",
+      payload: {
+        mode: actionMode,
+        tableTitle: title,
+        grade: "Form 2",
+        filters: ["Low attendance", "Parent follow-up", "Stream comparison"],
+      },
+      notifications: [
+        {
+          audienceRoles: ["Deputy Principal", "Principal", "Class Teacher"],
+          title: isExport ? "Grade table export requested" : "Grade table filters applied",
+          body: `${title} ${isExport ? "export" : "filters"} saved for Form 2 oversight.`,
+          severity: "info",
+          relatedModule: isExport ? "reports" : "academics",
+          relatedRecordId: `grade-master-${actionMode}-${tableSlug}`,
+          requestStatus: "Completed",
+        },
+      ],
+    });
+
+    announceAction(isExport ? `${title} export saved.` : `${title} filters applied.`);
+    setActionMode(null);
+  }
+
   return (
     <div className="overflow-hidden rounded-2xl border border-[#D8E0EC] bg-white/80">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#D8E0EC] bg-[#F8FAFC] px-4 py-3">
         <h3 className="text-sm font-black uppercase tracking-[0.14em] text-[#071D49]">{title}</h3>
         <div className="flex gap-2">
-          <button type="button" onClick={() => announceAction(`${title} filters opened.`)} className="rounded-lg border border-[#D8E0EC] px-3 py-1.5 text-xs font-black text-[#071D49]">Filters</button>
-          <button type="button" onClick={() => announceAction(`${title} exported for grade records.`)} className="rounded-lg border border-[#D8E0EC] px-3 py-1.5 text-xs font-black text-[#071D49]">Export</button>
+          <button type="button" onClick={() => setActionMode("filter")} className="rounded-lg border border-[#D8E0EC] px-3 py-1.5 text-xs font-black text-[#071D49]">Filters</button>
+          <button type="button" onClick={() => setActionMode("export")} className="rounded-lg border border-[#D8E0EC] px-3 py-1.5 text-xs font-black text-[#071D49]">Export</button>
         </div>
       </div>
+      {actionMode ? (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={actionMode === "filter" ? "Grade table filters" : "Grade table export"}
+          className="m-4 rounded-2xl border border-[#D8E0EC] bg-white p-4 shadow-[0_18px_45px_rgba(7,29,73,0.1)]"
+        >
+          <p className="text-xs font-black uppercase tracking-[0.16em] text-[#64748B]">
+            {actionMode === "filter" ? "Grade table filters" : "Grade table export"}
+          </p>
+          <h4 className="mt-2 text-xl font-black text-[#071D49]">{title}</h4>
+          <p className="mt-2 text-sm font-semibold leading-6 text-[#64748B]">
+            {actionMode === "filter"
+              ? "Apply Form 2 filters for low attendance, parent follow-up, and stream comparison."
+              : "Save this Form 2 export request for the same school reports workspace."}
+          </p>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <button type="button" onClick={saveTableAction} className="min-h-10 rounded-xl bg-[#071D49] px-4 text-sm font-black text-white">
+              {actionMode === "filter" ? "Apply filters" : "Save export request"}
+            </button>
+            <button type="button" onClick={() => setActionMode(null)} className="min-h-10 rounded-xl border border-[#D8E0EC] px-4 text-sm font-black text-[#071D49]">
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : null}
       <div className="overflow-x-auto">
         <table className="w-full min-w-[680px] text-left text-sm">
           <thead className="sticky top-0 bg-[#EEF2FF] text-xs uppercase tracking-[0.12em] text-[#64748B]">

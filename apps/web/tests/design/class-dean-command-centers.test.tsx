@@ -126,6 +126,43 @@ describe("class teacher and dean command center interactions", () => {
     );
   });
 
+  it("makes grade master table filters and exports executable", async () => {
+    const user = userEvent.setup();
+
+    renderWithProviders(<GradeMasterCommandCenter routeMode="hosted" />);
+
+    await user.click(screen.getByRole("button", { name: /attendance oversight/i }));
+    await user.click(screen.getByRole("button", { name: /^filters$/i }));
+
+    const filterDialog = screen.getByRole("dialog", { name: /grade table filters/i });
+    expect(filterDialog).toBeVisible();
+    expect(within(filterDialog).getByText(/stream attendance ranking/i)).toBeVisible();
+
+    await user.click(within(filterDialog).getByRole("button", { name: /apply filters/i }));
+    expect(screen.getByText(/stream attendance ranking filters applied/i)).toBeVisible();
+
+    await user.click(screen.getByRole("button", { name: /^export$/i }));
+    const exportDialog = screen.getByRole("dialog", { name: /grade table export/i });
+    expect(exportDialog).toBeVisible();
+
+    await user.click(within(exportDialog).getByRole("button", { name: /save export request/i }));
+    expect(screen.getByText(/stream attendance ranking export saved/i)).toBeVisible();
+    expect(readSchoolData<Record<string, unknown>>("events", "kb-high")).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          schoolId: "kb-high",
+          type: "GRADE_MASTER_TABLE_FILTERS_APPLIED",
+          module: "academics",
+        }),
+        expect.objectContaining({
+          schoolId: "kb-high",
+          type: "GRADE_MASTER_TABLE_EXPORT_REQUESTED",
+          module: "reports",
+        }),
+      ]),
+    );
+  });
+
   it("makes HOD table search and filter controls executable", async () => {
     const user = userEvent.setup();
 

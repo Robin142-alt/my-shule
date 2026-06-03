@@ -57,6 +57,21 @@ describe("academic command center interactions", () => {
     expect(screen.getByText(/mrs\. wanjiku opened in parent escalations/i)).toBeVisible();
 
     await user.click(screen.getByRole("button", { name: /export/i }));
-    expect(screen.getByText(/escalation tickets exported for grade records/i)).toBeVisible();
+    const exportDialog = screen.getByRole("dialog", { name: /grade table export/i });
+    expect(exportDialog).toBeVisible();
+    expect(within(exportDialog).getByText(/escalation tickets/i)).toBeVisible();
+
+    await user.click(within(exportDialog).getByRole("button", { name: /save export request/i }));
+
+    expect(screen.getByText(/escalation tickets export saved/i)).toBeVisible();
+    expect(readSchoolData<Record<string, unknown>>("events", "kb-high")).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          schoolId: "kb-high",
+          type: "GRADE_MASTER_TABLE_EXPORT_REQUESTED",
+          module: "reports",
+        }),
+      ]),
+    );
   });
 });
