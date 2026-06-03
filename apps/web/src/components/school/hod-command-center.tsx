@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import {
   AlertTriangle,
   Archive,
@@ -152,12 +152,13 @@ const hodSearchRecords = [
 ] satisfies Array<{ id: string; label: string; detail: string; view: HodView }>;
 
 type HodSearchRecord = (typeof hodSearchRecords)[number];
-
-function announceAction(message: string) {
-  if (typeof window !== "undefined") {
-    window.dispatchEvent(new CustomEvent("myshule-dashboard-action", { detail: message }));
-  }
-}
+type HodReportReview = { title: string };
+type HodCommunicationDraft = { title: string };
+type DataTableActionHandlers = {
+  onExportAction: (tableTitle: string) => void;
+  onFilterAction: (tableTitle: string) => void;
+  onSearchAction: (tableTitle: string) => void;
+};
 
 function cn(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
@@ -378,18 +379,18 @@ function DataTable({
   title: string;
   rows: ReadonlyArray<readonly string[]>;
   columns: string[];
-  onSearch?: (title: string) => void;
-  onFilter?: (title: string) => void;
-  onExport?: (title: string) => void;
+  onSearch: (title: string) => void;
+  onFilter: (title: string) => void;
+  onExport: (title: string) => void;
 }) {
   return (
     <div className="overflow-hidden rounded-2xl border border-[#D8E0EC] bg-white/80">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#D8E0EC] bg-[#F8FAFC] px-4 py-3">
         <h3 className="text-sm font-black uppercase tracking-[0.14em] text-[#071D49]">{title}</h3>
         <div className="flex gap-2">
-          <button type="button" onClick={() => (onSearch ? onSearch(title) : announceAction(`${title} search opened.`))} className="rounded-lg border border-[#D8E0EC] px-3 py-1.5 text-xs font-black text-[#071D49]">Search</button>
-          <button type="button" onClick={() => (onFilter ? onFilter(title) : announceAction(`${title} filters opened.`))} className="rounded-lg border border-[#D8E0EC] px-3 py-1.5 text-xs font-black text-[#071D49]">Filters</button>
-          <button type="button" onClick={() => (onExport ? onExport(title) : announceAction(`${title} exported for department records.`))} className="rounded-lg border border-[#D8E0EC] px-3 py-1.5 text-xs font-black text-[#071D49]">Export</button>
+          <button type="button" onClick={() => onSearch(title)} className="rounded-lg border border-[#D8E0EC] px-3 py-1.5 text-xs font-black text-[#071D49]">Search</button>
+          <button type="button" onClick={() => onFilter(title)} className="rounded-lg border border-[#D8E0EC] px-3 py-1.5 text-xs font-black text-[#071D49]">Filters</button>
+          <button type="button" onClick={() => onExport(title)} className="rounded-lg border border-[#D8E0EC] px-3 py-1.5 text-xs font-black text-[#071D49]">Export</button>
         </div>
       </div>
       <div className="overflow-x-auto">
@@ -479,13 +480,7 @@ function OverviewWorkspace() {
   );
 }
 
-function TeachersWorkspace({
-  onFilterAction,
-  onSearchAction,
-}: {
-  onFilterAction: (tableTitle: string) => void;
-  onSearchAction: (tableTitle: string) => void;
-}) {
+function TeachersWorkspace({ onExportAction, onFilterAction, onSearchAction }: DataTableActionHandlers) {
   return (
     <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
       <Panel title="Teachers Workspace" description="Manage teacher performance, attendance, syllabus progress, lesson plan compliance, and exam submission status." icon={Users}>
@@ -495,6 +490,7 @@ function TeachersWorkspace({
           rows={teachers}
           onFilter={onFilterAction}
           onSearch={onSearchAction}
+          onExport={onExportAction}
         />
       </Panel>
       <Panel title="Teacher review panel" description="Observations, recommendations, and follow-ups remain in context." icon={ClipboardList}>
@@ -532,7 +528,7 @@ function SubjectsWorkspace() {
   );
 }
 
-function SyllabusWorkspace() {
+function SyllabusWorkspace({ onExportAction, onFilterAction, onSearchAction }: DataTableActionHandlers) {
   return (
     <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
       <Panel title="Syllabus Coverage Workspace" description="Major operational screen for curriculum timelines, completion charts, and delayed class visibility." icon={Timer}>
@@ -544,6 +540,9 @@ function SyllabusWorkspace() {
             ["Form 2 East", "16", "6", "Behind by 5 days", "Mr. Otieno", "Watch"],
             ["Form 3 North", "14", "9", "Behind by 11%", "Ms. Wairimu", "Delayed"],
           ]}
+          onSearch={onSearchAction}
+          onFilter={onFilterAction}
+          onExport={onExportAction}
         />
       </Panel>
       <Panel title="Curriculum timeline" description="Progress bars expose delayed classes immediately." icon={SlidersHorizontal}>
@@ -562,7 +561,7 @@ function SyllabusWorkspace() {
   );
 }
 
-function ExamsWorkspace({ onExportAction }: { onExportAction: (tableTitle: string) => void }) {
+function ExamsWorkspace({ onExportAction, onFilterAction, onSearchAction }: DataTableActionHandlers) {
   return (
     <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
       <Panel title="Exams & Performance Workspace" description="CATs, midterms, end terms, practical exams, departmental mean score, rankings, and stream comparisons." icon={BarChart3}>
@@ -574,17 +573,26 @@ function ExamsWorkspace({ onExportAction }: { onExportAction: (tableTitle: strin
             ["Midterm", "71%", "Form 2 South", "C+ dominant", "4", "Moderate"],
             ["Practical exam", "74%", "Grade 8 Blue", "B dominant", "8", "Review"],
           ]}
+          onSearch={onSearchAction}
+          onFilter={onFilterAction}
           onExport={onExportAction}
         />
       </Panel>
       <Panel title="Student risk detection" description="Struggling students, declining trends, and weak topics." icon={AlertTriangle}>
-        <DataTable title="Risk learners" columns={["Student", "Class", "Trigger", "Risk", "Next Action"]} rows={riskStudents} />
+        <DataTable
+          title="Risk learners"
+          columns={["Student", "Class", "Trigger", "Risk", "Next Action"]}
+          rows={riskStudents}
+          onSearch={onSearchAction}
+          onFilter={onFilterAction}
+          onExport={onExportAction}
+        />
       </Panel>
     </div>
   );
 }
 
-function LessonPlansWorkspace() {
+function LessonPlansWorkspace({ onExportAction, onFilterAction, onSearchAction }: DataTableActionHandlers) {
   return (
     <Panel title="Lesson Plans Workspace" description="Lesson plan review queue with submitted, approved, pending, and rejected states." icon={FileText}>
       <div className="grid gap-4 xl:grid-cols-[1fr_1fr]">
@@ -592,7 +600,7 @@ function LessonPlansWorkspace() {
           ["Mr. Otieno", "Quadratic equations", "Form 3", "Pending", "Today"],
           ["Mrs. Achieng", "Ratios", "Form 1", "Approved", "Closed"],
           ["Ms. Wairimu", "Statistics", "Grade 8", "Rejected", "Revise"],
-        ]} />
+        ]} onSearch={onSearchAction} onFilter={onFilterAction} onExport={onExportAction} />
         <div className="rounded-2xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
           <h3 className="font-black text-[#071D49]">Lesson insights</h3>
           {["Curriculum alignment", "Teaching consistency", "Topic pacing"].map((item, index) => (
@@ -607,7 +615,7 @@ function LessonPlansWorkspace() {
   );
 }
 
-function AttendanceWorkspace() {
+function AttendanceWorkspace({ onExportAction, onFilterAction, onSearchAction }: DataTableActionHandlers) {
   return (
     <Panel title="Attendance Analysis Workspace" description="Teacher attendance, absentee trends, lateness, replacement classes, and attendance vs academic performance." icon={UserCheck}>
       <div className="grid gap-4 xl:grid-cols-[1fr_1fr]">
@@ -615,7 +623,7 @@ function AttendanceWorkspace() {
           ["Mr. Otieno", "98%", "1", "0", "Stable"],
           ["Mrs. Achieng", "96%", "0", "1", "Good"],
           ["Ms. Wairimu", "92%", "3", "2", "Watch"],
-        ]} />
+        ]} onSearch={onSearchAction} onFilter={onFilterAction} onExport={onExportAction} />
         <div className="rounded-2xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
           <h3 className="font-black text-[#071D49]">Student attendance correlation</h3>
           <p className="mt-2 text-sm font-semibold text-[#64748B]">Attendance vs academic performance shows Form 3 North risk rising.</p>
@@ -626,19 +634,19 @@ function AttendanceWorkspace() {
   );
 }
 
-function ResourcesWorkspace() {
+function ResourcesWorkspace({ onExportAction, onFilterAction, onSearchAction }: DataTableActionHandlers) {
   return (
     <Panel title="Department Resources Workspace" description="Textbooks, lab equipment, teaching aids, digital resources, allocation, availability, shortages, and requests." icon={Archive}>
       <DataTable title="Resource allocation" columns={["Resource", "Type", "Available", "Allocated", "Shortage", "Request Status"]} rows={[
         ["Mathematics textbooks", "Textbooks", "318", "290", "42", "Requested"],
         ["Geometry kits", "Teaching aids", "74", "68", "12", "Pending"],
         ["Digital revision packs", "Digital resources", "Active", "All classes", "0", "Healthy"],
-      ]} />
+      ]} onSearch={onSearchAction} onFilter={onFilterAction} onExport={onExportAction} />
     </Panel>
   );
 }
 
-function MeetingsWorkspace() {
+function MeetingsWorkspace({ onReportReview }: { onReportReview: (title: string) => void }) {
   return (
     <Panel title="Meetings & Reports Workspace" description="Schedules, agendas, attendance, action items, departmental reports, syllabus reports, and teacher evaluation reports." icon={CalendarDays}>
       <div className="grid gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
@@ -653,7 +661,7 @@ function MeetingsWorkspace() {
             <button
               key={item}
               type="button"
-              onClick={() => announceAction(`${item} opened for review and export.`)}
+              onClick={() => onReportReview(item)}
               className="rounded-2xl border border-[#D8E0EC] bg-[#EEF5FF] p-4 text-left font-black text-[#071D49]"
             >
               {item}
@@ -665,14 +673,14 @@ function MeetingsWorkspace() {
   );
 }
 
-function StudentAnalyticsWorkspace() {
+function StudentAnalyticsWorkspace({ onExportAction, onFilterAction, onSearchAction }: DataTableActionHandlers) {
   return (
     <Panel title="Student Analytics Workspace" description="Top performers, struggling learners, improvement trends, talent identification, and filters by class, stream, gender, subject, and performance band." icon={GraduationCap}>
       <DataTable title="Student insights" columns={["Student", "Class", "Band", "Trend", "Talent / Risk", "Action"]} rows={[
         ["Mary Wambui", "Form 2 South", "Top performer", "+8%", "Talent identification", "Enrich"],
         ["Brian Otieno", "Form 2 East", "Struggling learner", "-12%", "Algebra risk", "Remedial"],
         ["Kevin Mwangi", "Form 3 North", "Improving", "+6%", "Watch", "Encourage"],
-      ]} />
+      ]} onSearch={onSearchAction} onFilter={onFilterAction} onExport={onExportAction} />
     </Panel>
   );
 }
@@ -692,7 +700,7 @@ function TimetableWorkspace() {
   );
 }
 
-function ComplianceWorkspace() {
+function ComplianceWorkspace({ onExportAction, onFilterAction, onSearchAction }: DataTableActionHandlers) {
   return (
     <Panel title="Curriculum Compliance Workspace" description="Competency-based standards, lesson audit tracking, curriculum completion, assessment policy adherence, and governance evidence." icon={ShieldCheck}>
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
@@ -700,7 +708,7 @@ function ComplianceWorkspace() {
           ["CBC/CBE compliance", "94%", "HOD", "Schemes and assessments", "Healthy"],
           ["Lesson audit tracking", "81%", "Deputy", "Observation logs", "Watch"],
           ["Assessment policy adherence", "88%", "Exam office", "Moderation records", "Healthy"],
-        ]} />
+        ]} onSearch={onSearchAction} onFilter={onFilterAction} onExport={onExportAction} />
         <div className="rounded-2xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
           <h3 className="font-black text-[#071D49]">Audit logs</h3>
           {["Lesson plan approved", "Marks moderated", "Syllabus update signed"].map((item) => (
@@ -712,7 +720,7 @@ function ComplianceWorkspace() {
   );
 }
 
-function CommunicationWorkspace() {
+function CommunicationWorkspace({ onCommunicationDraft }: { onCommunicationDraft: (title: string) => void }) {
   return (
     <Panel title="Communication Workspace" description="Teacher announcements, academic notices, meeting reminders, and parent communication support through email, SMS, and internal messaging." icon={MessageSquareText}>
       <div className="grid gap-3 md:grid-cols-3">
@@ -720,7 +728,7 @@ function CommunicationWorkspace() {
           <button
             key={item}
             type="button"
-            onClick={() => announceAction(`${item} composer opened.`)}
+            onClick={() => onCommunicationDraft(item)}
             className="rounded-2xl border border-[#D8E0EC] bg-[#EEF5FF] p-4 text-left font-black text-[#071D49]"
           >
             {item}
@@ -769,38 +777,42 @@ function ActiveWorkspace({
   activeView,
   onExportAction,
   onFilterAction,
+  onReportReview,
+  onCommunicationDraft,
   onSearchAction,
 }: {
   activeView: HodView;
   onExportAction: (tableTitle: string) => void;
   onFilterAction: (tableTitle: string) => void;
+  onReportReview: (title: string) => void;
+  onCommunicationDraft: (title: string) => void;
   onSearchAction: (tableTitle: string) => void;
 }) {
   switch (activeView) {
     case "teachers":
-      return <TeachersWorkspace onFilterAction={onFilterAction} onSearchAction={onSearchAction} />;
+      return <TeachersWorkspace onExportAction={onExportAction} onFilterAction={onFilterAction} onSearchAction={onSearchAction} />;
     case "subjects":
       return <SubjectsWorkspace />;
     case "syllabus":
-      return <SyllabusWorkspace />;
+      return <SyllabusWorkspace onExportAction={onExportAction} onFilterAction={onFilterAction} onSearchAction={onSearchAction} />;
     case "exams":
-      return <ExamsWorkspace onExportAction={onExportAction} />;
+      return <ExamsWorkspace onExportAction={onExportAction} onFilterAction={onFilterAction} onSearchAction={onSearchAction} />;
     case "lessonPlans":
-      return <LessonPlansWorkspace />;
+      return <LessonPlansWorkspace onExportAction={onExportAction} onFilterAction={onFilterAction} onSearchAction={onSearchAction} />;
     case "attendance":
-      return <AttendanceWorkspace />;
+      return <AttendanceWorkspace onExportAction={onExportAction} onFilterAction={onFilterAction} onSearchAction={onSearchAction} />;
     case "resources":
-      return <ResourcesWorkspace />;
+      return <ResourcesWorkspace onExportAction={onExportAction} onFilterAction={onFilterAction} onSearchAction={onSearchAction} />;
     case "meetings":
-      return <MeetingsWorkspace />;
+      return <MeetingsWorkspace onReportReview={onReportReview} />;
     case "students":
-      return <StudentAnalyticsWorkspace />;
+      return <StudentAnalyticsWorkspace onExportAction={onExportAction} onFilterAction={onFilterAction} onSearchAction={onSearchAction} />;
     case "timetable":
       return <TimetableWorkspace />;
     case "compliance":
-      return <ComplianceWorkspace />;
+      return <ComplianceWorkspace onExportAction={onExportAction} onFilterAction={onFilterAction} onSearchAction={onSearchAction} />;
     case "communication":
-      return <CommunicationWorkspace />;
+      return <CommunicationWorkspace onCommunicationDraft={onCommunicationDraft} />;
     case "notifications":
       return <NotificationsWorkspace />;
     case "settings":
@@ -816,21 +828,11 @@ export function HodCommandCenter({ routeMode }: { routeMode: HodRouteMode }) {
   const [notice, setNotice] = useState("Ready for department follow-up.");
   const [selectedExport, setSelectedExport] = useState<string | null>(null);
   const [tableAction, setTableAction] = useState<{ mode: "filter" | "search"; title: string } | null>(null);
+  const [reportReview, setReportReview] = useState<HodReportReview | null>(null);
+  const [communicationDraft, setCommunicationDraft] = useState<HodCommunicationDraft | null>(null);
   const searchResults = searchTerm.trim()
     ? hodSearchRecords.filter((record) => `${record.label} ${record.detail}`.toLowerCase().includes(searchTerm.toLowerCase()))
     : [];
-
-  useEffect(() => {
-    function handleDashboardAction(event: Event) {
-      const message = (event as CustomEvent<string>).detail;
-      if (message) {
-        setNotice(message);
-      }
-    }
-
-    window.addEventListener("myshule-dashboard-action", handleDashboardAction);
-    return () => window.removeEventListener("myshule-dashboard-action", handleDashboardAction);
-  }, []);
 
   function openView(view: HodView) {
     setActiveView(view);
@@ -851,6 +853,92 @@ export function HodCommandCenter({ routeMode }: { routeMode: HodRouteMode }) {
   function openTableAction(mode: "filter" | "search", tableTitle: string) {
     setTableAction({ mode, title: tableTitle });
     setNotice(`${tableTitle} ${mode === "search" ? "search" : "filters"} opened.`);
+  }
+
+  function openReportReview(title: string) {
+    setReportReview({ title });
+    setNotice(`${title} ready for review and export.`);
+  }
+
+  function saveReportReview() {
+    if (!reportReview) return;
+
+    const schoolId = getCurrentSchoolId();
+    const reportSlug = reportReview.title.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+
+    publishSchoolOperationalEvent({
+      schoolId,
+      type: "HOD_REPORT_REVIEW_RECORDED",
+      module: "reports",
+      actorRole: "Head of Department",
+      title: `${reportReview.title} saved for review and export`,
+      body: `Head of Department saved ${reportReview.title.toLowerCase()} for department review and export.`,
+      entityId: `hod-report-${reportSlug}`,
+      severity: "info",
+      payload: {
+        reportTitle: reportReview.title,
+        department: "Mathematics",
+        dashboard: "hod",
+        term: "Term 2 2026",
+      },
+      notifications: [
+        {
+          audienceRoles: ["Dean of Academics", "Principal", "Exams Manager"],
+          title: `${reportReview.title} ready for review`,
+          body: "HOD saved a department report review for same-school academic leadership.",
+          severity: "info",
+          relatedModule: "reports",
+          relatedRecordId: `hod-report-${reportSlug}`,
+          requestStatus: "Completed",
+        },
+      ],
+    });
+
+    setNotice(`${reportReview.title} saved for review and export.`);
+    setReportReview(null);
+  }
+
+  function openCommunicationDraft(title: string) {
+    setCommunicationDraft({ title });
+    setNotice(`${title} communication draft ready.`);
+  }
+
+  function saveCommunicationDraft() {
+    if (!communicationDraft) return;
+
+    const schoolId = getCurrentSchoolId();
+    const draftSlug = communicationDraft.title.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+
+    publishSchoolOperationalEvent({
+      schoolId,
+      type: "HOD_COMMUNICATION_DRAFT_RECORDED",
+      module: "communications",
+      actorRole: "Head of Department",
+      title: `${communicationDraft.title} communication draft saved`,
+      body: `Head of Department saved a ${communicationDraft.title.toLowerCase()} draft for department communication.`,
+      entityId: `hod-communication-${draftSlug}`,
+      severity: "info",
+      payload: {
+        draftTitle: communicationDraft.title,
+        department: "Mathematics",
+        dashboard: "hod",
+        channel: "SMS / internal message",
+      },
+      notifications: [
+        {
+          audienceRoles: ["Dean of Academics", "Principal", "Teacher"],
+          title: `${communicationDraft.title} draft saved`,
+          body: "HOD saved a department communication draft for same-school follow-up.",
+          severity: "info",
+          relatedModule: "communications",
+          relatedRecordId: `hod-communication-${draftSlug}`,
+          requestStatus: "Pending",
+        },
+      ],
+    });
+
+    setNotice(`${communicationDraft.title} communication draft saved.`);
+    setCommunicationDraft(null);
   }
 
   function saveTableAction() {
@@ -995,7 +1083,58 @@ export function HodCommandCenter({ routeMode }: { routeMode: HodRouteMode }) {
                   </div>
                 </div>
               ) : null}
-              <ActiveWorkspace activeView={activeView} onExportAction={openExportAction} onFilterAction={(title) => openTableAction("filter", title)} onSearchAction={(title) => openTableAction("search", title)} />
+              {reportReview ? (
+                <div role="dialog" aria-modal="true" aria-label="HOD report review" className="rounded-2xl border border-[#D8E0EC] bg-white p-5 shadow-[0_18px_45px_rgba(7,29,73,0.12)]">
+                  <p className="text-xs font-black uppercase tracking-[0.16em] text-[#64748B]">HOD report review</p>
+                  <h2 className="mt-2 text-2xl font-black text-[#071D49]">{reportReview.title}</h2>
+                  <p className="mt-2 text-sm font-semibold leading-6 text-[#64748B]">
+                    Save this report review and notify academic leadership inside Kisumu Boys High School.
+                  </p>
+                  <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                    {["Mathematics department", "Term 2 2026", "Principal and Dean visibility"].map((item) => (
+                      <div key={item} className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-3 text-sm font-black text-[#071D49]">{item}</div>
+                    ))}
+                  </div>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <button type="button" onClick={saveReportReview} className="min-h-10 rounded-xl bg-[#071D49] px-4 text-sm font-black text-white">
+                      Save report review
+                    </button>
+                    <button type="button" onClick={() => setReportReview(null)} className="min-h-10 rounded-xl border border-[#D8E0EC] px-4 text-sm font-black text-[#071D49]">
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+              {communicationDraft ? (
+                <div role="dialog" aria-modal="true" aria-label="HOD communication composer" className="rounded-2xl border border-[#D8E0EC] bg-white p-5 shadow-[0_18px_45px_rgba(7,29,73,0.12)]">
+                  <p className="text-xs font-black uppercase tracking-[0.16em] text-[#64748B]">HOD communication composer</p>
+                  <h2 className="mt-2 text-2xl font-black text-[#071D49]">{communicationDraft.title}</h2>
+                  <p className="mt-2 text-sm font-semibold leading-6 text-[#64748B]">
+                    Save this communication draft for same-school teacher, academic leadership, or internal message follow-up.
+                  </p>
+                  <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                    {["Audience: department staff", "Channel: SMS / internal message", "Status: draft"].map((item) => (
+                      <div key={item} className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-3 text-sm font-black text-[#071D49]">{item}</div>
+                    ))}
+                  </div>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <button type="button" onClick={saveCommunicationDraft} className="min-h-10 rounded-xl bg-[#071D49] px-4 text-sm font-black text-white">
+                      Save communication draft
+                    </button>
+                    <button type="button" onClick={() => setCommunicationDraft(null)} className="min-h-10 rounded-xl border border-[#D8E0EC] px-4 text-sm font-black text-[#071D49]">
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+              <ActiveWorkspace
+                activeView={activeView}
+                onExportAction={openExportAction}
+                onFilterAction={(title) => openTableAction("filter", title)}
+                onReportReview={openReportReview}
+                onCommunicationDraft={openCommunicationDraft}
+                onSearchAction={(title) => openTableAction("search", title)}
+              />
             </div>
           </main>
         </div>

@@ -228,5 +228,35 @@ describe("class teacher and dean command center interactions", () => {
         }),
       ]),
     );
+
+    await user.click(screen.getByRole("button", { name: /meetings & reports/i }));
+    await user.click(screen.getByRole("button", { name: /departmental performance report/i }));
+    const reportDialog = screen.getByRole("dialog", { name: /hod report review/i });
+    expect(reportDialog).toBeVisible();
+    await user.click(within(reportDialog).getByRole("button", { name: /save report review/i }));
+
+    expect(screen.getByText(/departmental performance report saved for review and export/i)).toBeVisible();
+
+    await user.click(screen.getByRole("button", { name: /^communication$/i }));
+    await user.click(screen.getByRole("button", { name: /teacher announcement/i }));
+    const composerDialog = screen.getByRole("dialog", { name: /hod communication composer/i });
+    expect(composerDialog).toBeVisible();
+    await user.click(within(composerDialog).getByRole("button", { name: /save communication draft/i }));
+
+    expect(screen.getByText(/teacher announcement communication draft saved/i)).toBeVisible();
+    expect(readSchoolData<Record<string, unknown>>("events", "kb-high")).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          schoolId: "kb-high",
+          type: "HOD_REPORT_REVIEW_RECORDED",
+          module: "reports",
+        }),
+        expect.objectContaining({
+          schoolId: "kb-high",
+          type: "HOD_COMMUNICATION_DRAFT_RECORDED",
+          module: "communications",
+        }),
+      ]),
+    );
   });
 });
