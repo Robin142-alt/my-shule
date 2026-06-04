@@ -127,6 +127,35 @@ describe("server auth client production gateway", () => {
     ).rejects.toThrow("Authentication service is temporarily unavailable.");
   });
 
+  it("passes backend validation messages through without misclassifying auth as unavailable", async () => {
+    process.env.NEXT_PUBLIC_API_BASE_URL = "\"https://api.example.invalid\"";
+    const fetchMock = jest.mocked(global.fetch).mockResolvedValue(
+      jsonResponse(
+        {
+          message: ["password must be longer than or equal to 8 characters"],
+          error: "Bad Request",
+          statusCode: 400,
+        },
+        { status: 400 },
+      ),
+    );
+    const client = createServerAuthClient(buildRequest("myshule.online"));
+
+    await expect(
+      client.login({
+        audience: "school",
+        identifier: "teacher@example.invalid",
+        password: "short",
+        tenantSlug: "kb-high",
+      }),
+    ).rejects.toThrow("password must be longer than or equal to 8 characters");
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://api.example.invalid/auth/login",
+      expect.any(Object),
+    );
+  });
+
   it("times out slow backend sign-in requests", async () => {
     jest.useFakeTimers();
     try {

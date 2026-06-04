@@ -49,6 +49,28 @@ function unauthorized(message: string) {
   return new Error(message);
 }
 
+function getBackendErrorMessage(payload: unknown) {
+  if (!payload || typeof payload !== "object" || !("message" in payload)) {
+    return "Authentication request failed.";
+  }
+
+  const message = (payload as { message?: unknown }).message;
+
+  if (typeof message === "string" && message.trim()) {
+    return message;
+  }
+
+  if (Array.isArray(message)) {
+    const normalized = message
+      .filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+      .join(" ");
+
+    return normalized || "Authentication request failed.";
+  }
+
+  return "Authentication request failed.";
+}
+
 const AUTH_SERVICE_UNAVAILABLE =
   "Authentication service is temporarily unavailable. Please try again shortly.";
 const AUTH_REQUEST_TIMEOUT_MS = 6_000;
@@ -141,8 +163,8 @@ async function requestBackendAuth<T>(
     });
 
     if (!response.ok) {
-      const payload = (await response.json().catch(() => null)) as { message?: string } | null;
-      const message = payload?.message ?? "Authentication request failed.";
+      const payload = await response.json().catch(() => null);
+      const message = getBackendErrorMessage(payload);
 
       if (
         response.status >= 500 ||
