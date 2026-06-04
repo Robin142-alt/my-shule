@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 
 import { getCurrentSchoolId, publishSchoolOperationalEvent } from "@/lib/school/school-operational-store";
+import { downloadCsvFile } from "@/lib/dashboard/export";
 
 type HodRouteMode = "hosted" | "public";
 type Tone = "success" | "info" | "warning" | "danger" | "neutral";
@@ -987,6 +988,13 @@ export function HodCommandCenter({ routeMode }: { routeMode: HodRouteMode }) {
 
     const schoolId = getCurrentSchoolId();
     const exportSlug = selectedExport.toLowerCase().replaceAll(" ", "-");
+    const generatedAt = new Date().toISOString();
+
+    downloadCsvFile({
+      filename: `${schoolId}-hod-${exportSlug}-${generatedAt.slice(0, 10)}.csv`,
+      headers: ["School ID", "Department", "Report", "Term", "Generated At", "Prepared By"],
+      rows: [[schoolId, "Mathematics", selectedExport, "Term 2 2026", generatedAt, "Head of Department"]],
+    });
 
     publishSchoolOperationalEvent({
       schoolId,
@@ -1001,6 +1009,7 @@ export function HodCommandCenter({ routeMode }: { routeMode: HodRouteMode }) {
         tableTitle: selectedExport,
         department: "Mathematics",
         dashboard: "hod",
+        exportedFile: `${schoolId}-hod-${exportSlug}-${generatedAt.slice(0, 10)}.csv`,
       },
       notifications: [
         {
@@ -1015,7 +1024,7 @@ export function HodCommandCenter({ routeMode }: { routeMode: HodRouteMode }) {
       ],
     });
 
-    setNotice(`${selectedExport} export saved for department records.`);
+    setNotice(`${selectedExport} CSV downloaded and export record saved for department records.`);
     setSelectedExport(null);
   }
 
