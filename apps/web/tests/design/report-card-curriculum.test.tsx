@@ -40,6 +40,26 @@ describe("curriculum-aware report cards", () => {
     ).toBe("HYBRID_CBC_MARKS");
   });
 
+  it("preserves archived report formats before selected, class, period, or school defaults", () => {
+    expect(
+      selectReportCardType({
+        archivedReportType: "LEGACY_844_KCSE",
+        selectedReportType: "CBC_CBE_COMPETENCY",
+        classReportingMode: "CBC_CBE",
+        periodReportType: "HYBRID_CBC_MARKS",
+        schoolDirection: "CBC_CBE",
+      }),
+    ).toBe("LEGACY_844_KCSE");
+
+    expect(
+      selectReportCardType({
+        classReportingMode: "HYBRID_CBC_MARKS",
+        periodReportType: "LEGACY_844_KCSE",
+        schoolDirection: "HYBRID_TRANSITION",
+      }),
+    ).toBe("HYBRID_CBC_MARKS");
+  });
+
   it("builds generation rows for CBC, hybrid, and legacy class report modes", () => {
     const data = buildTestExamsData();
     const rows = buildReportCardGenerationRows(data.reports);
