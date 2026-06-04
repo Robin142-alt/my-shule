@@ -27,6 +27,7 @@ import {
   getCurrentSchoolId,
   publishSchoolOperationalEvent,
 } from "@/lib/school/school-operational-store";
+import { openPrintDocument } from "@/lib/dashboard/export";
 
 type ClassTeacherRouteMode = "hosted" | "public";
 type Tone = "success" | "info" | "warning" | "danger" | "neutral";
@@ -1077,7 +1078,21 @@ export function ClassTeacherCommandCenter({ routeMode }: { routeMode: ClassTeach
               <button
                 type="button"
                 onClick={() => {
-                  setNotice(`${reportPreview} ready for printing.`);
+                  openPrintDocument({
+                    eyebrow: "Class teacher report",
+                    title: `${reportPreview} - Form 2 Blue`,
+                    subtitle: "Kisumu Boys class report preview",
+                    rows: [
+                      { label: "Prepared by", value: "Mr. Kamau" },
+                      { label: "Term", value: "Term 2 2026" },
+                      { label: "Students", value: "46" },
+                      { label: "Attendance", value: "94% present today" },
+                      { label: "Parent follow-ups", value: "5 pending" },
+                      { label: "Document ref", value: `CT-F2B-${reportPreview.toUpperCase().replace(/[^A-Z0-9]+/g, "-")}` },
+                    ],
+                    footer: "Printed from the Class Teacher workspace.",
+                  });
+                  setNotice(`${reportPreview} print preview opened.`);
                   setReportPreview(null);
                 }}
                 className="rounded-xl bg-[#FF7A1A] px-4 py-2 text-sm font-black text-white"
