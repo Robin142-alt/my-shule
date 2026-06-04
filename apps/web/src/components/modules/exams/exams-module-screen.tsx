@@ -29,6 +29,12 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
+import { Modal } from "@/components/ui/modal";
+import {
+  ReportCardActionBar,
+  ReportCardDocument,
+  ReportCardVerificationStrip,
+} from "@/components/report-cards/report-card-document";
 import { StatusPill } from "@/components/ui/status-pill";
 import { Tabs } from "@/components/ui/tabs";
 import { useLiveTenantSession } from "@/hooks/use-live-tenant-session";
@@ -47,12 +53,12 @@ import {
   type ExamAllocationRow,
   type ExamAuditEntry,
   type ExamMarkRow,
+  type ExamsModuleData,
   type ExamPublishingItem,
   type ExamScoreField,
   type ExamScoreFieldId,
   type ExamSetupItem,
   type HistoricalResult,
-  type ReportCardBatch,
 } from "@/lib/modules/exams-data";
 import {
   bulkUploadExamMarksLive,
@@ -70,6 +76,17 @@ import {
   type ExamsLiveWorkspace,
   type LiveReportCardBatchStatus,
 } from "@/lib/modules/exams-client";
+import {
+  buildReportCardDocument,
+  buildReportCardGenerationRows,
+  curriculumSettings,
+  getReportCardTypeLabel,
+  type ClassReportingMode,
+  type ReportCardDocumentData,
+  type ReportCardGenerationRow,
+  type ReportCardStatus,
+  type ReportCardType,
+} from "@/lib/report-cards/curriculum-report-cards";
 import type { SchoolExperienceRole } from "@/lib/experiences/types";
 
 type SaveState = "synced" | "saving" | "offline";
@@ -945,50 +962,407 @@ function ApprovalPanel({
   );
 }
 
-function ReportCardsPanel({
-  reports,
-}: {
-  reports: ReportCardBatch[];
-}) {
-  const columns: DataTableColumn<ReportCardBatch>[] = [
-    { id: "className", header: "Class", render: (row) => <span className="font-semibold">{row.className}</span> },
-    { id: "template", header: "Template", render: (row) => row.template },
-    { id: "ready", header: "Ready", render: (row) => `${row.ready}/${row.total}` },
-    { id: "status", header: "Status", render: (row) => <StatusPill label={row.status} tone={row.tone} /> },
-  ];
+function getReportingModeLabel(mode: ClassReportingMode) {
+  const labels: Record<ClassReportingMode, string> = {
+    CBC_CBE: "CBC/CBE",
+    HYBRID_CBC_MARKS: "Hybrid CBC + Marks",
+    LEGACY_844_KCSE: "Legacy 8-4-4/KCSE",
+  };
 
-  function printReports() {
-    openPrintDocument({
-      eyebrow: "Exam report cards",
-      title: "Report card generation summary",
-      subtitle: "Current report batches ready for parent-friendly PDF generation.",
-      rows: reports.map((report) => ({
-        label: report.className,
-        value: `${report.ready}/${report.total} ${report.status}`,
+  return labels[mode];
+}
+
+function getReportTypeFilterLabel(type: ReportCardType | "ALL") {
+  if (type === "ALL") {
+    return "All report types";
+  }
+
+  return getReportCardTypeLabel(type);
+}
+
+function getReportCardStatusTone(status: ReportCardStatus): StatusTone {
+  if (status === "Published" || status === "Principal/Deputy approved" || status === "Ready for review") {
+    return "ok";
+  }
+
+  if (status === "Data incomplete" || status === "Returned for correction") {
+    return "critical";
+  }
+
+  return "warning";
+}
+
+function ReportCardsPanel({ data }: { data: ExamsModuleData }) {
+  const [reportTypeFilter, setReportTypeFilter] = useState<ReportCardType | "ALL">("ALL");
+  const [modeFilter, setModeFilter] = useState<ClassReportingMode | "ALL">("ALL");
+  const [selectedReport, setSelectedReport] = useState<ReportCardDocumentData | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [rowOverrides, setRowOverrides] = useState<
+    Record<
+      string,
+      Partial<Pick<ReportCardGenerationRow, "approvalStatus" | "publishedStatus" | "printedStatus">> & {
+        auditNote?: string;
+      }
+    >
+  >({});
+
+  const baseRows = useMemo(() => buildReportCardGenerationRows(data.reports), [data.reports]);
+  const rows = useMemo(
+    () =>
+      baseRows.map((row) => ({
+        ...row,
+        ...(rowOverrides[row.id] ?? {}),
       })),
-      footer: "Generated from the Exams & Results command center.",
+    [baseRows, rowOverrides],
+  );
+
+  const filteredRows = rows.filter((row) => {
+    const matchesType = reportTypeFilter === "ALL" || row.reportType === reportTypeFilter;
+    const matchesMode = modeFilter === "ALL" || row.reportingMode === modeFilter;
+
+    return matchesType && matchesMode;
+  });
+
+  const summary = {
+    learners: rows.length,
+    cbc: rows.filter((row) => row.reportType === "CBC_CBE_COMPETENCY").length,
+    hybrid: rows.filter((row) => row.reportType === "HYBRID_CBC_MARKS").length,
+    legacy: rows.filter((row) => row.reportType === "LEGACY_844_KCSE").length,
+    blocked: rows.filter((row) => row.missingItems.length > 0 || row.feeHoldStatus === "Held").length,
+    published: rows.filter((row) => row.publishedStatus === "Published").length,
+  };
+
+  function updateRow(rowId: string, update: Partial<ReportCardGenerationRow> & { auditNote?: string }) {
+    setRowOverrides((current) => ({
+      ...current,
+      [rowId]: {
+        ...(current[rowId] ?? {}),
+        ...update,
+      },
+    }));
+  }
+
+  function buildPreview(row: ReportCardGenerationRow) {
+    return buildReportCardDocument({
+      data,
+      row,
+      settings: curriculumSettings,
     });
   }
 
+  function openPreview(row: ReportCardGenerationRow) {
+    setSelectedReport(buildPreview(row));
+    setNotice(null);
+  }
+
+  function generateDraft(row: ReportCardGenerationRow) {
+    if (row.missingItems.length > 0) {
+      updateRow(row.id, {
+        approvalStatus: "Data incomplete",
+        auditNote: "Generation blocked until missing report-card inputs are completed.",
+      });
+      setNotice(`${row.learnerName}: generation blocked because ${row.missingItems[0]}`);
+      return;
+    }
+
+    updateRow(row.id, {
+      approvalStatus: "Ready for review",
+      auditNote: "Draft generated from current exam, competency, and comment records.",
+    });
+    setSelectedReport(buildPreview({ ...row, approvalStatus: "Ready for review" }));
+    setNotice(`${row.learnerName}: report draft generated and ready for review.`);
+  }
+
+  function submitForReview(row: ReportCardGenerationRow) {
+    if (row.approvalStatus === "Data incomplete") {
+      setNotice(`${row.learnerName}: complete missing marks, CBC observations, or comments before review.`);
+      return;
+    }
+
+    updateRow(row.id, {
+      approvalStatus: "Submitted for review",
+      auditNote: "Submitted to Deputy/Principal approval queue.",
+    });
+    setNotice(`${row.learnerName}: report sent to the approval queue.`);
+  }
+
+  function approveReport(row: ReportCardGenerationRow) {
+    if (row.approvalStatus !== "Submitted for review" && row.approvalStatus !== "Ready for review") {
+      setNotice(`${row.learnerName}: submit the report for review before approval.`);
+      return;
+    }
+
+    updateRow(row.id, {
+      approvalStatus: "Principal/Deputy approved",
+      auditNote: "Approved for parent/student publishing.",
+    });
+    setNotice(`${row.learnerName}: report approved.`);
+  }
+
+  function publishReport(row: ReportCardGenerationRow) {
+    if (row.approvalStatus !== "Principal/Deputy approved") {
+      setNotice(`${row.learnerName}: approval is required before parent/student publishing.`);
+      return;
+    }
+
+    updateRow(row.id, {
+      publishedStatus: "Published",
+      auditNote: "Published to permitted parent and student portals.",
+    });
+    setNotice(`${row.learnerName}: report published to permitted parent and student portals.`);
+  }
+
+  function markPrinted(report: ReportCardDocumentData) {
+    updateRow(report.id, {
+      printedStatus: "Printed",
+      auditNote: "Print preview opened for official A4 document.",
+    });
+  }
+
+  function openPrintPreview(report: ReportCardDocumentData) {
+    const documentElement = document.getElementById(`report-card-document-${report.id}`);
+
+    if (!documentElement) {
+      setNotice("Open the report preview before printing.");
+      return;
+    }
+
+    const printWindow = window.open("", "_blank", "noopener,noreferrer,width=900,height=1100");
+
+    if (!printWindow) {
+      setNotice("Browser blocked the print preview window. Allow popups, then try again.");
+      return;
+    }
+
+    printWindow.document.write(`<!doctype html>
+      <html>
+        <head>
+          <title>${getReportCardTypeLabel(report.curriculum.reportCardType)} - ${report.learner.fullName}</title>
+          <style>
+            @page { size: A4; margin: 12mm; }
+            * { box-sizing: border-box; }
+            body { margin: 0; background: #ffffff; color: #0f172a; font-family: Arial, sans-serif; }
+            table { width: 100%; border-collapse: collapse; }
+            th, td { border: 1px solid #cbd5e1; padding: 4px 6px; text-align: left; vertical-align: top; }
+            .print-shell { width: 794px; margin: 0 auto; }
+            button, .print\\:hidden { display: none !important; }
+          </style>
+        </head>
+        <body>
+          <div class="print-shell">${documentElement.outerHTML}</div>
+          <script>
+            window.onload = function () {
+              window.focus();
+              window.print();
+            };
+          </script>
+        </body>
+      </html>`);
+    printWindow.document.close();
+    markPrinted(report);
+    setNotice(`${report.learner.fullName}: print preview opened.`);
+  }
+
+  function downloadPdf(report: ReportCardDocumentData) {
+    openPrintPreview(report);
+    setNotice(`${report.learner.fullName}: choose "Save as PDF" in the print dialog.`);
+  }
+
+  function printSummary() {
+    openPrintDocument({
+      eyebrow: "Curriculum-aware report cards",
+      title: "Report card generation summary",
+      subtitle: "CBC/CBE is the school direction. Hybrid and legacy formats are selected only by class or report type.",
+      rows: rows.map((row) => ({
+        label: `${row.learnerName} - ${row.gradeForm}`,
+        value: `${getReportCardTypeLabel(row.reportType)} | ${row.approvalStatus} | ${row.publishedStatus}`,
+      })),
+      footer: "Generated from the Exams & Results workspace.",
+    });
+  }
+
+  const columns: DataTableColumn<ReportCardGenerationRow>[] = [
+    {
+      id: "learner",
+      header: "Learner",
+      render: (row) => (
+        <div>
+          <p className="font-semibold">{row.learnerName}</p>
+          <p className="text-[12px] text-muted">{row.admissionNumber}</p>
+        </div>
+      ),
+    },
+    { id: "class", header: "Class/Form", render: (row) => `${row.gradeForm} ${row.stream ? `(${row.stream})` : ""}` },
+    { id: "mode", header: "Mode", render: (row) => getReportingModeLabel(row.reportingMode) },
+    { id: "type", header: "Report type", render: (row) => getReportCardTypeLabel(row.reportType) },
+    {
+      id: "inputs",
+      header: "Inputs",
+      render: (row) => (
+        <div className="space-y-1 text-[12px]">
+          <p>CBC: {row.cbcCompletion}</p>
+          <p>Marks: {row.marksCompletion}</p>
+          <p>Comments: {row.commentsStatus}</p>
+        </div>
+      ),
+    },
+    {
+      id: "approval",
+      header: "Approval",
+      render: (row) => <StatusPill label={row.approvalStatus} tone={getReportCardStatusTone(row.approvalStatus)} />,
+    },
+    {
+      id: "portal",
+      header: "Portal",
+      render: (row) => (
+        <div className="space-y-1">
+          <StatusPill label={row.publishedStatus} tone={row.publishedStatus === "Published" ? "ok" : "warning"} />
+          <p className="text-[11px] text-muted">{row.printedStatus}</p>
+        </div>
+      ),
+    },
+    {
+      id: "actions",
+      header: "Actions",
+      className: "min-w-[280px]",
+      render: (row) => (
+        <div className="flex flex-wrap gap-2">
+          <Button size="sm" variant="secondary" onClick={() => openPreview(row)}>
+            Preview
+          </Button>
+          <Button size="sm" onClick={() => generateDraft(row)}>
+            Generate
+          </Button>
+          <Button size="sm" variant="secondary" onClick={() => submitForReview(row)}>
+            Submit
+          </Button>
+          <Button size="sm" variant="secondary" onClick={() => approveReport(row)}>
+            Approve
+          </Button>
+          <Button size="sm" variant="secondary" onClick={() => publishReport(row)}>
+            Publish
+          </Button>
+        </div>
+      ),
+    },
+  ];
+
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap gap-2">
-        <Button onClick={printReports}>
-          <FileDown className="h-4 w-4" />
-          Batch generate PDF
-        </Button>
-        <Button variant="secondary">
-          <Users className="h-4 w-4" />
-          Parent portal preview
-        </Button>
-      </div>
+      <Card className="p-5">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="max-w-3xl">
+            <p className="eyebrow">Report card settings</p>
+            <h3 className="mt-2 section-title text-lg">CBC/CBE-first reporting with class-level transition modes</h3>
+            <p className="mt-1 text-[13px] leading-5 text-muted">
+              School default direction is {curriculumSettings.schoolDefaultCurriculumDirection === "CBC_CBE" ? "CBC/CBE School" : "Hybrid Transition School"}.
+              Legacy 8-4-4/KCSE is available only for selected classes, archived formats, or explicit report type selection.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="secondary" onClick={printSummary}>
+              <FileDown className="h-4 w-4" />
+              Print Summary
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                const firstPublished = rows.find((row) => row.publishedStatus === "Published") ?? null;
+                if (!firstPublished) {
+                  setNotice("Parent/student portal preview is empty until at least one report is published.");
+                  return;
+                }
+                openPreview(firstPublished);
+              }}
+            >
+              <Users className="h-4 w-4" />
+              Parent portal preview
+            </Button>
+          </div>
+        </div>
+
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
+          {[
+            ["Learners", summary.learners],
+            ["CBC/CBE", summary.cbc],
+            ["Hybrid", summary.hybrid],
+            ["Legacy class reports", summary.legacy],
+            ["Needs attention", summary.blocked],
+            ["Published", summary.published],
+          ].map(([label, value]) => (
+            <div key={label} className="rounded-[var(--radius-sm)] border border-border bg-surface-muted px-4 py-3">
+              <p className="text-[11px] font-bold uppercase tracking-[0.06em] text-muted">{label}</p>
+              <p className="mt-1 text-2xl font-bold text-foreground">{value}</p>
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-4 grid gap-3 md:grid-cols-3">
+          <label className="space-y-1">
+            <span className="text-[12px] font-semibold text-muted">Report type</span>
+            <select
+              value={reportTypeFilter}
+              onChange={(event) => setReportTypeFilter(event.target.value as ReportCardType | "ALL")}
+              className="h-10 w-full rounded-[var(--radius-sm)] border border-border bg-white px-3 text-sm text-foreground"
+            >
+              {(["ALL", "CBC_CBE_COMPETENCY", "HYBRID_CBC_MARKS", "LEGACY_844_KCSE"] as const).map((option) => (
+                <option key={option} value={option}>{getReportTypeFilterLabel(option)}</option>
+              ))}
+            </select>
+          </label>
+          <label className="space-y-1">
+            <span className="text-[12px] font-semibold text-muted">Class reporting mode</span>
+            <select
+              value={modeFilter}
+              onChange={(event) => setModeFilter(event.target.value as ClassReportingMode | "ALL")}
+              className="h-10 w-full rounded-[var(--radius-sm)] border border-border bg-white px-3 text-sm text-foreground"
+            >
+              <option value="ALL">All class modes</option>
+              <option value="CBC_CBE">CBC/CBE</option>
+              <option value="HYBRID_CBC_MARKS">Hybrid CBC + Marks</option>
+              <option value="LEGACY_844_KCSE">Legacy 8-4-4/KCSE class</option>
+            </select>
+          </label>
+          <div className="rounded-[var(--radius-sm)] border border-success/20 bg-success/10 px-4 py-3 text-[12px] text-foreground">
+            Parent/student visibility stays locked until report status is Published. Ranking is off unless the school enables it.
+          </div>
+        </div>
+      </Card>
+
+      {notice ? (
+        <div className="rounded-[var(--radius-sm)] border border-info/20 bg-info/10 px-4 py-3 text-[13px] font-semibold text-foreground">
+          {notice}
+        </div>
+      ) : null}
+
       <DataTable
-        title="Report card batches"
-        subtitle="Print-ready, parent-friendly reports with CBC evidence and historical comparison."
+        title="Report card generation"
+        subtitle="Generate, review, approve, publish, and print curriculum-aware report cards from current school records."
         columns={columns}
-        rows={reports}
+        rows={filteredRows}
         getRowKey={(row) => row.id}
+        emptyMessage="No report cards match the selected filters."
       />
+
+      <Modal
+        open={Boolean(selectedReport)}
+        title="Report card preview"
+        description="Review the exact A4 document before printing or saving as PDF."
+        onClose={() => setSelectedReport(null)}
+        size="xl"
+      >
+        {selectedReport ? (
+          <div className="space-y-4">
+            <ReportCardActionBar
+              report={selectedReport}
+              onPrint={() => openPrintPreview(selectedReport)}
+              onDownloadPdf={() => downloadPdf(selectedReport)}
+            />
+            <ReportCardVerificationStrip report={selectedReport} />
+            <ReportCardDocument report={selectedReport} />
+          </div>
+        ) : null}
+      </Modal>
     </div>
   );
 }
@@ -1704,7 +2078,7 @@ export function ExamsModuleScreen({
           {
             id: "reports",
             label: "Report cards",
-            panel: <ReportCardsPanel reports={data.reports} />,
+            panel: <ReportCardsPanel data={data} />,
           },
           {
             id: "competencies",

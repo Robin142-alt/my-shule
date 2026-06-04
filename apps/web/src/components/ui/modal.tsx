@@ -20,7 +20,7 @@ export function Modal({
   onClose: () => void;
   children: ReactNode;
   footer?: ReactNode;
-  size?: "sm" | "md" | "lg";
+  size?: "sm" | "md" | "lg" | "xl";
 }) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
@@ -126,7 +126,9 @@ export function Modal({
   const sizeClass =
     size === "sm"
       ? "max-w-md"
-      : size === "lg"
+      : size === "xl"
+        ? "max-w-5xl"
+        : size === "lg"
         ? "max-w-2xl"
         : "max-w-xl";
 
