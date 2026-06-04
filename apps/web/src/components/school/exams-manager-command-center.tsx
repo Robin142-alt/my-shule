@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 
 import type { WidgetState } from "@/lib/capability-engine/school-capability-engine";
-import { addSchoolRecord, getCurrentSchoolId } from "@/lib/school/school-operational-store";
+import { addSchoolRecord, getCurrentSchoolId, publishSchoolOperationalEvent } from "@/lib/school/school-operational-store";
 
 type ExamsManagerRouteMode = "hosted" | "public";
 type Tone = "success" | "info" | "warning" | "danger" | "neutral";
@@ -54,6 +54,14 @@ type SavedExamConfiguration = {
   status: string;
   reviewer: string;
   savedAt: string;
+};
+
+type ExamOperationalRecord = {
+  id: string;
+  title: string;
+  detail: string;
+  status: string;
+  createdAt: string;
 };
 
 const examsSearchRecords = [
@@ -349,14 +357,28 @@ function OverviewGrid({
 
 function ActiveWidgetContent({
   view,
-  onNotice,
   onSaveConfiguration,
+  onCreateExamDraft,
+  onCheckTermAlignment,
+  onOpenMarksEntry,
+  onSendDeanReview,
   savedConfigurations,
+  examDrafts,
+  alignmentChecks,
+  marksEntrySessions,
+  deanReviewBatches,
 }: {
   view: ExamsManagerView;
-  onNotice: (message: string) => void;
   onSaveConfiguration: () => void;
+  onCreateExamDraft: () => void;
+  onCheckTermAlignment: () => void;
+  onOpenMarksEntry: () => void;
+  onSendDeanReview: () => void;
   savedConfigurations: SavedExamConfiguration[];
+  examDrafts: ExamOperationalRecord[];
+  alignmentChecks: ExamOperationalRecord[];
+  marksEntrySessions: ExamOperationalRecord[];
+  deanReviewBatches: ExamOperationalRecord[];
 }) {
   if (view === "overview") {
     return (
@@ -396,11 +418,17 @@ function ActiveWidgetContent({
         <div className="rounded-2xl border border-[#D9E2EF] bg-white/80 p-4">
           <p className="text-sm font-black uppercase tracking-[0.18em] text-[#64748B]">Allowed actions</p>
           <div className="mt-4 flex flex-wrap gap-2">
-            <ActionButton tone="success" onClick={() => onNotice("Exam draft form opened.")}>Create exam draft</ActionButton>
+            <ActionButton tone="success" onClick={onCreateExamDraft}>Create exam draft</ActionButton>
             <ActionButton onClick={onSaveConfiguration}>Save configuration</ActionButton>
-            <ActionButton tone="warning" onClick={() => onNotice("Term alignment check completed with timetable warnings visible.")}>Check term alignment</ActionButton>
+            <ActionButton tone="warning" onClick={onCheckTermAlignment}>Check term alignment</ActionButton>
           </div>
           <div className="mt-4 space-y-2">
+            {examDrafts.map((draft) => (
+              <ListRow key={draft.id} title={draft.title} detail={draft.detail} value={draft.status} tone="success" />
+            ))}
+            {alignmentChecks.map((check) => (
+              <ListRow key={check.id} title={check.title} detail={check.detail} value={check.status} tone="warning" />
+            ))}
             {savedConfigurations.length > 0 ? (
               savedConfigurations.map((configuration) => (
                 <ListRow
@@ -455,7 +483,16 @@ function ActiveWidgetContent({
             ))}
           </div>
           <div className="mt-4">
-            <ActionButton tone="info" onClick={() => onNotice("Marks entry sheet opened for selected class and subject.")}>Enter marks</ActionButton>
+            <ActionButton tone="info" onClick={onOpenMarksEntry}>Enter marks</ActionButton>
+          </div>
+          <div className="mt-4 space-y-2">
+            {marksEntrySessions.length > 0 ? (
+              marksEntrySessions.map((session) => (
+                <ListRow key={session.id} title={session.title} detail={session.detail} value={session.status} tone="info" />
+              ))
+            ) : (
+              <ListRow title="Opened marks sheets" detail="No marks sheet has been opened in this session." value="Empty" tone="neutral" />
+            )}
           </div>
         </div>
       </div>
@@ -488,7 +525,16 @@ function ActiveWidgetContent({
             Generate report card draft batches and hand them to the Dean gate. The Exams Manager cannot approve report cards or expose parent-facing results.
           </p>
           <div className="mt-4">
-            <ActionButton tone="warning" onClick={() => onNotice("Draft report card batch sent to Dean review queue.")}>Send to Dean review</ActionButton>
+            <ActionButton tone="warning" onClick={onSendDeanReview}>Send to Dean review</ActionButton>
+          </div>
+          <div className="mt-4 space-y-2">
+            {deanReviewBatches.length > 0 ? (
+              deanReviewBatches.map((batch) => (
+                <ListRow key={batch.id} title={batch.title} detail={batch.detail} value={batch.status} tone="warning" />
+              ))
+            ) : (
+              <ListRow title="Dean review queue" detail="No draft batch has been sent to Dean review yet." value="Empty" tone="neutral" />
+            )}
           </div>
         </div>
       </div>
@@ -540,15 +586,29 @@ function ActiveWidgetContent({
 function MainWorkspace({
   view,
   capabilities,
-  onNotice,
   onSaveConfiguration,
+  onCreateExamDraft,
+  onCheckTermAlignment,
+  onOpenMarksEntry,
+  onSendDeanReview,
   savedConfigurations,
+  examDrafts,
+  alignmentChecks,
+  marksEntrySessions,
+  deanReviewBatches,
 }: {
   view: ExamsManagerView;
   capabilities: Map<ExamsManagerView, ExamsManagerWidgetCapability>;
-  onNotice: (message: string) => void;
   onSaveConfiguration: () => void;
+  onCreateExamDraft: () => void;
+  onCheckTermAlignment: () => void;
+  onOpenMarksEntry: () => void;
+  onSendDeanReview: () => void;
   savedConfigurations: SavedExamConfiguration[];
+  examDrafts: ExamOperationalRecord[];
+  alignmentChecks: ExamOperationalRecord[];
+  marksEntrySessions: ExamOperationalRecord[];
+  deanReviewBatches: ExamOperationalRecord[];
 }) {
   if (view === "overview") {
     return <OverviewGrid capabilities={capabilities} />;
@@ -561,9 +621,16 @@ function MainWorkspace({
     <WidgetFrame widget={widget} capability={capability}>
       <ActiveWidgetContent
         view={view}
-        onNotice={onNotice}
         onSaveConfiguration={onSaveConfiguration}
+        onCreateExamDraft={onCreateExamDraft}
+        onCheckTermAlignment={onCheckTermAlignment}
+        onOpenMarksEntry={onOpenMarksEntry}
+        onSendDeanReview={onSendDeanReview}
         savedConfigurations={savedConfigurations}
+        examDrafts={examDrafts}
+        alignmentChecks={alignmentChecks}
+        marksEntrySessions={marksEntrySessions}
+        deanReviewBatches={deanReviewBatches}
       />
     </WidgetFrame>
   );
@@ -582,6 +649,10 @@ export function ExamsManagerCommandCenter({
   const [searchTerm, setSearchTerm] = useState("");
   const [notice, setNotice] = useState("Exams desk ready for exam setup, marks entry, validation, and draft report cards.");
   const [savedConfigurations, setSavedConfigurations] = useState<SavedExamConfiguration[]>([]);
+  const [examDrafts, setExamDrafts] = useState<ExamOperationalRecord[]>([]);
+  const [alignmentChecks, setAlignmentChecks] = useState<ExamOperationalRecord[]>([]);
+  const [marksEntrySessions, setMarksEntrySessions] = useState<ExamOperationalRecord[]>([]);
+  const [deanReviewBatches, setDeanReviewBatches] = useState<ExamOperationalRecord[]>([]);
   const capabilities = useMemo(() => {
     return new Map(
       widgets.map((widget) => [
@@ -638,6 +709,219 @@ export function ExamsManagerCommandCenter({
     );
     setSavedConfigurations((current) => [configuration, ...current].slice(0, 4));
     setNotice("Exam configuration saved for Dean review.");
+  }
+
+  function createExamDraft() {
+    const schoolId = getCurrentSchoolId();
+    const createdAt = new Date().toLocaleString("en-KE", {
+      dateStyle: "medium",
+      timeStyle: "short",
+    });
+    const draft: ExamOperationalRecord = {
+      id: `exam-draft-${Date.now()}`,
+      title: "Form 2 Endterm exam draft",
+      detail: `Created ${createdAt} for Form 2 East and Form 2 West subject setup.`,
+      status: "Draft created",
+      createdAt,
+    };
+
+    addSchoolRecord(
+      "exam-drafts",
+      {
+        ...draft,
+        examType: "Endterm",
+        term: "Term 2 2026",
+        classes: ["Form 2 East", "Form 2 West"],
+        subjectsPending: ["Biology", "Kiswahili", "Business Studies"],
+        createdByRole: "Exams Manager",
+      },
+      schoolId,
+    );
+
+    publishSchoolOperationalEvent({
+      schoolId,
+      type: "EXAM_DRAFT_CREATED",
+      module: "exams",
+      actorRole: "Exams Manager",
+      title: "Form 2 Endterm exam draft created",
+      body: "Exams Manager created a Form 2 Endterm draft for subject setup and timetable preparation.",
+      entityId: draft.id,
+      severity: "info",
+      payload: { examName: draft.title, term: "Term 2 2026", status: draft.status },
+      notifications: [
+        {
+          audienceRoles: ["Dean of Academics", "Head of Department"],
+          title: "New exam draft needs subject confirmation",
+          body: "Form 2 Endterm draft is ready for department subject confirmation.",
+          severity: "info",
+          relatedModule: "exams",
+          relatedRecordId: draft.id,
+          requestStatus: "Pending",
+        },
+      ],
+    });
+
+    setExamDrafts((current) => [draft, ...current].slice(0, 4));
+    setNotice("Exam draft created and shared with academic reviewers.");
+  }
+
+  function checkTermAlignment() {
+    const schoolId = getCurrentSchoolId();
+    const createdAt = new Date().toLocaleString("en-KE", {
+      dateStyle: "medium",
+      timeStyle: "short",
+    });
+    const check: ExamOperationalRecord = {
+      id: `term-alignment-${Date.now()}`,
+      title: "Term 2 exam alignment check",
+      detail: `Checked ${createdAt}. Two timetable warnings require HOD confirmation before scheduling.`,
+      status: "2 warnings",
+      createdAt,
+    };
+
+    addSchoolRecord(
+      "exam-alignment-checks",
+      {
+        ...check,
+        term: "Term 2 2026",
+        warnings: ["Form 3 Science block clash", "Lab timetable overlap"],
+        checkedByRole: "Exams Manager",
+      },
+      schoolId,
+    );
+
+    publishSchoolOperationalEvent({
+      schoolId,
+      type: "EXAM_TERM_ALIGNMENT_CHECKED",
+      module: "exams",
+      actorRole: "Exams Manager",
+      title: "Term alignment check completed",
+      body: "Exams Manager completed the Term 2 alignment check and found timetable warnings for academic follow-up.",
+      entityId: check.id,
+      severity: "warning",
+      payload: { term: "Term 2 2026", warningCount: 2 },
+      notifications: [
+        {
+          audienceRoles: ["Dean of Academics", "Head of Department"],
+          title: "Exam timetable warnings need review",
+          body: "Term 2 alignment check found two timetable warnings.",
+          severity: "warning",
+          relatedModule: "exams",
+          relatedRecordId: check.id,
+          requestStatus: "Pending",
+        },
+      ],
+    });
+
+    setAlignmentChecks((current) => [check, ...current].slice(0, 3));
+    setNotice("Term alignment check saved with timetable warnings for review.");
+  }
+
+  function openMarksEntry() {
+    const schoolId = getCurrentSchoolId();
+    const createdAt = new Date().toLocaleString("en-KE", {
+      dateStyle: "medium",
+      timeStyle: "short",
+    });
+    const session: ExamOperationalRecord = {
+      id: `marks-entry-${Date.now()}`,
+      title: "Mathematics Form 4 North marks entry",
+      detail: `Opened ${createdAt}. 88% complete, 12 learner records still pending.`,
+      status: "Open",
+      createdAt,
+    };
+
+    addSchoolRecord(
+      "marks-entry-sessions",
+      {
+        ...session,
+        subject: "Mathematics",
+        classStream: "Form 4 North",
+        pendingLearners: 12,
+        openedByRole: "Exams Manager",
+      },
+      schoolId,
+    );
+
+    publishSchoolOperationalEvent({
+      schoolId,
+      type: "MARKS_ENTRY_OPENED",
+      module: "exams",
+      actorRole: "Exams Manager",
+      title: "Mathematics Form 4 North marks entry opened",
+      body: "Exams Manager opened the Mathematics marks entry sheet for Form 4 North.",
+      entityId: session.id,
+      severity: "info",
+      payload: { subject: "Mathematics", classStream: "Form 4 North", pendingLearners: 12 },
+      notifications: [
+        {
+          audienceRoles: ["Teacher", "Dean of Academics"],
+          title: "Marks entry sheet opened",
+          body: "Mathematics Form 4 North marks entry is open for completion.",
+          severity: "info",
+          relatedModule: "exams",
+          relatedRecordId: session.id,
+          requestStatus: "Pending",
+        },
+      ],
+    });
+
+    setMarksEntrySessions((current) => [session, ...current].slice(0, 4));
+    setNotice("Marks entry sheet opened and teacher follow-up created.");
+  }
+
+  function sendDeanReview() {
+    const schoolId = getCurrentSchoolId();
+    const createdAt = new Date().toLocaleString("en-KE", {
+      dateStyle: "medium",
+      timeStyle: "short",
+    });
+    const batch: ExamOperationalRecord = {
+      id: `dean-review-batch-${Date.now()}`,
+      title: "Term 2 CAT 1 report card draft batch",
+      detail: `Sent ${createdAt}. Dean review receives draft cards, class summaries, and validation notes.`,
+      status: "Sent to Dean",
+      createdAt,
+    };
+
+    addSchoolRecord(
+      "report-card-dean-review-batches",
+      {
+        ...batch,
+        term: "Term 2 2026",
+        exam: "Term 2 CAT 1",
+        learnerCount: 412,
+        sentByRole: "Exams Manager",
+      },
+      schoolId,
+    );
+
+    publishSchoolOperationalEvent({
+      schoolId,
+      type: "REPORT_CARD_DRAFT_SENT_TO_DEAN",
+      module: "exams",
+      actorRole: "Exams Manager",
+      title: "Report card draft batch sent to Dean",
+      body: "Exams Manager sent Term 2 CAT 1 draft report cards to Dean of Academics for review.",
+      entityId: batch.id,
+      severity: "warning",
+      payload: { term: "Term 2 2026", exam: "Term 2 CAT 1", learnerCount: 412 },
+      notifications: [
+        {
+          audienceRoles: ["Dean of Academics", "Principal"],
+          title: "Draft report cards ready for Dean review",
+          body: "Term 2 CAT 1 draft report card batch is ready for academic quality review.",
+          severity: "warning",
+          relatedModule: "academics",
+          relatedRecordId: batch.id,
+          requestStatus: "Pending",
+          requiresAction: true,
+        },
+      ],
+    });
+
+    setDeanReviewBatches((current) => [batch, ...current].slice(0, 4));
+    setNotice("Draft report card batch sent to Dean review and leadership notified.");
   }
 
   return (
@@ -755,9 +1039,16 @@ export function ExamsManagerCommandCenter({
             <MainWorkspace
               view={activeView}
               capabilities={capabilities}
-              onNotice={setNotice}
               onSaveConfiguration={saveExamConfiguration}
+              onCreateExamDraft={createExamDraft}
+              onCheckTermAlignment={checkTermAlignment}
+              onOpenMarksEntry={openMarksEntry}
+              onSendDeanReview={sendDeanReview}
               savedConfigurations={savedConfigurations}
+              examDrafts={examDrafts}
+              alignmentChecks={alignmentChecks}
+              marksEntrySessions={marksEntrySessions}
+              deanReviewBatches={deanReviewBatches}
             />
           </main>
         </div>

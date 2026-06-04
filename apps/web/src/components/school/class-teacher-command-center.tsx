@@ -1052,7 +1052,7 @@ export function ClassTeacherCommandCenter({ routeMode }: { routeMode: ClassTeach
           >
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <p className="text-xs font-black uppercase tracking-[0.14em] text-[#64748B]">Kisumu Boys High School</p>
+                <p className="text-xs font-black uppercase tracking-[0.14em] text-[#64748B]">Kisumu Boys</p>
                 <h2 className="mt-1 text-xl font-black text-[#071D49]">Class report preview</h2>
                 <p className="mt-1 text-sm font-semibold text-[#64748B]">Form 2 Blue - {reportPreview}</p>
               </div>

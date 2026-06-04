@@ -1069,7 +1069,7 @@ export function HodCommandCenter({ routeMode }: { routeMode: HodRouteMode }) {
                       : "Apply filters for pending lesson plans, missing marks, and low syllabus coverage inside this school workspace."}
                   </p>
                   <div className="mt-4 grid gap-3 sm:grid-cols-3">
-                    {["Mathematics", "Term 2 2026", "Kisumu Boys High School"].map((item) => (
+                    {["Mathematics", "Term 2 2026", "Kisumu Boys"].map((item) => (
                       <div key={item} className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-3 text-sm font-black text-[#071D49]">{item}</div>
                     ))}
                   </div>
@@ -1088,7 +1088,7 @@ export function HodCommandCenter({ routeMode }: { routeMode: HodRouteMode }) {
                   <p className="text-xs font-black uppercase tracking-[0.16em] text-[#64748B]">HOD report review</p>
                   <h2 className="mt-2 text-2xl font-black text-[#071D49]">{reportReview.title}</h2>
                   <p className="mt-2 text-sm font-semibold leading-6 text-[#64748B]">
-                    Save this report review and notify academic leadership inside Kisumu Boys High School.
+                    Save this report review and notify academic leadership inside Kisumu Boys.
                   </p>
                   <div className="mt-4 grid gap-3 sm:grid-cols-3">
                     {["Mathematics department", "Term 2 2026", "Principal and Dean visibility"].map((item) => (

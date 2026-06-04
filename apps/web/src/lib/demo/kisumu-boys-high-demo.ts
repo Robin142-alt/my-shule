@@ -61,7 +61,7 @@ interface DemoRecord {
 export interface KisumuBoysDemoScenario {
   tenant: {
     tenantId: "kisumu-boys";
-    schoolName: "Kisumu Boys High";
+    schoolName: "Kisumu Boys";
     county: "Kisumu";
     academicTerm: "Term 2 2026";
   };
@@ -97,7 +97,7 @@ export interface KisumuBoysReadinessScore {
 
 const tenant = {
   tenantId: "kisumu-boys",
-  schoolName: "Kisumu Boys High",
+  schoolName: "Kisumu Boys",
   county: "Kisumu",
   academicTerm: "Term 2 2026",
 } as const;
@@ -146,7 +146,7 @@ function demoRecords(prefix: string, labels: string[], minimumCount = 24): DemoR
   const expandedLabels = [...labels];
 
   for (let index = labels.length; index < minimumCount; index += 1) {
-    expandedLabels.push(`${prefix.toUpperCase()} workload sample ${index + 1} - KB High operational record`);
+    expandedLabels.push(`${prefix.toUpperCase()} workload sample ${index + 1} - Kisumu Boys operational record`);
   }
 
   return expandedLabels.map((label, index) => ({
@@ -834,7 +834,7 @@ function generatedRoleEvents(): DashboardEvent<DemoPayload>[] {
         occurredAt: `2026-05-27T${String(6 + (index % 10)).padStart(2, "0")}:${String((index * 7) % 60).padStart(2, "0")}:00.000+03:00`,
         payload: {
           title: `${queue}: ${subject}`,
-          body: `Kisumu Boys High ${subject} requires ${action.toLowerCase()} by ${role.replace(/-/g, " ")}.`,
+          body: `Kisumu Boys ${subject} requires ${action.toLowerCase()} by ${role.replace(/-/g, " ")}.`,
           auditId: `audit.kisumu-boys.${id}`,
           targetDashboards,
           queue,

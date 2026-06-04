@@ -82,7 +82,7 @@ describe("role dashboard operational structure", () => {
     );
     expect(screen.getByRole("heading", { name: /class teacher desk/i })).toBeVisible();
     expect(screen.getByText(/What requires action right now/i)).toBeVisible();
-    expect(screen.getByText(/Kisumu Boys High live updates/i)).toBeVisible();
+    expect(screen.getByText(/Kisumu Boys live updates/i)).toBeVisible();
     expect(screen.getAllByText(/Attendance absence synced/i).length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText(/Today['’]s Work/i).length).toBeGreaterThan(0);
     expect(screen.queryByText(/View Action History/i)).not.toBeInTheDocument();
@@ -125,7 +125,7 @@ describe("role dashboard operational structure", () => {
 
     expect(await screen.findByTestId("role-operational-command-center")).toBeVisible();
     expect(screen.getByTestId("principal-practical-command-center")).toBeVisible();
-    expect(screen.getAllByText(/Kisumu Boys High School/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Kisumu Boys/i).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/Students Present/i).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/Fees Collected Today/i).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/Visitors Inside/i).length).toBeGreaterThan(0);

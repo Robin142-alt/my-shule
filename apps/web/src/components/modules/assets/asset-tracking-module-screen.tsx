@@ -383,7 +383,7 @@ export function AssetTrackingModuleScreen({
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">ICT and computer lab desk</p>
         <h2 className="mt-2 text-2xl font-bold text-foreground">ICT computer lab and asset desk</h2>
         <p className="mt-2 max-w-3xl text-sm leading-6 text-muted">
-          Track computers, laptops, projectors, printers, routers, lab bookings, repairs, and device movement for Kisumu Boys High School.
+          Track computers, laptops, projectors, printers, routers, lab bookings, repairs, and device movement for Kisumu Boys.
         </p>
       </Card>
 

@@ -30,7 +30,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
-import { publishSchoolOperationalEvent } from "@/lib/school/school-operational-store";
+import { getCurrentSchoolId, publishSchoolOperationalEvent } from "@/lib/school/school-operational-store";
 
 type DeputyRouteMode = "hosted" | "public";
 type Tone = "calm" | "info" | "success" | "warning" | "danger" | "cyan";
@@ -1001,8 +1001,10 @@ export function DeputyPrincipalCommandCenter({ routeMode }: { routeMode: DeputyR
   }
 
   function recordEmergencyResponse() {
+    const schoolId = getCurrentSchoolId();
+
     publishSchoolOperationalEvent({
-      schoolId: "kb-high",
+      schoolId,
       type: "DEPUTY_EMERGENCY_RESPONSE_RECORDED",
       module: "operations",
       actorRole: "Deputy Principal",
@@ -1045,11 +1047,12 @@ export function DeputyPrincipalCommandCenter({ routeMode }: { routeMode: DeputyR
     if (!selectedAlertAction) return;
 
     const { alert, action } = selectedAlertAction;
+    const schoolId = getCurrentSchoolId();
     const relatedRecordId = `deputy-alert-${alert.title.toLowerCase().replaceAll(" ", "-")}-${action.toLowerCase().replaceAll(" ", "-")}`;
     const severity = alert.tone === "danger" ? "critical" : alert.tone === "warning" ? "warning" : "info";
 
     publishSchoolOperationalEvent({
-      schoolId: "kb-high",
+      schoolId,
       type: "DEPUTY_ALERT_ACTION_RECORDED",
       module: "operations",
       actorRole: "Deputy Principal",
@@ -1097,8 +1100,10 @@ export function DeputyPrincipalCommandCenter({ routeMode }: { routeMode: DeputyR
   }
 
   function prepareReport(report: string) {
+    const schoolId = getCurrentSchoolId();
+
     publishSchoolOperationalEvent({
-      schoolId: "kb-high",
+      schoolId,
       type: "DEPUTY_REPORT_PREVIEW_REQUESTED",
       module: "reports",
       actorRole: "Deputy Principal",
@@ -1134,7 +1139,7 @@ export function DeputyPrincipalCommandCenter({ routeMode }: { routeMode: DeputyR
             <div role="dialog" aria-modal="true" aria-label="Deputy emergency response" className="rounded-[var(--radius-xl)] border border-rose-200 bg-white p-5 text-[#071D49] shadow-[0_18px_50px_rgba(225,29,72,0.14)]">
               <p className="text-xs font-black uppercase tracking-[0.16em] text-rose-700">Deputy emergency response</p>
               <h2 className="mt-2 text-2xl font-black">Emergency response review</h2>
-              <p className="mt-2 text-sm font-semibold leading-6 text-[#5F6F89]">Record that the deputy has reviewed active critical alerts and sent the response to Principal, Security, and Discipline teams inside Kisumu Boys High School.</p>
+              <p className="mt-2 text-sm font-semibold leading-6 text-[#5F6F89]">Record that the deputy has reviewed active critical alerts and sent the response to Principal, Security, and Discipline teams inside Kisumu Boys.</p>
               <div className="mt-4 flex flex-wrap gap-2">
                 <button type="button" onClick={recordEmergencyResponse} className="min-h-10 rounded-[var(--radius)] bg-[#071D49] px-4 text-sm font-black text-white">
                   Record emergency response

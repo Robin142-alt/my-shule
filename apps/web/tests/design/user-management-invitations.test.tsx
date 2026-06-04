@@ -317,7 +317,7 @@ describe("school-scoped user management and invitations", () => {
     await user.click(within(commandCenter).getByRole("button", { name: /Users & Invitations/i }));
 
     expect(within(commandCenter).getByRole("heading", { name: /Users & Invitations/i })).toBeVisible();
-    expect(within(commandCenter).getByText(/Deputy Principal can invite school users in Kisumu Boys High School/i)).toBeVisible();
+    expect(within(commandCenter).getByText(/Deputy Principal can invite school users in Kisumu Boys/i)).toBeVisible();
     expect(within(commandCenter).queryByRole("option", { name: /Super Admin/i })).not.toBeInTheDocument();
 
     await user.click(within(commandCenter).getByRole("button", { name: /Invite New User/i }));

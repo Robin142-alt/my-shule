@@ -847,7 +847,7 @@ export function TeacherCommandCenter({ routeMode }: { routeMode: TeacherRouteMod
   const [assignments, setAssignments] = useState<AssignmentRecord[]>(initialAssignments);
   const [resources, setResources] = useState<ResourceRecord[]>(initialResources);
   const [messages, setMessages] = useState<MessageRecord[]>(initialMessages);
-  const [, setActivityLog] = useState<string[]>(["Teacher dashboard opened for Kisumu Boys High School."]);
+  const [, setActivityLog] = useState<string[]>(["Teacher dashboard opened for Kisumu Boys."]);
   const [detailPanel, setDetailPanel] = useState<DetailPanel | null>(null);
   const searchResults = searchTerm.trim()
     ? teacherSearchRecords.filter((record) => `${record.label} ${record.detail}`.toLowerCase().includes(searchTerm.trim().toLowerCase()))

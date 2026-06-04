@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 
 import type { WidgetState } from "@/lib/capability-engine/school-capability-engine";
-import { publishSchoolOperationalEvent } from "@/lib/school/school-operational-store";
+import { getCurrentSchoolId, publishSchoolOperationalEvent } from "@/lib/school/school-operational-store";
 
 type DeanRouteMode = "hosted" | "public";
 type Tone = "success" | "info" | "warning" | "danger" | "neutral";
@@ -702,9 +702,10 @@ export function DeanAcademicsCommandCenter({
       return;
     }
 
+    const schoolId = getCurrentSchoolId();
     const entityId = `dean-action-${selectedAction.toLowerCase().replaceAll(" ", "-")}`;
     publishSchoolOperationalEvent({
-      schoolId: "kb-high",
+      schoolId,
       type: "ACADEMIC_DEAN_ACTION_RECORDED",
       module: "academics",
       actorRole: "Dean of Academics",

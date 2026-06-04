@@ -42,7 +42,7 @@ import {
 } from "lucide-react";
 
 import { toSchoolPath, type SchoolSection } from "@/lib/routing/experience-routes";
-import { publishSchoolOperationalEvent } from "@/lib/school/school-operational-store";
+import { getCurrentSchoolId, publishSchoolOperationalEvent } from "@/lib/school/school-operational-store";
 
 type AccountantRouteMode = "hosted" | "public";
 type AccountantTheme = "dark" | "light";
@@ -1188,9 +1188,10 @@ export function AccountantCommandCenter({ routeMode }: { routeMode: AccountantRo
       return;
     }
 
+    const schoolId = getCurrentSchoolId();
     const entityId = `finance-intelligence-${selectedInsight.action.toLowerCase().replaceAll(" ", "-")}`;
     publishSchoolOperationalEvent({
-      schoolId: "kb-high",
+      schoolId,
       type: "FINANCE_INTELLIGENCE_TASK_CREATED",
       module: "finance",
       actorRole: "Accountant",
@@ -1242,16 +1243,17 @@ export function AccountantCommandCenter({ routeMode }: { routeMode: AccountantRo
       recordedBy: transaction.recordedBy,
       status: transaction.status,
     }));
-    const filename = `${exportPreview.toLowerCase().replaceAll(" ", "-")}-kb-high.csv`;
+    const schoolId = getCurrentSchoolId();
+    const filename = `${exportPreview.toLowerCase().replaceAll(" ", "-")}-${schoolId}.csv`;
     downloadCsvFile(filename, rows);
 
     publishSchoolOperationalEvent({
-      schoolId: "kb-high",
+      schoolId,
       type: "FINANCE_EXPORT_DOWNLOADED",
       module: "finance",
       actorRole: "Accountant",
       title: `${exportPreview} export downloaded`,
-      body: `${exportPreview} CSV was generated from the Accountant dashboard for Kisumu Boys High School.`,
+      body: `${exportPreview} CSV was generated from the Accountant dashboard for the current school workspace.`,
       entityId: `finance-export-${exportPreview.toLowerCase().replaceAll(" ", "-")}`,
       severity: "success",
       payload: {
@@ -1360,7 +1362,7 @@ export function AccountantCommandCenter({ routeMode }: { routeMode: AccountantRo
                   <p className="text-xs font-black uppercase tracking-[0.24em] text-[#FFB36F]">Finance export preview</p>
                   <h2 className="mt-2 text-2xl font-black">{exportPreview}</h2>
                   <p className={cn("mt-2 text-sm leading-6", surface.muted)}>
-                    Kisumu Boys High School finance export with receipt number, parent, learner, method, amount, time, recorder, and verification status.
+                    Kisumu Boys finance export with receipt number, parent, learner, method, amount, time, recorder, and verification status.
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-2">

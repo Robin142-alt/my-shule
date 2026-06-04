@@ -5,14 +5,14 @@ import {
   scoreKisumuBoysHighDemoReadiness,
 } from "@/lib/demo/kisumu-boys-high-demo";
 
-describe("Kisumu Boys High demo communication fabric", () => {
+describe("Kisumu Boys demo communication fabric", () => {
   it("loads a high-density tenant demo that spans daily school operations", () => {
     const scenario = getKisumuBoysHighDemoScenario();
 
     expect(scenario.tenant).toEqual(
       expect.objectContaining({
         tenantId: "kisumu-boys",
-        schoolName: "Kisumu Boys High",
+        schoolName: "Kisumu Boys",
       }),
     );
     expect(scenario.records.students.length).toBeGreaterThanOrEqual(12);

@@ -187,7 +187,7 @@ type PrincipalLibraryLoanRecord = {
   parentSmsSent?: boolean;
 };
 
-const schoolName = "Kisumu Boys High School";
+const schoolName = "Kisumu Boys";
 
 const principalSections: PrincipalSection[] = [
   {
@@ -1525,7 +1525,7 @@ export function PrincipalPracticalCommandCenter({
                 <div>
                   <DashboardGreeting
                     name={greetingName}
-                    context="Here is what needs your attention at Kisumu Boys High School today."
+                    context="Here is what needs your attention at Kisumu Boys today."
                     tone="dark"
                   />
                   <h2 className="mt-1 text-lg font-black tracking-tight text-[#071D49]">Principal Command Center</h2>
