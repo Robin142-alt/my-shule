@@ -646,7 +646,7 @@ function DisciplineWorkspace() {
           rows={[
             ["Kevin Mwangi", "Form 2 North", "Repeat disruption", "High", "Mr. Kamau", "Counselling"],
             ["Mary Wambui", "Form 2 West", "Bullying report", "Critical", "Prefect", "Deputy review"],
-            ["Brian Otieno", "Form 2 East", "Late coming", "Medium", "Class teacher", "Parent called"],
+            ["Brian Otieno", "Form 2 East", "Late coming", "Medium", "Class teacher", "Parent SMS sent"],
           ]}
         />
       </Panel>
@@ -766,7 +766,7 @@ function MeetingsWorkspace() {
           ))}
         </div>
         <DataTable title="Intervention plans" columns={["Case", "Owner", "Status", "Next Step", "Due"]} rows={[
-          ["Form 2 West absenteeism", "Grade master", "Active", "Parent call", "Today"],
+          ["Form 2 West absenteeism", "Grade master", "Active", "Parent SMS follow-up", "Today"],
           ["Algebra support", "Math HOD", "Planned", "Group remedial", "Wednesday"],
           ["Bullying cluster", "Deputy", "Sensitive", "Hearing", "Friday"],
         ]} />

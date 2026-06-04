@@ -109,7 +109,7 @@ const kpis = [
 ] as const;
 
 const alerts = [
-  ["Brian Otieno absent 3 days", "Attendance trend requires guardian call before close of day.", "danger"],
+  ["Brian Otieno absent 3 days", "Attendance trend requires guardian SMS follow-up before close of day.", "danger"],
   ["Aisha Njeri grades declining", "Mathematics average dropped 12 points across two assessments.", "warning"],
   ["Parent unread message", "Mrs. Wanjiku asked for a meeting about homework completion.", "info"],
 ] as const;
