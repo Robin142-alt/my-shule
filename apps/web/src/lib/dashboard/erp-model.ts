@@ -13,6 +13,7 @@ import type {
   TenantOption,
 } from "./types";
 import { isProductionReadyHref } from "@/lib/features/module-readiness";
+import { getDashboardWorkspaceHref } from "@/lib/dashboard/workspace-routes";
 
 export interface SchoolSelectorOption {
   id: string;
@@ -601,27 +602,27 @@ function buildHomeKpis(role: DashboardRole, visibleStudents: BaseStudent[]): Kpi
 
   if (role === "teacher") {
     return [
-      makeCard("class-planner", "Class Planner", "0", "No live timetable sessions have been created yet.", "/dashboard/teacher/academics", "0", "up", []),
-      makeCard("classes-active", "Active Classes", "0", "No class assignments exist yet.", "/dashboard/teacher/academics", "0", "down", []),
-      makeCard("marks-pending", "Marks Pending", "0", "No assessment records exist yet.", "/dashboard/teacher/academics", "0", "down", []),
-      makeCard("reports-ready", "Report Cards Ready", "0", "No report cards exist yet.", "/dashboard/teacher/reports", "0", "up", []),
+      makeCard("class-planner", "Class Planner", "0", "No live timetable sessions have been created yet.", getDashboardWorkspaceHref(role, "academics"), "0", "up", []),
+      makeCard("classes-active", "Active Classes", "0", "No class assignments exist yet.", getDashboardWorkspaceHref(role, "academics"), "0", "down", []),
+      makeCard("marks-pending", "Marks Pending", "0", "No assessment records exist yet.", getDashboardWorkspaceHref(role, "academics"), "0", "down", []),
+      makeCard("reports-ready", "Report Cards Ready", "0", "No report cards exist yet.", getDashboardWorkspaceHref(role, "reports"), "0", "up", []),
     ].filter((card) => isProductionReadyHref(card.href));
   }
 
   if (role === "parent") {
     return [
-      makeCard("home-balance", "Current Balance", formatCurrency(0), "No linked learner fee records yet.", "/dashboard/parent/finance", "0", "down", []),
-      makeCard("home-academics", "Academic Progress", "0", "No linked learner academic records yet.", "/dashboard/parent/academics", "0", "up", []),
-      makeCard("home-next-fee", "Next Due", "None", "No billing schedule exists yet.", "/dashboard/parent/finance", "0", "down", []),
-      makeCard("home-messages", "Unread Notices", "0", "No school notices yet.", "/dashboard/parent/communication", "0", "up", []),
+      makeCard("home-balance", "Current Balance", formatCurrency(0), "No linked learner fee records yet.", getDashboardWorkspaceHref(role, "finance"), "0", "down", []),
+      makeCard("home-academics", "Academic Progress", "0", "No linked learner academic records yet.", getDashboardWorkspaceHref(role, "academics"), "0", "up", []),
+      makeCard("home-next-fee", "Next Due", "None", "No billing schedule exists yet.", getDashboardWorkspaceHref(role, "finance"), "0", "down", []),
+      makeCard("home-messages", "Unread Notices", "0", "No school notices yet.", getDashboardWorkspaceHref(role, "communication"), "0", "up", []),
     ].filter((card) => isProductionReadyHref(card.href));
   }
 
   return [
-    makeCard("fees-collected-today", "Fees Collected Today", formatCurrency(todayCollections), "No live receipts have been posted yet.", `/dashboard/${role}/finance`, "0", "up", []),
-    makeCard("total-fees-term", "Total Fees This Term", formatCurrency(totalFees), "No live invoices have been created yet.", `/dashboard/${role}/finance`, "0", "up", []),
-    makeCard("outstanding-balance", "Outstanding Balance", formatCurrency(outstanding), "No outstanding balances exist yet.", `/dashboard/${role}/finance`, "0", "down", []),
-    makeCard("students-with-balance", "Students with Balance", `${withBalance}`, "No students have been onboarded yet.", `/dashboard/${role}/students`, "0", "down", []),
+    makeCard("fees-collected-today", "Fees Collected Today", formatCurrency(todayCollections), "No live receipts have been posted yet.", getDashboardWorkspaceHref(role, "finance"), "0", "up", []),
+    makeCard("total-fees-term", "Total Fees This Term", formatCurrency(totalFees), "No live invoices have been created yet.", getDashboardWorkspaceHref(role, "finance"), "0", "up", []),
+    makeCard("outstanding-balance", "Outstanding Balance", formatCurrency(outstanding), "No outstanding balances exist yet.", getDashboardWorkspaceHref(role, "finance"), "0", "down", []),
+    makeCard("students-with-balance", "Students with Balance", `${withBalance}`, "No students have been onboarded yet.", getDashboardWorkspaceHref(role, "students"), "0", "down", []),
   ].filter((card) => isProductionReadyHref(card.href));
 }
 

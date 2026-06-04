@@ -30,13 +30,13 @@ export function InventoryDashboardHome() {
             Keep stock moving
           </h3>
           <div className="mt-6 space-y-3">
-            <Link href="/dashboard/storekeeper/inventory" className={buttonClasses({ variant: "secondary", size: "md" })}>
+            <Link href="/school/storekeeper/inventory" className={buttonClasses({ variant: "secondary", size: "md" })}>
               Open Inventory Desk
             </Link>
-            <Link href="/dashboard/storekeeper/inventory" className={buttonClasses({ variant: "primary", size: "md" })}>
+            <Link href="/school/storekeeper/inventory?action=adjust" className={buttonClasses({ variant: "primary", size: "md" })}>
               Adjust Stock
             </Link>
-            <Link href="/dashboard/storekeeper/inventory" className={buttonClasses({ variant: "secondary", size: "md" })}>
+            <Link href="/school/storekeeper/procurement?action=create-purchase-order" className={buttonClasses({ variant: "secondary", size: "md" })}>
               Create Purchase Order
             </Link>
           </div>

@@ -15,6 +15,7 @@ import Link from "next/link";
 
 import { StatusPill } from "@/components/ui/status-pill";
 import type { CapabilityItem, DashboardRole } from "@/lib/dashboard/types";
+import { getDashboardWorkspaceHref } from "@/lib/dashboard/workspace-routes";
 
 const iconMap = {
   students: Users,
@@ -59,7 +60,7 @@ export function CapabilityGrid({
           return (
             <Link
               key={capability.id}
-              href={`/dashboard/${role}/${capability.href}`}
+              href={getDashboardWorkspaceHref(role, capability.href)}
               data-testid="capability-card"
               className="rounded-[24px] border border-border bg-surface p-5 transition hover:-translate-y-0.5 hover:border-accent/35"
             >

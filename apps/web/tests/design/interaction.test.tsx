@@ -13,10 +13,10 @@ describe("STEP 5: Interaction tests", () => {
 
     expect(
       screen.getByRole("link", { name: /fees collected today/i }),
-    ).toHaveAttribute("href", "/dashboard/admin/finance");
+    ).toHaveAttribute("href", "/school/admin/finance");
     expect(screen.getByRole("link", { name: /students with balance/i })).toHaveAttribute(
       "href",
-      "/dashboard/admin/students",
+      "/school/admin/students",
     );
   });
 
@@ -36,7 +36,7 @@ describe("STEP 5: Interaction tests", () => {
 
     expect(onAction).toHaveBeenCalledTimes(1);
     expect(routerPushMock).toHaveBeenCalledTimes(1);
-    expect(routerPushMock).toHaveBeenCalledWith("/dashboard/admin/students");
+    expect(routerPushMock).toHaveBeenCalledWith("/school/admin/students");
   });
 
   it("supports searchable navigation from the topbar", async () => {
@@ -52,7 +52,7 @@ describe("STEP 5: Interaction tests", () => {
 
     await user.click(mpesaResult);
 
-    expect(routerPushMock).toHaveBeenCalledWith("/dashboard/admin/mpesa");
+    expect(routerPushMock).toHaveBeenCalledWith("/school/admin/mpesa");
   });
 
   it("does not expose learner search results before real admissions data exists", async () => {

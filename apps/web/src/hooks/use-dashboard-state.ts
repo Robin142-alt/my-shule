@@ -14,6 +14,7 @@ import {
   type DashboardSnapshot,
   type QuickActionItem,
 } from "@/lib/dashboard/types";
+import { getDashboardWorkspaceHref } from "@/lib/dashboard/workspace-routes";
 
 function useOnlineStatus() {
   const [online, setOnline] = useState(true);
@@ -77,7 +78,7 @@ export function useDashboardState(role: DashboardRole) {
             ? "Action queued locally and will sync once the network returns."
             : "Action opened from the quick actions rail.",
           actor: "You",
-          href: `/dashboard/${role}/${action.href}`,
+          href: getDashboardWorkspaceHref(role, action.href),
           timeLabel: "now",
           category:
             action.id === "record-payment" || action.id === "create-invoice"

@@ -4,9 +4,10 @@ import type {
   DashboardSnapshot,
   ModuleWorkspace,
 } from "./types";
+import { getDashboardWorkspaceHref } from "./workspace-routes";
 
 function moduleHref(role: DashboardRole, moduleName: string) {
-  return `/dashboard/${role}/${moduleName}`;
+  return getDashboardWorkspaceHref(role, moduleName);
 }
 
 function buildFinanceWorkspace(

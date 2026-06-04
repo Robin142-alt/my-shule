@@ -21,6 +21,7 @@ import { startTransition, useDeferredValue, useState } from "react";
 import { StatusPill } from "@/components/ui/status-pill";
 import type { LiveAuthUser } from "@/lib/dashboard/api-client";
 import { getRoleSidebar } from "@/lib/dashboard/role-config";
+import { getDashboardWorkspaceHref } from "@/lib/dashboard/workspace-routes";
 import { isProductionReadyHref } from "@/lib/features/module-readiness";
 import type {
   AlertItem,
@@ -122,17 +123,14 @@ export function Topbar({
       id: `module-${item.id}`,
       label: item.label,
       description: `${item.label} workspace`,
-      href:
-        item.href === "dashboard"
-          ? `/dashboard/${role}`
-          : `/dashboard/${role}/${item.href}`,
+      href: getDashboardWorkspaceHref(role, item.href),
       kind: "module" as const,
     })),
     ...quickActions.map((action) => ({
       id: `action-${action.id}`,
       label: action.label,
       description: action.description,
-      href: `/dashboard/${role}/${action.href}`,
+      href: getDashboardWorkspaceHref(role, action.href),
       kind: "action" as const,
     })),
     ...alerts.map((alert) => ({
@@ -153,7 +151,7 @@ export function Topbar({
       id: `capability-${capability.id}`,
       label: capability.label,
       description: capability.description,
-      href: `/dashboard/${role}/${capability.href}`,
+      href: getDashboardWorkspaceHref(role, capability.href),
       kind: "capability" as const,
     })),
     ...supplementalSearchItems,

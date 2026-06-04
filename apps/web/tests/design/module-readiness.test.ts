@@ -6,8 +6,14 @@ import {
   getRoleSidebar,
 } from "@/lib/dashboard/role-config";
 import { buildSchoolErpModel } from "@/lib/dashboard/erp-model";
+import { getDashboardStudentHref, getDashboardWorkspaceHref } from "@/lib/dashboard/workspace-routes";
 import { getSchoolWorkspace, type SchoolExperienceRole } from "@/lib/experiences/school-data";
 import { isProductionReadyHref, isProductionReadyModule } from "@/lib/features/module-readiness";
+import { AdmissionsDashboardHome } from "@/components/modules/admissions/admissions-dashboard-home";
+import { InventoryDashboardHome } from "@/components/modules/inventory/inventory-dashboard-home";
+import { renderWithProviders } from "./test-utils";
+import { screen } from "@testing-library/react";
+import { createElement } from "react";
 
 const moduleControlledProductionSections = new Set([
   "academics",
@@ -130,5 +136,37 @@ describe("production module readiness", () => {
     expect(principalNavIds).not.toContain("finance");
     expect(principalNavIds).not.toContain("transport");
     expect(principalNavIds).not.toContain("procurement");
+  });
+
+  it("keeps legacy dashboard home shortcuts on live role workspace routes", () => {
+    const { unmount } = renderWithProviders(createElement(AdmissionsDashboardHome));
+
+    expect(screen.getByRole("link", { name: /open admissions desk/i })).toHaveAttribute("href", "/school/admissions/admissions");
+    expect(screen.getByRole("link", { name: /new registration/i })).toHaveAttribute("href", "/school/admissions/admissions?view=new-registration");
+    expect(screen.getByRole("link", { name: /review applications/i })).toHaveAttribute("href", "/school/admissions/admissions?view=applications");
+    expect(screen.queryByRole("link", { name: /new registration/i })).not.toHaveAttribute("href", "/dashboard/admissions/admissions");
+
+    unmount();
+    renderWithProviders(createElement(InventoryDashboardHome));
+
+    expect(screen.getByRole("link", { name: /open inventory desk/i })).toHaveAttribute("href", "/school/storekeeper/inventory");
+    expect(screen.getByRole("link", { name: /adjust stock/i })).toHaveAttribute("href", "/school/storekeeper/inventory?action=adjust");
+    expect(screen.getByRole("link", { name: /create purchase order/i })).toHaveAttribute("href", "/school/storekeeper/procurement?action=create-purchase-order");
+    expect(screen.queryByRole("link", { name: /adjust stock/i })).not.toHaveAttribute("href", "/dashboard/storekeeper/inventory");
+  });
+
+  it("routes legacy dashboard navigation to live role workspaces", () => {
+    expect(getDashboardWorkspaceHref("admin", "dashboard")).toBe("/school/admin");
+    expect(getDashboardWorkspaceHref("teacher", "academics")).toBe("/school/teacher/academics");
+    expect(getDashboardWorkspaceHref("storekeeper", "inventory?action=adjust")).toBe("/school/storekeeper/inventory?action=adjust");
+    expect(getDashboardWorkspaceHref("admissions", "admissions?view=student-directory&student=std-1")).toBe("/school/admissions/admissions?view=student-directory&student=std-1");
+    expect(getDashboardStudentHref("teacher", "std-1")).toBe("/school/teacher/students/std-1");
+
+    expect(getDashboardWorkspaceHref("parent", "dashboard")).toBe("/portal/parent");
+    expect(getDashboardWorkspaceHref("parent", "finance")).toBe("/portal/parent/fees");
+    expect(getDashboardWorkspaceHref("parent", "communication")).toBe("/portal/parent/messages");
+    expect(getDashboardWorkspaceHref("parent", "reports")).toBe("/portal/parent/downloads");
+    expect(getDashboardStudentHref("parent", "std-1")).toBe("/portal/parent?student=std-1");
+    expect(isProductionReadyHref(getDashboardWorkspaceHref("parent", "finance"))).toBe(true);
   });
 });

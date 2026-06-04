@@ -5,6 +5,7 @@ import {
   isDashboardApiConfigured,
 } from "./api-client";
 import { buildDashboardSnapshot, getTenantOptions } from "./empty-data";
+import { getDashboardWorkspaceHref } from "./workspace-routes";
 import type {
   AlertItem,
   DashboardRole,
@@ -41,7 +42,7 @@ function buildLiveAlerts(snapshot: DashboardSnapshot, input: {
           ? `${input.activeAlertCount} system health alerts are open across API, queue, sync, or MPESA services.`
           : "The live platform reports a degraded service state.",
       severity: input.overallStatus === "critical" ? "critical" : "warning",
-      href: `/dashboard/${snapshot.role}/reports`,
+      href: getDashboardWorkspaceHref(snapshot.role, "reports"),
       actionLabel: "Open health view",
       metricLabel: "Live alerts",
       metricValue: `${input.activeAlertCount}`,
@@ -54,7 +55,7 @@ function buildLiveAlerts(snapshot: DashboardSnapshot, input: {
       title: "PostgreSQL is unavailable",
       description: "Database readiness failed. Keep finance and write-heavy operations on hold until recovery completes.",
       severity: "critical",
-      href: `/dashboard/${snapshot.role}/settings`,
+      href: getDashboardWorkspaceHref(snapshot.role, "settings"),
       actionLabel: "Check database",
       metricLabel: "Postgres",
       metricValue: input.postgres,
@@ -67,7 +68,7 @@ function buildLiveAlerts(snapshot: DashboardSnapshot, input: {
       title: "Redis or queue path is degraded",
       description: "Queue-backed actions such as SMS, event flow, or MPESA retries may be delayed.",
       severity: "warning",
-      href: `/dashboard/${snapshot.role}/communication`,
+      href: getDashboardWorkspaceHref(snapshot.role, "communication"),
       actionLabel: "Inspect queue",
       metricLabel: "Redis",
       metricValue: input.redis,
@@ -98,7 +99,7 @@ function buildLiveNotifications(input: {
           : input.overallStatus === "critical"
             ? "critical"
             : "warning",
-      href: `/dashboard/${input.role}/reports`,
+      href: getDashboardWorkspaceHref(input.role, "reports"),
     },
     {
       id: "live-data-plane",
@@ -106,7 +107,7 @@ function buildLiveNotifications(input: {
       timeLabel: "now",
       severity:
         input.postgres === "up" && input.redis === "up" ? "ok" : "warning",
-      href: `/dashboard/${input.role}/settings`,
+      href: getDashboardWorkspaceHref(input.role, "settings"),
     },
   ];
 
@@ -115,7 +116,7 @@ function buildLiveNotifications(input: {
     title: alert.title,
     timeLabel: "live",
     severity: normalizeSeverity(alert.severity),
-    href: `/dashboard/${input.role}/reports`,
+    href: getDashboardWorkspaceHref(input.role, "reports"),
   }));
 
   return [...notifications, ...alertNotifications];
@@ -138,7 +139,7 @@ function mergeActivityFeed(snapshot: DashboardSnapshot, input: {
           ? `${input.activeAlertCount} system health alerts are open and visible in the live stack.`
           : "Realtime health reported a degraded state with no open alert objects returned.",
       actor: "System health",
-      href: `/dashboard/${snapshot.role}/reports`,
+      href: getDashboardWorkspaceHref(snapshot.role, "reports"),
       timeLabel: "now",
       category: "communication" as const,
     },
@@ -168,7 +169,7 @@ async function hydrateWithLiveSignals(
           title: "Production service unavailable",
           timeLabel: "now",
           severity: "warning" as const,
-          href: `/dashboard/${snapshot.role}/reports`,
+          href: getDashboardWorkspaceHref(snapshot.role, "reports"),
         } satisfies NotificationItem,
         ...snapshot.notifications,
       ].slice(0, 5),

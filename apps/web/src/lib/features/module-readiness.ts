@@ -82,6 +82,26 @@ export function moduleIdFromHref(href: string) {
     return segments.length > 2 ? segments[2] : "dashboard";
   }
 
+  if (segments[0] === "portal") {
+    if (segments.length <= 2) {
+      return "dashboard";
+    }
+
+    if (segments[2] === "fees") {
+      return "finance";
+    }
+
+    if (segments[2] === "messages") {
+      return "communication";
+    }
+
+    if (segments[2] === "downloads") {
+      return "reports";
+    }
+
+    return segments[2];
+  }
+
   return segments[0];
 }
 

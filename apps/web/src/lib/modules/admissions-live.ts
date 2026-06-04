@@ -1,5 +1,6 @@
 import type { LiveAuthSession } from "@/lib/dashboard/api-client";
 import type { DashboardRole, StatusTone } from "@/lib/dashboard/types";
+import { getDashboardStudentHref, getDashboardWorkspaceHref } from "@/lib/dashboard/workspace-routes";
 import { requestSchoolApiProxy } from "@/lib/dashboard/school-api-proxy-client";
 import {
   buildAdmissionsSearchItems,
@@ -1077,8 +1078,8 @@ export function mapAdmissionsSearchItemsFromLive(
     description: `${student.class_name ?? "Class pending"} ${student.stream_name ?? "Stream pending"} · Parent ${student.primary_guardian_phone ?? "Not on file"}`,
     href:
       role === "admissions"
-        ? `/dashboard/admissions/admissions?view=student-directory&student=${student.id}`
-        : `/dashboard/${role}/students/${student.id}`,
+        ? getDashboardWorkspaceHref("admissions", `admissions?view=student-directory&student=${student.id}`)
+        : getDashboardStudentHref(role, student.id),
     kind: "student" as const,
   }));
 }

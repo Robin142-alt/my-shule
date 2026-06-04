@@ -865,7 +865,7 @@ describe("module live adapters", () => {
         id: "student-search-stu-44",
         label: "Achieng Otieno (ADM-G6-044)",
         description: "Grade 6 Baraka · Parent +254712998877",
-        href: "/dashboard/admissions/admissions?view=student-directory&student=stu-44",
+        href: "/school/admissions/admissions?view=student-directory&student=stu-44",
         kind: "student",
       },
     ]);

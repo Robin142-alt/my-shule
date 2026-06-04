@@ -60,6 +60,7 @@ import type {
   DashboardSnapshot,
   QuickActionItem,
 } from "@/lib/dashboard/types";
+import { getDashboardStudentHref, getDashboardWorkspaceHref } from "@/lib/dashboard/workspace-routes";
 import { isProductionReadyModule } from "@/lib/features/module-readiness";
 import { requestDashboardApi } from "@/lib/dashboard/api-client";
 import { publishSchoolOperationalEventAndSync } from "@/lib/school/school-operational-store";
@@ -210,7 +211,7 @@ function DefaultersCard({
           </h3>
         </div>
         <Link
-          href="/dashboard/admin/students"
+          href={getDashboardWorkspaceHref("admin", "students")}
           className="text-sm font-semibold text-accent"
         >
           View all
@@ -320,13 +321,13 @@ function ParentFamilyCard({
       </div>
       <div className="mt-6 flex flex-wrap gap-3">
         <Link
-          href="/dashboard/parent/students"
+          href={getDashboardWorkspaceHref("parent", "students")}
           className={buttonClasses({ variant: "primary", size: "md" })}
         >
           View child summary
         </Link>
         <Link
-          href="/dashboard/parent/finance"
+          href={getDashboardWorkspaceHref("parent", "finance")}
           className={buttonClasses({ variant: "secondary", size: "md" })}
         >
           View fee details
@@ -435,7 +436,7 @@ export function DashboardHome({
               <div data-testid="core-widget" className="xl:col-span-12">
                 <AcademicsWidget
                   data={snapshot.academics}
-                  href="/dashboard/teacher/academics"
+                  href={getDashboardWorkspaceHref("teacher", "academics")}
                 />
               </div>
             </section>
@@ -463,7 +464,7 @@ export function DashboardHome({
               <div data-testid="core-widget" className="xl:col-span-5">
                 <AcademicsWidget
                   data={snapshot.academics}
-                  href="/dashboard/parent/academics"
+                  href={getDashboardWorkspaceHref("parent", "academics")}
                 />
               </div>
             ) : null}
@@ -555,7 +556,7 @@ export function StudentsPage({
      }
 
      try {
-       // Call the actual API to create the student
+       // Use the live API to create the student.
        const response = await requestDashboardApi<CreatedStudentResponse>("/students", {
          method: "POST",
          body: {
@@ -585,7 +586,7 @@ export function StudentsPage({
       header: "Name",
       render: (row) => (
         <Link
-          href={`/dashboard/${role}/students/${row.id}`}
+          href={getDashboardStudentHref(role, row.id)}
           className="font-semibold text-accent hover:underline"
         >
           {row.name}
@@ -726,7 +727,7 @@ export function StudentsPage({
                 </h3>
               </div>
               <Link
-                href={`/dashboard/${role}/reports`}
+                href={getDashboardWorkspaceHref(role, "reports")}
                 className="text-sm font-semibold text-accent"
               >
                 Statements
@@ -844,7 +845,7 @@ export function StudentProfilePage({
           The learner profile could not be opened for this role and school.
         </p>
         <Link
-          href={`/dashboard/${role}/students`}
+          href={getDashboardWorkspaceHref(role, "students")}
           className={buttonClasses({ variant: "primary", size: "lg", className: "mt-6" })}
         >
           Back to students
@@ -918,7 +919,7 @@ export function StudentProfilePage({
         description={`${profile.admissionNumber} | ${profile.className} | Parent: ${profile.parentName}`}
         actions={
           <Link
-            href={`/dashboard/${role}/students`}
+            href={getDashboardWorkspaceHref(role, "students")}
             className={buttonClasses({ variant: "secondary", size: "lg" })}
           >
             Back to Students
@@ -993,13 +994,13 @@ export function StudentProfilePage({
             </div>
             <div className="flex flex-wrap gap-3">
               <Link
-                href={`/dashboard/${role}/finance`}
+                href={getDashboardWorkspaceHref(role, "finance")}
                 className={buttonClasses({ variant: "primary", size: "md" })}
               >
                 Record Payment
               </Link>
               <Link
-                href={`/dashboard/${role}/reports`}
+                href={getDashboardWorkspaceHref(role, "reports")}
                 className={buttonClasses({ variant: "secondary", size: "md" })}
               >
                 Print Statement
@@ -1044,17 +1045,17 @@ export function StudentProfilePage({
                     What should the bursar do?
                   </h3>
                   <p className="mt-4 text-[13px] leading-relaxed text-muted">
-                    If balance remains open, call the family and issue the latest fee statement before end of day.
+                    If balance remains open, send the latest fee statement and message the family before end of day.
                   </p>
                   <div className="mt-6 flex flex-wrap gap-3">
                     <Link
-                      href={`/dashboard/${role}/finance`}
+                      href={getDashboardWorkspaceHref(role, "finance")}
                       className={buttonClasses({ variant: "primary", size: "md" })}
                     >
                       Record Payment
                     </Link>
                     <Link
-                      href={`/dashboard/${role}/reports`}
+                      href={getDashboardWorkspaceHref(role, "reports")}
                       className={buttonClasses({ variant: "secondary", size: "md" })}
                     >
                       Print Statement
@@ -1317,7 +1318,7 @@ export function FinancePage({
      }
 
      try {
-       // Call the actual API to post the payment
+       // Use the live API to post the payment.
        const response = await requestDashboardApi<CreatedPaymentResponse>("/payments", {
          method: "POST",
          body: {
@@ -1493,7 +1494,7 @@ export function FinancePage({
                   Balance follow-up
                 </h3>
               </div>
-              <Link href={`/dashboard/${role}/students`} className="text-sm font-semibold text-accent">
+              <Link href={getDashboardWorkspaceHref(role, "students")} className="text-sm font-semibold text-accent">
                 Open students
               </Link>
             </div>
