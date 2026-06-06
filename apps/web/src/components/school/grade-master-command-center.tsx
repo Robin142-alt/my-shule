@@ -30,6 +30,12 @@ type GradeView =
   | "attendance"
   | "discipline"
   | "academics"
+  | "grade-results"
+  | "stream-comparison"
+  | "report-readiness"
+  | "learner-progress"
+  | "academic-interventions"
+  | "grade-comments"
   | "teachers"
   | "welfare"
   | "parents"
@@ -60,6 +66,12 @@ const navItems: NavItem[] = [
   { id: "attendance", label: "Attendance Oversight", icon: UserCheck, group: "Grade Operations" },
   { id: "discipline", label: "Discipline Oversight", icon: ShieldAlert, group: "Grade Operations" },
   { id: "academics", label: "Academic Monitoring", icon: BookOpenCheck, group: "Academics" },
+  { id: "grade-results", label: "Grade/Form Results", icon: BookOpenCheck, group: "Academics" },
+  { id: "stream-comparison", label: "Stream Comparison", icon: BarChart3, group: "Academics" },
+  { id: "report-readiness", label: "Report Readiness", icon: ClipboardList, group: "Academics" },
+  { id: "learner-progress", label: "Learner Progress", icon: TrendingUp, group: "Academics" },
+  { id: "academic-interventions", label: "Academic Interventions", icon: AlertTriangle, group: "Academics" },
+  { id: "grade-comments", label: "Grade/Form Comments", icon: MessageSquareWarning, group: "Academics" },
   { id: "teachers", label: "Teachers Coordination", icon: GraduationCap, group: "People" },
   { id: "welfare", label: "Student Welfare", icon: AlertTriangle, group: "Student Support" },
   { id: "parents", label: "Parent Escalations", icon: MessageSquareWarning, group: "Student Support" },
@@ -682,6 +694,134 @@ function AcademicsWorkspace() {
   );
 }
 
+function GradeResultsWorkspace() {
+  return (
+    <Panel title="Grade/Form Results" description="Same-school result queue for Form 2 streams, report types, and class-level academic status." icon={BookOpenCheck}>
+      <DataTable
+        title="Grade form result queue"
+        columns={["Stream", "Report Type", "Average", "Missing", "Approval", "Next Action"]}
+        rows={[
+          ["Form 2 South", "Hybrid CBC + Marks", "73%", "0", "Ready for Dean", "Submit summary"],
+          ["Form 2 North", "CBC/CBE Competency", "71%", "3 observations", "Class teacher", "Collect observations"],
+          ["Form 2 East", "Hybrid CBC + Marks", "66%", "5 comments", "Grade master", "Review comments"],
+          ["Form 2 West", "Legacy 8-4-4/KCSE", "63%", "8 marks", "Teacher correction", "Follow up"],
+        ]}
+      />
+    </Panel>
+  );
+}
+
+function StreamComparisonWorkspace() {
+  return (
+    <Panel title="Stream Comparison" description="Compares streams without changing marks or mixing learners outside the selected school." icon={BarChart3}>
+      <div className="grid gap-3 md:grid-cols-2">
+        {streams.map(([stream, teacher, total, attendance, discipline, average, tone]) => (
+          <article key={stream} className={cn("rounded-2xl border p-4", toneStyles[tone as Tone].card)}>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h3 className="font-black">{stream}</h3>
+                <p className="mt-1 text-sm font-semibold opacity-75">{teacher} | {total} learners</p>
+              </div>
+              <StatusChip label={average} tone={tone as Tone} />
+            </div>
+            <div className="mt-3 grid gap-2">
+              <p className="text-sm font-semibold opacity-75">Attendance {attendance}</p>
+              <p className="text-sm font-semibold opacity-75">Discipline score {discipline}</p>
+              <ProgressBar value={Number(average.replace("%", ""))} tone={tone as Tone} />
+            </div>
+          </article>
+        ))}
+      </div>
+    </Panel>
+  );
+}
+
+function ReportReadinessWorkspace() {
+  return (
+    <>
+      <KpiGrid
+        items={[
+          { label: "CBC reports ready", value: "96", helper: "Competency observations complete", tone: "success", icon: BookOpenCheck },
+          { label: "Hybrid reports ready", value: "118", helper: "Marks supplement and comments ready", tone: "info", icon: TrendingUp },
+          { label: "Legacy reports ready", value: "74", helper: "Transition classes only", tone: "warning", icon: ClipboardList },
+          { label: "Awaiting approval", value: "22", helper: "Dean or principal gate", tone: "danger", icon: AlertTriangle },
+        ]}
+      />
+      <Panel title="Report Readiness" description="Readiness is grouped by report format so CBC, hybrid, and legacy reports remain clearly separated." icon={ClipboardList}>
+        <DataTable
+          title="Readiness queue"
+          columns={["Stream", "Reporting Mode", "CBC Completion", "Marks Completion", "Comments", "Approval"]}
+          rows={[
+            ["Form 2 North", "CBC/CBE", "94%", "Not required", "Pending 3", "Class teacher"],
+            ["Form 2 East", "Hybrid CBC + Marks", "89%", "98%", "Pending 5", "Grade master"],
+            ["Form 2 West", "Legacy 8-4-4/KCSE", "Not required", "82%", "Ready", "Teacher correction"],
+            ["Form 2 South", "Hybrid CBC + Marks", "100%", "100%", "Ready", "Dean review"],
+          ]}
+        />
+      </Panel>
+    </>
+  );
+}
+
+function LearnerProgressWorkspace() {
+  return (
+    <Panel title="Learner Progress" description="Learner-level progress highlights for Grade/Form Master follow-up across streams." icon={TrendingUp}>
+      <DataTable
+        title="Learner progress tracker"
+        columns={["Learner", "Stream", "Progress Signal", "Support Needed", "Owner"]}
+        rows={[
+          ["Brian Otieno", "Form 2 West", "Below target in Mathematics", "Remedial group", "Math HOD"],
+          ["Aisha Njeri", "Form 2 East", "Strong CBC project evidence", "Parent encouragement", "Class teacher"],
+          ["Kevin Mwangi", "Form 2 North", "Attendance affecting performance", "Parent meeting", "Grade master"],
+        ]}
+      />
+    </Panel>
+  );
+}
+
+function AcademicInterventionsWorkspace() {
+  return (
+    <Panel title="Academic Interventions" description="Action queue for same-school academic support plans created from report readiness and learner progress." icon={AlertTriangle}>
+      <DataTable
+        title="Academic intervention queue"
+        columns={["Intervention", "Stream", "Learners", "Trigger", "Owner", "Due"]}
+        rows={[
+          ["Mathematics clinic", "Form 2 West", "14", "Below target", "HOD Mathematics", "Wednesday"],
+          ["CBC observation cleanup", "Form 2 North", "3", "Missing observation", "Class Teacher", "Today"],
+          ["Comment review", "Form 2 East", "5", "Missing class comments", "Grade Master", "Today"],
+        ]}
+      />
+    </Panel>
+  );
+}
+
+function GradeCommentsWorkspace({ onSubmitComments }: { onSubmitComments: () => void }) {
+  return (
+    <Panel title="Grade/Form Comments" description="Prepare grade-level comments before Dean review without publishing to parents." icon={MessageSquareWarning}>
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
+        <DataTable
+          title="Grade comment readiness"
+          columns={["Stream", "Class Teacher", "Missing", "Status"]}
+          rows={[
+            ["Form 2 North", "Mrs. Achieng", "3 learner comments", "Collecting"],
+            ["Form 2 East", "Mr. Otieno", "5 learner comments", "Review"],
+            ["Form 2 South", "Mr. Kamau", "0", "Ready"],
+          ]}
+        />
+        <div className="rounded-2xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
+          <h3 className="font-black text-[#071D49]">Submission gate</h3>
+          <p className="mt-2 text-sm font-semibold leading-6 text-[#64748B]">
+            Submit the grade comment pack to Dean review after unresolved stream comments are visible.
+          </p>
+          <button type="button" onClick={onSubmitComments} className="mt-4 min-h-11 w-full rounded-xl bg-[#071D49] px-4 text-sm font-black text-white">
+            Submit grade comments
+          </button>
+        </div>
+      </div>
+    </Panel>
+  );
+}
+
 function TeachersWorkspace() {
   return (
     <Panel title="Teachers Coordination" description="Class teacher cards, submitted reports, attendance submissions, escalation requests, and communication history." icon={GraduationCap}>
@@ -832,10 +972,12 @@ function ActiveWorkspace({
   activeView,
   onReportAction,
   onStreamDetail,
+  onSubmitComments,
 }: {
   activeView: GradeView;
   onReportAction: (report: string) => void;
   onStreamDetail: (title: string) => void;
+  onSubmitComments: () => void;
 }) {
   switch (activeView) {
     case "streams":
@@ -846,6 +988,18 @@ function ActiveWorkspace({
       return <DisciplineWorkspace />;
     case "academics":
       return <AcademicsWorkspace />;
+    case "grade-results":
+      return <GradeResultsWorkspace />;
+    case "stream-comparison":
+      return <StreamComparisonWorkspace />;
+    case "report-readiness":
+      return <ReportReadinessWorkspace />;
+    case "learner-progress":
+      return <LearnerProgressWorkspace />;
+    case "academic-interventions":
+      return <AcademicInterventionsWorkspace />;
+    case "grade-comments":
+      return <GradeCommentsWorkspace onSubmitComments={onSubmitComments} />;
     case "teachers":
       return <TeachersWorkspace />;
     case "welfare":
@@ -986,6 +1140,40 @@ export function GradeMasterCommandCenter({ routeMode }: { routeMode: GradeRouteM
     setSelectedReport(null);
   }
 
+  function submitGradeComments() {
+    const schoolId = getCurrentSchoolId();
+
+    publishSchoolOperationalEvent({
+      schoolId,
+      type: "GRADE_MASTER_COMMENTS_SUBMITTED",
+      module: "reports",
+      actorRole: "Grade/Form Master",
+      title: "Form 2 grade comments submitted",
+      body: "Grade/Form Master submitted Form 2 comments for Dean review before report card approval.",
+      entityId: "grade-master-form-2-comments",
+      severity: "info",
+      payload: {
+        grade: "Form 2",
+        streams: ["North", "East", "South"],
+        status: "Submitted to Dean review",
+      },
+      notifications: [
+        {
+          audienceRoles: ["Dean of Academics", "Class Teacher", "Principal"],
+          title: "Grade/Form comments submitted",
+          body: "Form 2 comment pack is ready for academic review in the same school workspace.",
+          severity: "info",
+          relatedModule: "reports",
+          relatedRecordId: "grade-master-form-2-comments",
+          requestStatus: "Pending",
+          requiresAction: true,
+        },
+      ],
+    });
+
+    setNotice("Grade/Form comments submitted for Dean review.");
+  }
+
   return (
     <div data-route-mode={routeMode} className="h-screen overflow-hidden bg-[#F3F6FA] text-[#071D49]">
       <div className="grid h-full gap-4 p-3 lg:grid-cols-[292px_minmax(0,1fr)]">
@@ -1041,7 +1229,12 @@ export function GradeMasterCommandCenter({ routeMode }: { routeMode: GradeRouteM
                   </div>
                 </div>
               ) : null}
-              <ActiveWorkspace activeView={activeView} onReportAction={openReportAction} onStreamDetail={openStreamDetailReview} />
+              <ActiveWorkspace
+                activeView={activeView}
+                onReportAction={openReportAction}
+                onStreamDetail={openStreamDetailReview}
+                onSubmitComments={submitGradeComments}
+              />
             </div>
           </main>
         </div>

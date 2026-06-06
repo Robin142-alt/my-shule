@@ -185,6 +185,10 @@ function MarksTable({ report }: { report: ReportCardDocumentData }) {
     return null;
   }
 
+  if (report.curriculum.reportCardType === "HYBRID_CBC_MARKS" && !report.permissions.canViewMarksSupplement) {
+    return null;
+  }
+
   const title = report.curriculum.reportCardType === "HYBRID_CBC_MARKS"
     ? "Marks-Based Assessment Supplement"
     : "Legacy Subject Results";
@@ -290,6 +294,8 @@ function Footer({ report }: { report: ReportCardDocumentData }) {
 }
 
 export function ReportCardDocument({ report }: { report: ReportCardDocumentData }) {
+  const isLegacyReport = report.curriculum.reportCardType === "LEGACY_844_KCSE";
+  const showCompetencySections = !isLegacyReport;
   const values = report.values.map((value) => ({ label: value.value, value: value.comment || value.rating }));
   const projects = report.projects.map((project) => ({ label: `${project.category}: ${project.title}`, value: project.note }));
   const competencies = report.coreCompetencies.map((item) => ({ label: item.competency, value: [item.level, item.observation, item.evidence].filter(Boolean).join(" | ") }));
@@ -308,9 +314,9 @@ export function ReportCardDocument({ report }: { report: ReportCardDocumentData 
         <CbcSummarySection report={report} />
         <CompetencyTable report={report} />
         <MarksTable report={report} />
-        <CompactListSection title="Core Competencies" items={competencies} empty="No core competency evidence is available for this reporting period." />
-        <CompactListSection title="Values and Character Development" items={values} empty="No values or character observations have been recorded." />
-        <CompactListSection title="Projects, Practicals and Talents" items={projects} empty="No projects, practicals, clubs, sports, or talent notes have been recorded." />
+        {showCompetencySections ? <CompactListSection title="Core Competencies" items={competencies} empty="No core competency evidence is available for this reporting period." /> : null}
+        {showCompetencySections ? <CompactListSection title="Values and Character Development" items={values} empty="No values or character observations have been recorded." /> : null}
+        {showCompetencySections ? <CompactListSection title="Projects, Practicals and Talents" items={projects} empty="No projects, practicals, clubs, sports, or talent notes have been recorded." /> : null}
         <Section title="Attendance, Conduct and Fees">
           <div className="grid gap-2 md:grid-cols-3">
             <Field label="Attendance" value={report.attendance?.percentage || "No attendance records are available for this reporting period."} />
@@ -318,8 +324,8 @@ export function ReportCardDocument({ report }: { report: ReportCardDocumentData 
             <Field label="Fees" value={report.permissions.canViewFees ? report.feeSummary?.balanceLabel : "Fee visibility is disabled for this report."} />
           </div>
         </Section>
-        <CompactListSection title="Parent / Guardian Support" items={report.learningAreas.map((area) => ({ label: area.learningArea, value: area.parentSupport })).filter((item) => item.value)} empty="No parent support guidance has been entered." />
-        <CompactListSection title="Descriptor Legend" items={descriptorItems} empty="Competency descriptors have not been configured." />
+        {showCompetencySections ? <CompactListSection title="Parent / Guardian Support" items={report.learningAreas.map((area) => ({ label: area.learningArea, value: area.parentSupport })).filter((item) => item.value)} empty="No parent support guidance has been entered." /> : null}
+        {showCompetencySections ? <CompactListSection title="Descriptor Legend" items={descriptorItems} empty="Competency descriptors have not been configured." /> : null}
         {report.gradingScale.length ? <CompactListSection title="Grading Scale" items={gradingItems} empty="Grading scale has not been configured." /> : null}
         <CommentsAndSignatures report={report} />
         <Footer report={report} />

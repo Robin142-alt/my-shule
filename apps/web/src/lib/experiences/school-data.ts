@@ -77,6 +77,7 @@ const schoolNavMap: Record<SchoolExperienceRole, ExperienceNavItem[]> = {
     { id: "approvals", label: "Approvals", href: toSchoolPath("approvals"), icon: ClipboardList, group: "Governance" },
     { id: "universal-approvals", label: "Universal Approvals", href: toSchoolPath("universal-approvals"), icon: ClipboardList, group: "Governance" },
     { id: "users-staff", label: "Users & Staff", href: toSchoolPath("users-staff"), icon: UserSquare2, group: "Governance" },
+    { id: "exams", label: "Academic Oversight", href: toSchoolPath("exams"), icon: BookOpenCheck, group: "Governance" },
     { id: "reports", label: "Reports", href: toSchoolPath("reports"), icon: FileSpreadsheet, group: "Governance" },
     { id: "reports-analytics", label: "Reports Center", href: toSchoolPath("reports-analytics"), icon: BarChart3, group: "Governance" },
     { id: "school-calendar", label: "School Calendar", href: toSchoolPath("school-calendar"), icon: CalendarDays, group: "Operations" },
@@ -240,7 +241,6 @@ const schoolNavMap: Record<SchoolExperienceRole, ExperienceNavItem[]> = {
   student: [
     { id: "dashboard", label: "Dashboard", href: toSchoolPath("dashboard"), icon: LayoutGrid, group: "Overview" },
     { id: "academics", label: "Learning", href: toSchoolPath("academics"), icon: GraduationCap, group: "Academics" },
-    { id: "exams", label: "Results", href: toSchoolPath("exams"), icon: BookOpenCheck, group: "Academics" },
     { id: "lms", label: "Assignments", href: toSchoolPath("lms"), icon: GraduationCap, group: "Academics" },
     { id: "library", label: "Library Books", href: toSchoolPath("library"), icon: BookOpenCheck, group: "School life" },
     { id: "timetable", label: "Timetable", href: toSchoolPath("timetable"), icon: CalendarDays, group: "School life" },
@@ -305,6 +305,7 @@ const schoolNavMap: Record<SchoolExperienceRole, ExperienceNavItem[]> = {
     { id: "attendance", label: "Attendance Oversight", href: toSchoolPath("students"), icon: UserSquare2, group: "Grade Operations" },
     { id: "discipline", label: "Discipline Oversight", href: toSchoolPath("discipline"), icon: ShieldAlert, group: "Grade Operations" },
     { id: "academics", label: "Academic Monitoring", href: toSchoolPath("academics"), icon: GraduationCap, group: "Academics" },
+    { id: "exams", label: "Grade/Form Results", href: toSchoolPath("exams"), icon: BookOpenCheck, group: "Academics" },
     { id: "reports", label: "Reports", href: toSchoolPath("reports"), icon: FileSpreadsheet, group: "Administration" },
     { id: "communication", label: "Parent Escalations", href: toSchoolPath("communication"), icon: MessageSquareText, group: "Student Support" },
     ...supportSidebarItems,

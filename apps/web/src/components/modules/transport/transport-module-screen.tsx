@@ -18,6 +18,7 @@ import { Card } from "@/components/ui/card";
 import { StatusPill } from "@/components/ui/status-pill";
 import { getCsrfToken } from "@/lib/auth/csrf-client";
 import type { StatusTone } from "@/lib/dashboard/types";
+import { fetchLearnerLookup, type LearnerLookupItem } from "@/lib/students/student-lookup";
 
 type TransportRouteRow = {
   id: string;
@@ -182,16 +183,187 @@ function Field({
   );
 }
 
+function recordOptionLabel(row: TransportRouteRow | TransportVehicleRow | TransportTripRow) {
+  if ("registration_number" in row) {
+    return `${row.registration_number}${row.capacity ? ` - ${row.capacity} seats` : ""}`;
+  }
+
+  if ("name" in row) {
+    return `${row.name}${row.direction ? ` - ${formatStatus(row.direction)}` : ""}`;
+  }
+
+  return `${row.route_name ?? "Transport trip"}${row.vehicle_registration ? ` - ${row.vehicle_registration}` : ""}`;
+}
+
+function RecordSelect<TRecord extends { id: string }>({
+  label,
+  name,
+  rows,
+  required,
+  emptyLabel,
+  optionalLabel,
+  getLabel,
+}: {
+  label: string;
+  name: string;
+  rows: TRecord[];
+  required?: boolean;
+  emptyLabel: string;
+  optionalLabel?: string;
+  getLabel: (row: TRecord) => string;
+}) {
+  const disabled = rows.length === 0;
+
+  return (
+    <Field label={label}>
+      <select
+        aria-label={label}
+        className={fieldClassName}
+        name={name}
+        required={required}
+        disabled={disabled}
+        defaultValue={required ? rows[0]?.id ?? "" : ""}
+      >
+        {required ? null : <option value="">{optionalLabel ?? "None"}</option>}
+        {disabled ? <option value="">{emptyLabel}</option> : null}
+        {rows.map((row) => (
+          <option key={row.id} value={row.id}>
+            {getLabel(row)}
+          </option>
+        ))}
+      </select>
+      {disabled ? (
+        <span className="block text-xs font-medium text-danger">{emptyLabel}</span>
+      ) : null}
+    </Field>
+  );
+}
+
+function LearnerLookupPicker({
+  tenantSlug,
+  mode,
+  selectedIds,
+  onSelectedIdsChange,
+}: {
+  tenantSlug?: string | null;
+  mode: "single" | "multi";
+  selectedIds: string[];
+  onSelectedIdsChange: (ids: string[]) => void;
+}) {
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<LearnerLookupItem[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [lookupError, setLookupError] = useState<string | null>(null);
+  const selectedSet = new Set(selectedIds);
+
+  async function searchLearners() {
+    if (!tenantSlug) {
+      setLookupError("School workspace is required before learner search.");
+      return;
+    }
+
+    if (query.trim().length < 2) {
+      setLookupError("Enter at least two characters to search learners.");
+      return;
+    }
+
+    setIsSearching(true);
+    setLookupError(null);
+
+    try {
+      setResults(await fetchLearnerLookup({ tenantSlug, query, limit: 8 }));
+    } catch (error) {
+      setLookupError(error instanceof Error ? error.message : "Learner search is unavailable.");
+    } finally {
+      setIsSearching(false);
+    }
+  }
+
+  function toggleLearner(learner: LearnerLookupItem) {
+    if (mode === "single") {
+      onSelectedIdsChange(selectedSet.has(learner.id) ? [] : [learner.id]);
+      return;
+    }
+
+    onSelectedIdsChange(
+      selectedSet.has(learner.id)
+        ? selectedIds.filter((id) => id !== learner.id)
+        : [...selectedIds, learner.id],
+    );
+  }
+
+  return (
+    <div className="space-y-3 md:col-span-2">
+      <Field label="Search learners">
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <input
+            aria-label="Search learners"
+            className={fieldClassName}
+            value={query}
+            onChange={(event) => setQuery(event.currentTarget.value)}
+            placeholder="Search name or admission no."
+          />
+          <Button type="button" variant="secondary" onClick={searchLearners} disabled={isSearching}>
+            {isSearching ? "Searching..." : "Search learners"}
+          </Button>
+        </div>
+      </Field>
+      <input type="hidden" name={mode === "multi" ? "student_ids" : "student_id"} value={selectedIds.join(",")} />
+      <div className="rounded-[var(--radius-sm)] border border-border bg-surface-muted px-4 py-3">
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-sm font-semibold text-foreground">
+            {mode === "multi" ? `${selectedIds.length} learner${selectedIds.length === 1 ? "" : "s"} selected` : selectedIds.length === 1 ? "1 learner selected" : "No learner selected"}
+          </p>
+          {selectedIds.length > 0 ? (
+            <Button type="button" size="sm" variant="ghost" onClick={() => onSelectedIdsChange([])}>
+              Clear
+            </Button>
+          ) : null}
+        </div>
+        {lookupError ? <p className="mt-2 text-sm font-semibold text-danger">{lookupError}</p> : null}
+        <div className="mt-3 space-y-2">
+          {results.length === 0 ? (
+            <p className="text-sm text-muted">Search for learners to attach exact records.</p>
+          ) : results.map((learner) => (
+            <label key={learner.id} className="flex cursor-pointer items-start gap-3 rounded-[var(--radius-sm)] border border-border bg-surface px-3 py-2">
+              <input
+                type={mode === "multi" ? "checkbox" : "radio"}
+                name={mode === "multi" ? `learner-${learner.id}` : "selected-learner"}
+                checked={selectedSet.has(learner.id)}
+                onChange={() => toggleLearner(learner)}
+                aria-label={`Select ${learner.name}`}
+                className="mt-1"
+              />
+              <span>
+                <span className="block text-sm font-semibold text-foreground">{learner.name}</span>
+                <span className="block text-xs text-muted">
+                  {learner.admissionNumber}{learner.classLabel ? ` - ${learner.classLabel}` : ""}
+                </span>
+              </span>
+            </label>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ActionPanel({
   action,
   saveState,
+  dashboard,
+  tenantSlug,
   onSubmit,
 }: {
   action: TransportAction;
   saveState: SaveState;
+  dashboard: TransportDashboard;
+  tenantSlug?: string | null;
   onSubmit: (action: TransportAction, formData: FormData) => void;
 }) {
   const saving = saveState === "saving";
+  const [manifestStudentIds, setManifestStudentIds] = useState<string[]>([]);
+  const [eventStudentIds, setEventStudentIds] = useState<string[]>([]);
   const titleMap: Record<TransportAction, string> = {
     route: "Route control",
     vehicle: "Vehicle readiness",
@@ -200,6 +372,11 @@ function ActionPanel({
     event: "Trip event",
     service: "Service log",
   };
+  const missingRequiredSelection =
+    (["manifest", "trip"].includes(action) && dashboard.routes.length === 0)
+    || (["trip", "service"].includes(action) && dashboard.vehicles.length === 0)
+    || (action === "event" && dashboard.trips.length === 0)
+    || (action === "manifest" && manifestStudentIds.length === 0);
 
   return (
     <Card className="p-5">
@@ -264,12 +441,20 @@ function ActionPanel({
 
         {action === "manifest" ? (
           <>
-            <Field label="Route id">
-              <input className={fieldClassName} name="route_id" placeholder="route uuid" required />
-            </Field>
-            <Field label="Student ids">
-              <input className={fieldClassName} name="student_ids" placeholder="student-1, student-2" required />
-            </Field>
+            <RecordSelect
+              label="Route"
+              name="route_id"
+              rows={dashboard.routes}
+              required
+              emptyLabel="No transport routes loaded."
+              getLabel={recordOptionLabel}
+            />
+            <LearnerLookupPicker
+              tenantSlug={tenantSlug}
+              mode="multi"
+              selectedIds={manifestStudentIds}
+              onSelectedIdsChange={setManifestStudentIds}
+            />
             <Field label="Effective from">
               <input className={fieldClassName} name="effective_from" type="date" />
             </Field>
@@ -281,15 +466,25 @@ function ActionPanel({
 
         {action === "trip" ? (
           <>
-            <Field label="Route id">
-              <input className={fieldClassName} name="route_id" placeholder="route uuid" required />
-            </Field>
-            <Field label="Vehicle id">
-              <input className={fieldClassName} name="vehicle_id" placeholder="vehicle uuid" required />
-            </Field>
-            <Field label="Driver id">
-              <input className={fieldClassName} name="driver_id" placeholder="driver uuid" />
-            </Field>
+            <RecordSelect
+              label="Route"
+              name="route_id"
+              rows={dashboard.routes}
+              required
+              emptyLabel="No transport routes loaded."
+              getLabel={recordOptionLabel}
+            />
+            <RecordSelect
+              label="Vehicle"
+              name="vehicle_id"
+              rows={dashboard.vehicles}
+              required
+              emptyLabel="No transport vehicles loaded."
+              getLabel={recordOptionLabel}
+            />
+            <div className="rounded-[var(--radius-sm)] border border-border bg-surface-muted px-4 py-3 text-sm font-semibold text-muted">
+              Driver assignment will attach from the live driver roster when the transport dashboard exposes driver records.
+            </div>
             <Field label="Trip date">
               <input className={fieldClassName} name="trip_date" type="date" />
             </Field>
@@ -298,9 +493,14 @@ function ActionPanel({
 
         {action === "event" ? (
           <>
-            <Field label="Trip id">
-              <input className={fieldClassName} name="trip_id" placeholder="trip uuid" required />
-            </Field>
+            <RecordSelect
+              label="Trip"
+              name="trip_id"
+              rows={dashboard.trips}
+              required
+              emptyLabel="No transport trips loaded."
+              getLabel={recordOptionLabel}
+            />
             <Field label="Event">
               <select className={fieldClassName} name="event_type" defaultValue="pickup">
                 <option value="departed">Departed</option>
@@ -311,9 +511,12 @@ function ActionPanel({
                 <option value="arrived">Arrived</option>
               </select>
             </Field>
-            <Field label="Student id">
-              <input className={fieldClassName} name="student_id" placeholder="student uuid" />
-            </Field>
+            <LearnerLookupPicker
+              tenantSlug={tenantSlug}
+              mode="single"
+              selectedIds={eventStudentIds}
+              onSelectedIdsChange={setEventStudentIds}
+            />
             <Field label="Notes">
               <input className={fieldClassName} name="notes" placeholder="Boarded at Donholm" />
             </Field>
@@ -322,9 +525,14 @@ function ActionPanel({
 
         {action === "service" ? (
           <>
-            <Field label="Vehicle id">
-              <input className={fieldClassName} name="vehicle_id" placeholder="vehicle uuid" required />
-            </Field>
+            <RecordSelect
+              label="Vehicle"
+              name="vehicle_id"
+              rows={dashboard.vehicles}
+              required
+              emptyLabel="No transport vehicles loaded."
+              getLabel={recordOptionLabel}
+            />
             <Field label="Service date">
               <input className={fieldClassName} name="service_date" type="date" />
             </Field>
@@ -338,7 +546,12 @@ function ActionPanel({
         ) : null}
 
         <div className="md:col-span-2">
-          <Button type="submit" disabled={saving}>
+          {missingRequiredSelection ? (
+            <p className="mb-3 text-sm font-semibold text-danger">
+              Load or select the required transport records before posting this workflow.
+            </p>
+          ) : null}
+          <Button type="submit" disabled={saving || missingRequiredSelection}>
             <CheckCircle2 className="h-4 w-4" />
             {saving ? "Posting..." : `Post ${titleMap[action].toLowerCase()}`}
           </Button>
@@ -513,7 +726,6 @@ export function TransportModuleScreen({
         body: {
           route_id: formValue(formData, "route_id"),
           vehicle_id: formValue(formData, "vehicle_id"),
-          driver_id: formValue(formData, "driver_id") || undefined,
           trip_date: formValue(formData, "trip_date") || undefined,
         },
       };
@@ -629,7 +841,7 @@ export function TransportModuleScreen({
         ))}
       </section>
 
-      <ActionPanel action={activeAction} saveState={saveState} onSubmit={submitAction} />
+      <ActionPanel action={activeAction} saveState={saveState} dashboard={dashboard} tenantSlug={tenantSlug} onSubmit={submitAction} />
 
       <section className="grid gap-5 xl:grid-cols-2">
         <DataPanel

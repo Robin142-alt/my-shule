@@ -131,6 +131,62 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
+function requestOptionLabel(request: ProcurementRequestRow) {
+  return `${request.title}${request.department ? ` - ${request.department}` : ""}`;
+}
+
+function supplierOptionLabel(supplier: ProcurementSupplierRow) {
+  return `${supplier.name}${supplier.category ? ` - ${supplier.category}` : ""}`;
+}
+
+function purchaseOrderOptionLabel(order: ProcurementPurchaseOrderRow) {
+  return `${order.po_number}${order.supplier_name ? ` - ${order.supplier_name}` : ""}`;
+}
+
+function RecordSelect<TRecord extends { id: string }>({
+  label,
+  name,
+  rows,
+  required,
+  emptyLabel,
+  optionalLabel,
+  getLabel,
+}: {
+  label: string;
+  name: string;
+  rows: TRecord[];
+  required?: boolean;
+  emptyLabel: string;
+  optionalLabel?: string;
+  getLabel: (row: TRecord) => string;
+}) {
+  const disabled = rows.length === 0;
+
+  return (
+    <Field label={label}>
+      <select
+        aria-label={label}
+        className={fieldClassName}
+        name={name}
+        required={required}
+        disabled={disabled}
+        defaultValue={required ? rows[0]?.id ?? "" : ""}
+      >
+        {required ? null : <option value="">{optionalLabel ?? "None"}</option>}
+        {disabled ? <option value="">{emptyLabel}</option> : null}
+        {rows.map((row) => (
+          <option key={row.id} value={row.id}>
+            {getLabel(row)}
+          </option>
+        ))}
+      </select>
+      {disabled ? (
+        <span className="block text-xs font-medium text-danger">{emptyLabel}</span>
+      ) : null}
+    </Field>
+  );
+}
+
 function StatCard({
   label,
   value,
@@ -168,10 +224,12 @@ function StatCard({
 function ActionPanel({
   action,
   saving,
+  dashboard,
   onSubmit,
 }: {
   action: ProcurementAction;
   saving: boolean;
+  dashboard: ProcurementDashboard;
   onSubmit: (action: ProcurementAction, data: FormData) => void;
 }) {
   const titleMap: Record<ProcurementAction, string> = {
@@ -181,6 +239,10 @@ function ActionPanel({
     "purchase-order": "Purchase order",
     invoice: "Invoice",
   };
+  const missingRequiredSelection =
+    (action === "approval" && dashboard.requests.length === 0)
+    || (action === "purchase-order" && dashboard.suppliers.length === 0)
+    || (action === "invoice" && dashboard.purchase_orders.length === 0);
 
   return (
     <Card className="p-5">
@@ -243,9 +305,14 @@ function ActionPanel({
 
         {action === "approval" ? (
           <>
-            <Field label="Request id">
-              <input className={fieldClassName} name="request_id" placeholder="request uuid" required />
-            </Field>
+            <RecordSelect
+              label="Request"
+              name="request_id"
+              rows={dashboard.requests}
+              required
+              emptyLabel="No procurement requests loaded."
+              getLabel={requestOptionLabel}
+            />
             <Field label="Decision">
               <select className={fieldClassName} name="decision" defaultValue="approved">
                 <option value="approved">Approved</option>
@@ -263,12 +330,22 @@ function ActionPanel({
 
         {action === "purchase-order" ? (
           <>
-            <Field label="Supplier id">
-              <input className={fieldClassName} name="supplier_id" placeholder="supplier uuid" required />
-            </Field>
-            <Field label="Request id">
-              <input className={fieldClassName} name="request_id" placeholder="request uuid" />
-            </Field>
+            <RecordSelect
+              label="Supplier"
+              name="supplier_id"
+              rows={dashboard.suppliers}
+              required
+              emptyLabel="No suppliers loaded."
+              getLabel={supplierOptionLabel}
+            />
+            <RecordSelect
+              label="Request"
+              name="request_id"
+              rows={dashboard.requests}
+              emptyLabel="No procurement requests loaded."
+              optionalLabel="No linked request"
+              getLabel={requestOptionLabel}
+            />
             <Field label="Item">
               <input className={fieldClassName} name="item_name" placeholder="Reagent pack" required />
             </Field>
@@ -286,9 +363,14 @@ function ActionPanel({
 
         {action === "invoice" ? (
           <>
-            <Field label="Purchase order id">
-              <input className={fieldClassName} name="purchase_order_id" placeholder="purchase order uuid" required />
-            </Field>
+            <RecordSelect
+              label="Purchase order"
+              name="purchase_order_id"
+              rows={dashboard.purchase_orders}
+              required
+              emptyLabel="No purchase orders loaded."
+              getLabel={purchaseOrderOptionLabel}
+            />
             <Field label="Invoice number">
               <input className={fieldClassName} name="invoice_number" placeholder="INV-001" required />
             </Field>
@@ -302,7 +384,12 @@ function ActionPanel({
         ) : null}
 
         <div className="md:col-span-2">
-          <Button type="submit" disabled={saving}>
+          {missingRequiredSelection ? (
+            <p className="mb-3 text-sm font-semibold text-danger">
+              Load the required procurement records before posting this workflow.
+            </p>
+          ) : null}
+          <Button type="submit" disabled={saving || missingRequiredSelection}>
             <ClipboardCheck className="h-4 w-4" />
             {saving ? "Posting..." : `Post ${titleMap[action].toLowerCase()}`}
           </Button>
@@ -562,7 +649,7 @@ export function ProcurementModuleScreen({
         ))}
       </section>
 
-      <ActionPanel action={action} saving={saving} onSubmit={postAction} />
+      <ActionPanel action={action} saving={saving} dashboard={dashboard} onSubmit={postAction} />
 
       <section className="grid gap-5 xl:grid-cols-2">
         <ListPanel

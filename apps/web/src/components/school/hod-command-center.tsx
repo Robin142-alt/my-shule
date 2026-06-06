@@ -564,8 +564,29 @@ function SyllabusWorkspace({ onExportAction, onFilterAction, onSearchAction }: D
 
 function ExamsWorkspace({ onExportAction, onFilterAction, onSearchAction }: DataTableActionHandlers) {
   return (
-    <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+    <div className="space-y-4">
+      <section className="rounded-2xl bg-[linear-gradient(135deg,#071D49_0%,#1D4ED8_58%,#0891B2_100%)] p-5 text-white shadow-[0_24px_70px_rgba(7,29,73,0.22)]">
+        <p className="text-xs font-black uppercase tracking-[0.22em] text-sky-100/70">HOD examination quality gate</p>
+        <h2 className="mt-3 max-w-4xl text-3xl font-black tracking-[0] md:text-5xl">HOD Academic Command Center</h2>
+        <div className="mt-5 grid gap-3 md:grid-cols-3">
+          {[
+            ["Department Exam Review", "Submitted marksheets, missing marks, returned corrections, and HOD approval readiness."],
+            ["Department Results", "Subject mean, grade distribution, pass rate, and stream comparison for the department."],
+            ["Subject Analytics", "Weak topics, class/stream comparison, teacher comparison, and declining learners."],
+          ].map(([title, detail]) => (
+            <div key={title} className="rounded-xl border border-white/12 bg-white/10 px-4 py-3">
+              <p className="text-sm font-black">{title}</p>
+              <p className="mt-2 text-xs font-semibold leading-5 text-blue-100/82">{detail}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
       <Panel title="Exams & Performance Workspace" description="CATs, midterms, end terms, practical exams, departmental mean score, rankings, and stream comparisons." icon={BarChart3}>
+        <div className="mb-4 rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] px-4 py-3">
+          <p className="text-sm font-black text-[#071D49]">Department Exam Review</p>
+          <p className="mt-1 text-xs font-semibold leading-5 text-[#64748B]">Review marksheets, approve to Exams Manager, return corrections, and send reminders from the department queue.</p>
+        </div>
         <DataTable
           title="Exam overview"
           columns={["Assessment", "Mean", "Top Class", "Grade Distribution", "Missing Marks", "Action"]}
@@ -578,8 +599,15 @@ function ExamsWorkspace({ onExportAction, onFilterAction, onSearchAction }: Data
           onFilter={onFilterAction}
           onExport={onExportAction}
         />
+        <div className="mt-4 flex flex-wrap gap-2">
+          {["Review Marksheet", "Approve to Exams Manager", "Return for Correction", "Send Reminder", "View Subject Analysis"].map((label) => (
+            <button key={label} type="button" className="rounded-xl border border-[#B8D4FF] bg-[#EEF5FF] px-3 py-2 text-xs font-black text-[#1D4ED8]">
+              {label}
+            </button>
+          ))}
+        </div>
       </Panel>
-      <Panel title="Student risk detection" description="Struggling students, declining trends, and weak topics." icon={AlertTriangle}>
+      <Panel title="Subject Analytics" description="Struggling students, declining trends, and weak topics." icon={AlertTriangle}>
         <DataTable
           title="Risk learners"
           columns={["Student", "Class", "Trigger", "Risk", "Next Action"]}
@@ -589,6 +617,7 @@ function ExamsWorkspace({ onExportAction, onFilterAction, onSearchAction }: Data
           onExport={onExportAction}
         />
       </Panel>
+      </div>
     </div>
   );
 }
@@ -823,8 +852,14 @@ function ActiveWorkspace({
   }
 }
 
-export function HodCommandCenter({ routeMode }: { routeMode: HodRouteMode }) {
-  const [activeView, setActiveView] = useState<HodView>("overview");
+export function HodCommandCenter({
+  routeMode,
+  initialView = "overview",
+}: {
+  routeMode: HodRouteMode;
+  initialView?: HodView;
+}) {
+  const [activeView, setActiveView] = useState<HodView>(initialView);
   const [searchTerm, setSearchTerm] = useState("");
   const [notice, setNotice] = useState("Ready for department follow-up.");
   const [selectedExport, setSelectedExport] = useState<string | null>(null);
@@ -1024,7 +1059,7 @@ export function HodCommandCenter({ routeMode }: { routeMode: HodRouteMode }) {
       ],
     });
 
-    setNotice(`${selectedExport} CSV downloaded and export record saved for department records.`);
+    setNotice(`${selectedExport} export saved for department records. CSV downloaded for department review.`);
     setSelectedExport(null);
   }
 

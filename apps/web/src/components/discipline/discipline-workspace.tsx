@@ -18,6 +18,7 @@ import { LearnerPicker } from "@/components/common/learner-picker";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
+import { Modal } from "@/components/ui/modal";
 import { StatusPill } from "@/components/ui/status-pill";
 import { Tabs } from "@/components/ui/tabs";
 import {
@@ -273,6 +274,10 @@ export function DisciplineWorkspace({
   const [selectedSessionLearner, setSelectedSessionLearner] = useState<LearnerLookupItem | null>(null);
   const [sessionStudentId, setSessionStudentId] = useState("");
   const [sessionDate, setSessionDate] = useState(new Date().toISOString().slice(0, 16));
+  const [pendingStatusChange, setPendingStatusChange] = useState<{
+    incident: DisciplineIncident;
+    status: DisciplineStatus;
+  } | null>(null);
 
   const loadOperationalData = useCallback(async () => {
     if (!normalizedTenantSlug) {
@@ -444,12 +449,17 @@ export function DisciplineWorkspace({
         <div className="flex flex-wrap gap-1">
           <Button variant="secondary" onClick={() => setSelectedIncidentId(row.id)}>Open</Button>
           {row.status !== "resolved" ? (
-            <Button variant="secondary" onClick={() => void changeStatus(row.id, "resolved")}>Resolve</Button>
+            <Button variant="secondary" onClick={() => requestStatusChange(row, "resolved")}>Resolve</Button>
           ) : null}
         </div>
       ),
     },
   ];
+
+  function requestStatusChange(incident: DisciplineIncident, status: DisciplineStatus) {
+    setPendingStatusChange({ incident, status });
+    setSelectedIncidentId(incident.id);
+  }
 
   async function submitIncident() {
     if (!normalizedTenantSlug) return;
@@ -497,6 +507,7 @@ export function DisciplineWorkspace({
     try {
       await updateDisciplineStatus(normalizedTenantSlug, incidentId, status, `Status changed to ${status}.`);
       setNotice({ tone: "success", message: `Case status changed to ${humanize(status)}.` });
+      setPendingStatusChange(null);
       await loadOperationalData();
       if (incidentId === selectedIncidentId) {
         setSelectedIncident(await fetchDisciplineIncidentDetail(normalizedTenantSlug, incidentId));
@@ -774,7 +785,7 @@ export function DisciplineWorkspace({
                   onAddComment={addComment}
                   onAddAction={addAction}
                   onUploadEvidence={uploadEvidence}
-                  onChangeStatus={changeStatus}
+                  onChangeStatus={requestStatusChange}
                   onGenerateLetter={generateLetter}
                   onPrintCase={printSelectedCase}
                 />
@@ -951,6 +962,52 @@ export function DisciplineWorkspace({
           },
         ]}
       />
+      <Modal
+        open={Boolean(pendingStatusChange)}
+        title="Confirm status change"
+        description="Review the discipline case before changing its workflow status."
+        onClose={() => {
+          if (!busy) setPendingStatusChange(null);
+        }}
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setPendingStatusChange(null)} disabled={busy}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                if (pendingStatusChange) {
+                  void changeStatus(pendingStatusChange.incident.id, pendingStatusChange.status);
+                }
+              }}
+              disabled={busy || !pendingStatusChange}
+            >
+              {pendingStatusChange ? `Confirm ${humanize(pendingStatusChange.status)}` : "Confirm"}
+            </Button>
+          </>
+        }
+      >
+        {pendingStatusChange ? (
+          <div className="space-y-4">
+            <div className="rounded-xl border border-border bg-surface-muted px-4 py-3 text-sm text-muted">
+              This will update the source discipline case record through the existing status handler. Dashboard counts and the selected case detail will refresh after the update completes.
+            </div>
+            <div className="grid gap-3 md:grid-cols-2">
+              <div className="rounded-xl border border-border px-4 py-3">
+                <p className="text-xs uppercase tracking-[0.14em] text-muted">Case</p>
+                <p className="mt-1 text-sm font-semibold text-foreground">{pendingStatusChange.incident.incident_number}</p>
+                <p className="mt-1 text-sm text-muted">{pendingStatusChange.incident.title}</p>
+              </div>
+              <div className="rounded-xl border border-border px-4 py-3">
+                <p className="text-xs uppercase tracking-[0.14em] text-muted">Status change</p>
+                <p className="mt-1 text-sm text-muted">
+                  {humanize(pendingStatusChange.incident.status)} to {humanize(pendingStatusChange.status)}
+                </p>
+              </div>
+            </div>
+          </div>
+        ) : null}
+      </Modal>
     </div>
   );
 }
@@ -986,7 +1043,7 @@ function IncidentDetailPanel({
   onAddComment: () => Promise<void>;
   onAddAction: () => Promise<void>;
   onUploadEvidence: () => Promise<void>;
-  onChangeStatus: (incidentId: string, status: DisciplineStatus) => Promise<void>;
+  onChangeStatus: (incident: DisciplineIncident, status: DisciplineStatus) => void;
   onGenerateLetter: (type: "warning_letter" | "parent_summons" | "behavior_report") => Promise<void>;
   onPrintCase: () => void;
 }) {
@@ -1031,7 +1088,7 @@ function IncidentDetailPanel({
       </div>
       <div className="mt-5 flex flex-wrap gap-2">
         {(["under_review", "pending_action", "awaiting_parent_response", "counselling_assigned", "escalated", "resolved", "closed"] as DisciplineStatus[]).map((status) => (
-          <Button key={status} variant="secondary" onClick={() => void onChangeStatus(incident.id, status)} disabled={busy}>
+          <Button key={status} variant="secondary" onClick={() => onChangeStatus(incident, status)} disabled={busy}>
             {humanize(status)}
           </Button>
         ))}

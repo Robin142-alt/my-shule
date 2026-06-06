@@ -134,6 +134,43 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
+function deviceOptionLabel(device: IotDeviceRow) {
+  return `${device.name}${device.location_name ? ` - ${device.location_name}` : ""}`;
+}
+
+function DeviceSelect({
+  devices,
+}: {
+  devices: IotDeviceRow[];
+}) {
+  const disabled = devices.length === 0;
+
+  return (
+    <Field label="Device">
+      <select
+        aria-label="Device"
+        className={fieldClassName}
+        name="device_id"
+        required
+        disabled={disabled}
+        defaultValue={devices[0]?.id ?? ""}
+      >
+        {disabled ? <option value="">No devices registered.</option> : null}
+        {devices.map((device) => (
+          <option key={device.id} value={device.id}>
+            {deviceOptionLabel(device)}
+          </option>
+        ))}
+      </select>
+      {disabled ? (
+        <span className="block text-xs font-medium text-danger">
+          Register a device before posting this workflow.
+        </span>
+      ) : null}
+    </Field>
+  );
+}
+
 function StatCard({
   label,
   value,
@@ -208,10 +245,12 @@ function DataPanel<T extends { id: string }>({
 function ActionPanel({
   action,
   saving,
+  dashboard,
   onSubmit,
 }: {
   action: IotAction;
   saving: boolean;
+  dashboard: IotDashboard;
   onSubmit: (action: IotAction, formData: FormData) => void;
 }) {
   const titleMap: Record<IotAction, string> = {
@@ -220,6 +259,8 @@ function ActionPanel({
     command: "Command center",
     credential: "Gateway credentials",
   };
+  const requiresDevice = action === "telemetry" || action === "command" || action === "credential";
+  const missingDevice = requiresDevice && dashboard.devices.length === 0;
 
   return (
     <Card className="p-5">
@@ -264,9 +305,7 @@ function ActionPanel({
 
         {action === "telemetry" ? (
           <>
-            <Field label="Device id">
-              <input className={fieldClassName} name="device_id" placeholder="device uuid" required />
-            </Field>
+            <DeviceSelect devices={dashboard.devices} />
             <Field label="Metric">
               <input className={fieldClassName} name="metric_name" placeholder="power_kw" required />
             </Field>
@@ -288,9 +327,7 @@ function ActionPanel({
 
         {action === "command" ? (
           <>
-            <Field label="Device id">
-              <input className={fieldClassName} name="device_id" placeholder="device uuid" required />
-            </Field>
+            <DeviceSelect devices={dashboard.devices} />
             <Field label="Command">
               <select className={fieldClassName} name="command_type" defaultValue="sync">
                 <option value="sync">Sync</option>
@@ -317,9 +354,7 @@ function ActionPanel({
 
         {action === "credential" ? (
           <>
-            <Field label="Device id">
-              <input className={fieldClassName} name="device_id" placeholder="device uuid" required />
-            </Field>
+            <DeviceSelect devices={dashboard.devices} />
             <Field label="Credential label">
               <input className={fieldClassName} name="label" placeholder="Gate gateway" />
             </Field>
@@ -333,7 +368,12 @@ function ActionPanel({
         ) : null}
 
         <div className="md:col-span-2">
-          <Button type="submit" disabled={saving}>
+          {missingDevice ? (
+            <p className="mb-3 text-sm font-semibold text-danger">
+              Register a device before posting this workflow.
+            </p>
+          ) : null}
+          <Button type="submit" disabled={saving || missingDevice}>
             <Send className="h-4 w-4" />
             {saving ? "Posting..." : `Post ${titleMap[action].toLowerCase()}`}
           </Button>
@@ -569,7 +609,7 @@ export function IotModuleScreen({
         ))}
       </section>
 
-      <ActionPanel action={activeAction} saving={saving} onSubmit={submitAction} />
+      <ActionPanel action={activeAction} saving={saving} dashboard={dashboard} onSubmit={submitAction} />
 
       {issuedCredential ? (
         <Card className="p-5">

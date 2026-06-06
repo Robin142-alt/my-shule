@@ -250,12 +250,9 @@ describe("STEP 4: Role tests", () => {
     expect(within(commandCenter).getByRole("heading", { name: /record visit and dispense medicine/i })).toBeVisible();
     expect(within(commandCenter).getAllByText(/medicine inventory/i).length).toBeGreaterThan(0);
 
-    await user.clear(within(commandCenter).getByLabelText(/student name/i));
-    await user.type(within(commandCenter).getByLabelText(/student name/i), "Calvin Were");
-    await user.clear(within(commandCenter).getByLabelText(/class or form/i));
-    await user.type(within(commandCenter).getByLabelText(/class or form/i), "Form 1 North");
-    await user.clear(within(commandCenter).getByLabelText(/guardian phone/i));
-    await user.type(within(commandCenter).getByLabelText(/guardian phone/i), "0711 777 888");
+    await user.selectOptions(within(commandCenter).getByRole("combobox", { name: /student name/i }), "Brian Otieno");
+    expect(within(commandCenter).getByLabelText(/class or form/i)).toHaveValue("Form 2 East");
+    expect(within(commandCenter).getByLabelText(/guardian phone/i)).toHaveValue("0712 345 678");
     await user.clear(within(commandCenter).getByLabelText(/temperature/i));
     await user.type(within(commandCenter).getByLabelText(/temperature/i), "37.9");
     await user.clear(within(commandCenter).getByLabelText(/quantity dispensed/i));
@@ -263,7 +260,7 @@ describe("STEP 4: Role tests", () => {
     await user.type(within(commandCenter).getByLabelText(/symptoms and treatment notes/i), "Stomach pain after breakfast");
     await user.click(within(commandCenter).getByRole("button", { name: /save visit and deduct stock/i }));
 
-    expect(within(commandCenter).getByText(/calvin were visit saved/i)).toBeVisible();
+    expect(within(commandCenter).getByText(/brian otieno visit saved/i)).toBeVisible();
     expect(within(commandCenter).getByText(/stomach pain after breakfast/i)).toBeVisible();
     expect(within(commandCenter).getByText(/Paracetamol x3/i)).toBeVisible();
 
@@ -377,26 +374,33 @@ describe("STEP 4: Role tests", () => {
 
     await user.clear(within(commandCenter).getByLabelText(/^Book barcode$/i));
     await user.type(within(commandCenter).getByLabelText(/^Book barcode$/i), "KB-LIB-3300");
-    await user.clear(within(commandCenter).getByLabelText(/borrower name/i));
-    await user.type(within(commandCenter).getByLabelText(/borrower name/i), "Mary Wanjiku");
-    await user.clear(within(commandCenter).getByLabelText(/admission number/i));
-    await user.type(within(commandCenter).getByLabelText(/admission number/i), "KBI/2026/220");
+    await user.selectOptions(within(commandCenter).getByRole("combobox", { name: /borrower name/i }), "Brian Otieno");
+    expect(within(commandCenter).getByLabelText(/admission number/i)).toHaveValue("KBI/2026/044");
     await user.click(within(commandCenter).getByRole("button", { name: /^Issue Book$/i }));
 
-    expect(within(commandCenter).getByText(/agriculture form 3 issued to mary wanjiku/i)).toBeVisible();
+    expect(within(commandCenter).getByText(/agriculture form 3 issued to brian otieno/i)).toBeVisible();
 
-    let loanRow = within(commandCenter).getByText("Mary Wanjiku - KBI/2026/220").closest("tr");
+    let loanRow = within(commandCenter)
+      .getAllByText("Agriculture Form 3")
+      .map((element) => element.closest("tr"))
+      .find(Boolean);
     expect(loanRow).not.toBeNull();
     await user.click(within(loanRow as HTMLElement).getByRole("button", { name: /send overdue sms/i }));
-    expect(within(commandCenter).getByText(/mary wanjiku parent\/student sms queued/i)).toBeVisible();
+    expect(within(commandCenter).getByText(/brian otieno parent\/student sms queued/i)).toBeVisible();
 
-    loanRow = within(commandCenter).getByText("Mary Wanjiku - KBI/2026/220").closest("tr");
+    loanRow = within(commandCenter)
+      .getAllByText("Agriculture Form 3")
+      .map((element) => element.closest("tr"))
+      .find(Boolean);
     expect(loanRow).not.toBeNull();
     await user.click(within(loanRow as HTMLElement).getByRole("button", { name: /print slip/i }));
     expect(within(commandCenter).getByText(/agriculture form 3 slip opened/i)).toBeVisible();
     await printFromPreview(user, printMock);
 
-    loanRow = within(commandCenter).getByText("Mary Wanjiku - KBI/2026/220").closest("tr");
+    loanRow = within(commandCenter)
+      .getAllByText("Agriculture Form 3")
+      .map((element) => element.closest("tr"))
+      .find(Boolean);
     expect(loanRow).not.toBeNull();
     await user.click(within(loanRow as HTMLElement).getByRole("button", { name: /return book/i }));
     expect(within(commandCenter).getByText(/agriculture form 3 returned and marked available/i)).toBeVisible();
@@ -501,21 +505,18 @@ describe("STEP 4: Role tests", () => {
     expect(within(commandCenter).getByRole("heading", { name: /mark boarder roll call/i })).toBeVisible();
     expect(within(commandCenter).getByText(/dormitory status and actions/i)).toBeVisible();
 
-    await user.clear(within(commandCenter).getByLabelText(/boarder name/i));
-    await user.type(within(commandCenter).getByLabelText(/boarder name/i), "Peter Ouma");
-    await user.clear(within(commandCenter).getByLabelText(/boarder class/i));
-    await user.type(within(commandCenter).getByLabelText(/boarder class/i), "Form 1 North");
-    await user.clear(within(commandCenter).getByLabelText(/^Dormitory$/i));
-    await user.type(within(commandCenter).getByLabelText(/^Dormitory$/i), "Lake House");
+    await user.selectOptions(within(commandCenter).getByRole("combobox", { name: /boarder name/i }), "Brian Otieno");
+    expect(within(commandCenter).getByLabelText(/boarder class/i)).toHaveValue("Form 2 East");
+    expect(within(commandCenter).getByLabelText(/^Dormitory$/i)).toHaveValue("Lake House");
     await user.clear(within(commandCenter).getByLabelText(/bed number/i));
     await user.type(within(commandCenter).getByLabelText(/bed number/i), "L-25");
     await user.selectOptions(within(commandCenter).getByLabelText(/roll call status/i), "Missing");
     await user.click(within(commandCenter).getByRole("button", { name: /save roll call/i }));
 
-    expect(within(commandCenter).getByText(/peter ouma marked missing/i)).toBeVisible();
+    expect(within(commandCenter).getByText(/brian otieno marked missing/i)).toBeVisible();
     await waitFor(() => {
       const storedRollCalls = readSchoolData<{ student: string; status: string; schoolId: string }>("boarding-roll-calls", schoolId);
-      expect(storedRollCalls.some((record) => record.student === "Peter Ouma" && record.status === "Missing" && record.schoolId === schoolId)).toBe(true);
+      expect(storedRollCalls.some((record) => record.student === "Brian Otieno" && record.status === "Missing" && record.schoolId === schoolId)).toBe(true);
     });
     expect(
       readSchoolData<SchoolOperationalEvent>("events", schoolId).some(
@@ -528,20 +529,20 @@ describe("STEP 4: Role tests", () => {
           notification.sourceModule === "boarding" &&
           notification.audienceRoles.includes("deputy-principal") &&
           notification.audienceRoles.includes("security-officer") &&
-          /Peter Ouma/i.test(notification.body),
+          /Brian Otieno/i.test(notification.body),
       ),
     ).toBe(true);
 
     let rollCallRow = within(commandCenter)
-      .getAllByText(/Peter Ouma/i)
+      .getAllByText(/L-25/i)
       .map((element) => element.closest("tr"))
       .find(Boolean);
     expect(rollCallRow).not.toBeNull();
     await user.click(within(rollCallRow as HTMLElement).getByRole("button", { name: /notify parent/i }));
-    expect(within(commandCenter).getByText(/peter ouma parent sms queued/i)).toBeVisible();
+    expect(within(commandCenter).getByText(/brian otieno parent sms queued/i)).toBeVisible();
     expect(
       readSchoolData<SchoolSmsLog>("smsLogs", schoolId).some(
-        (sms) => sms.sourceModule === "boarding" && /Peter Ouma/i.test(sms.message),
+        (sms) => sms.sourceModule === "boarding" && /Brian Otieno/i.test(sms.message),
       ),
     ).toBe(true);
     expect(
@@ -549,43 +550,40 @@ describe("STEP 4: Role tests", () => {
     ).toBe(true);
 
     rollCallRow = within(commandCenter)
-      .getAllByText(/Peter Ouma/i)
+      .getAllByText(/L-25/i)
       .map((element) => element.closest("tr"))
       .find(Boolean);
     expect(rollCallRow).not.toBeNull();
     await user.click(within(rollCallRow as HTMLElement).getByRole("button", { name: /refer to nurse/i }));
-    expect(within(commandCenter).getByText(/peter ouma referred to nurse/i)).toBeVisible();
+    expect(within(commandCenter).getByText(/brian otieno referred to nurse/i)).toBeVisible();
     expect(
       readSchoolData<{ student: string; source: string }>("boarding-nurse-referrals", schoolId).some(
-        (referral) => referral.student === "Peter Ouma" && referral.source === "Boarding Master",
+        (referral) => referral.student === "Brian Otieno" && referral.source === "Boarding Master",
       ),
     ).toBe(true);
     expect(
       readSchoolData<SchoolNotification>("notifications", schoolId).some(
-        (notification) => notification.sourceModule === "boarding" && notification.audienceRoles.includes("nurse") && /Peter Ouma/i.test(notification.body),
+        (notification) => notification.sourceModule === "boarding" && notification.audienceRoles.includes("nurse") && /Brian Otieno/i.test(notification.body),
       ),
     ).toBe(true);
 
-    await user.clear(within(commandCenter).getByLabelText(/exeat student/i));
-    await user.type(within(commandCenter).getByLabelText(/exeat student/i), "Peter Ouma");
-    await user.clear(within(commandCenter).getByLabelText(/exeat dormitory/i));
-    await user.type(within(commandCenter).getByLabelText(/exeat dormitory/i), "Lake House");
-    await user.clear(within(commandCenter).getByLabelText(/exeat parent phone/i));
-    await user.type(within(commandCenter).getByLabelText(/exeat parent phone/i), "0700 222 333");
+    await user.selectOptions(within(commandCenter).getByRole("combobox", { name: /exeat student/i }), "Brian Otieno");
+    expect(within(commandCenter).getByLabelText(/exeat dormitory/i)).toHaveValue("Lake House");
+    expect(within(commandCenter).getByLabelText(/exeat parent phone/i)).toHaveValue("0712 345 678");
     await user.clear(within(commandCenter).getByLabelText(/exeat reason/i));
     await user.type(within(commandCenter).getByLabelText(/exeat reason/i), "Clinic review appointment");
     await user.click(within(commandCenter).getByRole("button", { name: /add exeat request/i }));
 
-    expect(within(commandCenter).getByText(/peter ouma exeat request saved/i)).toBeVisible();
+    expect(within(commandCenter).getByText(/brian otieno exeat request saved/i)).toBeVisible();
     expect(
       readSchoolData<{ student: string; status: string }>("boarding-exeat-requests", schoolId).some(
-        (request) => request.student === "Peter Ouma" && request.status === "Pending",
+        (request) => request.student === "Brian Otieno" && request.status === "Pending",
       ),
     ).toBe(true);
     await user.click(within(commandCenter).getAllByRole("button", { name: /approve exeat/i })[0]);
-    expect(within(commandCenter).getByText(/peter ouma exeat approved/i)).toBeVisible();
+    expect(within(commandCenter).getByText(/brian otieno exeat approved/i)).toBeVisible();
     expect(
-      readSchoolData<SchoolOperationalEvent>("events", schoolId).some((event) => event.type === "BOARDING_EXEAT_APPROVED" && /Peter Ouma/i.test(event.body)),
+      readSchoolData<SchoolOperationalEvent>("events", schoolId).some((event) => event.type === "BOARDING_EXEAT_APPROVED" && /Brian Otieno/i.test(event.body)),
     ).toBe(true);
 
     await user.click(within(commandCenter).getByRole("button", { name: /print roll call/i }));
@@ -613,46 +611,44 @@ describe("STEP 4: Role tests", () => {
     expect(within(commandCenter).getByRole("heading", { name: /record pickup or drop-off/i })).toBeVisible();
     expect(within(commandCenter).getByText(/vehicles and maintenance/i)).toBeVisible();
 
-    await user.clear(within(commandCenter).getByLabelText(/transport student/i));
-    await user.type(within(commandCenter).getByLabelText(/transport student/i), "David Kiptoo");
-    await user.clear(within(commandCenter).getByLabelText(/transport admission number/i));
-    await user.type(within(commandCenter).getByLabelText(/transport admission number/i), "KBI/2026/330");
+    await user.selectOptions(within(commandCenter).getByRole("combobox", { name: /transport student/i }), "Brian Otieno");
+    expect(within(commandCenter).getByLabelText(/transport admission number/i)).toHaveValue("KBI/2026/044");
     await user.selectOptions(within(commandCenter).getByLabelText(/transport route/i), "Mamboleo Route");
     await user.clear(within(commandCenter).getByLabelText(/transport stop/i));
     await user.type(within(commandCenter).getByLabelText(/transport stop/i), "Kibuye Market");
     await user.click(within(commandCenter).getByRole("button", { name: /add trip record/i }));
 
-    expect(within(commandCenter).getByText(/david kiptoo added to mamboleo route/i)).toBeVisible();
+    expect(within(commandCenter).getByText(/brian otieno added to mamboleo route/i)).toBeVisible();
     expect(
       readSchoolData<{ student: string; route: string; status: string }>("transport-trips", schoolId).some(
-        (trip) => trip.student === "David Kiptoo" && trip.route === "Mamboleo Route" && trip.status === "Waiting",
+        (trip) => trip.student === "Brian Otieno" && trip.route === "Mamboleo Route" && trip.status === "Waiting",
       ),
     ).toBe(true);
     expect(
-      readSchoolData<SchoolOperationalEvent>("events", schoolId).some((event) => event.type === "TRANSPORT_TRIP_RECORDED" && /David Kiptoo/i.test(event.body)),
+      readSchoolData<SchoolOperationalEvent>("events", schoolId).some((event) => event.type === "TRANSPORT_TRIP_RECORDED" && /Brian Otieno/i.test(event.body)),
     ).toBe(true);
 
     let tripRow = within(commandCenter)
-      .getAllByText(/David Kiptoo/i)
+      .getAllByText(/Kibuye Market/i)
       .map((element) => element.closest("tr"))
       .find(Boolean);
     expect(tripRow).not.toBeNull();
     await user.click(within(tripRow as HTMLElement).getByRole("button", { name: /mark picked/i }));
-    expect(within(commandCenter).getByText(/david kiptoo marked picked/i)).toBeVisible();
+    expect(within(commandCenter).getByText(/brian otieno marked picked/i)).toBeVisible();
     expect(
-      readSchoolData<SchoolSmsLog>("smsLogs", schoolId).some((sms) => sms.sourceModule === "transport" && /David Kiptoo/i.test(sms.message) && /picked/i.test(sms.message)),
+      readSchoolData<SchoolSmsLog>("smsLogs", schoolId).some((sms) => sms.sourceModule === "transport" && /Brian Otieno/i.test(sms.message) && /picked/i.test(sms.message)),
     ).toBe(true);
     expect(
       readSchoolData<SchoolOperationalEvent>("events", schoolId).some((event) => event.type === "TRANSPORT_STUDENT_PICKED"),
     ).toBe(true);
 
     tripRow = within(commandCenter)
-      .getAllByText(/David Kiptoo/i)
+      .getAllByText(/Kibuye Market/i)
       .map((element) => element.closest("tr"))
       .find(Boolean);
     expect(tripRow).not.toBeNull();
     await user.click(within(tripRow as HTMLElement).getByRole("button", { name: /mark dropped/i }));
-    expect(within(commandCenter).getByText(/david kiptoo marked dropped/i)).toBeVisible();
+    expect(within(commandCenter).getByText(/brian otieno marked dropped/i)).toBeVisible();
     expect(
       readSchoolData<SchoolOperationalEvent>("events", schoolId).some((event) => event.type === "TRANSPORT_STUDENT_DROPPED"),
     ).toBe(true);
@@ -696,12 +692,9 @@ describe("STEP 4: Role tests", () => {
     expect(within(commandCenter).getByRole("heading", { name: /add practical request/i })).toBeVisible();
     expect(within(commandCenter).getByText(/chemical and apparatus inventory/i)).toBeVisible();
 
-    await user.clear(within(commandCenter).getByLabelText(/lab teacher/i));
-    await user.type(within(commandCenter).getByLabelText(/lab teacher/i), "Mrs. Achieng");
-    await user.clear(within(commandCenter).getByLabelText(/lab class or form/i));
-    await user.type(within(commandCenter).getByLabelText(/lab class or form/i), "Form 2 North");
-    await user.clear(within(commandCenter).getByLabelText(/lab subject/i));
-    await user.type(within(commandCenter).getByLabelText(/lab subject/i), "Biology");
+    await user.selectOptions(within(commandCenter).getByRole("combobox", { name: /lab teacher/i }), "Mrs. Achieng");
+    expect(within(commandCenter).getByLabelText(/lab class or form/i)).toHaveValue("Form 2 North");
+    expect(within(commandCenter).getByLabelText(/lab subject/i)).toHaveValue("Biology");
     await user.clear(within(commandCenter).getByLabelText(/lab practical/i));
     await user.type(within(commandCenter).getByLabelText(/lab practical/i), "Food test practical");
     await user.clear(within(commandCenter).getByLabelText(/practical time/i));
@@ -937,6 +930,9 @@ describe("STEP 4: Role tests", () => {
       ),
     ).toBe(true);
 
+    await user.selectOptions(within(commandCenter).getByRole("combobox", { name: /inquiry student/i }), "David Kiptoo");
+    expect(within(commandCenter).getByLabelText(/inquiry class/i)).toHaveValue("Form 1 North");
+    expect(within(commandCenter).getByLabelText(/parent phone/i)).toHaveValue("0700 555 222");
     await user.clear(within(commandCenter).getByLabelText(/inquiry issue/i));
     await user.type(within(commandCenter).getByLabelText(/inquiry issue/i), "Medical follow-up request");
     await user.selectOptions(within(commandCenter).getByLabelText(/inquiry department/i), "Medical");
@@ -987,6 +983,24 @@ describe("STEP 4: Role tests", () => {
     const printMock = jest.fn();
     const schoolId = "kisumu-boys";
     Object.defineProperty(window, "print", { value: printMock, writable: true });
+    addSchoolRecord(
+      "discipline-cases",
+      {
+        id: "discipline-kevin-selector",
+        student: "Kevin Maina",
+        className: "Form 3 South",
+        caseType: "Other",
+        severity: "Minor",
+        reportedBy: "Class Teacher",
+        guardianPhone: "0712 111 222",
+        notes: "Previous same-school selector context.",
+        status: "Resolved",
+        parentSmsSent: true,
+        counsellorReferred: false,
+        time: "07:40",
+      },
+      schoolId,
+    );
 
     renderWithProviders(
       createElement(SchoolPages, {
@@ -999,16 +1013,14 @@ describe("STEP 4: Role tests", () => {
     expect(within(commandCenter).getByRole("heading", { name: /record discipline incident/i })).toBeVisible();
     expect(within(commandCenter).getByText(/case queue and interventions/i)).toBeVisible();
 
-    await user.clear(within(commandCenter).getByLabelText(/discipline student/i));
-    await user.type(within(commandCenter).getByLabelText(/discipline student/i), "Kevin Maina");
-    await user.clear(within(commandCenter).getByLabelText(/discipline class/i));
-    await user.type(within(commandCenter).getByLabelText(/discipline class/i), "Form 3 South");
+    const disciplineStudent = within(commandCenter).getByRole("combobox", { name: /discipline student/i });
+    await user.selectOptions(disciplineStudent, "Kevin Maina");
+    expect(within(commandCenter).getByLabelText(/discipline class/i)).toHaveValue("Form 3 South");
+    expect(within(commandCenter).getByLabelText(/guardian phone/i)).toHaveValue("0712 111 222");
     await user.selectOptions(within(commandCenter).getByLabelText(/case type/i), "Bullying");
     await user.selectOptions(within(commandCenter).getByLabelText(/case severity/i), "Serious");
     await user.clear(within(commandCenter).getByLabelText(/reported by/i));
     await user.type(within(commandCenter).getByLabelText(/reported by/i), "Mr. Otieno");
-    await user.clear(within(commandCenter).getByLabelText(/guardian phone/i));
-    await user.type(within(commandCenter).getByLabelText(/guardian phone/i), "0712 111 222");
     await user.clear(within(commandCenter).getByLabelText(/incident notes/i));
     await user.type(within(commandCenter).getByLabelText(/incident notes/i), "Repeat bullying report near dormitory.");
     await user.click(within(commandCenter).getByRole("button", { name: /add incident/i }));
@@ -1035,7 +1047,7 @@ describe("STEP 4: Role tests", () => {
     ).toBe(true);
 
     let caseRow = within(commandCenter)
-      .getAllByText(/Kevin Maina/i)
+      .getAllByText(/Repeat bullying report near dormitory/i)
       .map((element) => element.closest("tr"))
       .find(Boolean);
     expect(caseRow).not.toBeNull();
@@ -1048,7 +1060,7 @@ describe("STEP 4: Role tests", () => {
     ).toBe(true);
 
     caseRow = within(commandCenter)
-      .getAllByText(/Kevin Maina/i)
+      .getAllByText(/Repeat bullying report near dormitory/i)
       .map((element) => element.closest("tr"))
       .find(Boolean);
     expect(caseRow).not.toBeNull();
@@ -1069,7 +1081,7 @@ describe("STEP 4: Role tests", () => {
     ).toBe(true);
 
     caseRow = within(commandCenter)
-      .getAllByText(/Kevin Maina/i)
+      .getAllByText(/Repeat bullying report near dormitory/i)
       .map((element) => element.closest("tr"))
       .find(Boolean);
     expect(caseRow).not.toBeNull();
@@ -1080,7 +1092,7 @@ describe("STEP 4: Role tests", () => {
     ).toBe(true);
 
     caseRow = within(commandCenter)
-      .getAllByText(/Kevin Maina/i)
+      .getAllByText(/Repeat bullying report near dormitory/i)
       .map((element) => element.closest("tr"))
       .find(Boolean);
     expect(caseRow).not.toBeNull();
@@ -1094,7 +1106,7 @@ describe("STEP 4: Role tests", () => {
     ).toBe(true);
 
     caseRow = within(commandCenter)
-      .getAllByText(/Kevin Maina/i)
+      .getAllByText(/Repeat bullying report near dormitory/i)
       .map((element) => element.closest("tr"))
       .find(Boolean);
     expect(caseRow).not.toBeNull();
@@ -1127,15 +1139,13 @@ describe("STEP 4: Role tests", () => {
     expect(within(commandCenter).getByRole("heading", { name: /start counselling session/i })).toBeVisible();
     expect(within(commandCenter).getByText(/referral queue and follow-ups/i)).toBeVisible();
 
-    await user.clear(within(commandCenter).getByLabelText(/counselling student/i));
-    await user.type(within(commandCenter).getByLabelText(/counselling student/i), "Faith Akinyi");
-    await user.clear(within(commandCenter).getByLabelText(/counselling class/i));
-    await user.type(within(commandCenter).getByLabelText(/counselling class/i), "Grade 8 West");
+    const counsellingStudent = within(commandCenter).getByRole("combobox", { name: /counselling student/i });
+    await user.selectOptions(counsellingStudent, "Faith Akinyi");
+    expect(within(commandCenter).getByLabelText(/counselling class/i)).toHaveValue("Grade 8 West");
+    expect(within(commandCenter).getByLabelText(/guardian phone/i)).toHaveValue("0798 111 222");
     await user.selectOptions(within(commandCenter).getByLabelText(/referral source/i), "Discipline Master");
     await user.selectOptions(within(commandCenter).getByLabelText(/risk level/i), "High");
     await user.selectOptions(within(commandCenter).getByLabelText(/session type/i), "Welfare Check");
-    await user.clear(within(commandCenter).getByLabelText(/guardian phone/i));
-    await user.type(within(commandCenter).getByLabelText(/guardian phone/i), "0798 111 222");
     await user.clear(within(commandCenter).getByLabelText(/session notes/i));
     await user.type(within(commandCenter).getByLabelText(/session notes/i), "Bullying stress follow-up and parent meeting needed.");
     await user.clear(within(commandCenter).getByLabelText(/follow-up date/i));
@@ -1164,7 +1174,7 @@ describe("STEP 4: Role tests", () => {
     ).toBe(true);
 
     let sessionRow = within(commandCenter)
-      .getAllByText(/Faith Akinyi/i)
+      .getAllByText(/Bullying stress follow-up and parent meeting needed/i)
       .map((element) => element.closest("tr"))
       .find(Boolean);
     expect(sessionRow).not.toBeNull();
@@ -1177,7 +1187,7 @@ describe("STEP 4: Role tests", () => {
     ).toBe(true);
 
     sessionRow = within(commandCenter)
-      .getAllByText(/Faith Akinyi/i)
+      .getAllByText(/Bullying stress follow-up and parent meeting needed/i)
       .map((element) => element.closest("tr"))
       .find(Boolean);
     expect(sessionRow).not.toBeNull();
@@ -1190,7 +1200,7 @@ describe("STEP 4: Role tests", () => {
     ).toBe(true);
 
     sessionRow = within(commandCenter)
-      .getAllByText(/Faith Akinyi/i)
+      .getAllByText(/Bullying stress follow-up and parent meeting needed/i)
       .map((element) => element.closest("tr"))
       .find(Boolean);
     expect(sessionRow).not.toBeNull();
@@ -1201,7 +1211,7 @@ describe("STEP 4: Role tests", () => {
     ).toBe(true);
 
     sessionRow = within(commandCenter)
-      .getAllByText(/Faith Akinyi/i)
+      .getAllByText(/Bullying stress follow-up and parent meeting needed/i)
       .map((element) => element.closest("tr"))
       .find(Boolean);
     expect(sessionRow).not.toBeNull();
@@ -1215,7 +1225,7 @@ describe("STEP 4: Role tests", () => {
     ).toBe(true);
 
     sessionRow = within(commandCenter)
-      .getAllByText(/Faith Akinyi/i)
+      .getAllByText(/Bullying stress follow-up and parent meeting needed/i)
       .map((element) => element.closest("tr"))
       .find(Boolean);
     expect(sessionRow).not.toBeNull();

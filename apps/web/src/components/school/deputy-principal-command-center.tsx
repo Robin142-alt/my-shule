@@ -743,6 +743,16 @@ function AcademicWarRoom() {
         action={<StatusChip icon={GraduationCap} label="KCSE readiness watched" tone="warning" />}
       />
       <div className="mt-6 grid gap-4 xl:grid-cols-[1fr_1fr_1fr]">
+        {[
+          ["Academic Review", "Classes pending review, missing marks, returned corrections, deadline risks, and grade/form readiness."],
+          ["Results Moderation", "HOD, class teacher, grade/form, dean, and exams manager status before principal escalation."],
+          ["Academic Analytics", "Class performance, grade/form performance, weak subjects, and intervention follow-up."],
+        ].map(([title, detail]) => (
+          <article key={title} className="rounded-[var(--radius-xl)] border border-white/10 bg-white/[0.055] p-5">
+            <h3 className="font-black">{title}</h3>
+            <p className="mt-2 text-sm leading-6 text-white/64">{detail}</p>
+          </article>
+        ))}
         <article className="rounded-[var(--radius-xl)] border border-white/10 bg-white/[0.055] p-5">
           <h3 className="font-black">Stream comparison</h3>
           <div className="mt-5">
@@ -794,6 +804,17 @@ function ExamOperations() {
             <p className="mt-3 text-3xl font-black">{item.value}</p>
             <p className="mt-2 text-sm leading-5 text-white/64">{item.helper}</p>
           </article>
+        ))}
+      </div>
+      <div className="mt-5 flex flex-wrap gap-2">
+        {["Send Reminder", "View Details", "Escalate to Principal", "Request Correction", "Approve to Principal"].map((label) => (
+          <button
+            key={label}
+            type="button"
+            className="min-h-10 rounded-[var(--radius)] border border-white/14 bg-white/10 px-3 text-xs font-black text-white transition hover:-translate-y-0.5 hover:bg-white/15"
+          >
+            {label}
+          </button>
         ))}
       </div>
     </DarkSection>

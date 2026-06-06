@@ -7,11 +7,54 @@ import {
   getOperationalRoleBlueprint,
 } from "@/lib/operational/myshule-extreme-operating-system";
 import { SchoolPages } from "@/components/school/school-pages";
+import {
+  getSchoolWorkspace,
+  type SchoolExperienceRole,
+} from "@/lib/experiences/school-data";
 import { addSchoolRecord } from "@/lib/school/school-operational-store";
 
 import { renderWithProviders } from "./test-utils";
 
 describe("role dashboard operational structure", () => {
+  it("keeps exams workspaces scoped to the academic chain and out of operational/student dashboards", () => {
+    const academicChainRoles: SchoolExperienceRole[] = [
+      "teacher",
+      "class-teacher",
+      "grade-master",
+      "hod",
+      "dean-academics",
+      "deputy-principal",
+      "exams-manager",
+      "principal",
+    ];
+    const untouchedRoles: SchoolExperienceRole[] = [
+      "security-officer",
+      "laboratory-technician",
+      "transport-manager",
+      "ict-manager",
+      "storekeeper",
+      "nurse",
+      "librarian",
+      "boarding-master",
+      "guidance-counselling",
+      "discipline-master",
+      "admissions",
+      "student",
+      "secretary",
+      "accountant",
+    ];
+
+    for (const role of academicChainRoles) {
+      expect(getSchoolWorkspace(role).navItems.some((item) => item.id === "exams")).toBe(true);
+    }
+
+    for (const role of untouchedRoles) {
+      expect(getSchoolWorkspace(role).navItems.some((item) => item.id === "exams")).toBe(false);
+    }
+
+    expect(getSchoolWorkspace("student").navItems.map((item) => item.label)).not.toContain("Results");
+  });
+
   it("gives every role a complete first-viewport, sidebar, queue, action, form, table, state, mobile, and recovery contract", () => {
     expect(MYSHULE_OPERATIONAL_ROLE_BLUEPRINTS).toHaveLength(MYSHULE_OPERATIONAL_ROLE_IDS.length);
 
@@ -93,6 +136,68 @@ describe("role dashboard operational structure", () => {
     expect(screen.queryByRole("button", { name: /^Action History$/i })).not.toBeInTheDocument();
     expect(screen.queryByText(/Action history/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/Visible recovery states/i)).not.toBeInTheDocument();
+  }, 30000);
+
+  it("routes academic-chain exams pages to their dedicated command centers", async () => {
+    const gradeMasterView = renderWithProviders(
+      <SchoolPages role="grade-master" section="exams" tenantSlug="kisumu-boys" liveDataEnabled={false} />,
+    );
+
+    expect(await screen.findByRole("heading", { name: /grade\/form master command center/i })).toBeVisible();
+    expect(screen.getByRole("button", { name: /grade\/form results/i })).toBeVisible();
+    expect(screen.queryByTestId("role-operational-command-center")).not.toBeInTheDocument();
+    gradeMasterView.unmount();
+
+    const hodView = renderWithProviders(
+      <SchoolPages role="hod" section="exams" tenantSlug="kisumu-boys" liveDataEnabled={false} />,
+    );
+
+    expect(await screen.findByRole("heading", { name: /hod academic command center/i })).toBeVisible();
+    expect(screen.getAllByText(/department exam review/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/department results/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/subject analytics/i).length).toBeGreaterThan(0);
+    expect(screen.queryByTestId("role-operational-command-center")).not.toBeInTheDocument();
+    hodView.unmount();
+
+    const deanView = renderWithProviders(
+      <SchoolPages role="dean-academics" section="exams" tenantSlug="kisumu-boys" liveDataEnabled={false} />,
+    );
+
+    expect(await screen.findByRole("heading", { name: /academic quality control & moderation center/i })).toBeVisible();
+    expect(screen.getByRole("button", { name: /results moderation/i })).toBeVisible();
+    expect(screen.queryByTestId("role-operational-command-center")).not.toBeInTheDocument();
+    deanView.unmount();
+
+    const deputyView = renderWithProviders(
+      <SchoolPages role="deputy-principal" section="exams" tenantSlug="kisumu-boys" liveDataEnabled={false} />,
+    );
+
+    expect(await screen.findByText(/deputy principal command center/i)).toBeVisible();
+    expect(screen.getAllByText(/academic review/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/results moderation/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/academic analytics/i).length).toBeGreaterThan(0);
+    expect(screen.queryByTestId("role-operational-command-center")).not.toBeInTheDocument();
+    deputyView.unmount();
+
+    const examsManagerView = renderWithProviders(
+      <SchoolPages role="exams-manager" section="exams" tenantSlug="kisumu-boys" liveDataEnabled={false} />,
+    );
+
+    expect(await screen.findByRole("heading", { name: /exams manager desk/i })).toBeVisible();
+    expect(screen.getByRole("button", { name: /exam setup/i })).toBeVisible();
+    expect(screen.queryByTestId("role-operational-command-center")).not.toBeInTheDocument();
+    examsManagerView.unmount();
+
+    renderWithProviders(
+      <SchoolPages role="principal" section="exams" tenantSlug="kisumu-boys" liveDataEnabled={false} />,
+    );
+
+    expect(await screen.findByRole("heading", { name: /exams & results command center/i })).toBeVisible();
+    expect(screen.getByText(/academic oversight/i)).toBeVisible();
+    expect(screen.getByText(/results approval/i)).toBeVisible();
+    expect(screen.getByText(/report publishing/i)).toBeVisible();
+    expect(screen.queryByRole("button", { name: /continue marks entry/i })).not.toBeInTheDocument();
+    expect(screen.queryByTestId("role-operational-command-center")).not.toBeInTheDocument();
   }, 30000);
 
   it("keeps executive role sidebar routes inside one operational workspace instead of mixing old dashboards", async () => {
@@ -377,7 +482,8 @@ describe("role dashboard operational structure", () => {
 
     await user.click(within(commandCenter).getByRole("button", { name: /Send Absence SMS/i }));
 
-    expect(await within(commandCenter).findByText(/Send Absence SMS (is being sent|completed|could not complete) from Attendance/i)).toBeVisible();
+    expect(await within(commandCenter).findByText(/Send Absence SMS (is being sent|sent to workflow queue|could not complete) from Attendance/i)).toBeVisible();
+    expect(within(commandCenter).queryByText(/Send Absence SMS completed from Attendance/i)).not.toBeInTheDocument();
   }, 30000);
 
   it("keeps principal overview wide by replacing the permanent approvals rail with a compact approvals card", async () => {

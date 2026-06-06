@@ -27,11 +27,16 @@ type ExamsManagerView =
   | "builder"
   | "scheduler"
   | "marks"
+  | "missing-marks"
   | "grading"
+  | "moderation"
   | "drafts"
+  | "report-templates"
+  | "academic-analytics"
   | "submissions"
   | "validation"
   | "exports"
+  | "audit-log"
   | "archive";
 
 type ExamsManagerWidgetCapability = {
@@ -64,6 +69,30 @@ type ExamOperationalRecord = {
   createdAt: string;
 };
 
+type LifecycleActionMode = "queued" | "completed";
+
+type LifecycleQueueRecord = {
+  id: string;
+  title: string;
+  detail: string;
+  status: string;
+  owner: string;
+  tone: Tone;
+};
+
+type LifecycleQueueConfig = {
+  title: string;
+  description: string;
+  itemLabel: string;
+  records: LifecycleQueueRecord[];
+  actions: Array<{
+    label: string;
+    mode: LifecycleActionMode;
+    targetRoles: string[];
+    notificationTitle: string;
+  }>;
+};
+
 const examsSearchRecords = [
   { id: "form-4-mock", label: "Form 4 Mock Series", detail: "Marks entry open for Mathematics and English", view: "marks" },
   { id: "class-7-cat", label: "Class 7 CAT", detail: "Three subjects awaiting teacher upload", view: "submissions" },
@@ -75,16 +104,323 @@ type ExamsSearchRecord = (typeof examsSearchRecords)[number];
 
 const lockedMessage = "Exams module not enabled for this school";
 
+const lifecycleWorkQueues: Partial<Record<ExamsManagerView, LifecycleQueueConfig>> = {
+  scheduler: {
+    title: "Entry Windows Work Queue",
+    description: "Select the exact exam entry windows before opening, extending, closing, reopening, or locking entry.",
+    itemLabel: "entry window",
+    records: [
+      {
+        id: "entry-form-3-science",
+        title: "Form 3 Science block",
+        detail: "Biology, Chemistry, and Physics entry window for Form 3 East and West.",
+        status: "Ready to open",
+        owner: "Science HOD",
+        tone: "warning",
+      },
+      {
+        id: "entry-grade-8-cbc",
+        title: "Grade 8 CBC Mathematics",
+        detail: "CBC/CBE mathematics observation entry for Grade 8 Unity.",
+        status: "Open",
+        owner: "Mathematics HOD",
+        tone: "info",
+      },
+    ],
+    actions: [
+      {
+        label: "Open Entry",
+        mode: "queued",
+        targetRoles: ["Teacher", "Head of Department", "Dean of Academics"],
+        notificationTitle: "Exam entry window update queued",
+      },
+      {
+        label: "Close Entry",
+        mode: "completed",
+        targetRoles: ["Head of Department", "Dean of Academics"],
+        notificationTitle: "Exam entry window closed",
+      },
+      {
+        label: "Reopen for Correction",
+        mode: "queued",
+        targetRoles: ["Teacher", "Head of Department"],
+        notificationTitle: "Exam entry correction window queued",
+      },
+    ],
+  },
+  marks: {
+    title: "Mark Entry Monitor Work Queue",
+    description: "Select teacher marksheets before reminder, reopen, lock, or status export actions.",
+    itemLabel: "mark entry record",
+    records: [
+      {
+        id: "marks-maths-form-4-north",
+        title: "Mathematics Form 4 North",
+        detail: "42 of 48 marks entered. 6 learner marks still pending before HOD review.",
+        status: "In progress",
+        owner: "Mr. Otieno",
+        tone: "warning",
+      },
+      {
+        id: "marks-english-form-2-west",
+        title: "English Form 2 West",
+        detail: "Teacher submitted the marksheet and is waiting for HOD review.",
+        status: "Submitted",
+        owner: "Ms. Achieng",
+        tone: "success",
+      },
+    ],
+    actions: [
+      {
+        label: "Send Reminder",
+        mode: "queued",
+        targetRoles: ["Teacher", "Head of Department"],
+        notificationTitle: "Marks entry reminder queued",
+      },
+      {
+        label: "Lock Sheet",
+        mode: "completed",
+        targetRoles: ["Head of Department", "Dean of Academics"],
+        notificationTitle: "Marks sheet locked",
+      },
+      {
+        label: "Export Status",
+        mode: "queued",
+        targetRoles: ["Exams Manager", "Dean of Academics"],
+        notificationTitle: "Marks status export queued",
+      },
+    ],
+  },
+  "missing-marks": {
+    title: "Missing Marks Work Queue",
+    description: "Select only the affected learner/subject records before notifying teachers or marking valid exceptions.",
+    itemLabel: "missing mark record",
+    records: [
+      {
+        id: "missing-class-7b-science",
+        title: "Class 7B Science",
+        detail: "3 learner marks missing from the Science marksheet.",
+        status: "Teacher follow-up required",
+        owner: "Mrs. Wanjiru",
+        tone: "danger",
+      },
+      {
+        id: "missing-form-2-west-maths",
+        title: "Form 2 West Mathematics",
+        detail: "14 learner marks need confirmation before report generation.",
+        status: "Incomplete",
+        owner: "Mr. Ouma",
+        tone: "warning",
+      },
+    ],
+    actions: [
+      {
+        label: "Notify Teacher",
+        mode: "queued",
+        targetRoles: ["Teacher", "Head of Department"],
+        notificationTitle: "Missing marks follow-up queued",
+      },
+      {
+        label: "Mark Absent",
+        mode: "completed",
+        targetRoles: ["Head of Department", "Class Teacher"],
+        notificationTitle: "Missing mark exception recorded",
+      },
+      {
+        label: "Reassign Teacher",
+        mode: "queued",
+        targetRoles: ["Head of Department", "Dean of Academics"],
+        notificationTitle: "Teacher reassignment queued",
+      },
+    ],
+  },
+  moderation: {
+    title: "Moderation Work Queue",
+    description: "Review exact moderation records before sending validated data to the Dean quality gate.",
+    itemLabel: "moderation record",
+    records: [
+      {
+        id: "moderation-term-2-cat-1",
+        title: "Term 2 CAT 1 moderation",
+        detail: "Validated marks, grade distribution, and exception notes ready for Dean review.",
+        status: "Ready",
+        owner: "Exams Manager",
+        tone: "success",
+      },
+      {
+        id: "moderation-hybrid-cbc",
+        title: "Hybrid CBC + Marks checks",
+        detail: "Competency observations and marks supplement need separate quality review.",
+        status: "Review",
+        owner: "Dean intake",
+        tone: "info",
+      },
+    ],
+    actions: [
+      {
+        label: "Approve selected to Dean review",
+        mode: "completed",
+        targetRoles: ["Dean of Academics", "Principal"],
+        notificationTitle: "Moderation records sent to Dean review",
+      },
+      {
+        label: "Return for Correction",
+        mode: "queued",
+        targetRoles: ["Teacher", "Head of Department"],
+        notificationTitle: "Moderation correction queued",
+      },
+      {
+        label: "Flag Outlier",
+        mode: "queued",
+        targetRoles: ["Head of Department", "Dean of Academics"],
+        notificationTitle: "Moderation outlier queued",
+      },
+    ],
+  },
+  drafts: {
+    title: "Report Cards Work Queue",
+    description: "Select report-card draft batches before generation, preview, download, print, regeneration, or Dean handoff.",
+    itemLabel: "report card batch",
+    records: [
+      {
+        id: "draft-term-2-cat-1",
+        title: "Term 2 CAT 1 report card draft batch",
+        detail: "412 draft cards, 22 validation notes, and no parent visibility yet.",
+        status: "Draft",
+        owner: "Dean review queue",
+        tone: "warning",
+      },
+      {
+        id: "draft-grade-8-cbc",
+        title: "Grade 8 CBC report batch",
+        detail: "96 competency reports ready after observation checks.",
+        status: "Ready to generate",
+        owner: "Exams office",
+        tone: "success",
+      },
+    ],
+    actions: [
+      {
+        label: "Generate Selected",
+        mode: "queued",
+        targetRoles: ["Exams Manager", "Dean of Academics"],
+        notificationTitle: "Report card generation queued",
+      },
+      {
+        label: "Preview Selected",
+        mode: "completed",
+        targetRoles: ["Exams Manager"],
+        notificationTitle: "Report card preview opened",
+      },
+      {
+        label: "Send to Dean Review",
+        mode: "queued",
+        targetRoles: ["Dean of Academics", "Principal"],
+        notificationTitle: "Report card draft batch queued for Dean",
+      },
+    ],
+  },
+  "report-templates": {
+    title: "Report Templates Work Queue",
+    description: "Select the template records before saving drafts or preparing print previews.",
+    itemLabel: "report template",
+    records: [
+      {
+        id: "template-cbc-cbe",
+        title: "CBC/CBE Competency Report",
+        detail: "Descriptors, observations, parent support, verification, and mobile parent view.",
+        status: "Default",
+        owner: "Exams office",
+        tone: "success",
+      },
+      {
+        id: "template-hybrid",
+        title: "Hybrid CBC + Marks Report",
+        detail: "CBC-led layout with controlled marks supplement and ranking disabled by default.",
+        status: "Available",
+        owner: "Dean review",
+        tone: "info",
+      },
+      {
+        id: "template-legacy",
+        title: "Legacy 8-4-4/KCSE Report",
+        detail: "Legacy class/report format for configured transition classes and archives.",
+        status: "Legacy",
+        owner: "Principal approval",
+        tone: "warning",
+      },
+    ],
+    actions: [
+      {
+        label: "Save Template Draft",
+        mode: "completed",
+        targetRoles: ["Exams Manager", "Dean of Academics"],
+        notificationTitle: "Report template draft saved",
+      },
+      {
+        label: "Open Print Preview",
+        mode: "completed",
+        targetRoles: ["Exams Manager"],
+        notificationTitle: "Report template print preview opened",
+      },
+    ],
+  },
+  exports: {
+    title: "Export Center Work Queue",
+    description: "Select internal export packages before preparing files. Parent-facing exports remain blocked before approvals.",
+    itemLabel: "export package",
+    records: [
+      {
+        id: "export-excel-marksheets",
+        title: "Excel marksheets",
+        detail: "Internal quality-control export for the exams office.",
+        status: "Internal",
+        owner: "Exams Manager",
+        tone: "info",
+      },
+      {
+        id: "export-draft-report-cards",
+        title: "Draft report cards",
+        detail: "Watermarked draft batch for review teams only.",
+        status: "Draft",
+        owner: "Dean review",
+        tone: "warning",
+      },
+      {
+        id: "export-class-summaries",
+        title: "Class summaries",
+        detail: "Aggregated class summary for Dean intake.",
+        status: "Review",
+        owner: "Dean of Academics",
+        tone: "success",
+      },
+    ],
+    actions: [
+      {
+        label: "Prepare Export",
+        mode: "queued",
+        targetRoles: ["Exams Manager", "Dean of Academics"],
+        notificationTitle: "Exam export package queued",
+      },
+    ],
+  },
+};
+
 const navItems: Array<{ id: ExamsManagerView; label: string; icon: LucideIcon }> = [
-  { id: "overview", label: "Overview", icon: GraduationCap },
-  { id: "builder", label: "Exam Builder", icon: ClipboardList },
-  { id: "scheduler", label: "Timetable Scheduler", icon: CalendarDays },
-  { id: "marks", label: "Marks Entry Hub", icon: UploadCloud },
+  { id: "overview", label: "Exam Command Center", icon: GraduationCap },
+  { id: "builder", label: "Exam Setup / Exam Builder", icon: ClipboardList },
+  { id: "scheduler", label: "Entry Windows / Timetable Scheduler", icon: CalendarDays },
+  { id: "marks", label: "Mark Entry Monitor / Marks Entry Hub", icon: UploadCloud },
+  { id: "missing-marks", label: "Missing Marks", icon: AlertTriangle },
   { id: "grading", label: "Grade Processing", icon: BarChart3 },
-  { id: "drafts", label: "Report Card Drafts", icon: FileSpreadsheet },
+  { id: "moderation", label: "Moderation", icon: ClipboardCheck },
+  { id: "drafts", label: "Report Cards / Report Card Drafts", icon: FileSpreadsheet },
+  { id: "report-templates", label: "Report Templates", icon: FileSpreadsheet },
+  { id: "academic-analytics", label: "Academic Analytics", icon: BarChart3 },
   { id: "submissions", label: "Submission Tracker", icon: ClipboardCheck },
   { id: "validation", label: "Data Validation", icon: AlertTriangle },
   { id: "exports", label: "Export Center", icon: FileSpreadsheet },
+  { id: "audit-log", label: "Exam Audit Log", icon: Archive },
   { id: "archive", label: "Archive", icon: Archive },
 ];
 
@@ -122,6 +458,14 @@ const widgets: ExamsManagerWidget[] = [
     hasData: true,
   },
   {
+    id: "missing-marks",
+    title: "Missing Marks",
+    description: "Records where subject teachers still need to complete score entry before review.",
+    icon: AlertTriangle,
+    tone: "danger",
+    hasData: true,
+  },
+  {
     id: "grading",
     title: "Grade Processing",
     description: "Convert raw marks to grades using CBC strands, 8-4-4, international rules, and weighted scoring.",
@@ -130,11 +474,35 @@ const widgets: ExamsManagerWidget[] = [
     hasData: true,
   },
   {
+    id: "moderation",
+    title: "Moderation",
+    description: "Review queues that move validated exam data to Dean quality control.",
+    icon: ClipboardCheck,
+    tone: "warning",
+    hasData: true,
+  },
+  {
     id: "drafts",
     title: "Report Card Draft Generator",
     description: "Generate DRAFT only report cards before Dean review. No direct parent visibility is available here.",
     icon: FileSpreadsheet,
     tone: "warning",
+    hasData: true,
+  },
+  {
+    id: "report-templates",
+    title: "Report Templates",
+    description: "CBC/CBE, Hybrid CBC + Marks, and Legacy 8-4-4/KCSE report template controls.",
+    icon: FileSpreadsheet,
+    tone: "info",
+    hasData: true,
+  },
+  {
+    id: "academic-analytics",
+    title: "Academic Analytics",
+    description: "Completion, validation, readiness, and publishing analytics grouped by report type.",
+    icon: BarChart3,
+    tone: "info",
     hasData: true,
   },
   {
@@ -158,6 +526,14 @@ const widgets: ExamsManagerWidget[] = [
     title: "Export Center",
     description: "Internal exports for Excel marksheets, draft report cards, and class summaries only.",
     icon: FileSpreadsheet,
+    tone: "neutral",
+    hasData: true,
+  },
+  {
+    id: "audit-log",
+    title: "Exam Audit Log",
+    description: "School-scoped review handoffs and draft generation records.",
+    icon: Archive,
     tone: "neutral",
     hasData: true,
   },
@@ -333,6 +709,147 @@ function ListRow({ title, detail, value, tone = "neutral" }: { title: string; de
   );
 }
 
+function SelectableLifecycleQueue({
+  config,
+  selectedIds,
+  onToggleRecord,
+  onClearSelection,
+  onExecuteAction,
+}: {
+  config: LifecycleQueueConfig;
+  selectedIds: string[];
+  onToggleRecord: (recordId: string) => void;
+  onClearSelection: () => void;
+  onExecuteAction: (action: LifecycleQueueConfig["actions"][number], records: LifecycleQueueRecord[]) => void;
+}) {
+  const [searchTerm, setSearchTerm] = useState("");
+  const normalizedSearch = searchTerm.trim().toLowerCase();
+  const visibleRecords = normalizedSearch
+    ? config.records.filter((record) =>
+        [record.title, record.detail, record.status, record.owner].some((value) =>
+          value.toLowerCase().includes(normalizedSearch),
+        ),
+      )
+    : config.records;
+  const selectedRecords = config.records.filter((record) => selectedIds.includes(record.id));
+  const allVisibleSelected =
+    visibleRecords.length > 0 && visibleRecords.every((record) => selectedIds.includes(record.id));
+
+  function toggleAllVisible() {
+    if (allVisibleSelected) {
+      visibleRecords.forEach((record) => {
+        if (selectedIds.includes(record.id)) {
+          onToggleRecord(record.id);
+        }
+      });
+      return;
+    }
+
+    visibleRecords.forEach((record) => {
+      if (!selectedIds.includes(record.id)) {
+        onToggleRecord(record.id);
+      }
+    });
+  }
+
+  return (
+    <section className="rounded-2xl border border-[#D9E2EF] bg-white/86 p-4">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <p className="text-xs font-black uppercase tracking-[0.18em] text-[#64748B]">Selectable workflow</p>
+          <h4 className="mt-2 text-lg font-black text-[#071D49]">{config.title}</h4>
+          <p className="mt-1 max-w-3xl text-sm font-semibold leading-6 text-[#64748B]">{config.description}</p>
+        </div>
+        <span className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-black text-blue-700">
+          {selectedRecords.length} selected
+        </span>
+      </div>
+
+      <div className="mt-4 grid gap-3 lg:grid-cols-[1fr_auto] lg:items-center">
+        <label className="flex items-center gap-2 rounded-xl border border-[#D9E2EF] bg-[#F8FAFC] px-3 py-2">
+          <Search className="h-4 w-4 text-[#64748B]" />
+          <span className="sr-only">Search {config.title}</span>
+          <input
+            value={searchTerm}
+            onChange={(event) => setSearchTerm(event.target.value)}
+            className="w-full bg-transparent text-sm font-bold text-[#071D49] outline-none placeholder:text-[#64748B]"
+            placeholder={`Search ${config.itemLabel}s`}
+            type="search"
+          />
+        </label>
+        <div className="flex flex-wrap gap-2">
+          <ActionButton tone="info" onClick={toggleAllVisible}>
+            {allVisibleSelected ? "Clear visible" : "Select all visible"}
+          </ActionButton>
+          <ActionButton tone="neutral" onClick={onClearSelection}>
+            Clear selection
+          </ActionButton>
+        </div>
+      </div>
+
+      <div className="mt-4 overflow-x-auto rounded-2xl border border-[#D9E2EF]">
+        <table className="min-w-[760px] w-full border-collapse bg-white">
+          <thead className="bg-[#F8FAFC]">
+            <tr className="text-left text-[11px] font-black uppercase tracking-[0.14em] text-[#64748B]">
+              <th className="px-4 py-3">Select</th>
+              <th className="px-4 py-3">Record</th>
+              <th className="px-4 py-3">Owner</th>
+              <th className="px-4 py-3">Status</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-[#E2E8F0]">
+            {visibleRecords.map((record) => (
+              <tr key={record.id}>
+                <td className="px-4 py-3">
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.includes(record.id)}
+                    onChange={() => onToggleRecord(record.id)}
+                    aria-label={`Select ${record.title}`}
+                    className="h-4 w-4 rounded border-[#C7D4E6]"
+                  />
+                </td>
+                <td className="px-4 py-3">
+                  <p className="font-black text-[#071D49]">{record.title}</p>
+                  <p className="mt-1 text-sm font-semibold leading-6 text-[#64748B]">{record.detail}</p>
+                </td>
+                <td className="px-4 py-3 text-sm font-bold text-[#071D49]">{record.owner}</td>
+                <td className="px-4 py-3">
+                  <span className={`rounded-full border px-3 py-1 text-xs font-black ${toneClasses[record.tone].chip}`}>
+                    {record.status}
+                  </span>
+                </td>
+              </tr>
+            ))}
+            {visibleRecords.length === 0 ? (
+              <tr>
+                <td colSpan={4} className="px-4 py-8 text-center text-sm font-bold text-[#64748B]">
+                  No records match the current search.
+                </td>
+              </tr>
+            ) : null}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="mt-4 flex flex-wrap gap-2">
+        {config.actions.map((action) => (
+          <button
+            key={action.label}
+            type="button"
+            onClick={() => onExecuteAction(action, selectedRecords)}
+            disabled={selectedRecords.length === 0}
+            className="rounded-xl border border-[#C7D4E6] bg-white px-3 py-2 text-sm font-black text-[#071D49] shadow-sm transition hover:-translate-y-0.5 hover:border-[#0B63CE] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {action.label}
+            {action.label.toLowerCase().includes("selected") ? "" : " for selected"}
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function OverviewGrid({
   capabilities,
 }: {
@@ -362,6 +879,11 @@ function ActiveWidgetContent({
   onCheckTermAlignment,
   onOpenMarksEntry,
   onSendDeanReview,
+  selectedLifecycleIds,
+  lifecycleResults,
+  onToggleLifecycleRecord,
+  onClearLifecycleSelection,
+  onExecuteLifecycleAction,
   savedConfigurations,
   examDrafts,
   alignmentChecks,
@@ -374,6 +896,16 @@ function ActiveWidgetContent({
   onCheckTermAlignment: () => void;
   onOpenMarksEntry: () => void;
   onSendDeanReview: () => void;
+  selectedLifecycleIds: string[];
+  lifecycleResults: ExamOperationalRecord[];
+  onToggleLifecycleRecord: (view: ExamsManagerView, recordId: string) => void;
+  onClearLifecycleSelection: (view: ExamsManagerView) => void;
+  onExecuteLifecycleAction: (
+    view: ExamsManagerView,
+    action: LifecycleQueueConfig["actions"][number],
+    records: LifecycleQueueRecord[],
+    itemLabel: string,
+  ) => void;
   savedConfigurations: SavedExamConfiguration[];
   examDrafts: ExamOperationalRecord[];
   alignmentChecks: ExamOperationalRecord[];
@@ -449,18 +981,41 @@ function ActiveWidgetContent({
   }
 
   if (view === "scheduler") {
+    const queue = lifecycleWorkQueues.scheduler;
     return (
-      <div className="grid gap-3">
-        <ListRow title="Auto-scheduling engine" detail="Balances rooms, subject order, and class overlaps." value="Queued" tone="info" />
-        <ListRow title="Subject clashes" detail="2 possible clashes detected for Form 3 Science block." value="Warning" tone="warning" />
-        <ListRow title="Room constraints" detail="Lab sessions protected from double booking." value="Protected" tone="success" />
-        <ListRow title="Class overlaps" detail="No class is assigned to simultaneous papers." value="Clear" tone="success" />
+      <div className="grid gap-4">
+        {queue ? (
+          <SelectableLifecycleQueue
+            config={queue}
+            selectedIds={selectedLifecycleIds}
+            onToggleRecord={(recordId) => onToggleLifecycleRecord(view, recordId)}
+            onClearSelection={() => onClearLifecycleSelection(view)}
+            onExecuteAction={(action, records) => onExecuteLifecycleAction(view, action, records, queue.itemLabel)}
+          />
+        ) : null}
+        <div className="grid gap-3 md:grid-cols-2">
+          <ListRow title="Auto-scheduling engine" detail="Balances rooms, subject order, and class overlaps." value="Queued" tone="info" />
+          <ListRow title="Subject clashes" detail="2 possible clashes detected for Form 3 Science block." value="Warning" tone="warning" />
+          <ListRow title="Room constraints" detail="Lab sessions protected from double booking." value="Protected" tone="success" />
+          <ListRow title="Class overlaps" detail="No class is assigned to simultaneous papers." value="Clear" tone="success" />
+        </div>
       </div>
     );
   }
 
   if (view === "marks") {
+    const queue = lifecycleWorkQueues.marks;
     return (
+      <div className="grid gap-4">
+        {queue ? (
+          <SelectableLifecycleQueue
+            config={queue}
+            selectedIds={selectedLifecycleIds}
+            onToggleRecord={(recordId) => onToggleLifecycleRecord(view, recordId)}
+            onClearSelection={() => onClearLifecycleSelection(view)}
+            onExecuteAction={(action, records) => onExecuteLifecycleAction(view, action, records, queue.itemLabel)}
+          />
+        ) : null}
       <div className="grid gap-4 xl:grid-cols-[1fr_0.8fr]">
         <div className="space-y-3">
           <ListRow title="Subject-based mark entry" detail="Mathematics Form 4 North is 88% complete." value="In progress" tone="warning" />
@@ -496,6 +1051,29 @@ function ActiveWidgetContent({
           </div>
         </div>
       </div>
+      </div>
+    );
+  }
+
+  if (view === "missing-marks") {
+    const queue = lifecycleWorkQueues["missing-marks"];
+    return (
+      <div className="grid gap-4">
+        {queue ? (
+          <SelectableLifecycleQueue
+            config={queue}
+            selectedIds={selectedLifecycleIds}
+            onToggleRecord={(recordId) => onToggleLifecycleRecord(view, recordId)}
+            onClearSelection={() => onClearLifecycleSelection(view)}
+            onExecuteAction={(action, records) => onExecuteLifecycleAction(view, action, records, queue.itemLabel)}
+          />
+        ) : null}
+        <div className="grid gap-3 md:grid-cols-2">
+          <ListRow title="Class 7B Science" detail="3 learner marks missing from teacher submission." value="Teacher follow-up required" tone="danger" />
+          <ListRow title="Form 2 West Mathematics" detail="14 learner marks below completion threshold need teacher confirmation." value="Incomplete" tone="warning" />
+          <ListRow title="Form 4 North Chemistry" detail="Upload held because one score is outside the configured range." value="Blocked" tone="danger" />
+        </div>
+      </div>
     );
   }
 
@@ -510,8 +1088,41 @@ function ActiveWidgetContent({
     );
   }
 
-  if (view === "drafts") {
+  if (view === "moderation") {
+    const queue = lifecycleWorkQueues.moderation;
     return (
+      <div className="grid gap-4">
+        {queue ? (
+          <SelectableLifecycleQueue
+            config={queue}
+            selectedIds={selectedLifecycleIds}
+            onToggleRecord={(recordId) => onToggleLifecycleRecord(view, recordId)}
+            onClearSelection={() => onClearLifecycleSelection(view)}
+            onExecuteAction={(action, records) => onExecuteLifecycleAction(view, action, records, queue.itemLabel)}
+          />
+        ) : null}
+        <div className="grid gap-3 md:grid-cols-2">
+          <ListRow title="Term 2 CAT 1 moderation" detail="Validated marks ready for Dean quality-control queue." value="Ready" tone="success" />
+          <ListRow title="Hybrid CBC + Marks checks" detail="Competency observations and marks supplement are reviewed separately." value="Review" tone="info" />
+          <ListRow title="Legacy transition class checks" detail="Legacy 8-4-4/KCSE reports retained only for configured transition classes." value="Legacy" tone="warning" />
+        </div>
+      </div>
+    );
+  }
+
+  if (view === "drafts") {
+    const queue = lifecycleWorkQueues.drafts;
+    return (
+      <div className="grid gap-4">
+        {queue ? (
+          <SelectableLifecycleQueue
+            config={queue}
+            selectedIds={selectedLifecycleIds}
+            onToggleRecord={(recordId) => onToggleLifecycleRecord(view, recordId)}
+            onClearSelection={() => onClearLifecycleSelection(view)}
+            onExecuteAction={(action, records) => onExecuteLifecycleAction(view, action, records, queue.itemLabel)}
+          />
+        ) : null}
       <div className="grid gap-4 xl:grid-cols-[1fr_0.8fr]">
         <div className="space-y-3">
           <ListRow title="DRAFT only" detail="Report cards remain in preparation state for Dean review." value="Draft" tone="warning" />
@@ -537,6 +1148,40 @@ function ActiveWidgetContent({
             )}
           </div>
         </div>
+      </div>
+      </div>
+    );
+  }
+
+  if (view === "report-templates") {
+    const queue = lifecycleWorkQueues["report-templates"];
+    return (
+      <div className="grid gap-4">
+        {queue ? (
+          <SelectableLifecycleQueue
+            config={queue}
+            selectedIds={selectedLifecycleIds}
+            onToggleRecord={(recordId) => onToggleLifecycleRecord(view, recordId)}
+            onClearSelection={() => onClearLifecycleSelection(view)}
+            onExecuteAction={(action, records) => onExecuteLifecycleAction(view, action, records, queue.itemLabel)}
+          />
+        ) : null}
+        <div className="grid gap-3 md:grid-cols-3">
+          <ListRow title="CBC/CBE Competency Report" detail="Primary learner report template with descriptors, observations, parent support, and verification." value="Default" tone="success" />
+          <ListRow title="Hybrid CBC + Marks Report" detail="CBC-led template with controlled marks supplement and optional ranking disabled by default." value="Available" tone="info" />
+          <ListRow title="Legacy 8-4-4/KCSE Report" detail="Legacy class/report format only for remaining transition classes and archived reports." value="Legacy" tone="warning" />
+        </div>
+      </div>
+    );
+  }
+
+  if (view === "academic-analytics") {
+    return (
+      <div className="grid gap-3 md:grid-cols-2">
+        <ListRow title="CBC reports ready" detail="96 competency reports complete after observation checks." value="96" tone="success" />
+        <ListRow title="Hybrid reports ready" detail="118 reports ready with marks supplement and comments." value="118" tone="info" />
+        <ListRow title="Legacy reports ready" detail="74 transition reports ready for legacy classes." value="74" tone="warning" />
+        <ListRow title="Awaiting approval" detail="22 records are still at Dean or Principal approval gates." value="22" tone="danger" />
       </div>
     );
   }
@@ -564,12 +1209,44 @@ function ActiveWidgetContent({
   }
 
   if (view === "exports") {
+    const queue = lifecycleWorkQueues.exports;
+    return (
+      <div className="grid gap-4">
+        {queue ? (
+          <SelectableLifecycleQueue
+            config={queue}
+            selectedIds={selectedLifecycleIds}
+            onToggleRecord={(recordId) => onToggleLifecycleRecord(view, recordId)}
+            onClearSelection={() => onClearLifecycleSelection(view)}
+            onExecuteAction={(action, records) => onExecuteLifecycleAction(view, action, records, queue.itemLabel)}
+          />
+        ) : null}
+        <div className="grid gap-3 md:grid-cols-2">
+          <ListRow title="Excel marksheets" detail="Internal quality control export for exams office." value="Internal" tone="info" />
+          <ListRow title="Draft report cards" detail="Watermarked draft batch for review teams only." value="Draft" tone="warning" />
+          <ListRow title="Class summaries" detail="Aggregated class summary for Dean intake." value="Review" tone="success" />
+          <ListRow title="No parent-facing exports" detail="Parent visibility starts after the approval chain completes." value="Blocked" tone="danger" />
+        </div>
+      </div>
+    );
+  }
+
+  if (view === "audit-log") {
     return (
       <div className="grid gap-3">
-        <ListRow title="Excel marksheets" detail="Internal quality control export for exams office." value="Internal" tone="info" />
-        <ListRow title="Draft report cards" detail="Watermarked draft batch for review teams only." value="Draft" tone="warning" />
-        <ListRow title="Class summaries" detail="Aggregated class summary for Dean intake." value="Review" tone="success" />
-        <ListRow title="No parent-facing exports" detail="Parent visibility starts after the approval chain completes." value="Blocked" tone="danger" />
+        {lifecycleResults.length > 0 ? (
+          <div className="rounded-2xl border border-[#D9E2EF] bg-white/86 p-4">
+            <h4 className="text-lg font-black text-[#071D49]">Recent lifecycle action audit</h4>
+            <div className="mt-4 grid gap-3">
+              {lifecycleResults.map((result) => (
+                <ListRow key={result.id} title={result.title} detail={result.detail} value={result.status} tone="info" />
+              ))}
+            </div>
+          </div>
+        ) : null}
+        <ListRow title="Tenant-scoped exam events" detail="All draft, marks, validation, and Dean handoff events are stored under the current school." value="Protected" tone="success" />
+        <ListRow title="Draft generation audit" detail="Report card batches remain internal until Dean and Principal approval." value="Tracked" tone="info" />
+        <ListRow title="Validation failure audit" detail="Missing marks and invalid ranges remain visible instead of showing fake completion." value="Visible" tone="warning" />
       </div>
     );
   }
@@ -591,6 +1268,11 @@ function MainWorkspace({
   onCheckTermAlignment,
   onOpenMarksEntry,
   onSendDeanReview,
+  selectedLifecycleIds,
+  lifecycleResults,
+  onToggleLifecycleRecord,
+  onClearLifecycleSelection,
+  onExecuteLifecycleAction,
   savedConfigurations,
   examDrafts,
   alignmentChecks,
@@ -604,6 +1286,16 @@ function MainWorkspace({
   onCheckTermAlignment: () => void;
   onOpenMarksEntry: () => void;
   onSendDeanReview: () => void;
+  selectedLifecycleIds: string[];
+  lifecycleResults: ExamOperationalRecord[];
+  onToggleLifecycleRecord: (view: ExamsManagerView, recordId: string) => void;
+  onClearLifecycleSelection: (view: ExamsManagerView) => void;
+  onExecuteLifecycleAction: (
+    view: ExamsManagerView,
+    action: LifecycleQueueConfig["actions"][number],
+    records: LifecycleQueueRecord[],
+    itemLabel: string,
+  ) => void;
   savedConfigurations: SavedExamConfiguration[];
   examDrafts: ExamOperationalRecord[];
   alignmentChecks: ExamOperationalRecord[];
@@ -626,6 +1318,11 @@ function MainWorkspace({
         onCheckTermAlignment={onCheckTermAlignment}
         onOpenMarksEntry={onOpenMarksEntry}
         onSendDeanReview={onSendDeanReview}
+        selectedLifecycleIds={selectedLifecycleIds}
+        lifecycleResults={lifecycleResults}
+        onToggleLifecycleRecord={onToggleLifecycleRecord}
+        onClearLifecycleSelection={onClearLifecycleSelection}
+        onExecuteLifecycleAction={onExecuteLifecycleAction}
         savedConfigurations={savedConfigurations}
         examDrafts={examDrafts}
         alignmentChecks={alignmentChecks}
@@ -653,6 +1350,8 @@ export function ExamsManagerCommandCenter({
   const [alignmentChecks, setAlignmentChecks] = useState<ExamOperationalRecord[]>([]);
   const [marksEntrySessions, setMarksEntrySessions] = useState<ExamOperationalRecord[]>([]);
   const [deanReviewBatches, setDeanReviewBatches] = useState<ExamOperationalRecord[]>([]);
+  const [selectedLifecycleIds, setSelectedLifecycleIds] = useState<Partial<Record<ExamsManagerView, string[]>>>({});
+  const [lifecycleResults, setLifecycleResults] = useState<ExamOperationalRecord[]>([]);
   const capabilities = useMemo(() => {
     return new Map(
       widgets.map((widget) => [
@@ -867,7 +1566,7 @@ export function ExamsManagerCommandCenter({
     });
 
     setMarksEntrySessions((current) => [session, ...current].slice(0, 4));
-    setNotice("Marks entry sheet opened and teacher follow-up created.");
+    setNotice("Marks entry sheet opened for selected class and subject. Teacher follow-up created.");
   }
 
   function sendDeanReview() {
@@ -922,6 +1621,106 @@ export function ExamsManagerCommandCenter({
 
     setDeanReviewBatches((current) => [batch, ...current].slice(0, 4));
     setNotice("Draft report card batch sent to Dean review and leadership notified.");
+  }
+
+  function toggleLifecycleRecord(view: ExamsManagerView, recordId: string) {
+    setSelectedLifecycleIds((current) => {
+      const selected = current[view] ?? [];
+      const nextSelected = selected.includes(recordId)
+        ? selected.filter((id) => id !== recordId)
+        : [...selected, recordId];
+
+      return { ...current, [view]: nextSelected };
+    });
+  }
+
+  function clearLifecycleSelection(view: ExamsManagerView) {
+    setSelectedLifecycleIds((current) => ({ ...current, [view]: [] }));
+  }
+
+  function executeLifecycleAction(
+    view: ExamsManagerView,
+    action: LifecycleQueueConfig["actions"][number],
+    records: LifecycleQueueRecord[],
+    itemLabel: string,
+  ) {
+    if (records.length === 0) {
+      setNotice(`Select at least one ${itemLabel} before running ${action.label}.`);
+      return;
+    }
+
+    const schoolId = getCurrentSchoolId();
+    const createdAt = new Date().toLocaleString("en-KE", {
+      dateStyle: "medium",
+      timeStyle: "short",
+    });
+    const affectedCount = records.length;
+    const failedRecords = records.filter((record) => /blocked|invalid/i.test(record.status) && action.mode === "completed");
+    const failedCount = failedRecords.length;
+    const succeededCount = affectedCount - failedCount;
+    const statusWord = action.mode === "queued" ? "Pending" : "Completed";
+    const visibleVerb = action.mode === "queued" ? "queued" : "completed";
+    const recordIds = records.map((record) => record.id);
+    const resultMessage = `${action.label} ${visibleVerb} for ${affectedCount} selected ${itemLabel}${affectedCount === 1 ? "" : "s"}. Selected ${affectedCount}. ${succeededCount} succeeded, ${failedCount} failed.${
+      failedCount > 0 ? ` Failed records: ${failedRecords.map((record) => record.title).join(", ")}.` : ""
+    }`;
+    const result: ExamOperationalRecord = {
+      id: `exam-manager-action-${Date.now()}`,
+      title: "EXAMS_MANAGER_LIFECYCLE_ACTION_EXECUTED",
+      detail: `${resultMessage} School ${schoolId}. Workspace ${view}. Records ${recordIds.join(", ")}.`,
+      status: statusWord,
+      createdAt,
+    };
+
+    addSchoolRecord(
+      "exam-manager-action-results",
+      {
+        ...result,
+        schoolId,
+        actionLabel: action.label,
+        workspace: view,
+        selectedRecordIds: recordIds,
+        selectedRecordTitles: records.map((record) => record.title),
+        affectedCount,
+        succeededCount,
+        failedCount,
+        status: statusWord,
+        executedByRole: "Exams Manager",
+      },
+      schoolId,
+    );
+
+    publishSchoolOperationalEvent({
+      schoolId,
+      type: "EXAMS_MANAGER_LIFECYCLE_ACTION_EXECUTED",
+      module: "exams",
+      actorRole: "Exams Manager",
+      title: `${action.label} ${visibleVerb} from Exams Manager`,
+      body: resultMessage,
+      entityId: result.id,
+      severity: failedCount > 0 ? "warning" : action.mode === "queued" ? "info" : "success",
+      payload: {
+        workspace: view,
+        selectedRecordIds: recordIds,
+        affectedCount,
+        succeededCount,
+        failedCount,
+        schoolId,
+      },
+      notifications: action.targetRoles.map((role) => ({
+        audienceRoles: [role],
+        title: action.notificationTitle,
+        body: resultMessage,
+        severity: failedCount > 0 ? "warning" : "info",
+        relatedModule: "exams",
+        relatedRecordId: result.id,
+        requestStatus: statusWord,
+      })),
+    });
+
+    setLifecycleResults((current) => [result, ...current].slice(0, 8));
+    clearLifecycleSelection(view);
+    setNotice(resultMessage);
   }
 
   return (
@@ -1044,6 +1843,11 @@ export function ExamsManagerCommandCenter({
               onCheckTermAlignment={checkTermAlignment}
               onOpenMarksEntry={openMarksEntry}
               onSendDeanReview={sendDeanReview}
+              selectedLifecycleIds={selectedLifecycleIds[activeView] ?? []}
+              lifecycleResults={lifecycleResults}
+              onToggleLifecycleRecord={toggleLifecycleRecord}
+              onClearLifecycleSelection={clearLifecycleSelection}
+              onExecuteLifecycleAction={executeLifecycleAction}
               savedConfigurations={savedConfigurations}
               examDrafts={examDrafts}
               alignmentChecks={alignmentChecks}

@@ -6,7 +6,7 @@ import { ParentCommandCenter } from "@/components/portal/parent-command-center";
 import { PortalPages } from "@/components/portal/portal-pages";
 import { SuperadminPages } from "@/components/platform/superadmin-pages";
 import { ExamsManagerCommandCenter } from "@/components/school/exams-manager-command-center";
-import { addSchoolRecord } from "@/lib/school/school-operational-store";
+import { addSchoolRecord, readSchoolData } from "@/lib/school/school-operational-store";
 
 import { renderWithProviders } from "./test-utils";
 
@@ -35,6 +35,90 @@ describe("portal and platform command center interactions", () => {
     expect(screen.getByText(/exam configuration saved for dean review/i)).toBeVisible();
     expect(screen.getByText(/Form 4 Mock Series configuration/i)).toBeVisible();
   });
+
+  it("exposes the exams manager command, setup, entry, validation, report, analytics, and audit workspaces", async () => {
+    const user = userEvent.setup();
+
+    renderWithProviders(<ExamsManagerCommandCenter routeMode="hosted" />);
+
+    expect(screen.getByRole("button", { name: /exam command center/i })).toBeVisible();
+    expect(screen.getByRole("button", { name: /exam setup/i })).toBeVisible();
+    expect(screen.getByRole("button", { name: /entry windows/i })).toBeVisible();
+    expect(screen.getByRole("button", { name: /mark entry monitor/i })).toBeVisible();
+    expect(screen.getByRole("button", { name: /missing marks/i })).toBeVisible();
+    expect(screen.getByRole("button", { name: /^moderation$/i })).toBeVisible();
+    expect(screen.getByRole("button", { name: /report cards/i })).toBeVisible();
+    expect(screen.getByRole("button", { name: /report templates/i })).toBeVisible();
+    expect(screen.getByRole("button", { name: /academic analytics/i })).toBeVisible();
+    expect(screen.getByRole("button", { name: /exam audit log/i })).toBeVisible();
+
+    await user.click(screen.getByRole("button", { name: /missing marks/i }));
+    expect(screen.getAllByRole("heading", { name: /missing marks/i }).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/teacher follow-up required/i).length).toBeGreaterThan(0);
+
+    await user.click(screen.getByRole("button", { name: /exam audit log/i }));
+    expect(screen.getByRole("heading", { name: /exam audit log/i })).toBeVisible();
+    expect(screen.getByText(/tenant-scoped exam events/i)).toBeVisible();
+  });
+
+  it("lets the exams manager select records and execute lifecycle actions with truthful same-school results", async () => {
+    const user = userEvent.setup();
+    window.localStorage.setItem("myshule.currentSchoolId", "kisumu-boys");
+
+    renderWithProviders(<ExamsManagerCommandCenter routeMode="hosted" />);
+
+    await user.click(screen.getByRole("button", { name: /entry windows/i }));
+    expect(screen.getByRole("heading", { name: /entry windows work queue/i })).toBeVisible();
+    expect(screen.getByRole("button", { name: /open entry for selected/i })).toBeDisabled();
+    await user.click(screen.getByRole("checkbox", { name: /select form 3 science block/i }));
+    await user.click(screen.getByRole("button", { name: /open entry for selected/i }));
+    expect(screen.getByText(/Open Entry queued for 1 selected entry window/i)).toBeVisible();
+
+    await user.click(screen.getByRole("button", { name: /missing marks/i }));
+    expect(screen.getByRole("heading", { name: /missing marks work queue/i })).toBeVisible();
+    await user.click(screen.getByRole("checkbox", { name: /select class 7b science/i }));
+    await user.click(screen.getByRole("button", { name: /notify teacher for selected/i }));
+    expect(screen.getByText(/Notify Teacher queued for 1 selected missing mark record/i)).toBeVisible();
+
+    await user.click(screen.getByRole("button", { name: /^moderation$/i }));
+    expect(screen.getByRole("heading", { name: /moderation work queue/i })).toBeVisible();
+    await user.click(screen.getByRole("checkbox", { name: /select term 2 cat 1 moderation/i }));
+    await user.click(screen.getByRole("button", { name: /approve selected to dean review/i }));
+    expect(screen.getByText(/Approve selected to Dean review completed for 1 selected moderation record/i)).toBeVisible();
+
+    await user.click(screen.getByRole("button", { name: /report cards/i }));
+    expect(screen.getByRole("heading", { name: /report cards work queue/i })).toBeVisible();
+    await user.click(screen.getByRole("checkbox", { name: /select term 2 cat 1 report card draft batch/i }));
+    await user.click(screen.getByRole("button", { name: /generate selected/i }));
+    expect(screen.getByText(/Generate Selected queued for 1 selected report card batch/i)).toBeVisible();
+
+    await user.click(screen.getByRole("button", { name: /report templates/i }));
+    expect(screen.getByRole("heading", { name: /report templates work queue/i })).toBeVisible();
+    await user.click(screen.getByRole("checkbox", { name: /select cbc\/cbe competency report/i }));
+    await user.click(screen.getByRole("button", { name: /save template draft for selected/i }));
+    expect(screen.getByText(/Save Template Draft completed for 1 selected report template/i)).toBeVisible();
+
+    await user.click(screen.getByRole("button", { name: /export center/i }));
+    expect(screen.getByRole("heading", { name: /export center work queue/i })).toBeVisible();
+    await user.click(screen.getByRole("checkbox", { name: /select excel marksheets/i }));
+    await user.click(screen.getByRole("button", { name: /prepare export for selected/i }));
+    expect(screen.getByText(/Prepare Export queued for 1 selected export package/i)).toBeVisible();
+
+    await user.click(screen.getByRole("button", { name: /exam audit log/i }));
+    expect(screen.getAllByText(/EXAMS_MANAGER_LIFECYCLE_ACTION_EXECUTED/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/kisumu-boys/i).length).toBeGreaterThan(0);
+
+    expect(readSchoolData<Record<string, unknown>>("events", "kisumu-boys")).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          schoolId: "kisumu-boys",
+          type: "EXAMS_MANAGER_LIFECYCLE_ACTION_EXECUTED",
+          module: "exams",
+        }),
+      ]),
+    );
+    expect(readSchoolData<Record<string, unknown>>("events", "other-school")).toEqual([]);
+  }, 30000);
 
   it("makes parent topbar and emergency controls visible as working actions", async () => {
     const user = userEvent.setup();

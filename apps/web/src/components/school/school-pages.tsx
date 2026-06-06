@@ -20,6 +20,11 @@ import { ProcurementModuleScreen } from "@/components/modules/procurement/procur
 import { TransportModuleScreen } from "@/components/modules/transport/transport-module-screen";
 import { VisitorManagementModuleScreen } from "@/components/modules/visitors/visitor-management-module-screen";
 import { ErpShell } from "@/components/school/erp-shell";
+import { DeanAcademicsCommandCenter } from "@/components/school/dean-academics-command-center";
+import { DeputyPrincipalCommandCenter } from "@/components/school/deputy-principal-command-center";
+import { ExamsManagerCommandCenter } from "@/components/school/exams-manager-command-center";
+import { GradeMasterCommandCenter } from "@/components/school/grade-master-command-center";
+import { HodCommandCenter } from "@/components/school/hod-command-center";
 import { OperationalBlueprintWorkspace } from "@/components/school/operational-blueprint-workspace";
 import { RoleOperationalCommandCenter } from "@/components/school/role-operational-command-center";
 import { UserManagementPanel } from "@/components/school/user-management-panel";
@@ -590,6 +595,17 @@ function createEmptyBulkFeeStudentDraft(): BulkFeeStudentDraft {
     admission_number: "",
     class_name: "",
     guardian_phone: "",
+  };
+}
+
+function toBulkFeeStudentDraft(student: BillableFeeStudentResponse): BulkFeeStudentDraft {
+  return {
+    id: student.student_id,
+    student_id: student.student_id,
+    student_name: student.student_name,
+    admission_number: student.admission_number,
+    class_name: student.class_name ?? student.grade_level,
+    guardian_phone: student.guardian_phone ?? "",
   };
 }
 
@@ -1262,6 +1278,7 @@ function SchoolFinancePage({
   const [bulkStudents, setBulkStudents] = useState<BulkFeeStudentDraft[]>(() => [
     createEmptyBulkFeeStudentDraft(),
   ]);
+  const [selectedBulkStudentIds, setSelectedBulkStudentIds] = useState<Set<string>>(() => new Set());
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [invoiceDraft, setInvoiceDraft] = useState({ studentId: "", studentName: "", amount: "", dueAt: "" });
@@ -1598,10 +1615,61 @@ function SchoolFinancePage({
 
   function removeBulkStudent(id: string) {
     setBulkStudents((current) =>
-      current.length === 1 ? [createEmptyBulkFeeStudentDraft()] : current.filter((student) => student.id !== id),
+      current.length === 1 ? [] : current.filter((student) => student.id !== id),
     );
+    setSelectedBulkStudentIds((current) => {
+      const next = new Set(current);
+      next.delete(id);
+      return next;
+    });
     setBulkError(null);
   }
+
+  function toggleBulkRosterStudent(student: BillableFeeStudentResponse) {
+    setSelectedBulkStudentIds((current) => {
+      const next = new Set(current);
+
+      if (next.has(student.student_id)) {
+        next.delete(student.student_id);
+        setBulkStudents((drafts) => drafts.filter((draft) => draft.id !== student.student_id));
+      } else {
+        next.add(student.student_id);
+        setBulkStudents((drafts) => {
+          const manualDrafts = drafts.filter((draft) => !billableStudents.some((row) => row.student_id === draft.id));
+          const rosterDrafts = billableStudents
+            .filter((row) => next.has(row.student_id))
+            .map(toBulkFeeStudentDraft);
+          return [...rosterDrafts, ...manualDrafts];
+        });
+      }
+
+      return next;
+    });
+    setBulkError(null);
+  }
+
+  function selectAllVisibleBulkRosterStudents() {
+    const next = new Set(billableStudents.map((student) => student.student_id));
+    setSelectedBulkStudentIds(next);
+    setBulkStudents((drafts) => {
+      const manualDrafts = drafts.filter((draft) => !billableStudents.some((row) => row.student_id === draft.id));
+      return [...billableStudents.map(toBulkFeeStudentDraft), ...manualDrafts];
+    });
+    setBulkError(null);
+  }
+
+  function clearBulkRosterSelection() {
+    setSelectedBulkStudentIds(new Set());
+    setBulkStudents((drafts) => drafts.filter((draft) => !billableStudents.some((row) => row.student_id === draft.id)));
+    setBulkError(null);
+  }
+
+  const hasBulkBillingStudents = bulkStudents.some((student) =>
+    [student.student_id, student.student_name, student.admission_number, student.class_name, student.guardian_phone].some(
+      (value) => value.trim().length > 0,
+    ),
+  );
+  const canGenerateBulkInvoices = bulkDraft.fee_structure_id.trim().length > 0 && hasBulkBillingStudents;
 
   async function saveFeeStructure() {
     const validationError = getMissingFieldError([
@@ -1701,6 +1769,8 @@ function SchoolFinancePage({
       setFeeStructureError(null);
       setFinanceMessage(`${payload.name} archived.`);
       setBillableStudents([]);
+      setSelectedBulkStudentIds(new Set());
+      setBulkStudents([]);
       setBulkDraft((current) => ({
         ...current,
         fee_structure_id: current.fee_structure_id === payload.id ? "" : current.fee_structure_id,
@@ -1768,7 +1838,8 @@ function SchoolFinancePage({
       setBulkError(null);
       setFinanceMessage(`${payload.generated_count} invoices generated; ${payload.skipped_count} duplicate rows skipped.`);
       setBulkDraft((current) => ({ ...current, idempotency_key: "", due_at: "" }));
-      setBulkStudents([createEmptyBulkFeeStudentDraft()]);
+      setSelectedBulkStudentIds(new Set());
+      setBulkStudents([]);
       await loadFinanceActivity();
       await loadStudentBalances();
       await loadReconciliationReport();
@@ -1807,24 +1878,15 @@ function SchoolFinancePage({
       }
 
       setBillableStudents(payload);
+      setSelectedBulkStudentIds(new Set());
+      setBulkStudents([]);
 
       if (payload.length === 0) {
-        setBulkStudents([createEmptyBulkFeeStudentDraft()]);
         setFinanceMessage("No active roster students matched this fee structure.");
         return;
       }
 
-      setBulkStudents(
-        payload.map((student) => ({
-          id: student.student_id,
-          student_id: student.student_id,
-          student_name: student.student_name,
-          admission_number: student.admission_number,
-          class_name: student.class_name ?? student.grade_level,
-          guardian_phone: student.guardian_phone ?? "",
-        })),
-      );
-      setFinanceMessage(`${payload.length} roster students loaded for bulk billing.`);
+      setFinanceMessage(`${payload.length} roster students loaded. Select learners to bill.`);
     } catch (caught) {
       setBillableStudents([]);
       setBulkError(caught instanceof Error ? caught.message : "Billable roster could not be loaded.");
@@ -2165,6 +2227,8 @@ function SchoolFinancePage({
                   onChange={(event) => {
                     setBulkDraft((current) => ({ ...current, fee_structure_id: event.target.value }));
                     setBillableStudents([]);
+                    setSelectedBulkStudentIds(new Set());
+                    setBulkStudents([]);
                     setBulkError(null);
                   }}
                 >
@@ -2210,11 +2274,20 @@ function SchoolFinancePage({
               >
                 {billableStudentsLoading ? "Loading roster" : "Load roster"}
               </Button>
-              <Button onClick={() => void generateBulkFeeInvoices()}>Generate invoices</Button>
+              <Button onClick={() => void generateBulkFeeInvoices()} disabled={!canGenerateBulkInvoices}>
+                Generate invoices
+              </Button>
             </div>
             <div className="space-y-3">
               <div className="flex items-center justify-between gap-3">
-                <p className="text-sm font-semibold text-foreground">Students</p>
+                <div>
+                  <p className="text-sm font-semibold text-foreground">Selected students</p>
+                  <p className="text-xs text-muted-foreground">
+                    {bulkStudents.length > 0
+                      ? `${bulkStudents.length} selected for invoice generation`
+                      : "Select roster learners or add a manual row before generating invoices."}
+                  </p>
+                </div>
                 <Button
                   size="sm"
                   variant="ghost"
@@ -2264,7 +2337,41 @@ function SchoolFinancePage({
             <DataTable
               title="Billable roster"
               subtitle={billableStudentsLoading ? "Loading active students..." : "Active students matched to the selected fee structure."}
+              actions={
+                <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                  <span>{selectedBulkStudentIds.size} selected</span>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={selectAllVisibleBulkRosterStudents}
+                    disabled={billableStudents.length === 0}
+                  >
+                    Select all visible
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={clearBulkRosterSelection}
+                    disabled={selectedBulkStudentIds.size === 0}
+                  >
+                    Clear selection
+                  </Button>
+                </div>
+              }
               columns={[
+                {
+                  id: "select",
+                  header: "Select",
+                  render: (row) => (
+                    <input
+                      aria-label={`Select ${row.student_name} for bulk billing`}
+                      className="h-4 w-4 rounded border-border text-primary focus-ring"
+                      type="checkbox"
+                      checked={selectedBulkStudentIds.has(row.student_id)}
+                      onChange={() => toggleBulkRosterStudent(row)}
+                    />
+                  ),
+                },
                 { id: "student", header: "Student", render: (row) => row.student_name },
                 { id: "admission", header: "Admission", render: (row) => row.admission_number },
                 {
@@ -5076,6 +5183,36 @@ function SchoolPagesShell({
     !studentId && shouldRenderRoleOperationalWorkspace(role, section);
 
   if (renderRoleOperationalWorkspace) {
+    if (section === "exams" && role === "grade-master") {
+      return <GradeMasterCommandCenter routeMode={routeMode} />;
+    }
+
+    if (section === "exams" && role === "hod") {
+      return <HodCommandCenter routeMode={routeMode} initialView="exams" />;
+    }
+
+    if (section === "exams" && role === "dean-academics") {
+      return <DeanAcademicsCommandCenter routeMode={routeMode} />;
+    }
+
+    if (section === "exams" && role === "deputy-principal") {
+      return <DeputyPrincipalCommandCenter routeMode={routeMode} />;
+    }
+
+    if (section === "exams" && role === "exams-manager") {
+      return <ExamsManagerCommandCenter routeMode={routeMode} />;
+    }
+
+    if (section === "exams" && role === "principal") {
+      return (
+        <ExamsModuleScreen
+          role={role}
+          schoolName={workspace.branding.name}
+          tenantSlug={tenantSlug}
+        />
+      );
+    }
+
     return (
       <RoleOperationalCommandCenter
         role={role}

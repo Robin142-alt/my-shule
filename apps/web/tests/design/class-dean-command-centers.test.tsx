@@ -155,6 +155,39 @@ describe("class teacher and dean command center interactions", () => {
     );
   });
 
+  it("exposes grade master exam result, readiness, progress, intervention, and comment workspaces", async () => {
+    const user = userEvent.setup();
+
+    renderWithProviders(<GradeMasterCommandCenter routeMode="hosted" />);
+
+    expect(screen.getByRole("button", { name: /grade\/form results/i })).toBeVisible();
+    expect(screen.getByRole("button", { name: /stream comparison/i })).toBeVisible();
+    expect(screen.getByRole("button", { name: /report readiness/i })).toBeVisible();
+    expect(screen.getByRole("button", { name: /learner progress/i })).toBeVisible();
+    expect(screen.getByRole("button", { name: /academic interventions/i })).toBeVisible();
+    expect(screen.getByRole("button", { name: /grade\/form comments/i })).toBeVisible();
+
+    await user.click(screen.getByRole("button", { name: /report readiness/i }));
+    expect(screen.getByRole("heading", { name: /report readiness/i })).toBeVisible();
+    expect(screen.getByText(/CBC reports ready/i)).toBeVisible();
+    expect(screen.getByText(/legacy reports ready/i)).toBeVisible();
+
+    await user.click(screen.getByRole("button", { name: /grade\/form comments/i }));
+    expect(screen.getByRole("heading", { name: /grade\/form comments/i })).toBeVisible();
+    await user.click(screen.getByRole("button", { name: /submit grade comments/i }));
+
+    expect(screen.getByText(/grade\/form comments submitted for dean review/i)).toBeVisible();
+    expect(readSchoolData<Record<string, unknown>>("events", "kb-high")).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          schoolId: "kb-high",
+          type: "GRADE_MASTER_COMMENTS_SUBMITTED",
+          module: "reports",
+        }),
+      ]),
+    );
+  });
+
   it("makes grade master table filters and exports executable", async () => {
     const user = userEvent.setup();
 
@@ -278,5 +311,23 @@ describe("class teacher and dean command center interactions", () => {
         }),
       ]),
     );
+  });
+
+  it("exposes dean academic exam overview, moderation, analytics, and intervention workspaces", async () => {
+    const user = userEvent.setup();
+
+    renderWithProviders(<DeanAcademicsCommandCenter routeMode="hosted" />);
+
+    expect(screen.getByRole("button", { name: /academic exam overview/i })).toBeVisible();
+    expect(screen.getByRole("button", { name: /results moderation/i })).toBeVisible();
+    expect(screen.getByRole("button", { name: /academic analytics/i })).toBeVisible();
+    expect(screen.getByRole("button", { name: /^interventions$/i })).toBeVisible();
+
+    await user.click(screen.getByRole("button", { name: /^interventions$/i }));
+    expect(screen.getByRole("heading", { name: /academic interventions/i })).toBeVisible();
+    await user.click(screen.getByRole("button", { name: /assign intervention/i }));
+    const actionDialog = screen.getByRole("dialog", { name: /dean academic action/i });
+    expect(actionDialog).toBeVisible();
+    expect(within(actionDialog).getByText(/assign intervention/i)).toBeVisible();
   });
 });

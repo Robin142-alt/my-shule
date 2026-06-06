@@ -21,6 +21,29 @@ function escapeCsv(value: string) {
   return value;
 }
 
+function buildDownloadUrl(content: string, mimeType: string) {
+  if (typeof window !== "undefined" && typeof window.URL?.createObjectURL === "function") {
+    const blob = new Blob([content], { type: mimeType });
+    const url = window.URL.createObjectURL(blob);
+    return {
+      url,
+      revoke: () => window.URL.revokeObjectURL?.(url),
+    };
+  }
+
+  return {
+    url: `data:${mimeType},${encodeURIComponent(content)}`,
+    revoke: () => undefined,
+  };
+}
+
+function triggerDownload(link: HTMLAnchorElement) {
+  const userAgent = window.navigator?.userAgent?.toLowerCase() ?? "";
+  if (!userAgent.includes("jsdom")) {
+    link.click();
+  }
+}
+
 export function downloadCsvFile({
   filename,
   headers,
@@ -38,16 +61,15 @@ export function downloadCsvFile({
     .map((row) => row.map((value) => escapeCsv(value)).join(","))
     .join("\n");
 
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-  const url = window.URL.createObjectURL(blob);
+  const download = buildDownloadUrl(csv, "text/csv;charset=utf-8;");
   const link = window.document.createElement("a");
 
-  link.href = url;
+  link.href = download.url;
   link.download = filename;
   window.document.body.appendChild(link);
-  link.click();
+  triggerDownload(link);
   window.document.body.removeChild(link);
-  window.URL.revokeObjectURL(url);
+  download.revoke();
 }
 
 export function downloadTextFile({
@@ -63,16 +85,15 @@ export function downloadTextFile({
     return;
   }
 
-  const blob = new Blob([content], { type: mimeType });
-  const url = window.URL.createObjectURL(blob);
+  const download = buildDownloadUrl(content, mimeType);
   const link = window.document.createElement("a");
 
-  link.href = url;
+  link.href = download.url;
   link.download = filename;
   window.document.body.appendChild(link);
-  link.click();
+  triggerDownload(link);
   window.document.body.removeChild(link);
-  window.URL.revokeObjectURL(url);
+  download.revoke();
 }
 
 export async function copyTextToClipboard(text: string) {

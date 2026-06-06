@@ -165,6 +165,7 @@ export interface ReportCardDocumentData {
   permissions: {
     canViewFees: boolean;
     canViewConduct: boolean;
+    canViewMarksSupplement: boolean;
     canApprove: boolean;
     canPublish: boolean;
     canDownload: boolean;
@@ -244,20 +245,60 @@ export function selectReportCardType(input: {
   return input.schoolDirection === "CBC_CBE" ? "CBC_CBE_COMPETENCY" : "CBC_CBE_COMPETENCY";
 }
 
-export function buildReportCardGenerationRows(reports: ReportCardBatch[]): ReportCardGenerationRow[] {
+export function inferClassReportingMode(input: {
+  className: string;
+  template?: string;
+  schoolDirection: SchoolCurriculumDirection;
+  classReportingMode?: ClassReportingMode;
+}): ClassReportingMode {
+  if (input.classReportingMode) return input.classReportingMode;
+  if (input.schoolDirection === "CBC_CBE") return "CBC_CBE";
+
+  const template = input.template?.toLowerCase() ?? "";
+  if (template.includes("legacy") || template.includes("8-4-4") || template.includes("kcse")) return "LEGACY_844_KCSE";
+  if (template.includes("hybrid")) return "HYBRID_CBC_MARKS";
+  if (template.includes("cbc") || template.includes("cbe") || template.includes("competency")) return "CBC_CBE";
+
+  if (input.className.includes("Form 4")) return "LEGACY_844_KCSE";
+  if (input.className.includes("Grade 8")) return "HYBRID_CBC_MARKS";
+
+  return "CBC_CBE";
+}
+
+export function buildReportCardGenerationRows(
+  reports: ReportCardBatch[],
+  options?: {
+    settings?: ReportCardSettings;
+    classReportingModes?: Record<string, ClassReportingMode>;
+  },
+): ReportCardGenerationRow[] {
+  const settings = options?.settings ?? curriculumSettings;
+
   return reports.map((report, index) => {
-    const reportingMode: ClassReportingMode =
-      report.className.includes("Form 4")
-        ? "LEGACY_844_KCSE"
-        : report.className.includes("Grade 8")
-          ? "HYBRID_CBC_MARKS"
-          : "CBC_CBE";
+    const reportingMode = inferClassReportingMode({
+      className: report.className,
+      template: report.template,
+      schoolDirection: settings.schoolDefaultCurriculumDirection,
+      classReportingMode: options?.classReportingModes?.[report.className],
+    });
     const reportType = selectReportCardType({
       classReportingMode: reportingMode,
-      schoolDirection: curriculumSettings.schoolDefaultCurriculumDirection,
+      schoolDirection: settings.schoolDefaultCurriculumDirection,
     });
-    const cbcMissing = reportingMode === "LEGACY_844_KCSE" ? 0 : Math.max(report.total - report.ready, 0);
-    const marksMissing = reportingMode === "CBC_CBE" ? 0 : Math.max(Math.ceil((report.total - report.ready) / 2), 0);
+    const requiresCbcObservations = reportingMode !== "LEGACY_844_KCSE" && settings.requireCbcObservations;
+    const requiresMarks =
+      reportingMode === "LEGACY_844_KCSE"
+      || (reportingMode === "HYBRID_CBC_MARKS" && settings.allowMarksSupplement);
+    const requiresComments =
+      settings.requireClassTeacherComments
+      || (reportingMode !== "CBC_CBE" && settings.requireSubjectTeacherComments);
+    const cbcMissing = requiresCbcObservations ? Math.max(report.total - report.ready, 0) : 0;
+    const marksMissing = requiresMarks ? Math.max(Math.ceil((report.total - report.ready) / 2), 0) : 0;
+    const missingItems = [
+      cbcMissing > 0 ? "CBC observation is missing for one or more learning areas." : null,
+      marksMissing > 0 ? "Marks are missing for one or more assessment components." : null,
+      requiresComments && report.tone !== "ok" ? "Class teacher comment has not been added." : null,
+    ].filter(Boolean) as string[];
 
     return {
       id: report.id,
@@ -267,18 +308,14 @@ export function buildReportCardGenerationRows(reports: ReportCardBatch[]): Repor
       stream: report.className.split(" ").slice(-1)[0] ?? "Main",
       reportingMode,
       reportType,
-      cbcCompletion: reportingMode === "LEGACY_844_KCSE" ? "Not required" : cbcMissing === 0 ? "Complete" : `${cbcMissing} missing`,
-      marksCompletion: reportingMode === "CBC_CBE" ? "Not required" : marksMissing === 0 ? "Complete" : `${marksMissing} missing`,
-      commentsStatus: report.tone === "ok" ? "Complete" : "Missing comments",
-      approvalStatus: report.tone === "ok" ? "Ready for review" : "Data incomplete",
+      cbcCompletion: requiresCbcObservations ? (cbcMissing === 0 ? "Complete" : `${cbcMissing} missing`) : "Not required",
+      marksCompletion: requiresMarks ? (marksMissing === 0 ? "Complete" : `${marksMissing} missing`) : "Not required",
+      commentsStatus: requiresComments ? (report.tone === "ok" ? "Complete" : "Missing comments") : "Not required",
+      approvalStatus: missingItems.length === 0 ? "Ready for review" : "Data incomplete",
       publishedStatus: "Unpublished",
       printedStatus: "Not printed",
       feeHoldStatus: "Clear",
-      missingItems: [
-        cbcMissing > 0 ? "CBC observation is missing for one or more learning areas." : null,
-        marksMissing > 0 ? "Marks are missing for one or more assessment components." : null,
-        report.tone !== "ok" ? "Class teacher comment has not been added." : null,
-      ].filter(Boolean) as string[],
+      missingItems,
     };
   });
 }
@@ -322,7 +359,7 @@ export function buildReportCardDocument(input: {
   const settings = input.settings ?? curriculumSettings;
   const mark = input.data.marks.find((candidate) => candidate.student === input.row.learnerName) ?? input.data.marks[0];
   const isLegacy = input.row.reportType === "LEGACY_844_KCSE";
-  const isCbcOnly = input.row.reportType === "CBC_CBE_COMPETENCY";
+  const canUseMarks = isLegacy || (input.row.reportType === "HYBRID_CBC_MARKS" && settings.allowMarksSupplement);
 
   return {
     id: input.row.id,
@@ -370,7 +407,7 @@ export function buildReportCardDocument(input: {
       principalSummaryNote: undefined,
     },
     learningAreas: isLegacy ? [] : buildLearningAreas(input.data.competencies),
-    marksSupplement: isCbcOnly ? [] : buildMarksSupplement(mark, input.data.fields),
+    marksSupplement: canUseMarks ? buildMarksSupplement(mark, input.data.fields) : [],
     coreCompetencies: isLegacy
       ? []
       : input.data.competencies.map((item) => ({
@@ -398,8 +435,8 @@ export function buildReportCardDocument(input: {
       deanAcademics: undefined,
       principalDeputy: undefined,
     },
-    descriptorLegend: cbcDescriptorFallback,
-    gradingScale: isCbcOnly ? [] : legacyGradingFallback,
+    descriptorLegend: isLegacy ? [] : cbcDescriptorFallback,
+    gradingScale: canUseMarks ? legacyGradingFallback : [],
     signatures: [
       { role: "Class Teacher" },
       { role: isLegacy ? "Exams Manager" : "Dean/Academics" },
@@ -414,6 +451,7 @@ export function buildReportCardDocument(input: {
     permissions: {
       canViewFees: settings.allowFeeVisibility,
       canViewConduct: settings.allowDisciplineVisibility,
+      canViewMarksSupplement: canUseMarks,
       canApprove: true,
       canPublish: settings.allowParentPortalPublishing,
       canDownload: true,

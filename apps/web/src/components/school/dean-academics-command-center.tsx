@@ -23,8 +23,12 @@ type DeanRouteMode = "hosted" | "public";
 type Tone = "success" | "info" | "warning" | "danger" | "neutral";
 type DeanView =
   | "overview"
+  | "academic-overview"
   | "pending"
   | "moderation"
+  | "results-moderation"
+  | "academic-analytics"
+  | "interventions"
   | "reports"
   | "integrity"
   | "teachers"
@@ -50,8 +54,12 @@ const lockedMessage = "Exams module not enabled for this school";
 
 const navItems: Array<{ id: DeanView; label: string; icon: LucideIcon }> = [
   { id: "overview", label: "Overview", icon: GraduationCap },
+  { id: "academic-overview", label: "Academic Exam Overview", icon: GraduationCap },
   { id: "pending", label: "Pending Reviews", icon: ClipboardCheck },
   { id: "moderation", label: "Exam Moderation", icon: ShieldCheck },
+  { id: "results-moderation", label: "Results Moderation", icon: ShieldCheck },
+  { id: "academic-analytics", label: "Academic Analytics", icon: AlertTriangle },
+  { id: "interventions", label: "Interventions", icon: UserCheck },
   { id: "reports", label: "Report Card Approval", icon: FileCheck2 },
   { id: "integrity", label: "Grading Integrity Checks", icon: AlertTriangle },
   { id: "teachers", label: "Teacher Performance Review", icon: UserCheck },
@@ -583,6 +591,78 @@ function Moderation({ capability }: { capability: DeanWidgetCapability }) {
   );
 }
 
+function ResultsModeration({ capability, onAction }: { capability: DeanWidgetCapability; onAction: (label: string) => void }) {
+  return (
+    <WidgetFrame widget={widgets.find((item) => item.id === "pending")!} capability={capability}>
+      <div className="grid gap-3">
+        {[
+          ["CBC competency reports", "96 learner summaries ready for moderation", "Ready"],
+          ["Hybrid CBC + marks reports", "118 reports with score supplement and observations", "Review"],
+          ["Legacy 8-4-4/KCSE reports", "74 transition reports retained as legacy format", "Legacy"],
+        ].map(([title, detail, status]) => (
+          <div key={title} className="rounded-2xl border border-[#D9E2EF] bg-white p-4">
+            <p className="font-black text-[#071D49]">{title}</p>
+            <p className="mt-1 text-sm font-semibold text-[#64748B]">{detail}</p>
+            <p className="mt-2 text-xs font-black uppercase tracking-[0.14em] text-[#0B63CE]">{status}</p>
+          </div>
+        ))}
+      </div>
+      <div className="mt-4 flex flex-wrap gap-2">
+        <ActionButton onAction={onAction}>Open review</ActionButton>
+        <ActionButton onAction={onAction}>Return for correction</ActionButton>
+      </div>
+    </WidgetFrame>
+  );
+}
+
+function AcademicAnalytics() {
+  return (
+    <ShellCard title="Academic Analytics" description="Dean-level analytics keep CBC, hybrid, and legacy report queues separated before approval." icon={AlertTriangle}>
+      <div className="grid gap-3 md:grid-cols-3">
+        {[
+          ["CBC readiness", "91%", "Missing observations tracked separately"],
+          ["Hybrid readiness", "86%", "Marks supplement ready after comments"],
+          ["Legacy readiness", "78%", "Transition classes only"],
+        ].map(([label, value, helper]) => (
+          <div key={label} className="rounded-2xl border border-[#D9E2EF] bg-[#F8FAFC] p-4">
+            <p className="text-xs font-black uppercase tracking-[0.14em] text-[#64748B]">{label}</p>
+            <p className="mt-2 text-3xl font-black text-[#071D49]">{value}</p>
+            <p className="mt-1 text-sm font-semibold text-[#64748B]">{helper}</p>
+          </div>
+        ))}
+      </div>
+    </ShellCard>
+  );
+}
+
+function Interventions({ onAction }: { onAction: (label: string) => void }) {
+  return (
+    <ShellCard title="Academic Interventions" description="Assign academic support without publishing reports or editing marks." icon={UserCheck}>
+      <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_260px]">
+        <div className="space-y-3">
+          {[
+            ["Mathematics recovery", "Form 2 West | 14 learners below target | HOD Mathematics"],
+            ["CBC observation completion", "Form 2 North | 3 learner observations missing | Class teacher"],
+            ["Comment correction", "Form 2 East | 5 comments missing | Grade/Form Master"],
+          ].map(([title, detail]) => (
+            <div key={title} className="rounded-2xl border border-[#D9E2EF] bg-[#F8FAFC] p-4">
+              <p className="font-black text-[#071D49]">{title}</p>
+              <p className="mt-1 text-sm font-semibold text-[#64748B]">{detail}</p>
+            </div>
+          ))}
+        </div>
+        <div className="rounded-2xl border border-[#D9E2EF] bg-white p-4">
+          <p className="text-sm font-black uppercase tracking-[0.14em] text-[#64748B]">Action</p>
+          <p className="mt-2 text-sm font-semibold leading-6 text-[#64748B]">Record the intervention assignment and notify the responsible academic role.</p>
+          <div className="mt-4">
+            <ActionButton onAction={onAction}>Assign intervention</ActionButton>
+          </div>
+        </div>
+      </div>
+    </ShellCard>
+  );
+}
+
 function Overview({ capabilities }: { capabilities: Map<DeanView, DeanWidgetCapability> }) {
   const visibleWidgets = widgets.filter((widget) => widget.id !== "moderation").slice(0, 6);
   return (
@@ -631,10 +711,18 @@ function ActiveWorkspace({
   onDeanAction: (label: string) => void;
 }) {
   switch (activeView) {
+    case "academic-overview":
+      return <Overview capabilities={capabilities} />;
     case "pending":
       return <PendingReviews capability={capabilities.get("pending")!} onAction={onDeanAction} />;
     case "moderation":
       return <Moderation capability={capabilities.get("moderation")!} />;
+    case "results-moderation":
+      return <ResultsModeration capability={capabilities.get("pending")!} onAction={onDeanAction} />;
+    case "academic-analytics":
+      return <AcademicAnalytics />;
+    case "interventions":
+      return <Interventions onAction={onDeanAction} />;
     case "reports":
       return <ReportCards capability={capabilities.get("reports")!} />;
     case "integrity":

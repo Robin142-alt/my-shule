@@ -1024,6 +1024,34 @@ function uniqueStrings(items: string[]) {
   return Array.from(new Set(items.filter(Boolean)));
 }
 
+type StudentContextOption = {
+  student: string;
+  className: string;
+  guardianPhone: string;
+};
+
+function studentContextKey(record: StudentContextOption) {
+  return `${record.student.trim().toLowerCase()}::${record.className.trim().toLowerCase()}`;
+}
+
+function buildStudentContextOptions(records: StudentContextOption[]) {
+  const seen = new Set<string>();
+
+  return records
+    .filter((record) => record.student.trim() && record.className.trim())
+    .filter((record) => {
+      const key = studentContextKey(record);
+
+      if (seen.has(key)) {
+        return false;
+      }
+
+      seen.add(key);
+      return true;
+    })
+    .sort((left, right) => left.student.localeCompare(right.student));
+}
+
 function rotateItems<T>(items: T[], start: number, count: number) {
   if (items.length === 0 || count <= 0) {
     return [];
@@ -2078,7 +2106,7 @@ function NurseClinicWorkspace({
   const [temperature, setTemperature] = useState("37.0");
   const [selectedMedicine, setSelectedMedicine] = useState(medicines[0]?.medicine ?? "Paracetamol");
   const [quantity, setQuantity] = useState("1");
-  const [guardianPhone, setGuardianPhone] = useState("0712345678");
+  const [guardianPhone, setGuardianPhone] = useState("0712 345 678");
   const [newMedicine, setNewMedicine] = useState("");
   const [newBatch, setNewBatch] = useState("");
   const [newQuantity, setNewQuantity] = useState("10");
@@ -2089,6 +2117,20 @@ function NurseClinicWorkspace({
   const treatedToday = visits.length;
   const referrals = visits.filter((visit) => visit.status === "Referred").length;
   const parentAlerts = visits.filter((visit) => visit.parentContacted).length;
+  const studentOptions = useMemo(
+    () => buildStudentContextOptions(visits.map((visit) => ({ student: visit.student, className: visit.className, guardianPhone: visit.guardianPhone }))),
+    [visits],
+  );
+  const studentIsMapped = studentOptions.some((option) => option.student === student && option.className === className);
+  const selectStudentContext = (selectedStudent: string) => {
+    const match = studentOptions.find((option) => option.student === selectedStudent) ?? studentOptions.find((option) => option.student === student);
+    setStudent(selectedStudent);
+
+    if (match) {
+      setClassName(match.className);
+      setGuardianPhone(match.guardianPhone);
+    }
+  };
   const clinicSummaryCards: Array<{
     label: string;
     value: string;
@@ -2152,7 +2194,14 @@ function NurseClinicWorkspace({
               setQuantity("1");
             }}
           >
-            <input value={student} onChange={(event) => setStudent(event.currentTarget.value)} className={fieldClass} aria-label="Student name" placeholder="Student name" required />
+            <select value={student} onChange={(event) => selectStudentContext(event.currentTarget.value)} className={fieldClass} aria-label="Student name" required>
+              {student && !studentIsMapped ? <option value={student}>{student} - selected context</option> : null}
+              {studentOptions.map((option) => (
+                <option key={studentContextKey(option)} value={option.student}>
+                  {option.student} - {option.className}
+                </option>
+              ))}
+            </select>
             <input value={className} onChange={(event) => setClassName(event.currentTarget.value)} className={fieldClass} aria-label="Class or form" placeholder="Class/Form" required />
             <input value={guardianPhone} onChange={(event) => setGuardianPhone(event.currentTarget.value)} className={fieldClass} aria-label="Guardian phone" placeholder="Guardian phone" required />
             <input value={temperature} onChange={(event) => setTemperature(event.currentTarget.value)} className={fieldClass} aria-label="Temperature" placeholder="Temperature" required />
@@ -2535,6 +2584,33 @@ function LibraryWorkspace({
   const overdueLoans = loans.filter((loan) => loan.status === "Overdue");
   const lostOrDamaged = loans.filter((loan) => loan.status === "Lost" || loan.status === "Damaged").length
     + books.filter((book) => book.status === "Lost" || book.status === "Damaged").length;
+  const borrowerOptions = useMemo(() => {
+    const seen = new Set<string>();
+
+    return loans
+      .map((loan) => ({ borrower: loan.borrower, admissionNo: loan.admissionNo }))
+      .filter((loan) => loan.borrower.trim() && loan.admissionNo.trim())
+      .filter((loan) => {
+        const key = `${loan.borrower.toLowerCase()}::${loan.admissionNo.toLowerCase()}`;
+
+        if (seen.has(key)) {
+          return false;
+        }
+
+        seen.add(key);
+        return true;
+      })
+      .sort((left, right) => left.borrower.localeCompare(right.borrower));
+  }, [loans]);
+  const borrowerIsMapped = borrowerOptions.some((option) => option.borrower === borrower && option.admissionNo === admissionNo);
+  const selectBorrower = (selectedBorrower: string) => {
+    const match = borrowerOptions.find((option) => option.borrower === selectedBorrower) ?? borrowerOptions.find((option) => option.borrower === borrower);
+    setBorrower(selectedBorrower);
+
+    if (match) {
+      setAdmissionNo(match.admissionNo);
+    }
+  };
   const summaryCards: Array<{
     label: string;
     value: string;
@@ -2592,7 +2668,14 @@ function LibraryWorkspace({
             }}
           >
             <input value={issueBarcode} onChange={(event) => setIssueBarcode(event.currentTarget.value)} className={fieldClass} aria-label="Book barcode" placeholder="Scan book barcode" required />
-            <input value={borrower} onChange={(event) => setBorrower(event.currentTarget.value)} className={fieldClass} aria-label="Borrower name" placeholder="Borrower name" required />
+            <select value={borrower} onChange={(event) => selectBorrower(event.currentTarget.value)} className={fieldClass} aria-label="Borrower name" required>
+              {borrower && !borrowerIsMapped ? <option value={borrower}>{borrower} - selected context</option> : null}
+              {borrowerOptions.map((option) => (
+                <option key={`${option.borrower}-${option.admissionNo}`} value={option.borrower}>
+                  {option.borrower} - {option.admissionNo}
+                </option>
+              ))}
+            </select>
             <input value={admissionNo} onChange={(event) => setAdmissionNo(event.currentTarget.value)} className={fieldClass} aria-label="Admission number" placeholder="Admission number" required />
             <input value={dueDate} onChange={(event) => setDueDate(event.currentTarget.value)} className={fieldClass} aria-label="Due date" type="date" required />
             <button type="submit" className="rounded-xl bg-[#071D49] px-4 py-2 text-sm font-black text-white md:col-span-2 xl:col-span-4">Issue Book</button>
@@ -2988,6 +3071,69 @@ function BoardingWorkspace({
   const missing = rollCalls.filter((item) => item.status === "Missing");
   const sick = rollCalls.filter((item) => item.status === "Sick");
   const pendingExeats = exeats.filter((item) => item.status === "Pending" || item.status === "Forwarded");
+  const boarderOptions = useMemo(() => {
+    const seen = new Set<string>();
+
+    return rollCalls
+      .map((item) => ({ student: item.student, className: item.className, dorm: item.dorm, bed: item.bed }))
+      .filter((item) => {
+        const key = `${item.student.toLowerCase()}::${item.className.toLowerCase()}::${item.dorm.toLowerCase()}`;
+
+        if (seen.has(key)) {
+          return false;
+        }
+
+        seen.add(key);
+        return true;
+      })
+      .sort((left, right) => left.student.localeCompare(right.student));
+  }, [rollCalls]);
+  const exeatStudentOptions = useMemo(() => {
+    const seen = new Set<string>();
+    const exeatContexts = exeats.map((item) => ({ student: item.student, dorm: item.dorm, parentPhone: item.parentPhone }));
+    const rollCallContexts = rollCalls.map((item) => ({
+      student: item.student,
+      dorm: item.dorm,
+      parentPhone: exeats.find((request) => request.student === item.student)?.parentPhone ?? "",
+    }));
+
+    return [...exeatContexts, ...rollCallContexts]
+      .filter((item) => item.student.trim() && item.dorm.trim())
+      .filter((item) => {
+        const key = `${item.student.toLowerCase()}::${item.dorm.toLowerCase()}`;
+
+        if (seen.has(key)) {
+          return false;
+        }
+
+        seen.add(key);
+        return true;
+      })
+      .sort((left, right) => left.student.localeCompare(right.student));
+  }, [exeats, rollCalls]);
+  const boarderIsMapped = boarderOptions.some((option) => option.student === student && option.className === className);
+  const exeatStudentIsMapped = exeatStudentOptions.some((option) => option.student === exeatStudent && option.dorm === exeatDorm);
+  const selectBoarder = (selectedStudent: string) => {
+    const match = boarderOptions.find((option) => option.student === selectedStudent) ?? boarderOptions.find((option) => option.student === student);
+    setStudent(selectedStudent);
+
+    if (match) {
+      setClassName(match.className);
+      setDorm(match.dorm);
+      setBed(match.bed);
+    }
+  };
+  const selectExeatStudent = (selectedStudent: string) => {
+    const match = exeatStudentOptions.find((option) => option.student === selectedStudent) ?? exeatStudentOptions.find((option) => option.student === exeatStudent);
+    setExeatStudent(selectedStudent);
+
+    if (match) {
+      setExeatDorm(match.dorm);
+      if (match.parentPhone) {
+        setExeatPhone(match.parentPhone);
+      }
+    }
+  };
   const summaryCards: Array<{
     label: string;
     value: string;
@@ -3039,7 +3185,14 @@ function BoardingWorkspace({
               onAddRollCall({ student, className, dorm, bed, status });
             }}
           >
-            <input value={student} onChange={(event) => setStudent(event.currentTarget.value)} className={fieldClass} aria-label="Boarder name" placeholder="Student name" required />
+            <select value={student} onChange={(event) => selectBoarder(event.currentTarget.value)} className={fieldClass} aria-label="Boarder name" required>
+              {student && !boarderIsMapped ? <option value={student}>{student} - selected context</option> : null}
+              {boarderOptions.map((option) => (
+                <option key={`${option.student}-${option.className}-${option.dorm}`} value={option.student}>
+                  {option.student} - {option.className}
+                </option>
+              ))}
+            </select>
             <input value={className} onChange={(event) => setClassName(event.currentTarget.value)} className={fieldClass} aria-label="Boarder class" placeholder="Class/Form" required />
             <input value={dorm} onChange={(event) => setDorm(event.currentTarget.value)} className={fieldClass} aria-label="Dormitory" placeholder="Dormitory" required />
             <input value={bed} onChange={(event) => setBed(event.currentTarget.value)} className={fieldClass} aria-label="Bed number" placeholder="Bed number" required />
@@ -3107,7 +3260,14 @@ function BoardingWorkspace({
               onAddExeat({ student: exeatStudent, dorm: exeatDorm, reason: exeatReason, parentPhone: exeatPhone });
             }}
           >
-            <input value={exeatStudent} onChange={(event) => setExeatStudent(event.currentTarget.value)} className={fieldClass} aria-label="Exeat student" placeholder="Student" required />
+            <select value={exeatStudent} onChange={(event) => selectExeatStudent(event.currentTarget.value)} className={fieldClass} aria-label="Exeat student" required>
+              {exeatStudent && !exeatStudentIsMapped ? <option value={exeatStudent}>{exeatStudent} - selected context</option> : null}
+              {exeatStudentOptions.map((option) => (
+                <option key={`${option.student}-${option.dorm}`} value={option.student}>
+                  {option.student} - {option.dorm}
+                </option>
+              ))}
+            </select>
             <input value={exeatDorm} onChange={(event) => setExeatDorm(event.currentTarget.value)} className={fieldClass} aria-label="Exeat dormitory" placeholder="Dormitory" required />
             <input value={exeatPhone} onChange={(event) => setExeatPhone(event.currentTarget.value)} className={fieldClass} aria-label="Exeat parent phone" placeholder="Parent phone" required />
             <textarea value={exeatReason} onChange={(event) => setExeatReason(event.currentTarget.value)} className={fieldClass} aria-label="Exeat reason" placeholder="Reason" required />
@@ -3175,6 +3335,34 @@ function TransportWorkspace({
   const notPicked = trips.filter((trip) => trip.status === "Not Picked");
   const vehicleIssues = vehicles.filter((vehicle) => vehicle.status === "Maintenance" || vehicle.status === "Offline" || vehicle.status === "Delayed");
   const fuelAlerts = vehicles.filter((vehicle) => vehicle.fuelLevel <= 35);
+  const studentOptions = useMemo(() => {
+    const seen = new Set<string>();
+
+    return trips
+      .map((trip) => ({ student: trip.student, admissionNo: trip.admissionNo, route: trip.route, stop: trip.stop }))
+      .filter((trip) => {
+        const key = `${trip.student.toLowerCase()}::${trip.admissionNo.toLowerCase()}`;
+
+        if (seen.has(key)) {
+          return false;
+        }
+
+        seen.add(key);
+        return true;
+      })
+      .sort((left, right) => left.student.localeCompare(right.student));
+  }, [trips]);
+  const studentIsMapped = studentOptions.some((option) => option.student === student && option.admissionNo === admissionNo);
+  const selectStudentContext = (selectedStudent: string) => {
+    const match = studentOptions.find((option) => option.student === selectedStudent) ?? studentOptions.find((option) => option.student === student);
+    setStudent(selectedStudent);
+
+    if (match) {
+      setAdmissionNo(match.admissionNo);
+      setRoute(match.route);
+      setStop(match.stop);
+    }
+  };
   const summaryCards: Array<{
     label: string;
     value: string;
@@ -3226,7 +3414,14 @@ function TransportWorkspace({
               onAddTrip({ student, admissionNo, route, stop });
             }}
           >
-            <input value={student} onChange={(event) => setStudent(event.currentTarget.value)} className={fieldClass} aria-label="Transport student" placeholder="Student" required />
+            <select value={student} onChange={(event) => selectStudentContext(event.currentTarget.value)} className={fieldClass} aria-label="Transport student" required>
+              {student && !studentIsMapped ? <option value={student}>{student} - selected context</option> : null}
+              {studentOptions.map((option) => (
+                <option key={`${option.student}-${option.admissionNo}`} value={option.student}>
+                  {option.student} - {option.admissionNo}
+                </option>
+              ))}
+            </select>
             <input value={admissionNo} onChange={(event) => setAdmissionNo(event.currentTarget.value)} className={fieldClass} aria-label="Transport admission number" placeholder="Admission no." required />
             <select value={route} onChange={(event) => setRoute(event.currentTarget.value)} className={fieldClass} aria-label="Transport route">
               {vehicles.map((vehicle) => <option key={vehicle.id}>{vehicle.route}</option>)}
@@ -3351,6 +3546,42 @@ function LaboratoryWorkspace({
   const safetyAlerts = inventory.filter((item) => item.status === "Hazard" || item.hazard === "High");
   const breakages = issues.filter((item) => item.status === "Broken");
   const pendingRequests = requests.filter((item) => item.status === "Requested" || item.status === "Hazard Hold");
+  const teacherOptions = useMemo(() => {
+    const seen = new Set<string>();
+
+    return requests
+      .map((request) => ({
+        teacher: request.teacher,
+        className: request.className,
+        subject: request.subject,
+        practical: request.practical,
+        requestedFor: request.requestedFor,
+      }))
+      .filter((request) => request.teacher.trim() && request.className.trim())
+      .filter((request) => {
+        const key = `${request.teacher.toLowerCase()}::${request.className.toLowerCase()}::${request.subject.toLowerCase()}`;
+
+        if (seen.has(key)) {
+          return false;
+        }
+
+        seen.add(key);
+        return true;
+      })
+      .sort((left, right) => left.teacher.localeCompare(right.teacher));
+  }, [requests]);
+  const teacherIsMapped = teacherOptions.some((option) => option.teacher === teacher && option.className === className && option.subject === subject);
+  const selectTeacherContext = (selectedTeacher: string) => {
+    const match = teacherOptions.find((option) => option.teacher === selectedTeacher) ?? teacherOptions.find((option) => option.teacher === teacher);
+    setTeacher(selectedTeacher);
+
+    if (match) {
+      setClassName(match.className);
+      setSubject(match.subject);
+      setPractical(match.practical);
+      setRequestedFor(match.requestedFor);
+    }
+  };
   const summaryCards: Array<{
     label: string;
     value: string;
@@ -3402,7 +3633,14 @@ function LaboratoryWorkspace({
               onAddPracticalRequest({ teacher, className, subject, practical, requestedFor });
             }}
           >
-            <input value={teacher} onChange={(event) => setTeacher(event.currentTarget.value)} className={fieldClass} aria-label="Lab teacher" placeholder="Teacher" required />
+            <select value={teacher} onChange={(event) => selectTeacherContext(event.currentTarget.value)} className={fieldClass} aria-label="Lab teacher" required>
+              {teacher && !teacherIsMapped ? <option value={teacher}>{teacher} - selected context</option> : null}
+              {teacherOptions.map((option) => (
+                <option key={`${option.teacher}-${option.className}-${option.subject}`} value={option.teacher}>
+                  {option.teacher} - {option.className} - {option.subject}
+                </option>
+              ))}
+            </select>
             <input value={className} onChange={(event) => setClassName(event.currentTarget.value)} className={fieldClass} aria-label="Lab class or form" placeholder="Class/Form" required />
             <input value={subject} onChange={(event) => setSubject(event.currentTarget.value)} className={fieldClass} aria-label="Lab subject" placeholder="Subject" required />
             <input value={practical} onChange={(event) => setPractical(event.currentTarget.value)} className={fieldClass} aria-label="Lab practical" placeholder="Practical" required />
@@ -3743,6 +3981,27 @@ function SecretaryWorkspace({
   const waitingVisitors = visitors.filter((item) => item.status === "Waiting");
   const insideVisitors = visitors.filter((item) => item.status === "Inside" || item.status === "Overstayed");
   const filteredStudents = balances.filter((item) => `${item.student} ${item.admissionNo} ${item.parentPhone}`.toLowerCase().includes(studentSearch.toLowerCase()));
+  const inquiryStudentOptions = useMemo(
+    () =>
+      buildStudentContextOptions(
+        balances.map((item) => ({
+          student: item.student,
+          className: item.className,
+          guardianPhone: item.parentPhone,
+        })),
+      ),
+    [balances],
+  );
+  const inquiryStudentIsMapped = inquiryStudentOptions.some((option) => option.student === student && option.className === className);
+  const selectInquiryStudent = (selectedStudent: string) => {
+    const match = inquiryStudentOptions.find((option) => option.student === selectedStudent) ?? inquiryStudentOptions.find((option) => option.student === student);
+    setStudent(selectedStudent);
+
+    if (match) {
+      setClassName(match.className);
+      setPhone(match.guardianPhone);
+    }
+  };
   const latestPaymentForStudent = (studentRecord: FeeBalanceRecord) =>
     payments.find((payment) => payment.admissionNo === studentRecord.admissionNo || payment.student === studentRecord.student);
   const summaryCards: Array<{ label: string; value: string; helper: string; tone: "ok" | "warning" | "critical"; Icon: LucideIcon }> = [
@@ -3809,7 +4068,14 @@ function SecretaryWorkspace({
             }}
           >
             <input value={parent} onChange={(event) => setParent(event.currentTarget.value)} className={fieldClass} aria-label="Parent name" placeholder="Parent name" required />
-            <input value={student} onChange={(event) => setStudent(event.currentTarget.value)} className={fieldClass} aria-label="Inquiry student" placeholder="Student" required />
+            <select value={student} onChange={(event) => selectInquiryStudent(event.currentTarget.value)} className={fieldClass} aria-label="Inquiry student" required>
+              {student && !inquiryStudentIsMapped ? <option value={student}>{student} - selected context</option> : null}
+              {inquiryStudentOptions.map((option) => (
+                <option key={studentContextKey(option)} value={option.student}>
+                  {option.student} - {option.className}
+                </option>
+              ))}
+            </select>
             <input value={className} onChange={(event) => setClassName(event.currentTarget.value)} className={fieldClass} aria-label="Inquiry class" placeholder="Class/Form" required />
             <input value={phone} onChange={(event) => setPhone(event.currentTarget.value)} className={fieldClass} aria-label="Parent phone" placeholder="Parent phone" required />
             <input value={issue} onChange={(event) => setIssue(event.currentTarget.value)} className={`${fieldClass} md:col-span-2`} aria-label="Inquiry issue" placeholder="Issue/request" required />
@@ -3945,7 +4211,25 @@ function DisciplineWorkspace({
   const parentSmsPending = cases.filter((item) => !item.parentSmsSent && item.status !== "Resolved");
   const referrals = cases.filter((item) => item.counsellorReferred);
   const linkedCounsellingSessions = counsellingSessions.filter((item) => item.status !== "Closed" && (item.referralSource === "Discipline Master" || item.riskLevel === "High" || item.riskLevel === "Critical"));
+  const studentOptions = useMemo(
+    () =>
+      buildStudentContextOptions([
+        ...cases.map((item) => ({ student: item.student, className: item.className, guardianPhone: item.guardianPhone })),
+        ...counsellingSessions.map((item) => ({ student: item.student, className: item.className, guardianPhone: item.guardianPhone })),
+      ]),
+    [cases, counsellingSessions],
+  );
   const filteredCases = cases.filter((item) => `${item.student} ${item.className} ${item.caseType} ${item.reportedBy} ${item.notes}`.toLowerCase().includes(searchTerm.toLowerCase()));
+  const studentIsMapped = studentOptions.some((option) => option.student === student && option.className === className);
+  const selectStudentContext = (selectedStudent: string) => {
+    const match = studentOptions.find((option) => option.student === selectedStudent) ?? studentOptions.find((option) => option.student === student);
+    setStudent(selectedStudent);
+
+    if (match) {
+      setClassName(match.className);
+      setGuardianPhone(match.guardianPhone);
+    }
+  };
   const summaryCards: Array<{ label: string; value: string; helper: string; tone: "ok" | "warning" | "critical"; Icon: LucideIcon }> = [
     { label: "Open Cases", value: String(openCases.length), helper: "Discipline case queue", tone: openCases.length > 0 ? "warning" : "ok", Icon: ClipboardList },
     { label: "Serious Cases", value: String(seriousCases.length), helper: "Deputy/principal follow-up", tone: seriousCases.length > 0 ? "critical" : "ok", Icon: ShieldCheck },
@@ -3993,7 +4277,14 @@ function DisciplineWorkspace({
               onAddCase({ student, className, caseType, severity, reportedBy, guardianPhone, notes });
             }}
           >
-            <input value={student} onChange={(event) => setStudent(event.currentTarget.value)} className={fieldClass} aria-label="Discipline student" placeholder="Student name" required />
+            <select value={student} onChange={(event) => selectStudentContext(event.currentTarget.value)} className={fieldClass} aria-label="Discipline student" required>
+              {student && !studentIsMapped ? <option value={student}>{student} - selected context</option> : null}
+              {studentOptions.map((option) => (
+                <option key={studentContextKey(option)} value={option.student}>
+                  {option.student} - {option.className}
+                </option>
+              ))}
+            </select>
             <input value={className} onChange={(event) => setClassName(event.currentTarget.value)} className={fieldClass} aria-label="Discipline class" placeholder="Class/Form" required />
             <select value={caseType} onChange={(event) => setCaseType(event.currentTarget.value as DisciplineCaseRecord["caseType"])} className={fieldClass} aria-label="Case type">
               {["Bullying", "Fighting", "Lateness", "Uniform", "Dormitory", "Other"].map((option) => <option key={option}>{option}</option>)}
@@ -4174,7 +4465,21 @@ function CounsellingWorkspace({
   const highRisk = sessions.filter((item) => item.riskLevel === "High" || item.riskLevel === "Critical");
   const followUpsDue = sessions.filter((item) => item.status === "Follow-up Scheduled" || item.status === "Open");
   const guardianSmsPending = sessions.filter((item) => !item.guardianSmsSent && item.status !== "Closed");
+  const studentOptions = useMemo(
+    () => buildStudentContextOptions(sessions.map((item) => ({ student: item.student, className: item.className, guardianPhone: item.guardianPhone }))),
+    [sessions],
+  );
   const filteredSessions = sessions.filter((item) => `${item.student} ${item.className} ${item.referralSource} ${item.riskLevel} ${item.sessionType} ${item.notes}`.toLowerCase().includes(searchTerm.toLowerCase()));
+  const studentIsMapped = studentOptions.some((option) => option.student === student && option.className === className);
+  const selectStudentContext = (selectedStudent: string) => {
+    const match = studentOptions.find((option) => option.student === selectedStudent) ?? studentOptions.find((option) => option.student === student);
+    setStudent(selectedStudent);
+
+    if (match) {
+      setClassName(match.className);
+      setGuardianPhone(match.guardianPhone);
+    }
+  };
   const summaryCards: Array<{ label: string; value: string; helper: string; tone: "ok" | "warning" | "critical"; Icon: LucideIcon }> = [
     { label: "Open Sessions", value: String(openSessions.length), helper: "Student welfare queue", tone: openSessions.length > 0 ? "warning" : "ok", Icon: ClipboardList },
     { label: "High Risk", value: String(highRisk.length), helper: "Deputy visibility needed", tone: highRisk.length > 0 ? "critical" : "ok", Icon: ShieldCheck },
@@ -4222,7 +4527,14 @@ function CounsellingWorkspace({
               onAddSession({ student, className, referralSource, riskLevel, sessionType, guardianPhone, notes, followUpDate });
             }}
           >
-            <input value={student} onChange={(event) => setStudent(event.currentTarget.value)} className={fieldClass} aria-label="Counselling student" placeholder="Student name" required />
+            <select value={student} onChange={(event) => selectStudentContext(event.currentTarget.value)} className={fieldClass} aria-label="Counselling student" required>
+              {student && !studentIsMapped ? <option value={student}>{student} - selected context</option> : null}
+              {studentOptions.map((option) => (
+                <option key={studentContextKey(option)} value={option.student}>
+                  {option.student} - {option.className}
+                </option>
+              ))}
+            </select>
             <input value={className} onChange={(event) => setClassName(event.currentTarget.value)} className={fieldClass} aria-label="Counselling class" placeholder="Class/Form" required />
             <select value={referralSource} onChange={(event) => setReferralSource(event.currentTarget.value as CounsellingSessionRecord["referralSource"])} className={fieldClass} aria-label="Referral source">
               {["Teacher", "Class Teacher", "Discipline Master", "Boarding Master", "Nurse", "Parent", "Self"].map((option) => <option key={option}>{option}</option>)}
@@ -5312,7 +5624,7 @@ function GenericRoleOperationalCommandCenter({
       setExecutionLog((current) => [
         {
           id: runtimeId(`${action.actionId}-success`),
-          label: action.label,
+          label: `${action.label} sent to workflow queue`,
           workflow: schoolFriendlyText(result.workflowBinding),
           audit: result.auditAction ?? action.auditEvent,
           events: result.widgetRefresh?.events?.length ? result.widgetRefresh.events.map(schoolFriendlyText) : action.eventContract.map(schoolFriendlyText),
@@ -5326,7 +5638,7 @@ function GenericRoleOperationalCommandCenter({
         type: "WORKFLOW_ACTION_SENT",
         module: activeWorkspaceKind,
         title: action.label,
-        body: `${action.label} completed from ${resolvedWorkspace}.`,
+        body: `${action.label} sent to workflow queue from ${resolvedWorkspace}.`,
         entityId: action.actionId,
         severity: "success",
         payload: {
@@ -5336,7 +5648,7 @@ function GenericRoleOperationalCommandCenter({
           auditAction: result.auditAction ?? action.auditEvent,
         },
         notifications: [
-          { audienceRoles: ["principal", role], title: `${action.label} completed` },
+          { audienceRoles: ["principal", role], title: `${action.label} queued` },
         ],
       });
       if (options?.materializeEntry) {

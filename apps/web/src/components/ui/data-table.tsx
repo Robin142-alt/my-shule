@@ -21,6 +21,7 @@ const PAGE_SIZE = 10;
 export function DataTable<T>({
   title,
   subtitle,
+  actions,
   columns,
   rows,
   getRowKey,
@@ -29,6 +30,7 @@ export function DataTable<T>({
 }: {
   title?: string;
   subtitle?: string;
+  actions?: ReactNode;
   columns: DataTableColumn<T>[];
   rows: T[];
   getRowKey: (row: T) => string;
@@ -59,11 +61,14 @@ export function DataTable<T>({
                 <p className="mt-0.5 text-[13px] text-muted line-clamp-1">{subtitle}</p>
               ) : null}
             </div>
-            {rows.length > 0 ? (
-              <span className="badge badge-neutral shrink-0">
-                {rows.length} {rows.length === 1 ? "record" : "records"}
-              </span>
-            ) : null}
+            <div className="flex shrink-0 items-center gap-2">
+              {actions}
+              {rows.length > 0 ? (
+                <span className="badge badge-neutral">
+                  {rows.length} {rows.length === 1 ? "record" : "records"}
+                </span>
+              ) : null}
+            </div>
           </div>
         </div>
       ) : null}

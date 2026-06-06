@@ -196,7 +196,7 @@ const emptySmsProviderForm: PlatformSmsProviderForm = {
 const initialSystemMonitorIssues: SystemMonitorIssue[] = [
   {
     id: "monitor-sms-kisumu",
-    school: "Kisumu Boys",
+    school: "Kisumu Boys High School",
     issue: "Failed parent absence SMS batch",
     category: "SMS",
     attempts: 2,
@@ -226,7 +226,7 @@ const initialSystemMonitorIssues: SystemMonitorIssue[] = [
   },
   {
     id: "monitor-backup-kisumu",
-    school: "Kisumu Boys",
+    school: "Kisumu Boys High School",
     issue: "Night backup completed with warnings",
     category: "Backup",
     attempts: 1,
@@ -236,7 +236,7 @@ const initialSystemMonitorIssues: SystemMonitorIssue[] = [
   },
   {
     id: "monitor-device-gate",
-    school: "Kisumu Boys",
+    school: "Kisumu Boys High School",
     issue: "Security gate tablet offline",
     category: "Device",
     attempts: 1,
