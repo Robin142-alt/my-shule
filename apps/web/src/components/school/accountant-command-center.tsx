@@ -43,6 +43,7 @@ import {
 
 import { toSchoolPath, type SchoolSection } from "@/lib/routing/experience-routes";
 import { getCurrentSchoolId, publishSchoolOperationalEvent } from "@/lib/school/school-operational-store";
+import { useSchoolQuery, useSchoolMutation } from "@/lib/data/school-hooks";
 
 type AccountantRouteMode = "hosted" | "public";
 type AccountantTheme = "dark" | "light";
@@ -1148,6 +1149,7 @@ function MobileActions({ routeMode }: { routeMode: AccountantRouteMode }) {
 }
 
 export function AccountantCommandCenter({ routeMode }: { routeMode: AccountantRouteMode }) {
+  const taskMutation = useSchoolMutation("/api/finance/tasks");
   const [theme, setTheme] = useState<AccountantTheme>("dark");
   const [searchTerm, setSearchTerm] = useState("");
   const [notice, setNotice] = useState("Ready for finance desk operations.");
@@ -1190,36 +1192,46 @@ export function AccountantCommandCenter({ routeMode }: { routeMode: AccountantRo
 
     const schoolId = getCurrentSchoolId();
     const entityId = `finance-intelligence-${selectedInsight.action.toLowerCase().replaceAll(" ", "-")}`;
-    publishSchoolOperationalEvent({
-      schoolId,
-      type: "FINANCE_INTELLIGENCE_TASK_CREATED",
-      module: "finance",
-      actorRole: "Accountant",
-      title: `${selectedInsight.action} task created`,
-      body: selectedInsight.detail,
-      entityId,
-      severity: selectedInsight.tone === "critical" ? "critical" : selectedInsight.tone === "warning" ? "warning" : "info",
-      payload: {
-        insightTitle: selectedInsight.title,
-        confidence: selectedInsight.confidence,
-        action: selectedInsight.action,
-      },
-      notifications: [
-        {
-          audienceRoles: ["Principal", "Deputy Principal"],
-          title: `${selectedInsight.action} finance task`,
-          body: selectedInsight.detail,
-          severity: selectedInsight.tone === "critical" ? "critical" : "warning",
-          relatedModule: "finance",
-          relatedRecordId: entityId,
-          requiresAction: true,
-          requestStatus: "Pending",
-        },
-      ],
-    });
+    taskMutation.mutate(
+      { entityId, title: selectedInsight.title, action: selectedInsight.action },
+      {
+        onSuccess: () => {
+          publishSchoolOperationalEvent({
+            schoolId,
+            type: "FINANCE_INTELLIGENCE_TASK_CREATED",
+            module: "finance",
+            actorRole: "Accountant",
+            title: `${selectedInsight.action} task created`,
+            body: selectedInsight.detail,
+            entityId,
+            severity: selectedInsight.tone === "critical" ? "critical" : selectedInsight.tone === "warning" ? "warning" : "info",
+            payload: {
+              insightTitle: selectedInsight.title,
+              confidence: selectedInsight.confidence,
+              action: selectedInsight.action,
+            },
+            notifications: [
+              {
+                audienceRoles: ["Principal", "Deputy Principal"],
+                title: `${selectedInsight.action} finance task`,
+                body: selectedInsight.detail,
+                severity: selectedInsight.tone === "critical" ? "critical" : "warning",
+                relatedModule: "finance",
+                relatedRecordId: entityId,
+                requiresAction: true,
+                requestStatus: "Pending",
+              },
+            ],
+          });
 
-    setNotice(`${selectedInsight.action} finance task created for ${schoolId}: ${entityId}, principal and deputy notifications pending.`);
-    setSelectedInsight(null);
+          setNotice(`${selectedInsight.action} finance task created for ${schoolId}: ${entityId}, principal and deputy notifications pending.`);
+          setSelectedInsight(null);
+        },
+        onError: (err) => {
+          setNotice(`Action failed: Backend API missing or denied (${err.message})`);
+        }
+      }
+    );
   }
 
   function applyTransactionFilters(event: FormEvent<HTMLFormElement>) {

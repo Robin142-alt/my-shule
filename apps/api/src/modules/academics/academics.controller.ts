@@ -11,7 +11,11 @@ import {
   CreateClassSectionDto,
   CreateClassStructureDto,
   CreateSubjectDto,
+  CreateAttendanceDto,
+  CreateAssignmentDto,
+  CreateResourceDto,
 } from './dto/academic.dto';
+import { EnterExamMarkDto } from '../exams/dto/exams.dto';
 
 @Controller('academics')
 @RequiresModule('academics')
@@ -68,5 +72,29 @@ export class AcademicsController {
     @Query('offset') offset?: string,
   ) {
     return this.academicsService.listTeacherAssignments(teacherUserId, limit, offset);
+  }
+
+  @Post('attendance')
+  @Permissions('academics:write')
+  createAttendance(@Body() dto: CreateAttendanceDto) {
+    return this.academicsService.createAttendance(dto);
+  }
+
+  @Post('assignments')
+  @Permissions('academics:write')
+  createAssignment(@Body() dto: CreateAssignmentDto) {
+    return this.academicsService.createAssignment(dto);
+  }
+
+  @Post('resources')
+  @Permissions('academics:write')
+  createResource(@Body() dto: CreateResourceDto) {
+    return this.academicsService.createResource(dto);
+  }
+
+  @Post('marks')
+  @Permissions('academics:write')
+  enterMarks(@Body() dto: EnterExamMarkDto) {
+    return this.academicsService.enterMarks(dto);
   }
 }

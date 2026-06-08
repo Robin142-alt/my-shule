@@ -1,6 +1,8 @@
-import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, Injectable, UnauthorizedException, Inject, forwardRef } from '@nestjs/common';
 
 import { RequestContextService } from '../../common/request-context/request-context.service';
+import { ExamsService } from '../exams/exams.service';
+import { EnterExamMarkDto } from '../exams/dto/exams.dto';
 import {
   AssignTeacherDto,
   AssignStudentToClassDto,
@@ -9,6 +11,9 @@ import {
   CreateClassSectionDto,
   CreateClassStructureDto,
   CreateSubjectDto,
+  CreateAttendanceDto,
+  CreateAssignmentDto,
+  CreateResourceDto,
 } from './dto/academic.dto';
 import { AcademicsRepository } from './repositories/academics.repository';
 
@@ -17,6 +22,8 @@ export class AcademicsService {
   constructor(
     private readonly requestContext: RequestContextService,
     private readonly repository: AcademicsRepository,
+    @Inject(forwardRef(() => ExamsService))
+    private readonly examsService: ExamsService,
   ) {}
 
   createAcademicYear(dto: CreateAcademicYearDto) {
@@ -237,5 +244,47 @@ export class AcademicsService {
     }
 
     return Math.max(Math.floor(parsed), 0);
+  }
+
+  createAttendance(dto: CreateAttendanceDto) {
+    return this.repository.createAttendance({
+      tenant_id: this.requireTenantId(),
+      class_id: this.requireText(dto.class_id, 'Class ID'),
+      attendance_date: this.requireText(dto.attendance_date, 'Attendance Date'),
+      student_id: this.requireText(dto.student_id, 'Student ID'),
+      status: this.requireText(dto.status, 'Status'),
+      submitted_by: this.currentUserId(),
+    });
+  }
+
+  createAssignment(dto: CreateAssignmentDto) {
+    return this.repository.createAssignment({
+      tenant_id: this.requireTenantId(),
+      title: this.requireText(dto.title, 'Title'),
+      description: dto.description,
+      class_id: this.requireText(dto.class_id, 'Class ID'),
+      subject_id: this.requireText(dto.subject_id, 'Subject ID'),
+      due_date: this.requireText(dto.due_date, 'Due Date'),
+      teacher_id: this.currentUserId(),
+      status: dto.status,
+    });
+  }
+
+  createResource(dto: CreateResourceDto) {
+    return this.repository.createResource({
+      tenant_id: this.requireTenantId(),
+      title: this.requireText(dto.title, 'Title'),
+      type: this.requireText(dto.type, 'Type'),
+      url: dto.url,
+      class_id: this.requireText(dto.class_id, 'Class ID'),
+      subject_id: this.requireText(dto.subject_id, 'Subject ID'),
+      teacher_id: this.currentUserId(),
+      status: dto.status,
+    });
+  }
+
+  enterMarks(dto: EnterExamMarkDto) {
+    // Delegate to ExamsService to prevent duplicate logic/tables
+    return this.examsService.enterMark(dto);
   }
 }

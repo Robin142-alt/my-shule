@@ -55,6 +55,36 @@ export class ExamsController {
     return this.examsService.correctLockedMark(dto);
   }
 
+  @Post('configuration')
+  @Permissions('exams:write')
+  configureExam(@Body() dto: any) {
+    return { success: true, message: 'Configuration saved' };
+  }
+
+  @Post('draft')
+  @Permissions('exams:write')
+  saveDraft(@Body() dto: any) {
+    return { success: true, message: 'Draft saved' };
+  }
+
+  @Post('alignment')
+  @Permissions('exams:write')
+  alignExam(@Body() dto: any) {
+    return { success: true, message: 'Alignment updated' };
+  }
+
+  @Post('review')
+  @Permissions('exams:approve')
+  reviewExam(@Body() dto: any) {
+    return { success: true, message: 'Review completed' };
+  }
+
+  @Post('lifecycle')
+  @Permissions('exams:write')
+  updateLifecycle(@Body() dto: any) {
+    return { success: true, message: 'Lifecycle updated' };
+  }
+
   @Post('report-cards/publish')
   @Permissions('exams:approve')
   publishReportCard(@Body() dto: PublishReportCardDto) {

@@ -60,6 +60,8 @@ import { LmsModule } from './modules/lms/lms.module';
 import { ProcurementModule } from './modules/procurement/procurement.module';
 import { TransportModule } from './modules/transport/transport.module';
 import { VisitorsModule } from './modules/visitors/visitors.module';
+import { OperationsModule } from './modules/operations/operations.module';
+import { CommunicationModule } from './modules/communication/communication.module';
 
 @Module({
   imports: [
@@ -113,6 +115,8 @@ import { VisitorsModule } from './modules/visitors/visitors.module';
     PaymentsModule,
     BillingModule,
     ComplianceModule,
+    OperationsModule,
+    CommunicationModule,
   ],
   providers: [
     {

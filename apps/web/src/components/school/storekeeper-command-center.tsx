@@ -40,12 +40,12 @@ import {
 
 import { toSchoolPath, type SchoolSection } from "@/lib/routing/experience-routes";
 import {
-  addSchoolRecord,
   getCurrentSchoolId,
   publishSchoolOperationalEvent,
   type SchoolOperationalSeverity,
 } from "@/lib/school/school-operational-store";
 import { supportSidebarItems } from "@/lib/support/support-data";
+import { useSchoolQuery, useSchoolMutation } from "@/lib/data/school-hooks";
 
 type StorekeeperRouteMode = "hosted" | "public";
 type StorekeeperTheme = "dark" | "light";
@@ -615,34 +615,6 @@ function recordStorekeeperAction(input: {
   const schoolId = getCurrentSchoolId();
   const createdAt = new Date().toISOString();
   const entityId = input.entityId ?? recordId("store-action", input.title);
-
-  addSchoolRecord(
-    "inventoryActions",
-    {
-      id: recordId("inventory-action", entityId),
-      actionType: input.type,
-      title: input.title,
-      body: input.body,
-      entityId,
-      status: "Recorded",
-      createdAt,
-    },
-    schoolId,
-  );
-
-  if (input.record) {
-    addSchoolRecord(
-      input.record.moduleName,
-      {
-        id: recordId(input.record.moduleName, entityId),
-        entityId,
-        ...input.record.data,
-        sourceModule: "inventory",
-        createdAt,
-      },
-      schoolId,
-    );
-  }
 
   publishSchoolOperationalEvent({
     schoolId,
@@ -1287,12 +1259,17 @@ function ActivityFeed({ theme }: { theme: StorekeeperTheme }) {
 function RequisitionPanel({ theme }: { theme: StorekeeperTheme }) {
   const surface = getSurfaceClasses(theme);
   const [decisionByRequisitionId, setDecisionByRequisitionId] = useState<Record<string, string>>({});
+  const requisitionMutation = useSchoolMutation("/api/inventory/requisitions");
 
   function handleRequisitionDecision(req: (typeof requisitions)[number], decision: "approve" | "partial" | "reject") {
     const status = decision === "approve" ? "Approved" : decision === "partial" ? "Partial issue pending" : "Rejected";
 
-    setDecisionByRequisitionId((current) => ({ ...current, [req.id]: status }));
-    announceAction(recordRequisitionDecision(req, decision));
+    requisitionMutation.mutate({ reqId: req.id, decision }, {
+      onSuccess: () => {
+        setDecisionByRequisitionId((current) => ({ ...current, [req.id]: status }));
+        announceAction(recordRequisitionDecision(req, decision));
+      }
+    });
   }
 
   return (

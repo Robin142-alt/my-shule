@@ -38,6 +38,7 @@ import {
   type SchoolSmsLog,
   type SchoolOperationalEvent,
 } from "@/lib/school/school-operational-store";
+import { useSchoolMutation } from "@/lib/data/school-hooks";
 import { dispatchOperationalWorkflowAction } from "@/lib/workflows/operational-workflow-client";
 
 type PrincipalSectionId =
@@ -1811,6 +1812,8 @@ export function PrincipalPracticalCommandCenter({
   const currentSummaryCards = useMemo(() => buildSummaryCardsForSections(sections), [sections]);
   const attendanceRegisters = readPrincipalAttendanceRegisters(schoolId);
   const attendanceProviderConfigured = smsProviderConfigured(schoolId);
+  
+  const smsMutation = useSchoolMutation("/api/communication/sms");
 
   useEffect(() => {
     function loadSharedSchoolActions() {
@@ -1887,45 +1890,40 @@ export function PrincipalPracticalCommandCenter({
   }
 
   function queueAbsenceSms(recipients: ReturnType<typeof absentAttendanceContacts>) {
+    if (!recipients.length) return setActionNotice("No recipients selected.");
+
     const message = `Dear parent/guardian, ${schoolName} records show your child was absent today. Please contact the class teacher with the reason.`;
-    const now = new Date().toISOString();
-
-    recipients.forEach((recipient) => {
-      addSchoolRecord<SchoolSmsLog>(
-        "smsLogs",
-        {
-          id: `absence-sms-${slug(recipient.student)}-${Date.now()}`,
-          schoolId,
-          recipient: recipient.phone,
-          message,
-          sourceModule: "attendance",
-          status: "Queued",
-          createdAt: now,
+    
+    smsMutation.mutate(
+      { recipients: recipients.map(r => r.phone), message, sourceModule: "attendance" },
+      {
+        onSuccess: () => {
+          publishPrincipalActionEvent({
+            type: "PRINCIPAL_ABSENCE_SMS_QUEUED",
+            module: "attendance",
+            title: "Absence SMS queued",
+            body: `SMS queued: ${recipients.length} queued, 0 failed, 0 skipped.`,
+            entityId: `principal-absence-sms-${Date.now()}`,
+            payload: { queuedCount: recipients.length, failedCount: 0, skippedCount: 0 },
+            notifications: recipients.map((recipient) => ({
+              audienceRoles: ["parent"],
+              recipientRole: "parent",
+              relatedModule: "attendance",
+              relatedRecordId: recipient.id,
+              title: `${recipient.student} absence notice`,
+              body: message,
+              severity: "warning",
+              requiresAction: false,
+            })),
+          });
+          setAttendanceSmsOpen(false);
+          setActionNotice(`SMS queued: ${recipients.length} queued, 0 failed, 0 skipped.`);
         },
-        schoolId,
-      );
-    });
-
-    publishPrincipalActionEvent({
-      type: "PRINCIPAL_ABSENCE_SMS_QUEUED",
-      module: "attendance",
-      title: "Absence SMS queued",
-      body: `SMS queued: ${recipients.length} queued, 0 failed, 0 skipped.`,
-      entityId: `principal-absence-sms-${Date.now()}`,
-      payload: { queuedCount: recipients.length, failedCount: 0, skippedCount: 0 },
-      notifications: recipients.map((recipient) => ({
-        audienceRoles: ["parent"],
-        recipientRole: "parent",
-        relatedModule: "attendance",
-        relatedRecordId: recipient.id,
-        title: `${recipient.student} absence notice`,
-        body: message,
-        severity: "warning",
-        requiresAction: false,
-      })),
-    });
-    setAttendanceSmsOpen(false);
-    setActionNotice(`SMS queued: ${recipients.length} queued, 0 failed, 0 skipped.`);
+        onError: (err) => {
+          setActionNotice(`Action failed: Backend API missing or denied (${err.message})`);
+        }
+      }
+    );
   }
 
   function printAttendanceReport() {

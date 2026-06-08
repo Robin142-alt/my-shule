@@ -18,12 +18,14 @@ import {
 } from "lucide-react";
 
 import {
-  addSchoolRecord,
   getCurrentSchoolId,
   publishSchoolOperationalEvent,
-  simulateSms,
 } from "@/lib/school/school-operational-store";
 import { openPrintDocument } from "@/lib/dashboard/export";
+import { useSchoolQuery, useSchoolMutation } from "@/lib/data/school-hooks";
+import { DataLoadingState, DataErrorState } from "@/components/common/data-states";
+import { triggerServerExport } from "@/lib/dashboard/export-service";
+
 
 type TeacherRouteMode = "hosted" | "public";
 type TeacherView =
@@ -166,6 +168,7 @@ function statusClass(status: string) {
 }
 
 function exportCsv(filename: string, rows: Array<Record<string, string | number>>) {
+  // Deprecated local export logic - remaining as temporary fallback where server export isn't wired.
   if (typeof window === "undefined" || rows.length === 0) return;
   const headers = Object.keys(rows[0]);
   const csv = [
@@ -541,7 +544,17 @@ function ActionFormPanel({
         <div className="grid gap-3 md:grid-cols-3">
           <button
             type="button"
-            onClick={() => exportCsv("teacher-subject-report.csv", classes.map((record) => ({ class: record.name, learners: record.learners, attendance: record.attendance, absent: record.absent, coverage: `${record.coverage}%` })))}
+            onClick={() => {
+              // TODO: TEMPORARY LOCAL EXPORT FALLBACK - replace with server-generated export
+              triggerServerExport("/api/reports/export", {
+                filename: "teacher-subject-report.csv",
+                format: "csv",
+                payload: { report: "teacher-subject", classes: classes.map(c => c.id) }
+              }).catch(() => {
+                // Fallback to client side if API missing
+                exportCsv("teacher-subject-report.csv", classes.map((record) => ({ class: record.name, learners: record.learners, attendance: record.attendance, absent: record.absent, coverage: `${record.coverage}%` })));
+              });
+            }}
             className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 text-left font-bold text-[#071D49] transition hover:-translate-y-0.5 hover:shadow-md"
           >
             Export class report CSV
@@ -634,7 +647,17 @@ function MarksWorkspace({
           <StatusPill key="status" status={record.status} />,
           <div key="actions" className="flex flex-wrap gap-2">
             <button type="button" onClick={() => onStartAction("marks", "marks", `${record.exam} marks entry ready.`)} className="rounded-lg border border-[#BFDBFE] px-3 py-1.5 text-xs font-black text-[#1D4ED8]">Enter Marks</button>
-            <button type="button" onClick={() => exportCsv(`${record.id}.csv`, [{ exam: record.exam, class: record.className, submitted: record.submitted, total: record.total, status: record.status }])} className="rounded-lg border border-[#D8E0EC] px-3 py-1.5 text-xs font-black text-[#071D49]">Export CSV</button>
+            <button type="button" onClick={() => {
+              // TODO: TEMPORARY LOCAL EXPORT FALLBACK - replace with server-generated export
+              triggerServerExport("/api/reports/export", {
+                filename: `${record.id}.csv`,
+                format: "csv",
+                payload: { report: "marks", batchId: record.id }
+              }).catch(() => {
+                // Fallback
+                exportCsv(`${record.id}.csv`, [{ exam: record.exam, class: record.className, submitted: record.submitted, total: record.total, status: record.status }]);
+              });
+            }} className="rounded-lg border border-[#D8E0EC] px-3 py-1.5 text-xs font-black text-[#071D49]">Export CSV</button>
           </div>,
         ])}
       />
@@ -841,13 +864,34 @@ export function TeacherCommandCenter({ routeMode }: { routeMode: TeacherRouteMod
   const schoolId = getCurrentSchoolId();
   const [activeView, setActiveView] = useState<TeacherView>("home");
   const [searchTerm, setSearchTerm] = useState("");
-  const [notice, setNotice] = useState("Ready for today\u2019s teaching work.");
+  const [notice, setNotice] = useState("Ready for today’s teaching work.");
   const [activeAction, setActiveAction] = useState<TeacherAction>(null);
-  const [classes, setClasses] = useState<ClassRecord[]>(initialClasses);
-  const [markBatches, setMarkBatches] = useState<MarkBatch[]>(initialMarkBatches);
-  const [assignments, setAssignments] = useState<AssignmentRecord[]>(initialAssignments);
-  const [resources, setResources] = useState<ResourceRecord[]>(initialResources);
-  const [messages, setMessages] = useState<MessageRecord[]>(initialMessages);
+  
+  // Real API fetching with fallback to demo data to preserve visuals if backend endpoints are missing.
+  // TODO: Implement backend routes: /api/academics/teacher/*
+  const { data: fetchedClasses, isLoading: isLoadingClasses, error: classesError } = useSchoolQuery<ClassRecord[]>("/api/academics/teacher/classes");
+  const { data: fetchedMarkBatches, isLoading: isLoadingMarks, error: marksError } = useSchoolQuery<MarkBatch[]>("/api/academics/teacher/marks");
+  const { data: fetchedAssignments, isLoading: isLoadingAssignments, error: assignmentsError } = useSchoolQuery<AssignmentRecord[]>("/api/academics/teacher/assignments");
+  const { data: fetchedResources, isLoading: isLoadingResources, error: resourcesError } = useSchoolQuery<ResourceRecord[]>("/api/academics/teacher/resources");
+  const { data: fetchedMessages, isLoading: isLoadingMessages, error: messagesError } = useSchoolQuery<MessageRecord[]>("/api/communication/teacher/messages");
+
+  // Real Mutations
+  const attendanceMutation = useSchoolMutation("/api/academics/attendance");
+  const marksMutation = useSchoolMutation("/api/academics/marks");
+  const assignmentMutation = useSchoolMutation("/api/academics/assignments");
+  const resourceMutation = useSchoolMutation("/api/academics/resources");
+  const smsMutation = useSchoolMutation("/api/communication/sms");
+
+  // Keep a safe fallback to ensure the UI doesn't visually break during demo phases
+  const classes = fetchedClasses ?? initialClasses;
+  const markBatches = fetchedMarkBatches ?? initialMarkBatches;
+  const assignments = fetchedAssignments ?? initialAssignments;
+  const resources = fetchedResources ?? initialResources;
+  const messages = fetchedMessages ?? initialMessages;
+
+  const isLoading = isLoadingClasses || isLoadingMarks || isLoadingAssignments || isLoadingResources || isLoadingMessages;
+  const combinedError = classesError || marksError || assignmentsError || resourcesError || messagesError;
+
   const [, setActivityLog] = useState<string[]>(["Teacher dashboard opened for Kisumu Boys."]);
   const [detailPanel, setDetailPanel] = useState<DetailPanel | null>(null);
   const searchResults = searchTerm.trim()
@@ -880,171 +924,133 @@ export function TeacherCommandCenter({ routeMode }: { routeMode: TeacherRouteMod
   }
 
   function submitAttendance(classId: string, absent: number, absentLearners: string[] = []) {
-    const targetClass = classes.find((record) => record.id === classId);
-    const className = targetClass?.name ?? "Class";
-    const safeAbsent = Math.max(absent, 0);
-    const totalLearners = targetClass?.learners ?? 0;
-    const attendanceRecord = {
-      id: runtimeId("attendance-register"),
-      classId,
-      className,
-      subject: targetClass?.lesson ?? "Lesson",
-      teacher: "Mr. Otieno",
-      totalLearners,
-      present: Math.max(totalLearners - safeAbsent, 0),
-      absent: safeAbsent,
-      absentLearners,
-      status: "Submitted",
-      markedAt: new Date().toISOString(),
-    };
-
-    addSchoolRecord("attendance-registers", attendanceRecord, schoolId);
-    publishSchoolOperationalEvent({
-      schoolId,
-      actorRole: "teacher",
-      type: "ATTENDANCE_REGISTER_SUBMITTED",
-      module: "attendance",
-      title: `${className} attendance submitted`,
-      body: `${attendanceRecord.present} present and ${safeAbsent} absent. Principal, deputy, and class teacher views can now update.`,
-      entityId: attendanceRecord.id,
-      severity: safeAbsent > 0 ? "warning" : "success",
-      payload: { attendance: attendanceRecord },
-      notifications: [
-        {
-          audienceRoles: ["principal", "deputy-principal", "class-teacher"],
-          title: "Attendance register submitted",
-          body: `${className}: ${attendanceRecord.present} present, ${safeAbsent} absent.`,
-          severity: safeAbsent > 0 ? "warning" : "success",
+    const schoolId = getCurrentSchoolId();
+    attendanceMutation.mutate(
+      { classId, absent, absentLearners },
+      {
+        onSuccess: () => {
+          publishSchoolOperationalEvent({
+            schoolId,
+            type: "ATTENDANCE_SUBMITTED",
+            module: "academics",
+            actorRole: "teacher",
+            title: "Attendance submitted",
+            body: `Attendance marked for class ${classId}. Absent: ${absent}`,
+            entityId: runtimeId("attendance"),
+            severity: "info",
+            payload: { classId, absent, absentLearners },
+            notifications: []
+          });
+          setNotice("Attendance saved successfully.");
+          setActiveAction(null);
         },
-      ],
-    });
-    setClasses((current) => current.map((record) => record.id === classId ? { ...record, attendance: "Submitted", absent: safeAbsent } : record));
-    setActiveAction(null);
-    recordActivity(`${className} attendance submitted with ${safeAbsent} absent learner(s).`);
+        onError: (err) => setNotice(`Action failed: ${err.message}`)
+      }
+    );
   }
 
   function submitMarks(batchId: string, submitted: number) {
-    const batch = markBatches.find((record) => record.id === batchId);
-    const targetTotal = batch?.total ?? submitted;
-    const safeSubmitted = Math.min(Math.max(submitted, 0), targetTotal);
-    const status = safeSubmitted >= targetTotal ? "Submitted" : "Open";
-    setMarkBatches((current) => current.map((record) => {
-      if (record.id !== batchId) return record;
-      return { ...record, submitted: safeSubmitted, status: safeSubmitted >= record.total ? "Submitted" : "Open" };
-    }));
-    publishSchoolOperationalEvent({
-      schoolId,
-      actorRole: "teacher",
-      type: "MARKS_PROGRESS_UPDATED",
-      module: "academics",
-      title: `${batch?.exam ?? "Marks"} progress updated`,
-      body: `${safeSubmitted}/${targetTotal} marks submitted for ${batch?.className ?? "class"}.`,
-      entityId: batchId,
-      severity: status === "Submitted" ? "success" : "warning",
-      payload: { batchId, submitted: safeSubmitted, total: targetTotal, status },
-      notifications: [
-        {
-          audienceRoles: ["dean-of-academics", "exams-manager", "hod"],
-          title: "Marks progress updated",
-          body: `${batch?.exam ?? "Marks"} now has ${safeSubmitted}/${targetTotal} submitted.`,
-          severity: status === "Submitted" ? "success" : "warning",
+    const schoolId = getCurrentSchoolId();
+    marksMutation.mutate(
+      { batchId, submitted },
+      {
+        onSuccess: () => {
+          publishSchoolOperationalEvent({
+            schoolId,
+            type: "MARKS_SUBMITTED",
+            module: "academics",
+            actorRole: "teacher",
+            title: "Marks submitted",
+            body: `Marks submitted for batch ${batchId}. Total: ${submitted}`,
+            entityId: runtimeId("marks"),
+            severity: "info",
+            payload: { batchId, submitted },
+            notifications: []
+          });
+          setNotice("Marks saved successfully.");
+          setActiveAction(null);
         },
-      ],
-    });
-    setActiveAction(null);
-    recordActivity(`${batch?.exam ?? "Marks"} updated to ${safeSubmitted} submitted mark(s).`);
+        onError: (err) => setNotice(`Action failed: ${err.message}`)
+      }
+    );
   }
 
   function submitAssignment(record: Omit<AssignmentRecord, "id" | "submitted" | "status">) {
-    const newAssignment: AssignmentRecord = { ...record, id: runtimeId("assignment"), submitted: 0, status: "Published" };
-    addSchoolRecord("assignments", newAssignment, schoolId);
-    publishSchoolOperationalEvent({
-      schoolId,
-      actorRole: "teacher",
-      type: "ASSIGNMENT_PUBLISHED",
-      module: "academics",
-      title: `${record.title} published`,
-      body: `${record.className} assignment due on ${record.dueDate}.`,
-      entityId: newAssignment.id,
-      severity: "info",
-      payload: { assignment: newAssignment },
-      notifications: [
-        {
-          audienceRoles: ["student", "parent", "class-teacher"],
-          title: "New assignment published",
-          body: `${record.title} is due on ${record.dueDate}.`,
-          severity: "info",
+    const schoolId = getCurrentSchoolId();
+    assignmentMutation.mutate(
+      record,
+      {
+        onSuccess: () => {
+          publishSchoolOperationalEvent({
+            schoolId,
+            type: "ASSIGNMENT_CREATED",
+            module: "academics",
+            actorRole: "teacher",
+            title: "Assignment created",
+            body: `New assignment created: ${record.title}`,
+            entityId: runtimeId("assignment"),
+            severity: "info",
+            payload: { record },
+            notifications: []
+          });
+          setNotice("Assignment created successfully.");
+          setActiveAction(null);
         },
-      ],
-    });
-    setAssignments((current) => [newAssignment, ...current]);
-    setActiveAction(null);
-    recordActivity(`${record.title} published for ${record.className}.`);
+        onError: (err) => setNotice(`Action failed: ${err.message}`)
+      }
+    );
   }
 
   function submitResource(record: Omit<ResourceRecord, "id" | "status">) {
-    const newResource: ResourceRecord = { ...record, id: runtimeId("resource"), status: "Draft" };
-    addSchoolRecord("lesson-resources", newResource, schoolId);
-    publishSchoolOperationalEvent({
-      schoolId,
-      actorRole: "teacher",
-      type: "LEARNING_RESOURCE_UPLOADED",
-      module: "academics",
-      title: `${record.title} uploaded`,
-      body: `${record.type} uploaded for ${record.className} and saved as a draft.`,
-      entityId: newResource.id,
-      severity: "info",
-      payload: { resource: newResource },
-      notifications: [
-        {
-          audienceRoles: ["teacher", "hod"],
-          title: "Lesson resource uploaded",
-          body: `${record.title} is ready for review or publishing.`,
-          severity: "info",
+    const schoolId = getCurrentSchoolId();
+    resourceMutation.mutate(
+      record,
+      {
+        onSuccess: () => {
+          publishSchoolOperationalEvent({
+            schoolId,
+            type: "RESOURCE_PUBLISHED",
+            module: "academics",
+            actorRole: "teacher",
+            title: "Resource published",
+            body: `New resource uploaded: ${record.title}`,
+            entityId: runtimeId("resource"),
+            severity: "info",
+            payload: { record },
+            notifications: []
+          });
+          setNotice("Resource published successfully.");
+          setActiveAction(null);
         },
-      ],
-    });
-    setResources((current) => [newResource, ...current]);
-    setActiveAction(null);
-    recordActivity(`${record.title} uploaded as a draft for ${record.className}.`);
+        onError: (err) => setNotice(`Action failed: ${err.message}`)
+      }
+    );
   }
 
   function submitSms(record: Omit<MessageRecord, "id" | "status" | "time">) {
-    const newMessage: MessageRecord = {
-      ...record,
-      id: runtimeId("sms"),
-      status: "Queued",
-      time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-    };
-    addSchoolRecord("teacher-messages", newMessage, schoolId);
-    simulateSms({
-      schoolId,
-      recipient: record.audience,
-      message: record.body,
-      sourceModule: "communication",
-    });
-    publishSchoolOperationalEvent({
-      schoolId,
-      actorRole: "teacher",
-      type: "CLASS_SMS_SENT",
-      module: "communication",
-      title: `SMS queued for ${record.audience}`,
-      body: record.body,
-      entityId: newMessage.id,
-      severity: "success",
-      payload: { message: newMessage },
-      notifications: [
-        {
-          audienceRoles: ["principal", "class-teacher"],
-          title: "Class message queued",
-          body: `Teacher queued SMS to ${record.audience}.`,
-          severity: "success",
+    const schoolId = getCurrentSchoolId();
+    smsMutation.mutate(
+      record,
+      {
+        onSuccess: () => {
+          publishSchoolOperationalEvent({
+            schoolId,
+            type: "SMS_SENT",
+            module: "communication",
+            actorRole: "teacher",
+            title: "SMS sent",
+            body: `SMS sent to ${record.audience}`,
+            entityId: runtimeId("sms"),
+            severity: "info",
+            payload: { record },
+            notifications: []
+          });
+          setNotice("SMS sent successfully.");
+          setActiveAction(null);
         },
-      ],
-    });
-    setMessages((current) => [newMessage, ...current]);
-    setActiveAction(null);
-    recordActivity(`SMS queued for ${record.audience}.`);
+        onError: (err) => setNotice(`Action failed: ${err.message}`)
+      }
+    );
   }
 
   function printSubjectReport() {
@@ -1081,15 +1087,53 @@ export function TeacherCommandCenter({ routeMode }: { routeMode: TeacherRouteMod
   }
 
   function markAssignmentGraded(id: string) {
-    const assignment = assignments.find((record) => record.id === id);
-    setAssignments((current) => current.map((record) => record.id === id ? { ...record, submitted: record.total, status: "Grading" } : record));
-    recordActivity(`${assignment?.title ?? "Assignment"} marked ready for grading feedback.`);
+    const schoolId = getCurrentSchoolId();
+    assignmentMutation.mutate(
+      { id, action: "grade" },
+      {
+        onSuccess: () => {
+          publishSchoolOperationalEvent({
+            schoolId,
+            type: "ASSIGNMENT_GRADED",
+            module: "academics",
+            actorRole: "teacher",
+            title: "Assignment graded",
+            body: `Assignment ${id} graded`,
+            entityId: id,
+            severity: "info",
+            payload: { id },
+            notifications: []
+          });
+          setNotice("Assignment marked as graded.");
+        },
+        onError: (err) => setNotice(`Action failed: ${err.message}`)
+      }
+    );
   }
 
   function publishResource(id: string) {
-    const resource = resources.find((record) => record.id === id);
-    setResources((current) => current.map((record) => record.id === id ? { ...record, status: "Published" } : record));
-    recordActivity(`${resource?.title ?? "Resource"} published to learners.`);
+    const schoolId = getCurrentSchoolId();
+    resourceMutation.mutate(
+      { id, action: "publish" },
+      {
+        onSuccess: () => {
+          publishSchoolOperationalEvent({
+            schoolId,
+            type: "RESOURCE_PUBLISHED",
+            module: "academics",
+            actorRole: "teacher",
+            title: "Resource published",
+            body: `Resource ${id} published`,
+            entityId: id,
+            severity: "info",
+            payload: { id },
+            notifications: []
+          });
+          setNotice("Resource published successfully.");
+        },
+        onError: (err) => setNotice(`Action failed: ${err.message}`)
+      }
+    );
   }
 
   return (
@@ -1122,22 +1166,31 @@ export function TeacherCommandCenter({ routeMode }: { routeMode: TeacherRouteMod
                 onSubmitSms={submitSms}
                 onPrintSubjectReport={printSubjectReport}
               />
-              {activeView === "home" ? (
-                <HomeWorkspace onViewChange={setActiveView} onStartAction={startAction} summaryCards={summaryCards} />
+              
+              {isLoading ? (
+                <DataLoadingState message="Loading teacher records..." />
+              ) : combinedError && (!classes.length || activeView !== 'home') ? (
+                <DataErrorState error={combinedError} onRetry={() => window.location.reload()} />
               ) : (
-                <ActiveWorkspace
-                  activeView={activeView}
-                  onViewChange={setActiveView}
-                  onStartAction={startAction}
-                  classes={classes}
-                  markBatches={markBatches}
-                  assignments={assignments}
-                  resources={resources}
-                  messages={messages}
-                  onOpenDetail={setDetailPanel}
-                  onMarkGraded={markAssignmentGraded}
-                  onPublishResource={publishResource}
-                />
+                <>
+                  {activeView === "home" ? (
+                    <HomeWorkspace onViewChange={setActiveView} onStartAction={startAction} summaryCards={summaryCards} />
+                  ) : (
+                    <ActiveWorkspace
+                      activeView={activeView}
+                      onViewChange={setActiveView}
+                      onStartAction={startAction}
+                      classes={classes}
+                      markBatches={markBatches}
+                      assignments={assignments}
+                      resources={resources}
+                      messages={messages}
+                      onOpenDetail={setDetailPanel}
+                      onMarkGraded={markAssignmentGraded}
+                      onPublishResource={publishResource}
+                    />
+                  )}
+                </>
               )}
               {detailPanel ? <DetailPanelView detail={detailPanel} onClose={() => setDetailPanel(null)} /> : null}
             </div>

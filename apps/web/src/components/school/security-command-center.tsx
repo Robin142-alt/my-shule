@@ -40,6 +40,7 @@ import {
   publishSchoolOperationalEvent,
 } from "@/lib/school/school-operational-store";
 import { openPrintDocument } from "@/lib/dashboard/export";
+import { useSchoolQuery, useSchoolMutation } from "@/lib/data/school-hooks";
 
 type SecurityRouteMode = "hosted" | "public";
 type Tone = "secure" | "info" | "warning" | "danger" | "cyan" | "neutral";
@@ -1063,6 +1064,9 @@ function ActiveSecuritySection({
 
 export function SecurityCommandCenter({ routeMode }: { routeMode: SecurityRouteMode }) {
   const schoolId = getCurrentSchoolId();
+  const visitorMutation = useSchoolMutation("/api/visitors/records");
+  const incidentMutation = useSchoolMutation("/api/security/incidents");
+  const panicMutation = useSchoolMutation("/api/security/panic-alert");
   const [searchTerm, setSearchTerm] = useState("");
   const [notice, setNotice] = useState("Security desk ready for gate operations.");
   const [activeSection, setActiveSection] = useState("top");
@@ -1269,38 +1273,45 @@ export function SecurityCommandCenter({ routeMode }: { routeMode: SecurityRouteM
   function raiseEmergencyPanic() {
     const incidentId = runtimeId("security-panic");
 
-    publishSchoolOperationalEvent({
-      schoolId,
-      actorRole: "security",
-      type: "SECURITY_EMERGENCY_PANIC_RAISED",
-      module: "security",
-      title: "Emergency panic alert raised",
-      body: "Security raised an emergency panic alert for immediate school leadership and system monitor attention.",
-      entityId: incidentId,
-      severity: "critical",
-      payload: {
-        incidentId,
-        gate: "Main Gate",
-        responseDesk: "Security Command Center",
-        status: "Raised",
-      },
-      notifications: [
-        {
-          audienceRoles: ["principal", "deputy principal", "security", "system monitor"],
+    panicMutation.mutate({ incidentId, gate: "Main Gate" }, {
+      onSuccess: () => {
+        publishSchoolOperationalEvent({
+          schoolId,
+          actorRole: "security",
+          type: "SECURITY_EMERGENCY_PANIC_RAISED",
+          module: "security",
           title: "Emergency panic alert raised",
-          body: "Security raised an urgent panic alert. Principal, Deputy, Security team, and System Monitor need immediate visibility.",
+          body: "Security raised an emergency panic alert for immediate school leadership and system monitor attention.",
+          entityId: incidentId,
           severity: "critical",
-          relatedModule: "security",
-          relatedRecordId: incidentId,
-          requiresAction: true,
-          requestStatus: "Pending",
-        },
-      ],
-    });
+          payload: {
+            incidentId,
+            gate: "Main Gate",
+            responseDesk: "Security Command Center",
+            status: "Raised",
+          },
+          notifications: [
+            {
+              audienceRoles: ["principal", "deputy principal", "security", "system monitor"],
+              title: "Emergency panic alert raised",
+              body: "Security raised an urgent panic alert. Principal, Deputy, Security team, and System Monitor need immediate visibility.",
+              severity: "critical",
+              relatedModule: "security",
+              relatedRecordId: incidentId,
+              requiresAction: true,
+              requestStatus: "Pending",
+            },
+          ],
+        });
 
-    setPanicDialogOpen(false);
-    setActiveSection("emergency-mode");
-    setNotice("Emergency panic alert raised.");
+        setPanicDialogOpen(false);
+        setActiveSection("emergency-mode");
+        setNotice("Emergency panic alert raised.");
+      },
+      onError: (err) => {
+        setNotice(`Action failed: Backend API missing or denied (${err.message})`);
+      }
+    });
   }
 
   function addVisitor(visitor: Omit<VisitorRecord, "id" | "entryTime" | "expectedExit" | "status" | "tone">) {
@@ -1314,53 +1325,69 @@ export function SecurityCommandCenter({ routeMode }: { routeMode: SecurityRouteM
       status: "QR badge active",
       tone: "secure",
     };
-    setVisitors((current) => [newVisitor, ...current]);
-    addSchoolRecord("visitors", newVisitor, schoolId);
-    publishSchoolOperationalEvent({
-      schoolId,
-      actorRole: "security",
-      type: "VISITOR_CHECKED_IN",
-      module: "visitors",
-      title: `${visitor.name} checked in`,
-      body: `${visitor.name} checked in to visit ${visitor.personVisiting} for ${visitor.purpose}.`,
-      entityId: newVisitor.id,
-      severity: visitor.purpose.toLowerCase().includes("emergency") ? "critical" : "success",
-      payload: { visitor: newVisitor },
-      notifications: [
-        {
-          audienceRoles: ["secretary", "principal", "security"],
-          title: "Visitor checked in",
-          body: `${visitor.name} is inside school for ${visitor.purpose}.`,
-          severity: "success",
-        },
-      ],
+    visitorMutation.mutate(newVisitor, {
+      onSuccess: () => {
+        setVisitors((current) => [newVisitor, ...current]);
+        // addSchoolRecord("visitors", newVisitor, schoolId);
+        publishSchoolOperationalEvent({
+          schoolId,
+          actorRole: "security",
+          type: "VISITOR_CHECKED_IN",
+          module: "visitors",
+          title: `${visitor.name} checked in`,
+          body: `${visitor.name} checked in to visit ${visitor.personVisiting} for ${visitor.purpose}.`,
+          entityId: newVisitor.id,
+          severity: visitor.purpose.toLowerCase().includes("emergency") ? "critical" : "success",
+          payload: { visitor: newVisitor },
+          notifications: [
+            {
+              audienceRoles: ["secretary", "principal", "security"],
+              title: "Visitor checked in",
+              body: `${visitor.name} is inside school for ${visitor.purpose}.`,
+              severity: "success",
+            },
+          ],
+        });
+        setNotice(`${visitor.name} checked in. Visitor slip is ready for printing.`);
+      },
+      onError: (err) => {
+        setNotice(`Action failed: Backend API missing or denied (${err.message})`);
+      }
     });
-    setNotice(`${visitor.name} checked in. Visitor slip is ready for printing.`);
   }
 
   function checkOutVisitor(id: string) {
     const visitor = visitors.find((item) => item.id === id);
-    setVisitors((current) => current.map((item) => item.id === id ? { ...item, status: "Exited", tone: "secure" } : item));
-    publishSchoolOperationalEvent({
-      schoolId,
-      actorRole: "security",
-      type: "VISITOR_CHECKED_OUT",
-      module: "visitors",
-      title: `${visitor?.name ?? "Visitor"} checked out`,
-      body: `${visitor?.name ?? "Visitor"} exited the school gate and was removed from the currently-inside list.`,
-      entityId: id,
-      severity: "success",
-      payload: { visitor },
-      notifications: [
-        {
-          audienceRoles: ["secretary", "security"],
-          title: "Visitor checked out",
-          body: `${visitor?.name ?? "Visitor"} has left the school.`,
+    if (!visitor) return;
+    
+    visitorMutation.mutate({ id, action: "checkout" }, {
+      onSuccess: () => {
+        setVisitors((current) => current.map((item) => item.id === id ? { ...item, status: "Exited", tone: "secure" } : item));
+        publishSchoolOperationalEvent({
+          schoolId,
+          actorRole: "security",
+          type: "VISITOR_CHECKED_OUT",
+          module: "visitors",
+          title: `${visitor?.name ?? "Visitor"} checked out`,
+          body: `${visitor?.name ?? "Visitor"} exited the school gate and was removed from the currently-inside list.`,
+          entityId: id,
           severity: "success",
-        },
-      ],
+          payload: { visitor },
+          notifications: [
+            {
+              audienceRoles: ["secretary", "security"],
+              title: "Visitor checked out",
+              body: `${visitor?.name ?? "Visitor"} has left the school.`,
+              severity: "success",
+            },
+          ],
+        });
+        setNotice(`${visitor?.name ?? "Visitor"} checked out and removed from currently-inside list.`);
+      },
+      onError: (err) => {
+        setNotice(`Action failed: Backend API missing or denied (${err.message})`);
+      }
     });
-    setNotice(`${visitor?.name ?? "Visitor"} checked out and removed from currently-inside list.`);
   }
 
   function printVisitorSlip(visitor: VisitorRecord) {

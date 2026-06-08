@@ -1260,3 +1260,17 @@ test('ExamsService normalizes report-card list pagination before querying', asyn
     offset: 0,
   });
 });
+
+test('ExamsController exposes configuration, draft, alignment, review, and lifecycle endpoints', () => {
+  const configureExam = Reflect.getMetadata(PATH_METADATA, ExamsController.prototype.configureExam);
+  const saveDraft = Reflect.getMetadata(PATH_METADATA, ExamsController.prototype.saveDraft);
+  const alignExam = Reflect.getMetadata(PATH_METADATA, ExamsController.prototype.alignExam);
+  const reviewExam = Reflect.getMetadata(PATH_METADATA, ExamsController.prototype.reviewExam);
+  const updateLifecycle = Reflect.getMetadata(PATH_METADATA, ExamsController.prototype.updateLifecycle);
+
+  assert.equal(configureExam, 'configuration');
+  assert.equal(saveDraft, 'draft');
+  assert.equal(alignExam, 'alignment');
+  assert.equal(reviewExam, 'review');
+  assert.equal(updateLifecycle, 'lifecycle');
+});

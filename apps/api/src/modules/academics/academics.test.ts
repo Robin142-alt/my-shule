@@ -27,6 +27,10 @@ test('AcademicsSchemaService creates academic lifecycle tables with tenant RLS',
   assert.match(schemaSql, /ALTER TABLE student_class_assignments FORCE ROW LEVEL SECURITY/);
   assert.match(schemaSql, /uq_teacher_subject_assignments_scope/);
   assert.match(schemaSql, /NULLIF\(current_setting\('app\.role', true\), ''\) = 'system'/);
+  assert.match(schemaSql, /ALTER TABLE teacher_subject_assignments FORCE ROW LEVEL SECURITY/);
+  assert.match(schemaSql, /ALTER TABLE student_class_assignments FORCE ROW LEVEL SECURITY/);
+  assert.match(schemaSql, /uq_teacher_subject_assignments_scope/);
+  assert.match(schemaSql, /NULLIF\(current_setting\('app\.role', true\), ''\) = 'system'/);
   assert.doesNotMatch(schemaSql, /attendance/i);
 });
 
@@ -43,6 +47,7 @@ test('AcademicsService assigns teachers to deterministic subject class term scop
         calls.push('audit');
       },
     } as never,
+    {} as never,
   );
 
   const assignment = await service.assignTeacher({
@@ -69,6 +74,7 @@ test('AcademicsService creates structured levels, classes, and streams in one te
         calls.push(`audit:${input.action}`);
       },
     } as never,
+    {} as never,
   );
 
   const result = await service.createClassStructure({
@@ -106,6 +112,7 @@ test('AcademicsService assigns a student to a class and audits the assignment', 
         calls.push(`audit:${input.action}`);
       },
     } as never,
+    {} as never,
   );
 
   const result = await service.assignStudentToClass({
@@ -130,6 +137,7 @@ test('AcademicsService bounds teacher assignment lists', async () => {
         return [];
       },
     } as never,
+    {} as never,
   );
 
   await service.listTeacherAssignments(' teacher-1 ', '500', '-10');
@@ -162,4 +170,42 @@ test('AcademicsRepository lists teacher assignments with explicit columns and pa
   assert.match(calls[0]!.sql, /LIMIT \$3::integer\s+OFFSET \$4::integer/);
   assert.equal(calls[0]!.params[2], 50);
   assert.equal(calls[0]!.params[3], 0);
+});
+
+test('AcademicsService delegates enterMarks to ExamsService and calls new repository methods', async () => {
+  const calls: string[] = [];
+  const service = new AcademicsService(
+    { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'user-1' }) } as never,
+    {
+      createAttendance: async (input: Record<string, unknown>) => {
+        calls.push('create-attendance');
+        return { id: 'att-1', ...input };
+      },
+    } as never,
+    {
+      enterMark: async () => {
+        calls.push('enter-mark-exams');
+        return {};
+      },
+    } as never,
+  );
+
+  await service.createAttendance({
+    class_id: 'class-1',
+    attendance_date: '2023-01-01',
+    student_id: 'student-1',
+    status: 'Present',
+  });
+
+  await service.enterMarks({
+    exam_series_id: 'series-1',
+    assessment_id: 'assessment-1',
+    academic_term_id: 'term-1',
+    class_section_id: 'class-1',
+    subject_id: 'subject-1',
+    student_id: 'student-1',
+    score: 95,
+  });
+
+  assert.deepEqual(calls, ['create-attendance', 'enter-mark-exams']);
 });

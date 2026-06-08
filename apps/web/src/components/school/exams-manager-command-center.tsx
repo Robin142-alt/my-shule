@@ -18,7 +18,8 @@ import {
 } from "lucide-react";
 
 import type { WidgetState } from "@/lib/capability-engine/school-capability-engine";
-import { addSchoolRecord, getCurrentSchoolId, publishSchoolOperationalEvent } from "@/lib/school/school-operational-store";
+import { getCurrentSchoolId, publishSchoolOperationalEvent } from "@/lib/school/school-operational-store";
+import { useSchoolMutation } from "@/lib/data/school-hooks";
 
 type ExamsManagerRouteMode = "hosted" | "public";
 type Tone = "success" | "info" | "warning" | "danger" | "neutral";
@@ -1381,6 +1382,13 @@ export function ExamsManagerCommandCenter({
     setNotice(`${record.label} exams search loaded ${record.view.replaceAll("-", " ")} workspace: ${record.detail}.`);
   }
 
+  const configMutation = useSchoolMutation("/api/exams/configuration");
+  const draftMutation = useSchoolMutation("/api/exams/draft");
+  const alignMutation = useSchoolMutation("/api/exams/alignment");
+  const marksMutation = useSchoolMutation("/api/exams/marks");
+  const reviewMutation = useSchoolMutation("/api/exams/review");
+  const lifecycleMutation = useSchoolMutation("/api/exams/lifecycle");
+
   function saveExamConfiguration() {
     const savedAt = new Date().toLocaleString("en-KE", {
       dateStyle: "medium",
@@ -1394,8 +1402,7 @@ export function ExamsManagerCommandCenter({
       savedAt,
     };
 
-    addSchoolRecord(
-      "exam-configurations",
+    configMutation.mutate(
       {
         ...configuration,
         examName: "Form 4 Mock Series",
@@ -1404,10 +1411,16 @@ export function ExamsManagerCommandCenter({
         subjects: ["Mathematics", "English", "Kiswahili", "Chemistry"],
         savedByRole: "Exams Manager",
       },
-      getCurrentSchoolId(),
+      {
+        onSuccess: () => {
+          setSavedConfigurations((current) => [configuration, ...current].slice(0, 4));
+          setNotice("Exam configuration saved for Dean review.");
+        },
+        onError: (err) => {
+          setNotice(`Action failed: Backend API missing or denied (${err.message})`);
+        }
+      }
     );
-    setSavedConfigurations((current) => [configuration, ...current].slice(0, 4));
-    setNotice("Exam configuration saved for Dean review.");
   }
 
   function createExamDraft() {
@@ -1424,8 +1437,7 @@ export function ExamsManagerCommandCenter({
       createdAt,
     };
 
-    addSchoolRecord(
-      "exam-drafts",
+    draftMutation.mutate(
       {
         ...draft,
         examType: "Endterm",
@@ -1434,34 +1446,39 @@ export function ExamsManagerCommandCenter({
         subjectsPending: ["Biology", "Kiswahili", "Business Studies"],
         createdByRole: "Exams Manager",
       },
-      schoolId,
-    );
+      {
+        onSuccess: () => {
+          publishSchoolOperationalEvent({
+            schoolId,
+            type: "EXAM_DRAFT_CREATED",
+            module: "exams",
+            actorRole: "Exams Manager",
+            title: "Form 2 Endterm exam draft created",
+            body: "Exams Manager created a Form 2 Endterm draft for subject setup and timetable preparation.",
+            entityId: draft.id,
+            severity: "info",
+            payload: { examName: draft.title, term: "Term 2 2026", status: draft.status },
+            notifications: [
+              {
+                audienceRoles: ["Dean of Academics", "Head of Department"],
+                title: "New exam draft needs subject confirmation",
+                body: "Form 2 Endterm draft is ready for department subject confirmation.",
+                severity: "info",
+                relatedModule: "exams",
+                relatedRecordId: draft.id,
+                requestStatus: "Pending",
+              },
+            ],
+          });
 
-    publishSchoolOperationalEvent({
-      schoolId,
-      type: "EXAM_DRAFT_CREATED",
-      module: "exams",
-      actorRole: "Exams Manager",
-      title: "Form 2 Endterm exam draft created",
-      body: "Exams Manager created a Form 2 Endterm draft for subject setup and timetable preparation.",
-      entityId: draft.id,
-      severity: "info",
-      payload: { examName: draft.title, term: "Term 2 2026", status: draft.status },
-      notifications: [
-        {
-          audienceRoles: ["Dean of Academics", "Head of Department"],
-          title: "New exam draft needs subject confirmation",
-          body: "Form 2 Endterm draft is ready for department subject confirmation.",
-          severity: "info",
-          relatedModule: "exams",
-          relatedRecordId: draft.id,
-          requestStatus: "Pending",
+          setExamDrafts((current) => [draft, ...current].slice(0, 4));
+          setNotice("Exam draft created and shared with academic reviewers.");
         },
-      ],
-    });
-
-    setExamDrafts((current) => [draft, ...current].slice(0, 4));
-    setNotice("Exam draft created and shared with academic reviewers.");
+        onError: (err) => {
+          setNotice(`Action failed: Backend API missing or denied (${err.message})`);
+        }
+      }
+    );
   }
 
   function checkTermAlignment() {
@@ -1478,42 +1495,46 @@ export function ExamsManagerCommandCenter({
       createdAt,
     };
 
-    addSchoolRecord(
-      "exam-alignment-checks",
+    alignMutation.mutate(
       {
         ...check,
         term: "Term 2 2026",
         warnings: ["Form 3 Science block clash", "Lab timetable overlap"],
         checkedByRole: "Exams Manager",
       },
-      schoolId,
-    );
+      {
+        onSuccess: () => {
+          publishSchoolOperationalEvent({
+            schoolId,
+            type: "EXAM_TERM_ALIGNMENT_CHECKED",
+            module: "exams",
+            actorRole: "Exams Manager",
+            title: "Term alignment check completed",
+            body: "Exams Manager completed the Term 2 alignment check and found timetable warnings for academic follow-up.",
+            entityId: check.id,
+            severity: "warning",
+            payload: { term: "Term 2 2026", warningCount: 2 },
+            notifications: [
+              {
+                audienceRoles: ["Dean of Academics", "Head of Department"],
+                title: "Exam timetable warnings need review",
+                body: "Term 2 alignment check found two timetable warnings.",
+                severity: "warning",
+                relatedModule: "exams",
+                relatedRecordId: check.id,
+                requestStatus: "Pending",
+              },
+            ],
+          });
 
-    publishSchoolOperationalEvent({
-      schoolId,
-      type: "EXAM_TERM_ALIGNMENT_CHECKED",
-      module: "exams",
-      actorRole: "Exams Manager",
-      title: "Term alignment check completed",
-      body: "Exams Manager completed the Term 2 alignment check and found timetable warnings for academic follow-up.",
-      entityId: check.id,
-      severity: "warning",
-      payload: { term: "Term 2 2026", warningCount: 2 },
-      notifications: [
-        {
-          audienceRoles: ["Dean of Academics", "Head of Department"],
-          title: "Exam timetable warnings need review",
-          body: "Term 2 alignment check found two timetable warnings.",
-          severity: "warning",
-          relatedModule: "exams",
-          relatedRecordId: check.id,
-          requestStatus: "Pending",
+          setAlignmentChecks((current) => [check, ...current].slice(0, 3));
+          setNotice("Term alignment check saved with timetable warnings for review.");
         },
-      ],
-    });
-
-    setAlignmentChecks((current) => [check, ...current].slice(0, 3));
-    setNotice("Term alignment check saved with timetable warnings for review.");
+        onError: (err) => {
+          setNotice(`Action failed: Backend API missing or denied (${err.message})`);
+        }
+      }
+    );
   }
 
   function openMarksEntry() {
@@ -1530,8 +1551,7 @@ export function ExamsManagerCommandCenter({
       createdAt,
     };
 
-    addSchoolRecord(
-      "marks-entry-sessions",
+    marksMutation.mutate(
       {
         ...session,
         subject: "Mathematics",
@@ -1539,34 +1559,39 @@ export function ExamsManagerCommandCenter({
         pendingLearners: 12,
         openedByRole: "Exams Manager",
       },
-      schoolId,
-    );
+      {
+        onSuccess: () => {
+          publishSchoolOperationalEvent({
+            schoolId,
+            type: "MARKS_ENTRY_OPENED",
+            module: "exams",
+            actorRole: "Exams Manager",
+            title: "Mathematics Form 4 North marks entry ready",
+            body: "Exams Manager prepared the Mathematics marks entry sheet for Form 4 North.",
+            entityId: session.id,
+            severity: "info",
+            payload: { subject: "Mathematics", classStream: "Form 4 North", pendingLearners: 12 },
+            notifications: [
+              {
+                audienceRoles: ["Teacher", "Dean of Academics"],
+                title: "Marks entry sheet ready",
+                body: "Mathematics Form 4 North marks entry is open for completion.",
+                severity: "info",
+                relatedModule: "exams",
+                relatedRecordId: session.id,
+                requestStatus: "Pending",
+              },
+            ],
+          });
 
-    publishSchoolOperationalEvent({
-      schoolId,
-      type: "MARKS_ENTRY_OPENED",
-      module: "exams",
-      actorRole: "Exams Manager",
-      title: "Mathematics Form 4 North marks entry ready",
-      body: "Exams Manager prepared the Mathematics marks entry sheet for Form 4 North.",
-      entityId: session.id,
-      severity: "info",
-      payload: { subject: "Mathematics", classStream: "Form 4 North", pendingLearners: 12 },
-      notifications: [
-        {
-          audienceRoles: ["Teacher", "Dean of Academics"],
-          title: "Marks entry sheet ready",
-          body: "Mathematics Form 4 North marks entry is open for completion.",
-          severity: "info",
-          relatedModule: "exams",
-          relatedRecordId: session.id,
-          requestStatus: "Pending",
+          setMarksEntrySessions((current) => [session, ...current].slice(0, 4));
+          setNotice(`${session.title} opened for Mathematics Form 4 North with 12 pending learners; teacher and Dean notifications created.`);
         },
-      ],
-    });
-
-    setMarksEntrySessions((current) => [session, ...current].slice(0, 4));
-    setNotice(`${session.title} opened for Mathematics Form 4 North with 12 pending learners; teacher and Dean notifications created.`);
+        onError: (err) => {
+          setNotice(`Action failed: Backend API missing or denied (${err.message})`);
+        }
+      }
+    );
   }
 
   function sendDeanReview() {
@@ -1583,8 +1608,7 @@ export function ExamsManagerCommandCenter({
       createdAt,
     };
 
-    addSchoolRecord(
-      "report-card-dean-review-batches",
+    reviewMutation.mutate(
       {
         ...batch,
         term: "Term 2 2026",
@@ -1592,35 +1616,40 @@ export function ExamsManagerCommandCenter({
         learnerCount: 412,
         sentByRole: "Exams Manager",
       },
-      schoolId,
-    );
+      {
+        onSuccess: () => {
+          publishSchoolOperationalEvent({
+            schoolId,
+            type: "REPORT_CARD_DRAFT_SENT_TO_DEAN",
+            module: "exams",
+            actorRole: "Exams Manager",
+            title: "Report card draft batch sent to Dean",
+            body: "Exams Manager sent Term 2 CAT 1 draft report cards to Dean of Academics for review.",
+            entityId: batch.id,
+            severity: "warning",
+            payload: { term: "Term 2 2026", exam: "Term 2 CAT 1", learnerCount: 412 },
+            notifications: [
+              {
+                audienceRoles: ["Dean of Academics", "Principal"],
+                title: "Draft report cards ready for Dean review",
+                body: "Term 2 CAT 1 draft report card batch is ready for academic quality review.",
+                severity: "warning",
+                relatedModule: "academics",
+                relatedRecordId: batch.id,
+                requestStatus: "Pending",
+                requiresAction: true,
+              },
+            ],
+          });
 
-    publishSchoolOperationalEvent({
-      schoolId,
-      type: "REPORT_CARD_DRAFT_SENT_TO_DEAN",
-      module: "exams",
-      actorRole: "Exams Manager",
-      title: "Report card draft batch sent to Dean",
-      body: "Exams Manager sent Term 2 CAT 1 draft report cards to Dean of Academics for review.",
-      entityId: batch.id,
-      severity: "warning",
-      payload: { term: "Term 2 2026", exam: "Term 2 CAT 1", learnerCount: 412 },
-      notifications: [
-        {
-          audienceRoles: ["Dean of Academics", "Principal"],
-          title: "Draft report cards ready for Dean review",
-          body: "Term 2 CAT 1 draft report card batch is ready for academic quality review.",
-          severity: "warning",
-          relatedModule: "academics",
-          relatedRecordId: batch.id,
-          requestStatus: "Pending",
-          requiresAction: true,
+          setDeanReviewBatches((current) => [batch, ...current].slice(0, 4));
+          setNotice("Draft report card batch sent to Dean review and leadership notified.");
         },
-      ],
-    });
-
-    setDeanReviewBatches((current) => [batch, ...current].slice(0, 4));
-    setNotice("Draft report card batch sent to Dean review and leadership notified.");
+        onError: (err) => {
+          setNotice(`Action failed: Backend API missing or denied (${err.message})`);
+        }
+      }
+    );
   }
 
   function toggleLifecycleRecord(view: ExamsManagerView, recordId: string) {
@@ -1672,8 +1701,7 @@ export function ExamsManagerCommandCenter({
       createdAt,
     };
 
-    addSchoolRecord(
-      "exam-manager-action-results",
+    lifecycleMutation.mutate(
       {
         ...result,
         schoolId,
@@ -1687,40 +1715,45 @@ export function ExamsManagerCommandCenter({
         status: statusWord,
         executedByRole: "Exams Manager",
       },
-      schoolId,
+      {
+        onSuccess: () => {
+          publishSchoolOperationalEvent({
+            schoolId,
+            type: "EXAMS_MANAGER_LIFECYCLE_ACTION_EXECUTED",
+            module: "exams",
+            actorRole: "Exams Manager",
+            title: `${action.label} ${visibleVerb} from Exams Manager`,
+            body: resultMessage,
+            entityId: result.id,
+            severity: failedCount > 0 ? "warning" : action.mode === "queued" ? "info" : "success",
+            payload: {
+              workspace: view,
+              selectedRecordIds: recordIds,
+              affectedCount,
+              succeededCount,
+              failedCount,
+              schoolId,
+            },
+            notifications: action.targetRoles.map((role) => ({
+              audienceRoles: [role],
+              title: action.notificationTitle,
+              body: resultMessage,
+              severity: failedCount > 0 ? "warning" : "info",
+              relatedModule: "exams",
+              relatedRecordId: result.id,
+              requestStatus: statusWord,
+            })),
+          });
+
+          setLifecycleResults((current) => [result, ...current].slice(0, 8));
+          clearLifecycleSelection(view);
+          setNotice(resultMessage);
+        },
+        onError: (err) => {
+          setNotice(`Action failed: Backend API missing or denied (${err.message})`);
+        }
+      }
     );
-
-    publishSchoolOperationalEvent({
-      schoolId,
-      type: "EXAMS_MANAGER_LIFECYCLE_ACTION_EXECUTED",
-      module: "exams",
-      actorRole: "Exams Manager",
-      title: `${action.label} ${visibleVerb} from Exams Manager`,
-      body: resultMessage,
-      entityId: result.id,
-      severity: failedCount > 0 ? "warning" : action.mode === "queued" ? "info" : "success",
-      payload: {
-        workspace: view,
-        selectedRecordIds: recordIds,
-        affectedCount,
-        succeededCount,
-        failedCount,
-        schoolId,
-      },
-      notifications: action.targetRoles.map((role) => ({
-        audienceRoles: [role],
-        title: action.notificationTitle,
-        body: resultMessage,
-        severity: failedCount > 0 ? "warning" : "info",
-        relatedModule: "exams",
-        relatedRecordId: result.id,
-        requestStatus: statusWord,
-      })),
-    });
-
-    setLifecycleResults((current) => [result, ...current].slice(0, 8));
-    clearLifecycleSelection(view);
-    setNotice(resultMessage);
   }
 
   return (

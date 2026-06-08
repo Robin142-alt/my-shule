@@ -30,7 +30,16 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
-import { getCurrentSchoolId, publishSchoolOperationalEvent } from "@/lib/school/school-operational-store";
+import {
+  getCurrentSchoolId,
+  publishSchoolOperationalEvent,
+  type SchoolOperationalEvent,
+} from "@/lib/school/school-operational-store";
+import { useSchoolMutation } from "@/lib/data/school-hooks";
+
+function runtimeId(prefix: string) {
+  return `${prefix}-${Math.random().toString(36).substring(2, 9)}`;
+}
 
 type DeputyRouteMode = "hosted" | "public";
 type Tone = "calm" | "info" | "success" | "warning" | "danger" | "cyan";
@@ -997,6 +1006,11 @@ export function DeputyPrincipalCommandCenter({ routeMode }: { routeMode: DeputyR
   const [emergencyOpen, setEmergencyOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [selectedAlertAction, setSelectedAlertAction] = useState<{ alert: CriticalAlert; action: string } | null>(null);
+  
+  const emergencyMutation = useSchoolMutation("/api/operations/emergency");
+  const alertMutation = useSchoolMutation("/api/operations/alert");
+  const reportMutation = useSchoolMutation("/api/operations/report");
+  
   const searchResults = useMemo(() => {
     const query = searchTerm.trim().toLowerCase();
     if (!query) return [];
@@ -1023,35 +1037,37 @@ export function DeputyPrincipalCommandCenter({ routeMode }: { routeMode: DeputyR
 
   function recordEmergencyResponse() {
     const schoolId = getCurrentSchoolId();
-
-    publishSchoolOperationalEvent({
-      schoolId,
-      type: "DEPUTY_EMERGENCY_RESPONSE_RECORDED",
-      module: "operations",
-      actorRole: "Deputy Principal",
-      title: "Emergency response recorded",
-      body: "Deputy Principal recorded the emergency response review for active school operations.",
-      entityId: "deputy-emergency-response",
-      severity: "critical",
-      payload: {
-        dashboard: "deputy-principal",
-        responseArea: "critical-alerts",
-      },
-      notifications: [
-        {
-          audienceRoles: ["Principal", "Security Officer", "Discipline Master"],
-          title: "Deputy emergency response recorded",
-          body: "Deputy Principal reviewed the emergency response queue.",
-          severity: "critical",
-          relatedModule: "operations",
-          relatedRecordId: "deputy-emergency-response",
-          requiresAction: true,
-          requestStatus: "Pending",
+    emergencyMutation.mutate(
+      { action: "emergency_response_review", details: "Deputy reviewed active critical alerts" },
+      {
+        onSuccess: () => {
+          publishSchoolOperationalEvent({
+            schoolId,
+            type: "EMERGENCY_RESPONSE_REVIEWED",
+            module: "operations",
+            actorRole: "Deputy Principal",
+            title: "Emergency response reviewed",
+            body: "Deputy has reviewed active critical alerts and sent the response to Principal, Security, and Discipline teams.",
+            entityId: runtimeId("emergency"),
+            severity: "critical",
+            payload: {},
+            notifications: [
+              {
+                audienceRoles: ["Principal", "Security", "Discipline Master"],
+                title: "Emergency response reviewed",
+                body: "Deputy has reviewed active critical alerts.",
+                severity: "critical",
+                relatedModule: "operations",
+                relatedRecordId: "emergency",
+              },
+            ],
+          });
+          setNotice("Emergency response recorded and sent to Principal, Security, and Discipline teams.");
+          setEmergencyOpen(false);
         },
-      ],
-    });
-    setEmergencyOpen(false);
-    setNotice("Emergency response recorded for deputy follow-up.");
+        onError: (err) => setNotice(`Action failed: ${err.message}`)
+      }
+    );
   }
 
   function openDeputyNotifications() {
@@ -1067,41 +1083,29 @@ export function DeputyPrincipalCommandCenter({ routeMode }: { routeMode: DeputyR
   function saveAlertAction() {
     if (!selectedAlertAction) return;
 
-    const { alert, action } = selectedAlertAction;
     const schoolId = getCurrentSchoolId();
-    const relatedRecordId = `deputy-alert-${alert.title.toLowerCase().replaceAll(" ", "-")}-${action.toLowerCase().replaceAll(" ", "-")}`;
-    const severity = alert.tone === "danger" ? "critical" : alert.tone === "warning" ? "warning" : "info";
-
-    publishSchoolOperationalEvent({
-      schoolId,
-      type: "DEPUTY_ALERT_ACTION_RECORDED",
-      module: "operations",
-      actorRole: "Deputy Principal",
-      title: `${action} saved for ${alert.title}`,
-      body: alert.detail,
-      entityId: relatedRecordId,
-      severity,
-      payload: {
-        action,
-        affected: alert.affected,
-        alertTitle: alert.title,
-        status: alert.status,
-      },
-      notifications: [
-        {
-          audienceRoles: ["Principal", "Class Teacher", "Discipline Master"],
-          title: `${action} deputy follow-up`,
-          body: alert.detail,
-          severity,
-          relatedModule: "operations",
-          relatedRecordId,
-          requiresAction: true,
-          requestStatus: "Pending",
+    alertMutation.mutate(
+      { alertTitle: selectedAlertAction.alert.title, action: selectedAlertAction.action },
+      {
+        onSuccess: () => {
+          publishSchoolOperationalEvent({
+            schoolId,
+            type: "DEPUTY_ALERT_ACTION_SAVED",
+            module: "operations",
+            actorRole: "Deputy Principal",
+            title: `${selectedAlertAction.action} action saved`,
+            body: `Deputy acted on alert: ${selectedAlertAction.alert.title}`,
+            entityId: runtimeId("alert-action"),
+            severity: selectedAlertAction.alert.tone === "danger" ? "critical" : "info",
+            payload: { action: selectedAlertAction.action },
+            notifications: []
+          });
+          setNotice(`Deputy action '${selectedAlertAction.action}' saved for ${selectedAlertAction.alert.title}.`);
+          setSelectedAlertAction(null);
         },
-      ],
-    });
-    setSelectedAlertAction(null);
-    setNotice(`${action} saved for ${alert.title}.`);
+        onError: (err) => setNotice(`Action failed: ${err.message}`)
+      }
+    );
   }
 
   function openQuickAction(action: string) {
@@ -1122,22 +1126,27 @@ export function DeputyPrincipalCommandCenter({ routeMode }: { routeMode: DeputyR
 
   function prepareReport(report: string) {
     const schoolId = getCurrentSchoolId();
-
-    publishSchoolOperationalEvent({
-      schoolId,
-      type: "DEPUTY_REPORT_PREVIEW_REQUESTED",
-      module: "reports",
-      actorRole: "Deputy Principal",
-      title: `${report} prepared for deputy reporting`,
-      body: "Deputy Principal prepared a school-scoped report preview.",
-      entityId: `deputy-report-${report.toLowerCase().replaceAll(" ", "-")}`,
-      severity: "info",
-      payload: {
-        report,
-        dashboard: "deputy-principal",
-      },
-    });
-    setNotice(`${report} prepared for deputy reporting.`);
+    reportMutation.mutate(
+      { reportType: report },
+      {
+        onSuccess: () => {
+          publishSchoolOperationalEvent({
+            schoolId,
+            type: "REPORT_PREPARED",
+            module: "operations",
+            actorRole: "Deputy Principal",
+            title: `${report} prepared`,
+            body: `Deputy prepared the ${report}.`,
+            entityId: runtimeId("report"),
+            severity: "info",
+            payload: { reportType: report },
+            notifications: []
+          });
+          setNotice(`${report} prepared and generated successfully.`);
+        },
+        onError: (err) => setNotice(`Action failed: ${err.message}`)
+      }
+    );
   }
 
   return (

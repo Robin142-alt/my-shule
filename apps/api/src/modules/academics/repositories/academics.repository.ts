@@ -384,4 +384,71 @@ export class AcademicsRepository {
 
     return candidate;
   }
+
+  async createAttendance(input: Record<string, unknown>) {
+    const result = await this.databaseService.query(
+      `
+        INSERT INTO academics_attendance (
+          tenant_id, class_id, attendance_date, student_id, status, submitted_by
+        )
+        VALUES ($1, $2, $3::date, $4::uuid, $5, $6::uuid)
+        RETURNING *
+      `,
+      [
+        input.tenant_id,
+        input.class_id,
+        input.attendance_date,
+        input.student_id,
+        input.status,
+        input.submitted_by,
+      ]
+    );
+    return result.rows[0];
+  }
+
+  async createAssignment(input: Record<string, unknown>) {
+    const result = await this.databaseService.query(
+      `
+        INSERT INTO academics_assignments (
+          tenant_id, title, description, class_id, subject_id, due_date, teacher_id, status
+        )
+        VALUES ($1, $2, $3, $4, $5, $6::timestamptz, $7::uuid, $8)
+        RETURNING *
+      `,
+      [
+        input.tenant_id,
+        input.title,
+        input.description ?? null,
+        input.class_id,
+        input.subject_id,
+        input.due_date,
+        input.teacher_id,
+        input.status ?? 'Draft',
+      ]
+    );
+    return result.rows[0];
+  }
+
+  async createResource(input: Record<string, unknown>) {
+    const result = await this.databaseService.query(
+      `
+        INSERT INTO academics_resources (
+          tenant_id, title, type, url, class_id, subject_id, teacher_id, status
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7::uuid, $8)
+        RETURNING *
+      `,
+      [
+        input.tenant_id,
+        input.title,
+        input.type,
+        input.url ?? null,
+        input.class_id,
+        input.subject_id,
+        input.teacher_id,
+        input.status ?? 'Draft',
+      ]
+    );
+    return result.rows[0];
+  }
 }

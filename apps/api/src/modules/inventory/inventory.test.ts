@@ -2274,3 +2274,11 @@ test('InventoryService rejects unknown server-side report exports', async () => 
     /Unknown inventory report export/,
   );
 });
+
+import { PATH_METADATA } from '@nestjs/common/constants';
+import { InventoryController } from './inventory.controller';
+
+test('InventoryController exposes requisitions endpoint', () => {
+  const createRequisition = Reflect.getMetadata(PATH_METADATA, InventoryController.prototype.createRequisition);
+  assert.equal(createRequisition, 'requisitions');
+});

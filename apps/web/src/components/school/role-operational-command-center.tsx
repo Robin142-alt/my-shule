@@ -64,6 +64,7 @@ import {
   subscribeToSchoolDataUpdates,
   updateSchoolRecord,
 } from "@/lib/school/school-operational-store";
+import { useSchoolMutation, useSchoolQuery } from "@/lib/data/school-hooks";
 import {
   getKisumuBoysRoleFeed,
   scoreKisumuBoysHighDemoReadiness,
@@ -5361,6 +5362,7 @@ function GenericRoleOperationalCommandCenter({
   initialWorkspace?: string;
   tenantSlug?: string | null;
 }) {
+  const paymentMutation = useSchoolMutation("/api/finance/payment");
   const blueprintId = roleIdMap[role];
   const blueprint = blueprintId ? getOperationalRoleBlueprint(blueprintId) : null;
   const roleTitle = titleizeRole(role);
@@ -7262,41 +7264,35 @@ function GenericRoleOperationalCommandCenter({
       status: payment.method === "M-Pesa" ? "M-Pesa Pending" : "Recorded",
     };
 
-    setFeePayments((current) => [newPayment, ...current]);
-    setFeeBalances((current) => current.map((item) => item.admissionNo === payment.admissionNo && nextBalanceRecord ? nextBalanceRecord : item));
-    addSchoolRecord("finance-payments", newPayment, schoolId);
-    if (nextBalanceRecord) {
-      saveFeeBalanceRecord(nextBalanceRecord);
-    }
-    addSchoolRecord("receipts", {
-      id: `receipt-${receiptNo}`,
-      receiptNo,
-      student: payment.student,
-      admissionNo: payment.admissionNo,
-      className: balanceRecord?.className ?? "Class/Form not set",
-      amount: payment.amount,
-      method: payment.method,
-      term: payment.term,
-      voteHead: payment.voteHead,
-      parentPhone: balanceRecord?.parentPhone ?? "",
-      createdAt: new Date().toISOString(),
-    }, schoolId);
-    publishDashboardEvent({
-      type: "FEE_PAYMENT_RECORDED",
-      module: "finance",
-      title: `${payment.student} fee payment recorded`,
-      body: `KSh ${payment.amount.toLocaleString("en-KE")} received by ${payment.method}. Receipt ${receiptNo} is ready.`,
-      entityId: newPayment.id,
-      severity: "success",
-      payload: { payment: newPayment },
-      notifications: [
-        { audienceRoles: ["principal", "secretary", "parent", "student"], title: "Fee payment recorded" },
-      ],
+    paymentMutation.mutate(newPayment, {
+      onSuccess: () => {
+        setFeePayments((current) => [newPayment, ...current]);
+        setFeeBalances((current) => current.map((item) => item.admissionNo === payment.admissionNo && nextBalanceRecord ? nextBalanceRecord : item));
+        // addSchoolRecord("finance-payments", newPayment, schoolId);
+        if (nextBalanceRecord) {
+          saveFeeBalanceRecord(nextBalanceRecord);
+        }
+        publishDashboardEvent({
+          type: "FEE_PAYMENT_RECORDED",
+          module: "finance",
+          title: `${payment.student} fee payment recorded`,
+          body: `KSh ${payment.amount.toLocaleString("en-KE")} received by ${payment.method}. Receipt ${receiptNo} is ready.`,
+          entityId: newPayment.id,
+          severity: "success",
+          payload: { payment: newPayment },
+          notifications: [
+            { audienceRoles: ["principal", "secretary", "parent", "student"], title: "Fee payment recorded" },
+          ],
+        });
+        addFinanceExecutionLog(`${payment.student} payment recorded`, ["Payment saved", "Student balance updated", "Receipt ready"]);
+        setFinanceNotice(
+          `${payment.student} payment recorded for ${schoolId}: ${newPayment.id}, receipt ${receiptNo}, KSh ${payment.amount.toLocaleString("en-KE")} via ${payment.method}, Principal/Secretary/Parent/Student notified.`,
+        );
+      },
+      onError: (err) => {
+        setFinanceNotice(`Action failed: Backend API missing or denied (${err.message})`);
+      }
     });
-    addFinanceExecutionLog(`${payment.student} payment recorded`, ["Payment saved", "Student balance updated", "Receipt ready"]);
-    setFinanceNotice(
-      `${payment.student} payment recorded for ${schoolId}: ${newPayment.id}, receipt ${receiptNo}, KSh ${payment.amount.toLocaleString("en-KE")} via ${payment.method}, Principal/Secretary/Parent/Student notified.`,
-    );
   }
 
   function confirmMpesaPayment(id: string) {

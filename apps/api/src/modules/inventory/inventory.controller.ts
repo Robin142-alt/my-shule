@@ -165,6 +165,7 @@ export class InventoryController {
     return this.inventoryService.listPurchaseOrders(query);
   }
 
+
   @Post('purchase-orders')
   @Permissions('procurement:write')
   createPurchaseOrder(@Body() dto: CreatePurchaseOrderDto) {
@@ -180,6 +181,7 @@ export class InventoryController {
     return this.inventoryService.updatePurchaseOrderStatus(purchaseOrderId, dto);
   }
 
+
   @Get('requests')
   @Permissions('inventory:read')
   listRequests(@Query() query: ListInventoryQueryDto) {
@@ -192,6 +194,12 @@ export class InventoryController {
     return this.inventoryService.createRequest(dto);
   }
 
+  @Post('requisitions')
+  @Permissions('inventory:write')
+  createRequisition(@Body() dto: CreateInventoryRequestDto) {
+    return this.inventoryService.createRequest(dto);
+  }
+
   @Patch('requests/:requestId/status')
   @Permissions('inventory:write')
   updateRequestStatus(
@@ -200,6 +208,7 @@ export class InventoryController {
   ) {
     return this.inventoryService.updateRequestStatus(requestId, dto);
   }
+
 
   @Get('transfers')
   @Permissions('transfers:read')
