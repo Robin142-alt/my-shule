@@ -1,4 +1,5 @@
 import { Global, Module } from '@nestjs/common';
+import { EventsModule } from '../events/events.module';
 
 import { RedisModule } from '../../infrastructure/redis/redis.module';
 import { ObservabilityModule } from '../observability/observability.module';
@@ -13,7 +14,7 @@ import { VisitorsModule } from '../visitors/visitors.module';
 
 @Global()
 @Module({
-  imports: [RedisModule, ObservabilityModule, VisitorsModule],
+  imports: [RedisModule, ObservabilityModule, VisitorsModule, EventsModule],
   controllers: [SecurityOperationsController],
   providers: [
     PiiEncryptionService,

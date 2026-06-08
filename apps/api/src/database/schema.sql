@@ -2708,7 +2708,129 @@ CREATE POLICY security_incidents_tenant_policy ON security_incidents FOR ALL USI
 ALTER TABLE security_panic_alerts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE security_panic_alerts FORCE ROW LEVEL SECURITY;
 CREATE POLICY security_panic_alerts_tenant_policy ON security_panic_alerts FOR ALL USING (tenant_id = app.current_tenant_id()) WITH CHECK (tenant_id = app.current_tenant_id());
-ALTER TABLE academics_attendance ENABLE ROW LEVEL SECURITY;
+
+-- Phase 5 Cross-Dashboard Schemas
+CREATE TABLE IF NOT EXISTS inventory_requisitions (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id tenant_key NOT NULL,
+  requested_by uuid NOT NULL,
+  item_category text NOT NULL,
+  quantity numeric NOT NULL,
+  purpose text,
+  status text NOT NULL DEFAULT 'PENDING',
+  created_at timestamptz NOT NULL DEFAULT NOW(),
+  updated_at timestamptz NOT NULL DEFAULT NOW()
+);
+ALTER TABLE inventory_requisitions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE inventory_requisitions FORCE ROW LEVEL SECURITY;
+CREATE POLICY inventory_requisitions_tenant_policy ON inventory_requisitions FOR ALL USING (tenant_id = app.current_tenant_id()) WITH CHECK (tenant_id = app.current_tenant_id());
+
+CREATE TABLE IF NOT EXISTS clinic_visits (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id tenant_key NOT NULL,
+  student_id uuid NOT NULL,
+  nurse_id uuid NOT NULL,
+  symptoms text,
+  action_taken text,
+  medicine_dispensed text,
+  severity text NOT NULL DEFAULT 'LOW',
+  status text NOT NULL DEFAULT 'RESOLVED',
+  created_at timestamptz NOT NULL DEFAULT NOW(),
+  updated_at timestamptz NOT NULL DEFAULT NOW()
+);
+ALTER TABLE clinic_visits ENABLE ROW LEVEL SECURITY;
+ALTER TABLE clinic_visits FORCE ROW LEVEL SECURITY;
+CREATE POLICY clinic_visits_tenant_policy ON clinic_visits FOR ALL USING (tenant_id = app.current_tenant_id()) WITH CHECK (tenant_id = app.current_tenant_id());
+
+CREATE TABLE IF NOT EXISTS library_loans (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id tenant_key NOT NULL,
+  student_id uuid NOT NULL,
+  book_title text NOT NULL,
+  issued_by uuid NOT NULL,
+  status text NOT NULL DEFAULT 'ISSUED',
+  due_date timestamptz NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT NOW(),
+  updated_at timestamptz NOT NULL DEFAULT NOW()
+);
+ALTER TABLE library_loans ENABLE ROW LEVEL SECURITY;
+ALTER TABLE library_loans FORCE ROW LEVEL SECURITY;
+CREATE POLICY library_loans_tenant_policy ON library_loans FOR ALL USING (tenant_id = app.current_tenant_id()) WITH CHECK (tenant_id = app.current_tenant_id());
+
+CREATE TABLE IF NOT EXISTS visitors (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id tenant_key NOT NULL,
+  visitor_name text NOT NULL,
+  purpose text NOT NULL,
+  checked_in_by uuid NOT NULL,
+  status text NOT NULL DEFAULT 'INSIDE',
+  checked_out_at timestamptz,
+  created_at timestamptz NOT NULL DEFAULT NOW(),
+  updated_at timestamptz NOT NULL DEFAULT NOW()
+);
+ALTER TABLE visitors ENABLE ROW LEVEL SECURITY;
+ALTER TABLE visitors FORCE ROW LEVEL SECURITY;
+CREATE POLICY visitors_tenant_policy ON visitors FOR ALL USING (tenant_id = app.current_tenant_id()) WITH CHECK (tenant_id = app.current_tenant_id());
+
+CREATE TABLE IF NOT EXISTS discipline_incidents (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id tenant_key NOT NULL,
+  student_id uuid NOT NULL,
+  category text NOT NULL,
+  severity text NOT NULL,
+  description text,
+  action_taken text,
+  status text NOT NULL DEFAULT 'PENDING',
+  reported_by uuid NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT NOW(),
+  updated_at timestamptz NOT NULL DEFAULT NOW()
+);
+ALTER TABLE discipline_incidents ENABLE ROW LEVEL SECURITY;
+ALTER TABLE discipline_incidents FORCE ROW LEVEL SECURITY;
+CREATE POLICY discipline_incidents_tenant_policy ON discipline_incidents FOR ALL USING (tenant_id = app.current_tenant_id()) WITH CHECK (tenant_id = app.current_tenant_id());
+
+CREATE TABLE IF NOT EXISTS boarding_referrals (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id tenant_key NOT NULL,
+  student_id uuid NOT NULL,
+  reason text NOT NULL,
+  referred_to text NOT NULL,
+  status text NOT NULL DEFAULT 'PENDING',
+  created_by uuid NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT NOW(),
+  updated_at timestamptz NOT NULL DEFAULT NOW()
+);
+ALTER TABLE boarding_referrals ENABLE ROW LEVEL SECURITY;
+ALTER TABLE boarding_referrals FORCE ROW LEVEL SECURITY;
+CREATE POLICY boarding_referrals_tenant_policy ON boarding_referrals FOR ALL USING (tenant_id = app.current_tenant_id()) WITH CHECK (tenant_id = app.current_tenant_id());
+
+CREATE TABLE IF NOT EXISTS transport_routes (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id tenant_key NOT NULL,
+  route_name text NOT NULL,
+  driver_id uuid,
+  vehicle_reg text,
+  created_at timestamptz NOT NULL DEFAULT NOW(),
+  updated_at timestamptz NOT NULL DEFAULT NOW()
+);
+ALTER TABLE transport_routes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE transport_routes FORCE ROW LEVEL SECURITY;
+CREATE POLICY transport_routes_tenant_policy ON transport_routes FOR ALL USING (tenant_id = app.current_tenant_id()) WITH CHECK (tenant_id = app.current_tenant_id());
+
+CREATE TABLE IF NOT EXISTS admissions_applications (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id tenant_key NOT NULL,
+  applicant_name text NOT NULL,
+  parent_name text NOT NULL,
+  parent_phone text,
+  parent_email text,
+  status text NOT NULL DEFAULT 'PENDING',
+  created_at timestamptz NOT NULL DEFAULT NOW(),
+  updated_at timestamptz NOT NULL DEFAULT NOW()
+);
+ALTER TABLE admissions_applications ENABLE ROW LEVEL SECURITY;
+ALTER TABLE admissions_applications FORCE ROW LEVEL SECURITY;
+CREATE POLICY admissions_applications_tenant_policy ON admissions_applications FOR ALL USING (tenant_id = app.current_tenant_id()) WITH CHECK (tenant_id = app.current_tenant_id());ALTER TABLE academics_attendance ENABLE ROW LEVEL SECURITY;
 ALTER TABLE academics_attendance FORCE ROW LEVEL SECURITY;
 CREATE POLICY academics_attendance_tenant_policy ON academics_attendance FOR ALL USING (tenant_id = app.current_tenant_id()) WITH CHECK (tenant_id = app.current_tenant_id());
 

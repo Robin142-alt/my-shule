@@ -1,5 +1,6 @@
 "use client";
 
+import { useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
@@ -794,7 +795,7 @@ function Hero({ theme }: { theme: AccountantTheme }) {
           <div className="mt-6">
             <Sparkline points={[32, 41, 44, 58, 61, 76, 88, 84, 96]} tone="success" />
           </div>
-          <div className="mt-6 grid grid-cols-3 gap-3">
+          <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
             {[
               ["Collected", "KES 14.8M", "success" as Tone],
               ["Projected", "KES 24.8M", "info" as Tone],
@@ -1149,6 +1150,7 @@ function MobileActions({ routeMode }: { routeMode: AccountantRouteMode }) {
 }
 
 export function AccountantCommandCenter({ routeMode }: { routeMode: AccountantRouteMode }) {
+  const queryClient = useQueryClient();
   const taskMutation = useSchoolMutation("/api/finance/tasks");
   const [theme, setTheme] = useState<AccountantTheme>("dark");
   const [searchTerm, setSearchTerm] = useState("");
@@ -1196,6 +1198,7 @@ export function AccountantCommandCenter({ routeMode }: { routeMode: AccountantRo
       { entityId, title: selectedInsight.title, action: selectedInsight.action },
       {
         onSuccess: () => {
+          queryClient.invalidateQueries();
           publishSchoolOperationalEvent({
             schoolId,
             type: "FINANCE_INTELLIGENCE_TASK_CREATED",

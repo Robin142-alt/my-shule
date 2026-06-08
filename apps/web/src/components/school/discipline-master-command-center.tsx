@@ -633,7 +633,7 @@ function Hero({ onQuickAction }: { onQuickAction: (action: string) => void }) {
           <p className="text-xs font-black uppercase tracking-[0.22em] text-white/58">Incident trend graph</p>
           <h3 className="mt-2 text-xl font-black">Live school behavior score</h3>
           <MiniLine values={[71, 76, 73, 80, 83, 85, 86]} tone="danger" />
-          <div className="mt-4 grid grid-cols-3 gap-2">
+          <div className="mt-4 grid sm:grid-cols-3 gap-2">
             {[
               ["Green", "42", "emerald"],
               ["Amber", "18", "amber"],

@@ -576,7 +576,7 @@ function Hero() {
           <div className="mt-6">
             <MiniLine values={[71, 74, 70, 82, 79, 88, 92]} tone="cyan" />
           </div>
-          <div className="mt-6 grid grid-cols-2 gap-3">
+          <div className="mt-6 grid sm:grid-cols-2 gap-3">
             <div className="rounded-[var(--radius-lg)] border border-emerald-300/25 bg-emerald-400/10 p-4">
               <p className="text-xs font-black uppercase tracking-[0.14em] text-emerald-100/70">Safe dorms</p>
               <p className="mt-2 text-3xl font-black">18/20</p>
@@ -721,7 +721,7 @@ function StudentWelfareMonitor() {
             </div>
             <p className="mt-3 text-sm leading-6 text-white/70">{risk.detail}</p>
             <ProgressBar value={risk.score} tone={risk.tone} />
-            <div className="mt-4 grid grid-cols-2 gap-2 text-xs font-black uppercase tracking-[0.12em] text-white/52">
+            <div className="mt-4 grid sm:grid-cols-2 gap-2 text-xs font-black uppercase tracking-[0.12em] text-white/52">
               <span>Behavioral trend graphs</span>
               <span>Dorm social mapping</span>
             </div>

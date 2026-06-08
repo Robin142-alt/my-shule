@@ -197,7 +197,7 @@ export class InventoryController {
   @Post('requisitions')
   @Permissions('inventory:write')
   createRequisition(@Body() dto: CreateInventoryRequestDto) {
-    return this.inventoryService.createRequest(dto);
+    return this.inventoryService.createRequisition(dto);
   }
 
   @Patch('requests/:requestId/status')

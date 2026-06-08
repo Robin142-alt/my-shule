@@ -1,3 +1,9 @@
+
+import { Inject } from '@nestjs/common';
+import { DatabaseService } from '../../database/database.service';
+import { RequestContextService } from '../../common/request-context/request-context.service';
+import { SchoolOperationalEventsService } from '../events/school-operational-events.service';
+
 import {
   Body,
   Controller,
@@ -34,6 +40,16 @@ import type { UploadedBinaryFile } from './storage/local-document-storage.servic
 @Controller('admissions')
 @RequiresModule('admissions')
 export class AdmissionsController {
+
+  @Inject(DatabaseService)
+  private readonly db!: DatabaseService;
+
+  @Inject(RequestContextService)
+  private readonly requestContext!: RequestContextService;
+
+  @Inject(SchoolOperationalEventsService)
+  private readonly events!: SchoolOperationalEventsService;
+
   constructor(
     private readonly admissionsService: AdmissionsService,
     private readonly reportExportQueueService: ReportExportQueueService,
@@ -181,4 +197,29 @@ export class AdmissionsController {
   getReports() {
     return this.admissionsService.getReports();
   }
+
+  @Post('apply')
+  @Permissions('admissions:write')
+  async applyPhase5(@Body() body: any) {
+    const store = this.requestContext.requireStore();
+    const result = await this.db.query(
+      `INSERT INTO admissions_applications (tenant_id, school_id, reference_number, applicant_first_name, applicant_last_name, status) 
+       VALUES ($1, $1, $2, $3, $4, $5) RETURNING *`,
+      [store.tenant_id, store.tenant_id, Date.now().toString(), body.first_name || 'FN', body.last_name || 'LN', 'draft']
+    );
+    await this.events.recordSchoolOperation({
+      schoolId: store.tenant_id,
+      event: { 
+        id: result.rows[0].id,
+        type: 'admissions.application.submitted', 
+        module: 'admissions', 
+        title: 'New Admission Application', 
+        body: 'A new admission application was submitted', 
+        actorRole: store.role || 'system',
+        createdAt: new Date().toISOString()
+      }
+    });
+    return result.rows[0];
+  }
+
 }

@@ -1,5 +1,7 @@
+import { SchoolOperationalEventsService } from '../events/school-operational-events.service';
 import { BadRequestException, Injectable, Optional, UnauthorizedException } from '@nestjs/common';
 
+import { DatabaseService } from '../../database/database.service';
 import { RequestContextService } from '../../common/request-context/request-context.service';
 import type {
   IssueLibraryCopyDto,
@@ -25,8 +27,52 @@ export class LibraryService {
   constructor(
     private readonly requestContext: RequestContextService,
     private readonly libraryRepository: LibraryRepository,
+      private readonly db: DatabaseService,
+      @Optional() private readonly schoolEvents?: SchoolOperationalEventsService,
     @Optional() private readonly billingService?: LibraryBillingHandoff,
   ) {}
+
+  async createLoan(dto: any) {
+    const tenantId = this.requireTenantId();
+    const result = await this.db.query(
+      `
+        INSERT INTO library_loans (
+          tenant_id,
+          book_id,
+          borrower_id,
+          status,
+          due_date
+        )
+        VALUES ($1, $2, $3, $4, $5)
+        RETURNING id, status
+      `,
+      [
+        tenantId,
+        dto.book_id || 'unknown',
+        dto.borrower_id || 'unknown',
+        'active',
+        dto.due_date || new Date().toISOString(),
+      ]
+    );
+
+    const loan = result.rows[0];
+
+    await this.schoolEvents?.recordSchoolOperation({
+      event: {
+        id: loan.id,
+        type: 'library.loan_created',
+        module: 'library',
+        actorRole: this.requestContext.requireStore().role || 'staff',
+        title: 'Library Loan Created',
+        body: `A new library loan was created for borrower ${dto.borrower_id}`,
+        entityId: loan.id,
+        severity: 'info',
+        payload: { book_id: dto.book_id },
+      },
+    });
+
+    return loan;
+  }
 
   async issueCopy(dto: IssueLibraryCopyDto) {
     const tenantId = this.requireTenantId();

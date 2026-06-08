@@ -1,5 +1,6 @@
 "use client";
 
+import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import {
@@ -532,7 +533,7 @@ function Hero() {
           <div className="mt-6">
             <MiniLine points={[68, 72, 78, 75, 84, 91, 96]} tone="secure" />
           </div>
-          <div className="mt-6 grid grid-cols-2 gap-3">
+          <div className="mt-6 grid sm:grid-cols-2 gap-3">
             <div className="rounded-[var(--radius-lg)] border border-cyan-300/25 bg-cyan-400/10 p-4">
               <p className="text-xs font-black uppercase tracking-[0.14em] text-cyan-100/70">Verified entries</p>
               <p className="mt-2 text-2xl font-black">187</p>
@@ -936,7 +937,7 @@ function SupportModuleSection({ id, onOpenReportReview }: { id: string; onOpenRe
     return (
       <DarkSection id="cctv-monitoring">
         <SectionTitle eyebrow="CCTV" title="CCTV monitoring" description="Camera health, dark zones, snapshots, and incident-linked evidence." />
-        <div className="mt-5 grid grid-cols-2 gap-3">
+        <div className="mt-5 grid sm:grid-cols-2 gap-3">
           {["Main Gate", "Dorm B", "Kitchen", "Admin Block"].map((item) => (
             <div key={item} className="rounded-[var(--radius-lg)] border border-cyan-300/20 bg-cyan-400/10 p-4">
               <Camera className="h-5 w-5 text-cyan-200" aria-hidden="true" />
@@ -1063,6 +1064,7 @@ function ActiveSecuritySection({
 }
 
 export function SecurityCommandCenter({ routeMode }: { routeMode: SecurityRouteMode }) {
+  const queryClient = useQueryClient();
   const schoolId = getCurrentSchoolId();
   const visitorMutation = useSchoolMutation("/api/visitors/records");
   const incidentMutation = useSchoolMutation("/api/security/incidents");
@@ -1275,6 +1277,7 @@ export function SecurityCommandCenter({ routeMode }: { routeMode: SecurityRouteM
 
     panicMutation.mutate({ incidentId, gate: "Main Gate" }, {
       onSuccess: () => {
+          queryClient.invalidateQueries();
         publishSchoolOperationalEvent({
           schoolId,
           actorRole: "security",
@@ -1327,6 +1330,7 @@ export function SecurityCommandCenter({ routeMode }: { routeMode: SecurityRouteM
     };
     visitorMutation.mutate(newVisitor, {
       onSuccess: () => {
+          queryClient.invalidateQueries();
         setVisitors((current) => [newVisitor, ...current]);
         // addSchoolRecord("visitors", newVisitor, schoolId);
         publishSchoolOperationalEvent({
@@ -1362,6 +1366,7 @@ export function SecurityCommandCenter({ routeMode }: { routeMode: SecurityRouteM
     
     visitorMutation.mutate({ id, action: "checkout" }, {
       onSuccess: () => {
+          queryClient.invalidateQueries();
         setVisitors((current) => current.map((item) => item.id === id ? { ...item, status: "Exited", tone: "secure" } : item));
         publishSchoolOperationalEvent({
           schoolId,

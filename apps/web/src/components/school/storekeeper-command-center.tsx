@@ -1,5 +1,6 @@
 "use client";
 
+import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
@@ -412,7 +413,7 @@ const activityFeed = [
   },
 ];
 
-const requisitions = [
+const initialRequisitions = [
   {
     id: "REQ-1048",
     department: "Kitchen",
@@ -472,7 +473,7 @@ const heatmap = [
   { department: "Cleaning supplies", score: 66, detail: "Disinfectant reorder soon", tone: "warning" as Tone },
 ];
 
-const suppliers = [
+const initialSuppliers = [
   {
     name: "Mombasa Staples Ltd",
     metric: "Best supplier",
@@ -503,14 +504,14 @@ const suppliers = [
   },
 ];
 
-const waste = [
+const initialWaste = [
   { label: "Expired goods", value: "KES 18K", detail: "Food items and lab reagents", tone: "critical" as Tone },
   { label: "Unused stock", value: "KES 92K", detail: "Dormitory supplies idle 60+ days", tone: "warning" as Tone },
   { label: "Damaged items", value: "KES 41K", detail: "Books, glassware, and covers", tone: "accent" as Tone },
   { label: "Overstocked products", value: "KES 136K", detail: "Exercise books above target", tone: "info" as Tone },
 ];
 
-const auditTrail = [
+const initialAuditTrail = [
   {
     id: "AUD-4401",
     title: "Stock variance flagged",
@@ -537,7 +538,7 @@ const auditTrail = [
   },
 ];
 
-const aiInsights = [
+const initialAiInsights = [
   {
     title: "Rice consumption increased 31% unusually",
     detail: "Meal plan, attendance, and boarding occupancy do not fully explain the spike.",
@@ -675,7 +676,7 @@ function recordHeroAlertAction(alert: (typeof heroAlerts)[number]) {
   });
 }
 
-function recordBulkApprovalReview() {
+function recordBulkApprovalReview(requisitions: typeof initialRequisitions) {
   return recordStorekeeperAction({
     type: "STORE_REQUISITION_BULK_REVIEW_READY",
     title: "Safe requisition bulk approval review ready",
@@ -689,7 +690,7 @@ function recordBulkApprovalReview() {
   });
 }
 
-function recordUrgencyFilterOpened() {
+function recordUrgencyFilterOpened(requisitions: typeof initialRequisitions) {
   return recordStorekeeperAction({
     type: "STORE_REQUISITION_URGENCY_FILTER_READY",
     title: "Requisition urgency filters ready",
@@ -704,7 +705,7 @@ function recordUrgencyFilterOpened() {
 }
 
 function recordRequisitionDecision(
-  req: (typeof requisitions)[number],
+  req: (typeof initialRequisitions)[number],
   decision: "approve" | "partial" | "reject",
 ) {
   const eventType =
@@ -764,7 +765,7 @@ function recordRequisitionDecision(
   });
 }
 
-function recordInventoryInsightOpened(insight: (typeof aiInsights)[number]) {
+function recordInventoryInsightOpened(insight: (typeof initialAiInsights)[number]) {
   const notice = `${insight.action} review ready from inventory insights.`;
 
   return recordStorekeeperAction({
@@ -912,7 +913,7 @@ function CommandRail({ theme }: { theme: StorekeeperTheme }) {
   const surface = getSurfaceClasses(theme);
 
   return (
-    <aside className={cn("rounded-3xl border p-3 lg:sticky lg:top-6", surface.card)}>
+    <aside className={cn("hidden lg:block rounded-3xl border p-3 lg:sticky lg:top-6", surface.card)}>
       <div className="px-3 py-2">
         <p className="text-xs font-black uppercase tracking-[0.22em] text-[#FFB06C]">Store map</p>
         <p className={cn("mt-2 text-sm leading-5", surface.muted)}>Audit-ready navigation for every stock movement.</p>
@@ -1204,7 +1205,7 @@ function AnalyticsPanel({ chart, theme }: { chart: (typeof analytics)[number]; t
       <div className="mt-5">
         <BarMiniChart values={chart.values} tone={chart.tone} />
       </div>
-      <div className={cn("mt-4 grid grid-cols-3 gap-2 text-[11px] font-bold uppercase tracking-[0.12em]", surface.muted)}>
+      <div className={cn("mt-4 grid sm:grid-cols-3 gap-2 text-[11px] font-bold uppercase tracking-[0.12em]", surface.muted)}>
         {chart.labels.slice(0, 6).map((label) => (
           <span key={label}>{label}</span>
         ))}
@@ -1257,15 +1258,19 @@ function ActivityFeed({ theme }: { theme: StorekeeperTheme }) {
 }
 
 function RequisitionPanel({ theme }: { theme: StorekeeperTheme }) {
+  const { data: fetchedRequisitions } = useSchoolQuery<typeof initialRequisitions>("/api/inventory/requisitions");
+  const activeRequisitions = fetchedRequisitions ?? initialRequisitions;
+  const queryClient = useQueryClient();
   const surface = getSurfaceClasses(theme);
   const [decisionByRequisitionId, setDecisionByRequisitionId] = useState<Record<string, string>>({});
   const requisitionMutation = useSchoolMutation("/api/inventory/requisitions");
 
-  function handleRequisitionDecision(req: (typeof requisitions)[number], decision: "approve" | "partial" | "reject") {
+  function handleRequisitionDecision(req: (typeof initialRequisitions)[number], decision: "approve" | "partial" | "reject") {
     const status = decision === "approve" ? "Approved" : decision === "partial" ? "Partial issue pending" : "Rejected";
 
     requisitionMutation.mutate({ reqId: req.id, decision }, {
       onSuccess: () => {
+          queryClient.invalidateQueries();
         setDecisionByRequisitionId((current) => ({ ...current, [req.id]: status }));
         announceAction(recordRequisitionDecision(req, decision));
       }
@@ -1282,14 +1287,14 @@ function RequisitionPanel({ theme }: { theme: StorekeeperTheme }) {
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
-              onClick={() => announceAction(recordBulkApprovalReview())}
+              onClick={() => announceAction(recordBulkApprovalReview(activeRequisitions))}
               className="rounded-2xl bg-[#FF7A1A] px-4 py-2 text-sm font-black text-white"
             >
               Bulk approve safe items
             </button>
             <button
               type="button"
-              onClick={() => announceAction(recordUrgencyFilterOpened())}
+              onClick={() => announceAction(recordUrgencyFilterOpened(activeRequisitions))}
               className={cn("rounded-2xl border px-4 py-2 text-sm font-black", surface.soft)}
             >
               Filter urgency
@@ -1309,7 +1314,7 @@ function RequisitionPanel({ theme }: { theme: StorekeeperTheme }) {
           <span>Stock</span>
         </div>
         <div className="divide-y divide-white/10">
-          {requisitions.map((req) => (
+          {activeRequisitions.map((req) => (
             <article key={req.id} className="grid gap-4 px-4 py-4 md:grid-cols-[1fr_1fr_1.4fr_0.8fr_0.8fr_0.8fr_1fr_0.9fr] md:items-center md:gap-3">
               <p className="font-black">{req.department}</p>
               <p className={surface.muted}>{req.requester}</p>
@@ -1399,6 +1404,8 @@ function Heatmap({ theme }: { theme: StorekeeperTheme }) {
 }
 
 function SupplierPerformance({ theme }: { theme: StorekeeperTheme }) {
+  const { data: fetchedSuppliers } = useSchoolQuery<typeof initialSuppliers>("/api/inventory/suppliers");
+  const activeSuppliers = fetchedSuppliers ?? initialSuppliers;
   const surface = getSurfaceClasses(theme);
   return (
     <section id="suppliers" className={cn("rounded-3xl border p-5 md:p-6", surface.card)}>
@@ -1408,7 +1415,7 @@ function SupplierPerformance({ theme }: { theme: StorekeeperTheme }) {
         description="Delivery consistency, delay risk, rejection rate, pricing movement, and reliability score in one view."
       />
       <div className="mt-6 grid gap-3 lg:grid-cols-2">
-        {suppliers.map((supplier, index) => (
+        {activeSuppliers.map((supplier, index) => (
           <article key={supplier.name} className={cn("rounded-3xl border p-4", surface.soft)}>
             <div className="flex items-start justify-between gap-4">
               <div className="flex items-start gap-3">
@@ -1448,6 +1455,8 @@ function SupplierPerformance({ theme }: { theme: StorekeeperTheme }) {
 }
 
 function WastePanel({ theme }: { theme: StorekeeperTheme }) {
+  const { data: fetchedWaste } = useSchoolQuery<typeof initialWaste>("/api/inventory/waste");
+  const activeWaste = fetchedWaste ?? initialWaste;
   const surface = getSurfaceClasses(theme);
   return (
     <section id="waste" className={cn("rounded-3xl border p-5 md:p-6", surface.card)}>
@@ -1457,7 +1466,7 @@ function WastePanel({ theme }: { theme: StorekeeperTheme }) {
         description="Expose expired goods, idle inventory, damaged assets, and overstock before money disappears into silence."
       />
       <div className="mt-6 grid gap-3 sm:grid-cols-2">
-        {waste.map((item) => (
+        {activeWaste.map((item) => (
           <article key={item.label} className={cn("rounded-3xl border p-4", surface.soft, toneStyles[item.tone].border)}>
             <StatusChip icon={XCircle} label={item.label} tone={item.tone} />
             <p className="mt-4 text-3xl font-black">{item.value}</p>
@@ -1470,6 +1479,8 @@ function WastePanel({ theme }: { theme: StorekeeperTheme }) {
 }
 
 function AuditPanel({ theme }: { theme: StorekeeperTheme }) {
+  const { data: fetchedAuditTrail } = useSchoolQuery<typeof initialAuditTrail>("/api/inventory/audit");
+  const activeAuditTrail = fetchedAuditTrail ?? initialAuditTrail;
   const surface = getSurfaceClasses(theme);
   return (
     <section id="audit" className={cn("rounded-3xl border p-5 md:p-6", surface.card)}>
@@ -1495,7 +1506,7 @@ function AuditPanel({ theme }: { theme: StorekeeperTheme }) {
           ))}
         </div>
         <div className="space-y-3">
-          {auditTrail.map((item) => (
+          {activeAuditTrail.map((item) => (
             <article key={item.id} className={cn("rounded-3xl border p-4", surface.soft)}>
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
@@ -1514,6 +1525,8 @@ function AuditPanel({ theme }: { theme: StorekeeperTheme }) {
 }
 
 function AiInsights({ theme }: { theme: StorekeeperTheme }) {
+  const { data: fetchedAiInsights } = useSchoolQuery<typeof initialAiInsights>("/api/inventory/insights");
+  const activeAiInsights = fetchedAiInsights ?? initialAiInsights;
   const surface = getSurfaceClasses(theme);
   return (
     <section id="ai-insights" className={cn("rounded-3xl border p-5 md:p-6", surface.card)}>
@@ -1524,7 +1537,7 @@ function AiInsights({ theme }: { theme: StorekeeperTheme }) {
         action={<StatusChip icon={Sparkles} label="Pattern engine active" tone="accent" />}
       />
       <div className="mt-6 grid gap-3 lg:grid-cols-2">
-        {aiInsights.map((insight) => (
+        {activeAiInsights.map((insight) => (
           <motion.article
             key={insight.title}
             initial={false}
@@ -1653,6 +1666,8 @@ export function StorekeeperCommandCenter({
   const [searchTerm, setSearchTerm] = useState("");
   const [notice, setNotice] = useState("Store desk ready for receiving, issuing, stock counts, and approvals.");
   const surface = useMemo(() => getSurfaceClasses(theme), [theme]);
+  
+
   const searchResults = useMemo(() => {
     const query = searchTerm.trim().toLowerCase();
     if (!query) return [];

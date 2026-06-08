@@ -579,7 +579,7 @@ function StreamsWorkspace({ onStreamDetail }: { onStreamDetail: (title: string) 
                 </div>
                 <StatusChip label={average} tone={tone as Tone} />
               </div>
-              <div className="mt-4 grid grid-cols-3 gap-2 text-sm">
+              <div className="mt-4 grid sm:grid-cols-3 gap-2 text-sm">
                 <div><p className="font-black text-[#071D49]">{total}</p><p className="text-[#64748B]">Students</p></div>
                 <div><p className="font-black text-[#071D49]">{attendance}</p><p className="text-[#64748B]">Attendance</p></div>
                 <div><p className="font-black text-[#071D49]">{discipline}</p><p className="text-[#64748B]">Discipline score</p></div>

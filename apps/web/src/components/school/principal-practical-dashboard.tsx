@@ -38,6 +38,7 @@ import {
   type SchoolSmsLog,
   type SchoolOperationalEvent,
 } from "@/lib/school/school-operational-store";
+import { useQueryClient } from "@tanstack/react-query";
 import { useSchoolMutation } from "@/lib/data/school-hooks";
 import { dispatchOperationalWorkflowAction } from "@/lib/workflows/operational-workflow-client";
 
@@ -1813,6 +1814,7 @@ export function PrincipalPracticalCommandCenter({
   const attendanceRegisters = readPrincipalAttendanceRegisters(schoolId);
   const attendanceProviderConfigured = smsProviderConfigured(schoolId);
   
+  const queryClient = useQueryClient();
   const smsMutation = useSchoolMutation("/api/communication/sms");
 
   useEffect(() => {
@@ -1898,6 +1900,7 @@ export function PrincipalPracticalCommandCenter({
       { recipients: recipients.map(r => r.phone), message, sourceModule: "attendance" },
       {
         onSuccess: () => {
+          queryClient.invalidateQueries();
           publishPrincipalActionEvent({
             type: "PRINCIPAL_ABSENCE_SMS_QUEUED",
             module: "attendance",

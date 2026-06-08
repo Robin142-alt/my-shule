@@ -19,6 +19,7 @@ import {
 
 import type { WidgetState } from "@/lib/capability-engine/school-capability-engine";
 import { getCurrentSchoolId, publishSchoolOperationalEvent } from "@/lib/school/school-operational-store";
+import { useQueryClient } from "@tanstack/react-query";
 import { useSchoolMutation } from "@/lib/data/school-hooks";
 
 type ExamsManagerRouteMode = "hosted" | "public";
@@ -1382,6 +1383,7 @@ export function ExamsManagerCommandCenter({
     setNotice(`${record.label} exams search loaded ${record.view.replaceAll("-", " ")} workspace: ${record.detail}.`);
   }
 
+  const queryClient = useQueryClient();
   const configMutation = useSchoolMutation("/api/exams/configuration");
   const draftMutation = useSchoolMutation("/api/exams/draft");
   const alignMutation = useSchoolMutation("/api/exams/alignment");
@@ -1413,6 +1415,7 @@ export function ExamsManagerCommandCenter({
       },
       {
         onSuccess: () => {
+          queryClient.invalidateQueries();
           setSavedConfigurations((current) => [configuration, ...current].slice(0, 4));
           setNotice("Exam configuration saved for Dean review.");
         },
@@ -1448,6 +1451,7 @@ export function ExamsManagerCommandCenter({
       },
       {
         onSuccess: () => {
+          queryClient.invalidateQueries();
           publishSchoolOperationalEvent({
             schoolId,
             type: "EXAM_DRAFT_CREATED",
@@ -1504,6 +1508,7 @@ export function ExamsManagerCommandCenter({
       },
       {
         onSuccess: () => {
+          queryClient.invalidateQueries();
           publishSchoolOperationalEvent({
             schoolId,
             type: "EXAM_TERM_ALIGNMENT_CHECKED",
@@ -1561,6 +1566,7 @@ export function ExamsManagerCommandCenter({
       },
       {
         onSuccess: () => {
+          queryClient.invalidateQueries();
           publishSchoolOperationalEvent({
             schoolId,
             type: "MARKS_ENTRY_OPENED",
@@ -1618,6 +1624,7 @@ export function ExamsManagerCommandCenter({
       },
       {
         onSuccess: () => {
+          queryClient.invalidateQueries();
           publishSchoolOperationalEvent({
             schoolId,
             type: "REPORT_CARD_DRAFT_SENT_TO_DEAN",
@@ -1717,6 +1724,7 @@ export function ExamsManagerCommandCenter({
       },
       {
         onSuccess: () => {
+          queryClient.invalidateQueries();
           publishSchoolOperationalEvent({
             schoolId,
             type: "EXAMS_MANAGER_LIFECYCLE_ACTION_EXECUTED",
@@ -1798,6 +1806,17 @@ export function ExamsManagerCommandCenter({
                 <h1 className="mt-1 text-2xl font-black tracking-tight md:text-3xl">
                   Exams Manager Desk
                 </h1>
+                <div className="mt-4 -mx-4 flex overflow-x-auto px-4 pb-2 lg:hidden hide-scrollbar gap-2">
+                  {navItems.map((item) => (
+                    <button
+                      key={item.id}
+                      onClick={() => setActiveView(item.id)}
+                      className={`shrink-0 whitespace-nowrap rounded-full px-4 py-2 text-sm font-bold transition-colors ${activeView === item.id ? "bg-[#071D49] text-white" : "bg-white text-[#64748B] border border-[#D9E2EF]"}`}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
               </div>
               <div className="flex flex-wrap items-center gap-3">
                 <div className="relative hidden items-center gap-2 rounded-2xl border border-[#D9E2EF] bg-[#F8FAFC] px-3 py-2 text-sm font-bold text-[#64748B] md:flex">

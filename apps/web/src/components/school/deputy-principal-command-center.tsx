@@ -35,6 +35,7 @@ import {
   publishSchoolOperationalEvent,
   type SchoolOperationalEvent,
 } from "@/lib/school/school-operational-store";
+import { useQueryClient } from "@tanstack/react-query";
 import { useSchoolMutation } from "@/lib/data/school-hooks";
 
 function runtimeId(prefix: string) {
@@ -543,7 +544,7 @@ function Hero() {
           <div className="mt-6">
             <MiniLine points={[68, 72, 71, 79, 83, 86, 88]} tone="success" />
           </div>
-          <div className="mt-6 grid grid-cols-2 gap-3">
+          <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="rounded-[var(--radius-lg)] border border-cyan-300/25 bg-cyan-400/10 p-4">
               <p className="text-xs font-black uppercase tracking-[0.14em] text-cyan-100/70">Classes normal</p>
               <p className="mt-2 text-3xl font-black">41/44</p>
@@ -721,7 +722,7 @@ function DisciplineIntelligence() {
         <div className="rounded-[var(--radius-xl)] border border-white/10 bg-white/[0.055] p-4">
           <h3 className="font-black">Dormitory incident map</h3>
           <p className="mt-2 text-sm text-white/60">Redder zones need faster supervision.</p>
-          <div className="mt-5 grid grid-cols-3 gap-3">
+          <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
             {[
               ["Dorm A", "Low", "success"],
               ["Dorm B", "High", "danger"],
@@ -1001,6 +1002,7 @@ function MobileActions() {
 }
 
 export function DeputyPrincipalCommandCenter({ routeMode }: { routeMode: DeputyRouteMode }) {
+  const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState("");
   const [notice, setNotice] = useState("Deputy desk ready for discipline, attendance, staff duty, and parent follow-up.");
   const [emergencyOpen, setEmergencyOpen] = useState(false);
@@ -1041,6 +1043,7 @@ export function DeputyPrincipalCommandCenter({ routeMode }: { routeMode: DeputyR
       { action: "emergency_response_review", details: "Deputy reviewed active critical alerts" },
       {
         onSuccess: () => {
+          queryClient.invalidateQueries();
           publishSchoolOperationalEvent({
             schoolId,
             type: "EMERGENCY_RESPONSE_REVIEWED",
@@ -1088,6 +1091,7 @@ export function DeputyPrincipalCommandCenter({ routeMode }: { routeMode: DeputyR
       { alertTitle: selectedAlertAction.alert.title, action: selectedAlertAction.action },
       {
         onSuccess: () => {
+          queryClient.invalidateQueries();
           publishSchoolOperationalEvent({
             schoolId,
             type: "DEPUTY_ALERT_ACTION_SAVED",
@@ -1130,6 +1134,7 @@ export function DeputyPrincipalCommandCenter({ routeMode }: { routeMode: DeputyR
       { reportType: report },
       {
         onSuccess: () => {
+          queryClient.invalidateQueries();
           publishSchoolOperationalEvent({
             schoolId,
             type: "REPORT_PREPARED",

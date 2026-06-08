@@ -516,7 +516,7 @@ function SubjectsWorkspace() {
           <article key={subject} className="rounded-2xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 transition hover:-translate-y-0.5 hover:shadow-md">
             <h3 className="text-lg font-black text-[#071D49]">{subject}</h3>
             <p className="mt-1 text-sm font-semibold text-[#64748B]">Teacher assigned: {teacher}</p>
-            <div className="mt-4 grid grid-cols-3 gap-2 text-sm">
+            <div className="mt-4 grid sm:grid-cols-3 gap-2 text-sm">
               <div><p className="font-black text-[#071D49]">{students}</p><p className="text-[#64748B]">Students</p></div>
               <div><p className="font-black text-[#071D49]">{coverage}</p><p className="text-[#64748B]">Progress</p></div>
               <div><p className="font-black text-[#071D49]">{assessments}</p><p className="text-[#64748B]">Assessments</p></div>

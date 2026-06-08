@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   Bell,
   BookOpenCheck,
@@ -39,7 +40,7 @@ type TeacherView =
   | "timetable"
   | "reports"
   | "settings";
-type TeacherAction = "attendance" | "marks" | "assignment" | "resource" | "sms" | "cbt" | "report" | null;
+type TeacherAction = "attendance" | "marks" | "assignment" | "resource" | "sms" | "cbt" | "report" | "requisition" | null;
 
 type ClassRecord = {
   id: string;
@@ -329,6 +330,7 @@ function HomeWorkspace({
     ["Upload notes", "lms", "resource", "Lesson notes upload form ready."],
     ["Send SMS", "communication", "sms", "Parent SMS confirmation form ready."],
     ["Generate report", "reports", "report", "Subject report options ready."],
+    ["Request item", "home", "requisition", "Item request form ready."],
   ];
 
   return (
@@ -392,6 +394,7 @@ function ActionFormPanel({
   onSubmitResource,
   onSubmitSms,
   onPrintSubjectReport,
+  onSubmitRequisition,
 }: {
   activeAction: TeacherAction;
   classes: ClassRecord[];
@@ -402,6 +405,7 @@ function ActionFormPanel({
   onSubmitAssignment: (record: Omit<AssignmentRecord, "id" | "submitted" | "status">) => void;
   onSubmitResource: (record: Omit<ResourceRecord, "id" | "status">) => void;
   onSubmitSms: (record: Omit<MessageRecord, "id" | "status" | "time">) => void;
+  onSubmitRequisition: (item: string, quantity: string) => void;
   onPrintSubjectReport: () => void;
 }) {
   const [classId, setClassId] = useState(classes[0]?.id ?? "");
@@ -417,6 +421,8 @@ function ActionFormPanel({
   const [resourceClass, setResourceClass] = useState(classes[0]?.name ?? "");
   const [smsAudience, setSmsAudience] = useState("Form 2 Blue parents");
   const [smsBody, setSmsBody] = useState("");
+  const [requisitionItem, setRequisitionItem] = useState("");
+  const [requisitionQuantity, setRequisitionQuantity] = useState("");
 
   if (!activeAction) return null;
 
@@ -434,6 +440,7 @@ function ActionFormPanel({
             {activeAction === "sms" ? "Send class message" : null}
             {activeAction === "report" ? "Generate subject report" : null}
             {activeAction === "cbt" ? "Start CBT supervision" : null}
+            {activeAction === "requisition" ? "Request item from Store" : null}
           </h2>
           <p className="mt-1 text-sm font-semibold text-[#64748B]">This action updates the visible teacher records immediately.</p>
         </div>
@@ -517,6 +524,23 @@ function ActionFormPanel({
             {classes.map((record) => <option key={record.id} value={record.name}>{record.name}</option>)}
           </select>
           <button type="submit" className="rounded-xl bg-[#071D49] px-4 py-2 text-sm font-black text-white">Upload</button>
+        </form>
+      ) : null}
+
+      
+      {activeAction === "requisition" ? (
+        <form
+          className="grid gap-3 md:grid-cols-[1fr_140px_auto]"
+          onSubmit={(event) => {
+            event.preventDefault();
+            onSubmitRequisition(requisitionItem, requisitionQuantity);
+            setRequisitionItem("");
+            setRequisitionQuantity("");
+          }}
+        >
+          <input value={requisitionItem} onChange={(event) => setRequisitionItem(event.target.value)} className={inputClass} aria-label="Item to request" placeholder="Item name (e.g. Chalk, Pens)" required />
+          <input value={requisitionQuantity} onChange={(event) => setRequisitionQuantity(event.target.value)} className={inputClass} aria-label="Quantity" placeholder="Quantity" required />
+          <button type="submit" className="rounded-xl bg-[#071D49] px-4 py-2 text-sm font-black text-white">Submit request</button>
         </form>
       ) : null}
 
@@ -881,6 +905,8 @@ export function TeacherCommandCenter({ routeMode }: { routeMode: TeacherRouteMod
   const assignmentMutation = useSchoolMutation("/api/academics/assignments");
   const resourceMutation = useSchoolMutation("/api/academics/resources");
   const smsMutation = useSchoolMutation("/api/communication/sms");
+  const reqMutation = useSchoolMutation("/api/inventory/requisitions");
+  const queryClient = useQueryClient();
 
   // Keep a safe fallback to ensure the UI doesn't visually break during demo phases
   const classes = fetchedClasses ?? initialClasses;
@@ -929,6 +955,7 @@ export function TeacherCommandCenter({ routeMode }: { routeMode: TeacherRouteMod
       { classId, absent, absentLearners },
       {
         onSuccess: () => {
+          queryClient.invalidateQueries();
           publishSchoolOperationalEvent({
             schoolId,
             type: "ATTENDANCE_SUBMITTED",
@@ -955,6 +982,7 @@ export function TeacherCommandCenter({ routeMode }: { routeMode: TeacherRouteMod
       { batchId, submitted },
       {
         onSuccess: () => {
+          queryClient.invalidateQueries();
           publishSchoolOperationalEvent({
             schoolId,
             type: "MARKS_SUBMITTED",
@@ -981,6 +1009,7 @@ export function TeacherCommandCenter({ routeMode }: { routeMode: TeacherRouteMod
       record,
       {
         onSuccess: () => {
+          queryClient.invalidateQueries();
           publishSchoolOperationalEvent({
             schoolId,
             type: "ASSIGNMENT_CREATED",
@@ -1007,6 +1036,7 @@ export function TeacherCommandCenter({ routeMode }: { routeMode: TeacherRouteMod
       record,
       {
         onSuccess: () => {
+          queryClient.invalidateQueries();
           publishSchoolOperationalEvent({
             schoolId,
             type: "RESOURCE_PUBLISHED",
@@ -1027,12 +1057,42 @@ export function TeacherCommandCenter({ routeMode }: { routeMode: TeacherRouteMod
     );
   }
 
+  
+  function submitRequisition(item: string, quantity: string) {
+    const schoolId = getCurrentSchoolId();
+    reqMutation.mutate(
+      { item, quantity, department: "Academics", requester: "Teacher" },
+      {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: ["school", schoolId, "/api/inventory/requisitions"] });
+          publishSchoolOperationalEvent({
+            schoolId,
+            type: "REQUISITION_SUBMITTED",
+            module: "inventory",
+            actorRole: "teacher",
+            title: "Item requested",
+            body: `Requested ${quantity} of ${item} from Storekeeper.`,
+            entityId: runtimeId("req"),
+            severity: "info",
+            payload: { item, quantity },
+            notifications: []
+          });
+          setNotice("Requisition sent to Storekeeper.");
+          setActiveAction(null);
+        },
+        onError: (err) => setNotice(`Action failed: ${err.message}`)
+      }
+    );
+  }
+
+
   function submitSms(record: Omit<MessageRecord, "id" | "status" | "time">) {
     const schoolId = getCurrentSchoolId();
     smsMutation.mutate(
       record,
       {
         onSuccess: () => {
+          queryClient.invalidateQueries();
           publishSchoolOperationalEvent({
             schoolId,
             type: "SMS_SENT",
@@ -1092,6 +1152,7 @@ export function TeacherCommandCenter({ routeMode }: { routeMode: TeacherRouteMod
       { id, action: "grade" },
       {
         onSuccess: () => {
+          queryClient.invalidateQueries();
           publishSchoolOperationalEvent({
             schoolId,
             type: "ASSIGNMENT_GRADED",
@@ -1117,6 +1178,7 @@ export function TeacherCommandCenter({ routeMode }: { routeMode: TeacherRouteMod
       { id, action: "publish" },
       {
         onSuccess: () => {
+          queryClient.invalidateQueries();
           publishSchoolOperationalEvent({
             schoolId,
             type: "RESOURCE_PUBLISHED",
@@ -1164,6 +1226,7 @@ export function TeacherCommandCenter({ routeMode }: { routeMode: TeacherRouteMod
                 onSubmitAssignment={submitAssignment}
                 onSubmitResource={submitResource}
                 onSubmitSms={submitSms}
+                onSubmitRequisition={submitRequisition}
                 onPrintSubjectReport={printSubjectReport}
               />
               

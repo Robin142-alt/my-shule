@@ -429,24 +429,26 @@ function PendingReviews({ capability, onAction }: { capability: DeanWidgetCapabi
   const widget = widgets.find((item) => item.id === "pending")!;
   return (
     <WidgetFrame widget={widget} capability={capability}>
-      <div className="overflow-hidden rounded-2xl border border-[#D9E2EF] bg-white">
-        <div className="grid grid-cols-[1.2fr_0.8fr_0.8fr_1fr] bg-[#EEF4FB] px-4 py-3 text-xs font-black uppercase tracking-[0.14em] text-[#64748B]">
-          <span>Exam name</span>
-          <span>Class / stream</span>
-          <span>Completion</span>
-          <span>Alerts</span>
-        </div>
-        {[
-          ["Term 2 CAT 1", "Class 7B", "92%", "3 missing subject marks"],
-          ["Midterm Assessment", "Form 2 East", "100%", "Teacher submission completeness verified"],
-          ["Mock Moderation", "Form 4 North", "87%", "Two incomplete grading sheets"],
-        ].map((row) => (
-          <div key={row.join("-")} className="grid grid-cols-[1.2fr_0.8fr_0.8fr_1fr] border-t border-[#E2E8F0] px-4 py-3 text-sm">
-            {row.map((cell) => (
-              <span key={cell} className="font-semibold text-[#334155]">{cell}</span>
-            ))}
+      <div className="overflow-x-auto rounded-2xl border border-[#D9E2EF] bg-white">
+        <div className="min-w-[640px]">
+          <div className="grid grid-cols-[1.2fr_0.8fr_0.8fr_1fr] bg-[#EEF4FB] px-4 py-3 text-xs font-black uppercase tracking-[0.14em] text-[#64748B]">
+            <span>Exam name</span>
+            <span>Class / stream</span>
+            <span>Completion</span>
+            <span>Alerts</span>
           </div>
-        ))}
+          {[
+            ["Term 2 CAT 1", "Class 7B", "92%", "3 missing subject marks"],
+            ["Midterm Assessment", "Form 2 East", "100%", "Teacher submission completeness verified"],
+            ["Mock Moderation", "Form 4 North", "87%", "Two incomplete grading sheets"],
+          ].map((row) => (
+            <div key={row.join("-")} className="grid grid-cols-[1.2fr_0.8fr_0.8fr_1fr] border-t border-[#E2E8F0] px-4 py-3 text-sm">
+              {row.map((cell) => (
+                <span key={cell} className="font-semibold text-[#334155]">{cell}</span>
+              ))}
+            </div>
+          ))}
+        </div>
       </div>
       <div className="mt-4 flex flex-wrap gap-2">
         <ActionButton onAction={onAction}>Open review</ActionButton>

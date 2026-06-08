@@ -6,6 +6,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 
+import { SchoolOperationalEventsService } from '../events/school-operational-events.service';
 import { RequestContextService } from '../../common/request-context/request-context.service';
 import { ModuleAccessService } from '../module-access/module-access.service';
 import {
@@ -26,6 +27,7 @@ export class ClinicService {
   constructor(
     private readonly requestContext: RequestContextService,
     private readonly repository: ClinicRepository,
+      @Optional() private readonly schoolEvents?: SchoolOperationalEventsService,
     @Optional()
     private readonly moduleAccessService?: ModuleAccessService,
   ) {}
@@ -92,6 +94,20 @@ export class ClinicService {
     await this.audit('clinic.visit_recorded', 'clinic_visit', visit?.id, {
       student_id: dto.student_id,
       status: dto.status ?? 'open',
+    });
+
+    await this.schoolEvents?.recordSchoolOperation({
+      event: {
+        id: visit?.id,
+        type: 'clinic.visit_recorded',
+        module: 'clinic',
+        actorRole: this.requestContext.requireStore().role || 'staff',
+        title: 'Clinic Visit Recorded',
+        body: `Clinic visit recorded for student ${dto.student_id}`,
+        entityId: visit?.id,
+        severity: 'info',
+        payload: { student_id: dto.student_id },
+      },
     });
 
     return visit;

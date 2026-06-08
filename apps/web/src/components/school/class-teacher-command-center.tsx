@@ -451,7 +451,7 @@ function MyClassWorkspace({
                 <p className="text-xs font-bold text-[#64748B]">{adm}</p>
               </div>
             </div>
-            <div className="mt-4 grid grid-cols-2 gap-2 text-xs font-bold text-[#475569]">
+            <div className="mt-4 grid sm:grid-cols-2 gap-2 text-xs font-bold text-[#475569]">
               <span>Attendance {attendance}</span>
               <span>Average {average}</span>
               <span>{fee}</span>
@@ -482,21 +482,23 @@ function AttendanceWorkspace({ onAttendanceAction }: { onAttendanceAction: (acti
         </div>
       }
     >
-      <div className="overflow-hidden rounded-2xl border border-[#D8E0EC]">
-        <div className="grid grid-cols-[1fr_120px_1fr_90px] bg-[#EEF5FF] px-4 py-3 text-xs font-black uppercase tracking-[0.14em] text-[#64748B]">
-          <span>Student</span>
-          <span>Status</span>
-          <span>Reason</span>
-          <span>Time</span>
-        </div>
-        {attendanceRows.map(([name, status, reason, time]) => (
-          <div key={name} className="grid grid-cols-[1fr_120px_1fr_90px] items-center border-t border-[#E2E8F0] px-4 py-3 text-sm">
-            <span className="font-black text-[#071D49]">{name}</span>
-            <StatusChip label={status} tone={status === "Absent" ? "danger" : status === "Late" ? "warning" : "success"} />
-            <span className="text-[#64748B]">{reason}</span>
-            <span className="font-bold text-[#071D49]">{time}</span>
+      <div className="overflow-x-auto rounded-2xl border border-[#D8E0EC]">
+        <div className="min-w-[600px]">
+          <div className="grid grid-cols-[1fr_120px_1fr_90px] bg-[#EEF5FF] px-4 py-3 text-xs font-black uppercase tracking-[0.14em] text-[#64748B]">
+            <span>Student</span>
+            <span>Status</span>
+            <span>Reason</span>
+            <span>Time</span>
           </div>
-        ))}
+          {attendanceRows.map(([name, status, reason, time]) => (
+            <div key={name} className="grid grid-cols-[1fr_120px_1fr_90px] items-center border-t border-[#E2E8F0] px-4 py-3 text-sm">
+              <span className="font-black text-[#071D49]">{name}</span>
+              <StatusChip label={status} tone={status === "Absent" ? "danger" : status === "Late" ? "warning" : "success"} />
+              <span className="text-[#64748B]">{reason}</span>
+              <span className="font-bold text-[#071D49]">{time}</span>
+            </div>
+          ))}
+        </div>
       </div>
     </Panel>
   );

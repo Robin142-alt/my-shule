@@ -64,6 +64,7 @@ import {
   subscribeToSchoolDataUpdates,
   updateSchoolRecord,
 } from "@/lib/school/school-operational-store";
+import { useQueryClient } from "@tanstack/react-query";
 import { useSchoolMutation, useSchoolQuery } from "@/lib/data/school-hooks";
 import {
   getKisumuBoysRoleFeed,
@@ -4737,7 +4738,7 @@ function RecoveryPanel({ blueprint }: { blueprint: OperationalRoleBlueprint }) {
           <ShieldCheck className="h-4 w-4 text-accent" />
           <h2 className="text-lg font-bold text-foreground">Connection and form safety</h2>
         </div>
-        <div className="mt-4 grid grid-cols-2 gap-2">
+        <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
           {["ACTIVE", ...blueprint.states.filter((state) => state !== "LOADING")].map((state) => (
             <span
               key={state}
@@ -5362,6 +5363,7 @@ function GenericRoleOperationalCommandCenter({
   initialWorkspace?: string;
   tenantSlug?: string | null;
 }) {
+  const queryClient = useQueryClient();
   const paymentMutation = useSchoolMutation("/api/finance/payment");
   const blueprintId = roleIdMap[role];
   const blueprint = blueprintId ? getOperationalRoleBlueprint(blueprintId) : null;
@@ -7266,6 +7268,7 @@ function GenericRoleOperationalCommandCenter({
 
     paymentMutation.mutate(newPayment, {
       onSuccess: () => {
+          queryClient.invalidateQueries();
         setFeePayments((current) => [newPayment, ...current]);
         setFeeBalances((current) => current.map((item) => item.admissionNo === payment.admissionNo && nextBalanceRecord ? nextBalanceRecord : item));
         // addSchoolRecord("finance-payments", newPayment, schoolId);

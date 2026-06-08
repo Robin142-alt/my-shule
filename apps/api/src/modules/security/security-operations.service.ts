@@ -1,4 +1,5 @@
-import { Injectable, InternalServerErrorException } from '@nestjs/common';
+import { Injectable, Optional, InternalServerErrorException } from '@nestjs/common';
+import { SchoolOperationalEventsService } from '../events/school-operational-events.service';
 import { DatabaseService } from '../../database/database.service';
 import { RequestContextService } from '../../common/request-context/request-context.service';
 import { VisitorsService } from '../visitors/visitors.service';
@@ -10,6 +11,7 @@ export class SecurityOperationsService {
     private readonly db: DatabaseService,
     private readonly requestContext: RequestContextService,
     private readonly visitorsService: VisitorsService,
+    @Optional() private readonly schoolEvents?: SchoolOperationalEventsService,
   ) {}
 
   private get tenantId(): string {
@@ -46,6 +48,20 @@ export class SecurityOperationsService {
 
   async createVisitorRecord(dto: CreateVisitorDto) {
     // Proxy to visitor service
-    return this.visitorsService.createRecord(dto);
+    const record = await this.visitorsService.createRecord(dto as any);
+    await this.schoolEvents?.recordSchoolOperation({
+      event: {
+        id: record.id,
+        type: 'security.visitor_created',
+        module: 'security',
+        actorRole: this.requestContext.getStore()?.role || 'staff',
+        title: 'Visitor Record Created',
+        body: `A visitor record was created for ${dto.title}`,
+        entityId: record.id,
+        severity: 'info',
+        payload: { visitor_name: dto.title },
+      },
+    });
+    return record;
   }
 }

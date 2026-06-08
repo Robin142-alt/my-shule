@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { EventsModule } from '../events/events.module';
 
 import { StudentsModule } from '../students/students.module';
 import { ClinicController } from './clinic.controller';
@@ -8,7 +9,8 @@ import { ClinicService } from './clinic.service';
 import { ClinicRepository } from './repositories/clinic.repository';
 
 @Module({
-  imports: [StudentsModule],
+  
+  imports: [StudentsModule, EventsModule],
   controllers: [ClinicController],
   providers: [
     ClinicSchemaService,
