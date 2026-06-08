@@ -771,13 +771,13 @@ export function DeanAcademicsCommandCenter({
 
   function openView(view: DeanView) {
     setActiveView(view);
-    setNotice(`${getViewLabel(view)} opened.`);
+    setNotice(`${getViewLabel(view)} workspace ready.`);
   }
 
   function openSearchRecord(record: DeanSearchRecord) {
     setActiveView(record.view);
     setSearchTerm("");
-    setNotice(`${record.label} opened in ${getViewLabel(record.view)}.`);
+    setNotice(`${record.label} dean search loaded ${getViewLabel(record.view)} workspace: ${record.detail}.`);
   }
 
   function openDeanAction(label: string) {
@@ -819,7 +819,9 @@ export function DeanAcademicsCommandCenter({
       ],
     });
 
-    setNotice(`${selectedAction} saved for Dean follow-up.`);
+    setNotice(
+      `${selectedAction} academic action saved for ${schoolId}: ${entityId}, Term 2 CAT 1 Class 7B, Exams Manager/Principal/Class Teacher notified.`,
+    );
     setSelectedAction(null);
   }
 

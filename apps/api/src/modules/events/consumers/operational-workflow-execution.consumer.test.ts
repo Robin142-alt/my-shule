@@ -6,17 +6,24 @@ import type { DomainEvent, WorkflowActionDispatchedPayload } from '../events.typ
 
 test('OperationalWorkflowExecutionConsumer publishes a governed execution completion event', async () => {
   const publishedEvents: Record<string, unknown>[] = [];
+  const notifications: Record<string, unknown>[] = [];
   const consumer = new OperationalWorkflowExecutionConsumer({
     publish: async (input: Record<string, unknown>) => {
       publishedEvents.push(input);
       return { id: 'completed-event-1' };
+    },
+  } as never, {
+    upsertFromSchoolOperation: async (input: Record<string, unknown>) => {
+      notifications.push(input);
     },
   } as never);
 
   await consumer.handle(buildWorkflowActionEvent());
 
   assert.equal(publishedEvents.length, 1);
+  assert.equal(notifications.length, 1);
   const completedEvent = publishedEvents[0];
+  const routedTask = notifications[0];
 
   assert.equal(
     completedEvent.event_key,
@@ -35,6 +42,18 @@ test('OperationalWorkflowExecutionConsumer publishes a governed execution comple
   assert.equal(payload.aggregate_id, 'exam-batch-1');
   assert.equal(payload.status, 'COMPLETED');
   assert.deepEqual(payload.emitted_events, ['RESULTS_APPROVED', 'PRINCIPAL_APPROVAL_GRANTED']);
+
+  assert.equal(routedTask.tenantId, 'tenant-1');
+  assert.equal(routedTask.operationId, 'request-1');
+  const notification = routedTask.notification as Record<string, unknown>;
+  assert.equal(notification.type, 'workflow.action.dispatched');
+  assert.equal(notification.requestStatus, 'routed');
+  assert.equal(notification.originRole, 'principal');
+  assert.equal(notification.sourceModule, 'exams');
+  assert.equal(notification.relatedModule, 'exams');
+  assert.equal(notification.relatedRecordId, 'exam-batch-1');
+  assert.deepEqual(notification.audienceRoles, ['dean-of-academics', 'exams-manager']);
+  assert.match(String(notification.body), /workflows\.examRelease\.approve/);
 });
 
 function buildWorkflowActionEvent(): DomainEvent<'workflow.action.dispatched'> {
@@ -59,6 +78,9 @@ function buildWorkflowActionEvent(): DomainEvent<'workflow.action.dispatched'> {
     requested_at: '2026-05-26T00:00:00.000Z',
     payload: {
       comment: 'Approved after Dean review',
+      sourceModule: 'exams',
+      relatedModule: 'exams',
+      targetRoles: ['dean-of-academics', 'exams-manager'],
     },
   };
 

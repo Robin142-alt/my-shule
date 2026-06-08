@@ -76,7 +76,7 @@ export function useDashboardState(role: DashboardRole) {
           title: `${action.label} started`,
           detail: queuedOffline
             ? "Action queued locally and will sync once the network returns."
-            : "Action opened from the quick actions rail.",
+            : "Quick action workspace selected from the rail.",
           actor: "You",
           href: getDashboardWorkspaceHref(role, action.href),
           timeLabel: "now",

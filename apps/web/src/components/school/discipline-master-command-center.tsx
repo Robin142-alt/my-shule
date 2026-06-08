@@ -271,7 +271,7 @@ const incidentFeed: IncidentItem[] = [
     title: "Substance abuse suspicion",
     student: "Kevin T - Form 3 West",
     meta: "10:42 AM - Chemistry block - Reported by Mr. Otieno",
-    action: "Search logged, parent contact pending, counsellor watch opened.",
+    action: "Search logged, parent contact pending, counsellor watch ready.",
     tone: "danger",
   },
   {
@@ -1108,7 +1108,7 @@ export function DisciplineMasterCommandCenter({
   function openSearchRecord(record: DisciplineSearchRecord) {
     setSearchTerm("");
     setActiveView(record.view);
-    setNotice(`${record.label} opened for discipline follow-up.`);
+    setNotice(`${record.label} discipline search loaded ${record.view.replaceAll("-", " ")} workspace: ${record.detail}.`);
   }
 
   function openStudentAction(student: RiskStudent) {

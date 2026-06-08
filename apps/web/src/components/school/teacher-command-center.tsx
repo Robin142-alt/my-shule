@@ -81,7 +81,7 @@ type MessageRecord = {
   id: string;
   audience: string;
   body: string;
-  status: "Sent" | "Queued";
+  status: "Queued";
   time: string;
 };
 
@@ -142,7 +142,7 @@ const initialResources: ResourceRecord[] = [
 ];
 
 const initialMessages: MessageRecord[] = [
-  { id: "msg-001", audience: "Form 2 Blue parents", body: "CAT 2 marks entry is in progress. Revision guidance will be shared by Friday.", status: "Sent", time: "08:20" },
+  { id: "msg-001", audience: "Form 2 Blue parents", body: "CAT 2 marks entry is in progress. Revision guidance will be shared by Friday.", status: "Queued", time: "08:20" },
   { id: "msg-002", audience: "Grade 7 East learners", body: "Remember to submit the fractions homework before Friday.", status: "Queued", time: "09:45" },
 ];
 
@@ -159,7 +159,8 @@ function getGreeting() {
 }
 
 function statusClass(status: string) {
-  if (["Submitted", "Sent", "Published"].includes(status)) return "border-emerald-200 bg-emerald-50 text-emerald-700";
+  if (["Submitted", "Published"].includes(status)) return "border-emerald-200 bg-emerald-50 text-emerald-700";
+  if (status === "Queued") return "border-amber-200 bg-amber-50 text-amber-700";
   if (["Late", "Needs review", "Queued", "Grading"].includes(status)) return "border-orange-200 bg-orange-50 text-orange-700";
   return "border-blue-200 bg-blue-50 text-blue-700";
 }
@@ -284,8 +285,8 @@ function Topbar({
               </div>
             ) : null}
           </div>
-          <button type="button" onClick={() => onStartAction("marks", "marks", "Marks entry form opened.")} className="rounded-xl bg-[#FF7A1A] px-4 py-1.5 text-sm font-black text-white">Enter marks</button>
-          <button type="button" onClick={() => onStartAction("sms", "communication", "Parent SMS form opened.")} className="rounded-xl border border-[#D8E0EC] bg-white px-4 py-1.5 text-sm font-black text-[#071D49]">Send SMS</button>
+          <button type="button" onClick={() => onStartAction("marks", "marks", "Marks entry form ready.")} className="rounded-xl bg-[#FF7A1A] px-4 py-1.5 text-sm font-black text-white">Enter marks</button>
+          <button type="button" onClick={() => onStartAction("sms", "communication", "Parent SMS confirmation form ready.")} className="rounded-xl border border-[#D8E0EC] bg-white px-4 py-1.5 text-sm font-black text-[#071D49]">Send SMS</button>
         </div>
       </div>
     </header>
@@ -319,12 +320,12 @@ function HomeWorkspace({
   summaryCards: Array<[label: string, value: string, detail: string]>;
 }) {
   const quickActions: Array<[label: string, view: TeacherView, action: TeacherAction, message: string]> = [
-    ["Mark attendance", "classes", "attendance", "Attendance register form opened."],
-    ["Enter exam marks", "marks", "marks", "Marks entry form opened."],
-    ["Add assignment", "assignments", "assignment", "Assignment form opened."],
-    ["Upload notes", "lms", "resource", "Lesson notes upload form opened."],
-    ["Send SMS", "communication", "sms", "Parent SMS form opened."],
-    ["Generate report", "reports", "report", "Subject report options opened."],
+    ["Mark attendance", "classes", "attendance", "Attendance register form ready."],
+    ["Enter exam marks", "marks", "marks", "Marks entry form ready."],
+    ["Add assignment", "assignments", "assignment", "Assignment form ready."],
+    ["Upload notes", "lms", "resource", "Lesson notes upload form ready."],
+    ["Send SMS", "communication", "sms", "Parent SMS confirmation form ready."],
+    ["Generate report", "reports", "report", "Subject report options ready."],
   ];
 
   return (
@@ -606,7 +607,7 @@ function ClassesWorkspace({
           record.absent,
           `${record.coverage}%`,
           <div key="actions" className="flex flex-wrap gap-2">
-            <button type="button" onClick={() => onStartAction("attendance", "classes", `${record.name} attendance register opened.`)} className="rounded-lg border border-[#BFDBFE] px-3 py-1.5 text-xs font-black text-[#1D4ED8]">Mark Attendance</button>
+            <button type="button" onClick={() => onStartAction("attendance", "classes", `${record.name} attendance register ready.`)} className="rounded-lg border border-[#BFDBFE] px-3 py-1.5 text-xs font-black text-[#1D4ED8]">Mark Attendance</button>
             <button type="button" onClick={() => onOpenDetail({ title: record.name, rows: [["Learners", String(record.learners)], ["Current lesson", record.lesson], ["Room", record.room], ["Attendance", record.attendance], ["Absent today", String(record.absent)], ["Syllabus coverage", `${record.coverage}%`]] })} className="rounded-lg border border-[#D8E0EC] px-3 py-1.5 text-xs font-black text-[#071D49]">View Register</button>
           </div>,
         ])}
@@ -632,7 +633,7 @@ function MarksWorkspace({
           `${record.submitted}/${record.total}`,
           <StatusPill key="status" status={record.status} />,
           <div key="actions" className="flex flex-wrap gap-2">
-            <button type="button" onClick={() => onStartAction("marks", "marks", `${record.exam} marks entry opened.`)} className="rounded-lg border border-[#BFDBFE] px-3 py-1.5 text-xs font-black text-[#1D4ED8]">Enter Marks</button>
+            <button type="button" onClick={() => onStartAction("marks", "marks", `${record.exam} marks entry ready.`)} className="rounded-lg border border-[#BFDBFE] px-3 py-1.5 text-xs font-black text-[#1D4ED8]">Enter Marks</button>
             <button type="button" onClick={() => exportCsv(`${record.id}.csv`, [{ exam: record.exam, class: record.className, submitted: record.submitted, total: record.total, status: record.status }])} className="rounded-lg border border-[#D8E0EC] px-3 py-1.5 text-xs font-black text-[#071D49]">Export CSV</button>
           </div>,
         ])}
@@ -653,7 +654,7 @@ function AssignmentsWorkspace({
   return (
     <Panel title="Assignments" description="Create, publish, collect, grade, and track subject assignments." icon={ClipboardCheck}>
       <div className="mb-3">
-        <button type="button" onClick={() => onStartAction("assignment", "assignments", "Assignment form opened.")} className="rounded-xl bg-[#071D49] px-4 py-2 text-sm font-black text-white">Add Assignment</button>
+        <button type="button" onClick={() => onStartAction("assignment", "assignments", "Assignment form ready.")} className="rounded-xl bg-[#071D49] px-4 py-2 text-sm font-black text-white">Add Assignment</button>
       </div>
       <RecordTable
         columns={["Assignment", "Class", "Due", "Submitted", "Status", "Action"]}
@@ -682,7 +683,7 @@ function LmsWorkspace({
   return (
     <Panel title="LMS resources" description="Upload notes, publish learning files, and track class access." icon={UploadCloud}>
       <div className="mb-3">
-        <button type="button" onClick={() => onStartAction("resource", "lms", "Lesson resource upload form opened.")} className="rounded-xl bg-[#071D49] px-4 py-2 text-sm font-black text-white">Upload Notes</button>
+        <button type="button" onClick={() => onStartAction("resource", "lms", "Lesson resource upload form ready.")} className="rounded-xl bg-[#071D49] px-4 py-2 text-sm font-black text-white">Upload Notes</button>
       </div>
       <RecordTable
         columns={["Resource", "Class", "Type", "Status", "Action"]}
@@ -708,7 +709,7 @@ function CommunicationWorkspace({
   return (
     <Panel title="Communication" description="Academic SMS, parent questions, class notices, and delivery logs." icon={MessageCircle}>
       <div className="mb-3">
-        <button type="button" onClick={() => onStartAction("sms", "communication", "Parent SMS form opened.")} className="rounded-xl bg-[#071D49] px-4 py-2 text-sm font-black text-white">Send SMS</button>
+        <button type="button" onClick={() => onStartAction("sms", "communication", "Parent SMS confirmation form ready.")} className="rounded-xl bg-[#071D49] px-4 py-2 text-sm font-black text-white">Send SMS</button>
       </div>
       <RecordTable
         columns={["Audience", "Message", "Time", "Status"]}
@@ -728,7 +729,7 @@ function CbtWorkspace({ onStartAction }: { onStartAction: (action: TeacherAction
     <Panel title="CBT exams" description="Start supervised tests, monitor progress, and review CBT submissions." icon={MonitorPlay}>
       <div className="grid gap-3 md:grid-cols-3">
         {["Start supervised test", "Review active submissions", "Export CBT results"].map((item) => (
-          <button key={item} type="button" onClick={() => onStartAction("cbt", "cbt", `${item} opened.`)} className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 text-left font-bold text-[#071D49]">
+          <button key={item} type="button" onClick={() => onStartAction("cbt", "cbt", `${item} workspace ready.`)} className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 text-left font-bold text-[#071D49]">
             {item}
           </button>
         ))}
@@ -757,7 +758,7 @@ function PlanningWorkspace({
           <button
             key={item}
             type="button"
-            onClick={() => onStartAction(item.toLowerCase().includes("report") || item.toLowerCase().includes("export") || item.toLowerCase().includes("pdf") || item.toLowerCase().includes("excel") ? "report" : null, "reports", `${item} opened.`)}
+            onClick={() => onStartAction(item.toLowerCase().includes("report") || item.toLowerCase().includes("export") || item.toLowerCase().includes("pdf") || item.toLowerCase().includes("excel") ? "report" : null, "reports", `${item} workspace ready.`)}
             className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 text-left font-bold text-[#071D49] transition hover:-translate-y-0.5 hover:shadow-md"
           >
             {item}
@@ -863,7 +864,7 @@ export function TeacherCommandCenter({ routeMode }: { routeMode: TeacherRouteMod
 
   function openSearchRecord(record: (typeof teacherSearchRecords)[number]) {
     setActiveView(record.view);
-    setNotice(`${record.label} opened.`);
+    setNotice(`${record.label} workspace ready.`);
     setSearchTerm("");
   }
 
@@ -1012,7 +1013,7 @@ export function TeacherCommandCenter({ routeMode }: { routeMode: TeacherRouteMod
     const newMessage: MessageRecord = {
       ...record,
       id: runtimeId("sms"),
-      status: "Sent",
+      status: "Queued",
       time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
     };
     addSchoolRecord("teacher-messages", newMessage, schoolId);
@@ -1035,8 +1036,8 @@ export function TeacherCommandCenter({ routeMode }: { routeMode: TeacherRouteMod
       notifications: [
         {
           audienceRoles: ["principal", "class-teacher"],
-          title: "Class message sent",
-          body: `Teacher sent SMS to ${record.audience}.`,
+          title: "Class message queued",
+          body: `Teacher queued SMS to ${record.audience}.`,
           severity: "success",
         },
       ],
@@ -1052,7 +1053,7 @@ export function TeacherCommandCenter({ routeMode }: { routeMode: TeacherRouteMod
       actorRole: "teacher",
       type: "TEACHER_SUBJECT_REPORT_PRINTED",
       module: "academics",
-      title: "Subject report opened for printing",
+      title: "Subject report print preview ready",
       body: `${classes.length} teaching classes prepared for the teacher subject report.`,
       entityId: runtimeId("teacher-subject-report"),
       severity: "success",
@@ -1060,13 +1061,13 @@ export function TeacherCommandCenter({ routeMode }: { routeMode: TeacherRouteMod
       notifications: [
         {
           audienceRoles: ["hod", "dean-of-academics"],
-          title: "Teacher subject report printed",
-          body: "Teacher opened the subject report for printing.",
+          title: "Teacher subject report previewed",
+          body: "Teacher prepared the subject report print preview.",
           severity: "success",
         },
       ],
     });
-    recordActivity("Subject report opened for printing.");
+    recordActivity("Subject report print preview ready.");
     openPrintDocument({
       eyebrow: "Teacher subject report",
       title: "Subject Report",

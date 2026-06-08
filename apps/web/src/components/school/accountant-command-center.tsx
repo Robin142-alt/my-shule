@@ -473,7 +473,7 @@ const approvalQueue: Array<[string, string, string, Tone]> = [
 
 const activityFeed: Array<[string, string, string, Tone]> = [
   ["M-PESA receipt matched", "RCPT-28491 posted to Brian Otieno ledger.", "2 min ago", "success" as Tone],
-  ["Manual receipt opened", "Cash desk recorded KES 15,000 pending verification.", "9 min ago", "warning" as Tone],
+  ["Manual receipt recorded", "Cash desk recorded KES 15,000 pending verification.", "9 min ago", "warning" as Tone],
   ["Supplier invoice blocked", "Duplicate invoice number detected for Lake Lab Supplies.", "21 min ago", "critical" as Tone],
   ["Bank statement imported", "Co-op account reconciled 96% of today's deposits.", "46 min ago", "success" as Tone],
   ["Waiver approval requested", "KES 74,000 remission sent to principal review.", "1 hr ago", "gold" as Tone],
@@ -1161,7 +1161,7 @@ export function AccountantCommandCenter({ routeMode }: { routeMode: AccountantRo
 
   function openSearchRecord(record: AccountantSearchRecord) {
     setSearchTerm("");
-    setNotice(`${record.label} opened in ${getSectionLabel(record.section)}.`);
+    setNotice(`${record.label} finance search loaded ${getSectionLabel(record.section)} workspace: ${record.detail}.`);
     if (typeof document !== "undefined") {
       const target = document.getElementById(record.section === "finance" ? "student-fees" : record.section);
       target?.scrollIntoView?.({ behavior: "smooth", block: "start" });
@@ -1175,12 +1175,12 @@ export function AccountantCommandCenter({ routeMode }: { routeMode: AccountantRo
 
   function openFinanceExport(label: string) {
     setExportPreview(label);
-    setNotice(`${label} export preview prepared.`);
+    setNotice(`${label} export ready with ${transactions.length} school-scoped transaction rows for ${getCurrentSchoolId()}.`);
   }
 
   function openFinanceInsightAction(insight: FinanceInsight) {
     setSelectedInsight(insight);
-    setNotice(`${insight.action} action details opened.`);
+    setNotice(`${insight.action} finance action ready with ${insight.confidence.toLowerCase()} and ${insight.tone} priority for principal/deputy review.`);
   }
 
   function createFinanceInsightTask() {
@@ -1218,7 +1218,7 @@ export function AccountantCommandCenter({ routeMode }: { routeMode: AccountantRo
       ],
     });
 
-    setNotice(`${selectedInsight.action} task created.`);
+    setNotice(`${selectedInsight.action} finance task created for ${schoolId}: ${entityId}, principal and deputy notifications pending.`);
     setSelectedInsight(null);
   }
 
@@ -1273,7 +1273,9 @@ export function AccountantCommandCenter({ routeMode }: { routeMode: AccountantRo
       ],
     });
 
-    setNotice(`${exportPreview} export downloaded.`);
+    setNotice(
+      `${exportPreview} export downloaded for ${schoolId}: ${filename}, ${rows.length} transaction rows, Principal/Deputy notified.`,
+    );
     setExportPreview(null);
   }
 

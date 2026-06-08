@@ -3999,9 +3999,9 @@ function SchoolCommunicationPage({
         id: `sms-${Date.now()}`,
         audience: trimmedAudience,
         message: trimmedMessage,
-        sentAt: "Sent now",
-        status: "Delivered",
-        statusTone: "ok",
+        sentAt: "Queued now",
+        status: "Queued",
+        statusTone: "warning",
       },
       ...currentRows,
     ]);
@@ -4053,11 +4053,11 @@ function SchoolCommunicationPage({
       />
       <DataTable
         title="SMS history"
-        subtitle="Messages already sent to all parents, class groups, or balance follow-up lists."
+        subtitle="Messages queued or already delivered to parents, class groups, or balance follow-up lists."
         columns={[
           { id: "audience", header: "Audience", render: (row) => row.audience },
           { id: "message", header: "Message", render: (row) => row.message },
-          { id: "sentAt", header: "Sent", render: (row) => row.sentAt },
+          { id: "sentAt", header: "Queued", render: (row) => row.sentAt },
           { id: "status", header: "Status", render: (row) => <StatusPill label={row.status} tone={row.statusTone} /> },
         ]}
         rows={history}
@@ -4066,7 +4066,7 @@ function SchoolCommunicationPage({
       <Modal
         open={showSmsModal}
         title="Send SMS"
-        description="Compose a school message and add it to the delivered communication log."
+        description="Compose a school message and add it to the communication queue log."
         onClose={closeSmsModal}
         footer={
           <>

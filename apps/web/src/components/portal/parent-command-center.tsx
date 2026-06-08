@@ -332,10 +332,14 @@ function ActionButton({
   item,
   routeMode,
   onAction,
+  learnerName,
+  feedCount,
 }: {
   item: ActionItem;
   routeMode: PortalRouteMode;
   onAction: (message: string) => void;
+  learnerName: string;
+  feedCount: number;
 }) {
   const Icon = item.icon;
   const tone = toneClasses(item.tone);
@@ -357,16 +361,26 @@ function ActionButton({
   );
 
   if (item.href) {
+    const href = parentHref(item.href, routeMode);
     return (
-      <Link href={parentHref(item.href, routeMode)} onClick={() => onAction(`${item.label} opened for Brian Otieno.`)} className={className}>
+      <Link
+        href={href}
+        onClick={() =>
+          onAction(`${item.label} route ready for ${learnerName} at ${href}; ${feedCount} linked-child feed items loaded.`)
+        }
+        className={className}
+      >
         {content}
       </Link>
     );
   }
 
   return (
-    <button type="button" onClick={() => onAction(`${item.label} opened for Brian Otieno.`)} className={className}>
+    <button type="button" disabled title={`Disabled: ${item.label} workspace is not connected.`} className={`${className} cursor-not-allowed opacity-70`}>
       {content}
+      <span className="mt-3 block text-[11px] font-bold leading-4 text-orange-100">
+        Disabled: {item.label} workspace is not connected.
+      </span>
     </button>
   );
 }
@@ -637,6 +651,42 @@ const liveFeed: FeedItem[] = [
   { id: "bus", title: "School bus departed", detail: "Route 14 left school gate. Estimated home dropoff in 18 minutes.", time: "4:42 PM", tone: "info", icon: Bus },
 ];
 
+const aishaLiveFeed: FeedItem[] = [
+  { id: "aisha-arrived", title: "Aisha arrived at school", detail: "Gate check-in confirmed at 7:18 AM with Grade 5 Hope.", time: "7:18 AM", tone: "good", icon: CheckCircle2 },
+  { id: "aisha-reading", title: "Reading check published", detail: "English Activities posted as Exceeding Expectations.", time: "9:45 AM", tone: "good", icon: GraduationCap },
+  { id: "aisha-target", title: "Writing target assigned", detail: "Teacher set a handwriting speed practice target for this week.", time: "11:10 AM", tone: "info", icon: FileText },
+  { id: "aisha-bus", title: "School bus departed", detail: "Route 08 left school gate. Estimated home dropoff in 22 minutes.", time: "4:38 PM", tone: "info", icon: Bus },
+];
+
+const linkedLearnerProfiles = [
+  {
+    name: "Brian Otieno",
+    initials: "BO",
+    className: "Form 2 Blue",
+    school: "Kisumu Boys Demo",
+    attendance: "94%",
+    discipline: "96",
+    average: "72%",
+    bus: "En route",
+    summary: "Here's everything happening with Brian today.",
+    highlights: ["Brian improved in Mathematics this week.", "Fee balance requires attention.", "School bus departed safely."],
+    feed: liveFeed,
+  },
+  {
+    name: "Aisha Wanjiku",
+    initials: "AW",
+    className: "Grade 5 Hope",
+    school: "Kisumu Boys Demo",
+    attendance: "97%",
+    discipline: "99",
+    average: "EE",
+    bus: "En route",
+    summary: "Here's everything happening with Aisha today.",
+    highlights: ["Aisha exceeded reading expectations.", "Writing speed practice target is active.", "School bus departed safely."],
+    feed: aishaLiveFeed,
+  },
+] as const;
+
 function parentOperationalFeedForLearner(learnerName: string): FeedItem[] {
   const feeBalances = readSchoolData<PortalFeeBalanceRecord>("fee-balances");
   const finance = readSchoolData<PortalFeePaymentRecord>("finance-payments")
@@ -759,7 +809,10 @@ export function ParentCommandCenter({ routeMode }: ParentCommandCenterProps) {
   const [clockLabel, setClockLabel] = useState("Live school day");
   const [notice, setNotice] = useState("Parent portal ready with fees, academics, health, transport, and school messages.");
   const [notificationsOpen, setNotificationsOpen] = useState(false);
-  const [operationalFeed, setOperationalFeed] = useState<FeedItem[]>(() => parentOperationalFeedForLearner("Brian Otieno"));
+  const [activeLearnerName, setActiveLearnerName] = useState<string>(linkedLearnerProfiles[0].name);
+  const activeLearner =
+    linkedLearnerProfiles.find((learner) => learner.name === activeLearnerName) ?? linkedLearnerProfiles[0];
+  const [operationalFeed, setOperationalFeed] = useState<FeedItem[]>(() => parentOperationalFeedForLearner(activeLearnerName));
   const dateFormatter = useMemo(
     () =>
       new Intl.DateTimeFormat("en-KE", {
@@ -785,14 +838,26 @@ export function ParentCommandCenter({ routeMode }: ParentCommandCenterProps) {
 
   useEffect(() => {
     function refreshFeed() {
-      setOperationalFeed(parentOperationalFeedForLearner("Brian Otieno"));
+      setOperationalFeed(parentOperationalFeedForLearner(activeLearnerName));
     }
 
     refreshFeed();
     return subscribeToSchoolDataUpdates(() => refreshFeed());
-  }, []);
+  }, [activeLearnerName]);
 
-  const visibleLiveFeed = operationalFeed.length > 0 ? [...operationalFeed, ...liveFeed] : liveFeed;
+  const visibleLiveFeed = operationalFeed.length > 0 ? [...operationalFeed, ...activeLearner.feed] : activeLearner.feed;
+
+  function selectLinkedLearner(learnerName: string) {
+    const learner = linkedLearnerProfiles.find((item) => item.name === learnerName) ?? linkedLearnerProfiles[0];
+    const linkedOperationalItems = parentOperationalFeedForLearner(learner.name);
+    const loadedCount = learner.feed.length + linkedOperationalItems.length;
+
+    setActiveLearnerName(learner.name);
+    setOperationalFeed(linkedOperationalItems);
+    setNotice(
+      `${learner.name} profile selected: ${learner.className}, ${loadedCount} verified feed item${loadedCount === 1 ? "" : "s"} loaded.`,
+    );
+  }
 
   return (
     <div className="-mx-2 -mb-8 overflow-hidden rounded-[var(--radius-xl)] bg-[#071D49] text-white shadow-[0_30px_90px_rgba(7,29,73,0.26)] md:-mx-1">
@@ -808,21 +873,29 @@ export function ParentCommandCenter({ routeMode }: ParentCommandCenterProps) {
               </span>
               <div className="min-w-0">
                 <p className="text-[11px] font-black uppercase tracking-[0.2em] text-orange-200">Parent intelligence</p>
-                <p className="truncate text-sm font-semibold text-white/70">Verified school data for Brian Otieno</p>
+                <p className="truncate text-sm font-semibold text-white/70">Verified school data for {activeLearner.name}</p>
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
-                onClick={() => setNotice("Brian Otieno profile selected.")}
-                className="rounded-full border border-orange-300/35 bg-orange-400/15 px-3 py-2 text-xs font-bold text-orange-100 transition hover:bg-orange-400/25"
+                onClick={() => selectLinkedLearner("Brian Otieno")}
+                className={`rounded-full border px-3 py-2 text-xs font-bold transition ${
+                  activeLearner.name === "Brian Otieno"
+                    ? "border-orange-300/35 bg-orange-400/15 text-orange-100 hover:bg-orange-400/25"
+                    : "border-white/12 bg-white/8 text-white/70 hover:bg-white/12 hover:text-white"
+                }`}
               >
                 Brian Otieno
               </button>
               <button
                 type="button"
-                onClick={() => setNotice("Aisha Wanjiku profile selected.")}
-                className="rounded-full border border-white/12 bg-white/8 px-3 py-2 text-xs font-bold text-white/70 transition hover:bg-white/12 hover:text-white"
+                onClick={() => selectLinkedLearner("Aisha Wanjiku")}
+                className={`rounded-full border px-3 py-2 text-xs font-bold transition ${
+                  activeLearner.name === "Aisha Wanjiku"
+                    ? "border-orange-300/35 bg-orange-400/15 text-orange-100 hover:bg-orange-400/25"
+                    : "border-white/12 bg-white/8 text-white/70 hover:bg-white/12 hover:text-white"
+                }`}
               >
                 Aisha Wanjiku
               </button>
@@ -833,7 +906,7 @@ export function ParentCommandCenter({ routeMode }: ParentCommandCenterProps) {
                   aria-expanded={notificationsOpen}
                   onClick={() => {
                     setNotificationsOpen((value) => !value);
-                    setNotice("Parent notifications opened.");
+                    setNotice("Parent notifications panel visible.");
                   }}
                   className="relative inline-flex h-10 w-10 items-center justify-center rounded-[var(--radius)] border border-white/12 bg-white/8 text-white transition hover:bg-white/14"
                 >
@@ -851,7 +924,7 @@ export function ParentCommandCenter({ routeMode }: ParentCommandCenterProps) {
                           key={item.id}
                           type="button"
                           onClick={() => {
-                            setNotice(`${item.action} opened for Brian Otieno.`);
+                            setNotice(`Disabled: ${item.action} workspace is not connected.`);
                             setNotificationsOpen(false);
                           }}
                           className="block w-full rounded-[var(--radius-sm)] px-3 py-2 text-left transition hover:bg-white/10"
@@ -869,7 +942,7 @@ export function ParentCommandCenter({ routeMode }: ParentCommandCenterProps) {
               </div>
               <button
                 type="button"
-                onClick={() => setNotice("Language selector opened for English and Kiswahili.")}
+                onClick={() => setNotice("Language selector ready for English and Kiswahili.")}
                 className="inline-flex h-10 items-center gap-2 rounded-[var(--radius)] border border-white/12 bg-white/8 px-3 text-xs font-bold text-white/76 transition hover:bg-white/14 hover:text-white"
               >
                 <Languages className="h-4 w-4" />
@@ -877,15 +950,16 @@ export function ParentCommandCenter({ routeMode }: ParentCommandCenterProps) {
               </button>
               <button
                 type="button"
-                onClick={() => setNotice("AI child summary opened for Brian Otieno.")}
-                className="inline-flex h-10 items-center gap-2 rounded-[var(--radius)] border border-emerald-300/30 bg-emerald-400/12 px-3 text-xs font-bold text-emerald-100 transition hover:bg-emerald-400/20"
+                disabled
+                title="Disabled: AI child summary endpoint is not connected."
+                className="inline-flex h-10 cursor-not-allowed items-center gap-2 rounded-[var(--radius)] border border-emerald-300/30 bg-emerald-400/12 px-3 text-xs font-bold text-emerald-100 opacity-70"
               >
                 <Bot className="h-4 w-4" />
                 AI Assistant
               </button>
               <button
                 type="button"
-                onClick={() => setNotice("Emergency contacts opened. School office: +254 700 000 111.")}
+                onClick={() => setNotice("Emergency contacts visible. School office: +254 700 000 111.")}
                 className="inline-flex h-10 items-center gap-2 rounded-[var(--radius)] border border-red-300/35 bg-red-400/14 px-3 text-xs font-bold text-red-100 transition hover:bg-red-400/22"
               >
                 <ShieldAlert className="h-4 w-4" />
@@ -921,14 +995,10 @@ export function ParentCommandCenter({ routeMode }: ParentCommandCenterProps) {
                     className="mt-5 max-w-3xl [&>*:first-child]:text-4xl [&>*:first-child]:font-black [&>*:first-child]:leading-tight [&>*:first-child]:tracking-normal md:[&>*:first-child]:text-5xl"
                   />
                   <p className="mt-4 max-w-2xl text-lg leading-8 text-white/72">
-                    Here&apos;s everything happening with Brian today.
+                    {activeLearner.summary}
                   </p>
                   <div className="mt-6 grid gap-3 md:grid-cols-3">
-                    {[
-                      "Brian improved in Mathematics this week.",
-                      "Fee balance requires attention.",
-                      "School bus departed safely.",
-                    ].map((message) => (
+                    {activeLearner.highlights.map((message) => (
                       <div key={message} className="rounded-[var(--radius)] border border-white/12 bg-white/[0.07] px-4 py-3 text-sm font-semibold text-white/76">
                         {message}
                       </div>
@@ -938,18 +1008,18 @@ export function ParentCommandCenter({ routeMode }: ParentCommandCenterProps) {
                 <div className="rounded-[var(--radius-xl)] border border-white/12 bg-white/[0.08] p-4 shadow-[0_20px_56px_rgba(0,0,0,0.18)]">
                   <div className="flex items-center gap-4">
                     <div className="grid h-20 w-20 place-items-center rounded-[var(--radius-xl)] bg-gradient-to-br from-orange-400 to-blue-500 text-2xl font-black text-white shadow-[0_18px_38px_rgba(0,0,0,0.25)]">
-                      BO
+                      {activeLearner.initials}
                     </div>
                     <div>
-                      <p className="text-lg font-black text-white">Brian Otieno</p>
-                      <p className="mt-1 text-sm text-white/58">Form 2 Blue - Kisumu Boys Demo</p>
+                      <p className="text-lg font-black text-white">{activeLearner.name}</p>
+                      <p className="mt-1 text-sm text-white/58">{activeLearner.className} - {activeLearner.school}</p>
                     </div>
                   </div>
                   <div className="mt-4 grid grid-cols-2 gap-3">
-                    <MetricPill icon={ClipboardCheck} label="Attendance" value="94%" />
-                    <MetricPill icon={ShieldCheck} label="Discipline" value="96" />
-                    <MetricPill icon={GraduationCap} label="Average" value="72%" />
-                    <MetricPill icon={Bus} label="Bus" value="En route" />
+                    <MetricPill icon={ClipboardCheck} label="Attendance" value={activeLearner.attendance} />
+                    <MetricPill icon={ShieldCheck} label="Discipline" value={activeLearner.discipline} />
+                    <MetricPill icon={GraduationCap} label="Average" value={activeLearner.average} />
+                    <MetricPill icon={Bus} label="Bus" value={activeLearner.bus} />
                   </div>
                   <div className="mt-4 rounded-[var(--radius)] border border-emerald-300/25 bg-emerald-400/10 px-4 py-3">
                     <div className="flex items-center gap-2 text-sm font-bold text-emerald-100">
@@ -989,9 +1059,16 @@ export function ParentCommandCenter({ routeMode }: ParentCommandCenterProps) {
           <GlassCard className="p-5">
             <SectionHeader icon={Home} label="Parent action center" title="Fast actions for today" />
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {quickActions.map((item) => (
-                <ActionButton key={item.id} item={item} routeMode={routeMode} onAction={setNotice} />
-              ))}
+                {quickActions.map((item) => (
+                  <ActionButton
+                    key={item.id}
+                    item={item}
+                    routeMode={routeMode}
+                    onAction={setNotice}
+                    learnerName={activeLearner.name}
+                    feedCount={visibleLiveFeed.length}
+                  />
+                ))}
             </div>
           </GlassCard>
 
@@ -1331,7 +1408,7 @@ export function ParentCommandCenter({ routeMode }: ParentCommandCenterProps) {
                 <div className="space-y-3">
                   <button
                     type="button"
-                    onClick={() => setNotice("Emergency contacts opened. School office: +254 700 000 111.")}
+                    onClick={() => setNotice("Emergency contacts visible. School office: +254 700 000 111.")}
                     className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-[var(--radius)] bg-red-500 px-4 text-sm font-black text-white shadow-[0_18px_40px_rgba(239,68,68,0.28)] transition hover:-translate-y-0.5 hover:bg-red-600"
                   >
                     <ShieldAlert className="h-4 w-4" />
@@ -1357,8 +1434,8 @@ export function ParentCommandCenter({ routeMode }: ParentCommandCenterProps) {
               { label: "Home", icon: Home, href: parentHref("dashboard", routeMode) },
               { label: "Academics", icon: GraduationCap, href: parentHref("academics", routeMode) },
               { label: "Finance", icon: CreditCard, href: parentHref("fees", routeMode) },
-              { label: "Alerts", icon: Bell, action: () => { setNotificationsOpen(true); setNotice("Parent notifications opened."); } },
-              { label: "Profile", icon: UserRound, action: () => setNotice("Parent profile and linked learner records opened.") },
+              { label: "Alerts", icon: Bell, action: () => { setNotificationsOpen(true); setNotice("Parent notifications panel visible."); } },
+              { label: "Profile", icon: UserRound, action: () => setNotice("Parent profile and linked learner records visible.") },
             ].map((item) => {
               const Icon = item.icon;
               const className = "flex flex-col items-center justify-center gap-1 rounded-[var(--radius)] px-2 py-2 text-[10px] font-bold text-white/72 transition hover:bg-white/10 hover:text-white";

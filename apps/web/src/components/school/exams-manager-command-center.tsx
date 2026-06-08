@@ -310,7 +310,7 @@ const lifecycleWorkQueues: Partial<Record<ExamsManagerView, LifecycleQueueConfig
         label: "Preview Selected",
         mode: "completed",
         targetRoles: ["Exams Manager"],
-        notificationTitle: "Report card preview opened",
+        notificationTitle: "Report card preview ready",
       },
       {
         label: "Send to Dean Review",
@@ -361,7 +361,7 @@ const lifecycleWorkQueues: Partial<Record<ExamsManagerView, LifecycleQueueConfig
         label: "Open Print Preview",
         mode: "completed",
         targetRoles: ["Exams Manager"],
-        notificationTitle: "Report template print preview opened",
+        notificationTitle: "Report template print preview ready",
       },
     ],
   },
@@ -1046,7 +1046,7 @@ function ActiveWidgetContent({
                 <ListRow key={session.id} title={session.title} detail={session.detail} value={session.status} tone="info" />
               ))
             ) : (
-              <ListRow title="Opened marks sheets" detail="No marks sheet has been opened in this session." value="Empty" tone="neutral" />
+              <ListRow title="Ready marks sheets" detail="No marks sheet has been prepared in this session." value="Empty" tone="neutral" />
             )}
           </div>
         </div>
@@ -1378,7 +1378,7 @@ export function ExamsManagerCommandCenter({
   function openSearchRecord(record: ExamsSearchRecord) {
     setActiveView(record.view);
     setSearchTerm("");
-    setNotice(`${record.label} opened in exams records.`);
+    setNotice(`${record.label} exams search loaded ${record.view.replaceAll("-", " ")} workspace: ${record.detail}.`);
   }
 
   function saveExamConfiguration() {
@@ -1525,7 +1525,7 @@ export function ExamsManagerCommandCenter({
     const session: ExamOperationalRecord = {
       id: `marks-entry-${Date.now()}`,
       title: "Mathematics Form 4 North marks entry",
-      detail: `Opened ${createdAt}. 88% complete, 12 learner records still pending.`,
+      detail: `Prepared ${createdAt}. 88% complete, 12 learner records still pending.`,
       status: "Open",
       createdAt,
     };
@@ -1547,15 +1547,15 @@ export function ExamsManagerCommandCenter({
       type: "MARKS_ENTRY_OPENED",
       module: "exams",
       actorRole: "Exams Manager",
-      title: "Mathematics Form 4 North marks entry opened",
-      body: "Exams Manager opened the Mathematics marks entry sheet for Form 4 North.",
+      title: "Mathematics Form 4 North marks entry ready",
+      body: "Exams Manager prepared the Mathematics marks entry sheet for Form 4 North.",
       entityId: session.id,
       severity: "info",
       payload: { subject: "Mathematics", classStream: "Form 4 North", pendingLearners: 12 },
       notifications: [
         {
           audienceRoles: ["Teacher", "Dean of Academics"],
-          title: "Marks entry sheet opened",
+          title: "Marks entry sheet ready",
           body: "Mathematics Form 4 North marks entry is open for completion.",
           severity: "info",
           relatedModule: "exams",
@@ -1566,7 +1566,7 @@ export function ExamsManagerCommandCenter({
     });
 
     setMarksEntrySessions((current) => [session, ...current].slice(0, 4));
-    setNotice("Marks entry sheet opened for selected class and subject. Teacher follow-up created.");
+    setNotice(`${session.title} opened for Mathematics Form 4 North with 12 pending learners; teacher and Dean notifications created.`);
   }
 
   function sendDeanReview() {
@@ -1659,7 +1659,7 @@ export function ExamsManagerCommandCenter({
     const failedCount = failedRecords.length;
     const succeededCount = affectedCount - failedCount;
     const statusWord = action.mode === "queued" ? "Pending" : "Completed";
-    const visibleVerb = action.mode === "queued" ? "queued" : "completed";
+    const visibleVerb = action.mode === "queued" ? "queued" : "status updated";
     const recordIds = records.map((record) => record.id);
     const resultMessage = `${action.label} ${visibleVerb} for ${affectedCount} selected ${itemLabel}${affectedCount === 1 ? "" : "s"}. Selected ${affectedCount}. ${succeededCount} succeeded, ${failedCount} failed.${
       failedCount > 0 ? ` Failed records: ${failedRecords.map((record) => record.title).join(", ")}.` : ""

@@ -769,7 +769,7 @@ function StudentExitControl() {
           </div>
           <h3 className="mt-5 text-2xl font-black">Emergency lockdown ready</h3>
           <p className="mt-3 text-sm leading-6 text-white/70">If a missing learner, intruder, violent incident, or contraband threat escalates, all exits are locked and the principal receives SMS escalation.</p>
-          <button type="button" onClick={() => announceAction("Emergency lockdown review opened for student exit control.")} className="mt-5 w-full rounded-[var(--radius-lg)] bg-rose-600 px-5 py-4 text-sm font-black text-white shadow-[0_18px_40px_rgba(225,29,72,0.28)] transition hover:-translate-y-0.5">
+          <button type="button" onClick={() => announceAction("Emergency lockdown review ready for student exit control.")} className="mt-5 w-full rounded-[var(--radius-lg)] bg-rose-600 px-5 py-4 text-sm font-black text-white shadow-[0_18px_40px_rgba(225,29,72,0.28)] transition hover:-translate-y-0.5">
             Activate lockdown
           </button>
         </div>
@@ -1097,38 +1097,39 @@ export function SecurityCommandCenter({ routeMode }: { routeMode: SecurityRouteM
   function openSearchRecord(record: SecuritySearchRecord) {
     setSearchTerm("");
     setActiveSection(record.sectionId);
-    setNotice(`${record.label} opened in security records.`);
+    const sectionLabel = securityNav.find((item) => item.sectionId === record.sectionId)?.label ?? "Security desk";
+    setNotice(`${record.label} security search loaded ${sectionLabel} workspace: ${record.detail}.`);
   }
 
   function changeSection(sectionId: string) {
     setActiveSection(sectionId);
     const label = securityNav.find((item) => item.sectionId === sectionId)?.label ?? "Security desk";
-    setNotice(`${label} opened.`);
+    setNotice(`${label} workspace ready.`);
   }
 
   function openEmergencyPanic() {
     setPanicDialogOpen(true);
-    setNotice("Emergency panic confirmation opened.");
+    setNotice("Emergency panic confirmation ready.");
   }
 
   function openNotifications() {
     setNotificationsOpen(true);
-    setNotice("Security notifications opened.");
+    setNotice("Security notifications ready.");
   }
 
   function openLockdownChecklist() {
     setLockdownChecklistOpen(true);
-    setNotice("Emergency lockdown checklist opened.");
+    setNotice("Emergency lockdown checklist ready.");
   }
 
   function openEmergencyContacts() {
     setEmergencyContactsOpen(true);
-    setNotice("Emergency contact list opened.");
+    setNotice("Emergency contact list ready.");
   }
 
   function openReportReview(title: string) {
     setReportReview(title);
-    setNotice(`${title} report opened for review.`);
+    setNotice(`${title} report ready for review.`);
   }
 
   function startLockdownChecklist() {
@@ -1229,7 +1230,9 @@ export function SecurityCommandCenter({ routeMode }: { routeMode: SecurityRouteM
       ],
     });
 
-    setNotice(`${reportReview} report review saved.`);
+    setNotice(
+      `${reportReview} report review saved for ${schoolId}: security-report-${reportSlug}, principal/deputy/security notified for audit follow-up.`,
+    );
     setReportReview(null);
   }
 
@@ -1366,7 +1369,7 @@ export function SecurityCommandCenter({ routeMode }: { routeMode: SecurityRouteM
       actorRole: "security",
       type: "VISITOR_SLIP_PRINTED",
       module: "visitors",
-      title: `${visitor.name} visitor slip opened for printing`,
+      title: `${visitor.name} visitor slip print preview ready`,
       body: `${visitor.name} visitor slip prepared for ${visitor.personVisiting}.`,
       entityId: visitor.id,
       severity: "success",
@@ -1374,13 +1377,13 @@ export function SecurityCommandCenter({ routeMode }: { routeMode: SecurityRouteM
       notifications: [
         {
           audienceRoles: ["security", "secretary"],
-          title: "Visitor slip printed",
+          title: "Visitor slip previewed",
           body: `${visitor.name} visitor slip is ready.`,
           severity: "success",
         },
       ],
     });
-    setNotice(`${visitor.name} visitor slip opened for printing.`);
+    setNotice(`${visitor.name} visitor slip print preview ready.`);
     openPrintDocument({
       eyebrow: "Visitor slip",
       title: "Visitor Gate Slip",

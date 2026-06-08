@@ -1115,7 +1115,7 @@ export function GuidanceCounsellingCommandCenter({
 
   function openSearchRecord(record: GuidanceSearchRecord) {
     setSearchTerm("");
-    setNotice(`${record.label} opened in counselling records.`);
+    setNotice(`${record.label} counselling search loaded ${record.sectionId} section: ${record.detail}.`);
 
     if (typeof document !== "undefined") {
       const target = document.getElementById(record.sectionId);
@@ -1170,7 +1170,9 @@ export function GuidanceCounsellingCommandCenter({
     });
 
     setSessionDialogOpen(false);
-    setNotice("Quick-add counselling session saved.");
+    setNotice(
+      `${schoolId} quick-add counselling session saved: counselling-session-quick-add, Deputy/Class Teacher/Principal notified for welfare follow-up.`,
+    );
   }
 
   function saveTimelineAction() {

@@ -200,7 +200,7 @@ async function publishExamReportRecord(record: ApprovalActionRecord) {
     },
   });
 
-  return "Report card published for parent/student visibility.";
+  return "Report card published for parent portal visibility.";
 }
 
 async function exportReportPdfRecord(record: ApprovalActionRecord) {
@@ -215,7 +215,7 @@ async function exportReportPdfRecord(record: ApprovalActionRecord) {
     return `${fileName} exported${downloadUrl ? ` from ${downloadUrl}` : ""}.`;
   }
 
-  return `${record.title} PDF export prepared.`;
+  throw new Error("Export failed: report-card PDF endpoint did not return a downloadable file.");
 }
 
 async function queueReportScheduleRecord(
@@ -722,7 +722,7 @@ async function queueIncidentCenterRecord(
     },
   });
 
-  return `Incident center opened for ${record.title}. ${result.eventName}.`;
+  return `Incident center workflow dispatched for ${record.title}. ${result.eventName}.`;
 }
 
 async function createDisciplineActionRecord(
@@ -1005,7 +1005,7 @@ async function completeLiveModuleRecord(apiBase: string, entityLabel: string, re
     body: { status: "completed" },
   });
 
-  return `${entityLabel} completed for ${record.title}.`;
+  return `${entityLabel} status updated to completed: ${record.title}.`;
 }
 
 async function loadStaffLeaveRecords() {

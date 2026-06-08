@@ -1221,7 +1221,7 @@ export function LaboratoryTechnicianCommandCenter({ routeMode }: { routeMode: La
 
   function openSearchRecord(record: LabSearchRecord) {
     setSearchTerm("");
-    setNotice(`${record.label} opened in lab records.`);
+    setNotice(`${record.label} lab search loaded ${record.sectionId} section: ${record.detail}.`);
 
     if (typeof document !== "undefined") {
       const target = document.getElementById(record.sectionId);
@@ -1489,7 +1489,7 @@ export function LaboratoryTechnicianCommandCenter({ routeMode }: { routeMode: La
               <div className="mt-4 grid gap-3 md:grid-cols-3">
                 {[
                   ["Action", activeQuickAction.label],
-                  ["Opened from", activeQuickAction.source.replace("-", " ")],
+                  ["Source", activeQuickAction.source.replace("-", " ")],
                   ["Scope", "Current school only"],
                 ].map(([label, value]) => (
                   <div key={label} className="rounded-2xl border border-[#C8D5EA] bg-[#F8FAFC] p-3">

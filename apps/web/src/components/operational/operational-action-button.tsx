@@ -32,6 +32,11 @@ export type OperationalActionContract = {
   health: OperationalActionHealth;
 };
 
+export type OperationalActionExecutionResult = {
+  message: string;
+  tone?: "success" | "warning" | "danger";
+};
+
 const healthClass: Record<OperationalActionHealth, string> = {
   ACTIVE: "border-[#BFD7FF] bg-[#EEF6FF] text-[#0B3A7A] hover:border-[#7BAEF9]",
   LOADING: "border-border bg-surface-muted text-muted",
@@ -96,6 +101,27 @@ function healthMessage(action: OperationalActionContract) {
   return "Ready to use.";
 }
 
+function normalizeExecutionResult(
+  action: OperationalActionContract,
+  result: OperationalActionExecutionResult | string | void,
+): OperationalActionExecutionResult {
+  if (typeof result === "string" && result.trim().length > 0) {
+    return { message: result, tone: "success" };
+  }
+
+  if (result && typeof result === "object" && result.message.trim().length > 0) {
+    return {
+      message: result.message,
+      tone: result.tone ?? "success",
+    };
+  }
+
+  return {
+    message: `${action.label} workflow accepted. Watch the related queue, record, or preview for the result.`,
+    tone: "warning",
+  };
+}
+
 export function OperationalActionButton({
   action,
   onExecute,
@@ -103,7 +129,9 @@ export function OperationalActionButton({
   showDiagnostics = true,
 }: {
   action: OperationalActionContract;
-  onExecute?: (action: OperationalActionContract) => void | Promise<void>;
+  onExecute?: (
+    action: OperationalActionContract,
+  ) => OperationalActionExecutionResult | string | void | Promise<OperationalActionExecutionResult | string | void>;
   compact?: boolean;
   showDiagnostics?: boolean;
 }) {
@@ -112,10 +140,12 @@ export function OperationalActionButton({
   const disabled = action.health === "LOADING" || isSubmitting;
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [localNotice, setLocalNotice] = useState<string | null>(null);
+  const [localNoticeTone, setLocalNoticeTone] = useState<"success" | "warning" | "danger">("success");
   const displayState = isSubmitting ? "Sending" : healthDisplay[action.health];
 
   async function completeAction() {
     setIsSubmitting(true);
+    setLocalNoticeTone("warning");
     setLocalNotice(`${action.label} is being processed...`);
 
     try {
@@ -123,10 +153,12 @@ export function OperationalActionButton({
         throw new Error("No working handler is connected for this action.");
       }
 
-      await onExecute(action);
-      setLocalNotice(`${action.label} completed after the connected workflow responded.`);
+      const executionResult = normalizeExecutionResult(action, await onExecute(action));
+      setLocalNoticeTone(executionResult.tone ?? "success");
+      setLocalNotice(executionResult.message);
     } catch (error) {
       const message = error instanceof Error ? error.message : "The connected workflow failed.";
+      setLocalNoticeTone("danger");
       setLocalNotice(`${action.label} could not complete because ${message}`);
     } finally {
       setIsSubmitting(false);
@@ -135,6 +167,7 @@ export function OperationalActionButton({
 
   function requestAction() {
     if (action.health === "LOCKED") {
+      setLocalNoticeTone("danger");
       setLocalNotice(`${action.label} requires ${action.capability} permission.`);
       return;
     }
@@ -185,9 +218,11 @@ export function OperationalActionButton({
       ) : null}
       {localNotice ? (
         <p className={`mt-2 rounded-[var(--radius-xs)] border px-2 py-1.5 text-[10px] font-bold ${
-          /could not|failed|no working handler/i.test(localNotice)
+          localNoticeTone === "danger"
             ? "border-danger/20 bg-danger-soft text-danger"
-            : "border-success/20 bg-success-soft text-success"
+            : localNoticeTone === "warning"
+              ? "border-warning/20 bg-warning-soft text-warning"
+              : "border-success/20 bg-success-soft text-success"
         }`}>
           {localNotice}
         </p>

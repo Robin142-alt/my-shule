@@ -17,7 +17,7 @@ describe("TransportManagerCommandCenter", () => {
     await user.click(screen.getByRole("button", { name: /bus 04/i }));
 
     expect(screen.getByRole("heading", { name: /fleet management/i })).toBeVisible();
-    expect(screen.getByText(/bus 04 opened in fleet management/i)).toBeVisible();
+    expect(screen.getByText(/bus 04 focused in fleet management/i)).toBeVisible();
 
     await user.click(screen.getByRole("button", { name: /export/i }));
     expect(screen.getByText(/fleet register exported to csv/i)).toBeVisible();
@@ -29,6 +29,6 @@ describe("TransportManagerCommandCenter", () => {
     expect(screen.getByRole("heading", { name: /routes & stops/i })).toBeVisible();
 
     await user.click(screen.getByRole("button", { name: /optimize route/i }));
-    expect(screen.getByText(/optimize route opened for route planning/i)).toBeVisible();
+    expect(screen.getByText(/optimize route planning workspace ready/i)).toBeVisible();
   });
 });

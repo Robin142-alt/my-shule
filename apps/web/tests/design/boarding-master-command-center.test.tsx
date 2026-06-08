@@ -8,6 +8,12 @@ import { renderWithProviders } from "./test-utils";
 
 jest.setTimeout(20000);
 
+const fakeOnlyPhrases = /selected in boarding records|Quick boarding response saved\./i;
+
+function expectNoFakeOnlyFeedback() {
+  expect(document.body.textContent).not.toMatch(fakeOnlyPhrases);
+}
+
 describe("BoardingMasterCommandCenter", () => {
   beforeEach(() => {
     window.localStorage.clear();
@@ -22,14 +28,19 @@ describe("BoardingMasterCommandCenter", () => {
     await user.type(screen.getByLabelText(/search boarding students, dormitories, roll call, clinic, visitors, or incidents/i), "Kevin");
     await user.click(screen.getByRole("button", { name: /kevin otieno/i }));
 
-    expect(screen.getByText(/kevin otieno opened in boarding records/i)).toBeVisible();
+    expect(screen.getByText(/kevin otieno boarding search loaded roll-call section: missed 3 night roll calls this month/i)).toBeVisible();
+    expectNoFakeOnlyFeedback();
 
     await user.click(screen.getByRole("button", { name: /quick response/i }));
     const responseDialog = screen.getByRole("dialog", { name: /boarding quick response/i });
     expect(responseDialog).toBeVisible();
     await user.click(within(responseDialog).getByRole("button", { name: /save boarding response/i }));
 
-    expect(screen.getByText(/quick boarding response saved/i)).toBeVisible();
+    expect(
+      screen.getByText(
+        /kb-high quick boarding response saved: boarding-quick-response for dorm b \/ kevin otieno, deputy\/principal\/security\/nurse notified/i,
+      ),
+    ).toBeVisible();
     expect(readSchoolData<Record<string, unknown>>("events", "kb-high")).toEqual(
       expect.arrayContaining([
         expect.objectContaining({

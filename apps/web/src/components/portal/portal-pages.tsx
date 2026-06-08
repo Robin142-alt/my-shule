@@ -2,13 +2,14 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import { SmartphoneCharging } from "lucide-react";
+import Link from "next/link";
 
 import { ParentDisciplineView } from "@/components/discipline/discipline-workspace";
 import { ActivityListCard, SimpleListCard } from "@/components/experience/activity-list-card";
 import { MetricGrid } from "@/components/experience/metric-grid";
 import { ParentCommandCenter } from "@/components/portal/parent-command-center";
 import { PortalShell } from "@/components/portal/portal-shell";
-import { Button } from "@/components/ui/button";
+import { Button, buttonClasses } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import {
   LiveIndicator,
@@ -254,6 +255,16 @@ function PortalPageHeader({
 function PortalDashboard({ viewer, routeMode }: { viewer: PortalViewer; routeMode: PortalRouteMode }) {
   const [studentNotice, setStudentNotice] = useState("Student desk ready for lessons, assignments, library books, and teacher messages.");
   const [studentUpdates, setStudentUpdates] = useState(() => studentOperationalItems("Brian Otieno"));
+  const studentQuickActions = [
+    { label: "View Assignment", href: buildPortalSectionHref("student", "academics", routeMode), helper: "Opens learning progress and academic notices." },
+    { label: "Submit Work", disabledReason: "Disabled: submit-work form is not connected to an assignment yet." },
+    { label: "View Learning Progress", href: buildPortalSectionHref("student", "academics", routeMode), helper: "Opens published learning progress." },
+    { label: "Download Notes", href: buildPortalSectionHref("student", "downloads", routeMode), helper: "Opens available downloads." },
+    { label: "View Library Due Date", disabledReason: "Disabled: student library due-date workspace is not connected." },
+    { label: "Message Teacher", href: buildPortalSectionHref("student", "messages", routeMode), helper: "Opens official school messages." },
+    { label: "Open Timetable", disabledReason: "Disabled: student timetable workspace is not connected." },
+    { label: "View Announcement", href: buildPortalSectionHref("student", "notifications", routeMode), helper: "Opens school announcements." },
+  ];
 
   useEffect(() => {
     function refreshStudentUpdates() {
@@ -297,25 +308,28 @@ function PortalDashboard({ viewer, routeMode }: { viewer: PortalViewer; routeMod
               Practical learning actions stay visible without exposing schoolwide office data.
             </p>
             <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              {[
-                "View Assignment",
-                "Submit Work",
-                "View Learning Progress",
-                "Download Notes",
-                "View Library Due Date",
-                "Message Teacher",
-                "Open Timetable",
-                "View Announcement",
-              ].map((action) => (
-                <Button
-                  key={action}
-                  type="button"
-                  variant="secondary"
-                  onClick={() => setStudentNotice(`${action} opened for the student account.`)}
-                  className="justify-center"
-                >
-                  {action}
-                </Button>
+              {studentQuickActions.map((action) => (
+                action.href ? (
+                  <Link
+                    key={action.label}
+                    href={action.href}
+                    onClick={() =>
+                      setStudentNotice(
+                        `${action.label} route ready for Brian Otieno at ${action.href}; ${studentUpdates.length} learner-safe updates loaded.`,
+                      )
+                    }
+                    className={buttonClasses({ variant: "secondary", className: "justify-center" })}
+                  >
+                    {action.label}
+                  </Link>
+                ) : (
+                  <div key={action.label} className="rounded-[var(--radius-sm)] border border-border bg-surface-muted p-2">
+                    <Button type="button" variant="secondary" disabled className="w-full justify-center">
+                      {action.label}
+                    </Button>
+                    <p className="mt-2 text-[11px] font-semibold leading-4 text-muted">{action.disabledReason}</p>
+                  </div>
+                )
               ))}
             </div>
           </Card>
@@ -414,7 +428,7 @@ function PortalFeesPage({ viewer }: { viewer: PortalViewer }) {
     ].join("\n");
 
     await copyTextToClipboard(statementText);
-    setShareStatus("Statement copied for sharing.");
+    setShareStatus(`Statement copied with ${feeRows.length} posted payment rows for the verified family account.`);
   }
 
   return (
@@ -508,7 +522,9 @@ function PortalAcademicsPage({ viewer }: { viewer: PortalViewer }) {
       })),
       footer: "Published family portal report-card preview.",
     });
-    setStatusMessage(`Print preview opened for ${report.childName}.`);
+    setStatusMessage(
+      `Print preview ready for ${report.childName}: ${visibleResults.length} published subject row${visibleResults.length === 1 ? "" : "s"} loaded.`,
+    );
   }
 
   function downloadReportCard(report = visibleReports[0]) {
@@ -517,8 +533,10 @@ function PortalAcademicsPage({ viewer }: { viewer: PortalViewer }) {
       return;
     }
 
+    const filename = `${report.childName.toLowerCase().replace(/\s+/g, "-")}-${report.id}.txt`;
+
     downloadTextFile({
-      filename: `${report.childName.toLowerCase().replace(/\s+/g, "-")}-${report.id}.txt`,
+      filename,
       content: [
         report.reportType,
         `${report.childName} - ${report.gradeForm}`,
@@ -530,7 +548,7 @@ function PortalAcademicsPage({ viewer }: { viewer: PortalViewer }) {
         ...visibleResults.map((row) => `${row.subject}: ${row.performance} (${row.grade}) - ${row.teacherComment}`),
       ].join("\n"),
     });
-    setStatusMessage(`Download prepared for ${report.childName}.`);
+    setStatusMessage(`Report download created for ${report.childName}: ${filename}.`);
   }
 
   function acknowledgeReport(reportId: string) {
@@ -602,7 +620,11 @@ function PortalAcademicsPage({ viewer }: { viewer: PortalViewer }) {
                 onClick={() => {
                   setActiveChildId(child.id);
                   setSelectedReportId(null);
-                  setStatusMessage(`${child.name} academic record opened.`);
+                  const childReportCount = portalPublishedReportCards.filter((report) => report.childId === child.id).length;
+                  const childResultCount = portalPublishedExamResults.filter((row) => row.childName === child.name).length;
+                  setStatusMessage(
+                    `${child.name} academic record selected: ${childReportCount} published report${childReportCount === 1 ? "" : "s"}, ${childResultCount} result row${childResultCount === 1 ? "" : "s"} loaded.`,
+                  );
                 }}
                 className={`rounded-[var(--radius-sm)] border px-4 py-3 text-left transition ${
                   active

@@ -3,6 +3,7 @@ import { Body, Controller, Get, Param, Patch, Post } from '@nestjs/common';
 import { Permissions } from '../../auth/decorators/permissions.decorator';
 import { SimpleOperationsRecordDto, SimpleOperationsStatusDto } from '../implementation100/simple-operations';
 import { RequiresModule } from '../module-access/module-access.decorator';
+import { SubmitLmsAssignmentDto } from './dto/lms-submission.dto';
 import { LmsService } from './lms.service';
 
 @Controller('lms')
@@ -29,5 +30,14 @@ export class LmsController {
     @Body() dto: SimpleOperationsStatusDto,
   ) {
     return this.lmsService.updateStatus(recordId, dto);
+  }
+
+  @Post('assignments/:assignmentId/submissions')
+  @Permissions('lms:read')
+  submitAssignment(
+    @Param('assignmentId') assignmentId: string,
+    @Body() dto: SubmitLmsAssignmentDto,
+  ) {
+    return this.lmsService.submitAssignment(assignmentId, dto);
   }
 }

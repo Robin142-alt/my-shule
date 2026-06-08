@@ -872,13 +872,13 @@ export function HodCommandCenter({
 
   function openView(view: HodView) {
     setActiveView(view);
-    setNotice(`${getViewLabel(view)} opened.`);
+    setNotice(`${getViewLabel(view)} workspace ready.`);
   }
 
   function openSearchRecord(record: HodSearchRecord) {
     setActiveView(record.view);
     setSearchTerm("");
-    setNotice(`${record.label} opened in ${getViewLabel(record.view)}.`);
+    setNotice(`${record.label} HOD search loaded ${getViewLabel(record.view)} workspace: ${record.detail}.`);
   }
 
   function openExportAction(tableTitle: string) {
@@ -888,7 +888,7 @@ export function HodCommandCenter({
 
   function openTableAction(mode: "filter" | "search", tableTitle: string) {
     setTableAction({ mode, title: tableTitle });
-    setNotice(`${tableTitle} ${mode === "search" ? "search" : "filters"} opened.`);
+    setNotice(`${tableTitle} ${mode === "search" ? "search" : "filters"} ready.`);
   }
 
   function openReportReview(title: string) {
@@ -907,8 +907,8 @@ export function HodCommandCenter({
       type: "HOD_REPORT_REVIEW_RECORDED",
       module: "reports",
       actorRole: "Head of Department",
-      title: `${reportReview.title} saved for review and export`,
-      body: `Head of Department saved ${reportReview.title.toLowerCase()} for department review and export.`,
+      title: `${reportReview.title} report review recorded`,
+      body: `Head of Department recorded ${reportReview.title.toLowerCase()} for department review and export.`,
       entityId: `hod-report-${reportSlug}`,
       severity: "info",
       payload: {
@@ -930,7 +930,9 @@ export function HodCommandCenter({
       ],
     });
 
-    setNotice(`${reportReview.title} saved for review and export.`);
+    setNotice(
+      `${reportReview.title} review request saved for ${schoolId}: hod-report-${reportSlug}, Dean/Exams Manager/Principal notified for Mathematics department export.`,
+    );
     setReportReview(null);
   }
 
@@ -973,7 +975,9 @@ export function HodCommandCenter({
       ],
     });
 
-    setNotice(`${communicationDraft.title} communication draft saved.`);
+    setNotice(
+      `${communicationDraft.title} communication draft saved for ${schoolId}: hod-communication-${draftSlug}, Dean/Principal/Teacher notified for Mathematics department follow-up.`,
+    );
     setCommunicationDraft(null);
   }
 
@@ -1014,7 +1018,9 @@ export function HodCommandCenter({
       ],
     });
 
-    setNotice(isSearch ? `${tableAction.title} search saved.` : `${tableAction.title} filters applied.`);
+    setNotice(
+      `${tableAction.title} ${isSearch ? "search request" : "filter set"} saved for ${schoolId}: hod-${tableAction.mode}-${tableSlug}, Dean/Principal notified for Mathematics review.`,
+    );
     setTableAction(null);
   }
 
@@ -1059,7 +1065,9 @@ export function HodCommandCenter({
       ],
     });
 
-    setNotice(`${selectedExport} export saved for department records. CSV downloaded for department review.`);
+    setNotice(
+      `${selectedExport} export request saved for ${schoolId}: ${schoolId}-hod-${exportSlug}-${generatedAt.slice(0, 10)}.csv, Dean/Exams Manager/Principal notified.`,
+    );
     setSelectedExport(null);
   }
 

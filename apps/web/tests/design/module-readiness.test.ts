@@ -8,7 +8,7 @@ import {
 import { buildSchoolErpModel } from "@/lib/dashboard/erp-model";
 import { getDashboardStudentHref, getDashboardWorkspaceHref } from "@/lib/dashboard/workspace-routes";
 import { getSchoolWorkspace, type SchoolExperienceRole } from "@/lib/experiences/school-data";
-import { isProductionReadyHref, isProductionReadyModule } from "@/lib/features/module-readiness";
+import { getModuleReadiness, isProductionReadyHref, isProductionReadyModule } from "@/lib/features/module-readiness";
 import { AdmissionsDashboardHome } from "@/components/modules/admissions/admissions-dashboard-home";
 import { InventoryDashboardHome } from "@/components/modules/inventory/inventory-dashboard-home";
 import { renderWithProviders } from "./test-utils";
@@ -55,6 +55,42 @@ function moduleFromDashboardHref(href: string) {
 }
 
 describe("production module readiness", () => {
+  it("separates visible UI from live API and production readiness", () => {
+    const attendance = getModuleReadiness("attendance");
+    const exams = getModuleReadiness("exams");
+    const unknown = getModuleReadiness("unmapped-module");
+
+    expect(attendance).toEqual(expect.objectContaining({
+      moduleCode: "attendance",
+      visibleInDemo: expect.any(Boolean),
+      uiComplete: expect.any(Boolean),
+      liveApiConnected: expect.any(Boolean),
+      tenantSafe: expect.any(Boolean),
+      productionReady: false,
+      missing: expect.arrayContaining(["module is explicitly inactive until its workflow contract is complete"]),
+    }));
+    expect(exams).toEqual(expect.objectContaining({
+      moduleCode: "exams",
+      uiComplete: true,
+      liveApiConnected: true,
+      tenantSafe: true,
+      productionReady: true,
+      missing: [],
+    }));
+    expect(unknown).toEqual(expect.objectContaining({
+      productionReady: false,
+      missing: expect.arrayContaining(["module is not in the production-ready allowlist"]),
+    }));
+
+    for (const readiness of [attendance, exams, unknown]) {
+      if (readiness.productionReady) {
+        expect(readiness.uiComplete).toBe(true);
+        expect(readiness.liveApiConnected).toBe(true);
+        expect(readiness.tenantSafe).toBe(true);
+      }
+    }
+  });
+
   it("hides incomplete modules from role sidebar navigation", () => {
     for (const role of dashboardRoles) {
       const sidebarIds = getRoleSidebar(role).map((item) => item.id);

@@ -179,6 +179,24 @@ describe("universal operational form and table system", () => {
     expect(screen.getByText(/Reporting record kept/)).toBeVisible();
   });
 
+  it("opens operational form print previews with form and field-count evidence", async () => {
+    const user = userEvent.setup();
+
+    renderWithProviders(<OperationalFormShell contract={formContract} />);
+
+    const form = screen.getByRole("form", { name: /parent sms follow-up/i });
+
+    await user.click(within(form).getByRole("button", { name: /^print$/i }));
+    expect(screen.getByText(/Parent SMS Follow-up print copy ready with 3 fields loaded/i)).toBeVisible();
+    expect(document.body.textContent).not.toMatch(/Print copy prepared from the current form details|Printable preview prepared/i);
+
+    await user.click(screen.getByRole("button", { name: /^close$/i }));
+    await user.click(within(form).getByRole("button", { name: /preview print/i }));
+
+    expect(screen.getByText(/Parent SMS Follow-up print preview ready with 3 fields loaded/i)).toBeVisible();
+    expect(document.body.textContent).not.toMatch(/Print copy prepared from the current form details|Printable preview prepared/i);
+  });
+
   it("makes table search, row view/edit/delete, sms, print, and export actions usable with local state", async () => {
     const user = userEvent.setup();
     const onAction = jest.fn();
@@ -245,7 +263,7 @@ describe("universal operational form and table system", () => {
     expect(screen.getByText("Faith Akinyi Updated")).toBeVisible();
 
     await user.click(screen.getByRole("button", { name: /row row-2 send sms/i }));
-    expect(screen.getByText(/send sms.*completed after the connected workflow responded/i)).toBeVisible();
+    expect(screen.getByText(/send sms.*returned from the connected workflow/i)).toBeVisible();
 
     await user.click(screen.getByRole("button", { name: /export/i }));
     expect(createObjectUrlSpy).toHaveBeenCalled();
@@ -300,7 +318,7 @@ describe("universal operational form and table system", () => {
       expect.objectContaining({ title: "Parent SMS Follow-up" }),
       expect.objectContaining({ student: "Brian Otieno" }),
     );
-    expect(screen.getByText(/submit completed after the connected workflow responded/i)).toBeVisible();
+    expect(screen.getByText(/submit returned from the connected workflow/i)).toBeVisible();
 
     await user.click(screen.getByRole("button", { name: /cancel/i }));
     expect(screen.getByLabelText(/student/i)).toHaveValue("");
@@ -315,13 +333,17 @@ describe("universal operational form and table system", () => {
     expect(screen.getByText("Faith Akinyi repeat lateness follow-up")).toBeVisible();
     await user.click(screen.getByRole("button", { name: /approve ready/i }));
     expect(screen.getByText("Approved")).toBeVisible();
+    expect(screen.getAllByText(/faith akinyi repeat lateness follow-up approved and related records updated/i).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/approve workflow accepted/i)).not.toBeInTheDocument();
     expect(onExecute).toHaveBeenCalledWith(expect.objectContaining({ actionId: "approve-case" }));
 
     await user.click(screen.getByRole("button", { name: /send parent sms ready/i }));
-    expect(screen.getByText(/sms queued/i)).toBeVisible();
+    expect(screen.getAllByText(/sms queued/i).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/send parent sms workflow accepted/i)).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /send sms to all parents ready/i }));
-    expect(screen.getByText(/all queued families/i)).toBeVisible();
+    expect(screen.getAllByText(/all queued families/i).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/send sms to all parents workflow accepted/i)).not.toBeInTheDocument();
   });
 
   it("keeps right-side detail, comments, attachments, updates, progress, and action records available in one drawer", () => {

@@ -22,13 +22,13 @@ describe("StorekeeperCommandCenter", () => {
     await user.type(screen.getByLabelText(/search items, suppliers, requisition ids, grns, or departments/i), "Rice");
     await user.click(screen.getByRole("button", { name: /rice stock/i }));
 
-    expect(screen.getByText(/rice stock opened in store records/i)).toBeVisible();
+    expect(screen.getByText(/rice stock focused in store records/i)).toBeVisible();
 
     await user.click(screen.getByRole("button", { name: /create purchase order/i }));
-    expect(screen.getByText(/create purchase order opened for rice stock may run out/i)).toBeVisible();
+    expect(screen.getByText(/create purchase order drafted for rice stock may run out/i)).toBeVisible();
 
     await user.click(screen.getByRole("button", { name: /bulk approve safe items/i }));
-    expect(screen.getByText(/safe requisition bulk approval review opened/i)).toBeVisible();
+    expect(screen.getByText(/safe requisition bulk approval review ready/i)).toBeVisible();
   });
 
   it("records purchase order and requisition decisions as school-scoped operational events", async () => {

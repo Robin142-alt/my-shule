@@ -1008,7 +1008,7 @@ export function DeputyPrincipalCommandCenter({ routeMode }: { routeMode: DeputyR
 
   function openSearchRecord(record: DeputySearchRecord) {
     setSearchTerm("");
-    setNotice(`${record.label} opened for deputy follow-up.`);
+    setNotice(`${record.label} deputy search loaded ${record.sectionId} section: ${record.detail}.`);
 
     if (typeof document !== "undefined") {
       const target = document.getElementById(record.sectionId);

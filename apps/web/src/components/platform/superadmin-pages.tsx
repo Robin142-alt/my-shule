@@ -35,6 +35,7 @@ import {
   fetchApiReadiness,
   isDashboardApiConfigured,
 } from "@/lib/dashboard/api-client";
+import { downloadCsvFile } from "@/lib/dashboard/export";
 import type { ExperienceNotificationItem } from "@/lib/experiences/types";
 import {
   callbackFailures,
@@ -735,6 +736,32 @@ function TenantsTable() {
   const isResendingInvite = resendingTenantId !== null;
   const blockedInviteRows = rows.filter((row) => row.invitationStatus === "blocked");
 
+  function generateAdminResetBundle(row: PlatformTenantRow) {
+    const generatedAt = new Date();
+    const expiresAt = new Date(generatedAt.getTime() + 15 * 60 * 1000);
+    const filename = `${row.schoolName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}-admin-reset.csv`;
+
+    downloadCsvFile({
+      filename,
+      headers: ["school", "tenantId", "adminEmail", "generatedAt", "expiresAt", "recoveryAction"],
+      rows: [
+        [
+          row.schoolName,
+          row.id,
+          row.adminEmail ?? "No admin email recorded",
+          generatedAt.toISOString(),
+          expiresAt.toISOString(),
+          "Reset admin password and require first-login rotation",
+        ],
+      ],
+    });
+    setSelectedTenantId(row.id);
+    setResendMessage(null);
+    setResetMessage(
+      `Admin reset bundle downloaded for ${row.schoolName}: ${filename}, expires in 15 minutes, tenant ${row.id}.`,
+    );
+  }
+
   useEffect(() => {
     let cancelled = false;
 
@@ -1131,9 +1158,7 @@ function TenantsTable() {
             </Button>
           )}
           <Button variant="ghost" size="sm" onClick={() => {
-            setSelectedTenantId(row.id);
-            setResendMessage(null);
-            setResetMessage(`A one-time admin reset bundle is ready for ${row.schoolName}.`);
+            generateAdminResetBundle(row);
           }}>
             <UserRoundCog className="h-4 w-4" />
             Reset admin
@@ -1435,11 +1460,7 @@ function TenantsTable() {
               </Button>
               <Button
                 variant="ghost"
-                onClick={() =>
-                  setResetMessage(
-                    `A one-time admin reset bundle is ready for ${selectedTenant.schoolName}.`,
-                  )
-                }
+                onClick={() => generateAdminResetBundle(selectedTenant)}
               >
                 Reset admin
               </Button>
@@ -1968,7 +1989,21 @@ function InfrastructurePage() {
   }
 
   function downloadSystemReport() {
-    setMessage("System health report prepared for download.");
+    const generatedAt = new Date().toISOString();
+    downloadCsvFile({
+      filename: `myshule-system-health-${generatedAt.slice(0, 10)}.csv`,
+      headers: ["School", "Issue", "Category", "Attempts", "Status", "Owner", "Generated At"],
+      rows: monitorIssues.map((issue) => [
+        issue.school,
+        issue.issue,
+        issue.category,
+        String(issue.attempts),
+        issue.status,
+        issue.owner,
+        generatedAt,
+      ]),
+    });
+    setMessage(`System health CSV downloaded with ${monitorIssues.length} issue row(s).`);
   }
 
   return (

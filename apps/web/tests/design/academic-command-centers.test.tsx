@@ -9,6 +9,13 @@ import { renderWithProviders } from "./test-utils";
 
 jest.setTimeout(20000);
 
+const fakeOnlyPhrases =
+  /selected in exams & performance|selected in parent escalations|export saved for department records|escalation tickets export saved/i;
+
+function expectNoFakeOnlyFeedback() {
+  expect(document.body.textContent).not.toMatch(fakeOnlyPhrases);
+}
+
 describe("academic command center interactions", () => {
   beforeEach(() => {
     window.localStorage.clear();
@@ -24,7 +31,8 @@ describe("academic command center interactions", () => {
     await user.click(screen.getByRole("button", { name: /cat 2 moderation/i }));
 
     expect(screen.getByRole("heading", { name: /exams & performance workspace/i })).toBeVisible();
-    expect(screen.getByText(/cat 2 moderation opened in exams & performance/i)).toBeVisible();
+    expect(screen.getByText(/cat 2 moderation hod search loaded exams & performance workspace: marks close friday \| 4 missing submissions/i)).toBeVisible();
+    expectNoFakeOnlyFeedback();
 
     await user.click(screen.getAllByRole("button", { name: /export/i })[0]);
     const exportDialog = screen.getByRole("dialog", { name: /hod department export/i });
@@ -33,7 +41,11 @@ describe("academic command center interactions", () => {
 
     await user.click(within(exportDialog).getByRole("button", { name: /save export request/i }));
 
-    expect(screen.getByText(/exam overview export saved for department records/i)).toBeVisible();
+    expect(
+      screen.getByText(
+        /exam overview export request saved for kb-high: kb-high-hod-exam-overview-\d{4}-\d{2}-\d{2}\.csv, dean\/exams manager\/principal notified/i,
+      ),
+    ).toBeVisible();
     expect(readSchoolData<Record<string, unknown>>("events", "kb-high")).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -54,7 +66,8 @@ describe("academic command center interactions", () => {
     await user.click(screen.getByRole("button", { name: /mrs\. wanjiku/i }));
 
     expect(screen.getByRole("heading", { name: /parent escalations/i })).toBeVisible();
-    expect(screen.getByText(/mrs\. wanjiku opened in parent escalations/i)).toBeVisible();
+    expect(screen.getByText(/mrs\. wanjiku grade master search loaded parent escalations workspace: parent escalation \| absenteeism follow-up today/i)).toBeVisible();
+    expectNoFakeOnlyFeedback();
 
     await user.click(screen.getByRole("button", { name: /export/i }));
     const exportDialog = screen.getByRole("dialog", { name: /grade table export/i });
@@ -63,7 +76,11 @@ describe("academic command center interactions", () => {
 
     await user.click(within(exportDialog).getByRole("button", { name: /save export request/i }));
 
-    expect(screen.getByText(/escalation tickets export saved/i)).toBeVisible();
+    expect(
+      screen.getByText(
+        /escalation tickets export request saved for kb-high: grade-master-export-escalation-tickets, deputy\/principal\/class teacher notified for form 2 oversight/i,
+      ),
+    ).toBeVisible();
     expect(readSchoolData<Record<string, unknown>>("events", "kb-high")).toEqual(
       expect.arrayContaining([
         expect.objectContaining({

@@ -246,7 +246,7 @@ export function SuperAdminShell({
                   onChange={(event) => setSearchTerm(event.target.value)}
                   onKeyDown={(event) => {
                     if (event.key === "Enter" && searchResults[0]) {
-                      openPlatformPath(searchResults[0].href, `${searchResults[0].label} opened from platform search.`);
+                      openPlatformPath(searchResults[0].href, `Navigating to ${searchResults[0].label} from platform search.`);
                     }
                   }}
                   aria-label="Search schools, tickets, logs"
@@ -261,7 +261,7 @@ export function SuperAdminShell({
                           key={item.id}
                           type="button"
                           onClick={() => {
-                            openPlatformPath(item.href, `${item.label} opened from platform search.`);
+                            openPlatformPath(item.href, `Navigating to ${item.label} from platform search.`);
                           }}
                           className="block w-full px-4 py-3 text-left text-sm transition hover:bg-surface-muted"
                         >
@@ -305,7 +305,7 @@ export function SuperAdminShell({
                         <button
                           key={item.id}
                           type="button"
-                          onClick={() => openPlatformPath(item.href, `${item.title} opened for platform follow-up.`)}
+                          onClick={() => openPlatformPath(item.href, `Navigating to ${item.title} platform follow-up.`)}
                           className="block w-full rounded-lg px-3 py-2 text-left transition hover:bg-surface-muted"
                         >
                           <span className="block text-sm font-bold text-primary">{item.title}</span>

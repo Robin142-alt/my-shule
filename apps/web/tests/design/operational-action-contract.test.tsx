@@ -69,7 +69,10 @@ describe("OperationalActionButton", () => {
 
   it("does not hide locked, degraded, or failed actions and routes active clicks through the execution contract", async () => {
     const user = userEvent.setup();
-    const onExecute = jest.fn();
+    const onExecute = jest.fn().mockResolvedValue({
+      message: "Send to Dean queued for the exam-release workflow.",
+      tone: "warning",
+    });
 
     renderWithProviders(
       <div>
@@ -106,6 +109,32 @@ describe("OperationalActionButton", () => {
         auditEvent: "audit.approve-results",
       }),
     );
+    expect(await screen.findByText(/send to dean queued for the exam-release workflow/i)).toBeVisible();
+    expect(screen.queryByText(/send to dean returned from the connected workflow/i)).not.toBeInTheDocument();
+  });
+
+  it("keeps void handlers as accepted workflow starts instead of fake completion", async () => {
+    const user = userEvent.setup();
+    const onExecute = jest.fn().mockResolvedValue(undefined);
+
+    renderWithProviders(
+      <OperationalActionButton
+        action={{
+          ...baseAction,
+          actionId: "print-register",
+          label: "Print Register",
+          health: "ACTIVE",
+        }}
+        onExecute={onExecute}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: /print register ready/i }));
+
+    expect(onExecute).toHaveBeenCalledTimes(1);
+    expect(await screen.findByText(/print register workflow accepted/i)).toBeVisible();
+    expect(screen.queryByText(/print register returned from the connected workflow/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/print register completed/i)).not.toBeInTheDocument();
   });
 
   it("does not show fake success when no execution handler is provided", async () => {

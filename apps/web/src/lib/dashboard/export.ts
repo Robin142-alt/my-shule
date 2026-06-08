@@ -137,7 +137,7 @@ function openInlinePrintPreview(html: string, title: string) {
           <div style="display:flex;gap:8px;flex-wrap:wrap;">
             <button data-myshule-print type="button" style="border:1px solid #0f3f8a;border-radius:10px;background:#0f3f8a;color:#ffffff;cursor:pointer;font-weight:800;padding:9px 13px;">Print</button>
             <button data-myshule-download-pdf type="button" style="border:1px solid #bfdbfe;border-radius:10px;background:#eff6ff;color:#0f3f8a;cursor:pointer;font-weight:800;padding:9px 13px;">Download PDF</button>
-            <button data-myshule-cancel type="button" style="border:1px solid #cbd5e1;border-radius:10px;background:#ffffff;color:#334155;cursor:pointer;font-weight:800;padding:9px 13px;">Cancel</button>
+            <button data-myshule-cancel type="button" style="border:1px solid #cbd5e1;border-radius:10px;background:#ffffff;color:#334155;cursor:pointer;font-weight:800;padding:9px 13px;">Close</button>
           </div>
         </div>
         <iframe title="${escapeHtml(title)} document preview" style="width:100%;height:100%;border:0;background:#f8fafc;"></iframe>
@@ -325,7 +325,7 @@ export function openPrintDocument({
         <div class="toolbar" aria-label="Print preview actions">
           <button class="primary" type="button" onclick="window.print()">Print</button>
           <button type="button" onclick="window.print()">Download PDF</button>
-          <button class="neutral" type="button" onclick="window.close()">Cancel</button>
+          <button class="neutral" type="button" onclick="window.close()">Close</button>
         </div>
         <main class="page">
           <div class="eyebrow">${escapeHtml(eyebrow)}</div>

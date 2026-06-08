@@ -924,7 +924,7 @@ export function RegistrarCommandCenter({ routeMode }: { routeMode: RegistrarRout
 
   function openSearchRecord(record: RegistrarSearchRecord) {
     setSearchTerm("");
-    setNotice(`${record.label} opened in admissions records.`);
+    setNotice(`${record.label} admissions search loaded ${record.sectionId} section: ${record.detail}.`);
 
     if (typeof document !== "undefined") {
       const target = document.getElementById(record.sectionId);
@@ -952,6 +952,7 @@ export function RegistrarCommandCenter({ routeMode }: { routeMode: RegistrarRout
 
     const schoolId = getCurrentSchoolId();
     const filterId = activeApplicantFilter.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+    const visibleRecords = applicants.filter((applicant) => activeApplicantFilter === "All statuses" || applicant.status === activeApplicantFilter).length;
 
     publishSchoolOperationalEvent({
       schoolId,
@@ -965,7 +966,7 @@ export function RegistrarCommandCenter({ routeMode }: { routeMode: RegistrarRout
       payload: {
         filter: activeApplicantFilter,
         source: "registrar-command-center",
-        visibleRecords: applicants.filter((applicant) => activeApplicantFilter === "All statuses" || applicant.status === activeApplicantFilter).length,
+        visibleRecords,
       },
       notifications: [
         {
@@ -981,7 +982,9 @@ export function RegistrarCommandCenter({ routeMode }: { routeMode: RegistrarRout
       ],
     });
 
-    setNotice(`${activeApplicantFilter} applicant filter applied.`);
+    setNotice(
+      `${activeApplicantFilter} applicant filter applied for ${schoolId}: admissions-filter-${filterId}, ${visibleRecords} visible records, Secretary/Principal notified.`,
+    );
     setActiveApplicantFilter(null);
   }
 
@@ -1025,7 +1028,9 @@ export function RegistrarCommandCenter({ routeMode }: { routeMode: RegistrarRout
       ],
     });
 
-    setNotice(`${selectedApplicantPreview.name} application preview recorded.`);
+    setNotice(
+      `${selectedApplicantPreview.name} application preview recorded for ${schoolId}: admissions-preview-${applicantId}, ${selectedApplicantPreview.status} status, office/fee/class/leadership notifications created.`,
+    );
     setSelectedApplicantPreview(null);
   }
 
@@ -1061,7 +1066,9 @@ export function RegistrarCommandCenter({ routeMode }: { routeMode: RegistrarRout
     });
 
     setQuickActionsOpen(false);
-    setNotice("Quick admissions action saved.");
+    setNotice(
+      `${schoolId} admissions quick action saved: admissions-quick-action, next step Verify documents and notify parent, Secretary/Accountant/Class Teacher/Principal notified.`,
+    );
   }
 
   return (

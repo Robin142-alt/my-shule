@@ -1026,7 +1026,7 @@ export function BoardingMasterCommandCenter({ routeMode }: { routeMode: Boarding
 
   function openSearchRecord(record: BoardingSearchRecord) {
     setSearchTerm("");
-    setNotice(`${record.label} opened in boarding records.`);
+    setNotice(`${record.label} boarding search loaded ${record.sectionId} section: ${record.detail}.`);
 
     if (typeof document !== "undefined") {
       const target = document.getElementById(record.sectionId);
@@ -1082,7 +1082,9 @@ export function BoardingMasterCommandCenter({ routeMode }: { routeMode: Boarding
     });
 
     setQuickResponseOpen(false);
-    setNotice("Quick boarding response saved.");
+    setNotice(
+      `${schoolId} quick boarding response saved: boarding-quick-response for Dorm B / Kevin Otieno, Deputy/Principal/Security/Nurse notified.`,
+    );
   }
 
   function saveDeskAction() {

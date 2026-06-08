@@ -647,13 +647,13 @@ export function ClassTeacherCommandCenter({ routeMode }: { routeMode: ClassTeach
 
   function openView(view: TeacherView) {
     setActiveView(view);
-    setNotice(`${getViewLabel(view)} opened.`);
+    setNotice(`${getViewLabel(view)} workspace ready.`);
   }
 
   function openSearchRecord(record: ClassTeacherSearchRecord) {
     setActiveView(record.view);
     setSearchTerm("");
-    setNotice(`${record.label} opened in ${getViewLabel(record.view)}.`);
+    setNotice(`${record.label} class teacher search loaded ${getViewLabel(record.view)} workspace: ${record.detail}.`);
   }
 
   function openParentMessage(learnerName: string) {
@@ -668,7 +668,7 @@ export function ClassTeacherCommandCenter({ routeMode }: { routeMode: ClassTeach
 
   function openReportPreview(reportName: string) {
     setReportPreview(reportName);
-    setNotice(`${reportName} preview prepared for Form 2 Blue.`);
+    setNotice(`${reportName} class report ready for Form 2 Blue with ${students.length} learner records and document ref CT-F2B-${reportName.toUpperCase().replace(/[^A-Z0-9]+/g, "-")}.`);
   }
 
   function openRosterControl(control: ClassRosterControl) {
@@ -754,7 +754,9 @@ export function ClassTeacherCommandCenter({ routeMode }: { routeMode: ClassTeach
       ],
     });
 
-    setNotice(`${parentTemplate.label} parent template saved.`);
+    setNotice(
+      `${parentTemplate.label} parent template saved for ${schoolId}: ${entityId}, Form 2 Blue SMS workflow, Deputy/Grade Master notified.`,
+    );
     setParentTemplate(null);
   }
 
@@ -828,7 +830,7 @@ export function ClassTeacherCommandCenter({ routeMode }: { routeMode: ClassTeach
         notifications: [
           {
             audienceRoles: ["Parent", "Deputy Principal"],
-            title: `Class follow-up sent for ${learnerAction.learnerName}`,
+            title: `Class follow-up queued for ${learnerAction.learnerName}`,
             body: "A class teacher parent SMS was queued for delivery.",
             severity: "info",
             relatedModule: "communications",
@@ -1092,7 +1094,7 @@ export function ClassTeacherCommandCenter({ routeMode }: { routeMode: ClassTeach
                     ],
                     footer: "Printed from the Class Teacher workspace.",
                   });
-                  setNotice(`${reportPreview} print preview opened.`);
+                  setNotice(`${reportPreview} print preview ready.`);
                   setReportPreview(null);
                 }}
                 className="rounded-xl bg-[#FF7A1A] px-4 py-2 text-sm font-black text-white"

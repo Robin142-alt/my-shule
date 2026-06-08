@@ -108,6 +108,97 @@ test('SchoolSmsWalletService rejects SMS sends when balance is exhausted', async
   );
 });
 
+test('SchoolSmsWalletService bulk send returns real sent, failed, and skipped evidence', async () => {
+  const reservations: Record<string, unknown>[] = [];
+  const markedSent: Record<string, unknown>[] = [];
+  let reserveCount = 0;
+  const service = new SchoolSmsWalletService(
+    { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'principal-1' }) } as never,
+    {
+      reserveSmsCredits: async (input: Record<string, unknown>) => {
+        reservations.push(input);
+        reserveCount += 1;
+
+        if (reserveCount === 2) {
+          return {
+            accepted: false,
+            reason: 'SMS balance exhausted',
+            log_id: 'sms-log-failed',
+            balance_after: 0,
+          };
+        }
+
+        return {
+          accepted: true,
+          log_id: `sms-log-${reserveCount}`,
+          balance_after: 120 - reserveCount,
+          credit_cost: 1,
+        };
+      },
+      markSmsLogSent: async (input: Record<string, unknown>) => {
+        markedSent.push(input);
+      },
+    } as never,
+  );
+
+  const result = await service.sendBulkSms({
+    message: 'Your child was absent today. Please contact the school office.',
+    message_type: 'absence_notice',
+    recipients: [
+      { recipient_id: 'student-1', name: 'Amina', recipient: '+254700000001' },
+      { recipient_id: 'student-2', name: 'Brian', recipient: '' },
+      { recipient_id: 'student-3', name: 'Chris', recipient: '+254700000003' },
+    ],
+  });
+
+  assert.equal(result.status, 'partial');
+  assert.equal(result.sent_count, 1);
+  assert.equal(result.failed_count, 1);
+  assert.equal(result.skipped_count, 1);
+  assert.equal(reservations.length, 2);
+  assert.equal(markedSent.length, 1);
+  assert.equal(reservations[0]?.tenant_id, 'tenant-a');
+  assert.equal(reservations[0]?.message_type, 'absence_notice');
+  const skipped = result.skipped as Record<string, unknown>[];
+  const failed = result.failed as Record<string, unknown>[];
+  assert.equal(skipped[0]?.reason, 'missing_phone_number');
+  assert.equal(failed[0]?.reason, 'SMS balance exhausted');
+});
+
+test('SchoolSmsWalletService exposes SMS readiness without provider secrets', async () => {
+  const service = new SchoolSmsWalletService(
+    { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'principal-1' }) } as never,
+    {} as never,
+    undefined,
+    undefined,
+    {
+      getReadiness: async () => ({
+        status: 'missing_credentials',
+        provider: {
+          id: 'provider-1',
+          provider_name: 'Africa\'s Talking',
+          provider_code: 'africas_talking',
+          is_active: true,
+          is_default: true,
+          sender_id_configured: true,
+          base_url_configured: false,
+          username_configured: true,
+          last_test_status: null,
+        },
+        missing: ['base_url'],
+      }),
+    } as never,
+  );
+
+  const readiness = await service.getReadiness();
+
+  assert.equal(readiness.status, 'missing_credentials');
+  assert.equal(readiness.can_send, false);
+  assert.equal(readiness.disabled_reason, 'SMS provider credentials are incomplete');
+  assert.deepEqual(readiness.missing, ['base_url']);
+  assert.equal(JSON.stringify(readiness).includes('live-api-key-secret'), false);
+});
+
 test('SmsDispatchService reports missing credential fields without exposing secrets', async () => {
   const service = new SmsDispatchService({
     getDefaultProviderForDispatch: async () => ({

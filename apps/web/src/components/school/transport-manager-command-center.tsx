@@ -414,7 +414,7 @@ function DataTable({
         <div className="flex gap-2">
           <button
             type="button"
-            onClick={() => onAction(`${title} filters opened.`)}
+            onClick={() => onAction(`${title} filters ready.`)}
             className="rounded-lg border border-[#D8E0EC] px-3 py-1.5 text-xs font-black text-[#071D49]"
           >
             Filters
@@ -628,7 +628,7 @@ function RoutesWorkspace({ onAction }: { onAction: TransportActionHandler }) {
               <button
                 key={action}
                 type="button"
-                onClick={() => onAction(`${action} opened for route planning.`)}
+                onClick={() => onAction(`${action} planning workspace ready.`)}
                 className="rounded-xl bg-white/88 px-4 py-3 text-sm font-black text-[#071D49] shadow-sm"
               >
                 {action}
@@ -786,7 +786,7 @@ function NotificationsWorkspace({ onAction }: { onAction: TransportActionHandler
             <button
               key={template}
               type="button"
-              onClick={() => onAction(`${template} message template opened for parent SMS.`)}
+              onClick={() => onAction(`${template} parent SMS template ready for review.`)}
               className="rounded-xl border border-[#D8E0EC] bg-[#EEF5FF] p-4 text-left text-sm font-black text-[#071D49]"
             >
               {template}
@@ -847,7 +847,7 @@ function ReportsWorkspace({ onAction }: { onAction: TransportActionHandler }) {
               <button
                 key={filter}
                 type="button"
-                onClick={() => onAction(`${filter} report option opened.`)}
+                onClick={() => onAction(`${filter} report option ready.`)}
                 className="rounded-xl border border-[#D8E0EC] bg-white px-4 py-3 text-left text-sm font-black text-[#071D49]"
               >
                 {filter}
@@ -933,13 +933,13 @@ export function TransportManagerCommandCenter({ routeMode }: { routeMode: Transp
 
   function openView(view: TransportView) {
     setActiveView(view);
-    setNotice(`${getViewLabel(view)} opened.`);
+    setNotice(`${getViewLabel(view)} workspace ready.`);
   }
 
   function openSearchRecord(record: TransportSearchRecord) {
     setActiveView(record.view);
     setSearchTerm("");
-    setNotice(`${record.label} opened in ${getViewLabel(record.view)}.`);
+    setNotice(`${record.label} focused in ${getViewLabel(record.view)}.`);
   }
 
   return (

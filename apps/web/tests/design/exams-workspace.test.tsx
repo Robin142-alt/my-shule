@@ -639,10 +639,10 @@ describe("exams workspace", () => {
     expect(screen.getByText(/report approved/i)).toBeVisible();
 
     await user.click(screen.getAllByRole("button", { name: /^Publish$/i })[1]);
-    expect(screen.getByText(/report published to permitted parent and student portals/i)).toBeVisible();
+    expect(screen.getByText(/report published to the permitted parent portal/i)).toBeVisible();
 
     await user.click(screen.getAllByRole("button", { name: /^Unpublish$/i })[1]);
-    expect(screen.getByText(/report unpublished from parent and student portals/i)).toBeVisible();
+    expect(screen.getByText(/report unpublished from the parent portal/i)).toBeVisible();
 
     await user.click(screen.getAllByRole("button", { name: /audit trail/i })[0]);
     expect(screen.getByRole("dialog", { name: /report card audit trail/i })).toBeVisible();

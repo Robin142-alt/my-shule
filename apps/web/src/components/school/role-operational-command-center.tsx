@@ -42,7 +42,7 @@ import { PrincipalPracticalCommandCenter } from "@/components/school/principal-p
 import { UserManagementWorkspace } from "@/components/school/user-management-workspace";
 import { Card } from "@/components/ui/card";
 import { StatusPill } from "@/components/ui/status-pill";
-import { openPrintDocument } from "@/lib/dashboard/export";
+import { downloadCsvFile, openPrintDocument } from "@/lib/dashboard/export";
 import type { SchoolExperienceRole } from "@/lib/experiences/types";
 import {
   getOperationalRoleBlueprint,
@@ -1136,12 +1136,12 @@ function workspaceWorkflow(kind: WorkspaceKind, workspace: string) {
     finance: `${name} captured -> Reconciled -> Approved -> Parent notified -> Ledger updated`,
     attendance: `${name} flagged -> Reason captured -> Parent notified -> Follow-up -> Closed`,
     discipline: `${name} reported -> Investigation -> Intervention -> Parent notified -> Resolved`,
-    communication: `${name} drafted -> Recipient checked -> Sent -> Delivery tracked -> Archived`,
+    communication: `${name} drafted -> Recipient checked -> Queued -> Delivery tracked -> Archived`,
     students: `${name} identified -> Profile reviewed -> Action assigned -> Follow-up -> Closed`,
     staff: `${name} raised -> Supervisor assigned -> Staff notified -> Completed -> Logged`,
     transport: `${name} reported -> Route/vehicle action -> Parent alert -> Verified -> Closed`,
     inventory: `${name} requested -> Stock checked -> Issued/ordered -> Recorded -> Audited`,
-    library: `${name} scanned -> Borrower verified -> Issued/returned -> Notice sent -> Closed`,
+    library: `${name} scanned -> Borrower verified -> Issued/returned -> Notice queued -> Closed`,
     clinic: `${name} logged -> Care action -> Guardian notified -> Referral/follow-up -> Closed`,
     counselling: `${name} referred -> Session scheduled -> Intervention -> Follow-up -> Closed`,
     boarding: `${name} raised -> Dorm action -> Parent/Deputy notified -> Verified -> Closed`,
@@ -1151,7 +1151,7 @@ function workspaceWorkflow(kind: WorkspaceKind, workspace: string) {
     reports: `${name} requested -> Filters applied -> Generated -> Reviewed -> Exported`,
     settings: `${name} change drafted -> Capability check -> Applied -> Verified -> Audit logged`,
     audit: `${name} event captured -> Inspection -> Finding assigned -> Remediation -> Closed`,
-    general: `${name} opened -> Assigned -> Actioned -> Verified -> Archived`,
+    general: `${name} received -> Assigned -> Actioned -> Verified -> Archived`,
   };
 
   return workflows[kind];
@@ -2312,7 +2312,7 @@ function NurseClinicWorkspace({
             <h3 className="text-lg font-black text-foreground">Referral readiness</h3>
           </div>
           <p className="mt-3 text-sm font-semibold leading-6 text-muted">
-            Serious cases can be referred to hospital, parent SMS can be sent, and boarding/class teacher follow-up remains visible in the visit record.
+            Serious cases can be referred to hospital, parent SMS can be queued, and boarding/class teacher follow-up remains visible in the visit record.
           </p>
         </Card>
       </aside>
@@ -3230,7 +3230,7 @@ function BoardingWorkspace({
                       <StatusPill label={item.status} tone={item.status === "Missing" ? "critical" : item.status === "Sick" ? "warning" : "ok"} compact />
                     </td>
                     <td className="px-3 py-3 font-semibold text-muted">{item.lastMarked}</td>
-                    <td className="px-3 py-3"><StatusPill label={item.parentSmsSent ? "Sent" : "Not sent"} tone={item.parentSmsSent ? "ok" : "warning"} compact /></td>
+                    <td className="px-3 py-3"><StatusPill label={item.parentSmsSent ? "Queued" : "Not queued"} tone={item.parentSmsSent ? "ok" : "warning"} compact /></td>
                     <td className="px-3 py-3">
                       <div className="flex flex-wrap gap-2">
                         <button type="button" onClick={() => onMarkPresent(item.id)} className="rounded-lg border border-[#BBF7D0] px-2 py-1 text-xs font-black text-success">Mark Present</button>
@@ -3458,7 +3458,7 @@ function TransportWorkspace({
                     <td className="px-3 py-3">
                       <StatusPill label={trip.status} tone={trip.status === "Not Picked" ? "critical" : trip.status === "Waiting" ? "warning" : "ok"} compact />
                     </td>
-                    <td className="px-3 py-3"><StatusPill label={trip.parentAlertSent ? "Sent" : "Not sent"} tone={trip.parentAlertSent ? "ok" : "warning"} compact /></td>
+                    <td className="px-3 py-3"><StatusPill label={trip.parentAlertSent ? "Queued" : "Not queued"} tone={trip.parentAlertSent ? "ok" : "warning"} compact /></td>
                     <td className="px-3 py-3">
                       <div className="flex flex-wrap gap-2">
                         <button type="button" onClick={() => onMarkPicked(trip.id)} className="rounded-lg border border-[#BBF7D0] px-2 py-1 text-xs font-black text-success">Mark Picked</button>
@@ -3674,7 +3674,7 @@ function LaboratoryWorkspace({
                     <td className="px-3 py-3 font-semibold text-muted">{request.teacher} - {request.className}</td>
                     <td className="px-3 py-3 font-semibold text-muted">{request.requestedFor}</td>
                     <td className="px-3 py-3"><StatusPill label={request.status} tone={request.status === "Hazard Hold" ? "critical" : request.status === "Prepared" || request.status === "Completed" ? "ok" : "warning"} compact /></td>
-                    <td className="px-3 py-3"><StatusPill label={request.teacherAlerted ? "Sent" : "Not sent"} tone={request.teacherAlerted ? "ok" : "warning"} compact /></td>
+                    <td className="px-3 py-3"><StatusPill label={request.teacherAlerted ? "Queued" : "Not queued"} tone={request.teacherAlerted ? "ok" : "warning"} compact /></td>
                     <td className="px-3 py-3">
                       <div className="flex flex-wrap gap-2">
                         <button type="button" onClick={() => onApprovePracticalPrep(request.id)} className="rounded-lg border border-[#BBF7D0] px-2 py-1 text-xs font-black text-success">Approve Practical Prep</button>
@@ -4009,7 +4009,7 @@ function SecretaryWorkspace({
     { label: "Visitors Waiting", value: String(waitingVisitors.length), helper: "Gate/front desk log", tone: waitingVisitors.length > 0 ? "warning" : "ok", Icon: Clock3 },
     { label: "Visitors Inside", value: String(insideVisitors.length), helper: "Security gate log", tone: insideVisitors.length > 0 ? "warning" : "ok", Icon: ShieldCheck },
     { label: "Documents Requested", value: String(inquiries.filter((item) => /letter|statement|report/i.test(item.issue)).length), helper: "Letters and statements", tone: "warning", Icon: Printer },
-    { label: "SMS Sent", value: String(inquiries.filter((item) => item.smsSent).length), helper: "Parent communication", tone: "ok", Icon: MessageCircle },
+    { label: "SMS Queued", value: String(inquiries.filter((item) => item.smsSent).length), helper: "Parent communication", tone: "ok", Icon: MessageCircle },
   ];
 
   return (
@@ -4101,7 +4101,7 @@ function SecretaryWorkspace({
                     <td className="px-3 py-3 font-semibold text-muted">{item.student} - {item.className}</td>
                     <td className="px-3 py-3 font-semibold text-muted">{item.issue}<span className="block text-xs">{item.department}</span></td>
                     <td className="px-3 py-3"><StatusPill label={item.status} tone={item.status === "Resolved" ? "ok" : item.status === "Escalated" ? "critical" : "warning"} compact /></td>
-                    <td className="px-3 py-3"><StatusPill label={item.smsSent ? "Sent" : "Not sent"} tone={item.smsSent ? "ok" : "warning"} compact /></td>
+                    <td className="px-3 py-3"><StatusPill label={item.smsSent ? "Queued" : "Not queued"} tone={item.smsSent ? "ok" : "warning"} compact /></td>
                     <td className="px-3 py-3">
                       <div className="flex flex-wrap gap-2">
                         <button type="button" onClick={() => onMarkParentServed(item.id)} className="rounded-lg border border-[#BBF7D0] px-2 py-1 text-xs font-black text-success">Mark Parent Served</button>
@@ -4336,7 +4336,7 @@ function DisciplineWorkspace({
                     </td>
                     <td className="px-3 py-3"><StatusPill label={item.severity} tone={item.severity === "Critical" || item.severity === "Serious" ? "critical" : item.severity === "Moderate" ? "warning" : "ok"} compact /></td>
                     <td className="px-3 py-3"><StatusPill label={item.status} tone={item.status === "Resolved" ? "ok" : item.status === "Escalated" ? "critical" : "warning"} compact /></td>
-                    <td className="px-3 py-3"><StatusPill label={item.parentSmsSent ? "Sent" : "Not sent"} tone={item.parentSmsSent ? "ok" : "warning"} compact /></td>
+                    <td className="px-3 py-3"><StatusPill label={item.parentSmsSent ? "Queued" : "Not queued"} tone={item.parentSmsSent ? "ok" : "warning"} compact /></td>
                     <td className="px-3 py-3">
                       <div className="flex flex-wrap gap-2">
                         <button type="button" onClick={() => onNotifyParent(item.id)} className="rounded-lg border border-[#B8D4FF] px-2 py-1 text-xs font-black text-[#1D4ED8]">Notify Parent</button>
@@ -4590,7 +4590,7 @@ function CounsellingWorkspace({
                     </td>
                     <td className="px-3 py-3"><StatusPill label={item.riskLevel} tone={item.riskLevel === "Critical" || item.riskLevel === "High" ? "critical" : item.riskLevel === "Medium" ? "warning" : "ok"} compact /></td>
                     <td className="px-3 py-3"><StatusPill label={item.status} tone={item.status === "Closed" ? "ok" : item.status === "Escalated" ? "critical" : "warning"} compact /></td>
-                    <td className="px-3 py-3"><StatusPill label={item.guardianSmsSent ? "Sent" : "Not sent"} tone={item.guardianSmsSent ? "ok" : "warning"} compact /></td>
+                    <td className="px-3 py-3"><StatusPill label={item.guardianSmsSent ? "Queued" : "Not queued"} tone={item.guardianSmsSent ? "ok" : "warning"} compact /></td>
                     <td className="px-3 py-3">
                       <div className="flex flex-wrap gap-2">
                         <button type="button" onClick={() => onNotifyGuardian(item.id)} className="rounded-lg border border-[#B8D4FF] px-2 py-1 text-xs font-black text-[#1D4ED8]">Notify Guardian</button>
@@ -5837,7 +5837,9 @@ function GenericRoleOperationalCommandCenter({
       `${visit.student} sick bay visit saved and ${visit.medicine} stock deducted`,
       ["Clinic visit saved", "Medicine stock deducted", "Parent SMS ready"],
     );
-    setClinicNotice(`${visit.student} visit saved. ${visit.medicine} stock deducted by ${quantity}.`);
+    setClinicNotice(
+      `${visit.student} visit saved for ${schoolId}: ${visitId}, ${visit.medicine} stock deducted by ${quantity}, Principal/Deputy/Class Teacher/Boarding notified.`,
+    );
   }
 
   function loadMedicineStock(medicine: Omit<MedicineStockRecord, "id">) {
@@ -5900,8 +5902,10 @@ function GenericRoleOperationalCommandCenter({
 
   function printClinicSlip(id: string) {
     const visit = clinicVisits.find((item) => item.id === id);
-    addLocalExecutionLog(`${visit?.student ?? "Student"} medical slip opened`, ["Medical slip prepared", "Print preview opened"]);
-    setClinicNotice(`${visit?.student ?? "Student"} medical slip opened for printing.`);
+    addLocalExecutionLog(`${visit?.student ?? "Student"} medical slip preview ready`, ["Medical slip prepared", "Print preview ready"]);
+    setClinicNotice(
+      `${visit?.student ?? "Student"} medical slip print preview ready for ${schoolId}: clinic visit ${id}, ${visit?.medicine ?? "medicine"} record, guardian ${visit?.guardianPhone ?? "not recorded"}.`,
+    );
     openSchoolPrintPreview({
       eyebrow: "Medical slip",
       title: `${visit?.student ?? "Student"} Medical Slip`,
@@ -5917,13 +5921,13 @@ function GenericRoleOperationalCommandCenter({
     publishDashboardEvent({
       type: "CLINIC_REGISTER_PRINTED",
       module: "clinic",
-      title: "Sick bay register opened for printing",
+      title: `Sick bay register print preview ready for ${schoolId}`,
       body: `${clinicVisits.length} sick bay visit records prepared for printing.`,
       severity: "success",
       notifications: [{ audienceRoles: ["nurse", "principal"], title: "Sick bay register printed" }],
     });
-    addLocalExecutionLog("Sick bay register opened", ["Sick bay register prepared", "Print preview opened"]);
-    setClinicNotice("Sick bay register opened for printing.");
+    addLocalExecutionLog("Sick bay register preview ready", ["Sick bay register prepared", "Print preview ready"]);
+    setClinicNotice(`Sick bay register print preview ready for ${schoolId}: ${clinicVisits.length} visit records, Nurse/Principal notified.`);
     openSchoolPrintPreview({
       eyebrow: "Sick bay register",
       title: "Sick Bay Register",
@@ -5951,8 +5955,23 @@ function GenericRoleOperationalCommandCenter({
     };
 
     setAdmissionApplicants((current) => [newApplicant, ...current]);
-    addAdmissionsExecutionLog(`${applicant.applicant} inquiry saved`, ["Admission inquiry saved", "Document checklist opened", "Parent contact captured"]);
-    setAdmissionsNotice(`${applicant.applicant} saved. Document verification and interview follow-up are now visible.`);
+    addSchoolRecord("admission-applicants", newApplicant, schoolId);
+    publishDashboardEvent({
+      type: "ADMISSION_INQUIRY_RECORDED",
+      module: "admissions",
+      title: `${applicant.applicant} admission inquiry recorded`,
+      body: `${applicant.applicant} inquiry captured with ${applicant.documents.toLowerCase()} documents and parent contact ${applicant.parentPhone}.`,
+      entityId: newApplicant.id,
+      severity: applicant.documents === "Complete" ? "info" : "warning",
+      payload: { applicant: newApplicant },
+      notifications: [
+        { audienceRoles: ["principal", "secretary", "accountant", "class-teacher"], title: "Admission inquiry recorded" },
+      ],
+    });
+    addAdmissionsExecutionLog(`${applicant.applicant} inquiry saved`, ["Admission inquiry saved", "Document checklist ready", "Parent contact captured"]);
+    setAdmissionsNotice(
+      `${applicant.applicant} admission inquiry saved for ${schoolId}: ${newApplicant.id}, documents ${newApplicant.documents}, parent contact captured, Principal/Secretary/Accountant/Class Teacher notified.`,
+    );
   }
 
   function verifyAdmissionDocuments(id: string) {
@@ -6033,8 +6052,10 @@ function GenericRoleOperationalCommandCenter({
         status: shouldOnboard ? "Onboarded" : item.status,
       };
     }));
-    addAdmissionsExecutionLog(`${applicant?.applicant ?? "Applicant"} admission letter opened`, ["Admission letter prepared", "Print preview opened"]);
-    setAdmissionsNotice(`${applicant?.applicant ?? "Applicant"} admission letter opened for printing.`);
+    addAdmissionsExecutionLog(`${applicant?.applicant ?? "Applicant"} admission letter preview ready`, ["Admission letter prepared", "Print preview ready"]);
+    setAdmissionsNotice(
+      `${applicant?.applicant ?? "Applicant"} admission letter print preview ready for ${schoolId}: applicant ${id}, ${applicant?.admissionNumber ?? "pending admission number"}, status ${applicant?.status ?? "unknown"}.`,
+    );
     openSchoolPrintPreview({
       eyebrow: "Admission letter",
       title: `${applicant?.applicant ?? "Applicant"} Admission Letter`,
@@ -6051,13 +6072,13 @@ function GenericRoleOperationalCommandCenter({
     publishDashboardEvent({
       type: "ADMISSIONS_PIPELINE_PRINTED",
       module: "admissions",
-      title: "Admissions pipeline opened for printing",
+      title: `Admissions pipeline print preview ready for ${schoolId}`,
       body: `${admissionApplicants.length} applicant records prepared for printing.`,
       severity: "success",
       notifications: [{ audienceRoles: ["admissions", "principal"], title: "Admissions pipeline printed" }],
     });
-    addAdmissionsExecutionLog("Admissions pipeline opened", ["Application pipeline prepared", "Print preview opened"]);
-    setAdmissionsNotice("Admissions pipeline opened for printing.");
+    addAdmissionsExecutionLog("Admissions pipeline preview ready", ["Application pipeline prepared", "Print preview ready"]);
+    setAdmissionsNotice(`Admissions pipeline print preview ready for ${schoolId}: ${admissionApplicants.length} applicant records, Admissions/Principal notified.`);
     openSchoolPrintPreview({
       eyebrow: "Admissions pipeline",
       title: "Admissions Pipeline",
@@ -6203,21 +6224,23 @@ function GenericRoleOperationalCommandCenter({
       type: "LIBRARY_SMS_SENT",
       module: "library",
       title: `${loan?.borrower ?? "Borrower"} library SMS queued`,
-      body: `${loan?.bookTitle ?? "Book"} message sent to parent/student.`,
+      body: `${loan?.bookTitle ?? "Book"} message queued for parent/guardian.`,
       entityId: id,
       severity: "success",
       sms: [{ recipient: loan?.admissionNo ?? "student", message: `Library update: ${loan?.bookTitle ?? "book"} requires attention.` }],
       notifications: [{ audienceRoles: ["parent", "student"], title: "Library SMS queued" }],
     });
     addLibraryExecutionLog(`${loan?.borrower ?? "Borrower"} library SMS queued`, ["Overdue SMS queued", "Communication log updated"]);
-    setLibraryNotice(`${loan?.borrower ?? "Borrower"} parent/student SMS queued for ${loan?.bookTitle ?? "book"}.`);
+    setLibraryNotice(`${loan?.borrower ?? "Borrower"} parent/guardian SMS queued for ${loan?.bookTitle ?? "book"}.`);
   }
 
   function printLibrarySlip(id: string) {
     const loan = libraryLoans.find((item) => item.id === id);
 
-    addLibraryExecutionLog(`${loan?.bookTitle ?? "Book"} library slip opened`, ["Library slip prepared", "Print preview opened"]);
-    setLibraryNotice(`${loan?.bookTitle ?? "Book"} slip opened for printing.`);
+    addLibraryExecutionLog(`${loan?.bookTitle ?? "Book"} library slip preview ready`, ["Library slip prepared", "Print preview ready"]);
+    setLibraryNotice(
+      `${loan?.bookTitle ?? "Book"} slip print preview ready for ${schoolId}: loan ${id}, borrower ${loan?.borrower ?? "not recorded"}, admission ${loan?.admissionNo ?? "not recorded"}.`,
+    );
     openSchoolPrintPreview({
       eyebrow: "Library slip",
       title: `${loan?.bookTitle ?? "Book"} Library Slip`,
@@ -6235,13 +6258,13 @@ function GenericRoleOperationalCommandCenter({
     publishDashboardEvent({
       type: "LIBRARY_REPORT_PRINTED",
       module: "library",
-      title: "Library report opened for printing",
+      title: `Library report print preview ready for ${schoolId}`,
       body: `${libraryLoans.length} borrower records and ${libraryBooks.length} catalogue records prepared for printing.`,
       severity: "success",
       notifications: [{ audienceRoles: ["librarian", "principal"], title: "Library report printed" }],
     });
-    addLibraryExecutionLog("Library report opened", ["Library report prepared", "Print preview opened"]);
-    setLibraryNotice("Library report opened for printing.");
+    addLibraryExecutionLog("Library report preview ready", ["Library report prepared", "Print preview ready"]);
+    setLibraryNotice(`Library report print preview ready for ${schoolId}: ${libraryLoans.length} borrower records and ${libraryBooks.length} catalogue records, Librarian/Principal notified.`);
     openSchoolPrintPreview({
       eyebrow: "Library report",
       title: "Library Borrowing Report",
@@ -6324,8 +6347,10 @@ function GenericRoleOperationalCommandCenter({
   function printStockSlip(id: string) {
     const movement = stockMovements.find((item) => item.id === id);
 
-    addStockExecutionLog(`${movement?.item ?? "Stock"} slip opened`, ["Stock slip prepared", "Print preview opened"]);
-    setStockNotice(`${movement?.item ?? "Stock"} issue slip opened for printing.`);
+    addStockExecutionLog(`${movement?.item ?? "Stock"} slip preview ready`, ["Stock slip prepared", "Print preview ready"]);
+    setStockNotice(
+      `${movement?.item ?? "Stock"} issue slip print preview ready for ${schoolId}: movement ${id}, ${movement?.department ?? "department"} to ${movement?.receiver ?? "receiver"}.`,
+    );
     openSchoolPrintPreview({
       eyebrow: "Stock issue slip",
       title: `${movement?.item ?? "Stock"} Issue Slip`,
@@ -6339,8 +6364,32 @@ function GenericRoleOperationalCommandCenter({
   }
 
   function exportStockReport() {
-    addStockExecutionLog("Stock report exported", ["CSV export prepared", "Stock movement report downloaded"]);
-    setStockNotice("Stock report exported with current catalogue and movement history.");
+    downloadCsvFile({
+      filename: "stock-report.csv",
+      headers: ["Type", "Item", "Category/Movement", "Quantity", "Unit/Department", "Supplier/Receiver", "Status/Note"],
+      rows: [
+        ...stockItems.map((item) => [
+          "Catalogue",
+          item.item,
+          item.category,
+          String(item.quantity),
+          item.unit,
+          item.supplier,
+          item.status,
+        ]),
+        ...stockMovements.map((movement) => [
+          "Movement",
+          movement.item,
+          movement.movementType,
+          String(movement.quantity),
+          movement.department,
+          movement.receiver,
+          movement.note,
+        ]),
+      ],
+    });
+    addStockExecutionLog("Stock report exported", ["CSV file generated", "Stock movement report downloaded"]);
+    setStockNotice(`Stock CSV downloaded for ${schoolId}: ${stockItems.length} catalogue items and ${stockMovements.length} movements.`);
   }
 
   function addBoardingExecutionLog(label: string, events: string[]) {
@@ -6467,7 +6516,7 @@ function GenericRoleOperationalCommandCenter({
       publishDashboardEvent({
         type: "BOARDING_MISSING_BOARDER_ALERTED",
         module: "boarding",
-        title: `${updatedRecord.student} missing boarder alert sent`,
+        title: `${updatedRecord.student} missing boarder alert queued`,
         body: `${updatedRecord.student} is missing from ${updatedRecord.dorm}. Deputy, security, parent, and principal follow-up was started.`,
         entityId: id,
         severity: "critical",
@@ -6623,8 +6672,8 @@ function GenericRoleOperationalCommandCenter({
       severity: "success",
       notifications: [{ audienceRoles: ["boarding-master", "deputy-principal"], title: "Hostel roll call printed" }],
     });
-    addBoardingExecutionLog("Hostel roll call sheet opened", ["Roll call print view prepared", "Print preview opened"]);
-    setBoardingNotice("Hostel roll call sheet opened for printing.");
+    addBoardingExecutionLog("Hostel roll call sheet preview ready", ["Roll call print view prepared", "Print preview ready"]);
+    setBoardingNotice(`Hostel roll call sheet print preview ready for ${schoolId}: ${boardingRollCalls.length} roll-call records, Boarding/Deputy notified.`);
     openSchoolPrintPreview({
       eyebrow: "Hostel roll call",
       title: "Hostel Roll Call Sheet",
@@ -6717,7 +6766,7 @@ function GenericRoleOperationalCommandCenter({
       });
     }
     addTransportExecutionLog(`${trip?.student ?? "Student"} marked picked`, ["Trip attendance updated", "Parent pickup SMS queued"]);
-    setTransportNotice(`${trip?.student ?? "Student"} marked picked. Parent alert sent.`);
+    setTransportNotice(`${trip?.student ?? "Student"} marked picked. Parent pickup SMS queued.`);
   }
 
   function markTransportDropped(id: string) {
@@ -6739,7 +6788,7 @@ function GenericRoleOperationalCommandCenter({
       });
     }
     addTransportExecutionLog(`${trip?.student ?? "Student"} marked dropped`, ["Drop-off saved", "Parent drop-off SMS queued"]);
-    setTransportNotice(`${trip?.student ?? "Student"} marked dropped. Parent alert sent.`);
+    setTransportNotice(`${trip?.student ?? "Student"} marked dropped. Parent drop-off SMS queued.`);
   }
 
   function notifyTransportParent(id: string) {
@@ -6752,16 +6801,16 @@ function GenericRoleOperationalCommandCenter({
       publishDashboardEvent({
         type: "TRANSPORT_PARENT_ALERT_SENT",
         module: "transport",
-        title: `${updatedTrip.student} transport parent alert sent`,
+      title: `${updatedTrip.student} transport parent alert queued`,
         body: `Parent/guardian was notified about ${updatedTrip.student}'s transport status.`,
         entityId: id,
         severity: "success",
-        notifications: [{ audienceRoles: ["parent", "transport-manager"], title: "Transport parent alert sent" }],
+        notifications: [{ audienceRoles: ["parent", "transport-manager"], title: "Transport parent alert queued" }],
         sms: [{ recipient: transportParentRecipient(updatedTrip), message: `Transport update: ${updatedTrip.student} is currently marked ${updatedTrip.status.toLowerCase()} on ${updatedTrip.route}.` }],
       });
     }
     addTransportExecutionLog(`${trip?.student ?? "Student"} parent transport alert queued`, ["Parent transport SMS queued", "Route communication updated"]);
-    setTransportNotice(`${trip?.student ?? "Student"} parent transport alert sent.`);
+    setTransportNotice(`${trip?.student ?? "Student"} parent transport alert queued.`);
   }
 
   function reportTransportVehicleIssue(id: string) {
@@ -6857,8 +6906,8 @@ function GenericRoleOperationalCommandCenter({
       severity: "success",
       notifications: [{ audienceRoles: ["transport-manager", "principal"], title: "Transport route list printed" }],
     });
-    addTransportExecutionLog("Transport route list opened", ["Route list prepared", "Print preview opened"]);
-    setTransportNotice("Transport route list opened for printing.");
+    addTransportExecutionLog("Transport route list preview ready", ["Route list prepared", "Print preview ready"]);
+    setTransportNotice(`Transport route list print preview ready for ${schoolId}: ${transportVehicles.length} vehicle routes and ${transportTrips.length} trip records, Transport/Principal notified.`);
     openSchoolPrintPreview({
       eyebrow: "Transport routes",
       title: "Transport Route List",
@@ -7140,11 +7189,11 @@ function GenericRoleOperationalCommandCenter({
       publishDashboardEvent({
         type: "LAB_TEACHER_ALERT_SENT",
         module: "laboratory",
-        title: `${updatedRequest.teacher} lab alert sent`,
+      title: `${updatedRequest.teacher} lab alert queued`,
         body: `${updatedRequest.teacher} was alerted about ${updatedRequest.practical} for ${updatedRequest.className}.`,
         entityId: requestId,
         severity: "success",
-        notifications: [{ audienceRoles: ["teacher"], title: "Lab teacher alert sent" }],
+        notifications: [{ audienceRoles: ["teacher"], title: "Lab teacher alert queued" }],
         sms: [{ recipient: labTeacherRecipient(updatedRequest), message: `Lab update: ${updatedRequest.practical} is ready for ${updatedRequest.className}.` }],
       });
     }
@@ -7161,8 +7210,8 @@ function GenericRoleOperationalCommandCenter({
       severity: "success",
       notifications: [{ audienceRoles: ["laboratory-technician", "dean-academics"], title: "Lab practical checklist printed" }],
     });
-    addLabExecutionLog("Practical checklist opened", ["Lab checklist prepared", "Print preview opened"]);
-    setLabNotice("Practical checklist opened for printing.");
+    addLabExecutionLog("Practical checklist preview ready", ["Lab checklist prepared", "Print preview ready"]);
+    setLabNotice(`Practical checklist print preview ready for ${schoolId}: ${labRequests.length} practical requests and ${labInventory.length} lab stock records, Lab/Dean notified.`);
     openSchoolPrintPreview({
       eyebrow: "Lab practical checklist",
       title: "Laboratory Practical Checklist",
@@ -7245,7 +7294,9 @@ function GenericRoleOperationalCommandCenter({
       ],
     });
     addFinanceExecutionLog(`${payment.student} payment recorded`, ["Payment saved", "Student balance updated", "Receipt ready"]);
-    setFinanceNotice(`${payment.student} payment recorded. Receipt ${receiptNo} is ready.`);
+    setFinanceNotice(
+      `${payment.student} payment recorded for ${schoolId}: ${newPayment.id}, receipt ${receiptNo}, KSh ${payment.amount.toLocaleString("en-KE")} via ${payment.method}, Principal/Secretary/Parent/Student notified.`,
+    );
   }
 
   function confirmMpesaPayment(id: string) {
@@ -7263,7 +7314,7 @@ function GenericRoleOperationalCommandCenter({
       notifications: [{ audienceRoles: ["principal", "secretary", "parent"], title: "M-Pesa payment confirmed" }],
     });
     addFinanceExecutionLog(`${payment?.student ?? "Payment"} M-Pesa confirmed`, ["M-Pesa confirmation saved", "Ledger marked confirmed"]);
-    setFinanceNotice(`${payment?.student ?? "Payment"} M-Pesa confirmation completed.`);
+    setFinanceNotice(`${payment?.student ?? "Payment"} M-Pesa confirmation reconciled.`);
   }
 
   function printFeeReceipt(id: string) {
@@ -7274,7 +7325,7 @@ function GenericRoleOperationalCommandCenter({
         type: "FEE_RECEIPT_PRINTED",
         module: "finance",
         title: `${payment.receiptNo} receipt printed`,
-        body: `${payment.receiptNo} for ${payment.student} was opened for printing.`,
+        body: `${payment.receiptNo} for ${payment.student} print preview is ready.`,
         entityId: id,
         severity: "success",
         payload: { receiptNo: payment.receiptNo, student: payment.student, amount: payment.amount },
@@ -7289,8 +7340,10 @@ function GenericRoleOperationalCommandCenter({
         createdAt: new Date().toISOString(),
       }, schoolId);
     }
-    addFinanceExecutionLog(`${payment?.receiptNo ?? "Receipt"} opened`, ["Receipt print view prepared", "Print preview opened"]);
-    setFinanceNotice(`${payment?.receiptNo ?? "Receipt"} opened for printing.`);
+    addFinanceExecutionLog(`${payment?.receiptNo ?? "Receipt"} preview ready`, ["Receipt print view prepared", "Print preview ready"]);
+    setFinanceNotice(
+      `${payment?.receiptNo ?? "Receipt"} print preview ready for ${schoolId}: payment ${id}, ${payment?.student ?? "student"}, KSh ${(payment?.amount ?? 0).toLocaleString("en-KE")}.`,
+    );
     openSchoolPrintPreview({
       eyebrow: "Fee receipt",
       title: `${payment?.receiptNo ?? "Receipt"} Fee Receipt`,
@@ -7334,22 +7387,22 @@ function GenericRoleOperationalCommandCenter({
         className: student.className,
         balance: student.balance,
         parentPhone: student.parentPhone,
-        status: "Sent",
+        status: "Queued",
         createdAt: new Date().toISOString(),
       }, schoolId);
     }
     publishDashboardEvent({
       type: "FEE_REMINDER_SMS_SENT",
       module: "finance",
-      title: `${student?.student ?? "Student"} fee reminder sent`,
-      body: `Reminder sent to ${student?.parentPhone ?? "parent"} for balance follow-up.`,
+      title: `${student?.student ?? "Student"} fee reminder queued`,
+      body: `Reminder queued for ${student?.parentPhone ?? "parent"} for balance follow-up.`,
       entityId: studentId,
       severity: "warning",
       sms: student?.parentPhone ? [{ recipient: student.parentPhone, message: `Fee reminder for ${student.student}: balance KSh ${student.balance.toLocaleString("en-KE")}.` }] : undefined,
-      notifications: [{ audienceRoles: ["parent", "class-teacher", "principal"], title: "Fee reminder sent", severity: "warning" }],
+      notifications: [{ audienceRoles: ["parent", "class-teacher", "principal"], title: "Fee reminder queued", severity: "warning" }],
     });
     addFinanceExecutionLog(`${student?.student ?? "Student"} fee reminder queued`, ["Fee reminder SMS queued", "Class teacher copy ready"]);
-    setFinanceNotice(`${student?.student ?? "Student"} fee reminder sent to ${student?.parentPhone ?? "parent"}.`);
+    setFinanceNotice(`${student?.student ?? "Student"} fee reminder queued for ${student?.parentPhone ?? "parent"}.`);
   }
 
   function requestFeeReversal(id: string) {
@@ -7384,6 +7437,32 @@ function GenericRoleOperationalCommandCenter({
   }
 
   function exportFeeList() {
+    downloadCsvFile({
+      filename: "fee-list.csv",
+      headers: ["Type", "Student", "Admission No", "Class", "Amount/Balance", "Method", "Status", "Reference"],
+      rows: [
+        ...feeBalances.map((balance) => [
+          "Balance",
+          balance.student,
+          balance.admissionNo,
+          balance.className,
+          String(balance.balance),
+          balance.lastMethod,
+          balance.status,
+          balance.parentPhone,
+        ]),
+        ...feePayments.map((payment) => [
+          "Payment",
+          payment.student,
+          payment.admissionNo,
+          payment.term,
+          String(payment.amount),
+          payment.method,
+          payment.status,
+          payment.reference || payment.receiptNo,
+        ]),
+      ],
+    });
     addSchoolRecord("finance-exports", {
       id: runtimeId("finance-export"),
       reportType: "Fee List CSV",
@@ -7400,7 +7479,7 @@ function GenericRoleOperationalCommandCenter({
       notifications: [{ audienceRoles: ["accountant", "principal"], title: "Fee list exported" }],
     });
     addFinanceExecutionLog("Fee list CSV exported", ["Visible balances exported", "Download prepared"]);
-    setFinanceNotice("Fee list CSV export prepared.");
+    setFinanceNotice(`Fee list CSV downloaded for ${schoolId}: ${feeBalances.length} balances and ${feePayments.length} payments.`);
   }
 
   function addSecretaryExecutionLog(label: string, events: string[]) {
@@ -7454,14 +7533,16 @@ function GenericRoleOperationalCommandCenter({
         type: "VISITOR_SLIP_PRINTED",
         module: "visitors",
         title: `${visitor.visitor} visitor slip printed`,
-        body: `${visitor.visitor} visitor slip opened for ${visitor.visiting}.`,
+        body: `${visitor.visitor} visitor slip preview ready for ${visitor.visiting}.`,
         entityId: id,
         severity: "success",
         notifications: [{ audienceRoles: ["security-officer", "secretary"], title: "Visitor slip printed" }],
       });
     }
-    addSecretaryExecutionLog(`${visitor?.visitor ?? "Visitor"} slip printed`, ["Visitor slip prepared", "Print preview opened"]);
-    setSecretaryNotice(`${visitor?.visitor ?? "Visitor"} visitor slip opened for printing.`);
+    addSecretaryExecutionLog(`${visitor?.visitor ?? "Visitor"} slip preview ready`, ["Visitor slip prepared", "Print preview ready"]);
+    setSecretaryNotice(
+      `${visitor?.visitor ?? "Visitor"} visitor slip print preview ready for ${schoolId}: visitor record ${id}, visiting ${visitor?.visiting ?? "not recorded"}.`,
+    );
     openSchoolPrintPreview({
       eyebrow: "Visitor slip",
       title: `${visitor?.visitor ?? "Visitor"} Visitor Slip`,
@@ -7479,13 +7560,15 @@ function GenericRoleOperationalCommandCenter({
       type: "FEE_STATEMENT_PRINTED",
       module: "front-office",
       title: `${student.student} fee statement printed`,
-      body: `Fee statement opened for ${student.admissionNo} by the secretary desk.`,
+      body: `Fee statement preview ready for ${student.admissionNo} by the secretary desk.`,
       entityId: student.id,
       severity: "success",
       notifications: [{ audienceRoles: ["secretary", "accountant"], title: "Fee statement printed" }],
     });
-    addSecretaryExecutionLog(`${student.student} fee statement printed`, ["Fee statement prepared", "Print preview opened"]);
-    setSecretaryNotice(`${student.student} fee statement opened for printing.`);
+    addSecretaryExecutionLog(`${student.student} fee statement preview ready`, ["Fee statement prepared", "Print preview ready"]);
+    setSecretaryNotice(
+      `${student.student} fee statement print preview ready for ${schoolId}: balance ${student.id}, admission ${student.admissionNo}, balance KSh ${student.balance.toLocaleString("en-KE")}.`,
+    );
     openSchoolPrintPreview({
       eyebrow: "Fee statement",
       title: `${student.student} Fee Statement`,
@@ -7657,7 +7740,9 @@ function GenericRoleOperationalCommandCenter({
       ],
     });
     addDisciplineExecutionLog(`${newCase.student} discipline case recorded`, ["Incident saved", "Deputy and class teacher notified"]);
-    setDisciplineNotice(`${newCase.student} discipline case recorded.`);
+    setDisciplineNotice(
+      `${newCase.student} discipline case recorded for ${schoolId}: ${newCase.id}, severity ${newCase.severity}, Deputy/Principal/Class Teacher/Discipline notified.`,
+    );
   }
 
   function updateDisciplineCase(id: string, updates: Partial<DisciplineCaseRecord>) {
@@ -7777,14 +7862,16 @@ function GenericRoleOperationalCommandCenter({
     publishDashboardEvent({
       type: "DISCIPLINE_LETTER_PRINTED",
       module: "discipline",
-      title: `${disciplineCase?.student ?? "Student"} discipline letter opened`,
+      title: `${disciplineCase?.student ?? "Student"} discipline letter preview ready for ${schoolId}`,
       body: `Discipline letter prepared for ${disciplineCase?.student ?? "student"}.`,
       entityId: id,
       severity: "success",
       notifications: [{ audienceRoles: ["discipline-master", "deputy-principal"], title: "Discipline letter printed" }],
     });
-    addDisciplineExecutionLog(`${disciplineCase?.student ?? "Student"} discipline letter opened`, ["Print preview prepared", "Document record saved"]);
-    setDisciplineNotice(`${disciplineCase?.student ?? "Student"} discipline letter preview opened.`);
+    addDisciplineExecutionLog(`${disciplineCase?.student ?? "Student"} discipline letter preview ready`, ["Print preview prepared", "Document record saved"]);
+    setDisciplineNotice(
+      `${disciplineCase?.student ?? "Student"} discipline letter preview ready for ${schoolId}: case ${id}, ${disciplineCase?.caseType ?? "case"} severity ${disciplineCase?.severity ?? "unknown"}.`,
+    );
     openSchoolPrintPreview({
       eyebrow: "Discipline letter",
       title: `${disciplineCase?.student ?? "Student"} discipline letter`,
@@ -7865,7 +7952,9 @@ function GenericRoleOperationalCommandCenter({
       ],
     });
     addCounsellingExecutionLog(`${newSession.student} counselling session recorded`, ["Session saved", "Deputy and discipline desk notified"]);
-    setCounsellingNotice(`${newSession.student} counselling session recorded.`);
+    setCounsellingNotice(
+      `${newSession.student} counselling session recorded for ${schoolId}: ${newSession.id}, risk ${newSession.riskLevel}, Deputy/Principal/Discipline/Class Teacher notified.`,
+    );
   }
 
   function updateCounsellingSession(id: string, updates: Partial<CounsellingSessionRecord>) {
@@ -7977,14 +8066,16 @@ function GenericRoleOperationalCommandCenter({
     publishDashboardEvent({
       type: "COUNSELLING_SUMMARY_PRINTED",
       module: "counselling",
-      title: `${session?.student ?? "Student"} counselling summary opened`,
+      title: `${session?.student ?? "Student"} counselling summary preview ready for ${schoolId}`,
       body: `Counselling summary prepared for ${session?.student ?? "student"}.`,
       entityId: id,
       severity: "success",
       notifications: [{ audienceRoles: ["guidance-counselling", "deputy-principal"], title: "Counselling summary printed" }],
     });
-    addCounsellingExecutionLog(`${session?.student ?? "Student"} counselling summary opened`, ["Print preview prepared", "Document record saved"]);
-    setCounsellingNotice(`${session?.student ?? "Student"} counselling summary preview opened.`);
+    addCounsellingExecutionLog(`${session?.student ?? "Student"} counselling summary preview ready`, ["Print preview prepared", "Document record saved"]);
+    setCounsellingNotice(
+      `${session?.student ?? "Student"} counselling summary preview ready for ${schoolId}: session ${id}, risk ${session?.riskLevel ?? "unknown"}, follow-up ${session?.followUpDate ?? "not recorded"}.`,
+    );
     openSchoolPrintPreview({
       eyebrow: "Counselling summary",
       title: `${session?.student ?? "Student"} counselling follow-up summary`,
@@ -8029,10 +8120,10 @@ function GenericRoleOperationalCommandCenter({
     setExecutionLog((current) => [
       {
         id: runtimeId(`search-${slug(result.workspace)}`),
-        label: `Opened ${result.label}`,
+        label: `Selected ${result.label}`,
         workflow: schoolFriendlyText(result.workspace),
         audit: "SEARCH_RESULT_OPENED",
-        events: ["Search opened school record", "Section changed"],
+        events: ["Search selected school record", "Section changed"],
         status: "SUCCESS" as OperationalActionHealth,
       },
       ...current,

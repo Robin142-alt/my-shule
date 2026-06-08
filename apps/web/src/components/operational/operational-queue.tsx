@@ -5,7 +5,11 @@ import { Card } from "@/components/ui/card";
 import { StatusPill } from "@/components/ui/status-pill";
 import type { StatusTone } from "@/lib/dashboard/types";
 
-import { OperationalActionButton, type OperationalActionContract } from "./operational-action-button";
+import {
+  OperationalActionButton,
+  type OperationalActionContract,
+  type OperationalActionExecutionResult,
+} from "./operational-action-button";
 
 export type OperationalQueueItem = {
   id: string;
@@ -33,7 +37,9 @@ export function OperationalQueue({
   onExecute,
 }: {
   contract: OperationalQueueContract;
-  onExecute?: (action: OperationalActionContract) => void | Promise<void>;
+  onExecute?: (
+    action: OperationalActionContract,
+  ) => OperationalActionExecutionResult | string | void | Promise<OperationalActionExecutionResult | string | void>;
 }) {
   const [items, setItems] = useState(() => contract.items);
   const [notice, setNotice] = useState<string | null>(null);
@@ -45,8 +51,13 @@ export function OperationalQueue({
     );
   }
 
-  async function executeAction(action: OperationalActionContract, item?: OperationalQueueItem) {
+  async function executeAction(
+    action: OperationalActionContract,
+    item?: OperationalQueueItem,
+  ): Promise<OperationalActionExecutionResult> {
     const normalized = action.label.toLowerCase();
+    let resultMessage = "";
+    let resultTone: OperationalActionExecutionResult["tone"] = "success";
 
     if (!onExecute) {
       setNoticeTone("danger");
@@ -57,47 +68,60 @@ export function OperationalQueue({
     setNoticeTone("warning");
     setNotice(`${action.label} is being processed...`);
 
-    await onExecute(action);
+    const handlerResult = await onExecute(action);
+    if (handlerResult && typeof handlerResult === "object" && "message" in handlerResult) {
+      resultMessage = handlerResult.message;
+      resultTone = handlerResult.tone ?? resultTone;
+    } else if (typeof handlerResult === "string" && handlerResult.trim().length > 0) {
+      resultMessage = handlerResult;
+    }
 
     if (item) {
       if (/approve/.test(normalized)) {
         updateItemPriority(item.id, "Approved", "ok");
-        setNotice(`${item.title} approved and related records updated.`);
+        resultMessage ||= `${item.title} approved and related records updated.`;
       } else if (/reject/.test(normalized)) {
         updateItemPriority(item.id, "Rejected", "critical");
-        setNotice(`${item.title} rejected and returned to the responsible desk.`);
+        resultMessage ||= `${item.title} rejected and returned to the responsible desk.`;
+        resultTone ||= "warning";
       } else if (/resolve|mark/.test(normalized)) {
         updateItemPriority(item.id, "Resolved", "ok");
-        setNotice(`${item.title} marked solved.`);
+        resultMessage ||= `${item.title} marked solved.`;
       } else if (/sms|notify|alert|reminder/.test(normalized)) {
-        setNotice(`SMS queued for ${item.title}.`);
+        resultMessage ||= `SMS queued for ${item.title}.`;
+        resultTone = "warning";
       } else if (/assign/.test(normalized)) {
         updateItemPriority(item.id, "Assigned", "ok");
-        setNotice(`${item.title} assigned for follow-up.`);
+        resultMessage ||= `${item.title} assigned for follow-up.`;
       } else if (/escalate/.test(normalized)) {
         updateItemPriority(item.id, "Escalated", "warning");
-        setNotice(`${item.title} escalated to the next school desk.`);
+        resultMessage ||= `${item.title} escalated to the next school desk.`;
+        resultTone = "warning";
       } else {
-        setNotice(`${action.label} completed for ${item.title}.`);
+        resultMessage ||= `${action.label} returned from the connected workflow for ${item.title}.`;
       }
     } else if (/approve/.test(normalized)) {
       setItems((current) => current.map((queueItem) => ({ ...queueItem, priority: { label: "Approved", tone: "ok" } })));
-      setNotice("Selected queue items approved.");
+      resultMessage ||= "Selected queue items approved.";
     } else if (/sms|notify|alert|reminder/.test(normalized)) {
-      setNotice("SMS queued for all queued families.");
+      resultMessage ||= "SMS queued for all queued families.";
+      resultTone = "warning";
     } else if (/assign/.test(normalized)) {
       setItems((current) => current.map((queueItem) => ({ ...queueItem, priority: { label: "Assigned", tone: "ok" } })));
-      setNotice("Selected queue items assigned.");
+      resultMessage ||= "Selected queue items assigned.";
     } else if (/escalate/.test(normalized)) {
       setItems((current) =>
         current.map((queueItem) => ({ ...queueItem, priority: { label: "Escalated", tone: "warning" } })),
       );
-      setNotice("Selected queue items escalated.");
+      resultMessage ||= "Selected queue items escalated.";
+      resultTone = "warning";
     } else {
-      setNotice(`${action.label} completed for this queue.`);
+      resultMessage ||= `${action.label} returned from the connected workflow for this queue.`;
     }
 
-    setNoticeTone("success");
+    setNotice(resultMessage);
+    setNoticeTone(resultTone === "danger" ? "danger" : resultTone === "warning" ? "warning" : "success");
+    return { message: resultMessage, tone: resultTone };
   }
 
   return (

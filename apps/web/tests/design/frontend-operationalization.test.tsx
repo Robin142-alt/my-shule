@@ -788,7 +788,7 @@ describe("frontend operational command surfaces", () => {
     await user.click(await screen.findByRole("checkbox", { name: /select dormitory vandalism escalation/i }));
     await user.click(screen.getByRole("button", { name: /open selected/i }));
 
-    expect(await screen.findByText(/Incident center opened/i)).toBeVisible();
+    expect(await screen.findByText(/Incident center workflow dispatched/i)).toBeVisible();
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/operational-workflows/principal/actions/open-incident-center/dispatch",
       expect.objectContaining({
@@ -1610,7 +1610,7 @@ describe("frontend operational command surfaces", () => {
     await user.click(await screen.findByRole("checkbox", { name: /select kevin otieno weekend leave-out/i }));
     await user.click(screen.getByRole("button", { name: /approve selected/i }));
 
-    expect(await screen.findByText(/Boarding record completed for Kevin Otieno weekend leave-out/i)).toBeVisible();
+    expect(await screen.findByText(/Boarding record status updated to completed: Kevin Otieno weekend leave-out/i)).toBeVisible();
     expect(screen.getAllByText(/1 succeeded, 0 failed/i).length).toBeGreaterThan(0);
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/boarding/records/boarding-leave-1/status",

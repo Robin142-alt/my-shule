@@ -162,7 +162,7 @@ export function OperationalFormShell({
       setNotice(
         action === "Save Draft"
           ? "Draft saved locally for this school. It will not be treated as submitted until you submit it."
-          : `${action} completed after the connected workflow responded.`,
+          : `${action} returned from the connected workflow.`,
       );
     } catch (error) {
       setNoticeTone("danger");
@@ -326,7 +326,9 @@ export function OperationalFormShell({
                   } else if (action === "Print") {
                     printValues(nextValues, `${contract.title} print copy`);
                     setNoticeTone("success");
-                    setNotice("Print copy prepared from the current form details.");
+                    setNotice(
+                      `${contract.title} print copy ready with ${contract.fields.length} field${contract.fields.length === 1 ? "" : "s"} loaded.`,
+                    );
                   } else if (action === "Save Draft") {
                     persistDraft(nextValues);
                     void runAction(action, nextValues);
@@ -349,7 +351,9 @@ export function OperationalFormShell({
                     }
                     printValues(nextValues, `${contract.title} print preview`);
                     setNoticeTone("success");
-                    setNotice("Printable preview prepared.");
+                    setNotice(
+                      `${contract.title} print preview ready with ${contract.fields.length} field${contract.fields.length === 1 ? "" : "s"} loaded.`,
+                    );
                   } else if (action === "Submit for Approval") {
                     if (!validate(nextValues)) {
                       setNoticeTone("danger");

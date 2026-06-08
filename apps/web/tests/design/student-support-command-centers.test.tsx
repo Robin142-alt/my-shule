@@ -11,6 +11,13 @@ import { renderWithProviders } from "./test-utils";
 
 jest.setTimeout(20000);
 
+const fakeOnlyPhrases =
+  /selected for discipline follow-up|selected in counselling records|selected in lab records|selected in admissions records|application preview recorded\.|Quick admissions action saved\.|Quick-add counselling session saved\.|applicant filter applied\./i;
+
+function expectNoFakeOnlyFeedback() {
+  expect(document.body.textContent).not.toMatch(fakeOnlyPhrases);
+}
+
 describe("student support and admissions command center interactions", () => {
   beforeEach(() => {
     window.localStorage.clear();
@@ -25,7 +32,8 @@ describe("student support and admissions command center interactions", () => {
     await user.type(screen.getByLabelText(/search student, case, dorm, teacher report, parent meeting/i), "Kevin");
     await user.click(screen.getByRole("button", { name: /kevin otieno/i }));
 
-    expect(screen.getByText(/kevin otieno opened for discipline follow-up/i)).toBeVisible();
+    expect(screen.getByText(/kevin otieno discipline search loaded risk students workspace: repeat corridor incident risk/i)).toBeVisible();
+    expectNoFakeOnlyFeedback();
 
     await user.click(screen.getByRole("button", { name: /assign follow-up/i }));
     const actionDialog = screen.getByRole("dialog", { name: /discipline case action/i });
@@ -67,14 +75,19 @@ describe("student support and admissions command center interactions", () => {
     await user.type(screen.getByLabelText(/search student cases, appointments, referrals, parent meetings, wellness alerts, or reports/i), "Faith");
     await user.click(screen.getByRole("button", { name: /faith akinyi referral/i }));
 
-    expect(screen.getByText(/faith akinyi referral opened in counselling records/i)).toBeVisible();
+    expect(screen.getByText(/faith akinyi referral counselling search loaded risk-table section: high-risk welfare follow-up due today/i)).toBeVisible();
+    expectNoFakeOnlyFeedback();
 
     await user.click(screen.getByRole("button", { name: /quick-add session/i }));
     const sessionDialog = screen.getByRole("dialog", { name: /counselling session action/i });
     expect(sessionDialog).toBeVisible();
     await user.click(within(sessionDialog).getByRole("button", { name: /save counselling session/i }));
 
-    expect(screen.getByText(/quick-add counselling session saved/i)).toBeVisible();
+    expect(
+      screen.getByText(
+        /kb-high quick-add counselling session saved: counselling-session-quick-add, deputy\/class teacher\/principal notified for welfare follow-up/i,
+      ),
+    ).toBeVisible();
 
     await user.click(screen.getAllByRole("button", { name: /notify principal/i })[1]);
     const interventionDialog = screen.getByRole("dialog", { name: /counselling intervention action/i });
@@ -118,7 +131,8 @@ describe("student support and admissions command center interactions", () => {
     await user.type(screen.getByLabelText(/search chemicals, equipment, sessions, teachers, requests, incidents, or suppliers/i), "Ethanol");
     await user.click(screen.getByRole("button", { name: /ethanol stock/i }));
 
-    expect(screen.getByText(/ethanol stock opened in lab records/i)).toBeVisible();
+    expect(screen.getByText(/ethanol stock lab search loaded chemicals section: restricted chemical \| usage audit required/i)).toBeVisible();
+    expectNoFakeOnlyFeedback();
 
     await user.click(screen.getAllByRole("button", { name: /mark lab ready/i })[0]);
     const labDialog = screen.getByRole("dialog", { name: /laboratory session action/i });
@@ -169,28 +183,41 @@ describe("student support and admissions command center interactions", () => {
     await user.type(screen.getByLabelText(/global search applicants, admission numbers, parents, documents, transfers, or reports/i), "Faith");
     await user.click(screen.getByRole("button", { name: /faith akinyi/i }));
 
-    expect(screen.getByText(/faith akinyi opened in admissions records/i)).toBeVisible();
+    expect(screen.getByText(/faith akinyi admissions search loaded applications section: grade 8 east applicant \| documents pending/i)).toBeVisible();
+    expectNoFakeOnlyFeedback();
 
     await user.click(screen.getByRole("button", { name: /pending/i }));
     const filterDialog = screen.getByRole("dialog", { name: /admissions applicant filter/i });
     expect(filterDialog).toBeVisible();
     await user.click(within(filterDialog).getByRole("button", { name: /apply applicant filter/i }));
 
-    expect(screen.getByText(/pending applicant filter applied/i)).toBeVisible();
+    expect(
+      screen.getByText(
+        /pending applicant filter applied for kb-high: admissions-filter-pending, \d+ visible records, secretary\/principal notified/i,
+      ),
+    ).toBeVisible();
 
     await user.click(screen.getAllByRole("button", { name: /preview/i })[0]);
     const previewDialog = screen.getByRole("dialog", { name: /admission application preview/i });
     expect(previewDialog).toBeVisible();
     await user.click(within(previewDialog).getByRole("button", { name: /record preview review/i }));
 
-    expect(screen.getByText(/amina wanjiru application preview recorded/i)).toBeVisible();
+    expect(
+      screen.getByText(
+        /amina wanjiru application preview recorded for kb-high: admissions-preview-adm-2026-1184, verified status, office\/fee\/class\/leadership notifications created/i,
+      ),
+    ).toBeVisible();
 
     await user.click(screen.getByRole("button", { name: /quick actions/i }));
     const admissionsDialog = screen.getByRole("dialog", { name: /admissions quick action/i });
     expect(admissionsDialog).toBeVisible();
     await user.click(within(admissionsDialog).getByRole("button", { name: /save admissions action/i }));
 
-    expect(screen.getByText(/quick admissions action saved/i)).toBeVisible();
+    expect(
+      screen.getByText(
+        /kb-high admissions quick action saved: admissions-quick-action, next step verify documents and notify parent, secretary\/accountant\/class teacher\/principal notified/i,
+      ),
+    ).toBeVisible();
     expect(readSchoolData<Record<string, unknown>>("events", "kb-high")).toEqual(
       expect.arrayContaining([
         expect.objectContaining({

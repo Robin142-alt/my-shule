@@ -349,13 +349,13 @@ export function AssetTrackingModuleScreen({
   function printAssetTags() {
     publishAssetEvent({
       type: "ICT_ASSET_TAGS_PRINTED",
-      title: "ICT asset tag sheet opened for printing",
+      title: "ICT asset tag print preview ready",
       body: `${visibleAssets.length} visible ICT asset tag(s) prepared for printing.`,
       severity: "success",
       payload: { visibleAssetTags: visibleAssets.map((asset) => asset.tag) },
       audienceRoles: ["ict", "storekeeper"],
     });
-    setMessage("ICT asset tag sheet opened for printing.");
+    setMessage(`ICT asset tag print preview ready with ${visibleAssets.length} visible tag(s).`);
     openPrintDocument({
       eyebrow: "ICT asset tags",
       title: "ICT Asset Tag Sheet",

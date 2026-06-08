@@ -1,13 +1,18 @@
 import {
+  ArrayMaxSize,
+  ArrayMinSize,
   IsBoolean,
   IsIn,
   IsInt,
+  IsArray,
   IsOptional,
   IsString,
   MaxLength,
   Min,
   MinLength,
+  ValidateNested,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 
 const SMS_PROVIDER_CODES = ['textsms_kenya', 'africas_talking', 'twilio'] as const;
 const DARAJA_ENVIRONMENTS = ['sandbox', 'production'] as const;
@@ -104,6 +109,42 @@ export class SendSmsDto {
   @MinLength(7)
   @MaxLength(32)
   recipient!: string;
+
+  @IsString()
+  @MinLength(1)
+  @MaxLength(1000)
+  message!: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  message_type?: string;
+}
+
+export class BulkSmsRecipientDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  recipient_id?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(160)
+  name?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(32)
+  recipient?: string;
+}
+
+export class SendBulkSmsDto {
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(500)
+  @ValidateNested({ each: true })
+  @Type(() => BulkSmsRecipientDto)
+  recipients!: BulkSmsRecipientDto[];
 
   @IsString()
   @MinLength(1)

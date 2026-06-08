@@ -424,7 +424,9 @@ function DataTable({
       ],
     });
 
-    announceAction(isExport ? `${title} export saved.` : `${title} filters applied.`);
+    announceAction(
+      `${title} ${isExport ? "export request" : "filter set"} saved for ${schoolId}: grade-master-${actionMode}-${tableSlug}, Deputy/Principal/Class Teacher notified for Form 2 oversight.`,
+    );
     setActionMode(null);
   }
 
@@ -1045,13 +1047,13 @@ export function GradeMasterCommandCenter({ routeMode }: { routeMode: GradeRouteM
 
   function openView(view: GradeView) {
     setActiveView(view);
-    setNotice(`${getViewLabel(view)} opened.`);
+    setNotice(`${getViewLabel(view)} workspace ready.`);
   }
 
   function openSearchRecord(record: GradeSearchRecord) {
     setActiveView(record.view);
     setSearchTerm("");
-    setNotice(`${record.label} opened in ${getViewLabel(record.view)}.`);
+    setNotice(`${record.label} grade master search loaded ${getViewLabel(record.view)} workspace: ${record.detail}.`);
   }
 
   function openReportAction(report: string) {
@@ -1061,7 +1063,7 @@ export function GradeMasterCommandCenter({ routeMode }: { routeMode: GradeRouteM
 
   function openStreamDetailReview(title: string) {
     setStreamDetailReview({ title });
-    setNotice(`${title} opened for Form 2 review.`);
+    setNotice(`${title} ready for Form 2 review.`);
   }
 
   function saveStreamDetailReview() {
@@ -1098,7 +1100,9 @@ export function GradeMasterCommandCenter({ routeMode }: { routeMode: GradeRouteM
       ],
     });
 
-    setNotice(`${streamDetailReview.title} review saved.`);
+    setNotice(
+      `${streamDetailReview.title} review saved for ${schoolId}: grade-master-stream-${streamSlug}, Form 2 streams North/East/West/South, Deputy/Principal/Class Teacher notified.`,
+    );
     setStreamDetailReview(null);
   }
 
@@ -1136,7 +1140,9 @@ export function GradeMasterCommandCenter({ routeMode }: { routeMode: GradeRouteM
       ],
     });
 
-    setNotice(`${selectedReport} saved for review and export.`);
+    setNotice(
+      `${selectedReport} report request saved for ${schoolId}: grade-master-report-${reportSlug}, Principal/Deputy/Dean notified for Form 2 review.`,
+    );
     setSelectedReport(null);
   }
 

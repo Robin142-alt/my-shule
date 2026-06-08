@@ -278,7 +278,7 @@ export function OperationalTable({
     try {
       await onAction(action, context);
       setNoticeTone("success");
-      setNotice(`${action}${suffix} completed after the connected workflow responded.`);
+      setNotice(`${action}${suffix} returned from the connected workflow.`);
     } catch (error) {
       setNoticeTone("danger");
       setNotice(error instanceof Error ? error.message : `${action}${suffix} failed. Try again.`);

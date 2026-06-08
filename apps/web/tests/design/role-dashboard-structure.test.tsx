@@ -442,6 +442,30 @@ describe("role dashboard operational structure", () => {
   it("renders principal first screen as a practical Kenyan school command center with working actions", async () => {
     const user = userEvent.setup();
 
+    addSchoolRecord(
+      "attendance-registers",
+      {
+        id: "principal-attendance-form-2-blue",
+        className: "Form 2 Blue",
+        stream: "Blue",
+        teacher: "Mr. Otieno",
+        totalLearners: 48,
+        present: 44,
+        absent: 2,
+        late: 2,
+        status: "Submitted",
+        markedAt: "2026-06-06T07:42:00.000Z",
+        source: "Class Teacher dashboard",
+        presentStudents: ["Achieng Moraa", "Brian Otieno"],
+        absentStudents: [
+          { name: "Calvin Were", guardian: "Mary Were", phone: "0712 345 678" },
+          { name: "Faith Akinyi", guardian: "Grace Akinyi", phone: "" },
+        ],
+        lateStudents: ["John Mwangi", "Peter Ouma"],
+      },
+      "kisumu-boys",
+    );
+
     renderWithProviders(<SchoolPages role="principal" tenantSlug="kisumu-boys" />);
 
     const commandCenter = await screen.findByTestId("role-operational-command-center");
@@ -480,10 +504,41 @@ describe("role dashboard operational structure", () => {
       expect(within(commandCenter).queryByText(forbidden)).not.toBeInTheDocument();
     }
 
-    await user.click(within(commandCenter).getByRole("button", { name: /Send Absence SMS/i }));
+    await user.click(within(commandCenter).getByRole("button", { name: /View Attendance/i }));
 
-    expect(await within(commandCenter).findByText(/Send Absence SMS (is being sent|sent to workflow queue|could not complete) from Attendance/i)).toBeVisible();
+    const attendanceWorkspace = within(commandCenter).getByRole("region", { name: /Principal attendance workspace/i });
+    expect(attendanceWorkspace).toBeVisible();
+    expect(within(attendanceWorkspace).getByLabelText(/Attendance date/i)).toBeVisible();
+    expect(within(attendanceWorkspace).getByLabelText(/Class or stream/i)).toBeVisible();
+    expect(within(attendanceWorkspace).getByLabelText(/Search attendance records/i)).toBeVisible();
+    expect(within(attendanceWorkspace).getByText(/Present students/i)).toBeVisible();
+    expect(within(attendanceWorkspace).getByText(/Absent students/i)).toBeVisible();
+    expect(within(attendanceWorkspace).getByText(/Late students/i)).toBeVisible();
+    expect(within(attendanceWorkspace).getByText(/Missing registers/i)).toBeVisible();
+    expect(within(attendanceWorkspace).getByText(/Teacher responsible/i)).toBeVisible();
+    expect(within(attendanceWorkspace).getAllByText(/Last updated/i).length).toBeGreaterThan(0);
+    expect(within(attendanceWorkspace).getByText(/Teacher and Class Teacher dashboards/i)).toBeVisible();
+    expect(within(commandCenter).queryByText(/^Opened Attendance\.$/i)).not.toBeInTheDocument();
+
+    await user.click(within(commandCenter).getAllByRole("button", { name: /Send Absence SMS/i })[0]);
+
+    const smsDialog = await screen.findByRole("dialog", { name: /Confirm absence SMS/i });
+    expect(within(smsDialog).getByText(/Parent\/guardian recipients/i)).toBeVisible();
+    expect(within(smsDialog).getByText(/Missing phone numbers/i)).toBeVisible();
+    expect(within(smsDialog).getByText(/Message preview/i)).toBeVisible();
+    expect(within(smsDialog).getByText(/Disabled: SMS provider is not configured/i)).toBeVisible();
+    expect(within(smsDialog).getByRole("button", { name: /Queue absence SMS/i })).toBeDisabled();
+    expect(within(commandCenter).queryByText(/Send Absence SMS is being sent/i)).not.toBeInTheDocument();
     expect(within(commandCenter).queryByText(/Send Absence SMS completed from Attendance/i)).not.toBeInTheDocument();
+
+    await user.click(within(smsDialog).getByRole("button", { name: /^Close$/i }));
+    await user.click(within(commandCenter).getByRole("button", { name: /Print Attendance Report/i }));
+
+    const printPreview = await screen.findByRole("dialog", { name: /Kisumu Boys attendance report print preview/i });
+    expect(within(printPreview).getByText(/Print preview/i)).toBeVisible();
+    expect(within(printPreview).getByRole("button", { name: /^Print$/i })).toBeVisible();
+    expect(within(printPreview).getByRole("button", { name: /Close/i })).toBeVisible();
+    expect(within(commandCenter).queryByText(/Print Attendance Report completed from Attendance/i)).not.toBeInTheDocument();
   }, 30000);
 
   it("keeps principal overview wide by replacing the permanent approvals rail with a compact approvals card", async () => {

@@ -12,6 +12,21 @@ import { renderWithProviders } from "./test-utils";
 
 jest.setTimeout(20000);
 
+const fakeOnlyPhrases =
+  /Action completed|Workflow dispatched|completed successfully|is being sent|print started|export generated|profile selected\.|one-time admin reset bundle is ready|Navigating to .* route\.|selected in exams records|Marks entry sheet ready for selected class and subject/i;
+
+function jsonResponse(body: unknown, init?: ResponseInit) {
+  return {
+    ok: init?.status ? init.status >= 200 && init.status < 300 : true,
+    status: init?.status ?? 200,
+    json: async () => body,
+  } as Response;
+}
+
+function expectNoFakeOnlyFeedback() {
+  expect(document.body.textContent).not.toMatch(fakeOnlyPhrases);
+}
+
 describe("portal and platform command center interactions", () => {
   beforeEach(() => {
     window.localStorage.clear();
@@ -25,10 +40,11 @@ describe("portal and platform command center interactions", () => {
     await user.type(screen.getByLabelText(/search exams, classes, subjects, marks, or report cards/i), "Form 4");
     await user.click(screen.getByRole("button", { name: /form 4 mock series/i }));
 
-    expect(screen.getByText(/form 4 mock series opened in exams records/i)).toBeVisible();
+    expect(screen.getByText(/form 4 mock series exams search loaded marks workspace: marks entry open for mathematics and english/i)).toBeVisible();
 
     await user.click(screen.getByRole("button", { name: /enter marks/i }));
-    expect(screen.getByText(/marks entry sheet opened for selected class and subject/i)).toBeVisible();
+    expect(screen.getByText(/mathematics form 4 north marks entry opened for mathematics form 4 north with 12 pending learners; teacher and dean notifications created/i)).toBeVisible();
+    expectNoFakeOnlyFeedback();
 
     await user.click(screen.getByRole("button", { name: /exam builder/i }));
     await user.click(screen.getByRole("button", { name: /save configuration/i }));
@@ -84,7 +100,7 @@ describe("portal and platform command center interactions", () => {
     expect(screen.getByRole("heading", { name: /moderation work queue/i })).toBeVisible();
     await user.click(screen.getByRole("checkbox", { name: /select term 2 cat 1 moderation/i }));
     await user.click(screen.getByRole("button", { name: /approve selected to dean review/i }));
-    expect(screen.getByText(/Approve selected to Dean review completed for 1 selected moderation record/i)).toBeVisible();
+    expect(screen.getByText(/Approve selected to Dean review status updated for 1 selected moderation record/i)).toBeVisible();
 
     await user.click(screen.getByRole("button", { name: /report cards/i }));
     expect(screen.getByRole("heading", { name: /report cards work queue/i })).toBeVisible();
@@ -96,7 +112,7 @@ describe("portal and platform command center interactions", () => {
     expect(screen.getByRole("heading", { name: /report templates work queue/i })).toBeVisible();
     await user.click(screen.getByRole("checkbox", { name: /select cbc\/cbe competency report/i }));
     await user.click(screen.getByRole("button", { name: /save template draft for selected/i }));
-    expect(screen.getByText(/Save Template Draft completed for 1 selected report template/i)).toBeVisible();
+    expect(screen.getByText(/Save Template Draft status updated for 1 selected report template/i)).toBeVisible();
 
     await user.click(screen.getByRole("button", { name: /export center/i }));
     expect(screen.getByRole("heading", { name: /export center work queue/i })).toBeVisible();
@@ -125,11 +141,44 @@ describe("portal and platform command center interactions", () => {
 
     renderWithProviders(<ParentCommandCenter routeMode="hosted" />);
 
+    await user.click(screen.getByRole("button", { name: /aisha wanjiku/i }));
+    expect(screen.getByText(/Aisha Wanjiku profile selected: Grade 5 Hope, 4 verified feed items loaded/i)).toBeVisible();
+    expect(screen.getByText(/Verified school data for Aisha Wanjiku/i)).toBeVisible();
+    expect(screen.getByText(/Here's everything happening with Aisha today/i)).toBeVisible();
+    expect(screen.getByText(/Reading check published/i)).toBeVisible();
+    expect(document.body.textContent).not.toMatch(/Aisha Wanjiku profile selected\./i);
+
+    await user.click(screen.getByRole("button", { name: /brian otieno/i }));
+    expect(screen.getByText(/Brian Otieno profile selected: Form 2 Blue, 6 verified feed items loaded/i)).toBeVisible();
+    expect(screen.getByText(/Verified school data for Brian Otieno/i)).toBeVisible();
+    expect(screen.getByText(/Here's everything happening with Brian today/i)).toBeVisible();
+    expect(document.body.textContent).not.toMatch(/Brian Otieno profile selected\./i);
+
     await user.click(screen.getByRole("button", { name: /notifications/i }));
-    expect(screen.getByText(/parent notifications opened/i)).toBeVisible();
+    expect(screen.getByText(/parent notifications panel visible/i)).toBeVisible();
+    expectNoFakeOnlyFeedback();
 
     await user.click(screen.getAllByRole("button", { name: /emergency contacts/i })[0]);
-    expect(screen.getByText(/emergency contacts opened/i)).toBeVisible();
+    expect(screen.getByText(/emergency contacts visible/i)).toBeVisible();
+    expectNoFakeOnlyFeedback();
+  });
+
+  it("routes parent quick actions with active learner and feed evidence", async () => {
+    const user = userEvent.setup();
+
+    renderWithProviders(<ParentCommandCenter routeMode="hosted" />);
+
+    await user.click(screen.getByRole("button", { name: /aisha wanjiku/i }));
+    await user.click(screen.getAllByRole("link", { name: /pay with m-pesa/i })[0]);
+
+    expect(screen.getByText(/pay with m-pesa route ready for aisha wanjiku at .*linked-child feed items loaded/i)).toBeVisible();
+    expectNoFakeOnlyFeedback();
+
+    await user.click(screen.getByRole("button", { name: /brian otieno/i }));
+    await user.click(screen.getByRole("link", { name: /message teacher/i }));
+
+    expect(screen.getByText(/message teacher route ready for brian otieno at .*linked-child feed items loaded/i)).toBeVisible();
+    expectNoFakeOnlyFeedback();
   });
 
   it("makes student dashboard quick actions visible as working controls", async () => {
@@ -137,11 +186,15 @@ describe("portal and platform command center interactions", () => {
 
     renderWithProviders(<PortalPages viewer="student" routeMode="hosted" />);
 
-    await user.click(screen.getByRole("button", { name: /view assignment/i }));
-    expect(screen.getByText(/view assignment opened for the student account/i)).toBeVisible();
+    await user.click(screen.getByRole("link", { name: /view assignment/i }));
+    expect(screen.getByText(/view assignment route ready for brian otieno at .*learner-safe updates loaded/i)).toBeVisible();
+    expectNoFakeOnlyFeedback();
 
-    await user.click(screen.getByRole("button", { name: /message teacher/i }));
-    expect(screen.getByText(/message teacher opened for the student account/i)).toBeVisible();
+    await user.click(screen.getByRole("link", { name: /message teacher/i }));
+    expect(screen.getByText(/message teacher route ready for brian otieno at .*learner-safe updates loaded/i)).toBeVisible();
+    expect(screen.getByRole("button", { name: /submit work/i })).toBeDisabled();
+    expect(screen.getByText(/disabled: submit-work form is not connected to an assignment yet/i)).toBeVisible();
+    expectNoFakeOnlyFeedback();
   });
 
   it("shows parent and student safe updates from school operations without exposing confidential notes", () => {
@@ -362,13 +415,16 @@ describe("portal and platform command center interactions", () => {
     await user.type(screen.getByLabelText(/search schools, tickets, logs/i), "Support");
     await user.click(screen.getByRole("button", { name: /support/i }));
 
-    expect(screen.getByText(/support opened from platform search/i)).toBeVisible();
+    expect(screen.getByText(/navigating to support from platform search/i)).toBeVisible();
+    expectNoFakeOnlyFeedback();
 
     await user.click(screen.getByRole("button", { name: /platform notifications/i }));
     expect(screen.getByText(/platform items needing review/i)).toBeVisible();
+    expectNoFakeOnlyFeedback();
 
     await user.click(screen.getByRole("button", { name: /failed sms deliveries/i }));
-    expect(screen.getByText(/failed sms deliveries opened for platform follow-up/i)).toBeVisible();
+    expect(screen.getByText(/navigating to failed sms deliveries platform follow-up/i)).toBeVisible();
+    expectNoFakeOnlyFeedback();
   });
 
   it("makes the system monitor infrastructure queue practical with retry, notify, resolve, and report actions", async () => {
@@ -381,14 +437,76 @@ describe("portal and platform command center interactions", () => {
 
     await user.click(screen.getByRole("button", { name: /retry failed sms/i }));
     expect(screen.getByText(/failed sms retry started for kisumu boys high school/i)).toBeVisible();
+    expectNoFakeOnlyFeedback();
 
     await user.click(screen.getAllByRole("button", { name: /notify admin/i })[0]);
     expect(screen.getByText(/admin notified/i)).toBeVisible();
+    expectNoFakeOnlyFeedback();
 
     await user.click(screen.getAllByRole("button", { name: /mark issue solved/i })[0]);
     expect(screen.getByText(/marked solved/i)).toBeVisible();
+    expectNoFakeOnlyFeedback();
 
     await user.click(screen.getByRole("button", { name: /download system report/i }));
-    expect(screen.getByText(/system health report prepared/i)).toBeVisible();
+    expect(screen.getByText(/system health csv downloaded/i)).toBeVisible();
+    expectNoFakeOnlyFeedback();
+  });
+
+  it("downloads super admin reset bundles with tenant and expiry evidence", async () => {
+    const user = userEvent.setup();
+    const originalFetch = global.fetch;
+    const fetchMock = jest.fn((input: RequestInfo | URL) => {
+      const url = String(input);
+
+      if (url === "/api/platform/schools") {
+        return Promise.resolve(jsonResponse({
+          data: [
+            {
+              tenant_id: "kisumu-boys",
+              school_name: "Kisumu Boys High School",
+              subdomain: "kisumu-boys",
+              status: "active",
+              invitation_sent: true,
+              invitation_status: "sent",
+              invitation_message: "Invite delivered to principal@kisumu.example",
+              can_resend_invite: true,
+              invite_expires_at: "2026-06-08T09:00:00.000Z",
+              admin_email: "principal@kisumu.example",
+              created_at: "2026-06-08T06:00:00.000Z",
+              enabled_modules: ["students", "finance", "exams"],
+              billing: {
+                state: "active",
+                label: "Active",
+                access_mode: "full",
+                plan_code: "school-pro",
+              },
+            },
+          ],
+        }));
+      }
+
+      if (url === "/api/platform/modules") {
+        return Promise.resolve(jsonResponse({ data: [] }));
+      }
+
+      return Promise.resolve(jsonResponse({ data: [] }));
+    });
+
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    try {
+      renderWithProviders(<SuperadminPages section="schools" routeMode="public" />);
+
+      const resetButtons = await screen.findAllByRole("button", { name: /reset admin/i });
+      await user.click(resetButtons[0]);
+
+      expect(screen.getByText(/admin reset bundle downloaded for kisumu boys high school/i)).toBeVisible();
+      expect(screen.getByText(/kisumu-boys-high-school-admin-reset\.csv/i)).toBeVisible();
+      expect(screen.getByText(/expires in 15 minutes/i)).toBeVisible();
+      expect(screen.getByText(/tenant kisumu-boys/i)).toBeVisible();
+      expectNoFakeOnlyFeedback();
+    } finally {
+      global.fetch = originalFetch;
+    }
   });
 });

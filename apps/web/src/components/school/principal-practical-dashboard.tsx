@@ -25,13 +25,17 @@ import { useEffect, useMemo, useState, type ComponentType } from "react";
 import { DashboardGreeting } from "@/components/common/dashboard-greeting";
 import { UserManagementWorkspace } from "@/components/school/user-management-workspace";
 import { Card } from "@/components/ui/card";
+import { Modal } from "@/components/ui/modal";
 import { StatusPill } from "@/components/ui/status-pill";
+import { openPrintDocument } from "@/lib/dashboard/export";
 import { getSchoolRoleGreetingName } from "@/lib/greetings/time-aware-greeting";
 import {
+  addSchoolRecord,
   getCurrentSchoolId,
   publishSchoolOperationalEvent,
   readSchoolData,
   subscribeToSchoolDataUpdates,
+  type SchoolSmsLog,
   type SchoolOperationalEvent,
 } from "@/lib/school/school-operational-store";
 import { dispatchOperationalWorkflowAction } from "@/lib/workflows/operational-workflow-client";
@@ -92,6 +96,47 @@ type ActionLogItem = {
   section: string;
   status: "Queued" | "Will retry" | "Completed";
   detail: string;
+};
+
+type DashboardActionType =
+  | "OPEN_WORKSPACE"
+  | "OPEN_MODAL"
+  | "NAVIGATE_ROUTE"
+  | "FETCH_RECORDS"
+  | "MUTATE_RECORD"
+  | "SEND_COMMUNICATION"
+  | "PRINT_PREVIEW"
+  | "EXPORT_FILE"
+  | "CREATE_NOTIFICATION_TASK"
+  | "DISABLED_WITH_REASON";
+
+export type DashboardActionContract = {
+  id: string;
+  label: string;
+  sourceRole: string;
+  sourceDashboard: string;
+  sourceModule: string;
+  actionType: DashboardActionType;
+  requiredPermission: string;
+  requiredSchoolId: string;
+  requiredData: string[];
+  destination: string;
+  method: string;
+  payload: string;
+  handler: string;
+  loadingState: string;
+  successState: string;
+  failureState: string;
+  emptyState: string;
+  refreshQueries: string[];
+  affectedDashboards: string[];
+  inAppNotification: string;
+  smsOrEmail: string;
+  printOrExport: string;
+  auditTrail: string;
+  tenantIsolation: string;
+  testRequirement: string;
+  disabledReason?: string;
 };
 
 type PrincipalSearchResult = {
@@ -187,7 +232,116 @@ type PrincipalLibraryLoanRecord = {
   parentSmsSent?: boolean;
 };
 
+type PrincipalAttendanceContact = {
+  name: string;
+  guardian?: string;
+  phone?: string;
+};
+
+type PrincipalAttendanceRegisterRecord = {
+  id: string;
+  className: string;
+  stream?: string;
+  subject?: string;
+  teacher?: string;
+  totalLearners?: number;
+  present?: number;
+  absent?: number;
+  late?: number;
+  status?: string;
+  markedAt?: string;
+  source?: string;
+  presentStudents?: Array<string | PrincipalAttendanceContact>;
+  absentStudents?: Array<string | PrincipalAttendanceContact>;
+  lateStudents?: Array<string | PrincipalAttendanceContact>;
+};
+
 const schoolName = "Kisumu Boys";
+
+export const principalAttendanceActionContracts: DashboardActionContract[] = [
+  {
+    id: "principal-attendance-view",
+    label: "View Attendance",
+    sourceRole: "principal",
+    sourceDashboard: "Principal Command Center",
+    sourceModule: "Attendance",
+    actionType: "OPEN_WORKSPACE",
+    requiredPermission: "principal.attendance.read",
+    requiredSchoolId: "current school only",
+    requiredData: ["attendance-registers"],
+    destination: "Principal attendance workspace region",
+    method: "client state",
+    payload: "schoolId, date, class filter, search",
+    handler: "handlePrincipalAttendanceAction",
+    loadingState: "Attendance workspace opening",
+    successState: "Attendance workspace loaded with school-scoped records",
+    failureState: "Attendance workspace shows empty state when no records exist",
+    emptyState: "No attendance records available for this date",
+    refreshQueries: ["attendance-registers", "events"],
+    affectedDashboards: ["Principal", "Deputy Principal", "Class Teacher", "Parent"],
+    inAppNotification: "none for read-only open",
+    smsOrEmail: "none",
+    printOrExport: "none",
+    auditTrail: "PRINCIPAL_ATTENDANCE_WORKSPACE_OPENED",
+    tenantIsolation: "readSchoolData filters by schoolId",
+    testRequirement: "clicking View Attendance opens workspace/table and does not only show toast text",
+  },
+  {
+    id: "principal-attendance-send-absence-sms",
+    label: "Send Absence SMS",
+    sourceRole: "principal",
+    sourceDashboard: "Principal Command Center",
+    sourceModule: "Attendance",
+    actionType: "SEND_COMMUNICATION",
+    requiredPermission: "principal.attendance.communicate",
+    requiredSchoolId: "current school only",
+    requiredData: ["attendance-registers", "sms-provider-settings", "parent contacts"],
+    destination: "Absence SMS confirmation modal",
+    method: "school operational store queue when configured",
+    payload: "selected absent learners, guardian contacts, message preview",
+    handler: "handlePrincipalAttendanceAction",
+    loadingState: "Communication confirmation open",
+    successState: "SMS queue records and audit event created from selected recipients",
+    failureState: "Provider/contact/data disabled reason shown",
+    emptyState: "Disabled: no absent students found for this date.",
+    refreshQueries: ["smsLogs", "notifications", "events"],
+    affectedDashboards: ["Principal", "Parent", "System Monitor"],
+    inAppNotification: "parent dashboard notification created after queueing",
+    smsOrEmail: "SMS queue only after provider configuration and selected contacts exist",
+    printOrExport: "none",
+    auditTrail: "PRINCIPAL_ABSENCE_SMS_QUEUED",
+    tenantIsolation: "SMS logs and notifications are written with schoolId",
+    testRequirement: "clicking Send Absence SMS opens recipient confirmation and validates provider config",
+    disabledReason: "Disabled: SMS provider is not configured.",
+  },
+  {
+    id: "principal-attendance-print-report",
+    label: "Print Attendance Report",
+    sourceRole: "principal",
+    sourceDashboard: "Principal Command Center",
+    sourceModule: "Attendance",
+    actionType: "PRINT_PREVIEW",
+    requiredPermission: "principal.attendance.print",
+    requiredSchoolId: "current school only",
+    requiredData: ["attendance-registers"],
+    destination: "Inline print preview",
+    method: "openPrintDocument",
+    payload: "school name, date, generated by, summary, register rows",
+    handler: "handlePrincipalAttendanceAction",
+    loadingState: "Preparing print preview",
+    successState: "Attendance report print preview opened",
+    failureState: "Disabled reason shown when no printable records exist",
+    emptyState: "Disabled: no attendance records available for this date.",
+    refreshQueries: ["events"],
+    affectedDashboards: ["Principal"],
+    inAppNotification: "none",
+    smsOrEmail: "none",
+    printOrExport: "Attendance report print preview",
+    auditTrail: "PRINCIPAL_ATTENDANCE_REPORT_PREVIEWED",
+    tenantIsolation: "report rows come from school-scoped attendance-registers",
+    testRequirement: "clicking Print Attendance Report opens print preview and does not only show print text",
+  },
+];
 
 const principalSections: PrincipalSection[] = [
   {
@@ -943,6 +1097,339 @@ function sectionById(id: PrincipalSectionId, sections = principalSections) {
   return sections.find((section) => section.id === id) ?? sections[0] ?? principalSections[0];
 }
 
+function isQueuedCommunicationAction(label: string) {
+  return /\b(sms|notify|notification|reminder|onboarding)\b/i.test(label);
+}
+
+function contactName(value: string | PrincipalAttendanceContact) {
+  return typeof value === "string" ? value : value.name;
+}
+
+function contactPhone(value: string | PrincipalAttendanceContact) {
+  return typeof value === "string" ? "" : value.phone?.trim() ?? "";
+}
+
+function contactGuardian(value: string | PrincipalAttendanceContact) {
+  return typeof value === "string" ? "" : value.guardian?.trim() ?? "";
+}
+
+function readPrincipalAttendanceRegisters(schoolId: string) {
+  return readSchoolData<PrincipalAttendanceRegisterRecord>("attendance-registers", schoolId);
+}
+
+function attendanceDateValue(date: Date) {
+  return date.toISOString().slice(0, 10);
+}
+
+function formatAttendanceDate(value: string) {
+  const parsed = new Date(value);
+
+  return Number.isNaN(parsed.getTime())
+    ? value
+    : parsed.toLocaleDateString("en-KE", { day: "numeric", month: "short", year: "numeric" });
+}
+
+function formatAttendanceTime(value?: string) {
+  if (!value) {
+    return "Not updated";
+  }
+
+  const parsed = new Date(value);
+
+  return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleString("en-KE");
+}
+
+function countStudentList(
+  record: PrincipalAttendanceRegisterRecord,
+  listName: "presentStudents" | "absentStudents" | "lateStudents",
+  countName: "present" | "absent" | "late",
+) {
+  const students = record[listName];
+
+  return students?.length ?? Number(record[countName] ?? 0);
+}
+
+function attendanceSummary(registers: PrincipalAttendanceRegisterRecord[]) {
+  return registers.reduce(
+    (summary, record) => ({
+      present: summary.present + countStudentList(record, "presentStudents", "present"),
+      absent: summary.absent + countStudentList(record, "absentStudents", "absent"),
+      late: summary.late + countStudentList(record, "lateStudents", "late"),
+      missing: summary.missing + (/missing|pending|not submitted/i.test(record.status ?? "") ? 1 : 0),
+    }),
+    { present: 0, absent: 0, late: 0, missing: 0 },
+  );
+}
+
+function absentAttendanceContacts(registers: PrincipalAttendanceRegisterRecord[]) {
+  return registers.flatMap((record) =>
+    (record.absentStudents ?? []).map((student, index) => ({
+      id: `${record.id}-absent-${index}`,
+      student: contactName(student),
+      guardian: contactGuardian(student) || "Guardian",
+      phone: contactPhone(student),
+      className: record.className,
+    })),
+  );
+}
+
+function smsProviderConfigured(schoolId: string) {
+  return readSchoolData<{ id?: string; status?: string; provider?: string; enabled?: boolean }>("sms-provider-settings", schoolId)
+    .some((provider) => provider.enabled !== false && !/disabled|inactive/i.test(provider.status ?? ""));
+}
+
+function PrincipalAttendanceWorkspace({
+  registers,
+  selectedDate,
+  classFilter,
+  searchQuery,
+  onDateChange,
+  onClassFilterChange,
+  onSearchChange,
+}: {
+  registers: PrincipalAttendanceRegisterRecord[];
+  selectedDate: string;
+  classFilter: string;
+  searchQuery: string;
+  onDateChange: (value: string) => void;
+  onClassFilterChange: (value: string) => void;
+  onSearchChange: (value: string) => void;
+}) {
+  const classOptions = Array.from(new Set(registers.map((record) => record.className).filter(Boolean)));
+  const filteredRegisters = registers.filter((record) => {
+    const classMatches = !classFilter || record.className === classFilter;
+    const haystack = [
+      record.className,
+      record.stream,
+      record.teacher,
+      record.status,
+      ...(record.presentStudents ?? []).map(contactName),
+      ...(record.absentStudents ?? []).map(contactName),
+      ...(record.lateStudents ?? []).map(contactName),
+    ].join(" ").toLowerCase();
+
+    return classMatches && (!searchQuery.trim() || haystack.includes(searchQuery.trim().toLowerCase()));
+  });
+  const summary = attendanceSummary(filteredRegisters);
+  const latestUpdate = filteredRegisters
+    .map((record) => record.markedAt)
+    .filter((value): value is string => Boolean(value))
+    .sort()
+    .at(-1);
+
+  return (
+    <section
+      role="region"
+      aria-label="Principal attendance workspace"
+      className="rounded-2xl border border-[#BFD7FF] bg-[#F8FAFC] p-4"
+    >
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[#0B3A7A]">Attendance workspace</p>
+          <h3 className="mt-1 text-lg font-black text-[#071D49]">Daily attendance records</h3>
+          <p className="mt-1 text-sm font-semibold leading-6 text-[#52657F]">
+            Source: Teacher and Class Teacher dashboards. Last updated: {formatAttendanceTime(latestUpdate)}.
+          </p>
+        </div>
+        <StatusPill label={`${filteredRegisters.length} registers`} tone={filteredRegisters.length ? "ok" : "warning"} />
+      </div>
+
+      <div className="mt-4 grid gap-3 md:grid-cols-3">
+        <label className="grid gap-1 text-xs font-black text-[#40608F]">
+          Attendance date
+          <input
+            type="date"
+            value={selectedDate}
+            onChange={(event) => onDateChange(event.currentTarget.value)}
+            className="rounded-xl border border-[#D7E0EF] bg-white px-3 py-2 text-sm font-semibold text-[#071D49] outline-none focus:border-[#9BC5FF]"
+          />
+        </label>
+        <label className="grid gap-1 text-xs font-black text-[#40608F]">
+          Class or stream
+          <select
+            value={classFilter}
+            onChange={(event) => onClassFilterChange(event.currentTarget.value)}
+            className="rounded-xl border border-[#D7E0EF] bg-white px-3 py-2 text-sm font-semibold text-[#071D49] outline-none focus:border-[#9BC5FF]"
+          >
+            <option value="">All classes</option>
+            {classOptions.map((option) => (
+              <option key={option} value={option}>{option}</option>
+            ))}
+          </select>
+        </label>
+        <label className="grid gap-1 text-xs font-black text-[#40608F]">
+          Search attendance records
+          <input
+            type="search"
+            value={searchQuery}
+            onChange={(event) => onSearchChange(event.currentTarget.value)}
+            placeholder="Student, teacher, class"
+            className="rounded-xl border border-[#D7E0EF] bg-white px-3 py-2 text-sm font-semibold text-[#071D49] outline-none focus:border-[#9BC5FF]"
+          />
+        </label>
+      </div>
+
+      <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {[
+          ["Present students", summary.present],
+          ["Absent students", summary.absent],
+          ["Late students", summary.late],
+          ["Missing registers", summary.missing],
+        ].map(([label, value]) => (
+          <div key={label} className="rounded-xl border border-[#D7E0EF] bg-white px-3 py-2">
+            <p className="text-[10px] font-black uppercase tracking-[0.12em] text-[#597091]">{label}</p>
+            <p className="mt-1 text-2xl font-black text-[#071D49]">{value}</p>
+          </div>
+        ))}
+      </div>
+
+      <div className="mt-4 overflow-x-auto">
+        <table className="min-w-full text-left text-sm">
+          <thead className="text-[11px] font-black uppercase tracking-[0.12em] text-[#597091]">
+            <tr>
+              <th className="border-b border-[#D7E0EF] px-3 py-2">Class</th>
+              <th className="border-b border-[#D7E0EF] px-3 py-2">Teacher responsible</th>
+              <th className="border-b border-[#D7E0EF] px-3 py-2">Present</th>
+              <th className="border-b border-[#D7E0EF] px-3 py-2">Absent</th>
+              <th className="border-b border-[#D7E0EF] px-3 py-2">Late</th>
+              <th className="border-b border-[#D7E0EF] px-3 py-2">Last updated</th>
+              <th className="border-b border-[#D7E0EF] px-3 py-2">Source</th>
+            </tr>
+          </thead>
+          <tbody className="font-semibold text-[#1B2D4A]">
+            {filteredRegisters.length ? (
+              filteredRegisters.map((record) => (
+                <tr key={record.id}>
+                  <td className="border-b border-[#EDF2F7] px-3 py-3">{record.className}</td>
+                  <td className="border-b border-[#EDF2F7] px-3 py-3">{record.teacher ?? "Teacher not recorded"}</td>
+                  <td className="border-b border-[#EDF2F7] px-3 py-3">{countStudentList(record, "presentStudents", "present")}</td>
+                  <td className="border-b border-[#EDF2F7] px-3 py-3">{countStudentList(record, "absentStudents", "absent")}</td>
+                  <td className="border-b border-[#EDF2F7] px-3 py-3">{countStudentList(record, "lateStudents", "late")}</td>
+                  <td className="border-b border-[#EDF2F7] px-3 py-3">{formatAttendanceTime(record.markedAt)}</td>
+                  <td className="border-b border-[#EDF2F7] px-3 py-3">{record.source ?? "Attendance register"}</td>
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td colSpan={7} className="border-b border-[#EDF2F7] px-3 py-4 text-[#C2410C]">
+                  No attendance records are available for {formatAttendanceDate(selectedDate)}.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
+function AbsenceSmsModal({
+  open,
+  registers,
+  providerConfigured,
+  onClose,
+  onQueue,
+}: {
+  open: boolean;
+  registers: PrincipalAttendanceRegisterRecord[];
+  providerConfigured: boolean;
+  onClose: () => void;
+  onQueue: (recipients: ReturnType<typeof absentAttendanceContacts>) => void;
+}) {
+  const [selected, setSelected] = useState<Record<string, boolean>>({});
+  const contacts = absentAttendanceContacts(registers);
+  const recipients = contacts.filter((contact) => contact.phone);
+  const missingContacts = contacts.filter((contact) => !contact.phone);
+  const selectedRecipients = recipients.filter((contact) => selected[contact.id] ?? true);
+  const disabledReason = !contacts.length
+    ? "Disabled: no absent students found for this date."
+    : !recipients.length
+      ? "Disabled: no parent phone numbers found."
+      : !providerConfigured
+        ? "Disabled: SMS provider is not configured."
+        : null;
+  const messagePreview = `Dear parent/guardian, ${schoolName} records show your child was absent today. Please contact the class teacher with the reason.`;
+
+  return (
+    <Modal
+      open={open}
+      title="Confirm absence SMS"
+      description="Review recipients, missing contacts, and the message before queueing school communication."
+      onClose={onClose}
+      size="lg"
+      footer={
+        <>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-xl border border-[#D7E0EF] bg-white px-3 py-2 text-xs font-black text-[#071D49]"
+          >
+            Close
+          </button>
+          <button
+            type="button"
+            disabled={Boolean(disabledReason) || selectedRecipients.length === 0}
+            onClick={() => onQueue(selectedRecipients)}
+            className="rounded-xl border border-[#0B3A7A] bg-[#0B3A7A] px-3 py-2 text-xs font-black text-white disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            Queue absence SMS
+          </button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        {disabledReason ? (
+          <p className="rounded-xl border border-[#FED7AA] bg-[#FFF7ED] px-3 py-2 text-sm font-black text-[#C2410C]">
+            {disabledReason}
+          </p>
+        ) : null}
+
+        <div className="grid gap-3 md:grid-cols-2">
+          <div className="rounded-xl border border-[#D7E0EF] bg-white p-3">
+            <p className="text-xs font-black uppercase tracking-[0.12em] text-[#597091]">Parent/guardian recipients</p>
+            <div className="mt-3 space-y-2">
+              {recipients.length ? recipients.map((contact) => (
+                <label key={contact.id} className="flex items-start gap-2 rounded-lg border border-[#EDF2F7] px-2 py-2 text-sm font-semibold text-[#1B2D4A]">
+                  <input
+                    type="checkbox"
+                    checked={selected[contact.id] ?? true}
+                    onChange={(event) => setSelected((current) => ({ ...current, [contact.id]: event.currentTarget.checked }))}
+                    className="mt-1"
+                  />
+                  <span>
+                    <span className="block">{contact.student}</span>
+                    <span className="block text-xs text-[#52657F]">{contact.guardian} - {contact.phone} - {contact.className}</span>
+                  </span>
+                </label>
+              )) : (
+                <p className="text-sm font-semibold text-[#C2410C]">No sendable recipients found.</p>
+              )}
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-[#FED7AA] bg-[#FFF7ED] p-3">
+            <p className="text-xs font-black uppercase tracking-[0.12em] text-[#C2410C]">Missing phone numbers</p>
+            <div className="mt-3 space-y-2">
+              {missingContacts.length ? missingContacts.map((contact) => (
+                <p key={contact.id} className="rounded-lg border border-[#FDBA74] bg-white px-2 py-2 text-sm font-semibold text-[#7C2D12]">
+                  {contact.student} - {contact.className}
+                </p>
+              )) : (
+                <p className="text-sm font-semibold text-[#047857]">All absent learners have guardian contacts.</p>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-xl border border-[#D7E0EF] bg-[#F8FAFC] p-3">
+          <p className="text-xs font-black uppercase tracking-[0.12em] text-[#597091]">Message preview</p>
+          <p className="mt-2 text-sm font-semibold leading-6 text-[#1B2D4A]">{messagePreview}</p>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
 function actionToneClass(tone?: PracticalAction["tone"]) {
   if (tone === "danger") return "border-[#FECACA] bg-[#FEF2F2] text-[#B91C1C] hover:border-[#F87171]";
   if (tone === "warning") return "border-[#FED7AA] bg-[#FFF7ED] text-[#C2410C] hover:border-[#FB923C]";
@@ -1308,6 +1795,11 @@ export function PrincipalPracticalCommandCenter({
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [actionNotice, setActionNotice] = useState<string | null>(null);
+  const [attendanceWorkspaceOpen, setAttendanceWorkspaceOpen] = useState(false);
+  const [attendanceSmsOpen, setAttendanceSmsOpen] = useState(false);
+  const [attendanceDate, setAttendanceDate] = useState(() => attendanceDateValue(new Date()));
+  const [attendanceClassFilter, setAttendanceClassFilter] = useState("");
+  const [attendanceSearchQuery, setAttendanceSearchQuery] = useState("");
   const greetingName = getSchoolRoleGreetingName("principal") || "Principal Wanjiku";
   const schoolId = getCurrentSchoolId(tenantSlug);
   const [sections, setSections] = useState<PrincipalSection[]>(() => buildPrincipalSectionsForSchool(schoolId));
@@ -1317,6 +1809,8 @@ export function PrincipalPracticalCommandCenter({
   const overviewSections = overviewSectionIds.map((id) => sectionById(id, sections));
   const approvalsSection = sectionById("approvals", sections);
   const currentSummaryCards = useMemo(() => buildSummaryCardsForSections(sections), [sections]);
+  const attendanceRegisters = readPrincipalAttendanceRegisters(schoolId);
+  const attendanceProviderConfigured = smsProviderConfigured(schoolId);
 
   useEffect(() => {
     function loadSharedSchoolActions() {
@@ -1350,11 +1844,150 @@ export function PrincipalPracticalCommandCenter({
     });
   }, [schoolId]);
 
+  function publishPrincipalActionEvent(input: {
+    type: string;
+    module: PrincipalSectionId;
+    title: string;
+    body: string;
+    entityId: string;
+    severity?: "info" | "warning" | "critical" | "success";
+    notifications?: Parameters<typeof publishSchoolOperationalEvent>[0]["notifications"];
+    payload?: Record<string, unknown>;
+  }) {
+    publishSchoolOperationalEvent({
+      schoolId,
+      actorRole: "principal",
+      type: input.type,
+      module: input.module,
+      title: input.title,
+      body: input.body,
+      entityId: input.entityId,
+      severity: input.severity ?? "success",
+      payload: {
+        schoolName,
+        ...input.payload,
+      },
+      notifications: input.notifications,
+    });
+  }
+
+  function openAttendanceWorkspace() {
+    setActiveSection("attendance");
+    setMobileNavOpen(false);
+    setAttendanceWorkspaceOpen(true);
+    setActionNotice(`Attendance workspace ready with ${attendanceRegisters.length} school-scoped register${attendanceRegisters.length === 1 ? "" : "s"} loaded.`);
+    publishPrincipalActionEvent({
+      type: "PRINCIPAL_ATTENDANCE_WORKSPACE_OPENED",
+      module: "attendance",
+      title: "Principal attendance workspace loaded",
+      body: `${attendanceRegisters.length} attendance register${attendanceRegisters.length === 1 ? "" : "s"} loaded for principal review.`,
+      entityId: `principal-attendance-workspace-${Date.now()}`,
+      payload: { registerCount: attendanceRegisters.length },
+    });
+  }
+
+  function queueAbsenceSms(recipients: ReturnType<typeof absentAttendanceContacts>) {
+    const message = `Dear parent/guardian, ${schoolName} records show your child was absent today. Please contact the class teacher with the reason.`;
+    const now = new Date().toISOString();
+
+    recipients.forEach((recipient) => {
+      addSchoolRecord<SchoolSmsLog>(
+        "smsLogs",
+        {
+          id: `absence-sms-${slug(recipient.student)}-${Date.now()}`,
+          schoolId,
+          recipient: recipient.phone,
+          message,
+          sourceModule: "attendance",
+          status: "Queued",
+          createdAt: now,
+        },
+        schoolId,
+      );
+    });
+
+    publishPrincipalActionEvent({
+      type: "PRINCIPAL_ABSENCE_SMS_QUEUED",
+      module: "attendance",
+      title: "Absence SMS queued",
+      body: `SMS queued: ${recipients.length} queued, 0 failed, 0 skipped.`,
+      entityId: `principal-absence-sms-${Date.now()}`,
+      payload: { queuedCount: recipients.length, failedCount: 0, skippedCount: 0 },
+      notifications: recipients.map((recipient) => ({
+        audienceRoles: ["parent"],
+        recipientRole: "parent",
+        relatedModule: "attendance",
+        relatedRecordId: recipient.id,
+        title: `${recipient.student} absence notice`,
+        body: message,
+        severity: "warning",
+        requiresAction: false,
+      })),
+    });
+    setAttendanceSmsOpen(false);
+    setActionNotice(`SMS queued: ${recipients.length} queued, 0 failed, 0 skipped.`);
+  }
+
+  function printAttendanceReport() {
+    const summary = attendanceSummary(attendanceRegisters);
+    const printableRows = [
+      { label: "School", value: schoolName },
+      { label: "Date", value: formatAttendanceDate(attendanceDate) },
+      { label: "Term/session", value: "Term 2 2026" },
+      { label: "Generated by", value: greetingName },
+      { label: "Present students", value: String(summary.present) },
+      { label: "Absent students", value: String(summary.absent), tone: summary.absent > 0 ? "danger" as const : "default" as const },
+      { label: "Late students", value: String(summary.late) },
+      { label: "Missing registers", value: String(summary.missing), tone: summary.missing > 0 ? "danger" as const : "default" as const },
+      ...attendanceRegisters.slice(0, 8).map((record) => ({
+        label: `${record.className} - ${record.teacher ?? "Teacher not recorded"}`,
+        value: `${countStudentList(record, "presentStudents", "present")} present, ${countStudentList(record, "absentStudents", "absent")} absent, ${countStudentList(record, "lateStudents", "late")} late`,
+      })),
+    ];
+
+    openPrintDocument({
+      eyebrow: "Principal attendance report",
+      title: `${schoolName} attendance report`,
+      subtitle: `Attendance summary for ${formatAttendanceDate(attendanceDate)}. Source: Teacher and Class Teacher dashboards.`,
+      rows: printableRows,
+      footer: "Signature: ____________________  Principal / Deputy Principal",
+    });
+    setActionNotice("Attendance report print preview ready.");
+    publishPrincipalActionEvent({
+      type: "PRINCIPAL_ATTENDANCE_REPORT_PREVIEWED",
+      module: "attendance",
+      title: "Attendance report preview opened",
+      body: `${attendanceRegisters.length} register${attendanceRegisters.length === 1 ? "" : "s"} included in the attendance print preview.`,
+      entityId: `principal-attendance-print-${Date.now()}`,
+      payload: { registerCount: attendanceRegisters.length, summary },
+    });
+  }
+
   async function handleAction(action: PracticalAction, section: PrincipalSection) {
+    if (section.id === "attendance") {
+      if (action.label === "View Attendance") {
+        openAttendanceWorkspace();
+        return;
+      }
+
+      if (action.label === "Send Absence SMS") {
+        const recipients = absentAttendanceContacts(attendanceRegisters);
+        setAttendanceSmsOpen(true);
+        setActionNotice(`Absence SMS confirmation ready with ${recipients.length} guardian recipient${recipients.length === 1 ? "" : "s"} for review before queueing.`);
+        return;
+      }
+
+      if (action.label === "Print Attendance Report") {
+        printAttendanceReport();
+        return;
+      }
+    }
+
     if (action.target) {
+      const targetSection = sectionById(action.target, sections);
       setActiveSection(action.target);
       setMobileNavOpen(false);
-      setActionNotice(`Opened ${sectionById(action.target, sections).label}.`);
+      setActionNotice(`${targetSection.label} workspace ready with ${targetSection.records.length} operational record${targetSection.records.length === 1 ? "" : "s"} and ${targetSection.metrics.length} metric${targetSection.metrics.length === 1 ? "" : "s"}.`);
       return;
     }
 
@@ -1363,11 +1996,11 @@ export function PrincipalPracticalCommandCenter({
       label: action.label,
       section: section.label,
       status: "Queued",
-      detail: `${action.label} is being sent from ${section.label}.`,
+      detail: `${action.label} queued from ${section.label}. Waiting for the connected workflow response.`,
     };
 
     setActionLog((items) => [logItem, ...items].slice(0, 8));
-    setActionNotice(`${action.label} is being sent from ${section.label}.`);
+    setActionNotice(`${action.label} queued from ${section.label}. Waiting for the connected workflow response.`);
 
     try {
       await dispatchOperationalWorkflowAction({
@@ -1381,7 +2014,10 @@ export function PrincipalPracticalCommandCenter({
           source: section.source,
         },
       });
-      const completedDetail = `${action.label} completed from ${section.label}.`;
+      const shouldRemainQueued = isQueuedCommunicationAction(action.label);
+      const completedDetail = shouldRemainQueued
+        ? `${action.label} sent to workflow queue from ${section.label}.`
+        : `${action.label} returned from the connected workflow for ${section.label}.`;
 
       setActionNotice(completedDetail);
       setActionLog((items) =>
@@ -1389,7 +2025,7 @@ export function PrincipalPracticalCommandCenter({
           item.id === logItem.id
             ? {
                 ...item,
-                status: "Completed",
+                status: shouldRemainQueued ? "Queued" : "Completed",
                 detail: completedDetail,
               }
             : item,
@@ -1398,12 +2034,12 @@ export function PrincipalPracticalCommandCenter({
       publishSchoolOperationalEvent({
         schoolId,
         actorRole: "principal",
-        type: "PRINCIPAL_ACTION_COMPLETED",
+        type: shouldRemainQueued ? "PRINCIPAL_ACTION_QUEUED" : "PRINCIPAL_ACTION_COMPLETED",
         module: section.id,
-        title: action.label,
+        title: shouldRemainQueued ? `${action.label} queued` : action.label,
         body: completedDetail,
         entityId: logItem.id,
-        severity: "success",
+        severity: shouldRemainQueued ? "warning" : "success",
         payload: {
           schoolName,
           section: section.label,
@@ -1451,14 +2087,14 @@ export function PrincipalPracticalCommandCenter({
     setSearchQuery("");
     const logItem: ActionLogItem = {
       id: `search-${slug(section.id)}-${Date.now()}`,
-      label: `Opened ${section.label}`,
+      label: `${section.label} workspace opened`,
       section: section.label,
       status: "Completed",
-      detail: `Search opened ${section.label} for: ${actionLabel}.`,
+      detail: `Search selected ${section.label} for: ${actionLabel}.`,
     };
 
     setActionLog((items) => [logItem, ...items].slice(0, 8));
-    setActionNotice(`Opened ${section.label}.`);
+    setActionNotice(`${section.label} workspace selected from search.`);
   }
 
   const nav = useMemo(() => sidebarItems, []);
@@ -1603,6 +2239,17 @@ export function PrincipalPracticalCommandCenter({
                 ) : (
                   <div className="min-h-0 space-y-4">
                     <SchoolOperationCard section={active} onAction={handleAction} />
+                    {active.id === "attendance" && attendanceWorkspaceOpen ? (
+                      <PrincipalAttendanceWorkspace
+                        registers={attendanceRegisters}
+                        selectedDate={attendanceDate}
+                        classFilter={attendanceClassFilter}
+                        searchQuery={attendanceSearchQuery}
+                        onDateChange={setAttendanceDate}
+                        onClassFilterChange={setAttendanceClassFilter}
+                        onSearchChange={setAttendanceSearchQuery}
+                      />
+                    ) : null}
                     <RecordsPanel section={active} onAction={handleAction} />
                     {active.id === "system-health" ? <StateExamples /> : null}
                   </div>
@@ -1617,6 +2264,13 @@ export function PrincipalPracticalCommandCenter({
           </section>
         </main>
       </div>
+      <AbsenceSmsModal
+        open={attendanceSmsOpen}
+        registers={attendanceRegisters}
+        providerConfigured={attendanceProviderConfigured}
+        onClose={() => setAttendanceSmsOpen(false)}
+        onQueue={queueAbsenceSms}
+      />
     </div>
   );
 }

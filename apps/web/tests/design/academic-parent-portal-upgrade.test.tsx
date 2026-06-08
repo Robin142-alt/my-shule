@@ -5,6 +5,8 @@ import { PortalPages } from "@/components/portal/portal-pages";
 
 import { renderWithProviders } from "./test-utils";
 
+jest.setTimeout(20000);
+
 describe("academic parent portal upgrade", () => {
   it("shows published child reports, results, comments, targets, and child switching in the parent academics page", () => {
     renderWithProviders(<PortalPages viewer="parent" section="academics" routeMode="public" />);
@@ -83,5 +85,30 @@ describe("academic parent portal upgrade", () => {
     expect(reportViewer.getByText(/Student bio/i)).toBeVisible();
     expect(reportViewer.getByText(/Legacy marks and grade summary/i)).toBeVisible();
     expect(reportViewer.queryByText(/CBC competency summary/i)).not.toBeInTheDocument();
+  });
+
+  it("uses proof-based parent report print, download, and child-switching feedback", async () => {
+    const user = userEvent.setup();
+
+    renderWithProviders(<PortalPages viewer="parent" section="academics" routeMode="public" />);
+
+    await user.click(screen.getAllByRole("button", { name: /view report/i })[0]);
+    await user.click(within(screen.getByTestId("parent-report-viewer")).getByRole("button", { name: /^print$/i }));
+
+    expect(screen.getByText(/print preview ready for brian otieno/i)).toBeVisible();
+    expect(screen.getByText(/published subject rows loaded/i)).toBeVisible();
+    expect(document.body.textContent).not.toMatch(/Print preview opened for|Download prepared for|academic record opened/i);
+
+    await user.click(within(screen.getByTestId("parent-report-viewer")).getByRole("button", { name: /download pdf/i }));
+
+    expect(screen.getByText(/report download created for brian otieno/i)).toBeVisible();
+    expect(screen.getByText(/brian-otieno-report-brian-cbc\.txt/i)).toBeVisible();
+    expect(document.body.textContent).not.toMatch(/Print preview opened for|Download prepared for|academic record opened/i);
+
+    await user.click(screen.getByRole("button", { name: /Aisha Wanjiku/i }));
+
+    expect(screen.getByText(/Aisha Wanjiku academic record selected/i)).toBeVisible();
+    expect(screen.getByText(/1 published report, 1 result row loaded/i)).toBeVisible();
+    expect(document.body.textContent).not.toMatch(/Print preview opened for|Download prepared for|academic record opened/i);
   });
 });

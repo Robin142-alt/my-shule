@@ -230,7 +230,7 @@ export function Implementation100LiveModuleScreen({
         throw new Error(`${entityLabel} status was not updated.`);
       }
 
-      setMessage(`${entityLabel} completed`);
+      setMessage(`${entityLabel} status updated to completed through the API.`);
       await refreshDashboard();
     } catch (statusError) {
       setError(statusError instanceof Error ? statusError.message : `${entityLabel} status was not updated.`);

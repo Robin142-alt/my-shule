@@ -405,7 +405,7 @@ describe("experience actions", () => {
     await user.click(screen.getByRole("button", { name: /share statement/i }));
 
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining("My Shule family statement"));
-    expect(screen.getByText(/statement copied for sharing/i)).toBeVisible();
+    expect(screen.getByText(/statement copied with \d+ posted payment rows for the verified family account/i)).toBeVisible();
   });
 
   it("records a school payment through the collections workspace", async () => {

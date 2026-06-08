@@ -33,7 +33,7 @@ async function printFromPreview(user: { click: (element: Element) => Promise<voi
   expect(printMock).toHaveBeenCalled();
   printMock.mockClear();
 
-  await user.click(within(preview).getByRole("button", { name: /cancel/i }));
+  await user.click(within(preview).getByRole("button", { name: /close|cancel/i }));
 }
 
 const schoolRoleBlueprints: Array<{ role: SchoolExperienceRole; blueprint: DocxRoleId }> = [
@@ -268,7 +268,7 @@ describe("STEP 4: Role tests", () => {
     expect(within(commandCenter).getByText(/parent sms queued/i)).toBeVisible();
 
     await user.click(within(commandCenter).getByRole("button", { name: /print register/i }));
-    expect(within(commandCenter).getByText(/sick bay register opened for printing/i)).toBeVisible();
+    expect(within(commandCenter).getByText(/sick bay register print preview ready/i)).toBeVisible();
     await printFromPreview(user, printMock);
 
     await user.type(within(commandCenter).getByLabelText(/new medicine name/i), "Antiseptic Cream");
@@ -298,7 +298,7 @@ describe("STEP 4: Role tests", () => {
     expect(within(commandCenter).getByText(/application pipeline/i)).toBeVisible();
 
     await user.click(within(commandCenter).getByRole("button", { name: /print pipeline/i }));
-    expect(within(commandCenter).getByText(/admissions pipeline opened for printing/i)).toBeVisible();
+    expect(within(commandCenter).getByText(/admissions pipeline print preview ready/i)).toBeVisible();
     await printFromPreview(user, printMock);
 
     await user.clear(within(commandCenter).getByLabelText(/applicant name/i));
@@ -313,7 +313,11 @@ describe("STEP 4: Role tests", () => {
     await user.type(within(commandCenter).getByLabelText(/admission note/i), "Parent needs boarding invoice and uniform checklist.");
     await user.click(within(commandCenter).getByRole("button", { name: /save inquiry/i }));
 
-    expect(within(commandCenter).getByText(/sharon achieng saved/i)).toBeVisible();
+    expect(
+      within(commandCenter).getByText(
+        /sharon achieng admission inquiry saved for kisumu-boys: admission-.+, documents Complete, parent contact captured, Principal\/Secretary\/Accountant\/Class Teacher notified/i,
+      ),
+    ).toBeVisible();
     expect(within(commandCenter).getByText("Sharon Achieng")).toBeVisible();
 
     let applicantRow = within(commandCenter).getByText("Sharon Achieng").closest("tr");
@@ -335,7 +339,7 @@ describe("STEP 4: Role tests", () => {
     applicantRow = within(commandCenter).getByText("Sharon Achieng").closest("tr");
     expect(applicantRow).not.toBeNull();
     await user.click(within(applicantRow as HTMLElement).getByRole("button", { name: /print letter/i }));
-    expect(within(commandCenter).getByText(/sharon achieng admission letter opened/i)).toBeVisible();
+    expect(within(commandCenter).getByText(/sharon achieng admission letter print preview ready/i)).toBeVisible();
     await printFromPreview(user, printMock);
   }, 30000);
 
@@ -386,7 +390,7 @@ describe("STEP 4: Role tests", () => {
       .find(Boolean);
     expect(loanRow).not.toBeNull();
     await user.click(within(loanRow as HTMLElement).getByRole("button", { name: /send overdue sms/i }));
-    expect(within(commandCenter).getByText(/brian otieno parent\/student sms queued/i)).toBeVisible();
+    expect(within(commandCenter).getByText(/brian otieno parent\/guardian sms queued/i)).toBeVisible();
 
     loanRow = within(commandCenter)
       .getAllByText("Agriculture Form 3")
@@ -394,7 +398,7 @@ describe("STEP 4: Role tests", () => {
       .find(Boolean);
     expect(loanRow).not.toBeNull();
     await user.click(within(loanRow as HTMLElement).getByRole("button", { name: /print slip/i }));
-    expect(within(commandCenter).getByText(/agriculture form 3 slip opened/i)).toBeVisible();
+    expect(within(commandCenter).getByText(/agriculture form 3 slip print preview ready/i)).toBeVisible();
     await printFromPreview(user, printMock);
 
     loanRow = within(commandCenter)
@@ -406,7 +410,7 @@ describe("STEP 4: Role tests", () => {
     expect(within(commandCenter).getByText(/agriculture form 3 returned and marked available/i)).toBeVisible();
 
     await user.click(within(commandCenter).getByRole("button", { name: /print library report/i }));
-    expect(within(commandCenter).getByText(/library report opened for printing/i)).toBeVisible();
+    expect(within(commandCenter).getByText(/library report print preview ready/i)).toBeVisible();
     await printFromPreview(user, printMock);
   }, 30000);
 
@@ -473,7 +477,7 @@ describe("STEP 4: Role tests", () => {
       .find(Boolean);
     expect(movementRow).not.toBeNull();
     await user.click(within(movementRow as HTMLElement).getByRole("button", { name: /print slip/i }));
-    expect(within(commandCenter).getByText(/printer paper reams issue slip opened/i)).toBeVisible();
+    expect(within(commandCenter).getByText(/printer paper reams issue slip print preview ready/i)).toBeVisible();
     await printFromPreview(user, printMock);
 
     movementRow = within(commandCenter)
@@ -485,7 +489,7 @@ describe("STEP 4: Role tests", () => {
     expect(within(commandCenter).getByText(/printer paper reams marked damaged\/lost/i)).toBeVisible();
 
     await user.click(within(commandCenter).getByRole("button", { name: /export stock report/i }));
-    expect(within(commandCenter).getByText(/stock report exported/i)).toBeVisible();
+    expect(within(commandCenter).getByText(/stock csv downloaded/i)).toBeVisible();
   }, 30000);
 
   it("makes the boarding desk practical with roll call, missing alerts, nurse referral, exeats, and printing", async () => {
@@ -587,7 +591,7 @@ describe("STEP 4: Role tests", () => {
     ).toBe(true);
 
     await user.click(within(commandCenter).getByRole("button", { name: /print roll call/i }));
-    expect(within(commandCenter).getByText(/hostel roll call sheet opened/i)).toBeVisible();
+    expect(within(commandCenter).getByText(/hostel roll call sheet print preview ready/i)).toBeVisible();
     await printFromPreview(user, printMock);
     expect(
       readSchoolData<SchoolOperationalEvent>("events", schoolId).some((event) => event.type === "BOARDING_ROLL_CALL_PRINTED"),
@@ -635,6 +639,8 @@ describe("STEP 4: Role tests", () => {
     expect(tripRow).not.toBeNull();
     await user.click(within(tripRow as HTMLElement).getByRole("button", { name: /mark picked/i }));
     expect(within(commandCenter).getByText(/brian otieno marked picked/i)).toBeVisible();
+    expect(within(commandCenter).getByText(/parent pickup sms queued/i)).toBeVisible();
+    expect(within(commandCenter).queryByText(/parent alert sent/i)).not.toBeInTheDocument();
     expect(
       readSchoolData<SchoolSmsLog>("smsLogs", schoolId).some((sms) => sms.sourceModule === "transport" && /Brian Otieno/i.test(sms.message) && /picked/i.test(sms.message)),
     ).toBe(true);
@@ -649,6 +655,8 @@ describe("STEP 4: Role tests", () => {
     expect(tripRow).not.toBeNull();
     await user.click(within(tripRow as HTMLElement).getByRole("button", { name: /mark dropped/i }));
     expect(within(commandCenter).getByText(/brian otieno marked dropped/i)).toBeVisible();
+    expect(within(commandCenter).getByText(/parent drop-off sms queued/i)).toBeVisible();
+    expect(within(commandCenter).queryByText(/parent alert sent/i)).not.toBeInTheDocument();
     expect(
       readSchoolData<SchoolOperationalEvent>("events", schoolId).some((event) => event.type === "TRANSPORT_STUDENT_DROPPED"),
     ).toBe(true);
@@ -668,7 +676,7 @@ describe("STEP 4: Role tests", () => {
     ).toBe(true);
 
     await user.click(within(commandCenter).getByRole("button", { name: /print route list/i }));
-    expect(within(commandCenter).getByText(/transport route list opened/i)).toBeVisible();
+    expect(within(commandCenter).getByText(/transport route list print preview ready/i)).toBeVisible();
     await printFromPreview(user, printMock);
     expect(
       readSchoolData<SchoolOperationalEvent>("events", schoolId).some((event) => event.type === "TRANSPORT_ROUTE_LIST_PRINTED"),
@@ -775,7 +783,7 @@ describe("STEP 4: Role tests", () => {
     ).toBe(true);
 
     await user.click(within(commandCenter).getByRole("button", { name: /print practical checklist/i }));
-    expect(within(commandCenter).getByText(/practical checklist opened/i)).toBeVisible();
+    expect(within(commandCenter).getByText(/practical checklist print preview ready/i)).toBeVisible();
     await printFromPreview(user, printMock);
     expect(
       readSchoolData<SchoolOperationalEvent>("events", schoolId).some((event) => event.type === "LAB_PRACTICAL_CHECKLIST_PRINTED"),
@@ -829,7 +837,7 @@ describe("STEP 4: Role tests", () => {
     ).toBe(true);
 
     await user.click(within(commandCenter).getAllByRole("button", { name: /print receipt/i })[0]);
-    expect(within(commandCenter).getByText(/opened for printing/i)).toBeVisible();
+    expect(within(commandCenter).getByText(/print preview ready/i)).toBeVisible();
     await printFromPreview(user, printMock);
     expect(
       readSchoolData<SchoolOperationalEvent>("events", schoolId).some((event) => event.type === "FEE_RECEIPT_PRINTED"),
@@ -842,16 +850,17 @@ describe("STEP 4: Role tests", () => {
     ).toBe(true);
 
     await user.click(within(commandCenter).getAllByRole("button", { name: /confirm m-pesa/i })[0]);
-    expect(within(commandCenter).getByText(/m-pesa confirmation completed/i)).toBeVisible();
+    expect(within(commandCenter).getByText(/m-pesa confirmation reconciled/i)).toBeVisible();
     expect(
       readSchoolData<SchoolOperationalEvent>("events", schoolId).some((event) => event.type === "MPESA_PAYMENT_CONFIRMED"),
     ).toBe(true);
 
     await user.click(within(commandCenter).getAllByRole("button", { name: /send fee reminder/i })[0]);
-    expect(within(commandCenter).getByText(/fee reminder sent/i)).toBeVisible();
+    expect(within(commandCenter).getByText(/fee reminder queued/i)).toBeVisible();
+    expect(within(commandCenter).queryByText(/fee reminder sent/i)).not.toBeInTheDocument();
     expect(
       readSchoolData<{ student: string; status: string }>("fee-reminders", schoolId).some(
-        (reminder) => reminder.student === "Brian Otieno" && reminder.status === "Sent",
+        (reminder) => reminder.student === "Brian Otieno" && reminder.status === "Queued",
       ),
     ).toBe(true);
 
@@ -864,7 +873,7 @@ describe("STEP 4: Role tests", () => {
     ).toBe(true);
 
     await user.click(within(commandCenter).getByRole("button", { name: /export fee list csv/i }));
-    expect(within(commandCenter).getByText(/fee list csv export prepared/i)).toBeVisible();
+    expect(within(commandCenter).getByText(/fee list csv downloaded/i)).toBeVisible();
     expect(
       readSchoolData<SchoolOperationalEvent>("events", schoolId).some((event) => event.type === "FEE_LIST_EXPORTED"),
     ).toBe(true);
@@ -911,7 +920,7 @@ describe("STEP 4: Role tests", () => {
     ).toBe(true);
 
     await user.click(within(commandCenter).getAllByRole("button", { name: /print visitor slip/i })[0]);
-    expect(within(commandCenter).getByText(/visitor slip opened for printing/i)).toBeVisible();
+    expect(within(commandCenter).getByText(/visitor slip print preview ready/i)).toBeVisible();
     await printFromPreview(user, printMock);
     expect(
       readSchoolData<{ documentType: string; visitor: string }>("printed-documents", schoolId).some(
@@ -1097,7 +1106,7 @@ describe("STEP 4: Role tests", () => {
       .find(Boolean);
     expect(caseRow).not.toBeNull();
     await user.click(within(caseRow as HTMLElement).getByRole("button", { name: /print letter/i }));
-    expect(within(commandCenter).getByRole("status")).toHaveTextContent(/kevin maina discipline letter preview opened/i);
+    expect(within(commandCenter).getByRole("status")).toHaveTextContent(/kevin maina discipline letter preview ready/i);
     await printFromPreview(user, printMock);
     expect(
       readSchoolData<{ documentType: string; student: string }>("printed-documents", schoolId).some(
@@ -1216,7 +1225,7 @@ describe("STEP 4: Role tests", () => {
       .find(Boolean);
     expect(sessionRow).not.toBeNull();
     await user.click(within(sessionRow as HTMLElement).getByRole("button", { name: /print summary/i }));
-    expect(within(commandCenter).getByRole("status")).toHaveTextContent(/faith akinyi counselling summary preview opened/i);
+    expect(within(commandCenter).getByRole("status")).toHaveTextContent(/faith akinyi counselling summary preview ready/i);
     await printFromPreview(user, printMock);
     expect(
       readSchoolData<{ documentType: string; student: string }>("printed-documents", schoolId).some(
@@ -1298,7 +1307,7 @@ describe("STEP 4: Role tests", () => {
     await user.type(within(commandCenter).getByLabelText(/secretary student search/i), "Brian");
     await user.click(within(commandCenter).getAllByRole("button", { name: /print fee statement/i })[0]);
 
-    expect(within(commandCenter).getByText(/fee statement opened for printing/i)).toBeVisible();
+    expect(within(commandCenter).getByText(/fee statement print preview ready/i)).toBeVisible();
     await printFromPreview(user, printMock);
   }, 30000);
 

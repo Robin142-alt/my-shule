@@ -662,11 +662,13 @@ function recordStorekeeperAction(input: {
 
 function recordHeroAlertAction(alert: (typeof heroAlerts)[number]) {
   const createsPurchaseOrder = alert.action.toLowerCase().includes("purchase order");
-  const notice = `${alert.action} opened for ${alert.title}.`;
+  const notice = createsPurchaseOrder
+    ? `${alert.action} drafted for ${alert.title}.`
+    : `${alert.action} review ready for ${alert.title}.`;
 
   return recordStorekeeperAction({
-    type: createsPurchaseOrder ? "STORE_PURCHASE_ORDER_DRAFTED" : "STORE_ALERT_ACTION_OPENED",
-    title: createsPurchaseOrder ? "Purchase order drafted" : `${alert.action} opened`,
+    type: createsPurchaseOrder ? "STORE_PURCHASE_ORDER_DRAFTED" : "STORE_ALERT_REVIEW_READY",
+    title: createsPurchaseOrder ? "Purchase order drafted" : `${alert.action} review ready`,
     body: notice,
     entityId: alert.id,
     severity: toSeverity(alert.tone),
@@ -693,7 +695,7 @@ function recordHeroAlertAction(alert: (typeof heroAlerts)[number]) {
     notifications: [
       {
         audienceRoles: ["principal", "accountant"],
-        title: createsPurchaseOrder ? "Storekeeper drafted a purchase order" : "Storekeeper opened a stock alert",
+        title: createsPurchaseOrder ? "Storekeeper drafted a purchase order" : "Storekeeper prepared stock alert review",
         body: notice,
         severity: toSeverity(alert.tone),
       },
@@ -703,11 +705,11 @@ function recordHeroAlertAction(alert: (typeof heroAlerts)[number]) {
 
 function recordBulkApprovalReview() {
   return recordStorekeeperAction({
-    type: "STORE_REQUISITION_BULK_REVIEW_OPENED",
-    title: "Safe requisition bulk approval review opened",
-    body: "Storekeeper opened a bulk review for safe, low-risk requisitions.",
+    type: "STORE_REQUISITION_BULK_REVIEW_READY",
+    title: "Safe requisition bulk approval review ready",
+    body: "Storekeeper prepared a bulk review for safe, low-risk requisitions.",
     severity: "info",
-    notice: "Safe requisition bulk approval review opened.",
+    notice: "Safe requisition bulk approval review ready.",
     payload: {
       eligibleRequisitions: requisitions.filter((req) => req.tone === "success" || req.tone === "info").map((req) => req.id),
       source: "requisition-management",
@@ -717,11 +719,11 @@ function recordBulkApprovalReview() {
 
 function recordUrgencyFilterOpened() {
   return recordStorekeeperAction({
-    type: "STORE_REQUISITION_URGENCY_FILTER_OPENED",
-    title: "Requisition urgency filters opened",
-    body: "Storekeeper opened urgency filters for requisition triage.",
+    type: "STORE_REQUISITION_URGENCY_FILTER_READY",
+    title: "Requisition urgency filters ready",
+    body: "Storekeeper prepared urgency filters for requisition triage.",
     severity: "info",
-    notice: "Requisition urgency filters opened.",
+    notice: "Requisition urgency filters ready.",
     payload: {
       availableUrgencies: Array.from(new Set(requisitions.map((req) => req.urgency))),
       source: "requisition-management",
@@ -737,17 +739,17 @@ function recordRequisitionDecision(
     decision === "approve"
       ? "STORE_REQUISITION_APPROVED"
       : decision === "partial"
-        ? "STORE_REQUISITION_PARTIAL_ISSUE_OPENED"
+        ? "STORE_REQUISITION_PARTIAL_ISSUE_READY"
         : "STORE_REQUISITION_REJECTED";
   const movementType =
-    decision === "approve" ? "Issue approved" : decision === "partial" ? "Partial issue opened" : "Issue rejected";
+    decision === "approve" ? "Issue approved" : decision === "partial" ? "Partial issue ready" : "Issue rejected";
   const status = decision === "approve" ? "Approved" : decision === "partial" ? "Partial issue pending" : "Rejected";
   const notice =
     decision === "approve"
       ? `${req.item} approved for ${req.department}.`
       : decision === "partial"
-        ? `Partial issue opened for ${req.item} to ${req.department}.`
-        : `${req.item} rejection reason form opened.`;
+        ? `Partial issue review ready for ${req.item} to ${req.department}.`
+        : `${req.item} rejection reason form ready.`;
 
   return recordStorekeeperAction({
     type: eventType,
@@ -791,10 +793,10 @@ function recordRequisitionDecision(
 }
 
 function recordInventoryInsightOpened(insight: (typeof aiInsights)[number]) {
-  const notice = `${insight.action} opened from inventory insights.`;
+  const notice = `${insight.action} review ready from inventory insights.`;
 
   return recordStorekeeperAction({
-    type: "STORE_INVENTORY_INSIGHT_OPENED",
+    type: "STORE_INVENTORY_INSIGHT_REVIEW_READY",
     title: insight.action,
     body: notice,
     severity: toSeverity(insight.tone),
@@ -1697,7 +1699,7 @@ export function StorekeeperCommandCenter({
 
   function openSearchRecord(record: StorekeeperSearchRecord) {
     setSearchTerm("");
-    setNotice(`${record.label} opened in store records.`);
+    setNotice(`${record.label} focused in store records.`);
 
     if (typeof document !== "undefined") {
       const target = document.getElementById(record.sectionId);

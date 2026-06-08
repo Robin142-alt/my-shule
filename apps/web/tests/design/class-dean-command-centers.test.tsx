@@ -12,6 +12,13 @@ import { renderWithProviders } from "./test-utils";
 
 jest.setTimeout(20000);
 
+const fakeOnlyPhrases =
+  /selected in my class|selected in pending reviews|saved for Dean follow-up|saved for review and export|stream attendance ranking filters applied|stream attendance ranking export saved|teacher performance table search saved|teacher performance table filters applied|teacher announcement communication draft saved|parent template saved\.|stream detail review saved\./i;
+
+function expectNoFakeOnlyFeedback() {
+  expect(document.body.textContent).not.toMatch(fakeOnlyPhrases);
+}
+
 describe("class teacher and dean command center interactions", () => {
   beforeEach(() => {
     window.localStorage.clear();
@@ -27,7 +34,8 @@ describe("class teacher and dean command center interactions", () => {
     await user.click(screen.getByRole("button", { name: /brian otieno/i }));
 
     expect(screen.getByRole("heading", { name: /class roster/i })).toBeVisible();
-    expect(screen.getByText(/brian otieno opened in my class/i)).toBeVisible();
+    expect(screen.getByText(/brian otieno class teacher search loaded my class workspace: adm-2041 \| absent today \| parent follow-up/i)).toBeVisible();
+    expectNoFakeOnlyFeedback();
 
     await user.type(screen.getByPlaceholderText(/search roster or admission number/i), "ADM-2077");
     expect(screen.getByText(/Aisha Njeri/i)).toBeVisible();
@@ -55,6 +63,13 @@ describe("class teacher and dean command center interactions", () => {
         }),
       ]),
     );
+    expect(readSchoolData<Record<string, unknown>>("notifications", "kb-high")).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          title: "Class follow-up queued for Aisha Njeri",
+        }),
+      ]),
+    );
 
     await user.click(screen.getByRole("button", { name: /quick actions/i }));
     await user.click(screen.getByRole("button", { name: /absenteeism notice/i }));
@@ -62,7 +77,11 @@ describe("class teacher and dean command center interactions", () => {
     expect(templateDialog).toBeVisible();
     await user.click(within(templateDialog).getByRole("button", { name: /save parent template/i }));
 
-    expect(screen.getByText(/absenteeism notice parent template saved/i)).toBeVisible();
+    expect(
+      screen.getByText(
+        /absenteeism notice parent template saved for kb-high: parent-template-absenteeism-notice, form 2 blue sms workflow, deputy\/grade master notified/i,
+      ),
+    ).toBeVisible();
     expect(readSchoolData<Record<string, unknown>>("events", "kb-high")).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -95,6 +114,7 @@ describe("class teacher and dean command center interactions", () => {
 
     await user.click(screen.getAllByRole("button", { name: /^reports$/i })[0]);
     await user.click(screen.getByRole("button", { name: /attendance pdf/i }));
+    expect(screen.getByText(/attendance pdf class report ready for form 2 blue with \d+ learner records/i)).toBeVisible();
     const preview = screen.getByRole("dialog", { name: /class report preview/i });
     expect(preview).toBeVisible();
     expect(within(preview).getByText(/attendance pdf/i)).toBeVisible();
@@ -109,7 +129,8 @@ describe("class teacher and dean command center interactions", () => {
     await user.click(screen.getByRole("button", { name: /term 2 cat 1/i }));
 
     expect(screen.getByText(/pending exam reviews/i)).toBeVisible();
-    expect(screen.getByText(/term 2 cat 1 opened in pending reviews/i)).toBeVisible();
+    expect(screen.getByText(/term 2 cat 1 dean search loaded pending reviews workspace: class 7b \| 3 missing subject marks/i)).toBeVisible();
+    expectNoFakeOnlyFeedback();
 
     await user.click(screen.getByRole("button", { name: /approve batch/i }));
     const approvalDialog = screen.getByRole("dialog", { name: /dean academic action/i });
@@ -117,7 +138,11 @@ describe("class teacher and dean command center interactions", () => {
     expect(within(approvalDialog).getByText(/approve batch/i)).toBeVisible();
 
     await user.click(within(approvalDialog).getByRole("button", { name: /save academic action/i }));
-    expect(screen.getByText(/approve batch saved for dean follow-up/i)).toBeVisible();
+    expect(
+      screen.getByText(
+        /approve batch academic action saved for kb-high: dean-action-approve-batch, term 2 cat 1 class 7b, exams manager\/principal\/class teacher notified/i,
+      ),
+    ).toBeVisible();
     expect(readSchoolData<Record<string, unknown>>("events", "kb-high")).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -143,7 +168,11 @@ describe("class teacher and dean command center interactions", () => {
 
     await user.click(within(reportDialog).getByRole("button", { name: /save report request/i }));
 
-    expect(screen.getByText(/grade report saved for review and export/i)).toBeVisible();
+    expect(
+      screen.getByText(
+        /grade report report request saved for kb-high: grade-master-report-grade-report, principal\/deputy\/dean notified for form 2 review/i,
+      ),
+    ).toBeVisible();
     expect(readSchoolData<Record<string, unknown>>("events", "kb-high")).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -201,14 +230,22 @@ describe("class teacher and dean command center interactions", () => {
     expect(within(filterDialog).getByText(/stream attendance ranking/i)).toBeVisible();
 
     await user.click(within(filterDialog).getByRole("button", { name: /apply filters/i }));
-    expect(screen.getByText(/stream attendance ranking filters applied/i)).toBeVisible();
+    expect(
+      screen.getByText(
+        /stream attendance ranking filter set saved for kb-high: grade-master-filter-stream-attendance-ranking, deputy\/principal\/class teacher notified for form 2 oversight/i,
+      ),
+    ).toBeVisible();
 
     await user.click(screen.getByRole("button", { name: /^export$/i }));
     const exportDialog = screen.getByRole("dialog", { name: /grade table export/i });
     expect(exportDialog).toBeVisible();
 
     await user.click(within(exportDialog).getByRole("button", { name: /save export request/i }));
-    expect(screen.getByText(/stream attendance ranking export saved/i)).toBeVisible();
+    expect(
+      screen.getByText(
+        /stream attendance ranking export request saved for kb-high: grade-master-export-stream-attendance-ranking, deputy\/principal\/class teacher notified for form 2 oversight/i,
+      ),
+    ).toBeVisible();
     expect(readSchoolData<Record<string, unknown>>("events", "kb-high")).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -233,7 +270,11 @@ describe("class teacher and dean command center interactions", () => {
 
     await user.click(within(streamDialog).getByRole("button", { name: /save stream detail review/i }));
 
-    expect(screen.getByText(/form 2 stream detail review saved/i)).toBeVisible();
+    expect(
+      screen.getByText(
+        /form 2 stream detail review saved for kb-high: grade-master-stream-form-2-stream-detail, form 2 streams north\/east\/west\/south, deputy\/principal\/class teacher notified/i,
+      ),
+    ).toBeVisible();
     expect(readSchoolData<Record<string, unknown>>("events", "kb-high")).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -258,7 +299,11 @@ describe("class teacher and dean command center interactions", () => {
     expect(within(searchDialog).getByText(/teacher performance table/i)).toBeVisible();
 
     await user.click(within(searchDialog).getByRole("button", { name: /save search request/i }));
-    expect(screen.getByText(/teacher performance table search saved/i)).toBeVisible();
+    expect(
+      screen.getByText(
+        /teacher performance table search request saved for kb-high: hod-search-teacher-performance-table, dean\/principal notified for mathematics review/i,
+      ),
+    ).toBeVisible();
 
     await user.click(screen.getByRole("button", { name: /^filters$/i }));
     const filterDialog = screen.getByRole("dialog", { name: /hod table filters/i });
@@ -266,7 +311,11 @@ describe("class teacher and dean command center interactions", () => {
     expect(within(filterDialog).getByText(/department table filters/i)).toBeVisible();
 
     await user.click(within(filterDialog).getByRole("button", { name: /apply filters/i }));
-    expect(screen.getByText(/teacher performance table filters applied/i)).toBeVisible();
+    expect(
+      screen.getByText(
+        /teacher performance table filter set saved for kb-high: hod-filter-teacher-performance-table, dean\/principal notified for mathematics review/i,
+      ),
+    ).toBeVisible();
     expect(readSchoolData<Record<string, unknown>>("events", "kb-high")).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -288,7 +337,11 @@ describe("class teacher and dean command center interactions", () => {
     expect(reportDialog).toBeVisible();
     await user.click(within(reportDialog).getByRole("button", { name: /save report review/i }));
 
-    expect(screen.getByText(/departmental performance report saved for review and export/i)).toBeVisible();
+    expect(
+      screen.getByText(
+        /departmental performance report review request saved for kb-high: hod-report-departmental-performance-report, dean\/exams manager\/principal notified for mathematics department export/i,
+      ),
+    ).toBeVisible();
 
     await user.click(screen.getByRole("button", { name: /^communication$/i }));
     await user.click(screen.getByRole("button", { name: /teacher announcement/i }));
@@ -296,7 +349,11 @@ describe("class teacher and dean command center interactions", () => {
     expect(composerDialog).toBeVisible();
     await user.click(within(composerDialog).getByRole("button", { name: /save communication draft/i }));
 
-    expect(screen.getByText(/teacher announcement communication draft saved/i)).toBeVisible();
+    expect(
+      screen.getByText(
+        /teacher announcement communication draft saved for kb-high: hod-communication-teacher-announcement, dean\/principal\/teacher notified for mathematics department follow-up/i,
+      ),
+    ).toBeVisible();
     expect(readSchoolData<Record<string, unknown>>("events", "kb-high")).toEqual(
       expect.arrayContaining([
         expect.objectContaining({

@@ -1768,22 +1768,22 @@ function ReportCardsPanel({ data }: { data: ExamsModuleData }) {
 
     updateRow(row.id, {
       approvalStatus: "Principal/Deputy approved",
-      auditNote: "Approved for parent/student publishing.",
+      auditNote: "Approved for parent portal publishing.",
     });
     setNotice(`${row.learnerName}: report approved.`);
   }
 
   function publishReport(row: ReportCardGenerationRow) {
     if (row.approvalStatus !== "Principal/Deputy approved") {
-      setNotice(`${row.learnerName}: approval is required before parent/student publishing.`);
+      setNotice(`${row.learnerName}: approval is required before parent portal publishing.`);
       return;
     }
 
     updateRow(row.id, {
       publishedStatus: "Published",
-      auditNote: "Published to permitted parent and student portals.",
+      auditNote: "Published to the permitted parent portal.",
     });
-    setNotice(`${row.learnerName}: report published to permitted parent and student portals.`);
+    setNotice(`${row.learnerName}: report published to the permitted parent portal.`);
   }
 
   function unpublishReport(row: ReportCardGenerationRow) {
@@ -1794,9 +1794,9 @@ function ReportCardsPanel({ data }: { data: ExamsModuleData }) {
 
     updateRow(row.id, {
       publishedStatus: "Unpublished",
-      auditNote: "Unpublished from permitted parent and student portals.",
+      auditNote: "Unpublished from the permitted parent portal.",
     });
-    setNotice(`${row.learnerName}: report unpublished from parent and student portals.`);
+    setNotice(`${row.learnerName}: report unpublished from the parent portal.`);
   }
 
   function queueReportNotification(row: ReportCardGenerationRow) {
@@ -1806,7 +1806,7 @@ function ReportCardsPanel({ data }: { data: ExamsModuleData }) {
     }
 
     updateRow(row.id, {
-      auditNote: "Parent/student report notification queued after publication.",
+      auditNote: "Parent portal report notification queued after publication.",
     });
     setNotice(`${row.learnerName}: report notification queued.`);
   }
@@ -1814,7 +1814,7 @@ function ReportCardsPanel({ data }: { data: ExamsModuleData }) {
   function markPrinted(report: ReportCardDocumentData) {
     updateRow(report.id, {
       printedStatus: "Printed",
-      auditNote: "Print preview opened for official A4 document.",
+      auditNote: "Print preview ready for official A4 document.",
     });
   }
 
@@ -1859,7 +1859,7 @@ function ReportCardsPanel({ data }: { data: ExamsModuleData }) {
       </html>`);
     printWindow.document.close();
     markPrinted(report);
-    setNotice(`${report.learner.fullName}: print preview opened.`);
+    setNotice(`${report.learner.fullName}: print preview ready.`);
   }
 
   function downloadPdf(report: ReportCardDocumentData) {
@@ -1986,7 +1986,7 @@ function ReportCardsPanel({ data }: { data: ExamsModuleData }) {
               onClick={() => {
                 const firstPublished = rows.find((row) => row.publishedStatus === "Published") ?? null;
                 if (!firstPublished) {
-                  setNotice("Parent/student portal preview is empty until at least one report is published.");
+                  setNotice("Parent portal preview is empty until at least one report is published.");
                   return;
                 }
                 openPreview(firstPublished);
@@ -2247,7 +2247,7 @@ function ReportCardsPanel({ data }: { data: ExamsModuleData }) {
             </select>
           </label>
           <div className="rounded-[var(--radius-sm)] border border-success/20 bg-success/10 px-4 py-3 text-[12px] text-foreground">
-            Parent/student visibility stays locked until report status is Published. Ranking is off unless the school enables it.
+            Parent portal visibility stays locked until report status is Published. Ranking is off unless the school enables it.
           </div>
         </div>
       </Card>
@@ -2299,7 +2299,7 @@ function ReportCardsPanel({ data }: { data: ExamsModuleData }) {
               <p className="mt-1 text-muted">{getReportCardTypeLabel(auditRow.reportType)} | {auditRow.approvalStatus}</p>
             </div>
             {[
-              "School-scoped audit trail opened.",
+              "School-scoped audit trail ready.",
               rowOverrides[auditRow.id]?.auditNote ?? "No mutation has been recorded for this report in this session.",
               `Tenant: ${data.schoolName}`,
             ].map((item) => (
@@ -2815,7 +2815,7 @@ export function ExamsModuleScreen({
 
   function openTeachingAssignment(assignment: ExamTeachingAssignment) {
     setSelectedTeachingAssignmentId(assignment.id);
-    setExamEntryMessage(`${assignment.subject} marksheet opened for ${getAssignmentScope(assignment)}.`);
+    setExamEntryMessage(`${assignment.subject} marksheet ready for ${getAssignmentScope(assignment)}.`);
   }
 
   function saveTeachingDraft(assignment: ExamTeachingAssignment) {
@@ -2842,7 +2842,7 @@ export function ExamsModuleScreen({
       "Return for Correction": "Open the Approval pipeline tab to return a selected record with a correction reason.",
       "Open Approval History": "Open the Audit trail tab for school-scoped approval history.",
     };
-    setPrincipalApprovalMessage(actionGuidance[action] ?? `${action} opened for principal review.`);
+    setPrincipalApprovalMessage(actionGuidance[action] ?? `${action} selected for principal review.`);
   }
 
   async function refreshLiveExams() {
