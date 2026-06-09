@@ -212,6 +212,7 @@ test('ClinicService creates procurement recommendations for low-stock medicine o
       },
       appendAuditLog: async () => undefined,
     } as never,
+    undefined,
     {
       listEnabledModulesForTenant: async () => ['clinic_health', 'procurement'],
     } as never,

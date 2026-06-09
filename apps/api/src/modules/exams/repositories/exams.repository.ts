@@ -974,4 +974,120 @@ export class ExamsRepository {
 
     return candidate;
   }
+
+  async listMarks(input: {
+    tenant_id: string;
+    status_in?: string[];
+    department_id?: string;
+    limit?: number;
+    offset?: number;
+  }) {
+    const limit = this.normalizeLimit(input.limit);
+    const offset = this.normalizeOffset(input.offset);
+    
+    let query = `
+      SELECT m.*
+      FROM exam_marks m
+    `;
+    const params: any[] = [input.tenant_id];
+    let paramIndex = 2;
+    
+    if (input.department_id) {
+      query += ` JOIN subjects s ON s.id = m.subject_id AND s.tenant_id = m.tenant_id `;
+    }
+    query += ` WHERE m.tenant_id = $1 `;
+    
+    if (input.department_id) {
+      query += ` AND s.department_id = $${paramIndex}::uuid `;
+      params.push(input.department_id);
+      paramIndex++;
+    }
+    
+    if (input.status_in && input.status_in.length > 0) {
+      query += ` AND m.status = ANY($${paramIndex}::text[]) `;
+      params.push(input.status_in);
+      paramIndex++;
+    }
+    
+    query += ` ORDER BY m.updated_at DESC LIMIT $${paramIndex}::integer OFFSET $${paramIndex + 1}::integer `;
+    params.push(limit, offset);
+    
+    const result = await this.databaseService.query(query, params);
+    return result.rows;
+  }
+
+  async moderateMarks(input: {
+    tenant_id: string;
+    mark_ids: string[];
+    action: 'approve' | 'return_for_correction';
+    actor_user_id: string;
+  }) {
+    const status = input.action === 'approve' ? 'reviewed' : 'draft';
+    const result = await this.databaseService.query(
+      `
+        UPDATE exam_marks
+        SET status = $3,
+            updated_by_user_id = $4::uuid,
+            reviewed_at = CASE WHEN $3 = 'reviewed' THEN NOW() ELSE reviewed_at END,
+            updated_at = NOW()
+        WHERE tenant_id = $1
+          AND id = ANY($2::uuid[])
+        RETURNING *
+      `,
+      [input.tenant_id, input.mark_ids, status, input.actor_user_id]
+    );
+    return result.rows;
+  }
+
+  async lockMarks(input: {
+    tenant_id: string;
+    mark_ids: string[];
+    actor_user_id: string;
+  }) {
+    const result = await this.databaseService.query(
+      `
+        UPDATE exam_marks
+        SET status = 'locked',
+            updated_by_user_id = $3::uuid,
+            locked_at = NOW(),
+            updated_at = NOW()
+        WHERE tenant_id = $1
+          AND id = ANY($2::uuid[])
+          AND status = 'reviewed'
+        RETURNING *
+      `,
+      [input.tenant_id, input.mark_ids, input.actor_user_id]
+    );
+    return result.rows;
+  }
+
+  async publishExamSeries(input: {
+    tenant_id: string;
+    exam_series_id: string;
+    actor_user_id: string;
+  }) {
+    await this.databaseService.query(
+      `
+        UPDATE exam_series
+        SET status = 'published',
+            published_at = NOW(),
+            updated_at = NOW()
+        WHERE tenant_id = $1 AND id = $2::uuid
+      `,
+      [input.tenant_id, input.exam_series_id]
+    );
+    const result = await this.databaseService.query(
+      `
+        UPDATE exam_marks
+        SET status = 'published',
+            updated_by_user_id = $3::uuid,
+            published_at = NOW(),
+            updated_at = NOW()
+        WHERE tenant_id = $1 AND exam_series_id = $2::uuid AND status IN ('locked', 'reviewed')
+        RETURNING *
+      `,
+      [input.tenant_id, input.exam_series_id, input.actor_user_id]
+    );
+    return result.rows;
+  }
 }

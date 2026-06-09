@@ -1274,3 +1274,40 @@ test('ExamsController exposes configuration, draft, alignment, review, and lifec
   assert.equal(reviewExam, 'review');
   assert.equal(updateLifecycle, 'lifecycle');
 });
+
+test('ExamsService moderateMarks updates mark statuses and adds versions for rejected marks', async () => {
+  const calls: string[] = [];
+  const service = new ExamsService(
+    { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'hod-1', role: 'admin', permissions: ['exams:approve'] }) } as never,
+    {
+      moderateMarks: async (input: Record<string, unknown>) => {
+        calls.push(`moderate:${input.action}`);
+        return [{ id: 'mark-1', score: 85 }];
+      },
+      createMarkVersion: async (input: Record<string, unknown>) => {
+        calls.push(`version:${input.approval_state}`);
+      },
+    } as never,
+  );
+
+  const result = await service.moderateMarks({
+    mark_ids: ['mark-1'],
+    action: 'return_for_correction',
+    reason: 'Score too high',
+  });
+
+  assert.equal(result.updated_count, 1);
+  assert.deepEqual(calls, ['moderate:return_for_correction', 'version:rejected']);
+});
+
+test('ExamsController exposes new moderation and publishing endpoints', () => {
+  const getDepartmentMarks = Reflect.getMetadata(PATH_METADATA, ExamsController.prototype.getDepartmentMarks);
+  const moderateMarks = Reflect.getMetadata(PATH_METADATA, ExamsController.prototype.moderateMarks);
+  const lockMarks = Reflect.getMetadata(PATH_METADATA, ExamsController.prototype.lockMarks);
+  const publishExamSeries = Reflect.getMetadata(PATH_METADATA, ExamsController.prototype.publishExamSeries);
+
+  assert.equal(getDepartmentMarks, 'marks/department');
+  assert.equal(moderateMarks, 'marks/moderate');
+  assert.equal(lockMarks, 'marks/lock');
+  assert.equal(publishExamSeries, 'series/:id/publish');
+});

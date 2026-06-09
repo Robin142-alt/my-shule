@@ -19,6 +19,8 @@ import {
   EnterExamMarkDto,
   GenerateReportCardBatchDto,
   GenerateReportCardDto,
+  LockExamMarksDto,
+  ModerateExamMarksDto,
   PublishReportCardDto,
 } from './dto/exams.dto';
 import { ExamsRepository } from './repositories/exams.repository';
@@ -482,6 +484,76 @@ export class ExamsService {
     }
 
     return locked;
+  }
+
+  getDepartmentMarks(query: Record<string, string | undefined>) {
+    return this.repository.listMarks({
+      tenant_id: this.requireTenantId(),
+      department_id: this.optionalText(query.department_id),
+      status_in: ['submitted', 'reviewed'],
+      limit: this.parsePageLimit(query.limit, 25, 50),
+      offset: this.parsePageOffset(query.offset),
+    });
+  }
+
+  async moderateMarks(dto: ModerateExamMarksDto) {
+    const tenantId = this.requireTenantId();
+    const actorUserId = this.requireUserId();
+    
+    const updatedMarks = await this.repository.moderateMarks({
+      tenant_id: tenantId,
+      mark_ids: dto.mark_ids,
+      action: dto.action,
+      actor_user_id: actorUserId,
+    });
+    
+    if (dto.action === 'return_for_correction') {
+      const reason = this.requireText(dto.reason, 'Reason');
+      for (const mark of updatedMarks) {
+        await this.createMarkVersionIfSupported({
+          tenant_id: tenantId,
+          mark_id: mark.id,
+          original_score: mark.score,
+          correction_score: mark.score,
+          corrected_by_user_id: actorUserId,
+          reason,
+          approval_state: 'rejected',
+        });
+      }
+    }
+    
+    return { success: true, updated_count: updatedMarks.length };
+  }
+
+  getSchoolMarks(query: Record<string, string | undefined>) {
+    return this.repository.listMarks({
+      tenant_id: this.requireTenantId(),
+      status_in: ['reviewed'],
+      limit: this.parsePageLimit(query.limit, 25, 50),
+      offset: this.parsePageOffset(query.offset),
+    });
+  }
+
+  async lockMarks(dto: LockExamMarksDto) {
+    const tenantId = this.requireTenantId();
+    const actorUserId = this.requireUserId();
+    const updatedMarks = await this.repository.lockMarks({
+      tenant_id: tenantId,
+      mark_ids: dto.mark_ids,
+      actor_user_id: actorUserId,
+    });
+    return { success: true, locked_count: updatedMarks.length };
+  }
+
+  async publishExamSeries(examSeriesId: string) {
+    const tenantId = this.requireTenantId();
+    const actorUserId = this.requireUserId();
+    const updatedMarks = await this.repository.publishExamSeries({
+      tenant_id: tenantId,
+      exam_series_id: this.requireText(examSeriesId, 'Exam series'),
+      actor_user_id: actorUserId,
+    });
+    return { success: true, published_marks_count: updatedMarks.length };
   }
 
   async createParentReportCardDownload(reportCardId: string) {

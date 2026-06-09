@@ -18,6 +18,7 @@ import {
 
 import type { WidgetState } from "@/lib/capability-engine/school-capability-engine";
 import { getCurrentSchoolId, publishSchoolOperationalEvent } from "@/lib/school/school-operational-store";
+import { useSchoolQuery, useSchoolMutation } from "@/lib/data/school-hooks";
 
 type DeanRouteMode = "hosted" | "public";
 type Tone = "success" | "info" | "warning" | "danger" | "neutral";
@@ -427,33 +428,59 @@ function DecisionFlow() {
 
 function PendingReviews({ capability, onAction }: { capability: DeanWidgetCapability; onAction: (label: string) => void }) {
   const widget = widgets.find((item) => item.id === "pending")!;
+  const { data: schoolMarks, isLoading } = useSchoolQuery('/api/exams/marks/school');
+  const lockMutation = useSchoolMutation('/api/exams/marks/lock');
+
+  const pendingMarks = Array.isArray(schoolMarks) ? schoolMarks.filter((m: any) => m.status === 'reviewed') : [];
+
+  function handleLockBatch() {
+    if (pendingMarks.length === 0) return;
+    
+    // Simulate batch lock
+    pendingMarks.forEach((mark: any) => {
+      lockMutation.mutate({
+        mark_id: mark.id
+      });
+    });
+
+    publishSchoolOperationalEvent({
+      schoolId: getCurrentSchoolId(),
+      type: "DEAN_MARKS_LOCKED",
+      module: "exams",
+      actorRole: "Dean of Academics",
+      title: "Batch Locked for Publication",
+      body: `Dean locked ${pendingMarks.length} reviewed marks.`,
+      entityId: `dean-lock-${Date.now()}`,
+      severity: "success",
+    });
+
+    onAction("Approve batch");
+  }
+
   return (
     <WidgetFrame widget={widget} capability={capability}>
       <div className="overflow-x-auto rounded-2xl border border-[#D9E2EF] bg-white">
         <div className="min-w-[640px]">
           <div className="grid grid-cols-[1.2fr_0.8fr_0.8fr_1fr] bg-[#EEF4FB] px-4 py-3 text-xs font-black uppercase tracking-[0.14em] text-[#64748B]">
-            <span>Exam name</span>
-            <span>Class / stream</span>
-            <span>Completion</span>
-            <span>Alerts</span>
+            <span>Subject</span>
+            <span>Student</span>
+            <span>Score</span>
+            <span>Status</span>
           </div>
-          {[
-            ["Term 2 CAT 1", "Class 7B", "92%", "3 missing subject marks"],
-            ["Midterm Assessment", "Form 2 East", "100%", "Teacher submission completeness verified"],
-            ["Mock Moderation", "Form 4 North", "87%", "Two incomplete grading sheets"],
-          ].map((row) => (
-            <div key={row.join("-")} className="grid grid-cols-[1.2fr_0.8fr_0.8fr_1fr] border-t border-[#E2E8F0] px-4 py-3 text-sm">
-              {row.map((cell) => (
-                <span key={cell} className="font-semibold text-[#334155]">{cell}</span>
-              ))}
+          {pendingMarks.length > 0 ? pendingMarks.map((row: any) => (
+            <div key={row.id} className="grid grid-cols-[1.2fr_0.8fr_0.8fr_1fr] border-t border-[#E2E8F0] px-4 py-3 text-sm">
+              <span className="font-semibold text-[#334155]">{row.subject?.name || row.subject_id}</span>
+              <span className="font-semibold text-[#334155]">{row.student?.name || row.student_id}</span>
+              <span className="font-semibold text-[#334155]">{row.score}</span>
+              <span className="font-semibold text-[#334155]">{row.status}</span>
             </div>
-          ))}
+          )) : (
+            <div className="p-4 text-sm font-semibold text-[#64748B]">No reviewed marks pending lock.</div>
+          )}
         </div>
       </div>
       <div className="mt-4 flex flex-wrap gap-2">
-        <ActionButton onAction={onAction}>Open review</ActionButton>
-        <ActionButton onAction={onAction}>Approve batch</ActionButton>
-        <ActionButton onAction={onAction}>Reject batch</ActionButton>
+        <button type="button" onClick={handleLockBatch} className="rounded-xl border border-[#C7D4E6] bg-white px-3 py-2 text-sm font-black text-[#071D49] shadow-sm transition hover:-translate-y-0.5 hover:border-[#0B63CE] hover:text-[#0B63CE]">Approve batch (Lock)</button>
         <ActionButton onAction={onAction}>Return for correction</ActionButton>
       </div>
     </WidgetFrame>

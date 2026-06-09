@@ -10,6 +10,8 @@ import {
   EnterExamMarkDto,
   GenerateReportCardBatchDto,
   GenerateReportCardDto,
+  LockExamMarksDto,
+  ModerateExamMarksDto,
   PublishReportCardDto,
 } from './dto/exams.dto';
 import { ExamsService } from './exams.service';
@@ -149,5 +151,35 @@ export class ExamsController {
   @Permissions('exams:enter-marks')
   lockMarkSheet(@Param('markSheetId') markSheetId: string) {
     return this.examsService.lockMarkSheet(markSheetId);
+  }
+
+  @Get('marks/department')
+  @Permissions('exams:approve')
+  getDepartmentMarks(@Query() query: Record<string, string | undefined>) {
+    return this.examsService.getDepartmentMarks(query);
+  }
+
+  @Post('marks/moderate')
+  @Permissions('exams:approve')
+  moderateMarks(@Body() dto: ModerateExamMarksDto) {
+    return this.examsService.moderateMarks(dto);
+  }
+
+  @Get('marks/school')
+  @Permissions('exams:read')
+  getSchoolMarks(@Query() query: Record<string, string | undefined>) {
+    return this.examsService.getSchoolMarks(query);
+  }
+
+  @Post('marks/lock')
+  @Permissions('exams:write')
+  lockMarks(@Body() dto: LockExamMarksDto) {
+    return this.examsService.lockMarks(dto);
+  }
+
+  @Post('series/:id/publish')
+  @Permissions('exams:write')
+  publishExamSeries(@Param('id') id: string) {
+    return this.examsService.publishExamSeries(id);
   }
 }

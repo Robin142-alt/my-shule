@@ -25,6 +25,7 @@ import {
 
 import { getCurrentSchoolId, publishSchoolOperationalEvent } from "@/lib/school/school-operational-store";
 import { downloadCsvFile } from "@/lib/dashboard/export";
+import { useSchoolQuery, useSchoolMutation } from "@/lib/data/school-hooks";
 
 type HodRouteMode = "hosted" | "public";
 type Tone = "success" | "info" | "warning" | "danger" | "neutral";
@@ -563,6 +564,47 @@ function SyllabusWorkspace({ onExportAction, onFilterAction, onSearchAction }: D
 }
 
 function ExamsWorkspace({ onExportAction, onFilterAction, onSearchAction }: DataTableActionHandlers) {
+  const { data: departmentMarks, isLoading } = useSchoolQuery('/api/exams/marks/department');
+
+  const moderateMutation = useSchoolMutation('/api/exams/marks/moderate');
+  const [selectedMark, setSelectedMark] = useState<any>(null);
+  const [moderationReason, setModerationReason] = useState("");
+
+  const markRows = Array.isArray(departmentMarks) ? departmentMarks.map((m: any) => [
+    m.subject?.name || m.subject_id,
+    m.student?.name || m.student_id,
+    m.score,
+    m.status,
+    new Date(m.created_at).toLocaleDateString(),
+    m.status === 'submitted' ? "Moderate" : "View",
+  ]) : [];
+
+  function handleModerate(action: "approve" | "return") {
+    if (!selectedMark) return;
+    
+    moderateMutation.mutate({
+      mark_id: selectedMark.id,
+      action,
+      reason: moderationReason,
+    }, {
+      onSuccess: () => {
+        publishSchoolOperationalEvent({
+          schoolId: getCurrentSchoolId(),
+          type: "EXAM_MARK_MODERATED",
+          module: "exams",
+          actorRole: "Head of Department",
+          title: `Mark ${action === 'approve' ? 'Approved' : 'Returned'}`,
+          body: `Head of Department ${action === 'approve' ? 'approved' : 'returned'} a mark.`,
+          entityId: `mark-${selectedMark.id}`,
+          severity: action === 'approve' ? 'success' : 'warning',
+          payload: { action, reason: moderationReason },
+        });
+        setSelectedMark(null);
+        setModerationReason("");
+      }
+    });
+  }
+
   return (
     <div className="space-y-4">
       <section className="rounded-2xl bg-[linear-gradient(135deg,#071D49_0%,#1D4ED8_58%,#0891B2_100%)] p-5 text-white shadow-[0_24px_70px_rgba(7,29,73,0.22)]">
@@ -581,42 +623,86 @@ function ExamsWorkspace({ onExportAction, onFilterAction, onSearchAction }: Data
           ))}
         </div>
       </section>
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
-      <Panel title="Exams & Performance Workspace" description="CATs, midterms, end terms, practical exams, departmental mean score, rankings, and stream comparisons." icon={BarChart3}>
-        <div className="mb-4 rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] px-4 py-3">
-          <p className="text-sm font-black text-[#071D49]">Department Exam Review</p>
-          <p className="mt-1 text-xs font-semibold leading-5 text-[#64748B]">Review marksheets, approve to Exams Manager, return corrections, and send reminders from the department queue.</p>
-        </div>
-        <DataTable
-          title="Exam overview"
-          columns={["Assessment", "Mean", "Top Class", "Grade Distribution", "Missing Marks", "Action"]}
-          rows={[
-            ["CAT 1", "68%", "Form 1 West", "B- dominant", "0", "Closed"],
-            ["Midterm", "71%", "Form 2 South", "C+ dominant", "4", "Moderate"],
-            ["Practical exam", "74%", "Grade 8 Blue", "B dominant", "8", "Review"],
-          ]}
-          onSearch={onSearchAction}
-          onFilter={onFilterAction}
-          onExport={onExportAction}
-        />
-        <div className="mt-4 flex flex-wrap gap-2">
-          {["Review Marksheet", "Approve to Exams Manager", "Return for Correction", "Send Reminder", "View Subject Analysis"].map((label) => (
-            <button key={label} type="button" className="rounded-xl border border-[#B8D4FF] bg-[#EEF5FF] px-3 py-2 text-xs font-black text-[#1D4ED8]">
-              {label}
+
+      {selectedMark ? (
+        <div role="dialog" aria-modal="true" className="rounded-2xl border border-[#D8E0EC] bg-white p-5 shadow-lg">
+          <p className="text-xs font-black uppercase tracking-widest text-[#64748B]">Moderate Mark</p>
+          <h2 className="mt-2 text-2xl font-black text-[#071D49]">Review Student Mark</h2>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <div className="rounded-xl bg-[#F8FAFC] p-3 text-sm font-bold text-[#071D49]">Score: {selectedMark.score}</div>
+            <div className="rounded-xl bg-[#F8FAFC] p-3 text-sm font-bold text-[#071D49]">Current Status: {selectedMark.status}</div>
+          </div>
+          <div className="mt-4">
+            <label className="block text-sm font-black text-[#071D49]">Reason / Comments</label>
+            <textarea
+              className="mt-2 w-full rounded-xl border border-[#D8E0EC] p-3 text-sm"
+              rows={3}
+              placeholder="Provide reason if returning for correction..."
+              value={moderationReason}
+              onChange={(e) => setModerationReason(e.target.value)}
+            />
+          </div>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <button type="button" onClick={() => handleModerate("approve")} className="min-h-10 rounded-xl bg-[#10B981] px-4 text-sm font-black text-white">
+              Approve to Exams Manager
             </button>
-          ))}
+            <button type="button" onClick={() => handleModerate("return")} className="min-h-10 rounded-xl bg-[#F59E0B] px-4 text-sm font-black text-white">
+              Return for Correction
+            </button>
+            <button type="button" onClick={() => setSelectedMark(null)} className="min-h-10 rounded-xl border border-[#D8E0EC] px-4 text-sm font-black text-[#071D49]">
+              Cancel
+            </button>
+          </div>
         </div>
-      </Panel>
-      <Panel title="Subject Analytics" description="Struggling students, declining trends, and weak topics." icon={AlertTriangle}>
-        <DataTable
-          title="Risk learners"
-          columns={["Student", "Class", "Trigger", "Risk", "Next Action"]}
-          rows={riskStudents}
-          onSearch={onSearchAction}
-          onFilter={onFilterAction}
-          onExport={onExportAction}
-        />
-      </Panel>
+      ) : null}
+
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+        <Panel title="Exams & Performance Workspace" description="CATs, midterms, end terms, practical exams, departmental mean score, rankings, and stream comparisons." icon={BarChart3}>
+          <div className="mb-4 rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] px-4 py-3">
+            <p className="text-sm font-black text-[#071D49]">Department Exam Review</p>
+            <p className="mt-1 text-xs font-semibold leading-5 text-[#64748B]">Review marksheets, approve to Exams Manager, return corrections, and send reminders from the department queue.</p>
+          </div>
+          
+          <DataTable
+            title="Submitted Marks Queue"
+            columns={["Subject", "Student", "Score", "Status", "Date", "Action"]}
+            rows={markRows.length > 0 ? markRows : [
+              ["Mathematics", "Mary Wambui", "85", "submitted", "Today", "Moderate"],
+              ["Mathematics", "Brian Otieno", "62", "submitted", "Today", "Moderate"],
+              ["Physics", "Kevin Mwangi", "71", "reviewed", "Yesterday", "View"]
+            ]}
+            onSearch={onSearchAction}
+            onFilter={onFilterAction}
+            onExport={onExportAction}
+          />
+          
+          <div className="mt-4 flex flex-wrap gap-2">
+            <button type="button" onClick={() => {
+               if (Array.isArray(departmentMarks) && departmentMarks.length > 0) {
+                 setSelectedMark(departmentMarks[0]);
+               } else {
+                 setSelectedMark({ id: "mock-1", score: 85, status: "submitted" });
+               }
+            }} className="rounded-xl border border-[#B8D4FF] bg-[#EEF5FF] px-3 py-2 text-xs font-black text-[#1D4ED8]">
+              Simulate Selection
+            </button>
+            <button type="button" className="rounded-xl border border-[#B8D4FF] bg-[#EEF5FF] px-3 py-2 text-xs font-black text-[#1D4ED8]">
+              View Subject Analysis
+            </button>
+          </div>
+        </Panel>
+        <Panel title="Subject Analytics" description="Struggling students, declining trends, and weak topics." icon={AlertTriangle}>
+          <DataTable
+            title="Risk learners"
+            columns={["Student", "Class", "Trigger", "Risk", "Next Action"]}
+            rows={[
+              ["Brian Otieno", "Form 2 East", "Struggling learner", "Algebra risk", "Remedial"]
+            ]}
+            onSearch={onSearchAction}
+            onFilter={onFilterAction}
+            onExport={onExportAction}
+          />
+        </Panel>
       </div>
     </div>
   );

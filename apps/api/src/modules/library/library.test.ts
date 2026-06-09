@@ -105,6 +105,8 @@ test('LibraryService creates billing handoff for overdue fines during return', a
         calls.push('ledger');
       },
     } as never,
+    {} as never,
+    undefined,
     {
       createLibraryFineCharge: async () => {
         calls.push('billing');
@@ -217,6 +219,8 @@ test('LibraryService returns a book by scanned accession and calculates overdue 
         calls.push('ledger');
       },
     } as never,
+    {} as never,
+    undefined,
     {
       createLibraryFineCharge: async () => {
         calls.push('billing');

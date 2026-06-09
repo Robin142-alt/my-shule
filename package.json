@@ -142,6 +142,7 @@
     "@types/node": "^22.10.2",
     "@types/pdfkit": "^0.17.6",
     "@types/pg": "^8.11.10",
+    "@types/pg-format": "^1.0.5",
     "@types/supertest": "^7.2.0",
     "jest": "^30.3.0",
     "supertest": "^7.2.2",

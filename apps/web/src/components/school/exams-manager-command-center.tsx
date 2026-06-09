@@ -1039,8 +1039,11 @@ function ActiveWidgetContent({
               </span>
             ))}
           </div>
-          <div className="mt-4">
+          <div className="mt-4 flex flex-wrap gap-2">
             <ActionButton tone="info" onClick={onOpenMarksEntry}>Enter marks</ActionButton>
+            <ActionButton tone="success" onClick={() => alert("Simulating import marks...")}>Import Marks (CSV)</ActionButton>
+            <ActionButton tone="neutral" onClick={() => alert("Simulating export template...")}>Export Marks Template</ActionButton>
+            <ActionButton tone="warning" onClick={() => alert("Zeraki integration not configured for this tenant")}>Zeraki Sync</ActionButton>
           </div>
           <div className="mt-4 space-y-2">
             {marksEntrySessions.length > 0 ? (

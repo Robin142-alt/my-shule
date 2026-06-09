@@ -40,7 +40,7 @@ type TeacherView =
   | "timetable"
   | "reports"
   | "settings";
-type TeacherAction = "attendance" | "marks" | "assignment" | "resource" | "sms" | "cbt" | "report" | "requisition" | null;
+type TeacherAction = "attendance" | "marks" | "assignment" | "resource" | "sms" | "cbt" | "report" | "requisition" | "import" | null;
 
 type ClassRecord = {
   id: string;
@@ -435,6 +435,7 @@ function ActionFormPanel({
           <h2 className="text-lg font-black text-[#071D49]">
             {activeAction === "attendance" ? "Mark class attendance" : null}
             {activeAction === "marks" ? "Enter marks progress" : null}
+            {activeAction === "import" ? "Import marks" : null}
             {activeAction === "assignment" ? "Create assignment" : null}
             {activeAction === "resource" ? "Upload learning resource" : null}
             {activeAction === "sms" ? "Send class message" : null}
@@ -484,6 +485,19 @@ function ActionFormPanel({
           </select>
           <input value={submitted} onChange={(event) => setSubmitted(event.target.value)} className={inputClass} inputMode="numeric" aria-label="Submitted marks" placeholder="Marks submitted" required />
           <button type="submit" className="rounded-xl bg-[#071D49] px-4 py-2 text-sm font-black text-white">Save marks</button>
+        </form>
+      ) : null}
+
+      {activeAction === "import" ? (
+        <form
+          className="grid gap-3 md:grid-cols-[1fr_auto]"
+          onSubmit={(event) => {
+            event.preventDefault();
+            onClose();
+          }}
+        >
+          <input type="file" accept=".csv" className={inputClass} aria-label="Select CSV" required />
+          <button type="submit" className="rounded-xl bg-[#071D49] px-4 py-2 text-sm font-black text-white">Upload</button>
         </form>
       ) : null}
 
@@ -660,8 +674,36 @@ function MarksWorkspace({
   markBatches: MarkBatch[];
   onStartAction: (action: TeacherAction, view: TeacherView, message: string) => void;
 }) {
+  const { data: returnedMarks } = useSchoolQuery('/api/exams/marks/returned');
+
   return (
     <Panel title="Marks & exams" description="Mark entry, missing marks, moderation, and exportable exam progress." icon={BookOpenCheck}>
+      {Array.isArray(returnedMarks) && returnedMarks.length > 0 && (
+        <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-4">
+          <h3 className="font-black text-amber-800">Returned for Correction</h3>
+          <p className="mt-1 text-sm text-amber-700">The HOD returned the following marks for correction. Please update and resubmit.</p>
+          <div className="mt-3 grid gap-2">
+            {returnedMarks.map((m: any) => (
+              <div key={m.id} className="rounded-lg bg-white p-3 shadow-sm flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-bold text-[#071D49]">{m.student?.name || m.student_id} - {m.subject?.name || m.subject_id}</p>
+                  <p className="text-xs text-[#64748B]">Score: {m.score} | Reason: {m.versions?.[0]?.reason || "Correction required"}</p>
+                </div>
+                <button type="button" onClick={() => onStartAction("marks", "marks", `Correct mark for ${m.student?.name || m.student_id}`)} className="rounded-lg border border-[#F59E0B] px-3 py-1.5 text-xs font-black text-[#F59E0B]">Edit Mark</button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      
+      <div className="mb-3 flex flex-wrap gap-3">
+        <button type="button" onClick={() => onStartAction("import", "marks", "Import marks via CSV.")} className="rounded-xl bg-[#071D49] px-4 py-2 text-sm font-black text-white">Import Marks</button>
+        <button type="button" onClick={() => {
+            if (typeof window !== 'undefined') {
+                exportCsv(`marks-template.csv`, [{ student: "Jane Doe", marks: 0 }]);
+            }
+        }} className="rounded-xl border border-[#D8E0EC] px-4 py-2 text-sm font-black text-[#071D49]">Export Template</button>
+      </div>
       <RecordTable
         columns={["Exam", "Class", "Submitted", "Status", "Action"]}
         rows={markBatches.map((record) => [
@@ -884,7 +926,7 @@ function ActiveWorkspace({
   }
 }
 
-export function TeacherCommandCenter({ routeMode }: { routeMode: TeacherRouteMode }) {
+export function TeacherCommandCenter({ routeMode, isEmbedded }: { routeMode: TeacherRouteMode; isEmbedded?: boolean }) {
   const schoolId = getCurrentSchoolId();
   const [activeView, setActiveView] = useState<TeacherView>("home");
   const [searchTerm, setSearchTerm] = useState("");
@@ -1198,6 +1240,59 @@ export function TeacherCommandCenter({ routeMode }: { routeMode: TeacherRouteMod
     );
   }
 
+  const content = (
+    <div className="space-y-4">
+      <div className="rounded-xl border border-[#BFDBFE] bg-[#EFF6FF] px-4 py-3 text-sm font-black text-[#1D4ED8]">
+        {notice}
+      </div>
+      <ActionFormPanel
+        key={activeAction ?? "none"}
+        activeAction={activeAction}
+        classes={classes}
+        markBatches={markBatches}
+        onClose={() => setActiveAction(null)}
+        onSubmitAttendance={submitAttendance}
+        onSubmitMarks={submitMarks}
+        onSubmitAssignment={submitAssignment}
+        onSubmitResource={submitResource}
+        onSubmitSms={submitSms}
+        onSubmitRequisition={submitRequisition}
+        onPrintSubjectReport={printSubjectReport}
+      />
+      
+      {isLoading ? (
+        <DataLoadingState message="Loading teacher records..." />
+      ) : combinedError && (!classes.length || activeView !== 'home') ? (
+        <DataErrorState error={combinedError} onRetry={() => window.location.reload()} />
+      ) : (
+        <>
+          {activeView === "home" ? (
+            <HomeWorkspace onViewChange={setActiveView} onStartAction={startAction} summaryCards={summaryCards} />
+          ) : (
+            <ActiveWorkspace
+              activeView={activeView}
+              onViewChange={setActiveView}
+              onStartAction={startAction}
+              classes={classes}
+              markBatches={markBatches}
+              assignments={assignments}
+              resources={resources}
+              messages={messages}
+              onOpenDetail={setDetailPanel}
+              onMarkGraded={markAssignmentGraded}
+              onPublishResource={publishResource}
+            />
+          )}
+        </>
+      )}
+      {detailPanel ? <DetailPanelView detail={detailPanel} onClose={() => setDetailPanel(null)} /> : null}
+    </div>
+  );
+
+  if (isEmbedded) {
+    return <main className="w-full bg-[#F3F6FA] text-[#071D49]" data-route-mode={routeMode}>{content}</main>;
+  }
+
   return (
     <div data-route-mode={routeMode} className="h-screen overflow-hidden bg-[#F3F6FA] text-[#071D49]">
       <div className="grid h-full gap-4 p-3 lg:grid-cols-[292px_minmax(0,1fr)]">
@@ -1211,52 +1306,7 @@ export function TeacherCommandCenter({ routeMode }: { routeMode: TeacherRouteMod
             onStartAction={startAction}
           />
           <main className="h-[calc(100%-72px)] overflow-y-auto p-4">
-            <div className="space-y-4">
-              <div className="rounded-xl border border-[#BFDBFE] bg-[#EFF6FF] px-4 py-3 text-sm font-black text-[#1D4ED8]">
-                {notice}
-              </div>
-              <ActionFormPanel
-                key={activeAction ?? "none"}
-                activeAction={activeAction}
-                classes={classes}
-                markBatches={markBatches}
-                onClose={() => setActiveAction(null)}
-                onSubmitAttendance={submitAttendance}
-                onSubmitMarks={submitMarks}
-                onSubmitAssignment={submitAssignment}
-                onSubmitResource={submitResource}
-                onSubmitSms={submitSms}
-                onSubmitRequisition={submitRequisition}
-                onPrintSubjectReport={printSubjectReport}
-              />
-              
-              {isLoading ? (
-                <DataLoadingState message="Loading teacher records..." />
-              ) : combinedError && (!classes.length || activeView !== 'home') ? (
-                <DataErrorState error={combinedError} onRetry={() => window.location.reload()} />
-              ) : (
-                <>
-                  {activeView === "home" ? (
-                    <HomeWorkspace onViewChange={setActiveView} onStartAction={startAction} summaryCards={summaryCards} />
-                  ) : (
-                    <ActiveWorkspace
-                      activeView={activeView}
-                      onViewChange={setActiveView}
-                      onStartAction={startAction}
-                      classes={classes}
-                      markBatches={markBatches}
-                      assignments={assignments}
-                      resources={resources}
-                      messages={messages}
-                      onOpenDetail={setDetailPanel}
-                      onMarkGraded={markAssignmentGraded}
-                      onPublishResource={publishResource}
-                    />
-                  )}
-                </>
-              )}
-              {detailPanel ? <DetailPanelView detail={detailPanel} onClose={() => setDetailPanel(null)} /> : null}
-            </div>
+            {content}
           </main>
         </div>
       </div>

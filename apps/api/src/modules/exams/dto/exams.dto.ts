@@ -66,3 +66,13 @@ export class GenerateReportCardBatchDto {
   batch_size?: number;
   offset?: number;
 }
+
+export class ModerateExamMarksDto {
+  mark_ids!: string[];
+  action!: 'approve' | 'return_for_correction';
+  reason?: string;
+}
+
+export class LockExamMarksDto {
+  mark_ids!: string[];
+}
