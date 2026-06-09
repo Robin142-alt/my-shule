@@ -1462,6 +1462,10 @@ CREATE UNIQUE INDEX ux_auth_action_tokens_hash
 CREATE INDEX ix_auth_action_tokens_tenant_email
   ON auth_action_tokens (tenant_id, lower(email::text), purpose);
 
+CREATE INDEX ix_auth_action_tokens_tenant_invites
+  ON auth_action_tokens (tenant_id, purpose, consumed_at, expires_at, created_at DESC)
+  WHERE purpose = 'invite_acceptance';
+
 CREATE INDEX ix_auth_email_outbox_status
   ON auth_email_outbox (status, next_attempt_at);
 
@@ -1496,6 +1500,9 @@ CREATE INDEX ix_outbox_events_published_at
 
 CREATE INDEX ix_outbox_events_tenant_status_available_at
   ON outbox_events (tenant_id, status, available_at, created_at);
+
+CREATE INDEX ix_outbox_events_tenant_status_created_id
+  ON outbox_events (tenant_id, status, created_at, id);
 
 CREATE INDEX ix_event_consumer_runs_outbox_consumer
   ON event_consumer_runs (tenant_id, outbox_event_id, consumer_name);
@@ -1600,6 +1607,9 @@ CREATE INDEX ix_invoices_tenant_status_due_at
 CREATE INDEX ix_invoices_payment_intent_id
   ON invoices (tenant_id, payment_intent_id);
 
+CREATE INDEX ix_invoices_tenant_issued_created
+  ON invoices (tenant_id, issued_at DESC, created_at DESC);
+
 CREATE INDEX ix_usage_records_tenant_feature_recorded_at
   ON usage_records (tenant_id, feature_key, recorded_at DESC);
 
@@ -1619,12 +1629,29 @@ CREATE UNIQUE INDEX ux_fee_structures_active_scope
   ON fee_structures (tenant_id, academic_year, term, grade_level, (COALESCE(class_name, '')))
   WHERE status = 'active';
 
+CREATE INDEX ix_invoices_student_fee_allocation
+  ON invoices (tenant_id, (metadata ->> 'student_id'), status, due_at ASC);
+
+CREATE INDEX ix_invoices_student_fee_statement
+  ON invoices (tenant_id, (metadata ->> 'student_id'), issued_at ASC, created_at ASC);
+
 CREATE INDEX ix_manual_fee_payments_status_received
   ON manual_fee_payments (tenant_id, status, received_at DESC);
 
 CREATE INDEX ix_manual_fee_payments_student
   ON manual_fee_payments (tenant_id, student_id, received_at DESC)
   WHERE student_id IS NOT NULL;
+
+CREATE INDEX ix_manual_fee_payments_unapplied_student_credit
+  ON manual_fee_payments (tenant_id, student_id, currency_code, cleared_at DESC)
+  WHERE status = 'cleared' AND student_id IS NOT NULL AND invoice_id IS NULL;
+
+CREATE INDEX ix_manual_fee_payments_reconciliation_received
+  ON manual_fee_payments (tenant_id, payment_method, received_at DESC);
+
+CREATE INDEX ix_manual_fee_payments_reconciliation_cleared
+  ON manual_fee_payments (tenant_id, payment_method, cleared_at DESC)
+  WHERE cleared_at IS NOT NULL;
 
 CREATE INDEX ix_manual_fee_payments_invoice
   ON manual_fee_payments (tenant_id, invoice_id, received_at DESC)
@@ -2528,3 +2555,357 @@ CREATE POLICY sync_operation_logs_insert_policy
   WITH CHECK (tenant_id = app.current_tenant_id());
 
 COMMIT;
+-- Batch 4 Operational Schemas
+CREATE TABLE IF NOT EXISTS academics_attendance (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id tenant_key NOT NULL,
+  class_id text NOT NULL,
+  attendance_date date NOT NULL,
+  student_id uuid NOT NULL,
+  status text NOT NULL,
+  submitted_by uuid NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT NOW(),
+  updated_at timestamptz NOT NULL DEFAULT NOW(),
+  CONSTRAINT ck_academics_attendance_tenant CHECK (tenant_id <> 'global')
+);
+
+CREATE TABLE IF NOT EXISTS academics_assignments (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id tenant_key NOT NULL,
+  title text NOT NULL,
+  description text,
+  class_id text NOT NULL,
+  subject_id text NOT NULL,
+  due_date timestamptz NOT NULL,
+  teacher_id uuid NOT NULL,
+  status text NOT NULL DEFAULT 'Draft',
+  created_at timestamptz NOT NULL DEFAULT NOW(),
+  updated_at timestamptz NOT NULL DEFAULT NOW(),
+  CONSTRAINT ck_academics_assignments_tenant CHECK (tenant_id <> 'global')
+);
+
+CREATE TABLE IF NOT EXISTS academics_resources (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id tenant_key NOT NULL,
+  title text NOT NULL,
+  type text NOT NULL,
+  url text,
+  class_id text NOT NULL,
+  subject_id text NOT NULL,
+  teacher_id uuid NOT NULL,
+  status text NOT NULL DEFAULT 'Draft',
+  created_at timestamptz NOT NULL DEFAULT NOW(),
+  updated_at timestamptz NOT NULL DEFAULT NOW(),
+  CONSTRAINT ck_academics_resources_tenant CHECK (tenant_id <> 'global')
+);
+
+CREATE TABLE IF NOT EXISTS operations_emergencies (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id tenant_key NOT NULL,
+  title text NOT NULL,
+  description text NOT NULL,
+  severity text NOT NULL,
+  status text NOT NULL DEFAULT 'Active',
+  reported_by uuid NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT NOW(),
+  updated_at timestamptz NOT NULL DEFAULT NOW(),
+  CONSTRAINT ck_operations_emergencies_tenant CHECK (tenant_id <> 'global')
+);
+
+CREATE TABLE IF NOT EXISTS operations_alerts (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id tenant_key NOT NULL,
+  title text NOT NULL,
+  description text NOT NULL,
+  severity text NOT NULL,
+  status text NOT NULL DEFAULT 'Pending',
+  reported_by uuid NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT NOW(),
+  updated_at timestamptz NOT NULL DEFAULT NOW(),
+  CONSTRAINT ck_operations_alerts_tenant CHECK (tenant_id <> 'global')
+);
+
+CREATE TABLE IF NOT EXISTS operations_reports (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id tenant_key NOT NULL,
+  title text NOT NULL,
+  content text NOT NULL,
+  status text NOT NULL DEFAULT 'Draft',
+  prepared_by uuid NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT NOW(),
+  updated_at timestamptz NOT NULL DEFAULT NOW(),
+  CONSTRAINT ck_operations_reports_tenant CHECK (tenant_id <> 'global')
+);
+
+CREATE TABLE IF NOT EXISTS security_incidents (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id tenant_key NOT NULL,
+  title text NOT NULL,
+  description text NOT NULL,
+  severity text NOT NULL,
+  location text NOT NULL,
+  status text NOT NULL DEFAULT 'Reported',
+  reported_by uuid NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT NOW(),
+  updated_at timestamptz NOT NULL DEFAULT NOW(),
+  CONSTRAINT ck_security_incidents_tenant CHECK (tenant_id <> 'global')
+);
+
+CREATE TABLE IF NOT EXISTS security_panic_alerts (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id tenant_key NOT NULL,
+  location text NOT NULL,
+  status text NOT NULL DEFAULT 'Active',
+  triggered_by uuid NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT NOW(),
+  updated_at timestamptz NOT NULL DEFAULT NOW(),
+  CONSTRAINT ck_security_panic_alerts_tenant CHECK (tenant_id <> 'global')
+);
+
+CREATE TABLE IF NOT EXISTS finance_tasks (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id tenant_key NOT NULL,
+  title text NOT NULL,
+  description text NOT NULL,
+  due_date timestamptz NOT NULL,
+  status text NOT NULL DEFAULT 'Pending',
+  assigned_to uuid,
+  created_by uuid NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT NOW(),
+  updated_at timestamptz NOT NULL DEFAULT NOW(),
+  CONSTRAINT ck_finance_tasks_tenant CHECK (tenant_id <> 'global')
+);
+
+CREATE TABLE IF NOT EXISTS communication_sms_outbox (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id tenant_key NOT NULL,
+  recipient_phone text NOT NULL,
+  message text NOT NULL,
+  status text NOT NULL DEFAULT 'Pending',
+  provider_reference text,
+  sent_by uuid NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT NOW(),
+  updated_at timestamptz NOT NULL DEFAULT NOW(),
+  CONSTRAINT ck_communication_sms_outbox_tenant CHECK (tenant_id <> 'global')
+);
+
+ALTER TABLE operations_emergencies ENABLE ROW LEVEL SECURITY;
+ALTER TABLE operations_emergencies FORCE ROW LEVEL SECURITY;
+CREATE POLICY operations_emergencies_tenant_policy ON operations_emergencies FOR ALL USING (tenant_id = app.current_tenant_id()) WITH CHECK (tenant_id = app.current_tenant_id());
+
+ALTER TABLE operations_alerts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE operations_alerts FORCE ROW LEVEL SECURITY;
+CREATE POLICY operations_alerts_tenant_policy ON operations_alerts FOR ALL USING (tenant_id = app.current_tenant_id()) WITH CHECK (tenant_id = app.current_tenant_id());
+
+ALTER TABLE operations_reports ENABLE ROW LEVEL SECURITY;
+ALTER TABLE operations_reports FORCE ROW LEVEL SECURITY;
+CREATE POLICY operations_reports_tenant_policy ON operations_reports FOR ALL USING (tenant_id = app.current_tenant_id()) WITH CHECK (tenant_id = app.current_tenant_id());
+
+ALTER TABLE security_incidents ENABLE ROW LEVEL SECURITY;
+ALTER TABLE security_incidents FORCE ROW LEVEL SECURITY;
+CREATE POLICY security_incidents_tenant_policy ON security_incidents FOR ALL USING (tenant_id = app.current_tenant_id()) WITH CHECK (tenant_id = app.current_tenant_id());
+
+ALTER TABLE security_panic_alerts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE security_panic_alerts FORCE ROW LEVEL SECURITY;
+CREATE POLICY security_panic_alerts_tenant_policy ON security_panic_alerts FOR ALL USING (tenant_id = app.current_tenant_id()) WITH CHECK (tenant_id = app.current_tenant_id());
+
+-- Phase 5 Cross-Dashboard Schemas
+CREATE TABLE IF NOT EXISTS inventory_requisitions (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id tenant_key NOT NULL,
+  requested_by uuid NOT NULL,
+  item_category text NOT NULL,
+  quantity numeric NOT NULL,
+  purpose text,
+  status text NOT NULL DEFAULT 'PENDING',
+  created_at timestamptz NOT NULL DEFAULT NOW(),
+  updated_at timestamptz NOT NULL DEFAULT NOW()
+);
+ALTER TABLE inventory_requisitions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE inventory_requisitions FORCE ROW LEVEL SECURITY;
+CREATE POLICY inventory_requisitions_tenant_policy ON inventory_requisitions FOR ALL USING (tenant_id = app.current_tenant_id()) WITH CHECK (tenant_id = app.current_tenant_id());
+
+CREATE TABLE IF NOT EXISTS clinic_visits (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id tenant_key NOT NULL,
+  student_id uuid NOT NULL,
+  nurse_id uuid NOT NULL,
+  symptoms text,
+  action_taken text,
+  medicine_dispensed text,
+  severity text NOT NULL DEFAULT 'LOW',
+  status text NOT NULL DEFAULT 'RESOLVED',
+  created_at timestamptz NOT NULL DEFAULT NOW(),
+  updated_at timestamptz NOT NULL DEFAULT NOW()
+);
+ALTER TABLE clinic_visits ENABLE ROW LEVEL SECURITY;
+ALTER TABLE clinic_visits FORCE ROW LEVEL SECURITY;
+CREATE POLICY clinic_visits_tenant_policy ON clinic_visits FOR ALL USING (tenant_id = app.current_tenant_id()) WITH CHECK (tenant_id = app.current_tenant_id());
+
+CREATE TABLE IF NOT EXISTS library_loans (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id tenant_key NOT NULL,
+  student_id uuid NOT NULL,
+  book_title text NOT NULL,
+  issued_by uuid NOT NULL,
+  status text NOT NULL DEFAULT 'ISSUED',
+  due_date timestamptz NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT NOW(),
+  updated_at timestamptz NOT NULL DEFAULT NOW()
+);
+ALTER TABLE library_loans ENABLE ROW LEVEL SECURITY;
+ALTER TABLE library_loans FORCE ROW LEVEL SECURITY;
+CREATE POLICY library_loans_tenant_policy ON library_loans FOR ALL USING (tenant_id = app.current_tenant_id()) WITH CHECK (tenant_id = app.current_tenant_id());
+
+CREATE TABLE IF NOT EXISTS visitors (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id tenant_key NOT NULL,
+  visitor_name text NOT NULL,
+  purpose text NOT NULL,
+  checked_in_by uuid NOT NULL,
+  status text NOT NULL DEFAULT 'INSIDE',
+  checked_out_at timestamptz,
+  created_at timestamptz NOT NULL DEFAULT NOW(),
+  updated_at timestamptz NOT NULL DEFAULT NOW()
+);
+ALTER TABLE visitors ENABLE ROW LEVEL SECURITY;
+ALTER TABLE visitors FORCE ROW LEVEL SECURITY;
+CREATE POLICY visitors_tenant_policy ON visitors FOR ALL USING (tenant_id = app.current_tenant_id()) WITH CHECK (tenant_id = app.current_tenant_id());
+
+CREATE TABLE IF NOT EXISTS discipline_incidents (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id tenant_key NOT NULL,
+  student_id uuid NOT NULL,
+  category text NOT NULL,
+  severity text NOT NULL,
+  description text,
+  action_taken text,
+  status text NOT NULL DEFAULT 'PENDING',
+  reported_by uuid NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT NOW(),
+  updated_at timestamptz NOT NULL DEFAULT NOW()
+);
+ALTER TABLE discipline_incidents ENABLE ROW LEVEL SECURITY;
+ALTER TABLE discipline_incidents FORCE ROW LEVEL SECURITY;
+CREATE POLICY discipline_incidents_tenant_policy ON discipline_incidents FOR ALL USING (tenant_id = app.current_tenant_id()) WITH CHECK (tenant_id = app.current_tenant_id());
+
+CREATE TABLE IF NOT EXISTS boarding_referrals (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id tenant_key NOT NULL,
+  student_id uuid NOT NULL,
+  reason text NOT NULL,
+  referred_to text NOT NULL,
+  status text NOT NULL DEFAULT 'PENDING',
+  created_by uuid NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT NOW(),
+  updated_at timestamptz NOT NULL DEFAULT NOW()
+);
+ALTER TABLE boarding_referrals ENABLE ROW LEVEL SECURITY;
+ALTER TABLE boarding_referrals FORCE ROW LEVEL SECURITY;
+CREATE POLICY boarding_referrals_tenant_policy ON boarding_referrals FOR ALL USING (tenant_id = app.current_tenant_id()) WITH CHECK (tenant_id = app.current_tenant_id());
+
+CREATE TABLE IF NOT EXISTS transport_routes (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id tenant_key NOT NULL,
+  route_name text NOT NULL,
+  driver_id uuid,
+  vehicle_reg text,
+  created_at timestamptz NOT NULL DEFAULT NOW(),
+  updated_at timestamptz NOT NULL DEFAULT NOW()
+);
+ALTER TABLE transport_routes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE transport_routes FORCE ROW LEVEL SECURITY;
+CREATE POLICY transport_routes_tenant_policy ON transport_routes FOR ALL USING (tenant_id = app.current_tenant_id()) WITH CHECK (tenant_id = app.current_tenant_id());
+
+CREATE TABLE IF NOT EXISTS admissions_applications (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id tenant_key NOT NULL,
+  applicant_name text NOT NULL,
+  parent_name text NOT NULL,
+  parent_phone text,
+  parent_email text,
+  status text NOT NULL DEFAULT 'PENDING',
+  created_at timestamptz NOT NULL DEFAULT NOW(),
+  updated_at timestamptz NOT NULL DEFAULT NOW()
+);
+ALTER TABLE admissions_applications ENABLE ROW LEVEL SECURITY;
+ALTER TABLE admissions_applications FORCE ROW LEVEL SECURITY;
+CREATE POLICY admissions_applications_tenant_policy ON admissions_applications FOR ALL USING (tenant_id = app.current_tenant_id()) WITH CHECK (tenant_id = app.current_tenant_id());ALTER TABLE academics_attendance ENABLE ROW LEVEL SECURITY;
+ALTER TABLE academics_attendance FORCE ROW LEVEL SECURITY;
+CREATE POLICY academics_attendance_tenant_policy ON academics_attendance FOR ALL USING (tenant_id = app.current_tenant_id()) WITH CHECK (tenant_id = app.current_tenant_id());
+
+ALTER TABLE academics_assignments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE academics_assignments FORCE ROW LEVEL SECURITY;
+CREATE POLICY academics_assignments_tenant_policy ON academics_assignments FOR ALL USING (tenant_id = app.current_tenant_id()) WITH CHECK (tenant_id = app.current_tenant_id());
+
+ALTER TABLE academics_resources ENABLE ROW LEVEL SECURITY;
+ALTER TABLE academics_resources FORCE ROW LEVEL SECURITY;
+CREATE POLICY academics_resources_tenant_policy ON academics_resources FOR ALL USING (tenant_id = app.current_tenant_id()) WITH CHECK (tenant_id = app.current_tenant_id());
+
+ALTER TABLE finance_tasks ENABLE ROW LEVEL SECURITY;
+ALTER TABLE finance_tasks FORCE ROW LEVEL SECURITY;
+CREATE POLICY finance_tasks_tenant_policy ON finance_tasks FOR ALL USING (tenant_id = app.current_tenant_id()) WITH CHECK (tenant_id = app.current_tenant_id());
+
+ALTER TABLE communication_sms_outbox ENABLE ROW LEVEL SECURITY;
+ALTER TABLE communication_sms_outbox FORCE ROW LEVEL SECURITY;
+CREATE POLICY communication_sms_outbox_tenant_policy ON communication_sms_outbox FOR ALL USING (tenant_id = app.current_tenant_id()) WITH CHECK (tenant_id = app.current_tenant_id());
+
+ALTER TABLE operations_emergencies ENABLE ROW LEVEL SECURITY;
+ALTER TABLE operations_emergencies FORCE ROW LEVEL SECURITY;
+CREATE POLICY operations_emergencies_tenant_policy ON operations_emergencies FOR ALL USING (tenant_id = app.current_tenant_id()) WITH CHECK (tenant_id = app.current_tenant_id());
+
+ALTER TABLE operations_alerts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE operations_alerts FORCE ROW LEVEL SECURITY;
+CREATE POLICY operations_alerts_tenant_policy ON operations_alerts FOR ALL USING (tenant_id = app.current_tenant_id()) WITH CHECK (tenant_id = app.current_tenant_id());
+
+ALTER TABLE operations_reports ENABLE ROW LEVEL SECURITY;
+ALTER TABLE operations_reports FORCE ROW LEVEL SECURITY;
+CREATE POLICY operations_reports_tenant_policy ON operations_reports FOR ALL USING (tenant_id = app.current_tenant_id()) WITH CHECK (tenant_id = app.current_tenant_id());
+
+ALTER TABLE security_incidents ENABLE ROW LEVEL SECURITY;
+ALTER TABLE security_incidents FORCE ROW LEVEL SECURITY;
+CREATE POLICY security_incidents_tenant_policy ON security_incidents FOR ALL USING (tenant_id = app.current_tenant_id()) WITH CHECK (tenant_id = app.current_tenant_id());
+
+ALTER TABLE security_panic_alerts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE security_panic_alerts FORCE ROW LEVEL SECURITY;
+CREATE POLICY security_panic_alerts_tenant_policy ON security_panic_alerts FOR ALL USING (tenant_id = app.current_tenant_id()) WITH CHECK (tenant_id = app.current_tenant_id());
+
+-- 1. Indexes for tenant_id
+CREATE INDEX IF NOT EXISTS idx_academics_attendance_tenant_id ON academics_attendance(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_academics_assignments_tenant_id ON academics_assignments(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_academics_resources_tenant_id ON academics_resources(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_operations_emergencies_tenant_id ON operations_emergencies(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_operations_alerts_tenant_id ON operations_alerts(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_operations_reports_tenant_id ON operations_reports(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_security_incidents_tenant_id ON security_incidents(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_security_panic_alerts_tenant_id ON security_panic_alerts(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_finance_tasks_tenant_id ON finance_tasks(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_communication_sms_outbox_tenant_id ON communication_sms_outbox(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_inventory_requisitions_tenant_id ON inventory_requisitions(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_clinic_visits_tenant_id ON clinic_visits(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_library_loans_tenant_id ON library_loans(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_visitors_tenant_id ON visitors(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_discipline_incidents_tenant_id ON discipline_incidents(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_boarding_referrals_tenant_id ON boarding_referrals(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_transport_routes_tenant_id ON transport_routes(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_admissions_applications_tenant_id ON admissions_applications(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_auth_email_outbox_tenant_id ON auth_email_outbox(tenant_id);
+
+-- 2. Common Foreign Keys
+CREATE INDEX IF NOT EXISTS idx_auth_action_tokens_tenant_user ON auth_action_tokens(tenant_id, user_id);
+CREATE INDEX IF NOT EXISTS idx_auth_email_outbox_tenant_user ON auth_email_outbox(tenant_id, user_id);
+CREATE INDEX IF NOT EXISTS idx_payment_intents_tenant_user ON payment_intents(tenant_id, user_id);
+CREATE INDEX IF NOT EXISTS idx_students_tenant_created_by ON students(tenant_id, created_by_user_id);
+
+CREATE INDEX IF NOT EXISTS idx_academics_attendance_tenant_student ON academics_attendance(tenant_id, student_id);
+CREATE INDEX IF NOT EXISTS idx_clinic_visits_tenant_student ON clinic_visits(tenant_id, student_id);
+CREATE INDEX IF NOT EXISTS idx_library_loans_tenant_student ON library_loans(tenant_id, student_id);
+CREATE INDEX IF NOT EXISTS idx_discipline_incidents_tenant_student ON discipline_incidents(tenant_id, student_id);
+
+-- 3. Composite Status Indexes
+CREATE INDEX IF NOT EXISTS idx_users_tenant_status ON users(tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_auth_email_outbox_tenant_status ON auth_email_outbox(tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_finance_tasks_tenant_status ON finance_tasks(tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_operations_reports_tenant_status ON operations_reports(tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_admissions_applications_tenant_status ON admissions_applications(tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_inventory_requisitions_tenant_status ON inventory_requisitions(tenant_id, status);

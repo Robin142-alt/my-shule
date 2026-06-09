@@ -139,6 +139,7 @@ export class SloMonitoringService implements OnModuleInit, OnModuleDestroy {
     generated_at: string;
     overall_status: SloStatus;
     active_alert_count: number;
+    critical_alert_count: number;
     subsystem_statuses: Array<{
       subsystem: SloSubsystemKey;
       status: SloStatus;
@@ -150,6 +151,9 @@ export class SloMonitoringService implements OnModuleInit, OnModuleDestroy {
       generated_at: snapshot.generated_at,
       overall_status: snapshot.overall_status,
       active_alert_count: snapshot.active_alerts.length,
+      critical_alert_count: snapshot.active_alerts.filter(
+        (alert) => alert.severity === 'critical',
+      ).length,
       subsystem_statuses: snapshot.subsystem_cards.map((card) => ({
         subsystem: card.subsystem,
         status: card.status,

@@ -27,6 +27,7 @@ test('ExamsSchemaService creates exam and report-card tables with tenant RLS', a
   assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS student_report_cards/);
   assert.match(schemaSql, /ALTER TABLE exam_marks FORCE ROW LEVEL SECURITY/);
   assert.match(schemaSql, /CREATE INDEX IF NOT EXISTS ix_exam_marks_subject_scope/);
+  assert.match(schemaSql, /CREATE INDEX IF NOT EXISTS ix_student_report_cards_tenant_published/);
   assert.doesNotMatch(schemaSql, /attendance/i);
 });
 
@@ -905,6 +906,8 @@ test('ExamsService starts class report-card batches and returns progress status'
         exam_series_id: 'series-1',
         class_section_id: 'class-1',
         stream_name: 'Blue',
+        batch_size: 200,
+        offset: 0,
       },
     },
     {
@@ -989,14 +992,39 @@ test('ExamsService lists tenant mark sheets with teacher and series filters', as
     teacher_user_id: ' teacher-1 ',
     exam_series_id: 'series-1',
     subject_id: '',
+    limit: '500',
+    offset: '-10',
   });
 
   assert.deepEqual(capturedInput, {
     tenant_id: 'tenant-a',
     teacher_user_id: 'teacher-1',
     exam_series_id: 'series-1',
+    limit: 50,
+    offset: 0,
   });
   assert.equal(rows[0]?.mark_count, 18);
+});
+
+test('ExamsRepository paginates mark-sheet lists', async () => {
+  const calls: Array<{ sql: string; params: unknown[] }> = [];
+  const repository = new ExamsRepository({
+    query: async (sql: string, params: unknown[]) => {
+      calls.push({ sql, params });
+      return { rows: [] };
+    },
+  } as never);
+
+  await repository.listMarkSheets({
+    tenant_id: 'tenant-a',
+    teacher_user_id: '00000000-0000-0000-0000-000000000801',
+    limit: 500,
+    offset: -10,
+  });
+
+  assert.match(calls[0]!.sql, /LIMIT \$6::integer\s+OFFSET \$7::integer/);
+  assert.equal(calls[0]!.params[5], 50);
+  assert.equal(calls[0]!.params[6], 0);
 });
 
 test('ExamsService creates actor-bound signed parent report-card downloads for linked children', async () => {
@@ -1151,4 +1179,135 @@ test('ExamsController exposes report-card batch, regeneration, and verification 
   assert.deepEqual(Reflect.getMetadata(PERMISSIONS_KEY, regenerateHandler), ['exams:approve']);
   assert.equal(Reflect.getMetadata(PATH_METADATA, verifyHandler), 'report-cards/verify/:verificationCode');
   assert.deepEqual(Reflect.getMetadata(PERMISSIONS_KEY, verifyHandler), ['exams:read']);
+});
+
+test('ExamsRepository bounds report-card listing and avoids SELECT star', async () => {
+  const queries: Array<{ text: string; values: unknown[] }> = [];
+  const repository = new ExamsRepository({
+    query: async (text: string, values: unknown[]) => {
+      queries.push({ text, values });
+      return { rows: [] };
+    },
+  } as never);
+
+  await repository.listReportCards({
+    tenant_id: 'tenant-a',
+    student_id: '00000000-0000-0000-0000-000000000101',
+    limit: 999,
+    offset: 6,
+  } as never);
+
+  const reportCardsQuery = queries[0]?.text ?? '';
+  assert.doesNotMatch(reportCardsQuery, /SELECT\s+\*/i);
+  assert.match(reportCardsQuery, /card\.id::text/);
+  assert.match(reportCardsQuery, /WHERE card\.tenant_id = \$1/);
+  assert.match(reportCardsQuery, /LIMIT \$3::integer/);
+  assert.match(reportCardsQuery, /OFFSET \$4::integer/);
+  assert.deepEqual(queries[0]?.values, [
+    'tenant-a',
+    '00000000-0000-0000-0000-000000000101',
+    50,
+    6,
+  ]);
+});
+
+test('ExamsRepository chunks report-card batch students with limit and offset', async () => {
+  const queries: Array<{ text: string; values: unknown[] }> = [];
+  const repository = new ExamsRepository({
+    query: async (text: string, values: unknown[]) => {
+      queries.push({ text, values });
+      return { rows: [] };
+    },
+  } as never);
+
+  await repository.listStudentsForReportCardBatch({
+    tenant_id: 'tenant-a',
+    class_section_id: null,
+    stream_name: null,
+    limit: 1000,
+    offset: 20,
+  } as never);
+
+  const studentsQuery = queries[0]?.text ?? '';
+  assert.doesNotMatch(studentsQuery, /LIMIT 1000/);
+  assert.match(studentsQuery, /LIMIT \$4::integer/);
+  assert.match(studentsQuery, /OFFSET \$5::integer/);
+  assert.deepEqual(queries[0]?.values, ['tenant-a', null, null, 200, 20]);
+});
+
+test('ExamsService normalizes report-card list pagination before querying', async () => {
+  let capturedInput: Record<string, unknown> | null = null;
+  const service = new ExamsService(
+    { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'exam-1', role: 'exams_manager', permissions: ['exams:read'] }) } as never,
+    {
+      listReportCards: async (input: Record<string, unknown>) => {
+        capturedInput = input;
+        return [];
+      },
+    } as never,
+  );
+
+  await service.listReportCards({
+    student_id: ' 00000000-0000-0000-0000-000000000101 ',
+    limit: '999',
+    offset: '-5',
+  });
+
+  assert.deepEqual(capturedInput, {
+    tenant_id: 'tenant-a',
+    student_id: '00000000-0000-0000-0000-000000000101',
+    limit: 50,
+    offset: 0,
+  });
+});
+
+test('ExamsController exposes configuration, draft, alignment, review, and lifecycle endpoints', () => {
+  const configureExam = Reflect.getMetadata(PATH_METADATA, ExamsController.prototype.configureExam);
+  const saveDraft = Reflect.getMetadata(PATH_METADATA, ExamsController.prototype.saveDraft);
+  const alignExam = Reflect.getMetadata(PATH_METADATA, ExamsController.prototype.alignExam);
+  const reviewExam = Reflect.getMetadata(PATH_METADATA, ExamsController.prototype.reviewExam);
+  const updateLifecycle = Reflect.getMetadata(PATH_METADATA, ExamsController.prototype.updateLifecycle);
+
+  assert.equal(configureExam, 'configuration');
+  assert.equal(saveDraft, 'draft');
+  assert.equal(alignExam, 'alignment');
+  assert.equal(reviewExam, 'review');
+  assert.equal(updateLifecycle, 'lifecycle');
+});
+
+test('ExamsService moderateMarks updates mark statuses and adds versions for rejected marks', async () => {
+  const calls: string[] = [];
+  const service = new ExamsService(
+    { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'hod-1', role: 'admin', permissions: ['exams:approve'] }) } as never,
+    {
+      moderateMarks: async (input: Record<string, unknown>) => {
+        calls.push(`moderate:${input.action}`);
+        return [{ id: 'mark-1', score: 85 }];
+      },
+      createMarkVersion: async (input: Record<string, unknown>) => {
+        calls.push(`version:${input.approval_state}`);
+      },
+    } as never,
+  );
+
+  const result = await service.moderateMarks({
+    mark_ids: ['mark-1'],
+    action: 'return_for_correction',
+    reason: 'Score too high',
+  });
+
+  assert.equal(result.updated_count, 1);
+  assert.deepEqual(calls, ['moderate:return_for_correction', 'version:rejected']);
+});
+
+test('ExamsController exposes new moderation and publishing endpoints', () => {
+  const getDepartmentMarks = Reflect.getMetadata(PATH_METADATA, ExamsController.prototype.getDepartmentMarks);
+  const moderateMarks = Reflect.getMetadata(PATH_METADATA, ExamsController.prototype.moderateMarks);
+  const lockMarks = Reflect.getMetadata(PATH_METADATA, ExamsController.prototype.lockMarks);
+  const publishExamSeries = Reflect.getMetadata(PATH_METADATA, ExamsController.prototype.publishExamSeries);
+
+  assert.equal(getDepartmentMarks, 'marks/department');
+  assert.equal(moderateMarks, 'marks/moderate');
+  assert.equal(lockMarks, 'marks/lock');
+  assert.equal(publishExamSeries, 'series/:id/publish');
 });

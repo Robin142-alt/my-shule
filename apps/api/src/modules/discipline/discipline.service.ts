@@ -59,14 +59,17 @@ export class DisciplineService {
 
   async listOffenseCategories() {
     const tenantId = this.requireTenantId();
-    const schoolId = await this.resolveSchoolId();
+    const configured = await this.disciplineRepository.listOffenseCategories(tenantId);
+
+    if (configured.length > 0) {
+      return configured;
+    }
 
     await this.disciplineRepository.ensureDefaultOffenseCategories({
       tenant_id: tenantId,
-      school_id: schoolId,
+      school_id: await this.resolveSchoolId(),
       actor_user_id: this.actorUserId(),
     });
-
     return this.disciplineRepository.listOffenseCategories(tenantId);
   }
 
@@ -175,7 +178,7 @@ export class DisciplineService {
 
     return this.disciplineRepository.listIncidents({
       tenant_id: tenantId,
-      query,
+      query: this.normalizeIncidentQuery(query),
       actor_user_id: context.user_id,
       can_read_all: this.canReadAllDiscipline(),
     });
@@ -188,8 +191,8 @@ export class DisciplineService {
     return this.disciplineRepository.listParentIncidents({
       tenant_id: this.requireTenantId(),
       parent_user_id: context.user_id,
-      limit: query.limit,
-      offset: query.offset,
+      limit: this.parseBoundedInteger(query.limit, 25, 50),
+      offset: this.parseOffset(query.offset),
     });
   }
 
@@ -776,5 +779,42 @@ export class DisciplineService {
 
   private slug(value: string): string {
     return value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  }
+
+  private normalizeIncidentQuery(
+    query: ListDisciplineIncidentsQueryDto = {},
+  ): ListDisciplineIncidentsQueryDto {
+    const search = query.q?.trim();
+
+    return {
+      ...query,
+      q: search && search.length >= 2 ? search : undefined,
+      limit: this.parseBoundedInteger(query.limit, 25, 50),
+      offset: this.parseOffset(query.offset),
+    };
+  }
+
+  private parseBoundedInteger(
+    value: number | undefined,
+    fallback: number,
+    max: number,
+  ): number {
+    const candidate = Number(value);
+
+    if (!Number.isInteger(candidate) || candidate < 1) {
+      return fallback;
+    }
+
+    return Math.min(candidate, max);
+  }
+
+  private parseOffset(value: number | undefined): number {
+    const candidate = Number(value);
+
+    if (!Number.isInteger(candidate) || candidate < 0) {
+      return 0;
+    }
+
+    return candidate;
   }
 }

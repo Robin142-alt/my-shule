@@ -1,5 +1,5 @@
 import { createElement } from "react";
-import { act, screen } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 
 import { IotModuleScreen } from "@/components/modules/iot/iot-module-screen";
 import { SchoolPages } from "@/components/school/school-pages";
@@ -9,6 +9,10 @@ import { isSchoolSectionEnabled } from "@/lib/module-access/module-access-map";
 import { isSchoolSection } from "@/lib/routing/experience-routes";
 
 import { renderWithProviders } from "./test-utils";
+
+jest.mock("@/lib/auth/csrf-client", () => ({
+  getCsrfToken: jest.fn(async () => "csrf-iot-token"),
+}));
 
 const iotDashboard = {
   registered_devices: 3,
@@ -59,12 +63,28 @@ const iotDashboard = {
 };
 
 describe("IoT and Smart Campus module workspace", () => {
+  let fetchMock: jest.Mock;
+
   beforeEach(() => {
-    global.fetch = jest.fn((input: RequestInfo | URL) => {
+    fetchMock = jest.fn((input: RequestInfo | URL, init?: RequestInit) => {
       if (String(input).includes("/api/school/modules/me")) {
         return Promise.resolve({
           ok: true,
           json: async () => ["iot"],
+        } as Response);
+      }
+
+      if (String(input).includes("/api/auth/csrf")) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ token: "csrf-iot-token" }),
+        } as Response);
+      }
+
+      if (init?.method && init.method !== "GET") {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ ok: true }),
         } as Response);
       }
 
@@ -75,6 +95,7 @@ describe("IoT and Smart Campus module workspace", () => {
       } as Response)
       );
     }) as unknown as typeof fetch;
+    global.fetch = fetchMock as unknown as typeof fetch;
   });
 
   it("renders live IoT devices, telemetry, commands, and alerts", async () => {
@@ -96,6 +117,52 @@ describe("IoT and Smart Campus module workspace", () => {
     expect(screen.getByText(/Command delivery/i)).toBeVisible();
     expect(screen.getAllByText(/Smart meter A1/i).length).toBeGreaterThan(0);
     expect(screen.getByText(/Gate scanner offline/i)).toBeVisible();
+  });
+
+  it("uses registered devices as selectable inputs instead of raw device UUID fields", async () => {
+    await act(async () => {
+      renderWithProviders(
+        <IotModuleScreen tenantSlug="barakaacademy" initialDashboard={iotDashboard} />,
+      );
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /^Telemetry stream$/i }));
+    expect(screen.queryByPlaceholderText(/device uuid/i)).not.toBeInTheDocument();
+    expect(screen.getByLabelText(/Device/i)).toHaveDisplayValue(/Smart meter A1/i);
+
+    fireEvent.click(screen.getByRole("button", { name: /^Command center$/i }));
+    expect(screen.queryByPlaceholderText(/device uuid/i)).not.toBeInTheDocument();
+    expect(screen.getByLabelText(/Device/i)).toHaveDisplayValue(/Smart meter A1/i);
+
+    fireEvent.click(screen.getByRole("button", { name: /^Gateway credentials$/i }));
+    expect(screen.queryByPlaceholderText(/device uuid/i)).not.toBeInTheDocument();
+    expect(screen.getByLabelText(/Device/i)).toHaveDisplayValue(/Smart meter A1/i);
+  });
+
+  it("submits selected device ids from the device picker", async () => {
+    await act(async () => {
+      renderWithProviders(
+        <IotModuleScreen tenantSlug="barakaacademy" initialDashboard={iotDashboard} />,
+      );
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /^Command center$/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Post command center/i }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/iot/commands",
+        expect.objectContaining({
+          method: "POST",
+          headers: expect.objectContaining({ "x-myshule-csrf": "csrf-iot-token" }),
+          body: expect.stringContaining('"device_id":"device-1"'),
+        }),
+      );
+    });
   });
 
   it("opens the implemented IoT module from the school workspace when enabled", async () => {

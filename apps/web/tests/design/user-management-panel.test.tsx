@@ -41,28 +41,52 @@ describe("school user management", () => {
       "Deputy Principal",
       "Secretary",
       "Bursar",
+      "Accountant",
       "Teacher",
+      "Dean of Academics",
+      "Exams Manager",
+      "Head of Department",
+      "Class Teacher",
+      "Grade/Form Master",
       "Nurse",
+      "School Counsellor",
+      "Discipline Master",
       "Librarian",
       "Parent",
       "Student",
       "Storekeeper",
       "Boarding Master",
       "Security Officer",
+      "Transport Manager",
+      "Laboratory Technician",
+      "Admissions Officer",
+      "ICT / Computer Lab Manager",
     ]);
     expect(values).toEqual([
       "principal",
       "deputy_principal",
       "secretary",
       "bursar",
+      "accountant",
       "teacher",
+      "dean_academics",
+      "exams_manager",
+      "hod",
+      "class_teacher",
+      "grade_master",
       "nurse",
+      "school_counsellor",
+      "discipline_master",
       "librarian",
       "parent",
       "student",
       "storekeeper",
       "boarding_master",
       "security_officer",
+      "transport_manager",
+      "lab_technician",
+      "admissions_officer",
+      "ict_manager",
     ]);
   });
 
@@ -86,7 +110,7 @@ describe("school user management", () => {
 
     await waitFor(() =>
       expect(fetchMock).toHaveBeenCalledWith(
-        "/api/auth/invitations",
+        "/api/auth/invitations?limit=50&offset=0",
         expect.objectContaining({
           method: "GET",
           credentials: "same-origin",
@@ -309,7 +333,7 @@ describe("school user management", () => {
     expect(screen.getByRole("heading", { name: /invite user/i })).toBeVisible();
     await waitFor(() =>
       expect(fetchMock).toHaveBeenCalledWith(
-        "/api/auth/invitations",
+        "/api/auth/invitations?limit=50&offset=0",
         expect.objectContaining({ method: "GET" }),
       ),
     );

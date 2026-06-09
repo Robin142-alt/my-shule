@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Req } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req } from '@nestjs/common';
 import type { Request } from 'express';
 
 import { Public } from './decorators/public.decorator';
@@ -18,6 +18,7 @@ import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { RegisterDto } from './dto/register.dto';
 import {
   CreateTenantInvitationDto,
+  ListTenantUsersQueryDto,
   TenantInvitationActionResponseDto,
   TenantManagedUserDto,
   TenantManagedUsersResponseDto,
@@ -125,8 +126,10 @@ export class AuthController {
 
   @Get('invitations')
   @Permissions('users:read', 'tenant_memberships:read')
-  async listTenantUsers(): Promise<TenantManagedUsersResponseDto> {
-    return this.tenantInvitationsService.listTenantUsers();
+  async listTenantUsers(
+    @Query() query: ListTenantUsersQueryDto,
+  ): Promise<TenantManagedUsersResponseDto> {
+    return this.tenantInvitationsService.listTenantUsers(query);
   }
 
   @Post('invitations/:invitationId/resend')

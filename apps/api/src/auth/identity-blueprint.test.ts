@@ -33,12 +33,17 @@ test('identity blueprint covers all authentication methods and security controls
 });
 
 test('identity blueprint normalizes every requested ERP role', () => {
-  assert.equal(BLUEPRINT_USER_ROLES.length, 24);
+  assert.equal(BLUEPRINT_USER_ROLES.length, 29);
+  assert.equal(normalizeBlueprintRole('Dean of Academics'), 'dean_academics');
+  assert.equal(normalizeBlueprintRole('Exams Manager'), 'exams_manager');
+  assert.equal(normalizeBlueprintRole('Head of Department'), 'hod');
   assert.equal(normalizeBlueprintRole('Deputy Principal'), 'deputy_principal');
   assert.equal(normalizeBlueprintRole('Bursar'), 'bursar');
   assert.equal(normalizeBlueprintRole('Nurse'), 'nurse');
   assert.equal(normalizeBlueprintRole('Security Officer'), 'security_officer');
   assert.equal(normalizeBlueprintRole('Lab Technician'), 'lab_technician');
+  assert.equal(normalizeBlueprintRole('Admissions Officer'), 'admissions_officer');
+  assert.equal(normalizeBlueprintRole('Computer Lab Manager'), 'ict_manager');
   assert.throws(() => normalizeBlueprintRole('unknown role'), /Unsupported blueprint role/);
 });
 

@@ -134,6 +134,7 @@ export class StudentsSchemaService implements OnModuleInit {
             COALESCE(primary_guardian_phone, '')
           )
         );
+      ALTER TABLE students ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'active';
       ALTER TABLE student_guardians ADD COLUMN IF NOT EXISTS user_id uuid;
       ALTER TABLE student_guardians ADD COLUMN IF NOT EXISTS invitation_id uuid;
       ALTER TABLE student_guardians ADD COLUMN IF NOT EXISTS display_name text;

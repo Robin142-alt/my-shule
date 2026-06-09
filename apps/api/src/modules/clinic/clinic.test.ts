@@ -34,6 +34,8 @@ test('ClinicSchemaService creates medicine inventory, dispensing, parent history
     assert.match(schemaSql, new RegExp(`CREATE TABLE IF NOT EXISTS ${table}`));
     assert.match(schemaSql, new RegExp(`ALTER TABLE ${table} FORCE ROW LEVEL SECURITY`));
   }
+
+  assert.match(schemaSql, /CREATE INDEX IF NOT EXISTS ix_clinic_medicines_tenant_active_category_name/);
 });
 
 test('ClinicController is gated by clinic module and separates clinic, principal, and parent permissions', () => {
@@ -55,6 +57,69 @@ test('ClinicController is gated by clinic module and separates clinic, principal
   assert.deepEqual(Reflect.getMetadata(PERMISSIONS_KEY, dispenseHandler), ['clinic:dispense']);
   assert.deepEqual(Reflect.getMetadata(PERMISSIONS_KEY, analyticsHandler), ['clinic:reports']);
   assert.deepEqual(Reflect.getMetadata(PERMISSIONS_KEY, parentHistoryHandler), ['portal:read_own_children']);
+});
+
+test('ClinicRepository lists medicine inventory with bounded paging and no medicine star', async () => {
+  const queries: Array<{ sql: string; values: unknown[] }> = [];
+  const repository = new ClinicRepository({
+    query: async (sql: string, values: unknown[]) => {
+      queries.push({ sql, values });
+      return { rows: [] };
+    },
+  } as never);
+
+  await repository.listMedicines('tenant-a', {
+    search: 'para',
+    category: 'Painkillers',
+    limit: 500,
+    offset: 10,
+  });
+
+  const sql = queries[0]?.sql ?? '';
+  assert.doesNotMatch(sql, /medicine\.\*/);
+  assert.match(sql, /medicine\.id::text/);
+  assert.match(sql, /quantity_in_stock/);
+  assert.match(sql, /LIMIT \$4::integer/);
+  assert.match(sql, /OFFSET \$5::integer/);
+  assert.deepEqual(queries[0]?.values, ['tenant-a', '%para%', 'Painkillers', 50, 10]);
+});
+
+test('ClinicService normalizes medicine inventory search and pagination', async () => {
+  const captured: Record<string, unknown> = {};
+  const service = new ClinicService(
+    {
+      getStore: () => ({
+        tenant_id: 'tenant-a',
+        user_id: 'nurse-1',
+        permissions: ['clinic:read'],
+      }),
+    } as never,
+    {
+      listMedicines: async (
+        tenantId: string,
+        options: Record<string, unknown>,
+      ) => {
+        captured.tenantId = tenantId;
+        captured.options = options;
+        return [];
+      },
+    } as never,
+  );
+
+  await service.listMedicines({
+    search: 'p',
+    category: ' Painkillers ',
+    limit: 500,
+    offset: -5,
+  });
+
+  assert.equal(captured.tenantId, 'tenant-a');
+  assert.deepEqual(captured.options, {
+    search: undefined,
+    category: 'Painkillers',
+    limit: 50,
+    offset: 0,
+  });
 });
 
 test('ClinicService blocks dispensing expired medicine and preserves inventory data', async () => {
@@ -147,6 +212,7 @@ test('ClinicService creates procurement recommendations for low-stock medicine o
       },
       appendAuditLog: async () => undefined,
     } as never,
+    undefined,
     {
       listEnabledModulesForTenant: async () => ['clinic_health', 'procurement'],
     } as never,

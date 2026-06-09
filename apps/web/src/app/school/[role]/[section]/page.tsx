@@ -1,6 +1,8 @@
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
+import { cookies } from "next/headers";
 
 import { SchoolPages } from "@/components/school/school-pages";
+import { readAccessCookie } from "@/lib/auth/server-session";
 import type { SchoolExperienceRole } from "@/lib/experiences/types";
 import { isProductionReadyModule } from "@/lib/features/module-readiness";
 import { readPublicSchoolSession } from "@/lib/routing/public-experience-session";
@@ -11,22 +13,27 @@ const allowedRoles = [
   "deputy-principal",
   "secretary",
   "bursar",
+  "accountant",
   "teacher",
+  "dean-academics",
+  "exams-manager",
+  "hod",
+  "class-teacher",
+  "grade-master",
   "admin",
+  "student",
   "storekeeper",
   "admissions",
   "librarian",
   "nurse",
   "boarding-master",
   "security-officer",
+  "transport-manager",
+  "ict-manager",
+  "laboratory-technician",
+  "guidance-counselling",
+  "discipline-master",
 ] as const;
-const supportSections = new Set([
-  "support-new-ticket",
-  "support-my-tickets",
-  "support-knowledge-base",
-  "support-system-status",
-]);
-
 export default async function SchoolSectionPage({
   params,
 }: {
@@ -43,14 +50,16 @@ export default async function SchoolSectionPage({
   }
 
   const session = await readPublicSchoolSession(role as SchoolExperienceRole);
+  const cookieStore = await cookies();
+  const liveDataEnabled = Boolean(readAccessCookie(cookieStore));
 
-  if (session.role === "storekeeper" && !supportSections.has(section)) {
-    redirect("/inventory/dashboard");
-  }
-
-  if (session.role === "librarian") {
-    redirect("/library/dashboard");
-  }
-
-  return <SchoolPages role={session.role} section={section} tenantSlug={session.tenantSlug} routeMode="public" />;
+  return (
+    <SchoolPages
+      role={session.role}
+      section={section}
+      tenantSlug={session.tenantSlug}
+      routeMode="public"
+      liveDataEnabled={liveDataEnabled}
+    />
+  );
 }

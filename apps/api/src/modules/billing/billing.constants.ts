@@ -28,6 +28,7 @@ export const BILLING_ALLOWED_BILLING_PATH_PREFIXES = [
   '/billing',
   '/health',
   '/auth',
+  '/school/modules',
   '/observability',
   '/platform',
   '/support',

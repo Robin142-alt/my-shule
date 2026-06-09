@@ -132,7 +132,7 @@ const stateCopy: Record<
   },
   tenant: {
     icon: ShieldCheck,
-    label: "Tenant selection",
+    label: "School selection",
     title: "Choose your school workspace",
     description:
       "School users must enter through the verified workspace assigned to their institution.",
@@ -209,7 +209,7 @@ export function AuthStateView({ kind }: { kind: AuthStateKind }) {
           <div className="flex items-start gap-3">
             <CheckCircle2 className="mt-0.5 h-4 w-4 text-accent" />
             <p className="text-sm leading-6 text-muted">
-              This flow uses secure cookies, CSRF checks, tenant-aware routing, and audit-friendly messaging.
+              This flow uses secure cookies, CSRF checks, school-aware routing, and audit-friendly messaging.
             </p>
           </div>
         </div>

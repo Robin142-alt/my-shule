@@ -37,7 +37,14 @@ const parseBoolean = (value: string | undefined, fallback: boolean): boolean => 
 };
 
 const appRuntime = process.env.APP_RUNTIME ?? 'server';
-const isServerlessRuntime = appRuntime === 'serverless' || process.env.VERCEL === '1';
+const isRailwayRuntime = Boolean(
+  process.env.RAILWAY_ENVIRONMENT_ID
+  || process.env.RAILWAY_PROJECT_ID
+  || process.env.RAILWAY_SERVICE_ID
+  || process.env.RAILWAY_DEPLOYMENT_ID,
+);
+const isServerlessRuntime =
+  !isRailwayRuntime && (appRuntime === 'serverless' || process.env.VERCEL === '1');
 
 export default () => ({
   app: {
@@ -63,10 +70,10 @@ export default () => ({
   database: {
     url: process.env.DATABASE_URL ?? '',
     runtimeRole: process.env.DATABASE_RUNTIME_ROLE ?? 'my_shule_runtime',
-    maxConnections: parseNumber(process.env.DATABASE_MAX_CONNECTIONS, 20),
+    maxConnections: parseNumber(process.env.DATABASE_MAX_CONNECTIONS, isServerlessRuntime ? 3 : 20),
     apiMaxConnections: parseNumber(
       process.env.DATABASE_API_MAX_CONNECTIONS,
-      parseNumber(process.env.DATABASE_MAX_CONNECTIONS, 20),
+      parseNumber(process.env.DATABASE_MAX_CONNECTIONS, isServerlessRuntime ? 3 : 20),
     ),
     workerMaxConnections: parseNumber(process.env.DATABASE_WORKER_MAX_CONNECTIONS, isServerlessRuntime ? 2 : 5),
     pgBouncerMode: process.env.DATABASE_PGBOUNCER_MODE ?? 'transaction',
@@ -80,6 +87,7 @@ export default () => ({
   },
   redis: {
     url: process.env.REDIS_URL ?? 'redis://127.0.0.1:6379',
+    required: parseBoolean(process.env.REDIS_REQUIRED, !isServerlessRuntime),
     tlsEnabled: parseBoolean(process.env.REDIS_TLS_ENABLED, false),
     connectTimeoutMs: parseNumber(process.env.REDIS_CONNECT_TIMEOUT_MS, isServerlessRuntime ? 1500 : 10000),
   },
@@ -303,6 +311,7 @@ export default () => ({
     ),
     dispatcherIntervalMs: parseNumber(process.env.EVENTS_DISPATCHER_INTERVAL_MS, 1000),
     dispatcherBatchSize: parseNumber(process.env.EVENTS_DISPATCHER_BATCH_SIZE, 100),
+    dashboardRealtimePollMs: parseNumber(process.env.EVENTS_DASHBOARD_REALTIME_POLL_MS, 15000),
     staleProcessingAfterMs: parseNumber(process.env.EVENTS_STALE_PROCESSING_AFTER_MS, 30000),
     retryDelayMs: parseNumber(process.env.EVENTS_RETRY_DELAY_MS, 5000),
     maxAttempts: parseNumber(process.env.EVENTS_MAX_ATTEMPTS, 25),

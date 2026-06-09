@@ -20,6 +20,7 @@ import { usePathname } from "next/navigation";
 
 import { getRoleSidebar, roleLabels } from "@/lib/dashboard/role-config";
 import type { DashboardRole } from "@/lib/dashboard/types";
+import { getDashboardWorkspaceHref } from "@/lib/dashboard/workspace-routes";
 
 const iconMap = {
   dashboard: LayoutDashboard,
@@ -77,10 +78,7 @@ function SidebarContent({
         <div className="space-y-0.5">
           {mainItems.map((item) => {
             const Icon = iconMap[item.id as keyof typeof iconMap] ?? LayoutDashboard;
-            const href =
-              item.href === "dashboard"
-                ? `/dashboard/${role}`
-                : `/dashboard/${role}/${item.href}`;
+            const href = getDashboardWorkspaceHref(role, item.href);
             const active = pathname === href;
 
             return (
@@ -109,7 +107,7 @@ function SidebarContent({
       <div className="border-t border-border px-3 py-3 space-y-0.5">
         {bottomItems.map((item) => {
           const Icon = iconMap[item.id as keyof typeof iconMap] ?? Settings;
-          const href = `/dashboard/${role}/${item.href}`;
+          const href = getDashboardWorkspaceHref(role, item.href);
           const active = pathname === href;
 
           return (

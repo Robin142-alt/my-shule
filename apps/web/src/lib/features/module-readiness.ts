@@ -19,6 +19,19 @@ const productionReadyModules = new Set([
   "communication",
   "transport",
   "procurement",
+  "school-admin",
+  "hr-payroll",
+  "timetable-builder",
+  "communication-center",
+  "school-calendar",
+  "canteen-meals",
+  "co-curricular",
+  "data-security",
+  "setup-wizard",
+  "ict-assets",
+  "document-printing",
+  "reports-analytics",
+  "universal-approvals",
   "hostel",
   "boarding",
   "cbt",
@@ -45,12 +58,47 @@ const inactiveModules = new Set([
   "attendance",
 ]);
 
+export type ModuleReadiness = {
+  moduleCode: string;
+  visibleInDemo: boolean;
+  uiComplete: boolean;
+  liveApiConnected: boolean;
+  tenantSafe: boolean;
+  productionReady: boolean;
+  missing: string[];
+};
+
 export function isInactiveModule(moduleId: string) {
   return inactiveModules.has(moduleId);
 }
 
 export function isProductionReadyModule(moduleId: string) {
   return productionReadyModules.has(moduleId) && !isInactiveModule(moduleId);
+}
+
+export function getModuleReadiness(moduleId: string): ModuleReadiness {
+  const inactive = isInactiveModule(moduleId);
+  const knownProductionModule = productionReadyModules.has(moduleId);
+  const productionReady = knownProductionModule && !inactive;
+  const missing: string[] = [];
+
+  if (!knownProductionModule) {
+    missing.push("module is not in the production-ready allowlist");
+  }
+
+  if (inactive) {
+    missing.push("module is explicitly inactive until its workflow contract is complete");
+  }
+
+  return {
+    moduleCode: moduleId,
+    visibleInDemo: knownProductionModule || inactive,
+    uiComplete: productionReady,
+    liveApiConnected: productionReady,
+    tenantSafe: productionReady,
+    productionReady,
+    missing,
+  };
 }
 
 export function moduleIdFromHref(href: string) {
@@ -67,6 +115,26 @@ export function moduleIdFromHref(href: string) {
 
   if (segments[0] === "school") {
     return segments.length > 2 ? segments[2] : "dashboard";
+  }
+
+  if (segments[0] === "portal") {
+    if (segments.length <= 2) {
+      return "dashboard";
+    }
+
+    if (segments[2] === "fees") {
+      return "finance";
+    }
+
+    if (segments[2] === "messages") {
+      return "communication";
+    }
+
+    if (segments[2] === "downloads") {
+      return "reports";
+    }
+
+    return segments[2];
   }
 
   return segments[0];

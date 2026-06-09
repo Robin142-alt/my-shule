@@ -8,6 +8,7 @@ import { AuditLogService } from '../modules/observability/audit-log.service';
 import { AuthEmailService } from './auth-email.service';
 import {
   CreateTenantInvitationDto,
+  ListTenantUsersQueryDto,
   TENANT_INVITABLE_ROLE_CODES,
   TenantInvitationActionResponseDto,
   TenantManagedUserDto,
@@ -29,6 +30,12 @@ type TenantManagedUserRow = {
   role_code: string;
   role_name: string;
   status: 'active' | 'suspended' | 'invited' | 'expired';
+  phone?: string | null;
+  department?: string | null;
+  assignment?: string | null;
+  identifier?: string | null;
+  delivery_method?: string | null;
+  note?: string | null;
   expires_at: Date | string | null;
   created_at: Date | string;
 };
@@ -38,6 +45,8 @@ type PendingInvitationRow = {
   email: string;
   display_name: string;
   role_code: string;
+  role_name: string;
+  invited_by_display_name: string;
   expires_at: Date | string;
 };
 
@@ -65,28 +74,36 @@ export class TenantInvitationsService {
     const roleCode = this.normalizeRoleCode(dto.role_code);
     const email = dto.email.trim().toLowerCase();
     const displayName = dto.display_name.trim();
+    const invitationDetails = this.normalizeInvitationDetails(dto);
 
     if (!displayName) {
       throw new BadRequestException('Invitee display name is required.');
     }
 
     return this.databaseService.withRequestTransaction(async () => {
+      await this.assertEmailAvailableForTenant(email, tenantId);
+      
       await this.authorizationRepository.ensureTenantAuthorizationBaseline(tenantId);
-      await this.authorizationRepository.getRoleByCode(tenantId, roleCode);
+      const role = await this.authorizationRepository.getRoleByCode(tenantId, roleCode);
 
       const schoolName = await this.getSchoolName(tenantId);
+      const roleName = this.displayRoleName(role.name, roleCode);
+      const inviterName = await this.getInviterName(context.user_id, 'Your school administrator');
       const token = randomBytes(32).toString('base64url');
       const tokenHash = this.hashToken(token);
       const expiresAt = new Date(Date.now() + this.getInvitationTtlMs());
-      const inviteUrl = this.buildInvitationUrl(token);
+      const inviteUrl = this.buildInvitationUrl(token, tenantId);
       const payload = {
         tenant_id: tenantId,
         tenant_name: schoolName,
         role_code: roleCode,
+        role_name: roleName,
         display_name: displayName,
         invited_by_user_id: context.user_id,
+        invited_by_display_name: inviterName,
         purpose: 'tenant_user_invitation',
         expires_at: expiresAt.toISOString(),
+        ...invitationDetails,
       };
 
       const invitationId = await this.createInvitationAction({
@@ -99,11 +116,14 @@ export class TenantInvitationsService {
         payload,
         inviteUrl,
         schoolName,
+        roleName,
+        inviterName,
       });
       await this.recordAudit('tenant.invitation.created', 'tenant_invitation', invitationId, {
         email,
         display_name: displayName,
         role_code: roleCode,
+        ...invitationDetails,
         expires_at: expiresAt.toISOString(),
       });
 
@@ -113,14 +133,22 @@ export class TenantInvitationsService {
         email,
         display_name: displayName,
         role_code: roleCode,
+        ...invitationDetails,
         invitation_sent: true,
         expires_at: expiresAt.toISOString(),
       };
     });
   }
 
-  async listTenantUsers(): Promise<TenantManagedUsersResponseDto> {
+  async listTenantUsers(
+    query: ListTenantUsersQueryDto = {},
+  ): Promise<TenantManagedUsersResponseDto> {
     const tenantId = this.requireTenantId();
+    const search = this.normalizeSearchTerm(query.search);
+    const roleCode = query.role_code ? this.normalizeRoleCode(query.role_code) : null;
+    const status = query.status?.trim() || null;
+    const limit = this.normalizeListLimit(query.limit);
+    const offset = this.normalizeListOffset(query.offset);
     const result = await this.databaseService.query<TenantManagedUserRow>(
       `
         WITH current_members AS (
@@ -132,6 +160,12 @@ export class TenantInvitationsService {
             r.code AS role_code,
             r.name AS role_name,
             tm.status,
+            NULL::text AS phone,
+            NULL::text AS department,
+            NULL::text AS assignment,
+            NULL::text AS identifier,
+            NULL::text AS delivery_method,
+            NULL::text AS note,
             NULL::timestamptz AS expires_at,
             tm.created_at
           FROM tenant_memberships tm
@@ -142,6 +176,11 @@ export class TenantInvitationsService {
            AND r.tenant_id = tm.tenant_id
           WHERE tm.tenant_id = $1
             AND tm.status IN ('active', 'suspended')
+            AND (
+              $2::text IS NULL
+              OR lower(u.display_name) LIKE $2::text
+              OR lower(u.email) LIKE $2::text
+            )
         ),
         pending_invitations AS (
           SELECT
@@ -155,6 +194,12 @@ export class TenantInvitationsService {
               WHEN token.expires_at <= NOW() THEN 'expired'
               ELSE 'invited'
             END AS status,
+            NULLIF(token.metadata->>'phone', '') AS phone,
+            NULLIF(token.metadata->>'department', '') AS department,
+            NULLIF(token.metadata->>'assignment', '') AS assignment,
+            NULLIF(token.metadata->>'identifier', '') AS identifier,
+            NULLIF(token.metadata->>'delivery_method', '') AS delivery_method,
+            NULLIF(token.metadata->>'note', '') AS note,
             token.expires_at,
             token.created_at
           FROM auth_action_tokens token
@@ -165,19 +210,77 @@ export class TenantInvitationsService {
             AND token.purpose = 'invite_acceptance'
             AND token.consumed_at IS NULL
             AND token.metadata->>'purpose' = 'tenant_user_invitation'
+            AND (
+              $2::text IS NULL
+              OR lower(COALESCE(NULLIF(token.metadata->>'display_name', ''), token.email)) LIKE $2::text
+              OR lower(token.email) LIKE $2::text
+            )
         )
-        SELECT * FROM current_members
-        UNION ALL
-        SELECT * FROM pending_invitations
+        SELECT
+          managed_users.id,
+          managed_users.kind,
+          managed_users.display_name,
+          managed_users.email,
+          managed_users.role_code,
+          managed_users.role_name,
+          managed_users.status,
+          managed_users.expires_at,
+          managed_users.created_at
+        FROM (
+          SELECT
+            id,
+            kind,
+            display_name,
+            email,
+            role_code,
+            role_name,
+            status,
+            phone,
+            department,
+            assignment,
+            identifier,
+            delivery_method,
+            note,
+            expires_at,
+            created_at
+          FROM pending_invitations
+          UNION ALL
+          SELECT
+            id,
+            kind,
+            display_name,
+            email,
+            role_code,
+            role_name,
+            status,
+            phone,
+            department,
+            assignment,
+            identifier,
+            delivery_method,
+            note,
+            expires_at,
+            created_at
+          FROM current_members
+        ) managed_users
+        WHERE ($3::text IS NULL OR managed_users.role_code = $3::text)
+          AND ($4::text IS NULL OR managed_users.status = $4::text)
         ORDER BY
-          CASE kind WHEN 'invitation' THEN 0 ELSE 1 END,
-          created_at DESC
+          CASE managed_users.kind WHEN 'invitation' THEN 0 ELSE 1 END,
+          managed_users.created_at DESC
+        LIMIT $5::integer
+        OFFSET $6::integer
       `,
-      [tenantId],
+      [tenantId, search, roleCode, status, limit, offset],
     );
 
     return {
       users: result.rows.map((row) => this.mapManagedUser(row)),
+      pagination: {
+        limit,
+        offset,
+        returned: result.rows.length,
+      },
     };
   }
 
@@ -192,17 +295,28 @@ export class TenantInvitationsService {
 
     return this.databaseService.withRequestTransaction(async () => {
       const invitation = await this.loadPendingTenantInvitationForUpdate(invitationId, tenantId);
+      
+      await this.assertEmailAvailableForTenant(invitation.email, tenantId);
+
       const roleCode = this.normalizeRoleCode(invitation.role_code);
+      const role = await this.authorizationRepository.getRoleByCode(tenantId, roleCode);
       const schoolName = await this.getSchoolName(tenantId);
+      const roleName = this.displayRoleName(role.name || invitation.role_name, roleCode);
+      const inviterName = await this.getInviterName(
+        this.requestContext.requireStore().user_id,
+        invitation.invited_by_display_name || 'Your school administrator',
+      );
       const token = randomBytes(32).toString('base64url');
       const expiresAt = new Date(Date.now() + this.getInvitationTtlMs());
-      const inviteUrl = this.buildInvitationUrl(token);
+      const inviteUrl = this.buildInvitationUrl(token, tenantId);
       const metadata = {
         tenant_id: tenantId,
         tenant_name: schoolName,
         role_code: roleCode,
+        role_name: roleName,
         display_name: invitation.display_name,
         invited_by_user_id: this.requestContext.requireStore().user_id,
+        invited_by_display_name: inviterName,
         purpose: 'tenant_user_invitation',
         expires_at: expiresAt.toISOString(),
         resent_at: new Date().toISOString(),
@@ -241,8 +355,11 @@ export class TenantInvitationsService {
           to: invitation.email.toLowerCase(),
           displayName: invitation.display_name,
           schoolName,
+          assignedRole: roleName,
+          inviterName,
           inviteUrl,
           expiresAt,
+          supportNote: this.getInvitationSupportNote(),
         });
         await this.markOutboxDelivery(outboxId, 'sent');
       } catch (error) {
@@ -329,6 +446,12 @@ export class TenantInvitationsService {
           r.code AS role_code,
           r.name AS role_name,
           tm.status,
+          NULL::text AS phone,
+          NULL::text AS department,
+          NULL::text AS assignment,
+          NULL::text AS identifier,
+          NULL::text AS delivery_method,
+          NULL::text AS note,
           NULL::timestamptz AS expires_at,
           tm.created_at
       `,
@@ -380,6 +503,12 @@ export class TenantInvitationsService {
           r.code AS role_code,
           r.name AS role_name,
           tm.status,
+          NULL::text AS phone,
+          NULL::text AS department,
+          NULL::text AS assignment,
+          NULL::text AS identifier,
+          NULL::text AS delivery_method,
+          NULL::text AS note,
           NULL::timestamptz AS expires_at,
           tm.created_at
       `,
@@ -411,6 +540,82 @@ export class TenantInvitationsService {
     return normalizedRoleCode as TenantInvitableRoleCode;
   }
 
+  private normalizeInvitationDetails(
+    dto: CreateTenantInvitationDto,
+  ): {
+    phone?: string;
+    department?: string;
+    assignment?: string;
+    identifier?: string;
+    delivery_method?: 'Email' | 'SMS' | 'Copy link';
+    note?: string;
+  } {
+    const details: {
+      phone?: string;
+      department?: string;
+      assignment?: string;
+      identifier?: string;
+      delivery_method?: 'Email' | 'SMS' | 'Copy link';
+      note?: string;
+    } = {};
+
+    if (dto.phone?.trim()) {
+      details.phone = dto.phone.trim();
+    }
+
+    if (dto.department?.trim()) {
+      details.department = dto.department.trim();
+    }
+
+    if (dto.assignment?.trim()) {
+      details.assignment = dto.assignment.trim();
+    }
+
+    if (dto.identifier?.trim()) {
+      details.identifier = dto.identifier.trim();
+    }
+
+    if (dto.delivery_method?.trim()) {
+      details.delivery_method = dto.delivery_method;
+    }
+
+    if (dto.note?.trim()) {
+      details.note = dto.note.trim();
+    }
+
+    return details;
+  }
+
+  private normalizeSearchTerm(search: string | undefined): string | null {
+    const normalized = search?.trim().toLowerCase() ?? '';
+
+    if (normalized.length < 2) {
+      return null;
+    }
+
+    return `%${normalized}%`;
+  }
+
+  private normalizeListLimit(limit: number | undefined): number {
+    const parsed = Number(limit ?? 25);
+
+    if (!Number.isFinite(parsed)) {
+      return 25;
+    }
+
+    return Math.min(Math.max(Math.trunc(parsed), 1), 50);
+  }
+
+  private normalizeListOffset(offset: number | undefined): number {
+    const parsed = Number(offset ?? 0);
+
+    if (!Number.isFinite(parsed)) {
+      return 0;
+    }
+
+    return Math.max(Math.trunc(parsed), 0);
+  }
+
   private requireTenantId(): string {
     const context = this.requestContext.requireStore();
     const tenantId = context.tenant_id?.trim();
@@ -435,6 +640,41 @@ export class TenantInvitationsService {
     return result.rows[0]?.name ?? tenantId;
   }
 
+  private async assertEmailAvailableForTenant(email: string, targetTenantId: string): Promise<void> {
+    const membershipConflict = await this.databaseService.query<{ tenant_id: string }>(
+      `
+        SELECT tm.tenant_id 
+        FROM tenant_memberships tm
+        INNER JOIN users u ON u.id = tm.user_id
+        WHERE lower(u.email) = $1
+          AND tm.tenant_id <> $2
+        LIMIT 1
+      `,
+      [email.toLowerCase(), targetTenantId]
+    );
+
+    if (membershipConflict.rows.length > 0) {
+      throw new BadRequestException('This email is already registered under another school. Use a different email address for this school.');
+    }
+
+    const invitationConflict = await this.databaseService.query<{ tenant_id: string }>(
+      `
+        SELECT tenant_id 
+        FROM auth_action_tokens
+        WHERE lower(email) = $1
+          AND purpose = 'invite_acceptance'
+          AND consumed_at IS NULL
+          AND tenant_id <> $2
+        LIMIT 1
+      `,
+      [email.toLowerCase(), targetTenantId]
+    );
+
+    if (invitationConflict.rows.length > 0) {
+      throw new BadRequestException('This email is already registered under another school. Use a different email address for this school.');
+    }
+  }
+
   private async createInvitationAction(input: {
     tenantId: string;
     email: string;
@@ -445,6 +685,8 @@ export class TenantInvitationsService {
     payload: Record<string, unknown>;
     inviteUrl: string;
     schoolName: string;
+    roleName: string;
+    inviterName: string;
   }): Promise<string> {
     await this.databaseService.query(
       `
@@ -515,8 +757,11 @@ export class TenantInvitationsService {
         to: input.email,
         displayName: input.displayName,
         schoolName: input.schoolName,
+        assignedRole: input.roleName,
+        inviterName: input.inviterName,
         inviteUrl: input.inviteUrl,
         expiresAt: input.expiresAt,
+        supportNote: this.getInvitationSupportNote(),
       });
       await this.markOutboxDelivery(outboxId, 'sent');
     } catch (error) {
@@ -568,6 +813,8 @@ export class TenantInvitationsService {
           lower(email) AS email,
           COALESCE(NULLIF(metadata->>'display_name', ''), email) AS display_name,
           COALESCE(NULLIF(metadata->>'role_code', ''), 'member') AS role_code,
+          COALESCE(NULLIF(metadata->>'role_name', ''), initcap(replace(COALESCE(NULLIF(metadata->>'role_code', ''), 'member'), '_', ' '))) AS role_name,
+          COALESCE(NULLIF(metadata->>'invited_by_display_name', ''), '') AS invited_by_display_name,
           expires_at
         FROM auth_action_tokens
         WHERE id = $1
@@ -597,6 +844,12 @@ export class TenantInvitationsService {
       role_code: row.role_code,
       role_name: row.role_name,
       status: row.status,
+      phone: row.phone ?? null,
+      department: row.department ?? null,
+      assignment: row.assignment ?? null,
+      identifier: row.identifier ?? null,
+      delivery_method: row.delivery_method ?? null,
+      note: row.note ?? null,
       expires_at: this.toIsoStringOrNull(row.expires_at),
       created_at: this.toIsoString(row.created_at),
     };
@@ -633,7 +886,7 @@ export class TenantInvitationsService {
     }
 
     await this.databaseService.query(
-      'SELECT app.mark_auth_email_outbox_delivery($1, $2)',
+      'SELECT app.mark_auth_email_outbox_delivery($1::uuid, $2::text)',
       [outboxId, status],
     );
   }
@@ -651,12 +904,62 @@ export class TenantInvitationsService {
     return safeMinutes * 60 * 1000;
   }
 
-  private buildInvitationUrl(token: string): string {
+  private displayRoleName(roleName: string | null | undefined, roleCode: string): string {
+    const trimmedRoleName = roleName?.trim();
+
+    if (trimmedRoleName) {
+      return trimmedRoleName;
+    }
+
+    return roleCode
+      .split('_')
+      .filter(Boolean)
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(' ');
+  }
+
+  private async getInviterName(
+    userId: string | null | undefined,
+    fallback: string,
+  ): Promise<string> {
+    const trimmedUserId = userId?.trim();
+
+    if (!trimmedUserId) {
+      return fallback;
+    }
+
+    const result = await this.databaseService.query<{
+      display_name: string | null;
+      email: string | null;
+    }>(
+      `
+        SELECT display_name, email
+        FROM users
+        WHERE id::text = $1
+        LIMIT 1
+      `,
+      [trimmedUserId],
+    );
+    const row = result.rows[0];
+
+    return row?.display_name?.trim() || row?.email?.trim() || fallback;
+  }
+
+  private getInvitationSupportNote(): string {
+    return 'If you need help, contact your school administrator or MyShule support.';
+  }
+
+  private buildInvitationUrl(token: string, tenantId: string): string {
     const baseUrl = (
       this.configService.get<string>('email.publicAppUrl') ??
       'https://my-shule-erp.vercel.app'
     ).replace(/\/$/, '');
 
-    return `${baseUrl}/invite/accept?token=${encodeURIComponent(token)}`;
+    const params = new URLSearchParams({
+      token,
+      tenant: tenantId,
+    });
+
+    return `${baseUrl}/invite/accept?${params.toString()}`;
   }
 }

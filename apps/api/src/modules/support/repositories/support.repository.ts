@@ -1287,7 +1287,34 @@ export class SupportRepository {
               OR ticket.resolution_due_at < NOW()
             )
         )
-        SELECT *
+        SELECT
+          candidate.id,
+          candidate.tenant_id,
+          candidate.ticket_number,
+          candidate.subject,
+          candidate.category,
+          candidate.priority,
+          candidate.module_affected,
+          candidate.description,
+          candidate.status,
+          candidate.requester_user_id,
+          candidate.assigned_agent_id,
+          candidate.merged_into_ticket_id,
+          candidate.first_response_due_at,
+          candidate.resolution_due_at,
+          candidate.first_responded_at,
+          candidate.resolved_at,
+          candidate.closed_at,
+          candidate.escalated_at,
+          candidate.last_school_reply_at,
+          candidate.last_support_reply_at,
+          candidate.context,
+          candidate.school_name,
+          candidate.assigned_agent_name,
+          candidate.created_at,
+          candidate.updated_at,
+          candidate.sla_breach_type,
+          candidate.sla_due_at
         FROM candidates candidate
         WHERE candidate.sla_breach_type IS NOT NULL
           AND NOT EXISTS (
@@ -1318,10 +1345,27 @@ export class SupportRepository {
     }));
   }
 
-  async listKnowledgeBase(options: { search?: string; category?: string }) {
+  async listKnowledgeBase(options: {
+    tenantId?: string;
+    search?: string;
+    category?: string;
+    limit?: number;
+    offset?: number;
+  }) {
+    const safeLimit = Math.min(
+      Math.max(Math.floor(options.limit ?? 25), 1),
+      50,
+    );
+    const safeOffset = Math.max(Math.floor(options.offset ?? 0), 0);
     const conditions = ['published = TRUE'];
     const values: unknown[] = [];
     let parameterIndex = 1;
+
+    if (options.tenantId) {
+      conditions.push(`(tenant_id = $${parameterIndex} OR tenant_id = 'global')`);
+      values.push(options.tenantId);
+      parameterIndex += 1;
+    }
 
     if (options.search) {
       conditions.push(
@@ -1340,6 +1384,7 @@ export class SupportRepository {
       parameterIndex += 1;
     }
 
+    values.push(safeLimit, safeOffset);
     const result = await this.databaseService.query(
       `
         SELECT
@@ -1357,6 +1402,8 @@ export class SupportRepository {
         FROM support_kb_articles
         WHERE ${conditions.join(' AND ')}
         ORDER BY helpful_count DESC, title ASC
+        LIMIT $${parameterIndex}::integer
+        OFFSET $${parameterIndex + 1}::integer
       `,
       values,
     );

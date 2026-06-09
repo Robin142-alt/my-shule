@@ -9,7 +9,7 @@ type RouteContext = {
 };
 
 const unavailableMessage =
-  "Live tenant user management is not available for this session.";
+  "Live school user management is not available for this session.";
 
 export const dynamic = "force-dynamic";
 

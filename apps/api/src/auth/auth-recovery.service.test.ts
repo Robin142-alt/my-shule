@@ -120,12 +120,14 @@ test('AuthRecoveryService sends recovery email without persisting the raw reset 
   );
 
   const createActionQuery = queries.find((query) => query.sql.includes('app.create_password_recovery_action'));
+  const markDeliveryQuery = queries.find((query) => query.sql.includes('app.mark_auth_email_outbox_delivery'));
   const persistedPayload = String(createActionQuery?.values[6] ?? '');
 
   assert.equal(response.success, true);
   assert.equal(sentEmails.length, 1);
   assert.equal(sentEmails[0].to, 'admin@school.test');
   assert.match(sentEmails[0].resetUrl, /^https:\/\/school\.example\/school\/reset-password\?token=/);
+  assert.match(markDeliveryQuery?.sql ?? '', /\$1::uuid,\s*\$2::text/);
   assert.doesNotMatch(persistedPayload, /token=/);
   assert.doesNotMatch(persistedPayload, /reset_url/);
 });
@@ -207,6 +209,7 @@ test('AuthEmailVerificationService issues a verification email for the current u
   );
 
   const createActionQuery = queries.find((query) => query.sql.includes('app.create_email_verification_action'));
+  const markDeliveryQuery = queries.find((query) => query.sql.includes('app.mark_auth_email_outbox_delivery'));
 
   assert.equal(response.success, true);
   assert.equal(sentEmails.length, 1);
@@ -216,6 +219,7 @@ test('AuthEmailVerificationService issues a verification email for the current u
   assert.equal(createActionQuery?.values[1], '00000000-0000-0000-0000-00000000e001');
   assert.equal(createActionQuery?.values[2], 'admin@school.test');
   assert.match(String(createActionQuery?.values[3]), /^[a-f0-9]{64}$/);
+  assert.match(markDeliveryQuery?.sql ?? '', /\$1::uuid,\s*\$2::text/);
   assert.doesNotMatch(String(createActionQuery?.values[6] ?? ''), /token=|verify_url/);
 });
 

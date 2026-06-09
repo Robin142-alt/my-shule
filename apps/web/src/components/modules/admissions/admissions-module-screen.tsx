@@ -1,6 +1,6 @@
 "use client";
 
-import { startTransition, useDeferredValue, useState } from "react";
+import { startTransition, useDeferredValue, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   CheckCheck,
@@ -341,62 +341,70 @@ export function AdmissionsModuleScreen({
   const isDatasetLoading = isLiveMode && liveAdmissionsQuery.isLoading;
 
   const deferredApplicationSearch = useDeferredValue(applicationSearch);
-  const filteredApplications = dataset.applications
-    .filter((application) => {
-      const term = deferredApplicationSearch.trim().toLowerCase();
-      if (!term) {
-        return true;
-      }
+  const filteredApplications = useMemo(() => {
+    return dataset.applications
+      .filter((application) => {
+        const term = deferredApplicationSearch.trim().toLowerCase();
+        if (!term) {
+          return true;
+        }
 
-      return [
-        application.applicantName,
-        application.applicationNumber,
-        application.classApplying,
-        application.parentPhone,
-      ].some((value) => value.toLowerCase().includes(term));
-    })
-    .filter((application) => applicationStatusFilter === "all" || application.status === applicationStatusFilter);
+        return [
+          application.applicantName,
+          application.applicationNumber,
+          application.classApplying,
+          application.parentPhone,
+        ].some((value) => value.toLowerCase().includes(term));
+      })
+      .filter((application) => applicationStatusFilter === "all" || application.status === applicationStatusFilter);
+  }, [dataset.applications, deferredApplicationSearch, applicationStatusFilter]);
 
   const deferredDirectorySearch = useDeferredValue(directorySearch);
-  const filteredStudents = dataset.students.filter((student) => {
-    const term = deferredDirectorySearch.trim().toLowerCase();
-    if (!term) {
-      return true;
-    }
-
-    return [student.fullName, student.admissionNumber, student.parentPhone].some((value) =>
-      value.toLowerCase().includes(term),
-    );
-  });
-
-  const filteredParents = dataset.parents.filter((parent) => {
-    const term = parentSearch.trim().toLowerCase();
-    if (!term) {
-      return true;
-    }
-
-    return [parent.parentName, parent.phone, parent.email, parent.learners].some((value) =>
-      value.toLowerCase().includes(term),
-    );
-  });
-
-  const deferredDocumentSearch = useDeferredValue(documentSearch);
-  const filteredDocuments = dataset.documents
-    .filter((document) => {
-      const term = deferredDocumentSearch.trim().toLowerCase();
+  const filteredStudents = useMemo(() => {
+    return dataset.students.filter((student) => {
+      const term = deferredDirectorySearch.trim().toLowerCase();
       if (!term) {
         return true;
       }
 
-      return [
-        document.learnerName,
-        document.documentType,
-        document.fileName,
-        document.applicationNumber ?? "",
-        document.admissionNumber ?? "",
-      ].some((value) => value.toLowerCase().includes(term));
-    })
-    .filter((document) => documentStatusFilter === "all" || document.verificationStatus === documentStatusFilter);
+      return [student.fullName, student.admissionNumber, student.parentPhone].some((value) =>
+        value.toLowerCase().includes(term),
+      );
+    });
+  }, [dataset.students, deferredDirectorySearch]);
+
+  const filteredParents = useMemo(() => {
+    return dataset.parents.filter((parent) => {
+      const term = parentSearch.trim().toLowerCase();
+      if (!term) {
+        return true;
+      }
+
+      return [parent.parentName, parent.phone, parent.email, parent.learners].some((value) =>
+        value.toLowerCase().includes(term),
+      );
+    });
+  }, [dataset.parents, parentSearch]);
+
+  const deferredDocumentSearch = useDeferredValue(documentSearch);
+  const filteredDocuments = useMemo(() => {
+    return dataset.documents
+      .filter((document) => {
+        const term = deferredDocumentSearch.trim().toLowerCase();
+        if (!term) {
+          return true;
+        }
+
+        return [
+          document.learnerName,
+          document.documentType,
+          document.fileName,
+          document.applicationNumber ?? "",
+          document.admissionNumber ?? "",
+        ].some((value) => value.toLowerCase().includes(term));
+      })
+      .filter((document) => documentStatusFilter === "all" || document.verificationStatus === documentStatusFilter);
+  }, [dataset.documents, deferredDocumentSearch, documentStatusFilter]);
 
   const selectedStudentKey = selectedStudentId ?? dataset.students[0]?.id ?? null;
   const selectedStudentProfileQuery = useQuery({
@@ -1685,7 +1693,7 @@ export function AdmissionsModuleScreen({
     <>
       <ModuleShell
         eyebrow="Admissions Module"
-        title="Admissions and student registration workspace"
+        title="Admissions and student registration desk"
         description="A real front-office workflow for Kenyan schools: application review, document control, learner registration, allocation, and transfer history."
         sections={sections}
         activeSection={activeSection}
@@ -1703,7 +1711,7 @@ export function AdmissionsModuleScreen({
                   ? "Live admissions desk"
                   : liveSession.apiConfigured
                     ? "Preview data until live sign-in"
-                    : "Review workspace"
+                    : "Review desk"
               }
               tone={isLiveMode ? "ok" : "warning"}
             />
@@ -1733,7 +1741,7 @@ export function AdmissionsModuleScreen({
             <p className="mt-2 text-sm font-semibold text-foreground">
               {isLiveMode
                 ? `Signed in as ${liveSession.user?.display_name ?? "admissions staff"} for live admissions records.`
-                : "Global search responds to learner name, admission number, and parent phone while the review workspace waits for a live tenant session."}
+          : "Global search responds to learner name, admission number, and parent phone while the review desk waits for a live school session."}
             </p>
             <p className="mt-2 text-sm leading-6 text-muted">
               {moduleError ?? liveSession.error ?? "Search results can jump directly into the student directory profile view."}
@@ -1932,7 +1940,7 @@ export function AdmissionsModuleScreen({
             ]}
             totalRows={filteredApplications.length}
             page={1}
-            pageSize={filteredApplications.length || 1}
+            pageSize={50}
             onPageChange={() => undefined}
             loading={isDatasetLoading}
             loadingLabel="Loading live applications..."
@@ -2253,7 +2261,7 @@ export function AdmissionsModuleScreen({
               searchPlaceholder="Search by learner name, admission number, or parent phone"
               totalRows={filteredStudents.length}
               page={1}
-              pageSize={filteredStudents.length || 1}
+              pageSize={50}
               onPageChange={() => undefined}
               loading={isDatasetLoading}
               loadingLabel="Loading live student directory..."
@@ -2415,7 +2423,7 @@ export function AdmissionsModuleScreen({
                             getRowId={(row) => row.id}
                             totalRows={selectedStudentProfile.fees.length}
                             page={1}
-                            pageSize={selectedStudentProfile.fees.length || 1}
+                            pageSize={50}
                             onPageChange={() => undefined}
                           />
                         </div>
@@ -2437,7 +2445,7 @@ export function AdmissionsModuleScreen({
                           getRowId={(row) => row.id}
                           totalRows={selectedStudentProfile.academics.length}
                           page={1}
-                          pageSize={selectedStudentProfile.academics.length || 1}
+                          pageSize={50}
                           onPageChange={() => undefined}
                         />
                       ),
@@ -2481,7 +2489,7 @@ export function AdmissionsModuleScreen({
                           getRowId={(row) => row.id}
                           totalRows={selectedStudentProfile.discipline.length}
                           page={1}
-                          pageSize={selectedStudentProfile.discipline.length || 1}
+                          pageSize={50}
                           onPageChange={() => undefined}
                         />
                       ),
@@ -2512,7 +2520,7 @@ export function AdmissionsModuleScreen({
                           getRowId={(row) => row.id}
                           totalRows={selectedStudentProfile.documents.length}
                           page={1}
-                          pageSize={selectedStudentProfile.documents.length || 1}
+                          pageSize={50}
                           onPageChange={() => undefined}
                         />
                       ),
@@ -2536,7 +2544,7 @@ export function AdmissionsModuleScreen({
             searchPlaceholder="Search parent, phone, email, or learner"
             totalRows={filteredParents.length}
             page={1}
-            pageSize={filteredParents.length || 1}
+            pageSize={50}
             onPageChange={() => undefined}
             loading={isDatasetLoading}
             loadingLabel="Loading live parent records..."
@@ -2570,7 +2578,7 @@ export function AdmissionsModuleScreen({
             ]}
             totalRows={filteredDocuments.length}
             page={1}
-            pageSize={filteredDocuments.length || 1}
+            pageSize={50}
             onPageChange={() => undefined}
             loading={isDatasetLoading}
             loadingLabel="Loading live document register..."
@@ -2616,7 +2624,7 @@ export function AdmissionsModuleScreen({
               getRowId={(row) => row.id}
               totalRows={dataset.allocations.length}
               page={1}
-              pageSize={dataset.allocations.length || 1}
+              pageSize={50}
               onPageChange={() => undefined}
               loading={isDatasetLoading}
               loadingLabel="Loading live class allocations..."
@@ -2640,7 +2648,7 @@ export function AdmissionsModuleScreen({
               getRowId={(row) => row.id}
               totalRows={dataset.transfers.length}
               page={1}
-              pageSize={dataset.transfers.length || 1}
+              pageSize={50}
               onPageChange={() => undefined}
               loading={isDatasetLoading}
               loadingLabel="Loading live transfer register..."

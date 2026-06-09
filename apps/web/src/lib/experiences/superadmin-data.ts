@@ -86,7 +86,7 @@ export type AuditRow = {
 
 export const superadminNav: ExperienceNavItem[] = [
   { id: "overview", label: "Overview", href: toSuperadminPath("dashboard"), icon: Activity, group: "Control tower" },
-  { id: "tenants", label: "Schools / Tenants", href: toSuperadminPath("schools"), icon: Building2, group: "Commercial" },
+  { id: "tenants", label: "Schools", href: toSuperadminPath("schools"), icon: Building2, group: "Commercial" },
   { id: "revenue", label: "Revenue", href: toSuperadminPath("revenue"), icon: CircleDollarSign, group: "Commercial" },
   { id: "subscriptions", label: "Subscriptions", href: toSuperadminPath("subscriptions"), icon: CreditCard, group: "Commercial" },
   { id: "mpesa-monitoring", label: "MPESA Monitoring", href: toSuperadminPath("mpesa-monitoring"), icon: SmartphoneCharging, group: "Operations" },
@@ -146,7 +146,7 @@ export const superadminQuickActions = [
   {
     id: "create-school",
     label: "Create school",
-    description: "Register a real tenant and invite the first school administrator.",
+    description: "Register a real school and invite the first school administrator.",
     href: toSuperadminPath("schools"),
     icon: Building2,
   },
@@ -167,7 +167,7 @@ export const superadminQuickActions = [
   {
     id: "security-audit",
     label: "Review audit logs",
-    description: "Monitor real authentication, invitation, and tenant actions.",
+    description: "Monitor real authentication, invitation, and school actions.",
     href: toSuperadminPath("audit-logs"),
     icon: ShieldCheck,
   },
@@ -293,9 +293,9 @@ export function mapReadinessToInfrastructureMetrics(
     },
     {
       id: "observability-readiness",
-      label: "Observability",
+      label: "System health",
       value: formatDependencyStatus(observability?.overall_status ?? readiness.slo?.overall_status ?? "unknown"),
-      helper: `${observability?.active_alert_count ?? readiness.slo?.active_alert_count ?? 0} active SLO alerts across production subsystems.`,
+      helper: `${observability?.active_alert_count ?? readiness.slo?.active_alert_count ?? 0} active system alerts across production services.`,
       trend: toneLabel(toneForStatus(observability?.overall_status ?? readiness.slo?.overall_status)),
     },
     {
@@ -326,7 +326,7 @@ export function mapObservabilityAlertsToInfrastructureEvents(
     return [
       {
         id: "readiness-degraded",
-        title: "Readiness degraded without an active SLO alert",
+        title: "Readiness degraded without an active system alert",
         detail: "Review health dependencies and provider configuration before promoting a release.",
         timeLabel: "Review",
         tone: "warning",
@@ -338,7 +338,7 @@ export function mapObservabilityAlertsToInfrastructureEvents(
     {
       id: "no-active-alerts",
       title: "No active infrastructure alerts",
-      detail: "Live observability did not return active production alerts for the platform.",
+      detail: "Live system health did not return active production alerts for the platform.",
       timeLabel: "Healthy",
       tone: "ok",
     },

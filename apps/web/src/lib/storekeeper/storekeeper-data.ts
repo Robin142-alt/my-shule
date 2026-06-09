@@ -46,15 +46,15 @@ export const storekeeperSidebarItems: Array<{
   label: string;
   href: string;
 }> = [
-  { id: "dashboard", label: "Dashboard", href: "/inventory/dashboard" },
-  { id: "items", label: "Inventory", href: "/inventory/items" },
-  { id: "receiving", label: "Stock Receiving", href: "/inventory/receiving" },
-  { id: "issuing", label: "Stock Issuing", href: "/inventory/issuing" },
-  { id: "transfers", label: "Transfers", href: "/inventory/transfers" },
-  { id: "suppliers", label: "Suppliers", href: "/inventory/suppliers" },
-  { id: "reorder-alerts", label: "Reorder Alerts", href: "/inventory/reorder-alerts" },
-  { id: "reports", label: "Reports", href: "/inventory/reports" },
-  { id: "activity-log", label: "Activity Log", href: "/inventory/activity-log" },
+  { id: "dashboard", label: "Dashboard", href: "/school/storekeeper" },
+  { id: "items", label: "Inventory", href: "/school/storekeeper/inventory?section=items" },
+  { id: "receiving", label: "Stock Receiving", href: "/school/storekeeper/inventory?section=receiving" },
+  { id: "issuing", label: "Stock Issuing", href: "/school/storekeeper/inventory?section=issuing" },
+  { id: "transfers", label: "Transfers", href: "/school/storekeeper/inventory?section=transfers" },
+  { id: "suppliers", label: "Suppliers", href: "/school/storekeeper/inventory?section=suppliers" },
+  { id: "reorder-alerts", label: "Reorder Alerts", href: "/school/storekeeper/inventory?section=reorder-alerts" },
+  { id: "reports", label: "Reports", href: "/school/storekeeper/reports?source=inventory" },
+  { id: "activity-log", label: "Activity Log", href: "/school/storekeeper/audit-logs?source=inventory" },
 ];
 
 export type StoreItemStatus = "healthy" | "low" | "critical";

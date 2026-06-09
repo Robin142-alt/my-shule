@@ -6,6 +6,7 @@ import {
   type TenantOption,
 } from "./types";
 import { getRoleCapabilities, getRoleQuickActions } from "./role-config";
+import { getDashboardWorkspaceHref } from "./workspace-routes";
 import { isProductionReadyHref } from "@/lib/features/module-readiness";
 
 const roleNarratives: Record<DashboardRole, { title: string; description: string }> = {
@@ -61,7 +62,7 @@ function buildRoleKpis(role: DashboardRole): KpiCard[] {
         helper: "No live library resources have been registered yet.",
         trendValue: "0",
         trendDirection: "up",
-        href: "/dashboard/librarian/library",
+        href: getDashboardWorkspaceHref("librarian", "library"),
         sparkline: [],
       },
       {
@@ -71,7 +72,7 @@ function buildRoleKpis(role: DashboardRole): KpiCard[] {
         helper: "Borrowing activity will appear after the first live issue.",
         trendValue: "0",
         trendDirection: "up",
-        href: "/dashboard/librarian/library",
+        href: getDashboardWorkspaceHref("librarian", "library"),
         sparkline: [],
       },
       {
@@ -81,7 +82,7 @@ function buildRoleKpis(role: DashboardRole): KpiCard[] {
         helper: "No live overdue records exist.",
         trendValue: "0",
         trendDirection: "up",
-        href: "/dashboard/librarian/library",
+        href: getDashboardWorkspaceHref("librarian", "library"),
         sparkline: [],
       },
     ];
@@ -97,7 +98,7 @@ function buildRoleKpis(role: DashboardRole): KpiCard[] {
       helper: "No production records have been created for this workspace.",
       trendValue: "0%",
       trendDirection: "up",
-      href: `/dashboard/${role}/students`,
+      href: getDashboardWorkspaceHref(role, "students"),
       sparkline: [],
     },
     {
@@ -107,7 +108,7 @@ function buildRoleKpis(role: DashboardRole): KpiCard[] {
       helper: "Invoices, receipts, and ledger activity are empty after cleanup.",
       trendValue: "0%",
       trendDirection: "up",
-      href: `/dashboard/${role}/finance`,
+      href: getDashboardWorkspaceHref(role, "finance"),
       sparkline: [],
       masked: role === "parent",
     },
@@ -118,7 +119,7 @@ function buildRoleKpis(role: DashboardRole): KpiCard[] {
       helper: "No real alerts are open.",
       trendValue: "0",
       trendDirection: "up",
-      href: `/dashboard/${role}`,
+      href: getDashboardWorkspaceHref(role, "dashboard"),
       sparkline: [],
     },
   ];

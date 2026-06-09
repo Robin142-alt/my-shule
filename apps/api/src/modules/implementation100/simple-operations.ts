@@ -127,7 +127,21 @@ export class SimpleOperationsRepository {
           metric_count, notes, metadata, created_by_user_id
         )
         VALUES ($1, $2, $3, $4, $5, $6, $7::date, $8, $9, $10::jsonb, $11::uuid)
-        RETURNING *
+        RETURNING
+          id::text,
+          tenant_id,
+          title,
+          category,
+          owner_name,
+          status,
+          priority,
+          due_date::text,
+          metric_count,
+          notes,
+          metadata,
+          created_by_user_id::text,
+          created_at,
+          updated_at
       `,
       [
         input.tenant_id,
@@ -156,7 +170,21 @@ export class SimpleOperationsRepository {
             updated_at = NOW()
         WHERE tenant_id = $1
           AND id = $2::uuid
-        RETURNING *
+        RETURNING
+          id::text,
+          tenant_id,
+          title,
+          category,
+          owner_name,
+          status,
+          priority,
+          due_date::text,
+          metric_count,
+          notes,
+          metadata,
+          created_by_user_id::text,
+          created_at,
+          updated_at
       `,
       [input.tenant_id, input.record_id, input.status, input.notes ?? null],
     );

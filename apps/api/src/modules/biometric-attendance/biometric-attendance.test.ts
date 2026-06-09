@@ -8,6 +8,7 @@ import { BiometricAttendanceController } from './biometric-attendance.controller
 import { BiometricAttendanceProcessor } from './biometric-attendance.processor';
 import { BiometricAttendanceSchemaService } from './biometric-attendance-schema.service';
 import { BiometricAttendanceService } from './biometric-attendance.service';
+import { BiometricAttendanceRepository } from './repositories/biometric-attendance.repository';
 
 test('BiometricAttendanceSchemaService creates device, event, rule, and teacher log tables with RLS', async () => {
   let schemaSql = '';
@@ -62,6 +63,68 @@ test('BiometricAttendanceController exposes live feed and monthly report endpoin
   assert.ok(monthlyReportHandler);
   assert.deepEqual(Reflect.getMetadata(PERMISSIONS_KEY, liveFeedHandler), ['teacher_attendance:read']);
   assert.deepEqual(Reflect.getMetadata(PERMISSIONS_KEY, monthlyReportHandler), ['teacher_attendance:read']);
+});
+
+test('BiometricAttendanceService bounds teacher attendance list requests', async () => {
+  const observed: Record<string, unknown> = {};
+  const service = new BiometricAttendanceService(
+    { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'principal-1' }) } as never,
+    {
+      listTeacherLogs: async (input: Record<string, unknown>) => {
+        observed.teacherLogs = input;
+        return [];
+      },
+      listLiveFeed: async (input: Record<string, unknown>) => {
+        observed.liveFeed = input;
+        return [];
+      },
+    } as never,
+  );
+
+  await service.listTeacherLogs(' teacher-1 ', '500', '-10');
+  await service.listLiveFeed('500', '-10');
+
+  assert.deepEqual(observed.teacherLogs, {
+    tenant_id: 'tenant-a',
+    teacher_user_id: 'teacher-1',
+    limit: 50,
+    offset: 0,
+  });
+  assert.deepEqual(observed.liveFeed, {
+    tenant_id: 'tenant-a',
+    limit: 50,
+    offset: 0,
+  });
+});
+
+test('BiometricAttendanceRepository lists teacher logs with explicit columns and pagination', async () => {
+  const calls: Array<{ sql: string; params: unknown[] }> = [];
+  const repository = new BiometricAttendanceRepository({
+    query: async (sql: string, params: unknown[]) => {
+      calls.push({ sql, params });
+      return { rows: [] };
+    },
+  } as never);
+
+  await repository.listTeacherLogs({
+    tenant_id: 'tenant-a',
+    teacher_user_id: 'teacher-1',
+    limit: 500,
+    offset: -10,
+  });
+  await repository.listLiveFeed({
+    tenant_id: 'tenant-a',
+    limit: 500,
+    offset: -10,
+  });
+
+  assert.doesNotMatch(calls[0]!.sql, /SELECT\s+\*/i);
+  assert.match(calls[0]!.sql, /LIMIT \$3::integer\s+OFFSET \$4::integer/);
+  assert.equal(calls[0]!.params[2], 50);
+  assert.equal(calls[0]!.params[3], 0);
+  assert.match(calls[1]!.sql, /LIMIT \$2::integer\s+OFFSET \$3::integer/);
+  assert.equal(calls[1]!.params[1], 50);
+  assert.equal(calls[1]!.params[2], 0);
 });
 
 test('BiometricAttendanceProcessor runs daily absence and half-day rule checks', async () => {

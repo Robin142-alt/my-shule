@@ -251,6 +251,88 @@ describe("enterprise authentication flows", () => {
     });
   });
 
+  test("school invite login fills the invited email and keeps school access active", async () => {
+    const user = userEvent.setup();
+
+    mockSecureLogin({
+        redirectTo: "/school/teacher",
+        session: {
+          audience: "school",
+          homePath: "/school/teacher",
+          role: "teacher",
+          tenantSlug: "kisumu-boys",
+          userLabel: "teacher.invited@example.test",
+        },
+    });
+
+    renderWithProviders(
+      <SchoolLoginView
+        resolution={resolveSchoolBranding("myshule.online")}
+        initialEmail="teacher.invited@example.test"
+        initialTenantSlug="kisumu-boys"
+        acceptedInvite
+      />,
+    );
+
+    expect(screen.getByLabelText(/email address/i)).toHaveValue("teacher.invited@example.test");
+    expect(screen.queryByText(/school access pending/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/Use the password you just created/i)).toBeVisible();
+    expect(screen.getByLabelText(/^password$/i)).toHaveAttribute("autocomplete", "new-password");
+
+    await user.type(screen.getByLabelText(/^password$/i), "managed-by-vault");
+    await user.click(screen.getByRole("button", { name: /sign in securely/i }));
+
+    await waitFor(() =>
+      expect(routerPushMock).toHaveBeenCalledWith("/school/teacher"),
+    );
+
+    const loginCall = fetchMock.mock.calls.find(([url]) => url === "/api/auth/login");
+    expect(JSON.parse(String(loginCall?.[1]?.body))).toMatchObject({
+      audience: "school",
+      identifier: "teacher.invited@example.test",
+      tenantSlug: "kisumu-boys",
+    });
+  });
+
+  test("parent invite login fills the invited email without using the invited name", async () => {
+    const user = userEvent.setup();
+
+    mockSecureLogin({
+        redirectTo: "/portal/parent",
+        session: {
+          audience: "portal",
+          homePath: "/portal/parent",
+          viewer: "parent",
+          userLabel: "parent.invited@example.test",
+        },
+    });
+
+    renderWithProviders(
+      <PortalLoginView
+        mode="parent"
+        initialEmail="parent.invited@example.test"
+        initialTenantSlug="kisumu-boys"
+      />,
+    );
+
+    expect(screen.getByLabelText(/parent email address/i)).toHaveValue("parent.invited@example.test");
+    expect(screen.queryByDisplayValue(/Grace Njeri/i)).not.toBeInTheDocument();
+
+    await user.type(screen.getByLabelText(/^password$/i), "managed-by-vault");
+    await user.click(screen.getByRole("button", { name: /continue as parent/i }));
+
+    await waitFor(() =>
+      expect(routerPushMock).toHaveBeenCalledWith("/portal/parent"),
+    );
+
+    const loginCall = fetchMock.mock.calls.find(([url]) => url === "/api/auth/login");
+    expect(JSON.parse(String(loginCall?.[1]?.body))).toMatchObject({
+      audience: "portal",
+      identifier: "parent.invited@example.test",
+      tenantSlug: "kisumu-boys",
+    });
+  });
+
   test("does not expose portal credentials and signs a student in", async () => {
     const user = userEvent.setup();
 

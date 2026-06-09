@@ -208,6 +208,77 @@ test('RateLimitService blocks requests after the configured threshold', async ()
   assert.equal(outcomes[2].route_key, 'auth-session');
 });
 
+test('RateLimitService uses an in-memory fallback when Redis is unavailable', async () => {
+  const requestContext = new RequestContextService();
+  const service = new RateLimitService(
+    {
+      get: (key: string): number | undefined => {
+        if (key === 'security.rateLimitWindowSeconds') {
+          return 60;
+        }
+
+        if (key === 'security.authenticatedReadRateLimitMaxRequests') {
+          return 2;
+        }
+
+        return undefined;
+      },
+    } as never,
+    requestContext,
+    {
+      getClient: () => ({
+        incr: async () => {
+          throw new Error('connect ECONNREFUSED 127.0.0.1:6379');
+        },
+      }),
+    } as never,
+  );
+
+  const outcomes = await requestContext.run(
+    {
+      request_id: 'req-rate-fallback',
+      tenant_id: 'tenant-a',
+      user_id: '00000000-0000-0000-0000-000000000001',
+      role: 'principal',
+      session_id: 'session-1',
+      permissions: ['students:read'],
+      is_authenticated: true,
+      client_ip: '127.0.0.1',
+      user_agent: 'test-suite',
+      method: 'GET',
+      path: '/students',
+      started_at: '2026-05-31T08:00:00.000Z',
+    },
+    async () => [
+      await service.evaluateRequest({
+        method: 'GET',
+        path: '/students',
+        originalUrl: '/students',
+        url: '/students',
+      } as never),
+      await service.evaluateRequest({
+        method: 'GET',
+        path: '/students',
+        originalUrl: '/students',
+        url: '/students',
+      } as never),
+      await service.evaluateRequest({
+        method: 'GET',
+        path: '/students',
+        originalUrl: '/students',
+        url: '/students',
+      } as never),
+    ],
+  );
+
+  assert.equal(outcomes[0].allowed, true);
+  assert.equal((outcomes[0] as { storage_mode?: string }).storage_mode, 'memory_fallback');
+  assert.equal(outcomes[1].allowed, true);
+  assert.equal(outcomes[2].allowed, false);
+  assert.equal(outcomes[2].limit, 2);
+  assert.equal(outcomes[2].remaining, 0);
+});
+
 test('RateLimitService applies tighter buckets to parent OTP and recovery flows', async () => {
   const requestContext = new RequestContextService();
   const redisClient = new FakeRedisClient();

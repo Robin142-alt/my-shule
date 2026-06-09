@@ -23,7 +23,24 @@ export const metadata: Metadata = {
   },
 };
 
-export default async function SchoolLoginPage() {
+function readSearchParam(
+  searchParams: Record<string, string | string[] | undefined>,
+  key: string,
+) {
+  const value = searchParams[key];
+
+  return Array.isArray(value) ? value[0] ?? "" : value ?? "";
+}
+
+export default async function SchoolLoginPage({
+  searchParams,
+}: {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const resolvedSearchParams = (await searchParams) ?? {};
+  const initialEmail = readSearchParam(resolvedSearchParams, "email").trim();
+  const initialTenantSlug = readSearchParam(resolvedSearchParams, "tenant").trim() || null;
+  const acceptedInvite = readSearchParam(resolvedSearchParams, "accepted").trim() === "1";
   const requestHeaders = await headers();
   const host =
     requestHeaders.get("x-forwarded-host") ??
@@ -37,7 +54,7 @@ export default async function SchoolLoginPage() {
       heroDescription="Visibility across departments. Every payment accountable. Every incident traceable. Every student monitored responsibly."
       badge={`${resolution.branding.county} school ERP`}
       logoMark={resolution.branding.logoMark}
-      helper="Staff sign-in opens a tenant-isolated command surface where modules, workflows, approvals, reports, and alerts appear only when the school has enabled them."
+      helper="Staff sign-in opens a secure school dashboard where approvals, reports, and alerts match each person’s role."
       highlights={[
         {
           id: "visibility",
@@ -50,18 +67,23 @@ export default async function SchoolLoginPage() {
           description: "Approvals, releases, write-offs, overrides, and sensitive updates are guarded by role policy and audit evidence.",
         },
         {
-          id: "tenant-security",
-          title: "One school, one tenant",
-          description: "Each school enters its own workspace, branding, modules, workflows, analytics, and role-safe permissions.",
+          id: "school-security",
+          title: "One school, one secure system",
+          description: "Each school enters its own branded, role-safe operations desk with the modules and reports it uses.",
         },
       ]}
       trustNotes={[
-        { id: "tenant", label: "Tenant protected", icon: "shield" },
+        { id: "school", label: "School protected", icon: "shield" },
         { id: "branding", label: "School branded", icon: "check" },
         { id: "secure", label: "Secure session", icon: "lock" },
       ]}
     >
-      <SchoolLoginView resolution={resolution} />
+      <SchoolLoginView
+        resolution={resolution}
+        initialEmail={initialEmail}
+        initialTenantSlug={initialTenantSlug}
+        acceptedInvite={acceptedInvite}
+      />
     </AuthShell>
   );
 }

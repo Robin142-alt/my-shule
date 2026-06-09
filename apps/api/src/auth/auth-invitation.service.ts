@@ -31,12 +31,13 @@ export class AuthInvitationService {
       const result = await this.databaseService.query<InvitationAcceptanceRow>(
         `
           SELECT user_id, tenant_id, email, display_name, role_code
-          FROM app.consume_invite_acceptance_action($1, $2, $3)
+          FROM app.consume_invite_acceptance_action($1, $2, $3, $4)
         `,
         [
           tokenHash,
           passwordHash,
           dto.display_name?.trim() || null,
+          dto.expected_tenant_id?.trim() || null,
         ],
       );
       acceptedInvite = result.rows[0];
@@ -69,7 +70,10 @@ export class AuthInvitationService {
   private isInvalidInvitationTokenError(error: unknown): boolean {
     return (
       error instanceof Error &&
-      error.message.includes('Invalid or expired invitation token')
+      (
+        error.message.includes('Invalid or expired invitation token') ||
+        error.message.includes('Invitation tenant mismatch')
+      )
     );
   }
 }

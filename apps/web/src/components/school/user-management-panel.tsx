@@ -39,14 +39,26 @@ const roleOptions = [
   { value: "deputy_principal", label: "Deputy Principal" },
   { value: "secretary", label: "Secretary" },
   { value: "bursar", label: "Bursar" },
+  { value: "accountant", label: "Accountant" },
   { value: "teacher", label: "Teacher" },
+  { value: "dean_academics", label: "Dean of Academics" },
+  { value: "exams_manager", label: "Exams Manager" },
+  { value: "hod", label: "Head of Department" },
+  { value: "class_teacher", label: "Class Teacher" },
+  { value: "grade_master", label: "Grade/Form Master" },
   { value: "nurse", label: "Nurse" },
+  { value: "school_counsellor", label: "School Counsellor" },
+  { value: "discipline_master", label: "Discipline Master" },
   { value: "librarian", label: "Librarian" },
   { value: "parent", label: "Parent" },
   { value: "student", label: "Student" },
   { value: "storekeeper", label: "Storekeeper" },
   { value: "boarding_master", label: "Boarding Master" },
   { value: "security_officer", label: "Security Officer" },
+  { value: "transport_manager", label: "Transport Manager" },
+  { value: "lab_technician", label: "Laboratory Technician" },
+  { value: "admissions_officer", label: "Admissions Officer" },
+  { value: "ict_manager", label: "ICT / Computer Lab Manager" },
 ];
 
 function roleLabel(roleCode: string) {
@@ -68,7 +80,7 @@ export function UserManagementPanel() {
 
     async function loadUsers() {
       try {
-        const response = await fetch("/api/auth/invitations", {
+        const response = await fetch("/api/auth/invitations?limit=50&offset=0", {
           method: "GET",
           credentials: "same-origin",
           cache: "no-store",
@@ -78,7 +90,7 @@ export function UserManagementPanel() {
           | null;
 
         if (!response.ok) {
-          throw new Error(payload?.message ?? "Unable to load tenant users.");
+          throw new Error(payload?.message ?? "Unable to load school users.");
         }
 
         if (mounted) {
@@ -86,7 +98,7 @@ export function UserManagementPanel() {
         }
       } catch (error) {
         if (mounted) {
-          setMessage(error instanceof Error ? error.message : "Unable to load tenant users.");
+          setMessage(error instanceof Error ? error.message : "Unable to load school users.");
         }
       } finally {
         if (mounted) {
@@ -333,8 +345,8 @@ export function UserManagementPanel() {
       </Card>
 
       <DataTable
-        title="Tenant users"
-        subtitle={loadingUsers ? "Loading tenant access..." : "Invite and recover tenant access from one controlled surface."}
+        title="School users"
+        subtitle={loadingUsers ? "Loading school access..." : "Invite and recover school access from one controlled desk."}
         columns={[
           { id: "name", header: "Name", render: (row) => <span className="font-semibold">{row.name}</span> },
           { id: "email", header: "Email", render: (row) => row.email },
@@ -426,7 +438,7 @@ export function UserManagementPanel() {
         ]}
         rows={users}
         getRowKey={(row) => row.id}
-        emptyMessage={loadingUsers ? "Loading tenant users..." : "No tenant users or pending invitations yet."}
+        emptyMessage={loadingUsers ? "Loading school users..." : "No school users or pending invitations yet."}
       />
     </div>
   );

@@ -30,6 +30,7 @@ import {
   PlatformManualBillingState,
   SchoolOnboardingProfileDto,
   PlatformSchoolResponseDto,
+  PlatformTenantProductSummaryDto,
   PlatformTenantAnonymizeResponseDto,
   PlatformTenantOffboardingManifestDto,
   PlatformSchoolUsageSummaryDto,
@@ -57,6 +58,21 @@ type TenantRow = {
   subscription_suspended_at?: Date | string | null;
 };
 
+type PlatformTenantProductSummaryRow = {
+  total_schools?: number | string | null;
+  active_schools?: number | string | null;
+  inactive_schools?: number | string | null;
+  billing_active_schools?: number | string | null;
+  billing_grace_period_schools?: number | string | null;
+  billing_restricted_schools?: number | string | null;
+  billing_suspended_schools?: number | string | null;
+  pending_principal_invites?: number | string | null;
+  failed_principal_invites?: number | string | null;
+  expired_principal_invites?: number | string | null;
+  schools_with_modules?: number | string | null;
+  enabled_module_assignments?: number | string | null;
+};
+
 type InvitationDeliveryStatus = PlatformSchoolResponseDto['invitation_status'];
 
 type InvitationDeliveryResult = {
@@ -75,6 +91,8 @@ type InvitationAction = {
   schoolName: string;
   adminEmail: string;
   adminName: string;
+  assignedRole: string;
+  inviterName: string;
   inviteUrl: string;
   expiresAt: Date;
 };
@@ -190,6 +208,111 @@ export class PlatformOnboardingService {
     );
   }
 
+  async getProductTenantSummary(): Promise<PlatformTenantProductSummaryDto> {
+    const result = await this.databaseService.query<PlatformTenantProductSummaryRow>(
+      `
+        WITH tenant_product AS (
+          SELECT
+            tenants.tenant_id,
+            tenants.status,
+            COALESCE(
+              NULLIF(current_subscription.metadata ->> 'manual_billing_state', ''),
+              CASE current_subscription.status
+                WHEN 'active' THEN 'active'
+                WHEN 'trialing' THEN 'active'
+                WHEN 'past_due' THEN 'grace_period'
+                WHEN 'restricted' THEN 'restricted'
+                WHEN 'suspended' THEN 'suspended'
+                WHEN 'expired' THEN 'expired'
+                ELSE 'not_configured'
+              END
+            ) AS billing_state,
+            latest_email.status AS invitation_delivery_status,
+            latest_token.expires_at AS invite_expires_at,
+            latest_token.consumed_at AS invite_consumed_at,
+            COALESCE(module_counts.enabled_count, 0) AS enabled_module_count
+          FROM tenants
+          LEFT JOIN LATERAL (
+            SELECT status
+            FROM auth_email_outbox
+            WHERE tenant_id = tenants.tenant_id
+              AND template = 'school_invitation'
+            ORDER BY created_at DESC
+            LIMIT 1
+          ) latest_email ON TRUE
+          LEFT JOIN LATERAL (
+            SELECT expires_at, consumed_at
+            FROM auth_action_tokens
+            WHERE tenant_id = tenants.tenant_id
+              AND purpose = 'invite_acceptance'
+            ORDER BY created_at DESC
+            LIMIT 1
+          ) latest_token ON TRUE
+          LEFT JOIN LATERAL (
+            SELECT status, metadata
+            FROM subscriptions
+            WHERE tenant_id = tenants.tenant_id
+            ORDER BY
+              CASE status
+                WHEN 'active' THEN 1
+                WHEN 'trialing' THEN 2
+                WHEN 'past_due' THEN 3
+                WHEN 'restricted' THEN 4
+                WHEN 'suspended' THEN 5
+                ELSE 6
+              END ASC,
+              created_at DESC
+            LIMIT 1
+          ) current_subscription ON TRUE
+          LEFT JOIN LATERAL (
+            SELECT COUNT(*)::int AS enabled_count
+            FROM school_module_access
+            WHERE tenant_id = tenants.tenant_id
+              AND enabled = TRUE
+          ) module_counts ON TRUE
+        )
+        SELECT
+          COUNT(*)::int AS total_schools,
+          COUNT(*) FILTER (WHERE status = 'active')::int AS active_schools,
+          COUNT(*) FILTER (WHERE status <> 'active')::int AS inactive_schools,
+          COUNT(*) FILTER (WHERE billing_state = 'active')::int AS billing_active_schools,
+          COUNT(*) FILTER (WHERE billing_state = 'grace_period')::int AS billing_grace_period_schools,
+          COUNT(*) FILTER (WHERE billing_state = 'restricted')::int AS billing_restricted_schools,
+          COUNT(*) FILTER (WHERE billing_state = 'suspended')::int AS billing_suspended_schools,
+          COUNT(*) FILTER (
+            WHERE invite_consumed_at IS NULL
+              AND invite_expires_at > NOW()
+              AND COALESCE(invitation_delivery_status, 'pending') IN ('pending', 'processing', 'sent')
+          )::int AS pending_principal_invites,
+          COUNT(*) FILTER (WHERE invitation_delivery_status = 'failed')::int AS failed_principal_invites,
+          COUNT(*) FILTER (
+            WHERE invite_consumed_at IS NULL
+              AND invite_expires_at <= NOW()
+          )::int AS expired_principal_invites,
+          COUNT(*) FILTER (WHERE enabled_module_count > 0)::int AS schools_with_modules,
+          COALESCE(SUM(enabled_module_count), 0)::int AS enabled_module_assignments
+        FROM tenant_product
+      `,
+    );
+    const row = result.rows[0] ?? {};
+
+    return {
+      total_schools: this.toSummaryCount(row.total_schools),
+      active_schools: this.toSummaryCount(row.active_schools),
+      inactive_schools: this.toSummaryCount(row.inactive_schools),
+      billing_active_schools: this.toSummaryCount(row.billing_active_schools),
+      billing_grace_period_schools: this.toSummaryCount(row.billing_grace_period_schools),
+      billing_restricted_schools: this.toSummaryCount(row.billing_restricted_schools),
+      billing_suspended_schools: this.toSummaryCount(row.billing_suspended_schools),
+      pending_principal_invites: this.toSummaryCount(row.pending_principal_invites),
+      failed_principal_invites: this.toSummaryCount(row.failed_principal_invites),
+      expired_principal_invites: this.toSummaryCount(row.expired_principal_invites),
+      schools_with_modules: this.toSummaryCount(row.schools_with_modules),
+      enabled_module_assignments: this.toSummaryCount(row.enabled_module_assignments),
+      generated_at: new Date().toISOString(),
+    };
+  }
+
   async getEmailReadiness(): Promise<PlatformEmailReadinessResponseDto> {
     const configured = this.emailService.getTransactionalEmailStatus();
     const latestInvite = await this.databaseService.query<{
@@ -248,6 +371,37 @@ export class PlatformOnboardingService {
         dto,
         invitedByUserId,
       });
+
+      const emailConflict = await this.databaseService.query<{ tenant_id: string }>(
+        `
+          SELECT tm.tenant_id 
+          FROM tenant_memberships tm
+          INNER JOIN users u ON u.id = tm.user_id
+          WHERE lower(u.email) = $1
+          LIMIT 1
+        `,
+        [adminEmail]
+      );
+  
+      if (emailConflict.rows.length > 0) {
+        throw new BadRequestException('This email is already registered under another school. Use a different email address for this school.');
+      }
+  
+      const invitationConflict = await this.databaseService.query<{ tenant_id: string }>(
+        `
+          SELECT tenant_id 
+          FROM auth_action_tokens
+          WHERE lower(email) = $1
+            AND purpose = 'invite_acceptance'
+            AND consumed_at IS NULL
+          LIMIT 1
+        `,
+        [adminEmail]
+      );
+  
+      if (invitationConflict.rows.length > 0) {
+        throw new BadRequestException('This email is already registered under another school. Use a different email address for this school.');
+      }
 
       await this.authorizationRepository.ensureTenantAuthorizationBaseline(tenantId);
       const enabledModules = await this.assignInitialModules({
@@ -1046,13 +1200,17 @@ export class PlatformOnboardingService {
     const token = randomBytes(32).toString('base64url');
     const tokenHash = this.hashToken(token);
     const expiresAt = new Date(Date.now() + this.getInvitationTtlMs());
-    const inviteUrl = this.buildInvitationUrl(token);
+    const inviteUrl = this.buildInvitationUrl(token, input.tenantId);
+    const assignedRole = 'School Principal/Admin';
+    const inviterName = await this.getInviterName(input.invitedByUserId, 'MyShule Super Admin');
     const payload = {
       tenant_id: input.tenantId,
       tenant_name: input.schoolName,
       role_code: 'owner',
+      role_name: assignedRole,
       display_name: input.adminName,
       invited_by_user_id: input.invitedByUserId,
+      invited_by_display_name: inviterName,
       purpose: 'school_admin_invitation',
       expires_at: expiresAt.toISOString(),
     };
@@ -1071,6 +1229,8 @@ export class PlatformOnboardingService {
       schoolName: input.schoolName,
       adminEmail: input.adminEmail,
       adminName: input.adminName,
+      assignedRole,
+      inviterName,
       inviteUrl,
       expiresAt,
     };
@@ -1155,8 +1315,11 @@ export class PlatformOnboardingService {
           to: input.adminEmail,
           displayName: input.adminName,
           schoolName: input.schoolName,
+          assignedRole: input.assignedRole,
+          inviterName: input.inviterName,
           inviteUrl: input.inviteUrl,
           expiresAt: input.expiresAt,
+          supportNote: 'Contact your school administrator or MyShule support if this invitation looks wrong.',
         }),
       );
       await this.markOutboxDelivery(input.outboxId, 'sent');
@@ -1192,7 +1355,7 @@ export class PlatformOnboardingService {
     }
 
     await this.databaseService.query(
-      'SELECT app.mark_auth_email_outbox_delivery($1, $2, $3, $4, $5)',
+      'SELECT app.mark_auth_email_outbox_delivery($1::uuid, $2::text, $3::text, $4::text, $5::integer)',
       [
         outboxId,
         status,
@@ -1234,6 +1397,19 @@ export class PlatformOnboardingService {
       billing: this.buildPlatformSchoolBilling(tenant),
       onboarding_profile: this.extractBlueprintOnboardingProfile(tenant.metadata),
     };
+  }
+
+  private toSummaryCount(value: number | string | null | undefined): number {
+    if (typeof value === 'number') {
+      return Number.isFinite(value) ? value : 0;
+    }
+
+    if (typeof value === 'string') {
+      const parsed = Number.parseInt(value, 10);
+      return Number.isFinite(parsed) ? parsed : 0;
+    }
+
+    return 0;
   }
 
   private buildPlatformSchoolBilling(
@@ -1696,13 +1872,45 @@ export class PlatformOnboardingService {
     return Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : 26_000;
   }
 
-  private buildInvitationUrl(token: string): string {
+  private async getInviterName(
+    userId: string | null | undefined,
+    fallback: string,
+  ): Promise<string> {
+    const trimmedUserId = userId?.trim();
+
+    if (!trimmedUserId) {
+      return fallback;
+    }
+
+    const result = await this.databaseService.query<{
+      display_name: string | null;
+      email: string | null;
+    }>(
+      `
+        SELECT display_name, email
+        FROM users
+        WHERE id::text = $1
+        LIMIT 1
+      `,
+      [trimmedUserId],
+    );
+    const row = result.rows[0];
+
+    return row?.display_name?.trim() || row?.email?.trim() || fallback;
+  }
+
+  private buildInvitationUrl(token: string, tenantId: string): string {
     const baseUrl = (
       this.configService.get<string>('email.publicAppUrl') ??
       'https://my-shule-erp.vercel.app'
     ).replace(/\/$/, '');
 
-    return `${baseUrl}/invite/accept?token=${encodeURIComponent(token)}`;
+    const params = new URLSearchParams({
+      token,
+      tenant: tenantId,
+    });
+
+    return `${baseUrl}/invite/accept?${params.toString()}`;
   }
 
   private parseInviteMetadata(

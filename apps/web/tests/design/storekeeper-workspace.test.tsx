@@ -1,5 +1,4 @@
 import { screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import { createElement } from "react";
 
 import { StorekeeperWorkspace } from "@/components/storekeeper/storekeeper-workspace";
@@ -271,22 +270,18 @@ describe("storekeeper inventory workspace", () => {
     );
   });
 
-  it("renders a dense warehouse dashboard without unrelated modules", async () => {
+  it("renders a dense warehouse dashboard without unrelated modules", () => {
     renderWithProviders(createElement(StorekeeperWorkspace, { section: "dashboard" }));
 
-    expect(screen.getByRole("heading", { name: /storekeeper dashboard/i })).toBeVisible();
-    expect(screen.getByText(/Low stock items/i)).toBeVisible();
-    expect(screen.getByText(/Pending stock requests/i)).toBeVisible();
-    expect(screen.getByText(/Recently issued items/i)).toBeVisible();
-    expect(screen.getByText(/Today's stock movement/i)).toBeVisible();
-    expect(screen.getByText(/Items received today/i)).toBeVisible();
-    expect(screen.getByText(/Expiring items/i)).toBeVisible();
-    expect(screen.getByText(/Fast-moving items/i)).toBeVisible();
+    expect(screen.getByRole("heading", { name: /storekeeper store desk/i })).toBeVisible();
+    expect(screen.getByText(/stock, consumables, assets, issues, approvals/i)).toBeVisible();
+    expect(screen.getAllByText(/low stock/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/department requests/i).length).toBeGreaterThan(0);
+    expect(screen.getByRole("heading", { name: /what requires action right now/i })).toBeVisible();
+    expect(screen.getAllByRole("button", { name: /receive stock/i }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("button", { name: /issue stock/i }).length).toBeGreaterThan(0);
     expect(screen.queryByText(/Finance/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/Admissions/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/Academics/i)).not.toBeInTheDocument();
-
-    await userEvent.click(screen.getByRole("button", { name: /Issue stock/i }));
-    expect(screen.getByRole("heading", { name: /Issue stock voucher/i })).toBeVisible();
   });
 });

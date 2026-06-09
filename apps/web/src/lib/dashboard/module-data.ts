@@ -4,9 +4,10 @@ import type {
   DashboardSnapshot,
   ModuleWorkspace,
 } from "./types";
+import { getDashboardWorkspaceHref } from "./workspace-routes";
 
 function moduleHref(role: DashboardRole, moduleName: string) {
-  return `/dashboard/${role}/${moduleName}`;
+  return getDashboardWorkspaceHref(role, moduleName);
 }
 
 function buildFinanceWorkspace(
@@ -251,7 +252,7 @@ function buildStudentsWorkspace(
           {
             id: "students-insight-2",
             title: "Role scope",
-            description: `${roleLabels[role]} access stays tenant-scoped and trimmed to this workspace.`,
+            description: `${roleLabels[role]} access stays school-linked and limited to this section.`,
             value: snapshot.tenant.name,
           },
         ],
@@ -272,7 +273,7 @@ function buildCommunicationWorkspace(
       {
         id: "communication-core",
         title: "Message flow",
-        description: "Operational messaging should stay lightweight, tenant-scoped, and tied to real school actions.",
+        description: "Operational messaging should stay lightweight, school-linked, and tied to real school actions.",
         metrics: [
           {
             id: "unread-notices",
@@ -333,8 +334,8 @@ function buildCommunicationWorkspace(
           },
           {
             id: "communication-insight-2",
-            title: "Tenant scope",
-            description: "All activity shown here stays inside the current school tenant boundary.",
+            title: "School scope",
+            description: "All activity shown here stays inside the current school.",
             value: snapshot.tenant.county,
           },
         ],
@@ -500,9 +501,9 @@ function buildSettingsWorkspace(
   online: boolean,
 ): ModuleWorkspace {
   return {
-    title: "Settings workspace",
-    description: "Keep tenant controls, sync posture, and role visibility explicit so operations stay predictable.",
-    badge: "Tenant controls",
+    title: "Settings desk",
+    description: "Keep school controls, sync posture, and role visibility explicit so operations stay predictable.",
+    badge: "School controls",
     sections: [
       {
         id: "settings-core",
@@ -510,8 +511,8 @@ function buildSettingsWorkspace(
         description: "This view keeps configuration adjacent to the school-day state it affects.",
         metrics: [
           {
-            id: "tenant",
-            label: "Tenant",
+            id: "school",
+            label: "School",
             value: snapshot.tenant.name,
             helper: snapshot.tenant.county,
             tone: "ok",
@@ -550,7 +551,7 @@ function buildSettingsWorkspace(
         actions: [
           {
             id: "settings-action-1",
-            label: "Open tenant settings",
+            label: "Open school settings",
             href: moduleHref(role, "settings"),
             tone: "accent",
           },
@@ -565,7 +566,7 @@ function buildSettingsWorkspace(
           {
             id: "settings-insight-1",
             title: "Isolation",
-            description: "All dashboard content remains tenant-scoped for the active school.",
+            description: "All dashboard content remains linked to the active school.",
             value: snapshot.tenant.id,
           },
           {

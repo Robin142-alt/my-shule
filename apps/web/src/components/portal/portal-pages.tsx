@@ -2,12 +2,14 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import { SmartphoneCharging } from "lucide-react";
+import Link from "next/link";
 
 import { ParentDisciplineView } from "@/components/discipline/discipline-workspace";
 import { ActivityListCard, SimpleListCard } from "@/components/experience/activity-list-card";
 import { MetricGrid } from "@/components/experience/metric-grid";
+import { ParentCommandCenter } from "@/components/portal/parent-command-center";
 import { PortalShell } from "@/components/portal/portal-shell";
-import { Button } from "@/components/ui/button";
+import { Button, buttonClasses } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import {
   LiveIndicator,
@@ -26,12 +28,15 @@ import {
 import type { ExperienceNotificationItem } from "@/lib/experiences/types";
 import {
   getPortalWorkspace,
-  portalAcademicRows,
-  portalFeeHistory,
-  portalMessages,
+  getPortalAcademicTargets, getPortalFeeHistory, getPortalMessages, getPortalParentChildren, getPortalPublishedExamResults, getPortalPublishedReportCards, getPortalTeacherComments,
   type PortalViewer,
 } from "@/lib/experiences/portal-data";
 import { toPortalPath } from "@/lib/routing/experience-routes";
+import { getCurrentSchoolId } from "@/lib/school/school-operational-store";
+import {
+  readSchoolData,
+  subscribeToSchoolDataUpdates,
+} from "@/lib/school/school-operational-store";
 
 type PortalRouteMode = "hosted" | "public";
 
@@ -48,6 +53,149 @@ type ParentMedicalHistoryRow = {
     quantity_dispensed?: number | string;
   }>;
 };
+
+type PortalLearnerCounsellingSessionRecord = {
+  id: string;
+  student: string;
+  sessionType: string;
+  followUpDate: string;
+  status: string;
+};
+
+type PortalLearnerLibraryLoanRecord = {
+  id: string;
+  bookTitle: string;
+  borrower: string;
+  dueDate: string;
+  status: string;
+  fine?: number;
+};
+
+type PortalLearnerAttendanceRegisterRecord = {
+  id: string;
+  className: string;
+  teacher?: string;
+  absent?: number;
+  status: string;
+  markedAt?: string;
+  absentLearners?: string[];
+  lateLearners?: string[];
+};
+
+type PortalLearnerFeePaymentRecord = {
+  id: string;
+  student: string;
+  admissionNo: string;
+  amount: number;
+  method: string;
+  reference: string;
+  receiptNo: string;
+  status: string;
+};
+
+type PortalLearnerFeeBalanceRecord = {
+  id: string;
+  student: string;
+  admissionNo: string;
+  balance: number;
+  status: string;
+};
+
+type PortalLearnerClinicVisitRecord = {
+  id: string;
+  student: string;
+  className: string;
+  medicine: string;
+  status: string;
+  parentContacted?: boolean;
+  time: string;
+};
+
+type PortalFeeHistoryRow = {
+  id: string;
+  date: string;
+  amount: string;
+  method: string;
+  reference: string;
+  status: string;
+};
+
+function formatKsh(amount: number) {
+  return `KSh ${amount.toLocaleString("en-KE")}`;
+}
+
+function studentOperationalItems(learnerName: string) {
+  const feeBalances = readSchoolData<PortalLearnerFeeBalanceRecord>("fee-balances");
+  const finance = readSchoolData<PortalLearnerFeePaymentRecord>("finance-payments")
+    .filter((item) => item.student === learnerName)
+    .map((item) => {
+      const balance = feeBalances.find((record) => record.admissionNo === item.admissionNo || record.student === item.student);
+      return {
+        id: `student-finance-${item.id}`,
+        title: `Fee payment recorded: ${formatKsh(item.amount)}`,
+        subtitle: `Receipt ${item.receiptNo} via ${item.method}. Balance ${formatKsh(Number(balance?.balance ?? 0))}.`,
+        value: item.status,
+        tone: item.status === "M-Pesa Pending" || item.status === "Reversal Requested" ? "warning" as const : "ok" as const,
+      };
+    });
+  const attendance = readSchoolData<PortalLearnerAttendanceRegisterRecord>("attendance-registers")
+    .filter((item) => {
+      const absentLearners = Array.isArray(item.absentLearners) ? item.absentLearners : [];
+      const lateLearners = Array.isArray(item.lateLearners) ? item.lateLearners : [];
+      return [...absentLearners, ...lateLearners].some((name) => name.toLowerCase() === learnerName.toLowerCase());
+    })
+    .map((item) => ({
+      id: `student-attendance-${item.id}`,
+      title: `Attendance follow-up recorded for ${item.className}`,
+      subtitle: `${item.teacher ?? "Class teacher"} submitted the register with ${Number(item.absent ?? 0)} absent learners.`,
+      value: item.status,
+      tone: "warning" as const,
+    }));
+  const counselling = readSchoolData<PortalLearnerCounsellingSessionRecord>("counselling-sessions")
+    .filter((item) => item.student === learnerName && item.status !== "Closed")
+    .map((item) => ({
+      id: `student-counselling-${item.id}`,
+      title: "Counselling follow-up scheduled with the school counsellor",
+      subtitle: `${item.sessionType} on ${item.followUpDate}. Detailed counsellor notes stay protected.`,
+      value: item.status,
+      tone: "warning" as const,
+    }));
+  const clinic = readSchoolData<PortalLearnerClinicVisitRecord>("clinic-visits")
+    .filter((item) => item.student === learnerName)
+    .map((item) => ({
+      id: `student-clinic-${item.id}`,
+      title: `Sick bay visit recorded: ${item.medicine}`,
+      subtitle: `${item.status} at ${item.time}. Parent notification ${item.parentContacted ? "sent" : "pending"}.`,
+      value: item.status,
+      tone: item.status === "Referred" ? "warning" as const : "ok" as const,
+    }));
+  const library = readSchoolData<PortalLearnerLibraryLoanRecord>("library-loans")
+    .filter((item) => item.borrower === learnerName && item.status !== "Returned")
+    .map((item) => ({
+      id: `student-library-${item.id}`,
+      title: `${item.bookTitle} due on ${item.dueDate}`,
+      subtitle: `Library status: ${item.status}. ${Number(item.fine ?? 0) > 0 ? `Fine ${formatKsh(Number(item.fine ?? 0))}. ` : ""}Return it through the librarian desk.`,
+      value: item.status,
+      tone: item.status === "Overdue" ? "warning" as const : "ok" as const,
+    }));
+
+  return [...finance, ...attendance, ...counselling, ...clinic, ...library].slice(0, 8);
+}
+
+function portalFeeRowsForLearner(learnerName: string): PortalFeeHistoryRow[] {
+  const storedPayments = readSchoolData<PortalLearnerFeePaymentRecord>("finance-payments")
+    .filter((item) => item.student === learnerName)
+    .map((item) => ({
+      id: item.id,
+      date: item.receiptNo,
+      amount: formatKsh(item.amount),
+      method: item.method,
+      reference: item.reference || item.receiptNo,
+      status: item.status,
+    }));
+
+  return storedPayments.length > 0 ? storedPayments : getPortalFeeHistory(getCurrentSchoolId());
+}
 
 function buildPortalSectionHref(
   viewer: PortalViewer,
@@ -99,20 +247,45 @@ function PortalPageHeader({
   );
 }
 
-function PortalDashboard({ viewer }: { viewer: PortalViewer }) {
+function PortalDashboard({ viewer, routeMode }: { viewer: PortalViewer; routeMode: PortalRouteMode }) {
+  const [studentNotice, setStudentNotice] = useState("Student desk ready for lessons, assignments, library books, and teacher messages.");
+  const [studentUpdates, setStudentUpdates] = useState(() => studentOperationalItems("Brian Otieno"));
+  const studentQuickActions = [
+    { label: "View Assignment", href: buildPortalSectionHref("student", "academics", routeMode), helper: "Opens learning progress and academic notices." },
+    { label: "Submit Work", disabledReason: "Disabled: submit-work form is not connected to an assignment yet." },
+    { label: "View Learning Progress", href: buildPortalSectionHref("student", "academics", routeMode), helper: "Opens published learning progress." },
+    { label: "Download Notes", href: buildPortalSectionHref("student", "downloads", routeMode), helper: "Opens available downloads." },
+    { label: "View Library Due Date", disabledReason: "Disabled: student library due-date workspace is not connected." },
+    { label: "Message Teacher", href: buildPortalSectionHref("student", "messages", routeMode), helper: "Opens official school messages." },
+    { label: "Open Timetable", disabledReason: "Disabled: student timetable workspace is not connected." },
+    { label: "View Announcement", href: buildPortalSectionHref("student", "notifications", routeMode), helper: "Opens school announcements." },
+  ];
+
+  useEffect(() => {
+    function refreshStudentUpdates() {
+      setStudentUpdates(studentOperationalItems("Brian Otieno"));
+    }
+
+    refreshStudentUpdates();
+    return subscribeToSchoolDataUpdates(() => refreshStudentUpdates());
+  }, []);
+
+  if (viewer === "parent") {
+    return <ParentCommandCenter routeMode={routeMode} />;
+  }
+
   const { metrics } = getPortalWorkspace(viewer);
 
   return (
     <div className="space-y-6">
       <PortalPageHeader
-        title={viewer === "parent" ? "Family learner command view" : "Student learning command view"}
-        description={
-          viewer === "parent"
-            ? "A secure child-only view of fees, attendance, progress, health, transport, and school communication as modules become available."
-            : "A focused student view of assignments, timetable, results, attendance, notices, and learning activity."
-        }
-        actions={<LiveIndicator label="Family sync" tone="ok" />}
+        title="Student learning command view"
+        description="A focused student view of assignments, timetable, attendance, notices, and learning activity."
+        actions={<LiveIndicator label="Student sync" tone="ok" />}
       />
+      <div role="status" className="rounded-xl border border-border bg-white px-4 py-3 text-sm font-semibold text-foreground shadow-sm">
+        {studentNotice}
+      </div>
       <MetricGrid items={metrics} />
       <SignalStrip
         items={[
@@ -124,11 +297,43 @@ function PortalDashboard({ viewer }: { viewer: PortalViewer }) {
       <div className="grid gap-6 xl:grid-cols-[1fr_0.95fr]">
         <div className="space-y-6">
           <Card className="p-5">
+            <p className="eyebrow">Today&apos;s work</p>
+            <h3 className="mt-2 text-lg font-semibold text-foreground">Student quick actions</h3>
+            <p className="mt-2 text-sm leading-6 text-muted">
+              Practical learning actions stay visible without exposing schoolwide office data.
+            </p>
+            <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              {studentQuickActions.map((action) => (
+                action.href ? (
+                  <Link
+                    key={action.label}
+                    href={action.href}
+                    onClick={() =>
+                      setStudentNotice(
+                        `${action.label} route ready for Brian Otieno at ${action.href}; ${studentUpdates.length} learner-safe updates loaded.`,
+                      )
+                    }
+                    className={buttonClasses({ variant: "secondary", className: "justify-center" })}
+                  >
+                    {action.label}
+                  </Link>
+                ) : (
+                  <div key={action.label} className="rounded-[var(--radius-sm)] border border-border bg-surface-muted p-2">
+                    <Button type="button" variant="secondary" disabled className="w-full justify-center">
+                      {action.label}
+                    </Button>
+                    <p className="mt-2 text-[11px] font-semibold leading-4 text-muted">{action.disabledReason}</p>
+                  </div>
+                )
+              ))}
+            </div>
+          </Card>
+          <Card className="p-5">
             <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <p className="eyebrow">Child progress</p>
                 <h3 className="mt-2 text-lg font-semibold text-foreground">
-                  {viewer === "parent" ? "Linked learner timeline" : "My progress timeline"}
+                  My progress timeline
                 </h3>
                 <p className="mt-2 text-sm leading-6 text-muted">
                   Attendance, academics, health, and communication updates appear here only for the verified learner.
@@ -157,7 +362,7 @@ function PortalDashboard({ viewer }: { viewer: PortalViewer }) {
               { id: "reference", header: "Reference", render: (row) => row.reference },
               { id: "status", header: "Status", render: (row) => row.status },
             ]}
-            rows={portalFeeHistory}
+            rows={getPortalFeeHistory(getCurrentSchoolId())}
             getRowKey={(row) => row.id}
           />
         </div>
@@ -182,7 +387,12 @@ function PortalDashboard({ viewer }: { viewer: PortalViewer }) {
           <ActivityListCard
             title="Messages"
             subtitle="Announcements, reminders, and teacher communication."
-            items={portalMessages}
+            items={getPortalMessages(getCurrentSchoolId())}
+          />
+          <SimpleListCard
+            title="School updates"
+            subtitle="Only learner-safe updates from school desks appear here."
+            items={studentUpdates}
           />
         </div>
       </div>
@@ -192,18 +402,28 @@ function PortalDashboard({ viewer }: { viewer: PortalViewer }) {
 
 function PortalFeesPage({ viewer }: { viewer: PortalViewer }) {
   const [shareStatus, setShareStatus] = useState<string | null>(null);
+  const [feeRows, setFeeRows] = useState<PortalFeeHistoryRow[]>(() => portalFeeRowsForLearner("Brian Otieno"));
+
+  useEffect(() => {
+    function refreshFeeRows() {
+      setFeeRows(portalFeeRowsForLearner("Brian Otieno"));
+    }
+
+    refreshFeeRows();
+    return subscribeToSchoolDataUpdates(() => refreshFeeRows());
+  }, []);
 
   async function shareStatement() {
     const statementText = [
       "My Shule family statement",
       "",
-      ...portalFeeHistory.map(
+      ...feeRows.map(
         (row) => `${row.date} | ${row.amount} | ${row.method} | ${row.reference} | ${row.status}`,
       ),
     ].join("\n");
 
     await copyTextToClipboard(statementText);
-    setShareStatus("Statement copied for sharing.");
+    setShareStatus(`Statement copied with ${feeRows.length} posted payment rows for the verified family account.`);
   }
 
   return (
@@ -229,9 +449,9 @@ function PortalFeesPage({ viewer }: { viewer: PortalViewer }) {
             { id: "reference", header: "Reference", render: (row) => row.reference },
             { id: "status", header: "Status", render: (row) => row.status },
           ]}
-          rows={portalFeeHistory}
-          getRowKey={(row) => row.id}
-        />
+            rows={feeRows}
+            getRowKey={(row) => row.id}
+          />
         <Card className="p-5">
           <div className="flex items-center gap-3">
             <span className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-accent-soft text-foreground">
@@ -266,47 +486,391 @@ function PortalFeesPage({ viewer }: { viewer: PortalViewer }) {
   );
 }
 
-function PortalAcademicsPage() {
-  function printReportCard() {
+function PortalAcademicsPage({ viewer }: { viewer: PortalViewer }) {
+  const [activeChildId, setActiveChildId] = useState(getPortalParentChildren(getCurrentSchoolId())[0]?.id ?? "");
+  const [acknowledgedReports, setAcknowledgedReports] = useState<Record<string, boolean>>({});
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [selectedReportId, setSelectedReportId] = useState<string | null>(null);
+  const activeChild = getPortalParentChildren(getCurrentSchoolId()).find((child) => child.id === activeChildId) ?? getPortalParentChildren(getCurrentSchoolId())[0];
+  const visibleReports = getPortalPublishedReportCards(getCurrentSchoolId()).filter((report) => report.childId === activeChild?.id);
+  const visibleResults = getPortalPublishedExamResults(getCurrentSchoolId()).filter((row) => row.childName === activeChild?.name);
+  const visibleTargets = getPortalAcademicTargets(getCurrentSchoolId()).filter((row) => row.childName === activeChild?.name);
+  const selectedReport = visibleReports.find((report) => report.id === selectedReportId) ?? null;
+  const latestReport = visibleReports[0];
+  const latestResult = visibleResults[0];
+  const nextTarget = visibleTargets[0];
+  const pendingAcknowledgements = visibleReports.filter((report) => !(acknowledgedReports[report.id] ?? report.acknowledged)).length;
+
+  function printReportCard(report = visibleReports[0]) {
+    if (!report) {
+      setStatusMessage("No published report card is available to print.");
+      return;
+    }
+
     openPrintDocument({
       eyebrow: "Portal academics",
-      title: "Learner report card",
-      subtitle: "Current performance shared with the family portal.",
-      rows: portalAcademicRows.map((row) => ({
-        label: `${row.subject} • ${row.teacher}`,
-        value: `${row.score} (${row.grade})`,
+      title: `${report.reportType} - ${report.childName}`,
+      subtitle: `${report.exam}, ${report.term} ${report.year}. Published ${report.publishedDate}.`,
+      rows: visibleResults.map((row) => ({
+        label: `${row.subject} - ${row.teacherComment}`,
+        value: `${row.performance} (${row.grade})`,
       })),
-      footer: "This report card view is generated from the current portal academics workspace.",
+      footer: "Published family portal report-card preview.",
     });
+    setStatusMessage(
+      `Print preview ready for ${report.childName}: ${visibleResults.length} published subject row${visibleResults.length === 1 ? "" : "s"} loaded.`,
+    );
+  }
+
+  function downloadReportCard(report = visibleReports[0]) {
+    if (!report) {
+      setStatusMessage("No published report card is available to download.");
+      return;
+    }
+
+    const filename = `${report.childName.toLowerCase().replace(/\s+/g, "-")}-${report.id}.txt`;
+
+    downloadTextFile({
+      filename,
+      content: [
+        report.reportType,
+        `${report.childName} - ${report.gradeForm}`,
+        `${report.exam}, ${report.term} ${report.year}`,
+        `Published: ${report.publishedDate}`,
+        "",
+        report.summary,
+        "",
+        ...visibleResults.map((row) => `${row.subject}: ${row.performance} (${row.grade}) - ${row.teacherComment}`),
+      ].join("\n"),
+    });
+    setStatusMessage(`Report download created for ${report.childName}: ${filename}.`);
+  }
+
+  function acknowledgeReport(reportId: string) {
+    const report = getPortalPublishedReportCards(getCurrentSchoolId()).find((item) => item.id === reportId);
+
+    if (!report) {
+      setStatusMessage("Required source report was not found.");
+      return;
+    }
+
+    setAcknowledgedReports((current) => ({ ...current, [reportId]: true }));
+    setStatusMessage(`Report acknowledged for ${report.childName}.`);
+  }
+
+  function openReportViewer(reportId: string) {
+    const report = visibleReports.find((item) => item.id === reportId);
+
+    if (!report) {
+      setStatusMessage("Required source report was not found for this linked child.");
+      return;
+    }
+
+    setSelectedReportId(report.id);
+    setStatusMessage(`Viewing published report for ${report.childName}.`);
+  }
+
+  if (viewer !== "parent") {
+    return (
+      <div className="space-y-6">
+        <PortalPageHeader
+          title="Academics"
+          description="Learning resources and school notices for the verified student account."
+        />
+        <Card className="p-5">
+          <p className="text-sm leading-6 text-muted">
+            Published academic reports are handled through the parent portal in this exam flow.
+          </p>
+        </Card>
+      </div>
+    );
   }
 
   return (
     <div className="space-y-6">
       <PortalPageHeader
         title="Academics"
-        description="Results, report cards, and teacher comments presented without school-office complexity."
+        description="Published results, report cards, teacher comments, targets, and acknowledgement for linked children only."
         actions={
-          <Button variant="secondary" onClick={printReportCard}>
-            Download report card
+          <Button variant="secondary" onClick={() => downloadReportCard()}>
+            Download latest report
           </Button>
         }
       />
+      {statusMessage ? (
+        <div className="rounded-xl border border-success/20 bg-success/10 px-4 py-3 text-sm font-semibold text-foreground">
+          {statusMessage}
+        </div>
+      ) : null}
+      <Card className="p-5">
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">Child switcher</p>
+        <div className="mt-4 grid gap-3 md:grid-cols-2">
+          {getPortalParentChildren(getCurrentSchoolId()).map((child) => {
+            const active = child.id === activeChild?.id;
+
+            return (
+              <button
+                key={child.id}
+                type="button"
+                onClick={() => {
+                  setActiveChildId(child.id);
+                  setSelectedReportId(null);
+                  const childReportCount = getPortalPublishedReportCards(getCurrentSchoolId()).filter((report) => report.childId === child.id).length;
+                  const childResultCount = getPortalPublishedExamResults(getCurrentSchoolId()).filter((row) => row.childName === child.name).length;
+                  setStatusMessage(
+                    `${child.name} academic record selected: ${childReportCount} published report${childReportCount === 1 ? "" : "s"}, ${childResultCount} result row${childResultCount === 1 ? "" : "s"} loaded.`,
+                  );
+                }}
+                className={`rounded-[var(--radius-sm)] border px-4 py-3 text-left transition ${
+                  active
+                    ? "border-info/30 bg-info-soft text-foreground"
+                    : "border-border bg-surface-muted text-muted-strong hover:border-border-strong"
+                }`}
+              >
+                <p className="text-sm font-semibold">{child.name}</p>
+                <p className="mt-1 text-[12px]">
+                  {child.admissionNumber} - {child.gradeForm} {child.stream}
+                </p>
+                <p className="mt-1 text-[12px]">{child.school} - {child.status}</p>
+              </button>
+            );
+          })}
+        </div>
+      </Card>
+      <Card className="p-5">
+        <p className="eyebrow">Child Overview</p>
+        <h3 className="mt-2 text-lg font-semibold text-foreground">Child Overview</h3>
+        <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          {[
+            ["Latest Exam", latestReport?.exam ?? "No published exam"],
+            ["Overall Performance", latestResult ? `${latestResult.performance} (${latestResult.grade})` : "No published result"],
+            ["Class/Form/Grade", activeChild?.gradeForm ?? "Not recorded"],
+            ["Improvement areas", nextTarget?.target ?? "No target published"],
+            ["Next Academic Target", nextTarget?.suggestedAction ?? "No next step published"],
+            ["Report Acknowledgement Status", pendingAcknowledgements > 0 ? `${pendingAcknowledgements} awaiting acknowledgement` : "All reports acknowledged"],
+            ["Attendance Summary", "Shown when school attendance records are connected"],
+            ["Fee Balance", "Hidden unless school report policy allows fee visibility"],
+          ].map(([label, value]) => (
+            <div key={label} className="rounded-[var(--radius-sm)] border border-border bg-surface-muted px-4 py-3">
+              <p className="text-[11px] font-bold uppercase tracking-[0.06em] text-muted">{label}</p>
+              <p className="mt-1 text-sm font-semibold text-foreground">{value}</p>
+            </div>
+          ))}
+        </div>
+      </Card>
+      <Card className="p-5">
+        <p className="eyebrow">Academic Progress</p>
+        <h3 className="mt-2 text-lg font-semibold text-foreground">Academic Progress</h3>
+        <div className="mt-4 grid gap-3 md:grid-cols-3">
+          <div className="rounded-[var(--radius-sm)] border border-border bg-surface-muted px-4 py-3">
+            <p className="text-[11px] font-bold uppercase tracking-[0.06em] text-muted">Performance trend</p>
+            <p className="mt-1 text-sm font-semibold text-foreground">
+              {visibleResults.length ? visibleResults.map((row) => `${row.subject}: ${row.performance}`).join(" | ") : "No published trend yet"}
+            </p>
+          </div>
+          <div className="rounded-[var(--radius-sm)] border border-border bg-surface-muted px-4 py-3">
+            <p className="text-[11px] font-bold uppercase tracking-[0.06em] text-muted">Best subjects</p>
+            <p className="mt-1 text-sm font-semibold text-foreground">{visibleResults[0]?.subject ?? "No subject result published"}</p>
+          </div>
+          <div className="rounded-[var(--radius-sm)] border border-border bg-surface-muted px-4 py-3">
+            <p className="text-[11px] font-bold uppercase tracking-[0.06em] text-muted">Improvement areas</p>
+            <p className="mt-1 text-sm font-semibold text-foreground">{nextTarget?.target ?? "No improvement area published"}</p>
+          </div>
+        </div>
+      </Card>
+      {selectedReport ? (
+        <Card className="p-5" data-testid="parent-report-viewer">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <p className="eyebrow">Parent report viewer</p>
+              <h3 className="mt-2 text-lg font-semibold text-foreground">Parent report viewer</h3>
+              <p className="mt-1 text-sm font-semibold text-muted">{selectedReport.reportType}</p>
+              <p className="mt-1 text-sm text-muted">
+                {selectedReport.exam} - {selectedReport.term} {selectedReport.year} - Published {selectedReport.publishedDate}
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button size="sm" variant="secondary" onClick={() => downloadReportCard(selectedReport)}>
+                Download PDF
+              </Button>
+              <Button size="sm" variant="secondary" onClick={() => printReportCard(selectedReport)}>
+                Print
+              </Button>
+              <Button size="sm" variant="secondary" onClick={() => setSelectedReportId(null)}>
+                Close
+              </Button>
+            </div>
+          </div>
+          <div className="mt-5 grid gap-3 md:grid-cols-3">
+            <div className="rounded-[var(--radius-sm)] border border-border bg-surface-muted px-4 py-3">
+              <p className="text-[11px] font-bold uppercase tracking-[0.06em] text-muted">
+                {selectedReport.reportType === "Legacy 8-4-4/KCSE Report" ? "Student bio" : "Learner bio"}
+              </p>
+              <p className="mt-1 text-sm font-semibold text-foreground">{selectedReport.childName}</p>
+              <p className="mt-1 text-sm text-muted">{selectedReport.gradeForm}</p>
+              <p className="mt-1 text-sm text-muted">{activeChild?.admissionNumber} - {activeChild?.school}</p>
+            </div>
+            <div className="rounded-[var(--radius-sm)] border border-border bg-surface-muted px-4 py-3">
+              <p className="text-[11px] font-bold uppercase tracking-[0.06em] text-muted">
+                {selectedReport.reportType === "Legacy 8-4-4/KCSE Report" ? "Legacy marks and grade summary" : "CBC competency summary"}
+              </p>
+              <p className="mt-1 text-sm leading-6 text-foreground">{selectedReport.summary}</p>
+            </div>
+            <div className="rounded-[var(--radius-sm)] border border-border bg-surface-muted px-4 py-3">
+              <p className="text-[11px] font-bold uppercase tracking-[0.06em] text-muted">Acknowledgement</p>
+              <p className="mt-1 text-sm font-semibold text-foreground">
+                {(acknowledgedReports[selectedReport.id] ?? selectedReport.acknowledged) ? "Acknowledged" : "Awaiting acknowledgement"}
+              </p>
+              <p className="mt-1 text-sm text-muted">{selectedReport.viewedStatus}</p>
+            </div>
+          </div>
+          <div className="mt-4 grid gap-3 lg:grid-cols-2">
+            <div className="rounded-[var(--radius-sm)] border border-border bg-white px-4 py-3">
+              <p className="text-[11px] font-bold uppercase tracking-[0.06em] text-muted">Teacher comments</p>
+              <div className="mt-3 space-y-2">
+                {getPortalTeacherComments(getCurrentSchoolId()).map((comment) => (
+                  <div key={comment.id} className="rounded-[var(--radius-sm)] border border-border bg-surface-muted px-3 py-2">
+                    <p className="text-sm font-semibold text-foreground">{comment.title}</p>
+                    <p className="mt-1 text-sm text-muted">{comment.detail}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="rounded-[var(--radius-sm)] border border-border bg-white px-4 py-3">
+              <p className="text-[11px] font-bold uppercase tracking-[0.06em] text-muted">Academic targets</p>
+              <div className="mt-3 space-y-2">
+                {visibleTargets.length ? (
+                  visibleTargets.map((target) => (
+                    <div key={target.id} className="rounded-[var(--radius-sm)] border border-border bg-surface-muted px-3 py-2">
+                      <p className="text-sm font-semibold text-foreground">{target.subject}: {target.target}</p>
+                      <p className="mt-1 text-sm text-muted">{target.suggestedAction}</p>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-sm text-muted">No published academic targets are available for this child.</p>
+                )}
+              </div>
+            </div>
+          </div>
+        </Card>
+      ) : null}
       <DataTable
-        title="Results"
-        subtitle="Latest CBC-aligned subject performance."
+        title="Published report cards"
+        subtitle="Only reports released to the parent portal for the active linked child."
+        columns={[
+          { id: "child", header: "Child", render: (row) => row.childName },
+          { id: "exam", header: "Exam", render: (row) => row.exam },
+          { id: "grade", header: "Grade/Form", render: (row) => row.gradeForm },
+          { id: "type", header: "Report type", render: (row) => row.reportType },
+          { id: "published", header: "Published", render: (row) => row.publishedDate },
+          {
+            id: "acknowledged",
+            header: "Acknowledgement",
+            render: (row) => {
+              const acknowledged = acknowledgedReports[row.id] ?? row.acknowledged;
+
+              return acknowledged ? "Acknowledged just now" : "Awaiting acknowledgement";
+            },
+          },
+          {
+            id: "actions",
+            header: "Actions",
+            render: (row) => {
+              const acknowledged = acknowledgedReports[row.id] ?? row.acknowledged;
+
+              return (
+                <div className="flex flex-wrap gap-2">
+                  <Button size="sm" variant="secondary" onClick={() => openReportViewer(row.id)}>
+                    View Report
+                  </Button>
+                  <Button size="sm" variant="secondary" onClick={() => downloadReportCard(row)}>
+                    Download PDF
+                  </Button>
+                  <Button size="sm" variant="secondary" onClick={() => printReportCard(row)}>
+                    Print
+                  </Button>
+                  <Button size="sm" onClick={() => acknowledgeReport(row.id)} disabled={acknowledged}>
+                    {acknowledged ? "Acknowledged" : "Acknowledge Report"}
+                  </Button>
+                </div>
+              );
+            },
+          },
+        ]}
+        rows={visibleReports}
+        getRowKey={(row) => row.id}
+        emptyMessage="No published report cards found for this linked child."
+      />
+      <DataTable
+        title="Parent Acknowledgement"
+        subtitle="Parent confirmation for reports published to the active linked child."
+        columns={[
+          { id: "report", header: "Report", render: (row) => row.exam },
+          { id: "published", header: "Published Date", render: (row) => row.publishedDate },
+          { id: "viewed", header: "Viewed Date", render: (row) => row.viewedStatus },
+          {
+            id: "acknowledgement",
+            header: "Acknowledgement Status",
+            render: (row) => (acknowledgedReports[row.id] ?? row.acknowledged) ? "Acknowledged" : "Awaiting acknowledgement",
+          },
+          {
+            id: "action",
+            header: "Action",
+            render: (row) => {
+              const acknowledged = acknowledgedReports[row.id] ?? row.acknowledged;
+
+              return (
+                <Button size="sm" onClick={() => acknowledgeReport(row.id)} disabled={acknowledged}>
+                  {acknowledged ? "Acknowledged" : "Acknowledge Report"}
+                </Button>
+              );
+            },
+          },
+        ]}
+        rows={visibleReports}
+        getRowKey={(row) => `ack-${row.id}`}
+        emptyMessage="No published reports require acknowledgement for this linked child."
+      />
+      <DataTable
+        title="Published exam results"
+        subtitle="Subject performance released by the school for the active linked child."
+        columns={[
+          { id: "exam", header: "Exam", render: (row) => row.exam },
+          { id: "subject", header: "Subject", render: (row) => row.subject },
+          { id: "performance", header: "Performance", render: (row) => row.performance, className: "font-semibold" },
+          { id: "grade", header: "Grade", render: (row) => row.grade },
+          { id: "comment", header: "Teacher comment", render: (row) => row.teacherComment },
+          { id: "target", header: "Target", render: (row) => row.target },
+          { id: "status", header: "Status", render: (row) => <StatusPill label={row.status} tone="ok" /> },
+        ]}
+        rows={visibleResults}
+        getRowKey={(row) => row.id}
+        emptyMessage="No published results found for this linked child."
+      />
+      <DataTable
+        title="Academic targets"
+        subtitle="Next steps published with the learner academic record."
         columns={[
           { id: "subject", header: "Subject", render: (row) => row.subject },
-          { id: "teacher", header: "Teacher", render: (row) => row.teacher },
-          { id: "score", header: "Score", render: (row) => row.score, className: "text-right font-semibold", headerClassName: "text-right" },
-          { id: "grade", header: "Grade", render: (row) => row.grade },
+          { id: "current", header: "Current performance", render: (row) => row.currentPerformance },
+          { id: "target", header: "Target", render: (row) => row.target },
+          { id: "teacher", header: "Responsible teacher", render: (row) => row.responsibleTeacher },
+          { id: "action", header: "Suggested action", render: (row) => row.suggestedAction },
+          { id: "status", header: "Status", render: (row) => row.status },
         ]}
-        rows={portalAcademicRows}
+        rows={visibleTargets}
         getRowKey={(row) => row.id}
+        emptyMessage="No academic targets found for this linked child."
       />
-      <SimpleListCard
-        title="Teacher comments"
-        subtitle="Teacher feedback appears after assessments are published."
-        items={[]}
+      <ActivityListCard
+        title="Teacher and school comments"
+        subtitle="Published teacher, class teacher, and principal comments for the active learner."
+        items={getPortalTeacherComments(getCurrentSchoolId())}
+      />
+      <ActivityListCard
+        title="School Messages"
+        subtitle="Academic-related notices released to the parent dashboard."
+        items={getPortalMessages(getCurrentSchoolId())}
       />
     </div>
   );
@@ -322,7 +886,7 @@ function PortalMessagesPage() {
       <ActivityListCard
         title="School messages"
         subtitle="Recent notices and action-oriented reminders."
-        items={portalMessages}
+        items={getPortalMessages(getCurrentSchoolId())}
       />
     </div>
   );
@@ -465,7 +1029,7 @@ function PortalNotificationsPage() {
       <ActivityListCard
         title="Notification feed"
         subtitle="Recent alerts and reminders for the learner account."
-        items={portalMessages}
+        items={getPortalMessages(getCurrentSchoolId())}
       />
     </div>
   );
@@ -493,7 +1057,7 @@ export function PortalPages({
     ...item,
     href: mapPortalHref(viewer, item.href, routeMode),
   }));
-  const notifications: ExperienceNotificationItem[] = portalMessages.map(
+  const notifications: ExperienceNotificationItem[] = getPortalMessages(getCurrentSchoolId()).map(
     (message): ExperienceNotificationItem => ({
       id: message.id,
       title: message.title,
@@ -517,9 +1081,9 @@ export function PortalPages({
       notifications={notifications}
       actions={<StatusPill label="Balance visible" tone="ok" />}
     >
-      {section === "dashboard" ? <PortalDashboard viewer={viewer} /> : null}
+      {section === "dashboard" ? <PortalDashboard viewer={viewer} routeMode={routeMode} /> : null}
       {section === "fees" ? <PortalFeesPage viewer={viewer} /> : null}
-      {section === "academics" ? <PortalAcademicsPage /> : null}
+      {section === "academics" ? <PortalAcademicsPage viewer={viewer} /> : null}
       {section === "discipline" ? <ParentDisciplineView /> : null}
       {section === "health" ? <PortalHealthPage viewer={viewer} /> : null}
       {section === "messages" ? <PortalMessagesPage /> : null}

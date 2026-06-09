@@ -48,6 +48,11 @@ export const buildRedisClientOptions = (
         return null;
       }
 
+      if (attempt > 10) {
+        logger.error(`Redis reconnect exhausted after ${attempt} attempts`);
+        return null;
+      }
+
       const delay = Math.min(250 * 2 ** Math.min(attempt, 4), RETRY_DELAY_CEILING_MS);
       logger.warn(`Redis reconnect scheduled in ${delay}ms (attempt ${attempt})`);
       return delay;

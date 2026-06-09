@@ -54,6 +54,6 @@ export class RateLimitMiddleware implements NestMiddleware {
 
   private shouldSkip(request: Request): boolean {
     const path = (request.path || request.originalUrl || request.url).toLowerCase();
-    return path === '/health';
+    return path === '/health' || path.startsWith('/health/');
   }
 }

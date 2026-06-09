@@ -29,7 +29,10 @@ import { FinanceReconciliationResponseDto } from './dto/finance-reconciliation-r
 import { FinanceActivityResponseDto } from './dto/finance-activity-response.dto';
 import { FeeStructureResponseDto } from './dto/fee-structure-response.dto';
 import { InvoiceResponseDto } from './dto/invoice-response.dto';
-import { ListInvoicesQueryDto } from './dto/list-invoices-query.dto';
+import {
+  ListInvoicesQueryDto,
+  ListStudentBalancesQueryDto,
+} from './dto/list-invoices-query.dto';
 import { ManualFeePaymentResponseDto } from './dto/manual-fee-payment-response.dto';
 import { RecordUsageDto } from './dto/record-usage.dto';
 import { StudentFeeBalanceResponseDto } from './dto/student-fee-balance-response.dto';
@@ -114,8 +117,14 @@ export class BillingController {
 
   @Get('finance-activity')
   @Permissions('billing:read')
-  async listFinanceActivity(): Promise<FinanceActivityResponseDto[]> {
-    return this.billingService.listFinanceActivity();
+  async listFinanceActivity(
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
+  ): Promise<FinanceActivityResponseDto[]> {
+    return this.billingService.listFinanceActivity({
+      limit: limit ? Number(limit) : undefined,
+      offset: offset ? Number(offset) : undefined,
+    });
   }
 
   @Post('fee-structures')
@@ -162,8 +171,10 @@ export class BillingController {
 
   @Get('student-balances')
   @Permissions('billing:read')
-  async listStudentBalances(): Promise<StudentFeeBalanceResponseDto[]> {
-    return this.billingService.listStudentBalances();
+  async listStudentBalances(
+    @Query() query: ListStudentBalancesQueryDto,
+  ): Promise<StudentFeeBalanceResponseDto[]> {
+    return this.billingService.listStudentBalances(query);
   }
 
   @Get('reconciliation')

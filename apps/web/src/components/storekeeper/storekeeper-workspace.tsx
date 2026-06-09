@@ -25,6 +25,7 @@ import { Card } from "@/components/ui/card";
 import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Modal } from "@/components/ui/modal";
+import { RoleOperationalCommandCenter } from "@/components/school/role-operational-command-center";
 import { SkeletonCard } from "@/components/ui/skeleton-card";
 import { StatusPill } from "@/components/ui/status-pill";
 import {
@@ -495,6 +496,16 @@ export function StorekeeperWorkspace({
   const reports = buildStorekeeperReports(dataset);
   const isIssueBusy = isIssuePending || isIssueSyncing;
   const isReceiveBusy = isReceivePending || isReceiveSyncing;
+
+  if (section === "dashboard") {
+    return (
+      <RoleOperationalCommandCenter
+        role="storekeeper"
+        initialSection="dashboard"
+        tenantSlug={tenantSlug}
+      />
+    );
+  }
 
   const filteredItems = dataset.items
     .filter((item) => matchesInventorySearch(item, deferredSearch))
@@ -1010,6 +1021,14 @@ export function StorekeeperWorkspace({
   function renderDashboard() {
     return (
       <div className="space-y-4">
+        <Card className="p-4">
+          <p className="eyebrow">Daily store priorities</p>
+          <h2 className="mt-1 text-xl font-black text-foreground">What requires action right now</h2>
+          <p className="mt-1 text-sm font-semibold text-muted">
+            Low stock, department requests, receipts, expiring batches, and audit movements that need storekeeper action today.
+          </p>
+        </Card>
+
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           {stats.map((stat) => (
             <Card key={stat.id} className={`p-4 ${toneRing(stat.tone)}`}>
@@ -1514,7 +1533,7 @@ export function StorekeeperWorkspace({
                           title: report.title,
                           subtitle: report.description,
                           rows: buildReportPrintRows(report, rows),
-                          footer: "Printed from the school stores workspace.",
+                          footer: "Printed from the school stores desk.",
                         })
                       }
                     >

@@ -80,6 +80,8 @@ test('AuthEmailService classifies Resend testing mode as a domain verification b
           to: 'principal@example.test',
           displayName: 'Principal User',
           schoolName: 'Green Valley School',
+          assignedRole: 'School Principal/Admin',
+          inviterName: 'MyShule Super Admin',
           inviteUrl: 'https://my-shule-erp.vercel.app/invite/accept?token=secret',
           expiresAt: new Date('2026-05-25T00:00:00.000Z'),
         }),
@@ -95,4 +97,58 @@ test('AuthEmailService classifies Resend testing mode as a domain verification b
   } finally {
     globalThis.fetch = originalFetch;
   }
+});
+
+test('AuthEmailService sends school invitations with role, inviter, expiry, and support context', async () => {
+  const originalFetch = globalThis.fetch;
+  const requests: Array<{
+    subject?: string;
+    html?: string;
+    text?: string;
+  }> = [];
+
+  globalThis.fetch = (async (_url, init) => {
+    requests.push(JSON.parse(String(init?.body)));
+    return new Response(JSON.stringify({ id: 'email-1' }), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    });
+  }) as typeof fetch;
+
+  const service = new AuthEmailService({
+    get: (key: string) => {
+      if (key === 'email.provider') return 'resend';
+      if (key === 'email.resendApiKey') return 're_secret_key';
+      if (key === 'email.from') return 'My Shule <onboarding@example.test>';
+      if (key === 'email.requestTimeoutMs') return 1000;
+      return '';
+    },
+  } as never);
+
+  try {
+    await service.sendInvitationEmail({
+      to: 'principal@example.test',
+      displayName: 'Principal Wanjiku',
+      schoolName: 'Kisumu Boys High School',
+      assignedRole: 'School Principal/Admin',
+      inviterName: 'MyShule Super Admin',
+      inviteUrl: 'https://myshule.online/invite/accept?token=secret&tenant=kisumu-boys',
+      expiresAt: new Date('2026-06-07T00:00:00.000Z'),
+      supportNote: 'Contact MyShule support if this invitation looks wrong.',
+    } as never);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+
+  assert.equal(requests.length, 1);
+  assert.equal(requests[0]?.subject, 'You have been invited to My Shule ERP');
+  assert.match(requests[0]?.text ?? '', /Principal Wanjiku/);
+  assert.match(requests[0]?.text ?? '', /Kisumu Boys High School/);
+  assert.match(requests[0]?.text ?? '', /School Principal\/Admin/);
+  assert.match(requests[0]?.text ?? '', /MyShule Super Admin/);
+  assert.match(requests[0]?.text ?? '', /2026-06-07T00:00:00\.000Z/);
+  assert.match(requests[0]?.text ?? '', /Contact MyShule support/);
+  assert.match(requests[0]?.html ?? '', /School Principal\/Admin/);
+  assert.match(requests[0]?.html ?? '', /MyShule Super Admin/);
+  assert.match(requests[0]?.html ?? '', /Contact MyShule support/);
 });

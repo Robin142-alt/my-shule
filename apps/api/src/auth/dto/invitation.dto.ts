@@ -16,6 +16,12 @@ export class AcceptInvitationDto {
   @MinLength(2)
   @MaxLength(120)
   display_name?: string;
+
+  @IsOptional()
+  @IsString()
+  @MinLength(2)
+  @MaxLength(120)
+  expected_tenant_id?: string;
 }
 
 export class InvitationAcceptanceResponseDto {

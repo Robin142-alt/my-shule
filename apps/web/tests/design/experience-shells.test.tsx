@@ -1,4 +1,4 @@
-import { screen, waitFor } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
 import { createElement } from "react";
 
 import { PortalPages } from "@/components/portal/portal-pages";
@@ -22,8 +22,8 @@ describe("experience shells", () => {
     } as Response);
 
     const platformRender = renderWithProviders(createElement(SuperadminPages));
-    expect(screen.getByText(/platform owner workspace/i)).toBeVisible();
-    expect(screen.getByRole("link", { name: /^schools \/ tenants$/i })).toBeVisible();
+    expect(screen.getByText(/platform owner desk/i)).toBeVisible();
+    expect(screen.getByRole("link", { name: /^schools$/i })).toBeVisible();
     expect(screen.queryByRole("link", { name: /^students$/i })).toBeNull();
 
     platformRender.unmount();
@@ -31,11 +31,10 @@ describe("experience shells", () => {
     const schoolRender = renderWithProviders(
       createElement(SchoolPages, { role: "bursar" }),
     );
-    expect(screen.getByText(/school workspace school erp/i)).toBeVisible();
-    await waitFor(() =>
-      expect(screen.getByRole("link", { name: /^students$/i })).toBeVisible(),
-    );
-    expect(screen.queryByRole("link", { name: /^support$/i })).toBeNull();
+    expect(await screen.findByTestId("role-operational-command-center")).toBeVisible();
+    expect(screen.getByRole("heading", { name: /accountant fee collection/i })).toBeVisible();
+    expect(schoolRender.container.querySelector(".enterprise-shell")).not.toBeInTheDocument();
+    expect(screen.queryByText(/platform owner desk/i)).toBeNull();
 
     schoolRender.unmount();
 
@@ -45,5 +44,31 @@ describe("experience shells", () => {
     ).toBeVisible();
     expect(screen.getByRole("link", { name: /^fees$/i })).toBeVisible();
     expect(screen.queryByRole("link", { name: /^inventory$/i })).toBeNull();
+  });
+
+  it("scopes school command-center actions by role instead of showing the same global action list to everyone", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        data: [
+          "students",
+          "admissions",
+          "school_administration",
+          "document_printing",
+          "communication_sms",
+          "communication_center",
+          "reports",
+          "staff",
+        ],
+      }),
+    } as Response);
+
+    renderWithProviders(createElement(SchoolPages, { role: "secretary" }));
+
+    const commandCenter = await screen.findByTestId("role-operational-command-center");
+    expect(within(commandCenter).getAllByText(/front office/i).length).toBeGreaterThan(0);
+    expect(within(commandCenter).getAllByRole("button", { name: /Mark Parent Served/i }).length).toBeGreaterThan(0);
+    expect(within(commandCenter).getAllByRole("button", { name: /Send SMS/i }).length).toBeGreaterThan(0);
+    expect(within(commandCenter).queryByRole("button", { name: /Approve Results Ready/i })).not.toBeInTheDocument();
   });
 });

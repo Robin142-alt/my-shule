@@ -29,6 +29,12 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
+import { Modal } from "@/components/ui/modal";
+import {
+  ReportCardActionBar,
+  ReportCardDocument,
+  ReportCardVerificationStrip,
+} from "@/components/report-cards/report-card-document";
 import { StatusPill } from "@/components/ui/status-pill";
 import { Tabs } from "@/components/ui/tabs";
 import { useLiveTenantSession } from "@/hooks/use-live-tenant-session";
@@ -47,16 +53,15 @@ import {
   type ExamAllocationRow,
   type ExamAuditEntry,
   type ExamMarkRow,
+  type ExamsModuleData,
   type ExamPublishingItem,
   type ExamScoreField,
   type ExamScoreFieldId,
   type ExamSetupItem,
   type HistoricalResult,
-  type ReportCardBatch,
 } from "@/lib/modules/exams-data";
 import {
   bulkUploadExamMarksLive,
-  correctLockedExamMarkLive,
   enterExamMarkLive,
   fetchExamsWorkspaceLive,
   fetchReportCardBatchStatusLive,
@@ -70,10 +75,188 @@ import {
   type ExamsLiveWorkspace,
   type LiveReportCardBatchStatus,
 } from "@/lib/modules/exams-client";
+import {
+  buildReportCardDocument,
+  buildReportCardGenerationRows,
+  curriculumSettings,
+  getReportCardTypeLabel,
+  inferClassReportingMode,
+  type ClassReportingMode,
+  type ReportCardDocumentData,
+  type ReportCardGenerationRow,
+  type ReportCardSettings,
+  type ReportCardStatus,
+  type ReportCardType,
+  type SchoolCurriculumDirection,
+} from "@/lib/report-cards/curriculum-report-cards";
 import type { SchoolExperienceRole } from "@/lib/experiences/types";
 
 type SaveState = "synced" | "saving" | "offline";
 type SubmissionState = "draft" | "submitted" | "reopened";
+
+type ExamEntryStatus = "Open" | "Draft" | "Submitted" | "Returned";
+type ExamEntryCurriculum = "CBC" | "8-4-4" | "Hybrid";
+
+export interface ExamTeachingAssignment {
+  id: string;
+  exam: string;
+  className: string;
+  stream: string;
+  subject: string;
+  curriculum: ExamEntryCurriculum;
+  deadline: string;
+  status: ExamEntryStatus;
+  missingMarks: number;
+  invalidMarks: number;
+  lastSaved: string;
+  teacherName: string;
+  schoolId: string;
+  academicYear: string;
+  term: string;
+}
+
+interface ExamEntryLearnerRow {
+  id: string;
+  admissionNumber: string;
+  learnerName: string;
+  paper1: string;
+  paper2: string;
+  practical: string;
+  scoreLevel: string;
+  competency: string;
+  teacherComment: string;
+  status: "Complete" | "Missing" | "Invalid" | "Absent" | "Exempt";
+}
+
+function getAssignmentTone(status: ExamEntryStatus, missingMarks: number, invalidMarks: number): StatusTone {
+  if (status === "Returned" || invalidMarks > 0) {
+    return "critical";
+  }
+
+  if (status === "Draft" || missingMarks > 0) {
+    return "warning";
+  }
+
+  return "ok";
+}
+
+function buildDefaultTeachingAssignments({
+  role,
+  schoolId,
+}: {
+  role: SchoolExperienceRole;
+  schoolId: string;
+}): ExamTeachingAssignment[] {
+  if (role !== "teacher") {
+    return [];
+  }
+
+  return [
+    {
+      id: "teacher-maths-g8-unity",
+      exam: "Term 2 Mid-term CAT",
+      className: "Grade 8",
+      stream: "Unity",
+      subject: "Mathematics",
+      curriculum: "CBC",
+      deadline: "24 May, 4:00 PM",
+      status: "Draft",
+      missingMarks: 1,
+      invalidMarks: 1,
+      lastSaved: "3 minutes ago",
+      teacherName: "Assigned teacher",
+      schoolId,
+      academicYear: "2026",
+      term: "Term 2",
+    },
+  ];
+}
+
+function buildAssignmentLearners(assignment: ExamTeachingAssignment): ExamEntryLearnerRow[] {
+  if (assignment.curriculum === "8-4-4") {
+    return [
+      {
+        id: `${assignment.id}-learner-1`,
+        admissionNumber: "ADM-2026-401",
+        learnerName: "Linet Auma",
+        paper1: "76",
+        paper2: "72",
+        practical: "18",
+        scoreLevel: "",
+        competency: "",
+        teacherComment: "Strong practical work.",
+        status: "Complete",
+      },
+      {
+        id: `${assignment.id}-learner-2`,
+        admissionNumber: "ADM-2026-402",
+        learnerName: "Peter Mwangi",
+        paper1: "",
+        paper2: "68",
+        practical: "15",
+        scoreLevel: "",
+        competency: "",
+        teacherComment: "Paper 1 still missing.",
+        status: "Missing",
+      },
+      {
+        id: `${assignment.id}-learner-3`,
+        admissionNumber: "ADM-2026-403",
+        learnerName: "Nadia Hassan",
+        paper1: "82",
+        paper2: "79",
+        practical: "20",
+        scoreLevel: "",
+        competency: "",
+        teacherComment: "Consistent mastery.",
+        status: "Complete",
+      },
+    ];
+  }
+
+  return [
+    {
+      id: `${assignment.id}-learner-1`,
+      admissionNumber: "ADM-2025-001",
+      learnerName: "Aisha Njeri",
+      paper1: "",
+      paper2: "",
+      practical: "",
+      scoreLevel: "EE",
+      competency: "Number operations",
+      teacherComment: "Confident with applied tasks.",
+      status: "Complete",
+    },
+    {
+      id: `${assignment.id}-learner-2`,
+      admissionNumber: "ADM-2025-004",
+      learnerName: "Daniel Mutua",
+      paper1: "",
+      paper2: "",
+      practical: "",
+      scoreLevel: "",
+      competency: "Measurement",
+      teacherComment: "Evidence pending.",
+      status: "Missing",
+    },
+    {
+      id: `${assignment.id}-learner-3`,
+      admissionNumber: "ADM-2025-005",
+      learnerName: "Eunice Achieng",
+      paper1: "",
+      paper2: "",
+      practical: "",
+      scoreLevel: "ME",
+      competency: "Patterns",
+      teacherComment: "Needs moderation on outlier task.",
+      status: "Invalid",
+    },
+  ];
+}
+
+function getAssignmentScope(assignment: ExamTeachingAssignment) {
+  return `${assignment.className} ${assignment.stream}`.trim();
+}
 
 const toneClasses: Record<StatusTone, string> = {
   ok: "border-success/20 bg-success/10 text-success",
@@ -145,11 +328,17 @@ function PageIntro({
   currentExam,
   currentClass,
   saveState,
+  hasAssignedTeacherEntry,
+  onContinueMarksEntry,
+  onImportSpreadsheet,
 }: {
   schoolName: string;
   currentExam: string;
   currentClass: string;
   saveState: SaveState;
+  hasAssignedTeacherEntry: boolean;
+  onContinueMarksEntry?: () => void;
+  onImportSpreadsheet?: () => void;
 }) {
   return (
     <section className="overflow-hidden rounded-[var(--radius)] border border-border bg-surface shadow-[0_18px_50px_rgba(2,6,23,0.24)]">
@@ -161,7 +350,7 @@ function PageIntro({
               tone={saveState === "saving" ? "pending" : "synced"}
             />
             <span className="badge badge-info">Draft recovered locally</span>
-            <span className="badge badge-neutral">Tenant isolated</span>
+            <span className="badge badge-neutral">School protected</span>
           </div>
           <h2 className="mt-4 text-2xl font-bold leading-tight text-foreground md:text-3xl">
             Exams & Results command center
@@ -172,14 +361,18 @@ function PageIntro({
             academic operations surface.
           </p>
           <div className="mt-5 flex flex-wrap gap-2">
-            <Button size="lg">
-              <BookOpenCheck className="h-4 w-4" />
-              Continue marks entry
-            </Button>
-            <Button variant="secondary" size="lg">
-              <Upload className="h-4 w-4" />
-              Import spreadsheet
-            </Button>
+            {hasAssignedTeacherEntry ? (
+              <>
+                <Button size="lg" onClick={onContinueMarksEntry}>
+                  <BookOpenCheck className="h-4 w-4" />
+                  Continue marks entry
+                </Button>
+                <Button variant="secondary" size="lg" onClick={onImportSpreadsheet}>
+                  <Upload className="h-4 w-4" />
+                  Import spreadsheet
+                </Button>
+              </>
+            ) : null}
             <Button variant="secondary" size="lg">
               <FileDown className="h-4 w-4" />
               Generate reports
@@ -205,6 +398,322 @@ function PageIntro({
         </div>
       </div>
     </section>
+  );
+}
+
+function MyExamEntryPanel({
+  assignments,
+  activeAssignmentId,
+  message,
+  onOpenAssignment,
+  onDownloadTemplate,
+  onSaveDraft,
+  onImportRequest,
+}: {
+  assignments: ExamTeachingAssignment[];
+  activeAssignmentId: string | null;
+  message: string | null;
+  onOpenAssignment: (assignment: ExamTeachingAssignment) => void;
+  onDownloadTemplate: (assignment: ExamTeachingAssignment) => void;
+  onSaveDraft: (assignment: ExamTeachingAssignment) => void;
+  onImportRequest: (assignment: ExamTeachingAssignment) => void;
+}) {
+  const [searchTerm, setSearchTerm] = useState("");
+  const activeAssignment =
+    assignments.find((assignment) => assignment.id === activeAssignmentId) ?? assignments[0] ?? null;
+  const normalizedSearch = searchTerm.trim().toLowerCase();
+  const filteredAssignments = normalizedSearch
+    ? assignments.filter((assignment) =>
+        [
+          assignment.exam,
+          assignment.className,
+          assignment.stream,
+          assignment.subject,
+          assignment.curriculum,
+          assignment.status,
+        ].some((value) => value.toLowerCase().includes(normalizedSearch)),
+      )
+    : assignments;
+
+  if (assignments.length === 0) {
+    return null;
+  }
+
+  const counts = [
+    ["Open Entries", assignments.filter((assignment) => assignment.status === "Open").length],
+    ["Draft Marksheets", assignments.filter((assignment) => assignment.status === "Draft").length],
+    ["Submitted Marks", assignments.filter((assignment) => assignment.status === "Submitted").length],
+    ["Returned Corrections", assignments.filter((assignment) => assignment.status === "Returned").length],
+    [
+      "Deadline Alerts",
+      assignments.filter((assignment) => assignment.missingMarks > 0 || assignment.invalidMarks > 0).length,
+    ],
+  ];
+
+  return (
+    <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
+      <Card className="p-5">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <p className="eyebrow">Assigned teaching workload</p>
+            <h3 className="mt-2 section-title text-lg">My Exam Entry</h3>
+            <p className="mt-1 max-w-3xl text-[13px] leading-5 text-muted">
+              Only subjects assigned to this user in the same school workspace are actionable here.
+            </p>
+          </div>
+          <StatusPill label={`${assignments.length} assigned`} tone="ok" />
+        </div>
+
+        <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+          {counts.map(([label, value]) => (
+            <div key={label} className="rounded-[var(--radius-sm)] border border-border bg-surface-muted px-4 py-3">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">{label}</p>
+              <p className="mt-2 text-xl font-bold text-foreground">{value}</p>
+            </div>
+          ))}
+        </div>
+
+        <label className="mt-5 flex items-center gap-2 rounded-[var(--radius-sm)] border border-border bg-surface-muted px-3 py-2">
+          <Search className="h-4 w-4 text-muted" />
+          <span className="sr-only">Search exam assignments</span>
+          <input
+            value={searchTerm}
+            onChange={(event) => setSearchTerm(event.target.value)}
+            className="w-full bg-transparent text-sm text-foreground outline-none placeholder:text-muted"
+            placeholder="Search assignment, subject, class, or status"
+            type="search"
+          />
+        </label>
+
+        <div className="mt-4 space-y-3">
+          {filteredAssignments.length === 0 ? (
+            <div className="rounded-[var(--radius-sm)] border border-border bg-surface-muted px-4 py-5 text-sm font-semibold text-muted">
+              No assigned exam entries match that search.
+            </div>
+          ) : null}
+          {filteredAssignments.map((assignment) => {
+            const tone = getAssignmentTone(assignment.status, assignment.missingMarks, assignment.invalidMarks);
+            const scope = getAssignmentScope(assignment);
+            const isActive = activeAssignment?.id === assignment.id;
+
+            return (
+              <div
+                key={assignment.id}
+                className={`rounded-[var(--radius)] border px-4 py-3 ${
+                  isActive ? "border-info/30 bg-info-soft/40" : "border-border bg-surface-muted"
+                }`}
+              >
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="text-sm font-semibold text-foreground">{assignment.subject}</p>
+                      <StatusPill label={assignment.status} tone={tone} compact />
+                      <span className="badge badge-neutral">{assignment.curriculum}</span>
+                    </div>
+                    <p className="mt-1 text-[13px] text-muted">
+                      {scope} - {assignment.exam} - {assignment.term} {assignment.academicYear}
+                    </p>
+                    <p className="mt-1 text-[12px] font-semibold text-muted-strong">
+                      Deadline {assignment.deadline} - Last saved {assignment.lastSaved}
+                    </p>
+                    {(assignment.missingMarks > 0 || assignment.invalidMarks > 0) ? (
+                      <p className="mt-2 text-[12px] font-semibold text-warning">
+                        {assignment.missingMarks} missing, {assignment.invalidMarks} invalid marks need correction.
+                      </p>
+                    ) : null}
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      size="sm"
+                      onClick={() => onOpenAssignment(assignment)}
+                      aria-label={`Open marksheet for ${assignment.subject}`}
+                    >
+                      <BookOpenCheck className="h-3.5 w-3.5" />
+                      Open Marksheet
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => onOpenAssignment(assignment)}
+                      aria-label={`Continue draft for ${assignment.subject}`}
+                    >
+                      Continue Draft
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => onDownloadTemplate(assignment)}
+                      aria-label={`Download template for ${assignment.subject}`}
+                    >
+                      <FileSpreadsheet className="h-3.5 w-3.5" />
+                      Download Template
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => onImportRequest(assignment)}
+                      aria-label={`Import CSV or Excel for ${assignment.subject}`}
+                    >
+                      <Upload className="h-3.5 w-3.5" />
+                      Import CSV/Excel
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => onSaveDraft(assignment)}
+                      aria-label={`Save draft for ${assignment.subject}`}
+                    >
+                      <ClipboardCheck className="h-3.5 w-3.5" />
+                      Save Draft
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {message ? (
+          <div aria-live="polite" className="mt-4 rounded-[var(--radius-sm)] border border-info/20 bg-info-soft px-4 py-3 text-sm font-semibold text-info">
+            {message}
+          </div>
+        ) : null}
+      </Card>
+
+      <ExamEntryMarksheetPanel assignment={activeAssignment} />
+    </section>
+  );
+}
+
+function ExamEntryMarksheetPanel({
+  assignment,
+}: {
+  assignment: ExamTeachingAssignment | null;
+}) {
+  const [searchTerm, setSearchTerm] = useState("");
+  const rows = useMemo(() => (assignment ? buildAssignmentLearners(assignment) : []), [assignment]);
+  const normalizedSearch = searchTerm.trim().toLowerCase();
+  const filteredRows = normalizedSearch
+    ? rows.filter((row) =>
+        [row.admissionNumber, row.learnerName, row.status, row.teacherComment].some((value) =>
+          value.toLowerCase().includes(normalizedSearch),
+        ),
+      )
+    : rows;
+  const blockingRows = rows.filter((row) => row.status === "Missing" || row.status === "Invalid");
+  const submitBlocked = !assignment || blockingRows.length > 0;
+
+  if (!assignment) {
+    return (
+      <Card className="p-5">
+        <p className="eyebrow">Marksheet</p>
+        <h3 className="mt-2 text-base font-semibold text-foreground">Select an assigned record</h3>
+        <p className="mt-2 text-sm leading-6 text-muted">
+          Open a marksheet from My Exam Entry to review learner records before saving or submitting.
+        </p>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="overflow-hidden">
+      <div className="border-b border-border px-5 py-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <p className="eyebrow">Selected assignment</p>
+            <h3 className="mt-2 text-base font-semibold text-foreground">{assignment.subject} marksheet</h3>
+            <p className="mt-1 text-[13px] leading-5 text-muted">
+              {getAssignmentScope(assignment)} - {assignment.curriculum} - {assignment.exam}
+            </p>
+          </div>
+          <StatusPill
+            label={submitBlocked ? "Needs correction" : "Ready to submit"}
+            tone={submitBlocked ? "warning" : "ok"}
+          />
+        </div>
+
+        <label className="mt-4 flex items-center gap-2 rounded-[var(--radius-sm)] border border-border bg-surface-muted px-3 py-2">
+          <Search className="h-4 w-4 text-muted" />
+          <span className="sr-only">Search learner marksheet</span>
+          <input
+            value={searchTerm}
+            onChange={(event) => setSearchTerm(event.target.value)}
+            className="w-full bg-transparent text-sm text-foreground outline-none placeholder:text-muted"
+            placeholder="Search learner"
+            type="search"
+          />
+        </label>
+
+        {submitBlocked ? (
+          <div className="mt-3 rounded-[var(--radius-sm)] border border-warning/20 bg-warning-soft px-4 py-3 text-sm font-semibold text-warning">
+            Resolve missing marks before submitting. {blockingRows.length} learner record{blockingRows.length === 1 ? "" : "s"} still need review.
+          </div>
+        ) : null}
+      </div>
+
+      <div className="overflow-x-auto">
+        <table className="min-w-[760px] border-collapse">
+          <thead className="bg-surface-muted">
+            <tr className="text-left text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">
+              <th className="border-b border-border px-4 py-3">Admission No.</th>
+              <th className="border-b border-border px-4 py-3">Learner Name</th>
+              {assignment.curriculum === "8-4-4" ? (
+                <>
+                  <th className="border-b border-border px-4 py-3">Paper 1</th>
+                  <th className="border-b border-border px-4 py-3">Paper 2</th>
+                  <th className="border-b border-border px-4 py-3">Practical</th>
+                </>
+              ) : (
+                <>
+                  <th className="border-b border-border px-4 py-3">Score/Level</th>
+                  <th className="border-b border-border px-4 py-3">Competency</th>
+                </>
+              )}
+              <th className="border-b border-border px-4 py-3">Teacher Comment</th>
+              <th className="border-b border-border px-4 py-3">Status</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border">
+            {filteredRows.map((row) => (
+              <tr key={row.id} className="bg-surface">
+                <td className="px-4 py-3 text-sm font-semibold text-foreground">{row.admissionNumber}</td>
+                <td className="px-4 py-3 text-sm text-foreground">{row.learnerName}</td>
+                {assignment.curriculum === "8-4-4" ? (
+                  <>
+                    <td className="px-4 py-3 text-sm text-muted-strong">{row.paper1 || "-"}</td>
+                    <td className="px-4 py-3 text-sm text-muted-strong">{row.paper2 || "-"}</td>
+                    <td className="px-4 py-3 text-sm text-muted-strong">{row.practical || "-"}</td>
+                  </>
+                ) : (
+                  <>
+                    <td className="px-4 py-3 text-sm text-muted-strong">{row.scoreLevel || "-"}</td>
+                    <td className="px-4 py-3 text-sm text-muted-strong">{row.competency || "-"}</td>
+                  </>
+                )}
+                <td className="px-4 py-3 text-sm text-muted-strong">{row.teacherComment}</td>
+                <td className="px-4 py-3">
+                  <StatusPill
+                    label={row.status}
+                    tone={row.status === "Complete" ? "ok" : row.status === "Missing" ? "warning" : "critical"}
+                    compact
+                  />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="flex flex-col gap-3 border-t border-border bg-surface-muted px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-[13px] font-semibold text-muted-strong">
+          {filteredRows.length} visible learner records - school scope {assignment.schoolId}
+        </p>
+        <Button disabled={submitBlocked}>
+          <ShieldCheck className="h-3.5 w-3.5" />
+          Submit Marks
+        </Button>
+      </div>
+    </Card>
   );
 }
 
@@ -238,6 +747,66 @@ function MetricStrip({
         );
       })}
     </section>
+  );
+}
+
+function PrincipalAcademicApprovalPanel({
+  message,
+  onAction,
+}: {
+  message: string | null;
+  onAction: (action: string) => void;
+}) {
+  return (
+    <Card className="p-5">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <p className="eyebrow">Principal academic approval</p>
+          <h3 className="mt-2 section-title text-lg">Academic Oversight</h3>
+          <p className="mt-1 max-w-3xl text-[13px] leading-5 text-muted">
+            Final academic decisions stay separate from mark entry: approval, publishing readiness, parent visibility, and audit posture are reviewed here.
+          </p>
+        </div>
+        <StatusPill label="Approval queue visible" tone="warning" />
+      </div>
+
+      <div className="mt-5 grid gap-3 md:grid-cols-3">
+        {[
+          ["Results Approval", "Pending approval classes, returned corrections, approved today, and publishing blockers."],
+          ["Report Publishing", "Reports ready, parent-published counts, SMS notices pending, and acknowledgement progress."],
+          ["Academic Analytics", "School mean, weakest subject, top improvers, at-risk learners, and class/stream comparison."],
+        ].map(([title, detail]) => (
+          <div key={title} className="rounded-[var(--radius-sm)] border border-border bg-surface-muted px-4 py-3">
+            <p className="text-sm font-semibold text-foreground">{title}</p>
+            <p className="mt-2 text-[13px] leading-5 text-muted">{detail}</p>
+          </div>
+        ))}
+      </div>
+
+      <div className="mt-5 flex flex-wrap gap-2">
+        {[
+          "Review Approval",
+          "Approve Publishing",
+          "Return for Correction",
+          "Open Approval History",
+          "Preview Reports",
+          "Publish to Parent Dashboard",
+          "Send SMS Notice",
+          "Download Board Summary",
+        ].map((label) => (
+          <Button key={label} size="sm" variant={label === "Approve Publishing" ? "primary" : "secondary"} onClick={() => onAction(label)}>
+            {label.includes("Publish") || label.includes("Approve") ? <ShieldCheck className="h-3.5 w-3.5" /> : <ClipboardCheck className="h-3.5 w-3.5" />}
+            {label}
+          </Button>
+        ))}
+      </div>
+
+      {message ? (
+        <div aria-live="polite" className="mt-4 rounded-[var(--radius-sm)] border border-info/20 bg-info-soft px-4 py-3 text-sm font-semibold text-info">
+          {message}
+        </div>
+      ) : null}
+    </Card>
   );
 }
 
@@ -354,6 +923,11 @@ function MarksEntryGrid({
 
   const marksSummary = useMemo(() => calculateMarksSummary(rows, fields), [rows, fields]);
   const marksLocked = submissionState === "submitted";
+  const outlierCount = rows.filter((row) => row.status === "Outlier").length;
+  const submissionBlocked =
+    marksSummary.missingScores > 0 ||
+    marksSummary.invalidScores > 0 ||
+    outlierCount > 0;
 
   function focusCell(rowIndex: number, fieldIndex: number) {
     const nextRow = filteredRows[rowIndex];
@@ -497,6 +1071,14 @@ function MarksEntryGrid({
     });
   }
 
+  function handleSubmitForApproval() {
+    if (marksLocked || submissionBlocked) {
+      return;
+    }
+
+    onSubmitForApproval();
+  }
+
   return (
     <Card className="overflow-hidden">
       <div className="border-b border-border px-5 py-4">
@@ -519,8 +1101,8 @@ function MarksEntryGrid({
             </Button>
             <Button
               size="sm"
-              onClick={onSubmitForApproval}
-              disabled={marksLocked}
+              onClick={handleSubmitForApproval}
+              disabled={marksLocked || submissionBlocked}
             >
               <ShieldCheck className="h-3.5 w-3.5" />
               {marksLocked ? "Submitted to HOD" : "Submit to HOD"}
@@ -539,6 +1121,11 @@ function MarksEntryGrid({
         >
           {getSubmissionMessage(submissionState)}
         </div>
+        {submissionBlocked && !marksLocked ? (
+          <div className="mt-3 rounded-[var(--radius-sm)] border border-warning/20 bg-warning-soft px-4 py-3 text-sm font-semibold text-warning">
+            Resolve missing marks and invalid/outlier scores before submitting.
+          </div>
+        ) : null}
         <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(220px,1fr)_auto]">
           <label className="flex min-w-0 items-center gap-2 rounded-[var(--radius-sm)] border border-border bg-surface-muted px-3 py-2">
             <Search className="h-4 w-4 text-muted" />
@@ -577,7 +1164,7 @@ function MarksEntryGrid({
           ["Live average", `${marksSummary.meanScore}%`],
           ["Valid scores", String(marksSummary.validScores)],
           ["Missing cells", String(marksSummary.missingScores)],
-          ["Outlier checks", String(marksSummary.invalidScores + rows.filter((row) => row.status === "Outlier").length)],
+          ["Outlier checks", String(marksSummary.invalidScores + outlierCount)],
         ].map(([label, value]) => (
           <div key={label} className="border-b border-border px-4 py-3 md:border-b-0 md:border-r last:md:border-r-0">
             <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">{label}</p>
@@ -769,7 +1356,7 @@ function AllocationPanel({
         <div className="mt-4 space-y-2 text-[13px] text-muted-strong">
           <p className="rounded-[var(--radius-sm)] bg-surface-muted px-3 py-2">3 active departments</p>
           <p className="rounded-[var(--radius-sm)] bg-surface-muted px-3 py-2">136 learners covered</p>
-          <p className="rounded-[var(--radius-sm)] bg-surface-muted px-3 py-2">No cross-tenant allocations</p>
+          <p className="rounded-[var(--radius-sm)] bg-surface-muted px-3 py-2">No cross-school allocations</p>
         </div>
       </Card>
     </div>
@@ -780,7 +1367,7 @@ function BulkUploadPanel() {
   const uploadChecks: Array<[string, string, StatusTone]> = [
     ["Template match", "Grade 8 Unity template recognized", "ok"],
     ["Duplicate guard", "2 duplicate admission numbers blocked", "warning"],
-    ["Tenant boundary", "Upload scoped to Baraka Academy only", "ok"],
+    ["School boundary", "Upload scoped to Baraka Academy only", "ok"],
     ["Partial recovery", "Last interrupted import can resume", "ok"],
   ];
 
@@ -945,50 +1532,784 @@ function ApprovalPanel({
   );
 }
 
-function ReportCardsPanel({
-  reports,
-}: {
-  reports: ReportCardBatch[];
-}) {
-  const columns: DataTableColumn<ReportCardBatch>[] = [
-    { id: "className", header: "Class", render: (row) => <span className="font-semibold">{row.className}</span> },
-    { id: "template", header: "Template", render: (row) => row.template },
-    { id: "ready", header: "Ready", render: (row) => `${row.ready}/${row.total}` },
-    { id: "status", header: "Status", render: (row) => <StatusPill label={row.status} tone={row.tone} /> },
-  ];
+function getReportingModeLabel(mode: ClassReportingMode) {
+  const labels: Record<ClassReportingMode, string> = {
+    CBC_CBE: "CBC/CBE",
+    HYBRID_CBC_MARKS: "Hybrid CBC + Marks",
+    LEGACY_844_KCSE: "Legacy 8-4-4/KCSE",
+  };
 
-  function printReports() {
-    openPrintDocument({
-      eyebrow: "Exam report cards",
-      title: "Report card generation summary",
-      subtitle: "Current report batches ready for parent-friendly PDF generation.",
-      rows: reports.map((report) => ({
-        label: report.className,
-        value: `${report.ready}/${report.total} ${report.status}`,
+  return labels[mode];
+}
+
+function getReportTypeFilterLabel(type: ReportCardType | "ALL") {
+  if (type === "ALL") {
+    return "All report types";
+  }
+
+  return getReportCardTypeLabel(type);
+}
+
+function getReportCardStatusTone(status: ReportCardStatus): StatusTone {
+  if (status === "Published" || status === "Principal/Deputy approved" || status === "Ready for review") {
+    return "ok";
+  }
+
+  if (status === "Data incomplete" || status === "Returned for correction") {
+    return "critical";
+  }
+
+  return "warning";
+}
+
+function ReportCardsPanel({ data }: { data: ExamsModuleData }) {
+  const [reportSettings, setReportSettings] = useState<ReportCardSettings>(() => ({ ...curriculumSettings }));
+  const [classReportingModes, setClassReportingModes] = useState<Record<string, ClassReportingMode>>(() =>
+    Object.fromEntries(
+      data.reports.map((report) => [
+        report.className,
+        inferClassReportingMode({
+          className: report.className,
+          schoolDirection: curriculumSettings.schoolDefaultCurriculumDirection,
+        }),
+      ]),
+    ),
+  );
+  const [reportTypeFilter, setReportTypeFilter] = useState<ReportCardType | "ALL">("ALL");
+  const [modeFilter, setModeFilter] = useState<ClassReportingMode | "ALL">("ALL");
+  const [academicYearFilter, setAcademicYearFilter] = useState("2026");
+  const [termFilter, setTermFilter] = useState("Term 2");
+  const [reportingPeriodFilter, setReportingPeriodFilter] = useState(data.currentExam);
+  const [gradeFormFilter, setGradeFormFilter] = useState("ALL");
+  const [streamFilter, setStreamFilter] = useState("ALL");
+  const [statusFilter, setStatusFilter] = useState<ReportCardStatus | "ALL">("ALL");
+  const [completionFilter, setCompletionFilter] = useState<"ALL" | "COMPLETE" | "INCOMPLETE">("ALL");
+  const [publicationFilter, setPublicationFilter] = useState<"ALL" | "Published" | "Unpublished">("ALL");
+  const [approvalFilter, setApprovalFilter] = useState<"ALL" | "APPROVED" | "PENDING">("ALL");
+  const [feeHoldFilter, setFeeHoldFilter] = useState<"ALL" | "Clear" | "Held">("ALL");
+  const [selectedReport, setSelectedReport] = useState<ReportCardDocumentData | null>(null);
+  const [auditRow, setAuditRow] = useState<ReportCardGenerationRow | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [rowOverrides, setRowOverrides] = useState<
+    Record<
+      string,
+      Partial<Pick<ReportCardGenerationRow, "approvalStatus" | "publishedStatus" | "printedStatus">> & {
+        auditNote?: string;
+      }
+    >
+  >({});
+
+  const baseRows = useMemo(
+    () =>
+      buildReportCardGenerationRows(data.reports, {
+        settings: reportSettings,
+        classReportingModes,
+      }),
+    [classReportingModes, data.reports, reportSettings],
+  );
+  const rows = useMemo(
+    () =>
+      baseRows.map((row) => ({
+        ...row,
+        ...(rowOverrides[row.id] ?? {}),
       })),
-      footer: "Generated from the Exams & Results command center.",
+    [baseRows, rowOverrides],
+  );
+
+  const filteredRows = rows.filter((row) => {
+    const matchesType = reportTypeFilter === "ALL" || row.reportType === reportTypeFilter;
+    const matchesMode = modeFilter === "ALL" || row.reportingMode === modeFilter;
+    const matchesGradeForm = gradeFormFilter === "ALL" || row.gradeForm === gradeFormFilter;
+    const matchesStream = streamFilter === "ALL" || row.stream === streamFilter;
+    const matchesStatus = statusFilter === "ALL" || row.approvalStatus === statusFilter;
+    const matchesCompletion =
+      completionFilter === "ALL"
+      || (completionFilter === "COMPLETE" && row.missingItems.length === 0)
+      || (completionFilter === "INCOMPLETE" && row.missingItems.length > 0);
+    const matchesPublication = publicationFilter === "ALL" || row.publishedStatus === publicationFilter;
+    const isApproved = row.approvalStatus === "Principal/Deputy approved" || row.publishedStatus === "Published";
+    const matchesApproval =
+      approvalFilter === "ALL"
+      || (approvalFilter === "APPROVED" && isApproved)
+      || (approvalFilter === "PENDING" && !isApproved);
+    const matchesFeeHold = feeHoldFilter === "ALL" || row.feeHoldStatus === feeHoldFilter;
+
+    return (
+      matchesType
+      && matchesMode
+      && matchesGradeForm
+      && matchesStream
+      && matchesStatus
+      && matchesCompletion
+      && matchesPublication
+      && matchesApproval
+      && matchesFeeHold
+    );
+  });
+
+  const gradeFormOptions = Array.from(new Set(rows.map((row) => row.gradeForm)));
+  const streamOptions = Array.from(new Set(rows.map((row) => row.stream)));
+  const statusOptions = Array.from(new Set(rows.map((row) => row.approvalStatus)));
+  const summary = {
+    learners: rows.length,
+    cbc: rows.filter((row) => row.reportType === "CBC_CBE_COMPETENCY").length,
+    hybrid: rows.filter((row) => row.reportType === "HYBRID_CBC_MARKS").length,
+    legacy: rows.filter((row) => row.reportType === "LEGACY_844_KCSE").length,
+    blocked: rows.filter((row) => row.missingItems.length > 0 || row.feeHoldStatus === "Held").length,
+    published: rows.filter((row) => row.publishedStatus === "Published").length,
+    missingCbc: rows.filter((row) => row.cbcCompletion !== "Complete" && row.cbcCompletion !== "Not required").length,
+    missingMarks: rows.filter((row) => row.marksCompletion !== "Complete" && row.marksCompletion !== "Not required").length,
+    missingComments: rows.filter((row) => row.commentsStatus !== "Complete" && row.commentsStatus !== "Not required").length,
+    awaitingApproval: rows.filter((row) => row.approvalStatus !== "Principal/Deputy approved" && row.publishedStatus !== "Published").length,
+  };
+
+  function updateRow(rowId: string, update: Partial<ReportCardGenerationRow> & { auditNote?: string }) {
+    setRowOverrides((current) => ({
+      ...current,
+      [rowId]: {
+        ...(current[rowId] ?? {}),
+        ...update,
+      },
+    }));
+  }
+
+  function updateSchoolDirection(direction: SchoolCurriculumDirection) {
+    setReportSettings((current) => ({
+      ...current,
+      schoolDefaultCurriculumDirection: direction,
+    }));
+    setClassReportingModes(
+      Object.fromEntries(
+        data.reports.map((report) => [
+          report.className,
+          inferClassReportingMode({
+            className: report.className,
+            schoolDirection: direction,
+          }),
+        ]),
+      ),
+    );
+    setNotice(
+      direction === "CBC_CBE"
+        ? "CBC/CBE is now the school default direction. Legacy 8-4-4/KCSE remains selectable only as an explicit class/report format."
+        : "Hybrid Transition is now the school default direction. Legacy 8-4-4/KCSE remains class-level transition support only.",
+    );
+  }
+
+  function updateReportSettingFlag(key: keyof Pick<ReportCardSettings, "allowMarksSupplement" | "allowRanking" | "allowFeeVisibility" | "allowDisciplineVisibility" | "requirePrincipalApproval" | "requireClassTeacherComments" | "requireCbcObservations" | "requireSubjectTeacherComments">, value: boolean) {
+    setReportSettings((current) => ({
+      ...current,
+      [key]: value,
+    }));
+    setNotice("Report-card settings draft updated for the current school workspace.");
+  }
+
+  function updateClassReportingMode(className: string, mode: ClassReportingMode) {
+    setClassReportingModes((current) => ({
+      ...current,
+      [className]: mode,
+    }));
+    setNotice(`${className}: reporting mode set to ${getReportingModeLabel(mode)}. Report rows refreshed from the class-level setting.`);
+  }
+
+  function buildPreview(row: ReportCardGenerationRow) {
+    return buildReportCardDocument({
+      data,
+      row,
+      settings: reportSettings,
     });
   }
 
+  function openPreview(row: ReportCardGenerationRow) {
+    setSelectedReport(buildPreview(row));
+    setNotice(null);
+  }
+
+  function generateDraft(row: ReportCardGenerationRow) {
+    if (row.missingItems.length > 0) {
+      updateRow(row.id, {
+        approvalStatus: "Data incomplete",
+        auditNote: "Generation blocked until missing report-card inputs are completed.",
+      });
+      setNotice(`${row.learnerName}: generation blocked because ${row.missingItems[0]}`);
+      return;
+    }
+
+    updateRow(row.id, {
+      approvalStatus: "Ready for review",
+      auditNote: "Draft generated from current exam, competency, and comment records.",
+    });
+    setSelectedReport(buildPreview({ ...row, approvalStatus: "Ready for review" }));
+    setNotice(`${row.learnerName}: report draft generated and ready for review.`);
+  }
+
+  function regenerateReport(row: ReportCardGenerationRow) {
+    generateDraft(row);
+  }
+
+  function submitForReview(row: ReportCardGenerationRow) {
+    if (row.approvalStatus === "Data incomplete") {
+      setNotice(`${row.learnerName}: complete missing marks, CBC observations, or comments before review.`);
+      return;
+    }
+
+    updateRow(row.id, {
+      approvalStatus: "Submitted for review",
+      auditNote: "Submitted to Deputy/Principal approval queue.",
+    });
+    setNotice(`${row.learnerName}: report sent to the approval queue.`);
+  }
+
+  function approveReport(row: ReportCardGenerationRow) {
+    if (row.approvalStatus !== "Submitted for review" && row.approvalStatus !== "Ready for review") {
+      setNotice(`${row.learnerName}: submit the report for review before approval.`);
+      return;
+    }
+
+    updateRow(row.id, {
+      approvalStatus: "Principal/Deputy approved",
+      auditNote: "Approved for parent portal publishing.",
+    });
+    setNotice(`${row.learnerName}: report approved.`);
+  }
+
+  function publishReport(row: ReportCardGenerationRow) {
+    if (row.approvalStatus !== "Principal/Deputy approved") {
+      setNotice(`${row.learnerName}: approval is required before parent portal publishing.`);
+      return;
+    }
+
+    updateRow(row.id, {
+      publishedStatus: "Published",
+      auditNote: "Published to the permitted parent portal.",
+    });
+    setNotice(`${row.learnerName}: report published to the permitted parent portal.`);
+  }
+
+  function unpublishReport(row: ReportCardGenerationRow) {
+    if (row.publishedStatus !== "Published") {
+      setNotice(`${row.learnerName}: report is already unpublished.`);
+      return;
+    }
+
+    updateRow(row.id, {
+      publishedStatus: "Unpublished",
+      auditNote: "Unpublished from the permitted parent portal.",
+    });
+    setNotice(`${row.learnerName}: report unpublished from the parent portal.`);
+  }
+
+  function queueReportNotification(row: ReportCardGenerationRow) {
+    if (row.publishedStatus !== "Published") {
+      setNotice(`${row.learnerName}: notification saved as pending until the report is published.`);
+      return;
+    }
+
+    updateRow(row.id, {
+      auditNote: "Parent portal report notification queued after publication.",
+    });
+    setNotice(`${row.learnerName}: report notification queued.`);
+  }
+
+  function markPrinted(report: ReportCardDocumentData) {
+    updateRow(report.id, {
+      printedStatus: "Printed",
+      auditNote: "Print preview ready for official A4 document.",
+    });
+  }
+
+  function openPrintPreview(report: ReportCardDocumentData) {
+    const documentElement = document.getElementById(`report-card-document-${report.id}`);
+
+    if (!documentElement) {
+      setNotice("Open the report preview before printing.");
+      return;
+    }
+
+    const printWindow = window.open("", "_blank", "noopener,noreferrer,width=900,height=1100");
+
+    if (!printWindow) {
+      setNotice("Browser blocked the print preview window. Allow popups, then try again.");
+      return;
+    }
+
+    printWindow.document.write(`<!doctype html>
+      <html>
+        <head>
+          <title>${getReportCardTypeLabel(report.curriculum.reportCardType)} - ${report.learner.fullName}</title>
+          <style>
+            @page { size: A4; margin: 12mm; }
+            * { box-sizing: border-box; }
+            body { margin: 0; background: #ffffff; color: #0f172a; font-family: Arial, sans-serif; }
+            table { width: 100%; border-collapse: collapse; }
+            th, td { border: 1px solid #cbd5e1; padding: 4px 6px; text-align: left; vertical-align: top; }
+            .print-shell { width: 794px; margin: 0 auto; }
+            button, .print\\:hidden { display: none !important; }
+          </style>
+        </head>
+        <body>
+          <div class="print-shell">${documentElement.outerHTML}</div>
+          <script>
+            window.onload = function () {
+              window.focus();
+              window.print();
+            };
+          </script>
+        </body>
+      </html>`);
+    printWindow.document.close();
+    markPrinted(report);
+    setNotice(`${report.learner.fullName}: print preview ready.`);
+  }
+
+  function downloadPdf(report: ReportCardDocumentData) {
+    openPrintPreview(report);
+    setNotice(`${report.learner.fullName}: choose "Save as PDF" in the print dialog.`);
+  }
+
+  function printSummary() {
+    openPrintDocument({
+      eyebrow: "Curriculum-aware report cards",
+      title: "Report card generation summary",
+      subtitle: "CBC/CBE is the school direction. Hybrid and legacy formats are selected only by class or report type.",
+      rows: rows.map((row) => ({
+        label: `${row.learnerName} - ${row.gradeForm}`,
+        value: `${getReportCardTypeLabel(row.reportType)} | ${row.approvalStatus} | ${row.publishedStatus}`,
+      })),
+      footer: "Generated from the Exams & Results workspace.",
+    });
+  }
+
+  const columns: DataTableColumn<ReportCardGenerationRow>[] = [
+    {
+      id: "learner",
+      header: "Learner",
+      render: (row) => (
+        <div>
+          <p className="font-semibold">{row.learnerName}</p>
+          <p className="text-[12px] text-muted">{row.admissionNumber}</p>
+        </div>
+      ),
+    },
+    { id: "class", header: "Class/Form", render: (row) => `${row.gradeForm} ${row.stream ? `(${row.stream})` : ""}` },
+    { id: "mode", header: "Mode", render: (row) => getReportingModeLabel(row.reportingMode) },
+    { id: "type", header: "Report type", render: (row) => getReportCardTypeLabel(row.reportType) },
+    {
+      id: "inputs",
+      header: "Inputs",
+      render: (row) => (
+        <div className="space-y-1 text-[12px]">
+          <p>CBC: {row.cbcCompletion}</p>
+          <p>Marks: {row.marksCompletion}</p>
+          <p>Comments: {row.commentsStatus}</p>
+        </div>
+      ),
+    },
+    {
+      id: "approval",
+      header: "Approval",
+      render: (row) => <StatusPill label={row.approvalStatus} tone={getReportCardStatusTone(row.approvalStatus)} />,
+    },
+    {
+      id: "portal",
+      header: "Portal",
+      render: (row) => (
+        <div className="space-y-1">
+          <StatusPill label={row.publishedStatus} tone={row.publishedStatus === "Published" ? "ok" : "warning"} />
+          <p className="text-[11px] text-muted">{row.printedStatus}</p>
+        </div>
+      ),
+    },
+    {
+      id: "actions",
+      header: "Actions",
+      className: "min-w-[420px]",
+      render: (row) => (
+        <div className="flex flex-wrap gap-2">
+          <Button size="sm" variant="secondary" onClick={() => openPreview(row)}>
+            Preview
+          </Button>
+          <Button size="sm" onClick={() => generateDraft(row)}>
+            Generate
+          </Button>
+          <Button size="sm" variant="secondary" onClick={() => regenerateReport(row)}>
+            Regenerate
+          </Button>
+          <Button size="sm" variant="secondary" onClick={() => openPrintPreview(buildPreview(row))}>
+            Print
+          </Button>
+          <Button size="sm" variant="secondary" onClick={() => downloadPdf(buildPreview(row))}>
+            Download PDF
+          </Button>
+          <Button size="sm" variant="secondary" onClick={() => submitForReview(row)}>
+            Submit
+          </Button>
+          <Button size="sm" variant="secondary" onClick={() => approveReport(row)}>
+            Approve
+          </Button>
+          <Button size="sm" variant="secondary" onClick={() => publishReport(row)}>
+            Publish
+          </Button>
+          <Button size="sm" variant="secondary" onClick={() => unpublishReport(row)}>
+            Unpublish
+          </Button>
+          <Button size="sm" variant="secondary" onClick={() => queueReportNotification(row)}>
+            Send notification
+          </Button>
+          <Button size="sm" variant="secondary" onClick={() => setAuditRow(row)}>
+            Audit trail
+          </Button>
+        </div>
+      ),
+    },
+  ];
+
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap gap-2">
-        <Button onClick={printReports}>
-          <FileDown className="h-4 w-4" />
-          Batch generate PDF
-        </Button>
-        <Button variant="secondary">
-          <Users className="h-4 w-4" />
-          Parent portal preview
-        </Button>
-      </div>
+      <Card className="p-5">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="max-w-3xl">
+            <p className="eyebrow">Report card settings</p>
+            <h3 className="mt-2 section-title text-lg">CBC/CBE-first reporting with class-level transition modes</h3>
+            <p className="mt-1 text-[13px] leading-5 text-muted">
+              School default direction is {reportSettings.schoolDefaultCurriculumDirection === "CBC_CBE" ? "CBC/CBE School" : "Hybrid Transition School"}.
+              Legacy 8-4-4/KCSE is available only for selected classes, archived formats, or explicit report type selection.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="secondary" onClick={printSummary}>
+              <FileDown className="h-4 w-4" />
+              Print Summary
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                const firstPublished = rows.find((row) => row.publishedStatus === "Published") ?? null;
+                if (!firstPublished) {
+                  setNotice("Parent portal preview is empty until at least one report is published.");
+                  return;
+                }
+                openPreview(firstPublished);
+              }}
+            >
+              <Users className="h-4 w-4" />
+              Parent portal preview
+            </Button>
+          </div>
+        </div>
+
+        <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
+          <div className="rounded-[var(--radius-sm)] border border-border bg-surface-muted px-4 py-3">
+            <label className="space-y-1">
+              <span className="text-[12px] font-semibold text-muted">School default curriculum direction</span>
+              <select
+                value={reportSettings.schoolDefaultCurriculumDirection}
+                onChange={(event) => updateSchoolDirection(event.target.value as SchoolCurriculumDirection)}
+                className="h-10 w-full rounded-[var(--radius-sm)] border border-border bg-white px-3 text-sm text-foreground"
+              >
+                <option value="CBC_CBE">CBC/CBE School</option>
+                <option value="HYBRID_TRANSITION">Hybrid Transition School</option>
+              </select>
+            </label>
+            <p className="mt-2 text-[12px] leading-5 text-muted">
+              8-4-4/KCSE is available only as a legacy class/report format, never as a school-wide mode.
+            </p>
+            <div className="mt-3 grid gap-2 text-[12px] text-foreground">
+              {[
+                ["Allow marks supplement", "allowMarksSupplement"],
+                ["Allow ranking", "allowRanking"],
+                ["Allow fee visibility", "allowFeeVisibility"],
+                ["Allow discipline visibility", "allowDisciplineVisibility"],
+                ["Require principal approval", "requirePrincipalApproval"],
+                ["Require class teacher comments", "requireClassTeacherComments"],
+                ["Require CBC observations", "requireCbcObservations"],
+                ["Require subject teacher comments", "requireSubjectTeacherComments"],
+              ].map(([label, key]) => (
+                <label key={key} className="flex items-center justify-between gap-3">
+                  <span>{label}</span>
+                  <input
+                    type="checkbox"
+                    checked={Boolean(reportSettings[key as keyof ReportCardSettings])}
+                    onChange={(event) =>
+                      updateReportSettingFlag(
+                        key as keyof Pick<
+                          ReportCardSettings,
+                          | "allowMarksSupplement"
+                          | "allowRanking"
+                          | "allowFeeVisibility"
+                          | "allowDisciplineVisibility"
+                          | "requirePrincipalApproval"
+                          | "requireClassTeacherComments"
+                          | "requireCbcObservations"
+                          | "requireSubjectTeacherComments"
+                        >,
+                        event.target.checked,
+                      )
+                    }
+                    className="h-4 w-4 accent-[var(--color-primary)]"
+                  />
+                </label>
+              ))}
+            </div>
+          </div>
+          <div className="rounded-[var(--radius-sm)] border border-border bg-surface-muted px-4 py-3">
+            <p className="text-[12px] font-semibold text-muted">Class/Form/Grade reporting modes</p>
+            <div className="mt-3 grid gap-2 md:grid-cols-2">
+              {data.reports.map((report) => (
+                <label key={report.className} className="space-y-1">
+                  <span className="text-[12px] font-semibold text-foreground">{report.className}</span>
+                  <select
+                    aria-label={`${report.className} reporting mode`}
+                    value={classReportingModes[report.className] ?? "CBC_CBE"}
+                    onChange={(event) => updateClassReportingMode(report.className, event.target.value as ClassReportingMode)}
+                    className="h-10 w-full rounded-[var(--radius-sm)] border border-border bg-white px-3 text-sm text-foreground"
+                  >
+                    <option value="CBC_CBE">CBC/CBE</option>
+                    <option value="HYBRID_CBC_MARKS">Hybrid CBC + Marks</option>
+                    <option value="LEGACY_844_KCSE">Legacy 8-4-4/KCSE class/report</option>
+                  </select>
+                </label>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
+          {[
+            ["Learners", summary.learners],
+            ["CBC/CBE", summary.cbc],
+            ["Hybrid", summary.hybrid],
+            ["Legacy class reports", summary.legacy],
+            ["Needs attention", summary.blocked],
+            ["Published", summary.published],
+          ].map(([label, value]) => (
+            <div key={label} className="rounded-[var(--radius-sm)] border border-border bg-surface-muted px-4 py-3">
+              <p className="text-[11px] font-bold uppercase tracking-[0.06em] text-muted">{label}</p>
+              <p className="mt-1 text-2xl font-bold text-foreground">{value}</p>
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+          {[
+            ["Missing CBC observations", summary.missingCbc],
+            ["Missing marks", summary.missingMarks],
+            ["Missing comments", summary.missingComments],
+            ["Awaiting approval", summary.awaitingApproval],
+            ["Held/blocked", summary.blocked],
+          ].map(([label, value]) => (
+            <div key={label} className="rounded-[var(--radius-sm)] border border-warning/20 bg-warning/10 px-4 py-3">
+              <p className="text-[11px] font-bold uppercase tracking-[0.06em] text-muted">{label}</p>
+              <p className="mt-1 text-2xl font-bold text-foreground">{value}</p>
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-4 grid gap-3 md:grid-cols-3 xl:grid-cols-4">
+          <label className="space-y-1">
+            <span className="text-[12px] font-semibold text-muted">Academic year</span>
+            <select
+              value={academicYearFilter}
+              onChange={(event) => setAcademicYearFilter(event.target.value)}
+              className="h-10 w-full rounded-[var(--radius-sm)] border border-border bg-white px-3 text-sm text-foreground"
+            >
+              <option value="2026">2026</option>
+              <option value="2025">2025</option>
+            </select>
+          </label>
+          <label className="space-y-1">
+            <span className="text-[12px] font-semibold text-muted">Term</span>
+            <select
+              value={termFilter}
+              onChange={(event) => setTermFilter(event.target.value)}
+              className="h-10 w-full rounded-[var(--radius-sm)] border border-border bg-white px-3 text-sm text-foreground"
+            >
+              <option value="Term 2">Term 2</option>
+              <option value="Term 1">Term 1</option>
+              <option value="Term 3">Term 3</option>
+            </select>
+          </label>
+          <label className="space-y-1">
+            <span className="text-[12px] font-semibold text-muted">Reporting period</span>
+            <select
+              value={reportingPeriodFilter}
+              onChange={(event) => setReportingPeriodFilter(event.target.value)}
+              className="h-10 w-full rounded-[var(--radius-sm)] border border-border bg-white px-3 text-sm text-foreground"
+            >
+              <option value={data.currentExam}>{data.currentExam}</option>
+              <option value="Term 2 Endterm">Term 2 Endterm</option>
+            </select>
+          </label>
+          <label className="space-y-1">
+            <span className="text-[12px] font-semibold text-muted">Grade/Form</span>
+            <select
+              value={gradeFormFilter}
+              onChange={(event) => setGradeFormFilter(event.target.value)}
+              className="h-10 w-full rounded-[var(--radius-sm)] border border-border bg-white px-3 text-sm text-foreground"
+            >
+              <option value="ALL">All grades/forms</option>
+              {gradeFormOptions.map((option) => <option key={option} value={option}>{option}</option>)}
+            </select>
+          </label>
+          <label className="space-y-1">
+            <span className="text-[12px] font-semibold text-muted">Stream</span>
+            <select
+              value={streamFilter}
+              onChange={(event) => setStreamFilter(event.target.value)}
+              className="h-10 w-full rounded-[var(--radius-sm)] border border-border bg-white px-3 text-sm text-foreground"
+            >
+              <option value="ALL">All streams</option>
+              {streamOptions.map((option) => <option key={option} value={option}>{option}</option>)}
+            </select>
+          </label>
+          <label className="space-y-1">
+            <span className="text-[12px] font-semibold text-muted">Report card type</span>
+            <select
+              value={reportTypeFilter}
+              onChange={(event) => setReportTypeFilter(event.target.value as ReportCardType | "ALL")}
+              className="h-10 w-full rounded-[var(--radius-sm)] border border-border bg-white px-3 text-sm text-foreground"
+            >
+              {(["ALL", "CBC_CBE_COMPETENCY", "HYBRID_CBC_MARKS", "LEGACY_844_KCSE"] as const).map((option) => (
+                <option key={option} value={option}>{getReportTypeFilterLabel(option)}</option>
+              ))}
+            </select>
+          </label>
+          <label className="space-y-1">
+            <span className="text-[12px] font-semibold text-muted">Class reporting mode</span>
+            <select
+              value={modeFilter}
+              onChange={(event) => setModeFilter(event.target.value as ClassReportingMode | "ALL")}
+              className="h-10 w-full rounded-[var(--radius-sm)] border border-border bg-white px-3 text-sm text-foreground"
+            >
+              <option value="ALL">All class modes</option>
+              <option value="CBC_CBE">CBC/CBE</option>
+              <option value="HYBRID_CBC_MARKS">Hybrid CBC + Marks</option>
+              <option value="LEGACY_844_KCSE">Legacy 8-4-4/KCSE class</option>
+            </select>
+          </label>
+          <label className="space-y-1">
+            <span className="text-[12px] font-semibold text-muted">Status</span>
+            <select
+              value={statusFilter}
+              onChange={(event) => setStatusFilter(event.target.value as ReportCardStatus | "ALL")}
+              className="h-10 w-full rounded-[var(--radius-sm)] border border-border bg-white px-3 text-sm text-foreground"
+            >
+              <option value="ALL">All statuses</option>
+              {statusOptions.map((option) => <option key={option} value={option}>{option}</option>)}
+            </select>
+          </label>
+          <label className="space-y-1">
+            <span className="text-[12px] font-semibold text-muted">Completion state</span>
+            <select
+              value={completionFilter}
+              onChange={(event) => setCompletionFilter(event.target.value as "ALL" | "COMPLETE" | "INCOMPLETE")}
+              className="h-10 w-full rounded-[var(--radius-sm)] border border-border bg-white px-3 text-sm text-foreground"
+            >
+              <option value="ALL">All completion states</option>
+              <option value="COMPLETE">Complete inputs</option>
+              <option value="INCOMPLETE">Missing inputs</option>
+            </select>
+          </label>
+          <label className="space-y-1">
+            <span className="text-[12px] font-semibold text-muted">Published/unpublished</span>
+            <select
+              value={publicationFilter}
+              onChange={(event) => setPublicationFilter(event.target.value as "ALL" | "Published" | "Unpublished")}
+              className="h-10 w-full rounded-[var(--radius-sm)] border border-border bg-white px-3 text-sm text-foreground"
+            >
+              <option value="ALL">All publication states</option>
+              <option value="Published">Published</option>
+              <option value="Unpublished">Unpublished</option>
+            </select>
+          </label>
+          <label className="space-y-1">
+            <span className="text-[12px] font-semibold text-muted">Approved/pending</span>
+            <select
+              value={approvalFilter}
+              onChange={(event) => setApprovalFilter(event.target.value as "ALL" | "APPROVED" | "PENDING")}
+              className="h-10 w-full rounded-[var(--radius-sm)] border border-border bg-white px-3 text-sm text-foreground"
+            >
+              <option value="ALL">All approval states</option>
+              <option value="APPROVED">Approved/published</option>
+              <option value="PENDING">Pending approval</option>
+            </select>
+          </label>
+          <label className="space-y-1">
+            <span className="text-[12px] font-semibold text-muted">Fee hold status</span>
+            <select
+              value={feeHoldFilter}
+              onChange={(event) => setFeeHoldFilter(event.target.value as "ALL" | "Clear" | "Held")}
+              className="h-10 w-full rounded-[var(--radius-sm)] border border-border bg-white px-3 text-sm text-foreground"
+            >
+              <option value="ALL">All fee states</option>
+              <option value="Clear">Clear</option>
+              <option value="Held">Held</option>
+            </select>
+          </label>
+          <div className="rounded-[var(--radius-sm)] border border-success/20 bg-success/10 px-4 py-3 text-[12px] text-foreground">
+            Parent portal visibility stays locked until report status is Published. Ranking is off unless the school enables it.
+          </div>
+        </div>
+      </Card>
+
+      {notice ? (
+        <div className="rounded-[var(--radius-sm)] border border-info/20 bg-info/10 px-4 py-3 text-[13px] font-semibold text-foreground">
+          {notice}
+        </div>
+      ) : null}
+
       <DataTable
-        title="Report card batches"
-        subtitle="Print-ready, parent-friendly reports with CBC evidence and historical comparison."
+        title="Report card generation"
+        subtitle="Generate, review, approve, publish, and print curriculum-aware report cards from current school records."
         columns={columns}
-        rows={reports}
+        rows={filteredRows}
         getRowKey={(row) => row.id}
+        emptyMessage="No report cards match the selected filters."
       />
+
+      <Modal
+        open={Boolean(selectedReport)}
+        title="Report card preview"
+        description="Review the exact A4 document before printing or saving as PDF."
+        onClose={() => setSelectedReport(null)}
+        size="xl"
+      >
+        {selectedReport ? (
+          <div className="space-y-4">
+            <ReportCardActionBar
+              report={selectedReport}
+              onPrint={() => openPrintPreview(selectedReport)}
+              onDownloadPdf={() => downloadPdf(selectedReport)}
+            />
+            <ReportCardVerificationStrip report={selectedReport} />
+            <ReportCardDocument report={selectedReport} />
+          </div>
+        ) : null}
+      </Modal>
+      <Modal
+        open={Boolean(auditRow)}
+        title="Report card audit trail"
+        description="School-scoped audit trail for the selected report-card workflow."
+        onClose={() => setAuditRow(null)}
+      >
+        {auditRow ? (
+          <div className="space-y-3 text-sm">
+            <div className="rounded-[var(--radius-sm)] border border-border bg-surface-muted px-4 py-3">
+              <p className="font-semibold text-foreground">{auditRow.learnerName}</p>
+              <p className="mt-1 text-muted">{getReportCardTypeLabel(auditRow.reportType)} | {auditRow.approvalStatus}</p>
+            </div>
+            {[
+              "School-scoped audit trail ready.",
+              rowOverrides[auditRow.id]?.auditNote ?? "No mutation has been recorded for this report in this session.",
+              `Tenant: ${data.schoolName}`,
+            ].map((item) => (
+              <p key={item} className="rounded-[var(--radius-sm)] border border-border bg-white px-4 py-3 font-semibold text-foreground">
+                {item}
+              </p>
+            ))}
+          </div>
+        ) : null}
+      </Modal>
     </div>
   );
 }
@@ -1417,12 +2738,14 @@ export function ExamsModuleScreen({
   tenantSlug,
   initialLiveWorkspace,
   liveSessionOverride,
+  teachingAssignmentsOverride,
 }: {
   role: SchoolExperienceRole;
   schoolName: string;
   tenantSlug?: string | null;
   initialLiveWorkspace?: ExamsLiveWorkspace;
   liveSessionOverride?: ReturnType<typeof useLiveTenantSession>;
+  teachingAssignmentsOverride?: ExamTeachingAssignment[];
 }) {
   const data = useMemo(() => buildExamsModuleData({ role, schoolName }), [role, schoolName]);
   const liveTenantId = tenantSlug?.trim() || schoolName;
@@ -1438,6 +2761,18 @@ export function ExamsModuleScreen({
   const [generatedPreview, setGeneratedPreview] = useState<ExamReportCardPreview | null>(null);
   const [activeBatchId, setActiveBatchId] = useState<string | null>(null);
   const [activeBatchStatus, setActiveBatchStatus] = useState<LiveReportCardBatchStatus | null>(null);
+  const teachingAssignments = useMemo(
+    () =>
+      teachingAssignmentsOverride ??
+      buildDefaultTeachingAssignments({
+        role,
+        schoolId: liveTenantId,
+      }),
+    [liveTenantId, role, teachingAssignmentsOverride],
+  );
+  const [selectedTeachingAssignmentId, setSelectedTeachingAssignmentId] = useState<string | null>(null);
+  const [examEntryMessage, setExamEntryMessage] = useState<string | null>(null);
+  const [principalApprovalMessage, setPrincipalApprovalMessage] = useState<string | null>(null);
 
   const liveWorkspaceQuery = useQuery({
     queryKey: ["exams-module", liveSession.session?.tenantId],
@@ -1450,11 +2785,16 @@ export function ExamsModuleScreen({
     queryKey: ["exams-report-card-batch", liveSession.session?.tenantId, activeBatchId],
     queryFn: () => fetchReportCardBatchStatusLive(liveSession.session!, activeBatchId!),
     enabled: Boolean(liveSession.session && activeBatchId),
-    refetchInterval: activeBatchId ? 3000 : false,
+    refetchInterval: false,
   });
   const isLiveMode = Boolean(liveSession.session);
   const liveWorkspace = liveWorkspaceQuery.data;
   const liveMarkSheets = liveWorkspace?.markSheets ?? [];
+  const hasAssignedTeacherEntry = teachingAssignments.length > 0;
+  const activeTeachingAssignmentId =
+    teachingAssignments.find((assignment) => assignment.id === selectedTeachingAssignmentId)?.id ??
+    teachingAssignments[0]?.id ??
+    null;
   const selectedMarkSheet = liveMarkSheets[0] ?? null;
   const selectedPreview = generatedPreview ?? liveWorkspace?.reportCards[0] ?? null;
   const batchStatus = batchStatusQuery.data ?? activeBatchStatus;
@@ -1473,6 +2813,38 @@ export function ExamsModuleScreen({
     };
   });
 
+  function openTeachingAssignment(assignment: ExamTeachingAssignment) {
+    setSelectedTeachingAssignmentId(assignment.id);
+    setExamEntryMessage(`${assignment.subject} marksheet ready for ${getAssignmentScope(assignment)}.`);
+  }
+
+  function saveTeachingDraft(assignment: ExamTeachingAssignment) {
+    setSelectedTeachingAssignmentId(assignment.id);
+    setSaveState("synced");
+    setExamEntryMessage(`Draft saved locally for ${getAssignmentScope(assignment)} ${assignment.subject}.`);
+  }
+
+  function downloadTeachingTemplate(assignment: ExamTeachingAssignment) {
+    setSelectedTeachingAssignmentId(assignment.id);
+    setExamEntryMessage(`Template queued for ${getAssignmentScope(assignment)} ${assignment.subject}.`);
+  }
+
+  function requestTeachingImport(assignment: ExamTeachingAssignment) {
+    setSelectedTeachingAssignmentId(assignment.id);
+    setExamEntryMessage(`Import needs a selected CSV or Excel file before ${assignment.subject} records are changed.`);
+  }
+
+  function openPrincipalAcademicAction(action: string) {
+    const actionGuidance: Record<string, string> = {
+      "Approve Publishing": "Use the Report cards tab to approve selected reports after the generated artifact and approval blockers are clear.",
+      "Publish to Parent Dashboard": "Publishing requires an approved generated report card; use the live publish handler when a card is selected.",
+      "Send SMS Notice": "SMS notices are queued only after provider configuration and parent contacts are available.",
+      "Return for Correction": "Open the Approval pipeline tab to return a selected record with a correction reason.",
+      "Open Approval History": "Open the Audit trail tab for school-scoped approval history.",
+    };
+    setPrincipalApprovalMessage(actionGuidance[action] ?? `${action} selected for principal review.`);
+  }
+
   async function refreshLiveExams() {
     await queryClient.invalidateQueries({
       queryKey: ["exams-module", liveSession.session?.tenantId],
@@ -1484,21 +2856,25 @@ export function ExamsModuleScreen({
       throw new Error("No live mark sheet is available.");
     }
 
+    if (!selectedPreview?.studentId) {
+      throw new Error("No live learner record is selected for this exam action.");
+    }
+
     return {
       exam_series_id: selectedMarkSheet.examSeriesId,
       assessment_id: selectedMarkSheet.assessmentId,
       academic_term_id: selectedMarkSheet.academicTermId,
       class_section_id: selectedMarkSheet.classSectionId,
       subject_id: selectedMarkSheet.subjectId,
-      student_id: selectedPreview?.studentId ?? "student-1",
+      student_id: selectedPreview.studentId,
       score,
-      remarks: "Saved from the live exams workspace.",
+      remarks: "Saved from the live exams desk.",
     };
   }
 
   async function runLiveAction(actionId: string, action: () => Promise<string>) {
     if (!liveSession.session) {
-      setModuleError("Connect a live tenant session before changing exam records.");
+        setModuleError("Connect a live school session before changing exam records.");
       return;
     }
 
@@ -1549,14 +2925,7 @@ export function ExamsModuleScreen({
 
   function correctLiveMark() {
     void runLiveAction("correct-mark", async () => {
-      await correctLockedExamMarkLive(liveSession.session!, {
-        mark_id: "mark-1",
-        score: 86,
-        reason: "Correction approved from the exams workspace.",
-        first_approver_user_id: liveSession.user?.user_id ?? "officer-1",
-        second_approver_user_id: role === "principal" ? "deputy-1" : "principal-1",
-      });
-      return "Locked mark correction sent for audited approval.";
+      throw new Error("No locked mark correction record is selected. Open a returned locked-mark correction from the moderation queue before submitting an audited correction.");
     });
   }
 
@@ -1566,9 +2935,13 @@ export function ExamsModuleScreen({
         throw new Error("No live mark sheet is available.");
       }
 
+      if (!selectedPreview?.studentId) {
+        throw new Error("No live learner record is selected for report-card generation.");
+      }
+
       const generated = await generateReportCardLive(liveSession.session!, {
         exam_series_id: selectedMarkSheet.examSeriesId,
-        student_id: selectedPreview?.studentId ?? "student-1",
+        student_id: selectedPreview.studentId,
       });
       setGeneratedPreview(mapLiveReportCardToPreview(generated));
       return "Report card generated from live marks.";
@@ -1625,8 +2998,36 @@ export function ExamsModuleScreen({
         currentExam={data.currentExam}
         currentClass={data.currentClass}
         saveState={saveState}
+        hasAssignedTeacherEntry={hasAssignedTeacherEntry}
+        onContinueMarksEntry={() => {
+          const assignment = teachingAssignments[0];
+          if (assignment) {
+            openTeachingAssignment(assignment);
+          }
+        }}
+        onImportSpreadsheet={() => {
+          const assignment = teachingAssignments[0];
+          if (assignment) {
+            requestTeachingImport(assignment);
+          }
+        }}
       />
       <MetricStrip metrics={data.metrics} />
+      {role === "principal" ? (
+        <PrincipalAcademicApprovalPanel
+          message={principalApprovalMessage}
+          onAction={openPrincipalAcademicAction}
+        />
+      ) : null}
+      <MyExamEntryPanel
+        assignments={teachingAssignments}
+        activeAssignmentId={activeTeachingAssignmentId}
+        message={examEntryMessage}
+        onOpenAssignment={openTeachingAssignment}
+        onDownloadTemplate={downloadTeachingTemplate}
+        onSaveDraft={saveTeachingDraft}
+        onImportRequest={requestTeachingImport}
+      />
       <LiveExamsOperationsPanel
         role={role}
         apiConfigured={liveSession.apiConfigured}
@@ -1704,7 +3105,7 @@ export function ExamsModuleScreen({
           {
             id: "reports",
             label: "Report cards",
-            panel: <ReportCardsPanel reports={data.reports} />,
+            panel: <ReportCardsPanel data={data} />,
           },
           {
             id: "competencies",
@@ -1748,7 +3149,7 @@ export function ExamsModuleScreen({
           {
             icon: ShieldCheck,
             title: "Academic integrity",
-            value: "Tenant isolation, role scoping, immutable publishing, complete edit history",
+      value: "School data isolation, role scoping, immutable publishing, complete edit history",
           },
         ].map((item) => {
           const Icon = item.icon;

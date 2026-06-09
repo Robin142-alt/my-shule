@@ -429,17 +429,15 @@ describe("enterprise support workspace", () => {
     });
   });
 
-  it("keeps Support Center reachable from the dedicated storekeeper workspace", () => {
+  it("keeps the dedicated storekeeper dashboard focused on inventory operations", () => {
     renderWithProviders(createElement(StorekeeperWorkspace, { section: "dashboard" }));
 
-    expect(screen.getByRole("link", { name: /new ticket/i })).toHaveAttribute(
-      "href",
-      "/school/storekeeper/support-new-ticket",
-    );
-    expect(screen.getByRole("link", { name: /system status/i })).toHaveAttribute(
-      "href",
-      "/school/storekeeper/support-system-status",
-    );
+    expect(screen.getByRole("heading", { name: /storekeeper store desk/i })).toBeVisible();
+    expect(screen.getByRole("searchbox", { name: /search this store desk/i })).toBeVisible();
+    expect(screen.getAllByRole("button", { name: /receive stock/i }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("button", { name: /issue stock/i }).length).toBeGreaterThan(0);
+    expect(screen.queryByRole("link", { name: /new ticket/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /system status/i })).not.toBeInTheDocument();
   });
 
   it("lets a school create and track a critical support ticket with captured context", async () => {
@@ -480,7 +478,7 @@ describe("enterprise support workspace", () => {
 
     renderWithProviders(
       createElement(SchoolPages, {
-        role: "admin",
+        role: "principal",
         tenantSlug: "barakaacademy",
         section: "support-new-ticket",
       }),

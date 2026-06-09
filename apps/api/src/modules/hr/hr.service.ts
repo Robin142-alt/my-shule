@@ -96,10 +96,13 @@ export class HrService {
   }
 
   async listStaffDirectory(query: Record<string, string | undefined> = {}) {
+    const search = this.optionalText(query.search);
     const rows = await this.hrRepository.listStaffDirectory({
       tenant_id: this.requireTenantId(),
-      search: this.optionalText(query.search),
+      search: search && search.length >= 2 ? search : undefined,
       status: this.optionalText(query.status),
+      limit: this.parsePageLimit(query.limit),
+      offset: this.parsePageOffset(query.offset),
     });
 
     return rows.map((row: Record<string, unknown>) => {
@@ -131,5 +134,25 @@ export class HrService {
   private optionalText(value: string | undefined): string | undefined {
     const normalized = value?.trim() ?? '';
     return normalized || undefined;
+  }
+
+  private parsePageLimit(value: string | undefined): number {
+    const numeric = Number(value);
+
+    if (!Number.isFinite(numeric) || numeric <= 0) {
+      return 25;
+    }
+
+    return Math.min(Math.floor(numeric), 50);
+  }
+
+  private parsePageOffset(value: string | undefined): number {
+    const numeric = Number(value);
+
+    if (!Number.isFinite(numeric) || numeric < 0) {
+      return 0;
+    }
+
+    return Math.floor(numeric);
   }
 }

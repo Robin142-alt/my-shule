@@ -6,11 +6,13 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 
+import { SchoolOperationalEventsService } from '../events/school-operational-events.service';
 import { RequestContextService } from '../../common/request-context/request-context.service';
 import { ModuleAccessService } from '../module-access/module-access.service';
 import {
   CreateMedicineDto,
   DispenseMedicineDto,
+  ListClinicMedicinesQueryDto,
   ReceiveMedicineStockDto,
   RecordClinicVisitDto,
 } from './dto/clinic.dto';
@@ -25,6 +27,7 @@ export class ClinicService {
   constructor(
     private readonly requestContext: RequestContextService,
     private readonly repository: ClinicRepository,
+      @Optional() private readonly schoolEvents?: SchoolOperationalEventsService,
     @Optional()
     private readonly moduleAccessService?: ModuleAccessService,
   ) {}
@@ -43,10 +46,16 @@ export class ClinicService {
     return medicine;
   }
 
-  listMedicines() {
+  listMedicines(query: ListClinicMedicinesQueryDto = {}) {
     this.assertPermission('clinic:read');
+    const search = query.search?.trim() ?? '';
 
-    return this.repository.listMedicines(this.requireTenantId());
+    return this.repository.listMedicines(this.requireTenantId(), {
+      search: search.length >= 2 ? search : undefined,
+      category: query.category?.trim() || undefined,
+      limit: this.parseBoundedInteger(query.limit, 25, 50),
+      offset: this.parseBoundedInteger(query.offset, 0, Number.MAX_SAFE_INTEGER),
+    });
   }
 
   async receiveMedicineStock(medicineId: string, dto: ReceiveMedicineStockDto) {
@@ -85,6 +94,20 @@ export class ClinicService {
     await this.audit('clinic.visit_recorded', 'clinic_visit', visit?.id, {
       student_id: dto.student_id,
       status: dto.status ?? 'open',
+    });
+
+    await this.schoolEvents?.recordSchoolOperation({
+      event: {
+        id: visit?.id,
+        type: 'clinic.visit_recorded',
+        module: 'clinic',
+        actorRole: this.requestContext.requireStore().role || 'staff',
+        title: 'Clinic Visit Recorded',
+        body: `Clinic visit recorded for student ${dto.student_id}`,
+        entityId: visit?.id,
+        severity: 'info',
+        payload: { student_id: dto.student_id },
+      },
     });
 
     return visit;
@@ -362,5 +385,19 @@ export class ClinicService {
     }
 
     return new Date(timestamp).toISOString().slice(0, 10);
+  }
+
+  private parseBoundedInteger(
+    value: number | string | undefined,
+    fallback: number,
+    max: number,
+  ): number {
+    const parsed = typeof value === 'number' ? value : Number.parseInt(String(value ?? ''), 10);
+
+    if (!Number.isFinite(parsed)) {
+      return fallback;
+    }
+
+    return Math.min(Math.max(Math.floor(parsed), 0), max);
   }
 }

@@ -1,5 +1,6 @@
 import { createElement, type ComponentType } from "react";
-import { act, screen } from "@testing-library/react";
+import { act, fireEvent, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 
 import { AiInsightsModuleScreen } from "@/components/modules/ai-insights/ai-insights-module-screen";
 import { AssetTrackingModuleScreen } from "@/components/modules/assets/asset-tracking-module-screen";
@@ -13,6 +14,7 @@ import { getSchoolWorkspace } from "@/lib/experiences/school-data";
 import { isProductionReadyModule } from "@/lib/features/module-readiness";
 import { isSchoolSectionEnabled } from "@/lib/module-access/module-access-map";
 import { isSchoolSection } from "@/lib/routing/experience-routes";
+import { readSchoolData } from "@/lib/school/school-operational-store";
 
 import { renderWithProviders } from "./test-utils";
 
@@ -20,6 +22,16 @@ type LiveModuleComponent = ComponentType<{
   tenantSlug?: string | null;
   initialDashboard?: typeof liveDashboard;
 }>;
+
+async function printFromPreview(user: { click: (element: Element) => Promise<void> }, printMock: jest.Mock) {
+  const preview = await screen.findByRole("dialog", { name: /print preview/i });
+  expect(preview).toBeVisible();
+  expect(printMock).not.toHaveBeenCalled();
+
+  await user.click(within(preview).getByRole("button", { name: /^print$/i }));
+  expect(printMock).toHaveBeenCalled();
+  await user.click(within(preview).getByRole("button", { name: /cancel/i }));
+}
 
 const liveDashboard = {
   total_records: 1,
@@ -100,6 +112,8 @@ const modules: Array<{
 
 describe("Implementation 100 live module workspaces", () => {
   beforeEach(() => {
+    window.localStorage.clear();
+    document.querySelectorAll("[data-myshule-print-preview]").forEach((preview) => preview.remove());
     global.fetch = jest.fn((input: RequestInfo | URL) => {
       if (String(input).includes("/api/school/modules/me")) {
         return Promise.resolve({
@@ -181,4 +195,73 @@ describe("Implementation 100 live module workspaces", () => {
       expect(await screen.findByText(/Live readiness record/i)).toBeVisible();
     },
   );
+
+  it("makes the ICT asset desk searchable and updates assets through practical actions", async () => {
+    const user = userEvent.setup();
+    const printMock = jest.fn();
+    Object.defineProperty(window, "print", {
+      value: printMock,
+      writable: true,
+    });
+
+    await act(async () => {
+      renderWithProviders(
+        <AssetTrackingModuleScreen tenantSlug="barakaacademy" initialDashboard={liveDashboard} />,
+      );
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(screen.getByRole("heading", { name: /ict computer lab and asset desk/i })).toBeVisible();
+
+    fireEvent.change(screen.getByLabelText(/asset name/i), { target: { value: "Dell OptiPlex 7090" } });
+    fireEvent.change(screen.getByLabelText(/asset tag/i), { target: { value: "ICT-PC-9001" } });
+    fireEvent.change(screen.getByLabelText(/serial number/i), { target: { value: "SN-ICT-9001" } });
+    fireEvent.change(screen.getByLabelText(/location/i), { target: { value: "Computer Lab 3" } });
+    await user.click(screen.getByRole("button", { name: /add asset/i }));
+
+    expect(screen.getByRole("status")).toHaveTextContent(/dell optiplex 7090 registered/i);
+
+    fireEvent.change(screen.getByLabelText(/search ict assets/i), { target: { value: "9001" } });
+    expect(screen.getByText("ICT-PC-9001")).toBeVisible();
+    expect(screen.queryByText("ICT-PC-001")).not.toBeInTheDocument();
+
+    const assetRow = screen.getByText("ICT-PC-9001").closest("tr");
+    expect(assetRow).not.toBeNull();
+    const row = within(assetRow as HTMLTableRowElement);
+
+    await user.click(row.getByRole("button", { name: /^issue$/i }));
+    expect(screen.getByRole("status")).toHaveTextContent(/issued/i);
+    expect(readSchoolData<Record<string, unknown>>("events", "barakaacademy")).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          schoolId: "barakaacademy",
+          type: "ICT_ASSET_ISSUED",
+          module: "assets",
+        }),
+      ]),
+    );
+
+    await user.click(row.getByRole("button", { name: /report fault/i }));
+    expect(screen.getByRole("status")).toHaveTextContent(/fault reported/i);
+
+    await user.click(row.getByRole("button", { name: /mark repaired/i }));
+    expect(screen.getByRole("status")).toHaveTextContent(/marked repaired/i);
+
+    await user.click(row.getByRole("button", { name: /^return$/i }));
+    expect(screen.getByRole("status")).toHaveTextContent(/returned to ict store/i);
+
+    await user.click(screen.getByRole("button", { name: /print asset tags/i }));
+    await printFromPreview(user, printMock);
+    expect(readSchoolData<Record<string, unknown>>("events", "barakaacademy")).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          schoolId: "barakaacademy",
+          type: "ICT_ASSET_TAGS_PRINTED",
+          module: "assets",
+        }),
+      ]),
+    );
+  });
+
 });

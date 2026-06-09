@@ -1,6 +1,15 @@
 import { Module } from '@nestjs/common';
 
+import { OperationalWorkflowCompletedConsumer } from './consumers/operational-workflow-completed.consumer';
+import { OperationalWorkflowDispatchedConsumer } from './consumers/operational-workflow-dispatched.consumer';
+import { OperationalWorkflowExecutionConsumer } from './consumers/operational-workflow-execution.consumer';
 import { PaymentCompletedConsumer } from './consumers/payment-completed.consumer';
+import { DashboardRealtimeController } from './dashboard-realtime.controller';
+import { DashboardRealtimeService } from './dashboard-realtime.service';
+import { OperationalWorkflowDispatcherController } from './operational-workflow-dispatcher.controller';
+import { OperationalWorkflowDispatcherService } from './operational-workflow-dispatcher.service';
+import { SchoolOperationalEventsController } from './school-operational-events.controller';
+import { SchoolOperationalEventsService } from './school-operational-events.service';
 import { StudentCreatedConsumer } from './consumers/student-created.consumer';
 import { EventConsumerRegistryService } from './event-consumer-registry.service';
 import { EventConsumerService } from './event-consumer.service';
@@ -12,22 +21,43 @@ import { EventsConsumerWorker } from './queue/events-consumer.worker';
 import { AuditLogsRepository } from './repositories/audit-logs.repository';
 import { EventConsumerRunsRepository } from './repositories/event-consumer-runs.repository';
 import { OutboxEventsRepository } from './repositories/outbox-events.repository';
+import { SchoolOperationNotificationsRepository } from './repositories/school-operation-notifications.repository';
 
 @Module({
+  controllers: [
+    DashboardRealtimeController,
+    OperationalWorkflowDispatcherController,
+    SchoolOperationalEventsController,
+  ],
   providers: [
     EventsSchemaService,
     EventPublisherService,
+    DashboardRealtimeService,
+    OperationalWorkflowDispatcherService,
+    SchoolOperationalEventsService,
     StudentEventsService,
     OutboxDispatcherService,
     EventConsumerService,
     EventConsumerRegistryService,
     EventsConsumerWorker,
     OutboxEventsRepository,
+    SchoolOperationNotificationsRepository,
     EventConsumerRunsRepository,
     AuditLogsRepository,
+    OperationalWorkflowCompletedConsumer,
+    OperationalWorkflowDispatchedConsumer,
+    OperationalWorkflowExecutionConsumer,
     StudentCreatedConsumer,
     PaymentCompletedConsumer,
   ],
-  exports: [EventPublisherService, StudentEventsService, AuditLogsRepository],
+  exports: [
+    EventPublisherService,
+    StudentEventsService,
+    AuditLogsRepository,
+    DashboardRealtimeService,
+    OperationalWorkflowDispatcherService,
+    SchoolOperationalEventsService,
+    SchoolOperationNotificationsRepository,
+  ],
 })
 export class EventsModule {}

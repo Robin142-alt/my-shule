@@ -4,6 +4,7 @@ import { RequestContextService } from '../../common/request-context/request-cont
 import { PiiEncryptionService } from '../security/pii-encryption.service';
 import {
   CreateSmsPurchaseRequestDto,
+  SendBulkSmsDto,
   SendSmsDto,
 } from './dto/integrations.dto';
 import { PlatformSmsService } from './platform-sms.service';
@@ -39,6 +40,28 @@ export class SchoolSmsWalletService {
 
   async listLogs(limit?: number): Promise<Array<Record<string, unknown>>> {
     return this.schoolSmsWalletRepository.listLogs(this.requireTenantId(), limit);
+  }
+
+  async getReadiness(): Promise<Record<string, unknown>> {
+    const readiness = await this.smsDispatchService?.getReadiness();
+
+    if (!readiness) {
+      return {
+        status: 'missing_provider',
+        can_send: false,
+        disabled_reason: this.describeSmsReadinessFailure('missing_provider'),
+      };
+    }
+
+    return {
+      status: readiness.status,
+      can_send: readiness.status === 'configured',
+      disabled_reason:
+        readiness.status === 'configured'
+          ? null
+          : this.describeSmsReadinessFailure(readiness.status),
+      missing: readiness.missing ?? [],
+    };
   }
 
   async createPurchaseRequest(dto: CreateSmsPurchaseRequestDto): Promise<Record<string, unknown>> {
@@ -131,6 +154,64 @@ export class SchoolSmsWalletService {
       balance_after: reserved.balance_after,
       credit_cost: reserved.credit_cost ?? creditCost,
       low_balance: reserved.balance_after <= 100,
+    };
+  }
+
+  async sendBulkSms(dto: SendBulkSmsDto): Promise<Record<string, unknown>> {
+    const message = dto.message.trim();
+    const messageType = dto.message_type?.trim() || 'bulk';
+    const sent: Array<Record<string, unknown>> = [];
+    const failed: Array<Record<string, unknown>> = [];
+    const skipped: Array<Record<string, unknown>> = [];
+
+    for (const [index, recipientInput] of dto.recipients.entries()) {
+      const recipient = recipientInput.recipient?.trim() ?? '';
+      const recipientId = recipientInput.recipient_id?.trim() || `recipient-${index + 1}`;
+
+      if (!recipient) {
+        skipped.push({
+          recipient_id: recipientId,
+          name: recipientInput.name?.trim() || null,
+          reason: 'missing_phone_number',
+        });
+        continue;
+      }
+
+      try {
+        const result = await this.sendSms({
+          recipient,
+          message,
+          message_type: messageType,
+        });
+
+        sent.push({
+          recipient_id: recipientId,
+          name: recipientInput.name?.trim() || null,
+          recipient_last4: this.last4(recipient),
+          status: result.status,
+          log_id: result.log_id,
+          credit_cost: result.credit_cost,
+        });
+      } catch (error) {
+        failed.push({
+          recipient_id: recipientId,
+          name: recipientInput.name?.trim() || null,
+          recipient_last4: this.last4(recipient),
+          reason: error instanceof Error ? error.message : 'SMS send failed',
+        });
+      }
+    }
+
+    return {
+      status: failed.length ? (sent.length ? 'partial' : 'failed') : 'processed',
+      message_type: messageType,
+      total: dto.recipients.length,
+      sent_count: sent.length,
+      failed_count: failed.length,
+      skipped_count: skipped.length,
+      sent,
+      failed,
+      skipped,
     };
   }
 

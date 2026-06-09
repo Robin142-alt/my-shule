@@ -144,6 +144,63 @@ test('TimetableService lists published schedules for the current tenant', async 
     tenant_id: 'tenant-a',
     academic_year: '2026',
     term_name: 'Term 2',
+    limit: 50,
+    offset: 0,
   });
   assert.equal(rows[0]?.version_id, 'version-1');
+});
+
+test('TimetableRepository bounds published schedule reads with pagination', async () => {
+  const queries: Array<{ text: string; values: unknown[] }> = [];
+  const repository = new TimetableRepository({
+    query: async (text: string, values: unknown[]) => {
+      queries.push({ text, values });
+      return { rows: [] };
+    },
+  } as never);
+
+  await repository.listPublishedSchedules({
+    tenant_id: 'tenant-a',
+    academic_year: '2026',
+    term_name: 'Term 2',
+    limit: 999,
+    offset: 15,
+  } as never);
+
+  const schedulesQuery = queries[0]?.text ?? '';
+  assert.match(schedulesQuery, /WHERE version\.tenant_id = \$1/);
+  assert.doesNotMatch(schedulesQuery, /LIMIT 500/);
+  assert.match(schedulesQuery, /LIMIT \$4::integer/);
+  assert.match(schedulesQuery, /OFFSET \$5::integer/);
+  assert.deepEqual(queries[0]?.values, ['tenant-a', '2026', 'Term 2', 100, 15]);
+});
+
+test('TimetableService normalizes published schedule pagination', async () => {
+  let capturedInput: Record<string, unknown> | null = null;
+  const service = new TimetableService(
+    {
+      getStore: () => ({ tenant_id: 'tenant-a', user_id: 'user-1' }),
+    } as never,
+    {
+      listPublishedSchedules: async (input: Record<string, unknown>) => {
+        capturedInput = input;
+        return [];
+      },
+    } as never,
+  );
+
+  await service.listPublishedSchedules({
+    academic_year: ' 2026 ',
+    term_name: ' Term 2 ',
+    limit: '999',
+    offset: '-3',
+  });
+
+  assert.deepEqual(capturedInput, {
+    tenant_id: 'tenant-a',
+    academic_year: '2026',
+    term_name: 'Term 2',
+    limit: 100,
+    offset: 0,
+  });
 });

@@ -200,9 +200,33 @@ interface InventoryRow {
   updated_at: Date;
 }
 
+interface InventoryListOptions {
+  limit?: number;
+  offset?: number;
+}
+
+const INVENTORY_LIST_DEFAULT_LIMIT = 25;
+const INVENTORY_LIST_MAX_LIMIT = 100;
+
 @Injectable()
 export class InventoryRepository {
   constructor(private readonly databaseService: DatabaseService) {}
+
+  private normalizeListOptions(options: InventoryListOptions = {}) {
+    const requestedLimit = Number.isFinite(options.limit)
+      ? Math.floor(Number(options.limit))
+      : INVENTORY_LIST_DEFAULT_LIMIT;
+    const requestedOffset = Number.isFinite(options.offset)
+      ? Math.floor(Number(options.offset))
+      : 0;
+
+    return {
+      limit: requestedLimit > 0
+        ? Math.min(requestedLimit, INVENTORY_LIST_MAX_LIMIT)
+        : INVENTORY_LIST_DEFAULT_LIMIT,
+      offset: Math.max(requestedOffset, 0),
+    };
+  }
 
   async buildSummary(tenantId: string) {
     const [valuationResult, lowStockResult, requestsResult, purchasesResult, movementResult, purchaseActivityResult, alertsResult, approvalsResult, categoryBreakdownResult] =
@@ -666,7 +690,25 @@ export class InventoryRepository {
             locked_item.before_quantity,
             item.quantity_on_hand AS after_quantity
         )
-        SELECT *
+        SELECT
+          updated_item.id,
+          updated_item.tenant_id,
+          updated_item.item_name,
+          updated_item.sku,
+          updated_item.category_id,
+          updated_item.unit,
+          updated_item.quantity_on_hand,
+          updated_item.unit_price,
+          updated_item.reorder_level,
+          updated_item.supplier_id,
+          updated_item.storage_location,
+          updated_item.notes,
+          updated_item.status,
+          updated_item.is_archived,
+          updated_item.created_at,
+          updated_item.updated_at,
+          updated_item.before_quantity,
+          updated_item.after_quantity
         FROM updated_item
       `,
       [tenantId, itemId, countedQuantity],
@@ -732,7 +774,25 @@ export class InventoryRepository {
             locked_item.before_quantity,
             item.quantity_on_hand AS after_quantity
         )
-        SELECT *
+        SELECT
+          updated_item.id,
+          updated_item.tenant_id,
+          updated_item.item_name,
+          updated_item.sku,
+          updated_item.category_id,
+          updated_item.unit,
+          updated_item.quantity_on_hand,
+          updated_item.unit_price,
+          updated_item.reorder_level,
+          updated_item.supplier_id,
+          updated_item.storage_location,
+          updated_item.notes,
+          updated_item.status,
+          updated_item.is_archived,
+          updated_item.created_at,
+          updated_item.updated_at,
+          updated_item.before_quantity,
+          updated_item.after_quantity
         FROM updated_item
       `,
       [tenantId, itemId, variance],
@@ -798,7 +858,25 @@ export class InventoryRepository {
             locked_item.before_quantity,
             item.quantity_on_hand AS after_quantity
         )
-        SELECT *
+        SELECT
+          updated_item.id,
+          updated_item.tenant_id,
+          updated_item.item_name,
+          updated_item.sku,
+          updated_item.category_id,
+          updated_item.unit,
+          updated_item.quantity_on_hand,
+          updated_item.unit_price,
+          updated_item.reorder_level,
+          updated_item.supplier_id,
+          updated_item.storage_location,
+          updated_item.notes,
+          updated_item.status,
+          updated_item.is_archived,
+          updated_item.created_at,
+          updated_item.updated_at,
+          updated_item.before_quantity,
+          updated_item.after_quantity
         FROM updated_item
       `,
       [tenantId, itemId, quantity],
@@ -863,7 +941,25 @@ export class InventoryRepository {
             locked_item.before_quantity,
             item.quantity_on_hand AS after_quantity
         )
-        SELECT *
+        SELECT
+          updated_item.id,
+          updated_item.tenant_id,
+          updated_item.item_name,
+          updated_item.sku,
+          updated_item.category_id,
+          updated_item.unit,
+          updated_item.quantity_on_hand,
+          updated_item.unit_price,
+          updated_item.reorder_level,
+          updated_item.supplier_id,
+          updated_item.storage_location,
+          updated_item.notes,
+          updated_item.status,
+          updated_item.is_archived,
+          updated_item.created_at,
+          updated_item.updated_at,
+          updated_item.before_quantity,
+          updated_item.after_quantity
         FROM updated_item
       `,
       [tenantId, itemId, quantity],
@@ -932,7 +1028,25 @@ export class InventoryRepository {
             locked_item.before_quantity,
             item.quantity_on_hand AS after_quantity
         )
-        SELECT *
+        SELECT
+          updated_item.id,
+          updated_item.tenant_id,
+          updated_item.item_name,
+          updated_item.sku,
+          updated_item.category_id,
+          updated_item.unit,
+          updated_item.quantity_on_hand,
+          updated_item.unit_price,
+          updated_item.reorder_level,
+          updated_item.supplier_id,
+          updated_item.storage_location,
+          updated_item.notes,
+          updated_item.status,
+          updated_item.is_archived,
+          updated_item.created_at,
+          updated_item.updated_at,
+          updated_item.before_quantity,
+          updated_item.after_quantity
         FROM updated_item
       `,
       [tenantId, itemId, quantity, unitCost, supplierId],
@@ -1488,7 +1602,8 @@ export class InventoryRepository {
     return result.rows[0] ?? null;
   }
 
-  async listStockMovements(tenantId: string, limit: number) {
+  async listStockMovements(tenantId: string, options: InventoryListOptions = {}) {
+    const pagination = this.normalizeListOptions(options);
     const result = await this.databaseService.query(
       `
         SELECT
@@ -1516,9 +1631,10 @@ export class InventoryRepository {
          AND actor.id = movement.actor_user_id
         WHERE movement.tenant_id = $1
         ORDER BY movement.occurred_at DESC
-        LIMIT $2
+        LIMIT $2::integer
+        OFFSET $3::integer
       `,
-      [tenantId, limit],
+      [tenantId, pagination.limit, pagination.offset],
     );
 
     return result.rows;
@@ -1699,7 +1815,8 @@ export class InventoryRepository {
     return result.rows[0];
   }
 
-  async listPurchaseOrders(tenantId: string) {
+  async listPurchaseOrders(tenantId: string, options: InventoryListOptions = {}) {
+    const pagination = this.normalizeListOptions(options);
     const result = await this.databaseService.query(
       `
         SELECT
@@ -1725,8 +1842,10 @@ export class InventoryRepository {
          AND creator.id = po.created_by_user_id
         WHERE po.tenant_id = $1
         ORDER BY COALESCE(po.ordered_at::timestamptz, po.created_at) DESC
+        LIMIT $2::integer
+        OFFSET $3::integer
       `,
-      [tenantId],
+      [tenantId, pagination.limit, pagination.offset],
     );
 
     return result.rows.map((row) => this.mapPurchaseOrder(row));
@@ -1865,7 +1984,8 @@ export class InventoryRepository {
     return result.rows[0];
   }
 
-  async listRequests(tenantId: string) {
+  async listRequests(tenantId: string, options: InventoryListOptions = {}) {
+    const pagination = this.normalizeListOptions(options);
     const result = await this.databaseService.query(
       `
         SELECT
@@ -1883,8 +2003,10 @@ export class InventoryRepository {
         FROM inventory_requests
         WHERE tenant_id = $1
         ORDER BY created_at DESC
+        LIMIT $2::integer
+        OFFSET $3::integer
       `,
-      [tenantId],
+      [tenantId, pagination.limit, pagination.offset],
     );
 
     return result.rows;
@@ -1988,7 +2110,17 @@ export class InventoryRepository {
             fulfilled_at,
             cancelled_at
         )
-        SELECT *
+        SELECT
+          upserted_reservation.id,
+          upserted_reservation.tenant_id,
+          upserted_reservation.request_id,
+          upserted_reservation.item_id,
+          upserted_reservation.quantity,
+          upserted_reservation.status,
+          upserted_reservation.reserved_by_user_id,
+          upserted_reservation.reserved_at,
+          upserted_reservation.fulfilled_at,
+          upserted_reservation.cancelled_at
         FROM upserted_reservation
       `,
       [tenantId, requestId, itemId, quantity, actorUserId],
@@ -2221,15 +2353,18 @@ export class InventoryRepository {
     return result.rows[0];
   }
 
-  async listTransfers(tenantId: string) {
+  async listTransfers(tenantId: string, options: InventoryListOptions = {}) {
+    const pagination = this.normalizeListOptions(options);
     const result = await this.databaseService.query(
       `
         SELECT id, transfer_number, from_location, to_location, status, requested_by, lines, notes, created_at::text
         FROM inventory_transfers
         WHERE tenant_id = $1
         ORDER BY created_at DESC
+        LIMIT $2::integer
+        OFFSET $3::integer
       `,
-      [tenantId],
+      [tenantId, pagination.limit, pagination.offset],
     );
 
     return result.rows;
@@ -2326,7 +2461,8 @@ export class InventoryRepository {
     return result.rows[0];
   }
 
-  async listIncidents(tenantId: string) {
+  async listIncidents(tenantId: string, options: InventoryListOptions = {}) {
+    const pagination = this.normalizeListOptions(options);
     const result = await this.databaseService.query(
       `
         SELECT
@@ -2347,8 +2483,10 @@ export class InventoryRepository {
          AND item.id = incident.item_id
         WHERE incident.tenant_id = $1
         ORDER BY incident.reported_at DESC
+        LIMIT $2::integer
+        OFFSET $3::integer
       `,
-      [tenantId],
+      [tenantId, pagination.limit, pagination.offset],
     );
 
     return result.rows;

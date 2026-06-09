@@ -7,16 +7,17 @@ test("superadmin login page loads without exposing credentials", async ({ page }
 
   await expect(page.getByRole("heading", { name: /welcome back/i })).toBeVisible();
   await expect(page.getByLabel(/email/i)).toBeVisible();
-  await expect(page.getByLabel(/password/i)).toBeVisible();
+  await expect(page.getByRole("textbox", { name: /^password$/i })).toBeVisible();
   await expect(page.getByText(/password=|demo|seeded|test account/i)).toHaveCount(0);
 });
 
 test("school login page loads as a secure tenant-aware entry", async ({ page }) => {
   await page.goto("/school/login");
 
-  await expect(page.getByRole("heading", { name: /secure admin access/i })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 2, name: /run your school with operational clarity/i })).toBeVisible();
+  await expect(page.getByText(/school access pending/i)).toBeVisible();
   await expect(page.getByLabel(/email/i)).toBeVisible();
-  await expect(page.getByLabel(/password/i)).toBeVisible();
+  await expect(page.getByRole("textbox", { name: /^password$/i })).toBeVisible();
   await expect(page.getByText(/demo|example user|seed/i)).toHaveCount(0);
 });
 
@@ -24,8 +25,8 @@ test("support status page renders public status content", async ({ page }) => {
   await page.goto("/support/status");
 
   await expect(page.getByRole("heading", { name: /platform status/i })).toBeVisible();
-  await expect(page.getByText(/incidents/i)).toBeVisible();
-  await expect(page.getByText(/email updates/i)).toBeVisible();
+  await expect(page.getByRole("heading", { name: /^incidents$/i })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /email updates/i })).toBeVisible();
 });
 
 test("support ticket creation route requires an authenticated school session", async ({ page }) => {
@@ -41,10 +42,10 @@ test("forgot password request returns a user-safe success state when explicitly 
   );
 
   const csrf = await request.get("/api/auth/csrf");
-  const csrfPayload = (await csrf.json()) as { csrfToken?: string };
+  const csrfPayload = (await csrf.json()) as { token?: string };
   const response = await request.post("/api/auth/password-recovery/request", {
     headers: {
-      "x-csrf-token": csrfPayload.csrfToken ?? "",
+      "x-myshule-csrf": csrfPayload.token ?? "",
     },
     data: {
       audience: "school",

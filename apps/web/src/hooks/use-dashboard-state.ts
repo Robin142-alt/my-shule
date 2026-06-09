@@ -14,6 +14,7 @@ import {
   type DashboardSnapshot,
   type QuickActionItem,
 } from "@/lib/dashboard/types";
+import { getDashboardWorkspaceHref } from "@/lib/dashboard/workspace-routes";
 
 function useOnlineStatus() {
   const [online, setOnline] = useState(true);
@@ -47,7 +48,8 @@ export function useDashboardState(role: DashboardRole) {
   const dashboardQuery = useQuery({
     queryKey: ["dashboard", role, tenantId, online],
     queryFn: () => fetchDashboardSnapshot(role, tenantId, online),
-    refetchInterval: 45_000,
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
     placeholderData: (previous) => previous,
     enabled: tenantOptionsQuery.isSuccess,
   });
@@ -74,9 +76,9 @@ export function useDashboardState(role: DashboardRole) {
           title: `${action.label} started`,
           detail: queuedOffline
             ? "Action queued locally and will sync once the network returns."
-            : "Action opened from the quick actions rail.",
+            : "Quick action workspace selected from the rail.",
           actor: "You",
-          href: `/dashboard/${role}/${action.href}`,
+          href: getDashboardWorkspaceHref(role, action.href),
           timeLabel: "now",
           category:
             action.id === "record-payment" || action.id === "create-invoice"

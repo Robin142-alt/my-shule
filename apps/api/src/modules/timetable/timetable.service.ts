@@ -75,6 +75,8 @@ export class TimetableService {
       tenant_id: this.requireTenantId(),
       academic_year: this.optionalText(query.academic_year),
       term_name: this.optionalText(query.term_name),
+      limit: this.parsePageLimit(query.limit),
+      offset: this.parsePageOffset(query.offset),
     });
   }
 
@@ -96,5 +98,25 @@ export class TimetableService {
   private optionalText(value: string | undefined): string | undefined {
     const normalized = value?.trim() ?? '';
     return normalized || undefined;
+  }
+
+  private parsePageLimit(value: string | undefined): number {
+    const numeric = Number(value);
+
+    if (!Number.isFinite(numeric) || numeric <= 0) {
+      return 50;
+    }
+
+    return Math.min(Math.floor(numeric), 100);
+  }
+
+  private parsePageOffset(value: string | undefined): number {
+    const numeric = Number(value);
+
+    if (!Number.isFinite(numeric) || numeric < 0) {
+      return 0;
+    }
+
+    return Math.floor(numeric);
   }
 }

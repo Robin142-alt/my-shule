@@ -112,7 +112,11 @@ export class MpesaC2bPaymentsRepository {
   async list(input: {
     tenant_id: string;
     status?: MpesaC2bPaymentStatus | null;
+    limit?: number;
+    offset?: number;
   }): Promise<MpesaC2bPaymentEntity[]> {
+    const safeLimit = Math.min(Math.max(Math.floor(input.limit ?? 25), 1), 50);
+    const safeOffset = Math.max(Math.floor(input.offset ?? 0), 0);
     const result = await this.databaseService.query<MpesaC2bPaymentRow>(
       `
         SELECT
@@ -138,7 +142,6 @@ export class MpesaC2bPaymentsRepository {
           ledger_transaction_id,
           received_at,
           matched_at,
-          raw_payload,
           raw_payload_encrypted_ref,
           payload_sha256,
           metadata,
@@ -148,8 +151,10 @@ export class MpesaC2bPaymentsRepository {
         WHERE tenant_id = $1
           AND ($2::text IS NULL OR status = $2::text)
         ORDER BY received_at DESC, created_at DESC
+        LIMIT $3::integer
+        OFFSET $4::integer
       `,
-      [input.tenant_id, input.status ?? null],
+      [input.tenant_id, input.status ?? null, safeLimit, safeOffset],
     );
 
     return result.rows.map((row) => this.mapRow(row));

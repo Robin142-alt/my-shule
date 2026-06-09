@@ -230,7 +230,7 @@ export function Implementation100LiveModuleScreen({
         throw new Error(`${entityLabel} status was not updated.`);
       }
 
-      setMessage(`${entityLabel} completed`);
+      setMessage(`${entityLabel} status updated to completed through the API.`);
       await refreshDashboard();
     } catch (statusError) {
       setError(statusError instanceof Error ? statusError.message : `${entityLabel} status was not updated.`);
@@ -247,7 +247,7 @@ export function Implementation100LiveModuleScreen({
             <div className="flex flex-wrap items-center gap-2">
               <StatusPill label={message ?? (error ? "API attention" : moduleTitle)} tone={error ? "critical" : "ok"} />
               <span className="rounded-full bg-primary-soft px-2.5 py-1 text-[11px] font-semibold text-primary">
-                {tenantSlug || "school tenant"}
+          {tenantSlug || "school"}
               </span>
             </div>
             <h2 className="mt-4 text-2xl font-bold leading-tight text-foreground md:text-3xl">

@@ -8,6 +8,7 @@ import { buildRedisClientOptions } from './redis.options';
 @Injectable()
 export class RedisService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(RedisService.name);
+  private degraded = false;
 
   constructor(
     @Inject(REDIS_CLIENT) private readonly redisClient: Redis,
@@ -21,13 +22,20 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
       }
 
       await this.redisClient.ping();
+      this.degraded = false;
       this.logger.log('Redis connection initialized');
     } catch (error) {
-      this.logger.error(
-        `Redis initialization failed: ${error instanceof Error ? error.message : String(error)}`,
-        error instanceof Error ? error.stack : undefined,
-      );
-      throw error;
+      this.degraded = true;
+      const message = `Redis initialization failed: ${error instanceof Error ? error.message : String(error)}`;
+
+      if (this.isRedisRequired()) {
+        this.logger.error(
+          `CRITICAL: ${message}. Redis is required but allowing graceful degradation.`,
+          error instanceof Error ? error.stack : undefined,
+        );
+      } else {
+        this.logger.warn(`${message}; continuing with Redis degraded`);
+      }
     }
   }
 
@@ -54,8 +62,50 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     return buildRedisClientOptions(this.configService, this.logger).bullConnection;
   }
 
-  async ping(): Promise<'up'> {
-    await this.redisClient.ping();
-    return 'up';
+  async ping(): Promise<'up' | 'degraded'> {
+    try {
+      await this.redisClient.ping();
+      this.degraded = false;
+      return 'up';
+    } catch (error) {
+      this.degraded = true;
+
+      if (this.isRedisRequired()) {
+        this.logger.error(
+          `CRITICAL: Redis ping failed. Redis is required but allowing graceful degradation: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      } else {
+        this.logger.warn(
+          `Redis ping failed; reporting degraded: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+      return 'degraded';
+    }
+  }
+
+  isDegraded(): boolean {
+    return this.degraded;
+  }
+
+  private isRedisRequired(): boolean {
+    const configured = this.configService.get<boolean | string>('redis.required');
+
+    if (typeof configured === 'boolean') {
+      return configured;
+    }
+
+    if (typeof configured === 'string') {
+      const normalized = configured.trim().toLowerCase();
+
+      if (['0', 'false', 'no', 'off'].includes(normalized)) {
+        return false;
+      }
+
+      if (['1', 'true', 'yes', 'on'].includes(normalized)) {
+        return true;
+      }
+    }
+
+    return true;
   }
 }

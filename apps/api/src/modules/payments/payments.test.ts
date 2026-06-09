@@ -28,6 +28,7 @@ import { TenantFinanceSchemaService } from '../tenant-finance/tenant-finance-sch
 import { TenantFinanceController } from '../tenant-finance/tenant-finance.controller';
 import { MpesaC2bPaymentEntity } from './entities/mpesa-c2b-payment.entity';
 import { CallbackLogsRepository } from './repositories/callback-logs.repository';
+import { MpesaC2bPaymentsRepository } from './repositories/mpesa-c2b-payments.repository';
 import { PaymentsSchemaService } from './payments-schema.service';
 
 const makeAccount = (overrides: Partial<AccountEntity> = {}): AccountEntity =>
@@ -1173,6 +1174,73 @@ test('MpesaC2bService redacts C2B API payment responses for legacy raw rows', as
   assert.equal(responseJson.includes('Jane Parent'), false);
   assert.match(responseJson, /2547\*+01/);
   assert.match(responseJson, /J\*+/);
+});
+
+test('MpesaC2bPaymentsRepository bounds list responses and avoids raw payload egress', async () => {
+  const queries: Array<{ sql: string; values: unknown[] }> = [];
+  const repository = new MpesaC2bPaymentsRepository({
+    query: async (sql: string, values: unknown[]) => {
+      queries.push({ sql, values });
+      return { rows: [] };
+    },
+  } as never);
+
+  await repository.list({
+    tenant_id: 'tenant-a',
+    status: 'pending_review',
+    limit: 500,
+    offset: 25,
+  });
+
+  const sql = queries[0]?.sql ?? '';
+  assert.doesNotMatch(sql, /\braw_payload\b/);
+  assert.match(sql, /raw_payload_encrypted_ref/);
+  assert.match(sql, /LIMIT \$3::integer/);
+  assert.match(sql, /OFFSET \$4::integer/);
+  assert.deepEqual(queries[0]?.values, ['tenant-a', 'pending_review', 50, 25]);
+});
+
+test('MpesaC2bService passes bounded pagination to tenant-scoped payment lists', async () => {
+  const requestContext = new RequestContextService();
+  let listInput: Record<string, unknown> | null = null;
+  const service = new MpesaC2bService(
+    requestContext,
+    {} as never,
+    {} as never,
+    {
+      list: async (input: Record<string, unknown>) => {
+        listInput = input;
+        return [];
+      },
+    } as never,
+    {} as never,
+    {} as never,
+  );
+
+  await requestContext.run(
+    {
+      request_id: 'request-tenant-a',
+      tenant_id: 'tenant-a',
+      user_id: '00000000-0000-0000-0000-000000000499',
+      role: 'accountant',
+      session_id: 'session-tenant-a',
+      permissions: ['billing:read'],
+      is_authenticated: true,
+      client_ip: '127.0.0.1',
+      user_agent: 'payments-test',
+      method: 'GET',
+      path: '/payments/mpesa/c2b/payments',
+      started_at: new Date().toISOString(),
+    },
+    () => service.listC2bPayments({ status: null, limit: 500, offset: -5 }),
+  );
+
+  assert.deepEqual(listInput, {
+    tenant_id: 'tenant-a',
+    status: null,
+    limit: 50,
+    offset: 0,
+  });
 });
 
 test('MpesaC2bService reconciles only provider-verified direct Paybill payments from accountant review', async () => {
@@ -3492,11 +3560,14 @@ test('MpesaReconciliationService reports missing callbacks, duplicates, amount m
 
 test('MpesaReconciliationService lists accountant review items without raw M-PESA payload leakage', async () => {
   const requestContext = new RequestContextService();
+  const queryLog: Array<{ sql: string; params: unknown[] }> = [];
   const service = new MpesaReconciliationService(
     { get: (): string | undefined => undefined } as never,
     requestContext,
     {
-      query: async (sql: string) => {
+      query: async (sql: string, params: unknown[]) => {
+        queryLog.push({ sql, params });
+
         if (/FROM mpesa_reconciliation_discrepancies/.test(sql)) {
           return {
             rows: [
@@ -3554,7 +3625,25 @@ test('MpesaReconciliationService lists accountant review items without raw M-PES
       }).listAccountantReviewItems({ reconciliation_state: 'verified_unmatched' }),
   );
 
+  const reviewSql = queryLog[0]?.sql ?? '';
   assert.equal(review.summary.open_count, 1);
+  assert.match(reviewSql, /evidence - 'raw_payload' AS evidence/);
+  assert.match(reviewSql, /LIMIT \$4::integer/);
+  assert.match(reviewSql, /OFFSET \$5::integer/);
+  assert.deepEqual(queryLog[0]?.params, [
+    'tenant-a',
+    [
+      'verified_unmatched',
+      'amount_mismatch',
+      'duplicate_provider_receipt',
+      'missing_provider_record',
+      'reversed',
+      'manual_review_required',
+    ],
+    'verified_unmatched',
+    25,
+    0,
+  ]);
   assert.equal(JSON.stringify(review.items[0]?.evidence).includes('254712345678'), false);
   assert.match(JSON.stringify(review.items[0]?.evidence), /\+2547\*\*\*\*\*78/);
 });
@@ -3594,7 +3683,7 @@ test('MpesaReconciliationService requires two distinct approvers before resolvin
           return { rows: [approvalRows[requestId]] };
         }
 
-        if (/SELECT \*[\s\S]+FROM finance_approval_requests/.test(sql)) {
+        if (/SELECT[\s\S]+FROM finance_approval_requests/.test(sql)) {
           return { rows: [approvalRows[String(params[1])]] };
         }
 

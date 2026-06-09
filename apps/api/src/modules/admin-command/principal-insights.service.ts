@@ -17,9 +17,12 @@ import type {
 } from './principal-insights.types';
 
 const CACHE_TTL_SECONDS = 45;
+const DASHBOARD_VIEW_AUDIT_TTL_MS = 15 * 60 * 1000;
 
 @Injectable()
 export class PrincipalInsightsService {
+  private readonly dashboardViewAuditCache = new Map<string, number>();
+
   constructor(
     private readonly requestContext: RequestContextService,
     private readonly moduleAccessService: ModuleAccessService,
@@ -140,6 +143,19 @@ export class PrincipalInsightsService {
     tenantId: string,
     actorUserId: string | undefined,
   ): Promise<void> {
+    if (!actorUserId) {
+      return;
+    }
+
+    const now = Date.now();
+    const cacheKey = `${tenantId}:${actorUserId}`;
+    const lastAuditedAt = this.dashboardViewAuditCache.get(cacheKey) ?? 0;
+
+    if (now - lastAuditedAt < DASHBOARD_VIEW_AUDIT_TTL_MS) {
+      return;
+    }
+
+    this.dashboardViewAuditCache.set(cacheKey, now);
     await this.repository.appendAuditLog({
       tenant_id: tenantId,
       actor_user_id: actorUserId,

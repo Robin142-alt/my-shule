@@ -22,6 +22,8 @@ export class HrSchemaService implements OnModuleInit {
 
   async onModuleInit(): Promise<void> {
     await this.databaseService.runSchemaBootstrap(`
+      CREATE EXTENSION IF NOT EXISTS pg_trgm;
+
       CREATE TABLE IF NOT EXISTS staff_departments (
         id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
         tenant_id text NOT NULL,
@@ -127,6 +129,12 @@ export class HrSchemaService implements OnModuleInit {
 
       CREATE UNIQUE INDEX IF NOT EXISTS ux_staff_departments_tenant_lower_name
         ON staff_departments (tenant_id, lower(name));
+      CREATE INDEX IF NOT EXISTS ix_staff_profiles_tenant_status_display_name
+        ON staff_profiles (tenant_id, status, display_name, staff_number);
+      CREATE INDEX IF NOT EXISTS ix_staff_profiles_display_name_trgm
+        ON staff_profiles USING GIN (display_name gin_trgm_ops);
+
+      ALTER TABLE staff_profiles ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'active';
 
       ${HR_TABLES.map((table) => `
         ALTER TABLE ${table} ENABLE ROW LEVEL SECURITY;

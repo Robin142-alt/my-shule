@@ -6,7 +6,21 @@ import type {
   SidebarItem,
 } from "./types";
 import { DASHBOARD_ROLES } from "./types";
+import {
+  buildCapabilitySidebar,
+  isModuleEntitled,
+  type CapabilityEnforcementSnapshot,
+  type ModuleEntitlementInput,
+  type RolePermissionInput,
+} from "@/lib/capability-engine/school-capability-engine";
 import { isProductionReadyModule } from "@/lib/features/module-readiness";
+import { getModuleCodeForSchoolSection } from "@/lib/module-access/module-access-map";
+
+type RoleCapabilityOptions = {
+  moduleEntitlements?: ModuleEntitlementInput;
+  rolePermissions?: RolePermissionInput;
+  enforcement?: CapabilityEnforcementSnapshot;
+};
 
 export const roleLabels: Record<DashboardRole, string> = {
   admin: "Admin",
@@ -244,8 +258,8 @@ export const capabilityCatalog: CapabilityItem[] = [
   },
   {
     id: "cap-observability",
-    label: "Observability",
-    description: "Realtime health, queue lag, alerts, and production SLO visibility.",
+    label: "System health",
+    description: "Live service health, delayed jobs, alerts, and production readiness.",
     href: "reports",
     roles: ["admin", "bursar"],
     status: "warning",
@@ -254,7 +268,7 @@ export const capabilityCatalog: CapabilityItem[] = [
   {
     id: "cap-security",
     label: "Security and compliance",
-    description: "Tenant controls, role scope, consent, export, and operational safeguards.",
+    description: "School controls, role scope, consent, export, and operational safeguards.",
     href: "settings",
     roles: ["admin", "bursar"],
     status: "ok",
@@ -272,32 +286,82 @@ const roleWidgetOrder: Record<DashboardRole, DashboardWidgetKey[]> = {
   admissions: ["admissions", "students"],
 };
 
+const coreRoleSections = new Set(["dashboard", "settings"]);
+
+function moduleCodeForRoleSection(section: string) {
+  const mappedModuleCode = getModuleCodeForSchoolSection(section);
+
+  if (mappedModuleCode || coreRoleSections.has(section)) {
+    return mappedModuleCode;
+  }
+
+  return section;
+}
+
+function filterByCapabilities<TItem extends { id: string; href: string }>(
+  items: TItem[],
+  options: RoleCapabilityOptions = {},
+) {
+  const visibleItems = buildCapabilitySidebar({
+    items: items.map((item, index) => ({
+      ...item,
+      capabilityIndex: index,
+      moduleCode: moduleCodeForRoleSection(item.href),
+    })),
+    moduleEntitlements: options.moduleEntitlements,
+    rolePermissions: options.rolePermissions,
+    enforcement: options.enforcement,
+  });
+  const visibleIndexes = new Set(visibleItems.map((item) => item.capabilityIndex));
+
+  return items.filter((_item, index) => visibleIndexes.has(index));
+}
+
+function isCapabilityItemEntitled(item: CapabilityItem, options: RoleCapabilityOptions = {}) {
+  const hrefModuleCode = moduleCodeForRoleSection(item.href);
+  const categoryModuleCode = moduleCodeForRoleSection(item.category);
+
+  return (
+    isModuleEntitled(hrefModuleCode, options.moduleEntitlements)
+    && isModuleEntitled(categoryModuleCode, options.moduleEntitlements)
+  );
+}
+
 export function isDashboardRole(value: string): value is DashboardRole {
   return DASHBOARD_ROLES.includes(value as DashboardRole);
 }
 
-export function getRoleSidebar(role: DashboardRole): SidebarItem[] {
-  return sidebarItems.filter((item) => item.roles.includes(role) && isProductionReadyModule(item.id));
+export function getRoleSidebar(role: DashboardRole, options: RoleCapabilityOptions = {}): SidebarItem[] {
+  const roleItems = sidebarItems.filter((item) => item.roles.includes(role) && isProductionReadyModule(item.id));
+
+  return filterByCapabilities(roleItems, options);
 }
 
-export function getRoleQuickActions(role: DashboardRole) {
-  return quickActionsCatalog.filter((item) => item.roles.includes(role) && isProductionReadyModule(item.href));
+export function getRoleQuickActions(role: DashboardRole, options: RoleCapabilityOptions = {}) {
+  const roleItems = quickActionsCatalog.filter((item) => item.roles.includes(role) && isProductionReadyModule(item.href));
+
+  return filterByCapabilities(roleItems, options);
 }
 
 export function getRoleWidgetOrder(role: DashboardRole) {
   return roleWidgetOrder[role].filter((widget) => isProductionReadyModule(widget));
 }
 
-export function getRoleCapabilities(role: DashboardRole) {
+export function getRoleCapabilities(role: DashboardRole, options: RoleCapabilityOptions = {}) {
   return capabilityCatalog.filter(
     (item) =>
       item.roles.includes(role)
       && isProductionReadyModule(item.href)
-      && isProductionReadyModule(item.category),
+      && isProductionReadyModule(item.category)
+      && isCapabilityItemEntitled(item, options),
   );
 }
 
-export function canRoleAccessModule(role: DashboardRole, moduleName: string) {
+export function canRoleAccessModule(
+  role: DashboardRole,
+  moduleName: string,
+  options: RoleCapabilityOptions = {},
+) {
   if (!isProductionReadyModule(moduleName)) {
     return false;
   }
@@ -306,15 +370,21 @@ export function canRoleAccessModule(role: DashboardRole, moduleName: string) {
     (item) => item.id === moduleName || item.href === moduleName,
   );
 
-  return Boolean(moduleItem && moduleItem.roles.includes(role));
+  return Boolean(
+    moduleItem
+    && moduleItem.roles.includes(role)
+    && isModuleEntitled(moduleCodeForRoleSection(moduleName), options.moduleEntitlements),
+  );
 }
 
-export function doesModuleExist(moduleName: string) {
+export function doesModuleExist(moduleName: string, options: RoleCapabilityOptions = {}) {
   if (!isProductionReadyModule(moduleName)) {
     return false;
   }
 
   return sidebarItems.some(
-    (item) => item.id === moduleName || item.href === moduleName,
+    (item) =>
+      (item.id === moduleName || item.href === moduleName)
+      && isModuleEntitled(moduleCodeForRoleSection(moduleName), options.moduleEntitlements),
   );
 }

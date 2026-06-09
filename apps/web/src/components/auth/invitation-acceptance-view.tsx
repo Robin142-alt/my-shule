@@ -8,6 +8,8 @@ import { AuthField } from "@/components/auth/auth-field";
 import { AuthMessage } from "@/components/auth/auth-message";
 import { AuthPasswordField } from "@/components/auth/auth-password-field";
 import { AuthSubmitButton } from "@/components/auth/auth-submit-button";
+import { buildInviteLoginHref, inviteLoginLabel } from "@/lib/auth/invite-redirect";
+import { acceptInvitation } from "@/lib/auth/invitation-client";
 
 export function InvitationAcceptanceView({
   initialToken,
@@ -19,6 +21,7 @@ export function InvitationAcceptanceView({
   const [confirmPassword, setConfirmPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [successPath, setSuccessPath] = useState<string | null>(null);
+  const [successLabel, setSuccessLabel] = useState("Continue to School Login");
   const [generalError, setGeneralError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
@@ -51,26 +54,18 @@ export function InvitationAcceptanceView({
     setBusy(true);
 
     try {
-      const response = await fetch("/api/auth/invitations/accept", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          token: initialToken,
-          password,
-          display_name: displayName.trim(),
-        }),
+      const result = await acceptInvitation({
+        token: initialToken,
+        password,
+        displayName: displayName.trim(),
       });
-      const payload = (await response.json().catch(() => null)) as
-        | { message?: string; redirect_to?: string }
-        | null;
 
-      if (!response.ok) {
-        throw new Error(payload?.message ?? "Unable to accept this invitation.");
-      }
-
-      setSuccessPath(payload?.redirect_to ?? "/login");
+      setSuccessPath(buildInviteLoginHref({
+        role: result.role,
+        email: result.email,
+        tenantId: result.tenantId,
+      }));
+      setSuccessLabel(inviteLoginLabel(result.role));
     } catch (error) {
       setGeneralError(
         error instanceof Error
@@ -90,7 +85,7 @@ export function InvitationAcceptanceView({
             Activate your school account
           </h2>
           <p className="text-sm leading-6 text-muted">
-            Confirm your name and create a private password. Your role and tenant access come from the invitation.
+            Confirm your name and create a private password. Your role and school access come from the invitation.
           </p>
         </div>
 
@@ -135,8 +130,8 @@ export function InvitationAcceptanceView({
           </div>
         )}
 
-        <Link href={successPath ?? "/login"} className="inline-flex text-sm font-medium text-foreground underline-offset-4 hover:underline">
-          Continue to login
+        <Link href={successPath ?? "/school/login"} className="inline-flex text-sm font-medium text-foreground underline-offset-4 hover:underline">
+          {successPath ? successLabel : "Continue to School Login"}
         </Link>
       </div>
     </AuthCard>

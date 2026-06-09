@@ -62,7 +62,7 @@ function mockLiveExamsSession() {
   } as never);
 }
 
-function installLiveExamsFetchMock() {
+function installLiveExamsFetchMock(options?: { reportCards?: unknown[] }) {
   const fetchMock = jest.fn((input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
 
@@ -112,7 +112,7 @@ function installLiveExamsFetchMock() {
 
     if (url.includes("/api/exams/report-cards") && init?.method !== "POST") {
       return Promise.resolve(jsonResponse({
-        data: [
+        data: options?.reportCards ?? [
           {
             id: "report-card-1",
             exam_series_id: "series-1",
@@ -287,6 +287,30 @@ function buildInitialLiveExamsWorkspace() {
   });
 }
 
+function buildLiveWorkspaceWithoutReportCards() {
+  return mapExamsWorkspaceFromLive({
+    markSheets: [
+      {
+        id: "window-1",
+        exam_series_id: "series-1",
+        academic_term_id: "term-1",
+        assessment_id: "assessment-1",
+        subject_id: "subject-maths",
+        subject_name: "Mathematics",
+        class_section_id: "class-8-unity",
+        class_name: "Grade 8 Unity",
+        opens_at: "2026-05-20T06:00:00.000Z",
+        closes_at: "2026-05-24T14:00:00.000Z",
+        status: "open",
+        mark_count: 42,
+        learner_count: 46,
+        last_marked_at: "2026-05-20T09:15:00.000Z",
+      },
+    ],
+    reportCards: [],
+  });
+}
+
 describe("exams workspace", () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -329,10 +353,13 @@ describe("exams workspace", () => {
       await Promise.resolve();
     });
 
-    expect(
-      screen.getByRole("heading", { name: /exams & results command center/i }),
-    ).toBeVisible();
-  });
+  expect(
+    screen.getAllByRole("heading", { name: /teaching desk/i }).length,
+  ).toBeGreaterThan(0);
+  expect(
+    screen.getAllByRole("button", { name: /open academic review ready/i }).length,
+  ).toBeGreaterThan(0);
+});
 
   it("blocks the exams workspace when the tenant module is disabled", async () => {
     expect(isSchoolSectionEnabled("exams", ["students", "billing"])).toBe(false);
@@ -380,6 +407,61 @@ describe("exams workspace", () => {
     );
   });
 
+  it("does not post teacher marks with a hardcoded learner fallback when no learner record is selected", async () => {
+    const user = userEvent.setup();
+    mockLiveExamsSession();
+    const fetchMock = installLiveExamsFetchMock({ reportCards: [] });
+
+    renderWithProviders(
+      createElement(ExamsModuleScreen, {
+        role: "teacher",
+        schoolName: "Baraka Academy",
+        tenantSlug: "barakaacademy",
+        initialLiveWorkspace: buildLiveWorkspaceWithoutReportCards(),
+        liveSessionOverride: mockUseLiveTenantSession(),
+      }),
+    );
+
+    expect(await screen.findByText(/Grade 8 Unity - Mathematics/i)).toBeVisible();
+
+    await user.click(screen.getByRole("button", { name: /save mark/i }));
+
+    expect(await screen.findByText(/No live learner record is selected/i)).toBeVisible();
+    expect(fetchMock).not.toHaveBeenCalledWith(
+      expect.stringContaining("/api/exams/marks"),
+      expect.objectContaining({ method: "POST" }),
+    );
+  });
+
+  it("does not submit locked mark corrections with hardcoded mark or approver ids", async () => {
+    const user = userEvent.setup();
+    mockLiveExamsSession();
+    const fetchMock = installLiveExamsFetchMock();
+
+    renderWithProviders(
+      createElement(ExamsModuleScreen, {
+        role: "principal",
+        schoolName: "Baraka Academy",
+        tenantSlug: "barakaacademy",
+        initialLiveWorkspace: buildInitialLiveExamsWorkspace(),
+        liveSessionOverride: mockUseLiveTenantSession(),
+      }),
+    );
+
+    expect(await screen.findByText(/BARAKA-8U-2026/i)).toBeVisible();
+
+    await user.click(screen.getByRole("button", { name: /correct locked mark/i }));
+
+    expect(await screen.findByText(/No locked mark correction record is selected/i)).toBeVisible();
+    expect(fetchMock).not.toHaveBeenCalledWith(
+      expect.stringContaining("/api/exams/marks/corrections"),
+      expect.objectContaining({
+        method: "PATCH",
+        body: expect.stringContaining("mark-1"),
+      }),
+    );
+  });
+
   it("generates report-card previews, polls batch progress, and publishes as principal", async () => {
     const user = userEvent.setup();
     mockLiveExamsSession();
@@ -411,4 +493,183 @@ describe("exams workspace", () => {
       expect.objectContaining({ method: "POST" }),
     );
   });
+
+  it("does not show principal mark-entry shortcuts unless the principal has an assigned teaching marksheet", () => {
+    renderWithProviders(
+      createElement(ExamsModuleScreen, {
+        role: "principal",
+        schoolName: "Baraka Academy",
+        tenantSlug: "barakaacademy",
+      }),
+    );
+
+    expect(screen.queryByRole("button", { name: /continue marks entry/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /import spreadsheet/i })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /generate reports/i })).toBeVisible();
+  });
+
+  it("shows principal My Exam Entry only for assigned teaching subjects and opens the selected marksheet", async () => {
+    const user = userEvent.setup();
+
+    renderWithProviders(
+      createElement(ExamsModuleScreen, {
+        role: "principal",
+        schoolName: "Baraka Academy",
+        tenantSlug: "barakaacademy",
+        teachingAssignmentsOverride: [
+          {
+            id: "principal-biology-f4w",
+            exam: "Term 2 Opener",
+            className: "Form 4",
+            stream: "West",
+            subject: "Biology",
+            curriculum: "8-4-4",
+            deadline: "24 May, 4:00 PM",
+            status: "Open",
+            missingMarks: 1,
+            invalidMarks: 0,
+            lastSaved: "10 minutes ago",
+            teacherName: "Principal as teacher",
+            schoolId: "barakaacademy",
+            academicYear: "2026",
+            term: "Term 2",
+          },
+        ],
+      }),
+    );
+
+    expect(screen.getByRole("heading", { name: /my exam entry/i })).toBeVisible();
+    expect(screen.getAllByText(/Form 4 West/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Biology/i).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/Form 4 West Mathematics/i)).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /open marksheet for biology/i }));
+
+    expect(screen.getByRole("heading", { name: /Biology marksheet/i })).toBeVisible();
+    expect(screen.getByText(/Admission No\./i)).toBeVisible();
+    expect(screen.getByText(/Learner Name/i)).toBeVisible();
+    expect(screen.getAllByText(/Paper 1/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Practical/i).length).toBeGreaterThan(0);
+    expect(screen.getByText(/Teacher Comment/i)).toBeVisible();
+    expect(screen.getByRole("button", { name: /submit marks/i })).toBeDisabled();
+    expect(screen.getByText(/Resolve missing marks before submitting/i)).toBeVisible();
+  });
+
+  it("gives teachers a selectable My Exam Entry queue with truthful draft and template actions", async () => {
+    const user = userEvent.setup();
+
+    renderWithProviders(
+      createElement(ExamsModuleScreen, {
+        role: "teacher",
+        schoolName: "Baraka Academy",
+        tenantSlug: "barakaacademy",
+      }),
+    );
+
+    expect(screen.getByRole("heading", { name: /my exam entry/i })).toBeVisible();
+    expect(screen.getByText(/Open Entries/i)).toBeVisible();
+    expect(screen.getByText(/Draft Marksheets/i)).toBeVisible();
+    expect(screen.getByText(/Submitted Marks/i)).toBeVisible();
+    expect(screen.getByText(/Returned Corrections/i)).toBeVisible();
+    expect(screen.getByText(/Deadline Alerts/i)).toBeVisible();
+    expect(screen.getAllByText(/Grade 8 Unity/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Mathematics/i).length).toBeGreaterThan(0);
+
+    await user.click(screen.getByRole("button", { name: /download template for mathematics/i }));
+    expect(screen.getByText(/Template queued for Grade 8 Unity Mathematics/i)).toBeVisible();
+
+    await user.click(screen.getByRole("button", { name: /continue draft for mathematics/i }));
+    expect(screen.getByRole("heading", { name: /Mathematics marksheet/i })).toBeVisible();
+    expect(screen.getAllByPlaceholderText(/search learner/i).length).toBeGreaterThan(0);
+    expect(screen.getByRole("button", { name: /submit marks/i })).toBeDisabled();
+  });
+
+  it("blocks teacher marks submission while missing, invalid, or outlier scores remain", () => {
+    renderWithProviders(
+      createElement(ExamsModuleScreen, {
+        role: "teacher",
+        schoolName: "Baraka Academy",
+        tenantSlug: "barakaacademy",
+      }),
+    );
+
+    expect(screen.getByText(/Resolve missing marks and invalid\/outlier scores before submitting/i)).toBeVisible();
+    expect(screen.getByRole("button", { name: /submit to hod/i })).toBeDisabled();
+  });
+
+  it("exposes complete curriculum-aware report generation filters and truthful row actions", async () => {
+    const user = userEvent.setup();
+
+    renderWithProviders(
+      createElement(ExamsModuleScreen, {
+        role: "principal",
+        schoolName: "Baraka Academy",
+        tenantSlug: "barakaacademy",
+      }),
+    );
+
+    await user.click(screen.getByRole("tab", { name: /report cards/i }));
+
+    expect(screen.getByLabelText(/academic year/i)).toBeVisible();
+    expect(screen.getByLabelText(/^term$/i)).toBeVisible();
+    expect(screen.getByLabelText(/reporting period/i)).toBeVisible();
+    expect(screen.getByLabelText(/grade\/form/i)).toBeVisible();
+    expect(screen.getByLabelText(/stream/i)).toBeVisible();
+    expect(screen.getByLabelText(/class reporting mode/i)).toBeVisible();
+    expect(screen.getByLabelText(/report card type/i)).toBeVisible();
+    expect(screen.getByLabelText(/^status$/i)).toBeVisible();
+    expect(screen.getByLabelText(/completion state/i)).toBeVisible();
+    expect(screen.getByLabelText(/published\/unpublished/i)).toBeVisible();
+    expect(screen.getByLabelText(/approved\/pending/i)).toBeVisible();
+    expect(screen.getByLabelText(/fee hold status/i)).toBeVisible();
+
+    expect(screen.getByText(/Missing CBC observations/i)).toBeVisible();
+    expect(screen.getAllByText(/Missing marks/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Missing comments/i).length).toBeGreaterThan(0);
+    expect(screen.getByText(/Awaiting approval/i)).toBeVisible();
+    expect(screen.getByText(/Held\/blocked/i)).toBeVisible();
+
+    expect(screen.getAllByRole("button", { name: /^Regenerate$/i }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("button", { name: /^Print$/i }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("button", { name: /download pdf/i }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("button", { name: /send notification/i }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("button", { name: /audit trail/i }).length).toBeGreaterThan(0);
+
+    await user.click(screen.getAllByRole("button", { name: /^Approve$/i })[1]);
+    expect(screen.getByText(/report approved/i)).toBeVisible();
+
+    await user.click(screen.getAllByRole("button", { name: /^Publish$/i })[1]);
+    expect(screen.getByText(/report published to the permitted parent portal/i)).toBeVisible();
+
+    await user.click(screen.getAllByRole("button", { name: /^Unpublish$/i })[1]);
+    expect(screen.getByText(/report unpublished from the parent portal/i)).toBeVisible();
+
+    await user.click(screen.getAllByRole("button", { name: /audit trail/i })[0]);
+    expect(screen.getByRole("dialog", { name: /report card audit trail/i })).toBeVisible();
+    expect(screen.getAllByText(/school-scoped audit trail/i).length).toBeGreaterThan(0);
+  }, 15000);
+
+  it("lets report generation settings switch a school to pure CBC without leaving Form 4 as an implicit legacy school mode", async () => {
+    const user = userEvent.setup();
+
+    renderWithProviders(
+      createElement(ExamsModuleScreen, {
+        role: "principal",
+        schoolName: "Baraka Academy",
+        tenantSlug: "barakaacademy",
+      }),
+    );
+
+    await user.click(screen.getByRole("tab", { name: /report cards/i }));
+
+    expect(screen.getAllByText(/Legacy 8-4-4\/KCSE/i).length).toBeGreaterThan(0);
+
+    await user.selectOptions(screen.getByLabelText(/school default curriculum direction/i), "CBC_CBE");
+
+    expect(screen.getByText(/CBC\/CBE is now the school default direction/i)).toBeVisible();
+    expect(screen.getByText(/Legacy 8-4-4\/KCSE remains selectable only as an explicit class\/report format/i)).toBeVisible();
+
+    await user.selectOptions(screen.getByLabelText(/report card type/i), "LEGACY_844_KCSE");
+    expect(screen.getByText(/No report cards match the selected filters/i)).toBeVisible();
+  }, 15000);
 });

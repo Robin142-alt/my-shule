@@ -12,8 +12,11 @@ type InvitationEmailInput = {
   to: string;
   displayName: string;
   schoolName: string;
+  assignedRole: string;
+  inviterName: string;
   inviteUrl: string;
   expiresAt: Date;
+  supportNote?: string;
 };
 
 type EmailVerificationEmailInput = {
@@ -341,13 +344,16 @@ export class AuthEmailService {
   }
 
   private renderInvitationText(input: InvitationEmailInput): string {
+    const supportNote = this.getInvitationSupportNote(input);
+
     return [
       `Hello ${input.displayName},`,
       '',
-      `You have been invited to manage ${input.schoolName} in My Shule ERP.`,
+      `${input.inviterName} has invited you to join ${input.schoolName} as ${input.assignedRole} in My Shule ERP.`,
       `Accept this secure invitation before ${input.expiresAt.toISOString()}:`,
       input.inviteUrl,
       '',
+      supportNote,
       'If you were not expecting this invitation, ignore this email.',
       'My Shule ERP',
     ].join('\n');
@@ -356,23 +362,34 @@ export class AuthEmailService {
   private renderInvitationHtml(input: InvitationEmailInput): string {
     const safeName = this.escapeHtml(input.displayName);
     const safeSchoolName = this.escapeHtml(input.schoolName);
+    const safeAssignedRole = this.escapeHtml(input.assignedRole);
+    const safeInviterName = this.escapeHtml(input.inviterName);
     const safeUrl = this.escapeHtml(input.inviteUrl);
     const expiry = this.escapeHtml(input.expiresAt.toISOString());
+    const safeSupportNote = this.escapeHtml(this.getInvitationSupportNote(input));
 
     return `
       <div style="font-family:Arial,sans-serif;line-height:1.6;color:#0f172a;max-width:560px;margin:0 auto;padding:32px 20px;">
         <p>Hello ${safeName},</p>
-        <p>You have been invited to manage <strong>${safeSchoolName}</strong> in My Shule ERP.</p>
+        <p><strong>${safeInviterName}</strong> has invited you to join <strong>${safeSchoolName}</strong> as <strong>${safeAssignedRole}</strong> in My Shule ERP.</p>
         <p>
           <a href="${safeUrl}" style="display:inline-block;background:#047857;color:#ffffff;text-decoration:none;border-radius:10px;padding:12px 18px;font-weight:700;">
             Accept invitation
           </a>
         </p>
         <p style="color:#475569;font-size:14px;">This invitation expires at ${expiry}.</p>
+        <p style="color:#475569;font-size:14px;">${safeSupportNote}</p>
         <p style="color:#475569;font-size:14px;">If you were not expecting this invitation, ignore this email.</p>
         <p>My Shule ERP</p>
       </div>
     `;
+  }
+
+  private getInvitationSupportNote(input: InvitationEmailInput): string {
+    return (
+      input.supportNote?.trim() ||
+      'If you need help, contact your school administrator or MyShule support.'
+    );
   }
 
   private renderEmailVerificationText(input: EmailVerificationEmailInput): string {

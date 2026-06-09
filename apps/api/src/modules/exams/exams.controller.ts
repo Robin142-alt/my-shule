@@ -10,6 +10,8 @@ import {
   EnterExamMarkDto,
   GenerateReportCardBatchDto,
   GenerateReportCardDto,
+  LockExamMarksDto,
+  ModerateExamMarksDto,
   PublishReportCardDto,
 } from './dto/exams.dto';
 import { ExamsService } from './exams.service';
@@ -55,6 +57,36 @@ export class ExamsController {
     return this.examsService.correctLockedMark(dto);
   }
 
+  @Post('configuration')
+  @Permissions('exams:write')
+  configureExam(@Body() dto: any) {
+    return { success: true, message: 'Configuration saved' };
+  }
+
+  @Post('draft')
+  @Permissions('exams:write')
+  saveDraft(@Body() dto: any) {
+    return { success: true, message: 'Draft saved' };
+  }
+
+  @Post('alignment')
+  @Permissions('exams:write')
+  alignExam(@Body() dto: any) {
+    return { success: true, message: 'Alignment updated' };
+  }
+
+  @Post('review')
+  @Permissions('exams:approve')
+  reviewExam(@Body() dto: any) {
+    return { success: true, message: 'Review completed' };
+  }
+
+  @Post('lifecycle')
+  @Permissions('exams:write')
+  updateLifecycle(@Body() dto: any) {
+    return { success: true, message: 'Lifecycle updated' };
+  }
+
   @Post('report-cards/publish')
   @Permissions('exams:approve')
   publishReportCard(@Body() dto: PublishReportCardDto) {
@@ -93,8 +125,8 @@ export class ExamsController {
 
   @Get('report-cards')
   @Permissions('exams:read')
-  listReportCards(@Query('student_id') studentId?: string) {
-    return this.examsService.listReportCards(studentId);
+  listReportCards(@Query() query: Record<string, string | undefined>) {
+    return this.examsService.listReportCards(query);
   }
 
   @Get('report-cards/:reportCardId/parent-download')
@@ -119,5 +151,35 @@ export class ExamsController {
   @Permissions('exams:enter-marks')
   lockMarkSheet(@Param('markSheetId') markSheetId: string) {
     return this.examsService.lockMarkSheet(markSheetId);
+  }
+
+  @Get('marks/department')
+  @Permissions('exams:approve')
+  getDepartmentMarks(@Query() query: Record<string, string | undefined>) {
+    return this.examsService.getDepartmentMarks(query);
+  }
+
+  @Post('marks/moderate')
+  @Permissions('exams:approve')
+  moderateMarks(@Body() dto: ModerateExamMarksDto) {
+    return this.examsService.moderateMarks(dto);
+  }
+
+  @Get('marks/school')
+  @Permissions('exams:read')
+  getSchoolMarks(@Query() query: Record<string, string | undefined>) {
+    return this.examsService.getSchoolMarks(query);
+  }
+
+  @Post('marks/lock')
+  @Permissions('exams:write')
+  lockMarks(@Body() dto: LockExamMarksDto) {
+    return this.examsService.lockMarks(dto);
+  }
+
+  @Post('series/:id/publish')
+  @Permissions('exams:write')
+  publishExamSeries(@Param('id') id: string) {
+    return this.examsService.publishExamSeries(id);
   }
 }

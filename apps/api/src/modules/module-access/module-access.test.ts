@@ -16,6 +16,7 @@ import { MODULE_ACCESS_KEY } from './module-access.decorator';
 import { ModuleAccessGuard } from './module-access.guard';
 import { MODULE_REGISTRY_SEED } from './module-access.constants';
 import { PlatformModuleAccessController } from './module-access.controller';
+import { ModuleAccessRepository } from './module-access.repository';
 import { ModuleAccessSchemaService } from './module-access-schema.service';
 
 test('module registry seed contains required tenant allocation modules', () => {
@@ -85,6 +86,25 @@ test('ModuleAccessSchemaService creates package, trial, billing, and usage metad
   assert.match(schemaSql, /ALTER TABLE module_usage_events FORCE ROW LEVEL SECURITY/);
 });
 
+test('ModuleAccessSchemaService restores enabled modules hidden by stale trial or expiry gates', async () => {
+  let schemaSql = '';
+  const service = new ModuleAccessSchemaService({
+    runSchemaBootstrap: async (sql: string) => {
+      schemaSql += sql;
+    },
+    query: async () => ({ rows: [] }),
+  } as never);
+
+  await service.onModuleInit();
+
+  assert.match(schemaSql, /UPDATE school_module_access/);
+  assert.match(schemaSql, /access_level = 'standard'/);
+  assert.match(schemaSql, /trial_ends_at = NULL/);
+  assert.match(schemaSql, /expires_at = NULL/);
+  assert.match(schemaSql, /expires_at <= NOW\(\)/);
+  assert.match(schemaSql, /access_level = 'trial' AND trial_ends_at <= NOW\(\)/);
+});
+
 test('platform module allocation routes require platform owner role', () => {
   assert.equal(Reflect.getMetadata(PATH_METADATA, PlatformModuleAccessController), 'platform');
   assert.deepEqual(
@@ -130,6 +150,37 @@ test('ModuleAccessGuard rejects disabled tenant modules gracefully', async () =>
     () => guard.canActivate({ getHandler: () => undefined, getClass: () => undefined } as never),
     /Module not enabled for your school/i,
   );
+});
+
+test('ModuleAccessRepository clears stale expiry and trial gates when superadmin replaces school modules', async () => {
+  const queries: Array<{ sql: string; values: unknown[] }> = [];
+  const repository = new ModuleAccessRepository({
+    withRequestTransaction: async <T>(callback: () => Promise<T>) => callback(),
+    query: async (sql: string, values: unknown[] = []) => {
+      queries.push({ sql, values });
+
+      if (sql.includes('SELECT code') && sql.includes('FROM module_registry')) {
+        return { rows: [{ code: 'principal_dashboard' }] };
+      }
+
+      return { rows: [] };
+    },
+  } as never);
+
+  await repository.setSchoolModules({
+    tenantId: 'school-a',
+    moduleCodes: ['principal_dashboard'],
+    updatedBy: '00000000-0000-0000-0000-000000000001',
+  });
+
+  const upsertQuery = queries.find((query) => query.sql.includes('INSERT INTO school_module_access'));
+
+  assert.match(upsertQuery?.sql ?? '', /access_level/);
+  assert.match(upsertQuery?.sql ?? '', /trial_ends_at/);
+  assert.match(upsertQuery?.sql ?? '', /expires_at/);
+  assert.match(upsertQuery?.sql ?? '', /access_level = EXCLUDED\.access_level/);
+  assert.match(upsertQuery?.sql ?? '', /trial_ends_at = EXCLUDED\.trial_ends_at/);
+  assert.match(upsertQuery?.sql ?? '', /expires_at = EXCLUDED\.expires_at/);
 });
 
 test('production school controllers declare module access metadata', () => {

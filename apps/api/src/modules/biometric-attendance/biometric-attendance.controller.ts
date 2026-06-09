@@ -35,14 +35,18 @@ export class BiometricAttendanceController {
 
   @Get('teacher-logs')
   @Permissions('teacher_attendance:read')
-  listTeacherLogs(@Query('teacher_user_id') teacherUserId?: string) {
-    return this.biometricAttendanceService.listTeacherLogs(teacherUserId);
+  listTeacherLogs(
+    @Query('teacher_user_id') teacherUserId?: string,
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
+  ) {
+    return this.biometricAttendanceService.listTeacherLogs(teacherUserId, limit, offset);
   }
 
   @Get('live-feed')
   @Permissions('teacher_attendance:read')
-  listLiveFeed(@Query('limit') limit?: string) {
-    return this.biometricAttendanceService.listLiveFeed(limit);
+  listLiveFeed(@Query('limit') limit?: string, @Query('offset') offset?: string) {
+    return this.biometricAttendanceService.listLiveFeed(limit, offset);
   }
 
   @Get('reports/monthly')

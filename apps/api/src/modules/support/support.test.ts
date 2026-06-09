@@ -7,6 +7,7 @@ import { RequestContextService } from '../../common/request-context/request-cont
 import { SupportController } from './support.controller';
 import { SupportSchemaService } from './support-schema.service';
 import { SupportService } from './support.service';
+import { SupportRepository } from './repositories/support.repository';
 
 test('SupportService creates a critical ticket with diagnostic context, escalation, notifications, and audit trail', async () => {
   const requestContext = new RequestContextService();
@@ -206,6 +207,91 @@ test('SupportSchemaService adds full-text indexes for ticket and knowledge-base 
   assert.match(schemaSql, /CREATE INDEX IF NOT EXISTS ix_support_kb_articles_tags/);
   assert.doesNotMatch(schemaSql, /array_to_string\(tags/);
   assert.doesNotMatch(schemaSql, /attendance/i);
+});
+
+test('SupportRepository lists SLA breach candidates without SELECT star', async () => {
+  const queries: Array<{ text: string; values: unknown[] }> = [];
+  const repository = new SupportRepository({
+    query: async (text: string, values: unknown[]) => {
+      queries.push({ text, values });
+      return { rows: [] };
+    },
+  } as never);
+
+  await repository.listSlaBreachCandidates({ limit: 999 });
+
+  const candidatesQuery = queries[0]?.text ?? '';
+  assert.doesNotMatch(candidatesQuery, /SELECT\s+\*\s+FROM candidates/i);
+  assert.match(candidatesQuery, /candidate\.id/);
+  assert.match(candidatesQuery, /candidate\.sla_breach_type/);
+  assert.deepEqual(queries[0]?.values, [500]);
+});
+
+test('SupportRepository bounds and school-scopes knowledge-base lists', async () => {
+  const queries: Array<{ text: string; values: unknown[] }> = [];
+  const repository = new SupportRepository({
+    query: async (text: string, values: unknown[]) => {
+      queries.push({ text, values });
+      return { rows: [] };
+    },
+  } as never);
+
+  await repository.listKnowledgeBase({
+    tenantId: 'tenant-baraka',
+    search: 'MPESA',
+    category: 'Finance',
+    limit: 500,
+    offset: 20,
+  });
+
+  const knowledgeQuery = queries[0]?.text ?? '';
+  assert.match(knowledgeQuery, /tenant_id = \$1/);
+  assert.match(knowledgeQuery, /tenant_id = 'global'/);
+  assert.match(knowledgeQuery, /LIMIT \$4::integer/);
+  assert.match(knowledgeQuery, /OFFSET \$5::integer/);
+  assert.deepEqual(queries[0]?.values, ['tenant-baraka', '%MPESA%', 'Finance', 50, 20]);
+});
+
+test('SupportService normalizes knowledge-base search and pagination inside the current school', async () => {
+  const requestContext = new RequestContextService();
+  const captured: Record<string, unknown> = {};
+  const service = new SupportService(
+    requestContext,
+    {} as never,
+    {
+      listKnowledgeBase: async (options: Record<string, unknown>) => {
+        captured.options = options;
+        return [];
+      },
+    } as never,
+    {} as never,
+  );
+
+  await requestContext.run(
+    {
+      request_id: 'req-support-kb-list-1',
+      tenant_id: 'tenant-baraka',
+      user_id: '00000000-0000-0000-0000-000000000701',
+      role: 'principal',
+      session_id: 'session-principal',
+      permissions: ['support:view'],
+      is_authenticated: true,
+      client_ip: '127.0.0.1',
+      user_agent: 'school-console',
+      method: 'GET',
+      path: '/support/knowledge-base',
+      started_at: '2026-05-08T08:20:00.000Z',
+    },
+    () => service.listKnowledgeBase({ search: 'm', category: ' Finance ', limit: 999, offset: -5 }),
+  );
+
+  assert.deepEqual(captured.options, {
+    tenantId: 'tenant-baraka',
+    search: undefined,
+    category: 'Finance',
+    limit: 50,
+    offset: 0,
+  });
 });
 
 test('SupportService adds SMS escalation notifications for critical tickets when SMS provider config is present', async () => {

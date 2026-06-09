@@ -19,6 +19,8 @@ import {
   EnterExamMarkDto,
   GenerateReportCardBatchDto,
   GenerateReportCardDto,
+  LockExamMarksDto,
+  ModerateExamMarksDto,
   PublishReportCardDto,
 } from './dto/exams.dto';
 import { ExamsRepository } from './repositories/exams.repository';
@@ -420,6 +422,8 @@ export class ExamsService {
       exam_series_id: this.requireText(dto.exam_series_id, 'Exam series'),
       class_section_id: this.optionalText(dto.class_section_id),
       stream_name: this.optionalText(dto.stream_name),
+      batch_size: this.parsePageLimit(dto.batch_size, 200, 200),
+      offset: this.parsePageOffset(dto.offset),
     });
   }
 
@@ -437,10 +441,16 @@ export class ExamsService {
     });
   }
 
-  listReportCards(studentId?: string) {
+  listReportCards(queryOrStudentId?: string | Record<string, string | undefined>) {
+    const query = typeof queryOrStudentId === 'string'
+      ? { student_id: queryOrStudentId }
+      : queryOrStudentId ?? {};
+
     return this.repository.listReportCards({
       tenant_id: this.requireTenantId(),
-      student_id: studentId?.trim() || undefined,
+      student_id: this.optionalText(query.student_id),
+      limit: this.parsePageLimit(query.limit, 25, 50),
+      offset: this.parsePageOffset(query.offset),
     });
   }
 
@@ -474,6 +484,76 @@ export class ExamsService {
     }
 
     return locked;
+  }
+
+  getDepartmentMarks(query: Record<string, string | undefined>) {
+    return this.repository.listMarks({
+      tenant_id: this.requireTenantId(),
+      department_id: this.optionalText(query.department_id),
+      status_in: ['submitted', 'reviewed'],
+      limit: this.parsePageLimit(query.limit, 25, 50),
+      offset: this.parsePageOffset(query.offset),
+    });
+  }
+
+  async moderateMarks(dto: ModerateExamMarksDto) {
+    const tenantId = this.requireTenantId();
+    const actorUserId = this.requireUserId();
+    
+    const updatedMarks = await this.repository.moderateMarks({
+      tenant_id: tenantId,
+      mark_ids: dto.mark_ids,
+      action: dto.action,
+      actor_user_id: actorUserId,
+    });
+    
+    if (dto.action === 'return_for_correction') {
+      const reason = this.requireText(dto.reason, 'Reason');
+      for (const mark of updatedMarks) {
+        await this.createMarkVersionIfSupported({
+          tenant_id: tenantId,
+          mark_id: mark.id,
+          original_score: mark.score,
+          correction_score: mark.score,
+          corrected_by_user_id: actorUserId,
+          reason,
+          approval_state: 'rejected',
+        });
+      }
+    }
+    
+    return { success: true, updated_count: updatedMarks.length };
+  }
+
+  getSchoolMarks(query: Record<string, string | undefined>) {
+    return this.repository.listMarks({
+      tenant_id: this.requireTenantId(),
+      status_in: ['reviewed'],
+      limit: this.parsePageLimit(query.limit, 25, 50),
+      offset: this.parsePageOffset(query.offset),
+    });
+  }
+
+  async lockMarks(dto: LockExamMarksDto) {
+    const tenantId = this.requireTenantId();
+    const actorUserId = this.requireUserId();
+    const updatedMarks = await this.repository.lockMarks({
+      tenant_id: tenantId,
+      mark_ids: dto.mark_ids,
+      actor_user_id: actorUserId,
+    });
+    return { success: true, locked_count: updatedMarks.length };
+  }
+
+  async publishExamSeries(examSeriesId: string) {
+    const tenantId = this.requireTenantId();
+    const actorUserId = this.requireUserId();
+    const updatedMarks = await this.repository.publishExamSeries({
+      tenant_id: tenantId,
+      exam_series_id: this.requireText(examSeriesId, 'Exam series'),
+      actor_user_id: actorUserId,
+    });
+    return { success: true, published_marks_count: updatedMarks.length };
   }
 
   async createParentReportCardDownload(reportCardId: string) {
@@ -565,6 +645,8 @@ export class ExamsService {
       exam_series_id?: string;
       class_section_id?: string;
       subject_id?: string;
+      limit?: number;
+      offset?: number;
     } = {
       tenant_id: this.requireTenantId(),
     };
@@ -577,6 +659,8 @@ export class ExamsService {
     if (examSeriesId) input.exam_series_id = examSeriesId;
     if (classSectionId) input.class_section_id = classSectionId;
     if (subjectId) input.subject_id = subjectId;
+    input.limit = this.parsePageLimit(query.limit, 25, 50);
+    input.offset = this.parsePageOffset(query.offset);
 
     return this.repository.listMarkSheets(input);
   }
@@ -780,6 +864,30 @@ export class ExamsService {
   private optionalText(value: string | undefined): string | undefined {
     const normalized = value?.trim() ?? '';
     return normalized || undefined;
+  }
+
+  private parsePageLimit(
+    value: string | number | undefined,
+    defaultLimit: number,
+    maxLimit: number,
+  ): number {
+    const numeric = Number(value);
+
+    if (!Number.isFinite(numeric) || numeric <= 0) {
+      return defaultLimit;
+    }
+
+    return Math.min(Math.floor(numeric), maxLimit);
+  }
+
+  private parsePageOffset(value: string | number | undefined): number {
+    const numeric = Number(value);
+
+    if (!Number.isFinite(numeric) || numeric < 0) {
+      return 0;
+    }
+
+    return Math.floor(numeric);
   }
 
   private requirePositiveNumber(value: number, fieldName: string): number {

@@ -58,9 +58,12 @@ const SCHOOL_ROLES = [
   'secretary',
   'bursar',
   'accountant',
+  'dean_academics',
+  'exams_manager',
   'hod',
   'teacher',
   'class_teacher',
+  'grade_master',
   'parent',
   'student',
   'librarian',
@@ -73,6 +76,8 @@ const SCHOOL_ROLES = [
   'procurement_officer',
   'transport_manager',
   'lab_technician',
+  'admissions_officer',
+  'ict_manager',
 ] as const satisfies readonly BlueprintUserRole[];
 
 const CONTROLS = [
@@ -99,12 +104,17 @@ const ROLE_MODULE_REQUIREMENTS: Partial<Record<BlueprintUserRole, readonly strin
   hr_officer: ['staff'],
   procurement_officer: ['procurement'],
   lab_technician: ['lab_management'],
+  admissions_officer: ['admissions'],
+  ict_manager: ['lab_management'],
+  dean_academics: ['exams'],
+  exams_manager: ['exams'],
 };
 
 const ROLE_INHERITANCE: Partial<Record<BlueprintUserRole, readonly BlueprintUserRole[]>> = {
   school_admin: ['principal', 'secretary'],
   principal: ['deputy_principal'],
   deputy_principal: ['teacher'],
+  grade_master: ['class_teacher'],
   class_teacher: ['teacher'],
   bursar: ['accountant'],
   transport_manager: ['driver'],
@@ -120,9 +130,12 @@ const ROLE_PERMISSIONS: Partial<Record<BlueprintUserRole, readonly string[]>> = 
   secretary: ['secretary:read', 'secretary:write', 'admissions:read', 'documents:write', 'school_sms:send'],
   bursar: ['finance:read', 'finance:write', 'billing:read', 'billing:write', 'payments:create'],
   accountant: ['finance:read', 'billing:read', 'payments:create'],
+  dean_academics: ['academics:read', 'exams:read', 'exams:review', 'exams:approve', 'reports:read'],
+  exams_manager: ['academics:read', 'exams:read', 'exams:write', 'exams:enter-marks', 'exams:review', 'reports:read'],
   hod: ['academics:read', 'academics:assign-teachers', 'exams:review'],
   teacher: ['students:read', 'academics:read', 'exams:enter-marks', 'discipline:write'],
   class_teacher: ['students:read', 'academics:read', 'exams:enter-marks', 'discipline:write', 'portal:message_school'],
+  grade_master: ['students:read', 'academics:read', 'exams:review', 'discipline:read', 'discipline:reports', 'reports:read'],
   parent: ['auth:read', 'portal:read_own_children', 'portal:message_school'],
   student: ['auth:read', 'academics:read', 'lms:read'],
   librarian: ['library:read', 'library:write'],
@@ -135,6 +148,8 @@ const ROLE_PERMISSIONS: Partial<Record<BlueprintUserRole, readonly string[]>> = 
   procurement_officer: ['procurement:read', 'procurement:write'],
   transport_manager: ['transport:read', 'transport:write'],
   lab_technician: ['labs:read', 'labs:write', 'labs:inventory'],
+  admissions_officer: ['admissions:read', 'admissions:write', 'students:read', 'students:write'],
+  ict_manager: ['assets:read', 'inventory:read', 'labs:read', 'reports:read'],
 };
 
 const PRIVILEGED_ROLES = new Set<BlueprintUserRole>([

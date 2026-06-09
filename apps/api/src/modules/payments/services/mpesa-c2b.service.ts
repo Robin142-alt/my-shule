@@ -253,10 +253,14 @@ export class MpesaC2bService {
 
   async listC2bPayments(input: {
     status?: MpesaC2bPaymentEntity['status'] | null;
+    limit?: number | string;
+    offset?: number | string;
   } = {}): Promise<MpesaC2bPaymentEntity[]> {
     const payments = await this.mpesaC2bPaymentsRepository.list({
       tenant_id: this.requireTenantId(),
       status: input.status ?? null,
+      limit: this.parseBoundedInteger(input.limit, 25, 50),
+      offset: this.parseBoundedInteger(input.offset, 0, Number.MAX_SAFE_INTEGER),
     });
 
     return payments.map((payment) => this.redactC2bPaymentForResponse(payment));
@@ -489,6 +493,20 @@ export class MpesaC2bService {
     const value = invoice.metadata?.student_id;
 
     return typeof value === 'string' && value.trim() ? value.trim() : null;
+  }
+
+  private parseBoundedInteger(
+    value: number | string | undefined,
+    fallback: number,
+    max: number,
+  ): number {
+    const parsed = typeof value === 'number' ? value : Number.parseInt(String(value ?? ''), 10);
+
+    if (!Number.isFinite(parsed)) {
+      return fallback;
+    }
+
+    return Math.min(Math.max(Math.floor(parsed), 0), max);
   }
 
   private requireTenantId(): string {

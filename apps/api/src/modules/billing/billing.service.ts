@@ -68,8 +68,14 @@ import {
 } from './student-fee-payment-allocation.service';
 import { SubscriptionEntity } from './entities/subscription.entity';
 import { FeeStructuresRepository } from './repositories/fee-structures.repository';
-import { InvoicesRepository } from './repositories/invoices.repository';
-import { ManualFeePaymentsRepository } from './repositories/manual-fee-payments.repository';
+import {
+  InvoicesRepository,
+  type StudentInvoiceBalanceSummary,
+} from './repositories/invoices.repository';
+import {
+  ManualFeePaymentsRepository,
+  type StudentUnappliedCreditSummary,
+} from './repositories/manual-fee-payments.repository';
 import { SubscriptionsRepository } from './repositories/subscriptions.repository';
 
 type BillingReportExportDefinition = {
@@ -111,6 +117,11 @@ type FinanceReconciliationInput = {
   from?: string;
   to?: string;
   method?: ManualFeePaymentMethod | string | null;
+};
+
+type ListStudentBalancesInput = {
+  limit?: number;
+  offset?: number;
 };
 
 type FinanceReconciliationPeriod = {
@@ -581,6 +592,10 @@ export class BillingService {
     const invoices = await this.invoicesRepository.listInvoices(
       this.requireTenantId(),
       query.status,
+      {
+        limit: query.limit ?? 25,
+        offset: query.offset ?? 0,
+      },
     );
     return invoices.map((invoice) => this.mapInvoice(invoice));
   }
@@ -595,11 +610,15 @@ export class BillingService {
     return this.mapInvoice(invoice);
   }
 
-  async listFinanceActivity(): Promise<FinanceActivityResponseDto[]> {
+  async listFinanceActivity(
+    options: { limit?: number; offset?: number } = {},
+  ): Promise<FinanceActivityResponseDto[]> {
     const tenantId = this.requireTenantId();
+    const limit = normalizeFinanceActivityLimit(options.limit);
+    const offset = normalizeFinanceActivityOffset(options.offset);
     const [invoices, receipts] = await Promise.all([
-      this.invoicesRepository.listInvoices(tenantId),
-      this.manualFeePaymentsRepository?.list({ tenant_id: tenantId }) ?? [],
+      this.invoicesRepository.listInvoices(tenantId, undefined, { limit, offset }),
+      this.manualFeePaymentsRepository?.list({ tenant_id: tenantId, limit, offset }) ?? [],
     ]);
     const invoiceRows = invoices.map((invoice) =>
       Object.assign(new FinanceActivityResponseDto(), {
@@ -644,18 +663,28 @@ export class BillingService {
       }),
     );
 
-    return [...invoiceRows, ...receiptRows].sort((left, right) =>
-      right.occurred_at.localeCompare(left.occurred_at),
-    );
+    return [...invoiceRows, ...receiptRows]
+      .sort((left, right) => right.occurred_at.localeCompare(left.occurred_at))
+      .slice(0, limit);
   }
 
-  async listStudentBalances(): Promise<StudentFeeBalanceResponseDto[]> {
+  async listStudentBalances(
+    input: ListStudentBalancesInput = {},
+  ): Promise<StudentFeeBalanceResponseDto[]> {
     const tenantId = this.requireTenantId();
-    const [invoices, receipts] = await Promise.all([
-      this.invoicesRepository.listInvoices(tenantId),
-      this.manualFeePaymentsRepository?.list({ tenant_id: tenantId }) ?? [],
+    const limit = normalizeStudentBalanceLimit(input.limit);
+    const offset = normalizeStudentBalanceOffset(input.offset);
+    const [invoiceSummaries, creditSummaries] = await Promise.all([
+      this.invoicesRepository.listStudentBalanceSummaries(tenantId, { limit, offset }),
+      this.manualFeePaymentsRepository?.listUnappliedCreditSummaries(tenantId, {
+        limit,
+        offset,
+      }) ?? [],
     ]);
-    return this.buildStudentBalances(invoices, receipts);
+
+    return this
+      .buildStudentBalancesFromSummaries(invoiceSummaries, creditSummaries)
+      .slice(0, limit);
   }
 
   async getStudentStatement(studentId: string): Promise<StudentFeeStatementResponseDto> {
@@ -666,19 +695,16 @@ export class BillingService {
     }
 
     const tenantId = this.requireTenantId();
-    const [invoices, receipts] = await Promise.all([
-      this.invoicesRepository.listInvoices(tenantId),
-      this.manualFeePaymentsRepository?.list({ tenant_id: tenantId }) ?? [],
-    ]);
-    const studentInvoices = invoices.filter(
-      (invoice) =>
-        this.readStringMetadata(invoice.metadata, 'student_id') === normalizedStudentId,
+    const studentInvoices = await this.invoicesRepository.listStudentInvoices(
+      tenantId,
+      normalizedStudentId,
     );
-    const invoiceIds = new Set(studentInvoices.map((invoice) => invoice.id));
-    const studentReceipts = receipts.filter(
-      (receipt) =>
-        receipt.student_id === normalizedStudentId ||
-        (receipt.invoice_id !== null && invoiceIds.has(receipt.invoice_id)),
+    const studentReceipts = await (
+      this.manualFeePaymentsRepository?.listStudentStatementPayments({
+        tenantId,
+        studentId: normalizedStudentId,
+        invoiceIds: studentInvoices.map((invoice) => invoice.id),
+      }) ?? []
     );
     const entries = this.buildStudentStatementEntries(studentInvoices, studentReceipts);
 
@@ -743,18 +769,16 @@ export class BillingService {
   ): Promise<FinanceReconciliationResponseDto> {
     const tenantId = this.requireTenantId();
     const period = this.resolveFinanceReconciliationPeriod(input);
-    const payments = await this.manualFeePaymentsRepository?.list({ tenant_id: tenantId }) ?? [];
+    const payments = await (
+      this.manualFeePaymentsRepository?.listForReconciliation({
+        tenantId,
+        from: period.from,
+        to: period.to,
+        method: period.payment_method,
+      }) ?? []
+    );
     const rows = payments
       .map((payment) => this.toFinanceReconciliationRow(payment))
-      .filter((row) => {
-        const occurredAt = new Date(row.occurred_at);
-
-        return (
-          occurredAt >= period.from &&
-          occurredAt <= period.to &&
-          (!period.payment_method || row.payment_method === period.payment_method)
-        );
-      })
       .sort((left, right) => right.occurred_at.localeCompare(left.occurred_at));
     const totals = this.createFinanceReconciliationAccumulator();
     const methodTotals = new Map(
@@ -829,6 +853,55 @@ export class BillingService {
     });
   }
 
+  private buildStudentBalancesFromSummaries(
+    invoiceSummaries: StudentInvoiceBalanceSummary[],
+    creditSummaries: StudentUnappliedCreditSummary[],
+  ): StudentFeeBalanceResponseDto[] {
+    const balances = new Map<string, StudentBalanceAccumulator>();
+
+    for (const summary of invoiceSummaries) {
+      const balance = this.getOrCreateStudentBalance(balances, {
+        tenant_id: summary.tenant_id,
+        student_id: summary.student_id,
+        student_name: summary.student_name,
+        currency_code: summary.currency_code,
+      });
+
+      balance.invoiced_amount_minor += this.toMinorBigInt(
+        summary.invoiced_amount_minor,
+      );
+      balance.paid_amount_minor += this.toMinorBigInt(summary.paid_amount_minor);
+      balance.invoice_count += Number(summary.invoice_count) || 0;
+
+      if (summary.last_activity_at) {
+        balance.last_activity_at = this.maxDate(
+          balance.last_activity_at,
+          summary.last_activity_at,
+        );
+      }
+    }
+
+    for (const summary of creditSummaries) {
+      const balance = this.getOrCreateStudentBalance(balances, {
+        tenant_id: summary.tenant_id,
+        student_id: summary.student_id,
+        student_name: summary.student_name,
+        currency_code: summary.currency_code,
+      });
+
+      balance.credit_amount_minor += this.toMinorBigInt(summary.credit_amount_minor);
+
+      if (summary.last_activity_at) {
+        balance.last_activity_at = this.maxDate(
+          balance.last_activity_at,
+          summary.last_activity_at,
+        );
+      }
+    }
+
+    return this.mapStudentBalanceAccumulators(balances);
+  }
+
   private buildStudentBalances(
     invoices: InvoiceEntity[],
     receipts: ManualFeePaymentEntity[],
@@ -879,6 +952,12 @@ export class BillingService {
       );
     }
 
+    return this.mapStudentBalanceAccumulators(balances);
+  }
+
+  private mapStudentBalanceAccumulators(
+    balances: Map<string, StudentBalanceAccumulator>,
+  ): StudentFeeBalanceResponseDto[] {
     return [...balances.values()]
       .map((balance) => {
         const outstanding =
@@ -1589,3 +1668,43 @@ export class BillingService {
 
 const addDays = (value: Date, days: number): Date =>
   new Date(value.getTime() + days * 24 * 60 * 60 * 1000);
+
+function normalizeFinanceActivityLimit(limit: number | undefined): number {
+  const parsed = Number(limit ?? 25);
+
+  if (!Number.isFinite(parsed)) {
+    return 25;
+  }
+
+  return Math.min(Math.max(Math.trunc(parsed), 1), 50);
+}
+
+function normalizeFinanceActivityOffset(offset: number | undefined): number {
+  const parsed = Number(offset ?? 0);
+
+  if (!Number.isFinite(parsed)) {
+    return 0;
+  }
+
+  return Math.max(Math.trunc(parsed), 0);
+}
+
+function normalizeStudentBalanceLimit(limit: number | undefined): number {
+  const parsed = Number(limit ?? 25);
+
+  if (!Number.isFinite(parsed)) {
+    return 25;
+  }
+
+  return Math.min(Math.max(Math.trunc(parsed), 1), 50);
+}
+
+function normalizeStudentBalanceOffset(offset: number | undefined): number {
+  const parsed = Number(offset ?? 0);
+
+  if (!Number.isFinite(parsed)) {
+    return 0;
+  }
+
+  return Math.max(Math.trunc(parsed), 0);
+}

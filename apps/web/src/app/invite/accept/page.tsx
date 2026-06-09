@@ -1,26 +1,37 @@
 import { AuthShell } from "@/components/auth/auth-shell";
 import { InviteAcceptanceView } from "@/components/auth/auth-invitation-view";
-import { readResetToken, type ResetSearchParams } from "@/lib/auth/reset-token";
+import { type ResetSearchParams } from "@/lib/auth/reset-token";
+
+function readSearchParam(
+  params: Record<string, string | string[] | undefined> | undefined,
+  key: string,
+) {
+  const value = params?.[key];
+
+  return Array.isArray(value) ? (value[0] ?? "") : (value ?? "");
+}
 
 export default async function InviteAcceptancePage({
   searchParams,
 }: {
   searchParams?: ResetSearchParams;
 }) {
-  const initialToken = await readResetToken(searchParams);
+  const params = await searchParams;
+  const initialToken = readSearchParam(params, "token");
+  const initialTenantSlug = readSearchParam(params, "tenant");
 
   return (
     <AuthShell
       eyebrow="Invite acceptance"
       heroTitle="Secure school onboarding starts from a verified invitation."
-      heroDescription="New administrators create their own password from a signed, short-lived invitation link before entering a tenant workspace."
+      heroDescription="New administrators create their own password from a signed, short-lived invitation link before entering a school workspace."
       badge="User onboarding"
       logoMark="SH"
       helper="Invitation links bind the school, role, email address, and first password setup without exposing credentials."
       highlights={[
         {
-          id: "tenant",
-          title: "Tenant bound",
+          id: "school",
+          title: "School bound",
           description: "The invitation activates access only for the school selected by the platform owner.",
         },
         {
@@ -36,11 +47,11 @@ export default async function InviteAcceptancePage({
       ]}
       trustNotes={[
         { id: "secure", label: "Signed token", icon: "lock" },
-        { id: "scoped", label: "Tenant scoped", icon: "shield" },
+        { id: "scoped", label: "School linked", icon: "shield" },
         { id: "verified", label: "Email verified", icon: "check" },
       ]}
     >
-      <InviteAcceptanceView initialToken={initialToken} />
+      <InviteAcceptanceView initialToken={initialToken} initialTenantSlug={initialTenantSlug} />
     </AuthShell>
   );
 }

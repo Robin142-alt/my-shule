@@ -87,6 +87,29 @@ test('buildDatabasePoolOptions enables PostgreSQL SSL from explicit production f
   assert.equal(options.max, 15);
 });
 
+test('buildDatabasePoolOptions keeps serverless API pools small by default', () => {
+  const options = buildDatabasePoolOptions({
+    get: (key: string) => {
+      const values: Record<string, unknown> = {
+        'database.url': 'postgres://myshule:secret@ep-pooled.neon.tech:5432/myshule?sslmode=require',
+        'database.ssl': false,
+        'database.statementTimeoutMs': 5000,
+        'database.connectionTimeoutMs': 1500,
+        'database.idleTimeoutMs': 10000,
+        'database.workerMaxConnections': 2,
+        'app.runtime': 'serverless',
+        'app.isServerlessRuntime': true,
+      };
+
+      return values[key];
+    },
+  } as never);
+
+  assert.equal(options.max, 3);
+  assert.equal(options.allowExitOnIdle, true);
+  assert.equal(options.ssl !== undefined, true);
+});
+
 test('DatabaseService.query scopes request-context calls into a transaction-local session', async () => {
   const requestContext = new RequestContextService();
   const pool = new FakePool();

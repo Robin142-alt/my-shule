@@ -2,7 +2,13 @@ export type SupportedDomainEventName =
   | 'student.created'
   | 'student.academic_enrollment.created'
   | 'student.academic_lifecycle.changed'
-  | 'payment.completed';
+  | 'payment.completed'
+  | 'exam.submitted'
+  | 'dean.approval.granted'
+  | 'discipline.case.escalated'
+  | 'school.operation.recorded'
+  | 'workflow.action.dispatched'
+  | 'workflow.action.completed';
 export type OutboxEventStatus =
   | 'pending'
   | 'processing'
@@ -36,6 +42,99 @@ export interface PaymentCompletedPayload {
   mpesa_receipt_number: string | null;
   phone_number: string | null;
   completed_at: string;
+}
+
+export interface ExamSubmittedPayload {
+  tenant_id: string;
+  exam_id: string;
+  exam_name: string;
+  class_name: string;
+  stream_name: string;
+  submitted_by_user_id: string | null;
+  submitted_at: string;
+  completion_status?: string;
+  missing_marks_count?: number;
+}
+
+export interface DeanApprovalGrantedPayload {
+  tenant_id: string;
+  approval_id: string;
+  exam_id: string;
+  exam_name: string;
+  approved_by_user_id: string | null;
+  approved_at: string;
+  decision: 'approved' | 'rejected' | 'returned';
+  reason_code?: string | null;
+}
+
+export interface DisciplineCaseEscalatedPayload {
+  tenant_id: string;
+  case_id: string;
+  student_id: string;
+  student_name: string;
+  severity: 'low' | 'medium' | 'high' | 'critical';
+  escalated_to_role: string;
+  escalated_at: string;
+  summary: string;
+}
+
+export interface SchoolOperationRecordedPayload {
+  tenant_id: string;
+  school_id: string;
+  operation_id: string;
+  operation_type: string;
+  module: string;
+  actor_role: string;
+  title: string;
+  body: string;
+  entity_id: string | null;
+  severity: 'info' | 'warning' | 'critical' | 'success';
+  target_roles: string[];
+  notifications: Record<string, unknown>[];
+  sms: Record<string, unknown>[];
+  payload: Record<string, unknown>;
+  occurred_at: string;
+}
+
+export interface WorkflowActionDispatchedPayload {
+  tenant_id: string;
+  command_id: string;
+  dashboard_id: string;
+  role: string;
+  node_id: string;
+  action_id: string;
+  action_label?: string;
+  capability_required?: string;
+  workflow_id: string;
+  execution_handler: string;
+  fallback_handler: string;
+  retry_policy: {
+    maxAttempts: number;
+    backoff: 'fixed' | 'exponential';
+  };
+  emitted_events: string[];
+  audit_action: string;
+  aggregate_id: string;
+  requested_by_user_id: string;
+  requested_at: string;
+  payload: Record<string, unknown>;
+}
+
+export interface WorkflowActionCompletedPayload {
+  tenant_id: string;
+  command_id: string;
+  dashboard_id: string;
+  role: string;
+  node_id: string;
+  action_id: string;
+  workflow_id: string;
+  execution_handler: string;
+  aggregate_id: string;
+  completed_at: string;
+  emitted_events: string[];
+  audit_action: string;
+  status: 'COMPLETED';
+  payload: Record<string, unknown>;
 }
 
 export interface StudentAcademicEnrollmentCreatedPayload {
@@ -73,6 +172,12 @@ export interface DomainEventPayloadMap {
   'student.academic_enrollment.created': StudentAcademicEnrollmentCreatedPayload;
   'student.academic_lifecycle.changed': StudentAcademicLifecycleChangedPayload;
   'payment.completed': PaymentCompletedPayload;
+  'exam.submitted': ExamSubmittedPayload;
+  'dean.approval.granted': DeanApprovalGrantedPayload;
+  'discipline.case.escalated': DisciplineCaseEscalatedPayload;
+  'school.operation.recorded': SchoolOperationRecordedPayload;
+  'workflow.action.dispatched': WorkflowActionDispatchedPayload;
+  'workflow.action.completed': WorkflowActionCompletedPayload;
 }
 
 export interface DomainEvent<
@@ -151,4 +256,42 @@ export interface DispatchOutboxEventJobPayload {
   role?: string | null;
   session_id?: string | null;
   enqueued_at?: string;
+}
+
+export type DashboardRealtimeEventType =
+  | 'EXAM_SUBMITTED'
+  | 'DEAN_APPROVAL_GRANTED'
+  | 'FEE_PAYMENT_COMPLETED'
+  | 'DISCIPLINE_CASE_ESCALATED'
+  | 'SCHOOL_OPERATION_RECORDED'
+  | 'WORKFLOW_ACTION_DISPATCHED'
+  | 'WORKFLOW_ACTION_COMPLETED';
+
+export interface DashboardRealtimeNotification {
+  id: string;
+  eventType: DashboardRealtimeEventType;
+  title: string;
+  body: string;
+  tone: 'info' | 'ok' | 'warning' | 'critical';
+  targetChannels: string[];
+  createdAt: string;
+}
+
+export interface DashboardRealtimeEvent {
+  id: string;
+  type: DashboardRealtimeEventType;
+  tenantId: string;
+  sourceModule: string;
+  entityId: string;
+  occurredAt: string;
+  payload: Record<string, unknown>;
+  channels: string[];
+  notification: DashboardRealtimeNotification;
+}
+
+export interface DashboardRealtimeSnapshot {
+  tenant_id: string;
+  generated_at: string;
+  cursor: string | null;
+  events: DashboardRealtimeEvent[];
 }

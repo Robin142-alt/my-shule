@@ -19,7 +19,7 @@ import {
   X,
 } from "lucide-react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useState, type ReactNode } from "react";
 
 /* ─── Nav Config ─────────────────────────────────────────────────── */
@@ -37,6 +37,45 @@ const superadminNav = [
   { id: "settings", label: "Settings", href: "/superadmin/settings", icon: Waypoints },
 ];
 
+const platformNotifications = [
+  {
+    id: "failed-sms",
+    title: "Failed SMS deliveries",
+    detail: "23 parent messages need retry across active schools.",
+    href: "/superadmin/sms-settings?filter=failed",
+  },
+  {
+    id: "mpesa-callbacks",
+    title: "M-Pesa callback issues",
+    detail: "Four payment confirmations need reconciliation.",
+    href: "/superadmin/mpesa-monitoring?filter=failed-callbacks",
+  },
+  {
+    id: "school-setup",
+    title: "School setup tasks",
+    detail: "Three schools have incomplete term, class, or fee setup.",
+    href: "/superadmin/schools?filter=setup",
+  },
+  {
+    id: "support-sla",
+    title: "Support SLA warning",
+    detail: "Two school tickets are close to escalation.",
+    href: "/superadmin/support?filter=sla",
+  },
+  {
+    id: "backup-review",
+    title: "Backup review",
+    detail: "Yesterday's verification report is ready for review.",
+    href: "/superadmin/infrastructure?panel=backups",
+  },
+  {
+    id: "audit-alert",
+    title: "Audit alert",
+    detail: "Permission changes were made by a platform operator.",
+    href: "/superadmin/audit-logs?filter=permissions",
+  },
+] as const;
+
 /* ─── Super Admin Shell ──────────────────────────────────────────── */
 export function SuperAdminShell({
   children,
@@ -47,9 +86,26 @@ export function SuperAdminShell({
   userName?: string;
   onLogout?: () => void;
 }) {
+  const router = useRouter();
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [notice, setNotice] = useState("Platform control ready for schools, billing, support, M-Pesa, SMS, and system health.");
+  const searchResults = searchTerm.trim()
+    ? superadminNav.filter((item) =>
+        [item.label, item.id, item.href].some((value) => value.toLowerCase().includes(searchTerm.trim().toLowerCase())),
+      )
+    : [];
+
+  function openPlatformPath(href: string, message: string) {
+    setNotice(message);
+    setSearchTerm("");
+    setNotificationsOpen(false);
+    setProfileOpen(false);
+    router.push(href);
+  }
 
   return (
     <div className="sa-shell min-h-screen bg-[#F3F4F6]">
@@ -182,20 +238,84 @@ export function SuperAdminShell({
             </div>
 
             <div className="flex items-center gap-3">
-              <label className="hidden items-center gap-2 rounded-xl border border-border bg-surface-muted px-3.5 py-2 md:flex">
+              <label className="relative hidden items-center gap-2 rounded-xl border border-border bg-surface-muted px-3.5 py-2 md:flex">
                 <Search className="h-4 w-4 text-muted" />
                 <input
                   type="search"
-                  placeholder="Search tenants, tickets, logs…"
+                  value={searchTerm}
+                  onChange={(event) => setSearchTerm(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" && searchResults[0]) {
+                      openPlatformPath(searchResults[0].href, `Navigating to ${searchResults[0].label} from platform search.`);
+                    }
+                  }}
+                  aria-label="Search schools, tickets, logs"
+                  placeholder="Search schools, tickets, logs..."
                   className="w-[220px] bg-transparent text-sm text-foreground outline-none placeholder:text-muted"
                 />
+                {searchTerm.trim() ? (
+                  <div className="absolute right-0 top-12 z-30 w-80 overflow-hidden rounded-xl border border-border bg-white shadow-xl">
+                    {searchResults.length ? (
+                      searchResults.map((item) => (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onClick={() => {
+                            openPlatformPath(item.href, `Navigating to ${item.label} from platform search.`);
+                          }}
+                          className="block w-full px-4 py-3 text-left text-sm transition hover:bg-surface-muted"
+                        >
+                          <span className="block font-semibold text-primary">{item.label}</span>
+                          <span className="mt-1 block text-xs text-muted">{item.href}</span>
+                        </button>
+                      ))
+                    ) : (
+                      <p className="px-4 py-3 text-sm text-muted">No matching platform record found.</p>
+                    )}
+                  </div>
+                ) : null}
               </label>
-              <button type="button" className="relative rounded-xl border border-border bg-surface-muted p-2.5 text-primary transition hover:border-accent/50 hover:text-accent">
-                <Bell className="h-4 w-4" />
-                <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-[#FF7A1A] text-[9px] font-bold text-white">
-                  6
-                </span>
-              </button>
+              <div className="relative">
+                <button
+                  type="button"
+                  aria-label="Platform notifications"
+                  aria-expanded={notificationsOpen}
+                  onClick={() => {
+                    setNotificationsOpen((value) => !value);
+                    setProfileOpen(false);
+                    setSearchTerm("");
+                  }}
+                  className="relative rounded-xl border border-border bg-surface-muted p-2.5 text-primary transition hover:border-accent/50 hover:text-accent"
+                >
+                  <Bell className="h-4 w-4" />
+                  <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-[#FF7A1A] text-[9px] font-bold text-white">
+                    {platformNotifications.length}
+                  </span>
+                </button>
+                {notificationsOpen ? (
+                  <div className="fade-in-panel absolute right-0 top-12 z-30 w-80 rounded-xl border border-border bg-white p-2 shadow-xl">
+                    <div className="flex items-center justify-between gap-3 px-2 py-1">
+                      <p className="text-sm font-bold text-primary">Platform items needing review</p>
+                      <span className="rounded-full bg-[#FF7A1A]/12 px-2 py-0.5 text-[11px] font-black text-[#FF7A1A]">
+                        {platformNotifications.length}
+                      </span>
+                    </div>
+                    <div className="mt-1 max-h-80 space-y-1 overflow-y-auto pr-1">
+                      {platformNotifications.map((item) => (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onClick={() => openPlatformPath(item.href, `Navigating to ${item.title} platform follow-up.`)}
+                          className="block w-full rounded-lg px-3 py-2 text-left transition hover:bg-surface-muted"
+                        >
+                          <span className="block text-sm font-bold text-primary">{item.title}</span>
+                          <span className="mt-1 block text-xs leading-5 text-muted">{item.detail}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
               <div className="relative">
                 <button
                   type="button"
@@ -224,6 +344,9 @@ export function SuperAdminShell({
 
         {/* Page Content */}
         <main className="mx-auto max-w-[1400px] px-4 py-6 md:px-6 lg:px-8">
+          <div role="status" className="mb-4 rounded-xl border border-border bg-white px-4 py-3 text-sm font-semibold text-primary shadow-sm">
+            {notice}
+          </div>
           <div className="page-enter">{children}</div>
         </main>
       </div>

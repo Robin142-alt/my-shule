@@ -13,10 +13,10 @@ describe("STEP 5: Interaction tests", () => {
 
     expect(
       screen.getByRole("link", { name: /fees collected today/i }),
-    ).toHaveAttribute("href", "/dashboard/admin/finance");
+    ).toHaveAttribute("href", "/school/admin/finance");
     expect(screen.getByRole("link", { name: /students with balance/i })).toHaveAttribute(
       "href",
-      "/dashboard/admin/students",
+      "/school/admin/students",
     );
   });
 
@@ -36,7 +36,7 @@ describe("STEP 5: Interaction tests", () => {
 
     expect(onAction).toHaveBeenCalledTimes(1);
     expect(routerPushMock).toHaveBeenCalledTimes(1);
-    expect(routerPushMock).toHaveBeenCalledWith("/dashboard/admin/students");
+    expect(routerPushMock).toHaveBeenCalledWith("/school/admin/students");
   });
 
   it("supports searchable navigation from the topbar", async () => {
@@ -52,7 +52,7 @@ describe("STEP 5: Interaction tests", () => {
 
     await user.click(mpesaResult);
 
-    expect(routerPushMock).toHaveBeenCalledWith("/dashboard/admin/mpesa");
+    expect(routerPushMock).toHaveBeenCalledWith("/school/admin/mpesa");
   });
 
   it("does not expose learner search results before real admissions data exists", async () => {
@@ -75,7 +75,7 @@ describe("STEP 5: Interaction tests", () => {
     const searchInput = screen.getByLabelText("Global search");
     const termSelector = screen.getByLabelText("Select term");
     const yearSelector = screen.getByLabelText("Select academic year");
-    const tenantSelector = screen.getByLabelText("Switch tenant");
+    const tenantSelector = screen.getByLabelText("Switch school");
     const syncButton = screen.getByRole("button", {
       name: /current sync status/i,
     });
@@ -105,7 +105,8 @@ describe("STEP 5: Interaction tests", () => {
   it("keeps the portal focused on self-service sections without school admin actions", () => {
     renderWithProviders(createElement(PortalPages, { viewer: "parent" }));
 
-    expect(screen.getByRole("heading", { name: /recent payments/i })).toBeVisible();
+    expect(screen.getByRole("heading", { name: /family dashboard/i })).toBeVisible();
+    expect(screen.getByRole("heading", { name: /fees & finance tracking/i })).toBeVisible();
     expect(screen.getByRole("link", { name: /^fees$/i })).toBeVisible();
     expect(
       screen.queryByRole("button", { name: /record payment/i }),

@@ -2,7 +2,7 @@
 
 import { Bell, Menu, Search } from "lucide-react";
 import Link from "next/link";
-import { useState, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 
 import { Card } from "@/components/ui/card";
 import { StatusPill } from "@/components/ui/status-pill";
@@ -74,6 +74,36 @@ export function WorkspaceShell({
   children: ReactNode;
 }) {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchNotice, setSearchNotice] = useState<string | null>(null);
+  const searchResults = useMemo(() => {
+    const normalized = searchQuery.trim().toLowerCase();
+
+    if (!normalized) {
+      return [];
+    }
+
+    return navItems
+      .filter((item) =>
+        [item.label, item.id, item.badge ?? ""].join(" ").toLowerCase().includes(normalized),
+      )
+      .slice(0, 6);
+  }, [navItems, searchQuery]);
+
+  function submitSearch() {
+    const normalized = searchQuery.trim();
+
+    if (!normalized) {
+      setSearchNotice(null);
+      return;
+    }
+
+    setSearchNotice(
+      searchResults.length
+        ? `${searchResults.length} matching school sections found.`
+        : `No matching school section for "${normalized}".`,
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -147,14 +177,60 @@ export function WorkspaceShell({
               </div>
 
               <div className="flex flex-wrap items-center gap-2 lg:justify-end">
-                <label className="flex min-w-[240px] items-center gap-2 rounded-xl border border-border bg-surface-muted px-3 py-2">
-                  <Search className="h-4 w-4 text-muted" />
-                  <input
-                    type="search"
-                    placeholder="Search records, reports, or families"
-                    className="w-full bg-transparent text-sm text-foreground outline-none placeholder:text-muted"
-                  />
-                </label>
+                <div className="relative">
+                  <label className="flex min-w-[240px] items-center gap-2 rounded-xl border border-border bg-surface-muted px-3 py-2">
+                    <Search className="h-4 w-4 text-muted" />
+                    <input
+                      type="search"
+                      value={searchQuery}
+                      onChange={(event) => {
+                        setSearchQuery(event.currentTarget.value);
+                        setSearchNotice(null);
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                          event.preventDefault();
+                          submitSearch();
+                        }
+                      }}
+                      placeholder="Search school sections or reports"
+                      className="w-full bg-transparent text-sm text-foreground outline-none placeholder:text-muted"
+                    />
+                  </label>
+                  {searchQuery.trim() ? (
+                    <div className="absolute right-0 top-[calc(100%+0.5rem)] z-30 w-[min(360px,80vw)] rounded-2xl border border-border bg-white p-2 shadow-[0_18px_48px_rgba(15,23,42,0.16)]">
+                      {searchResults.length ? (
+                        <div className="space-y-1">
+                          {searchResults.map((item) => (
+                            <Link
+                              key={item.id}
+                              href={item.href}
+                              className="flex items-center justify-between gap-3 rounded-xl px-3 py-2 text-sm font-semibold text-foreground hover:bg-surface-muted"
+                              onClick={() => {
+                                setSearchQuery("");
+                                setSearchNotice(null);
+                              }}
+                            >
+                              <span className="truncate">{item.label}</span>
+                              {item.badge ? (
+                                <span className="rounded-full bg-warning-soft px-2 py-0.5 text-[10px] font-bold text-warning">
+                                  {item.badge}
+                                </span>
+                              ) : null}
+                            </Link>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="rounded-xl bg-surface-muted px-3 py-2 text-sm font-semibold text-muted">
+                          No matching section. Try fees, attendance, visitors, reports, or alerts.
+                        </p>
+                      )}
+                    </div>
+                  ) : null}
+                  {searchNotice ? (
+                    <p className="mt-1 px-1 text-[11px] font-semibold text-muted">{searchNotice}</p>
+                  ) : null}
+                </div>
                 {status ? <StatusPill label={status.label} tone={status.tone} /> : null}
                 <button
                   type="button"

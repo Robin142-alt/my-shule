@@ -10,6 +10,7 @@ import { useRouter } from "next/navigation";
 
 import { Card } from "@/components/ui/card";
 import type { DashboardRole, QuickActionItem } from "@/lib/dashboard/types";
+import { getDashboardWorkspaceHref } from "@/lib/dashboard/workspace-routes";
 
 const actionIconMap = {
   "add-student": UserPlus,
@@ -57,7 +58,7 @@ export function QuickActions({
               data-testid="quick-action"
               onClick={() => {
                 onAction(action);
-                router.push(`/dashboard/${role}/${action.href}`);
+                router.push(getDashboardWorkspaceHref(role, action.href));
               }}
               disabled={disabled}
               className={`group flex items-center gap-3 rounded-[var(--radius-sm)] border px-3 py-2.5 text-left transition-all duration-150 ${

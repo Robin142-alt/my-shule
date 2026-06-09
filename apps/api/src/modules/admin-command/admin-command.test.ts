@@ -75,6 +75,7 @@ test('PrincipalInsightsService audits dashboard views and stores persistent snap
   );
 
   const dashboard = await service.buildDashboard('tenant-a');
+  await service.buildDashboard('tenant-a');
 
   assert.equal(dashboard.tenant_id, 'tenant-a');
   assert.deepEqual(calls, [

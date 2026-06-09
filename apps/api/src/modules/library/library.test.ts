@@ -105,6 +105,8 @@ test('LibraryService creates billing handoff for overdue fines during return', a
         calls.push('ledger');
       },
     } as never,
+    {} as never,
+    undefined,
     {
       createLibraryFineCharge: async () => {
         calls.push('billing');
@@ -217,6 +219,8 @@ test('LibraryService returns a book by scanned accession and calculates overdue 
         calls.push('ledger');
       },
     } as never,
+    {} as never,
+    undefined,
     {
       createLibraryFineCharge: async () => {
         calls.push('billing');
@@ -232,4 +236,58 @@ test('LibraryService returns a book by scanned accession and calculates overdue 
 
   assert.equal(returned.status, 'returned');
   assert.deepEqual(calls, ['return', 'fine', 'billing', 'ledger']);
+});
+
+test('LibraryRepository lookup queries avoid SELECT star over tenant-scoped library records', async () => {
+  const queries: string[] = [];
+  const repository = new LibraryRepository({
+    query: async (sql: string) => {
+      queries.push(sql);
+      return {
+        rows: [
+          {
+            id: '00000000-0000-0000-0000-000000000101',
+            status: 'available',
+            copy_id: '00000000-0000-0000-0000-000000000102',
+            borrower_id: '00000000-0000-0000-0000-000000000103',
+            due_on: '2026-05-30',
+          },
+        ],
+      };
+    },
+  } as never);
+
+  await repository.findCopyForUpdate('tenant-a', '00000000-0000-0000-0000-000000000101');
+  await repository.findCopyByScanCodeForUpdate('tenant-a', 'ACC-001');
+  await repository.findBorrowerByScanCode('tenant-a', 'ADM-001');
+  await repository.findLoanForReturn('tenant-a', '00000000-0000-0000-0000-000000000201');
+  await repository.findActiveLoanByCopyId('tenant-a', '00000000-0000-0000-0000-000000000101');
+
+  const combinedSql = queries.join('\n');
+
+  assert.doesNotMatch(combinedSql, /SELECT\s+(?:\w+\.)?\*/i);
+  assert.match(combinedSql, /WHERE\s+tenant_id = \$1/i);
+});
+
+test('LibraryRepository bounds circulation ledger reads with normalized pagination', async () => {
+  let capturedSql = '';
+  let capturedValues: unknown[] = [];
+  const repository = new LibraryRepository({
+    query: async (sql: string, values: unknown[]) => {
+      capturedSql = sql;
+      capturedValues = values;
+      return { rows: [] };
+    },
+  } as never);
+
+  await repository.listCirculation({
+    tenant_id: 'tenant-a',
+    action: 'issue',
+    limit: 500,
+    offset: -10,
+  } as never);
+
+  assert.doesNotMatch(capturedSql, /LIMIT\s+500/i);
+  assert.match(capturedSql, /LIMIT \$5::integer OFFSET \$6::integer/i);
+  assert.deepEqual(capturedValues, ['tenant-a', null, null, 'issue', 50, 0]);
 });

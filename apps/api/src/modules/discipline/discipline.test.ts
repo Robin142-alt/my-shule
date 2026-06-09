@@ -10,6 +10,8 @@ import { CounsellingNoteEncryptionService } from './counselling-note-encryption.
 import { CounsellingService } from './counselling.service';
 import { DisciplineSchemaService } from './discipline-schema.service';
 import { DisciplineService } from './discipline.service';
+import { CounsellingRepository } from './repositories/counselling.repository';
+import { DisciplineRepository } from './repositories/discipline.repository';
 
 const uuid = (suffix: string) => `00000000-0000-0000-0000-${suffix.padStart(12, '0')}`;
 
@@ -201,6 +203,200 @@ test('DisciplineService creates an incident with audit log and behavior points',
     'points:-15',
     'notification:incident_alert',
   ]);
+});
+
+test('DisciplineService normalizes incident list pagination and avoids broad one-letter searches', async () => {
+  const requestContext = new RequestContextService();
+  const observed: Record<string, unknown> = {};
+  const repository = {
+    listIncidents: async (input: Record<string, unknown>) => {
+      observed.incidents = input;
+      return [];
+    },
+    listParentIncidents: async (input: Record<string, unknown>) => {
+      observed.parentIncidents = input;
+      return [];
+    },
+  };
+  const service = new DisciplineService(
+    requestContext,
+    { withRequestTransaction: async <T>(callback: () => Promise<T>) => callback() } as never,
+    repository as never,
+  );
+  const context = {
+    tenant_id: 'tenant-a',
+    user_id: uuid('804'),
+    role: 'discipline_master',
+    permissions: ['discipline:read', 'portal:read_own_children'],
+    request_id: 'request-discipline-lists',
+    session_id: null,
+    client_ip: '127.0.0.1',
+    user_agent: 'node-test',
+    method: 'GET',
+    path: '/discipline/incidents',
+    started_at: '2026-05-16T10:00:00.000Z',
+    is_authenticated: true,
+  };
+
+  await requestContext.run(context, () =>
+    service.listIncidents({ q: 'a', limit: 500, offset: -20 } as never),
+  );
+  await requestContext.run(context, () =>
+    service.listParentIncidents({ limit: 500, offset: Number.NaN } as never),
+  );
+
+  const incidentQuery = (observed.incidents as { query: Record<string, unknown> }).query;
+  assert.equal(incidentQuery.q, undefined);
+  assert.equal(incidentQuery.limit, 50);
+  assert.equal(incidentQuery.offset, 0);
+  assert.equal((observed.parentIncidents as { limit: unknown }).limit, 50);
+  assert.equal((observed.parentIncidents as { offset: unknown }).offset, 0);
+});
+
+test('DisciplineService does not upsert default offense categories when configured categories exist', async () => {
+  const requestContext = new RequestContextService();
+  const calls: string[] = [];
+  const repository = {
+    findTenantSchoolId: async () => uuid('201'),
+    listOffenseCategories: async () => [
+      {
+        id: uuid('701'),
+        tenant_id: 'tenant-a',
+        school_id: uuid('201'),
+        code: 'lateness',
+        name: 'Lateness',
+        description: null,
+        default_severity: 'low',
+        default_points: -2,
+        default_action_type: null,
+        notify_parent_by_default: false,
+        escalation_rules: {},
+        is_positive: false,
+        is_active: true,
+        created_by_user_id: null,
+        created_at: '2026-05-16T10:00:00.000Z',
+        updated_at: '2026-05-16T10:00:00.000Z',
+      },
+    ],
+    ensureDefaultOffenseCategories: async () => {
+      calls.push('ensureDefaultOffenseCategories');
+    },
+  };
+  const service = new DisciplineService(
+    requestContext,
+    { withRequestTransaction: async <T>(callback: () => Promise<T>) => callback() } as never,
+    repository as never,
+  );
+
+  const categories = await requestContext.run(
+    {
+      tenant_id: 'tenant-a',
+      user_id: uuid('804'),
+      role: 'discipline_master',
+      permissions: ['discipline:read'],
+      request_id: 'request-offense-categories',
+      session_id: null,
+      client_ip: '127.0.0.1',
+      user_agent: 'node-test',
+      method: 'GET',
+      path: '/discipline/offense-categories',
+      started_at: '2026-05-16T10:00:00.000Z',
+      is_authenticated: true,
+    },
+    () => service.listOffenseCategories(),
+  );
+
+  assert.equal(categories.length, 1);
+  assert.deepEqual(calls, []);
+});
+
+test('DisciplineRepository bounds incident lists and avoids broad category selects', async () => {
+  const calls: Array<{ sql: string; params: unknown[] }> = [];
+  const repository = new DisciplineRepository({
+    query: async (sql: string, params: unknown[]) => {
+      calls.push({ sql, params });
+      return { rows: [] };
+    },
+  } as never);
+
+  await repository.listIncidents({
+    tenant_id: 'tenant-a',
+    query: { q: 'a', limit: 500, offset: -10 } as never,
+    actor_user_id: uuid('804'),
+    can_read_all: true,
+  });
+  await repository.listParentIncidents({
+    tenant_id: 'tenant-a',
+    parent_user_id: uuid('901'),
+    limit: 500,
+    offset: -10,
+  });
+  await repository.listOffenseCategories('tenant-a');
+  await repository.findOffenseCategoryById('tenant-a', uuid('701'));
+
+  assert.match(calls[0]!.sql, /LIMIT \$14::integer\s+OFFSET \$15::integer/);
+  assert.equal(calls[0]!.params[13], 50);
+  assert.equal(calls[0]!.params[14], 0);
+  assert.match(calls[1]!.sql, /LIMIT \$3::integer\s+OFFSET \$4::integer/);
+  assert.equal(calls[1]!.params[2], 50);
+  assert.equal(calls[1]!.params[3], 0);
+  assert.doesNotMatch(calls[2]!.sql, /SELECT\s+\*/i);
+  assert.doesNotMatch(calls[3]!.sql, /SELECT\s+\*/i);
+});
+
+test('DisciplineRepository returns explicit columns for action workflow mutations', async () => {
+  const calls: Array<{ sql: string; params: unknown[] }> = [];
+  const repository = new DisciplineRepository({
+    query: async (sql: string, params: unknown[]) => {
+      calls.push({ sql, params });
+      return { rows: [] };
+    },
+  } as never);
+
+  await repository.updateIncidentStatus({
+    tenant_id: 'tenant-a',
+    incident_id: uuid('101'),
+    status: 'under_review',
+  });
+  await repository.assignIncident({
+    tenant_id: 'tenant-a',
+    incident_id: uuid('101'),
+    assigned_staff_id: uuid('804'),
+  });
+  await repository.createAction({
+    tenant_id: 'tenant-a',
+    school_id: uuid('201'),
+    incident_id: uuid('101'),
+    student_id: uuid('301'),
+    action_type: 'detention',
+    title: 'Lunch break detention',
+    description: undefined,
+    assigned_staff_id: uuid('804'),
+    due_at: undefined,
+    remarks: undefined,
+    metadata: {},
+    created_by_user_id: uuid('804'),
+    requires_approval: false,
+  });
+  await repository.listActions('tenant-a', uuid('101'));
+  await repository.completeAction({
+    tenant_id: 'tenant-a',
+    action_id: uuid('901'),
+    completion_notes: 'Completed',
+  });
+  await repository.approveAction({
+    tenant_id: 'tenant-a',
+    action_id: uuid('901'),
+    approved_by_user_id: uuid('805'),
+  });
+
+  for (const call of calls) {
+    assert.doesNotMatch(call.sql, /\b(?:SELECT|RETURNING)\s+\*/i);
+  }
+
+  assert.match(calls[0]!.sql, /id::text/);
+  assert.match(calls[3]!.sql, /FROM discipline_actions/);
+  assert.match(calls[3]!.sql, /ORDER BY created_at ASC/);
 });
 
 test('DisciplineService blocks parent acknowledgement for unlinked students', async () => {
@@ -438,6 +634,93 @@ test('CounsellingService dashboard is backed by counselling repository aggregate
   assert.equal(dashboard.active_referrals, 7);
   assert.equal(dashboard.followups_due, 5);
   assert.ok(dashboard.generated_at);
+});
+
+test('CounsellingService bounds counselling list pagination before repository calls', async () => {
+  const requestContext = new RequestContextService();
+  const observed: Record<string, unknown> = {};
+  const counsellingRepository = {
+    listReferrals: async (input: Record<string, unknown>) => {
+      observed.referrals = input;
+      return [];
+    },
+    listSessions: async (input: Record<string, unknown>) => {
+      observed.sessions = input;
+      return [];
+    },
+  };
+  const service = new CounsellingService(
+    requestContext,
+    { withRequestTransaction: async <T>(callback: () => Promise<T>) => callback() } as never,
+    {} as never,
+    counsellingRepository as never,
+    {} as never,
+  );
+  const context = {
+    tenant_id: 'tenant-a',
+    user_id: uuid('804'),
+    role: 'school_counsellor',
+    permissions: ['counselling:read'],
+    request_id: 'request-counselling-lists',
+    session_id: null,
+    client_ip: '127.0.0.1',
+    user_agent: 'node-test',
+    method: 'GET',
+    path: '/counselling/referrals',
+    started_at: '2026-05-16T10:00:00.000Z',
+    is_authenticated: true,
+  };
+
+  await requestContext.run(context, () =>
+    service.listReferrals({ limit: 500, offset: -20 } as never),
+  );
+  await requestContext.run(context, () =>
+    service.listSessions({ limit: 0, offset: Number.NaN } as never),
+  );
+
+  assert.deepEqual((observed.referrals as { query: Record<string, unknown> }).query, {
+    limit: 50,
+    offset: 0,
+  });
+  assert.deepEqual((observed.sessions as { query: Record<string, unknown> }).query, {
+    limit: 25,
+    offset: 0,
+  });
+});
+
+test('CounsellingRepository paginates tenant-scoped counselling lists without broad selects', async () => {
+  const calls: Array<{ sql: string; params: unknown[] }> = [];
+  const repository = new CounsellingRepository({
+    query: async (sql: string, params: unknown[]) => {
+      calls.push({ sql, params });
+      return { rows: [] };
+    },
+  } as never);
+
+  await repository.listReferrals({
+    tenant_id: 'tenant-a',
+    query: { limit: 500, offset: -10 } as never,
+  });
+  await repository.listSessions({
+    tenant_id: 'tenant-a',
+    query: { limit: 500, offset: -10 } as never,
+    can_read_all: true,
+    actor_user_id: uuid('804'),
+  });
+  await repository.findSessionById('tenant-a', uuid('701'));
+  await repository.listNotes({ tenant_id: 'tenant-a', session_id: uuid('701') });
+
+  for (const call of calls) {
+    assert.doesNotMatch(call.sql, /SELECT\s+\*/i);
+    assert.match(call.sql, /tenant_id = \$1/);
+  }
+
+  assert.match(calls[0]!.sql, /LIMIT \$5::integer\s+OFFSET \$6::integer/);
+  assert.equal(calls[0]!.params[4], 50);
+  assert.equal(calls[0]!.params[5], 0);
+  assert.match(calls[1]!.sql, /LIMIT \$7::integer\s+OFFSET \$8::integer/);
+  assert.equal(calls[1]!.params[6], 50);
+  assert.equal(calls[1]!.params[7], 0);
 });
 
 test('DisciplineService does not let report-only users read raw incident cases', async () => {

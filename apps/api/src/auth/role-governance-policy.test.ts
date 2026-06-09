@@ -15,6 +15,7 @@ test('ROLE_GOVERNANCE_BLUEPRINT covers global and school ERP roles', () => {
   ]);
   assert.equal(ROLE_GOVERNANCE_BLUEPRINT.schoolRoles.includes('principal'), true);
   assert.equal(ROLE_GOVERNANCE_BLUEPRINT.schoolRoles.includes('deputy_principal'), true);
+  assert.equal(ROLE_GOVERNANCE_BLUEPRINT.schoolRoles.includes('exams_manager'), true);
   assert.equal(ROLE_GOVERNANCE_BLUEPRINT.schoolRoles.includes('secretary'), true);
   assert.equal(ROLE_GOVERNANCE_BLUEPRINT.schoolRoles.includes('boarding_master'), true);
   assert.equal(ROLE_GOVERNANCE_BLUEPRINT.schoolRoles.includes('security_officer'), true);
@@ -32,7 +33,21 @@ test('buildRoleGovernancePolicy enables module-bound roles only when their modul
   assert.equal(policy.roles.find((role) => role.code === 'driver')?.enabled, true);
   assert.equal(policy.roles.find((role) => role.code === 'parent')?.enabled, true);
   assert.equal(policy.roles.find((role) => role.code === 'librarian')?.enabled, false);
+  assert.equal(policy.roles.find((role) => role.code === 'exams_manager')?.enabled, false);
   assert.equal(policy.roles.find((role) => role.code === 'boarding_master')?.enabled, false);
+});
+
+test('buildRoleGovernancePolicy enables exams manager only with exams module and non-approval permissions', () => {
+  const policy = buildRoleGovernancePolicy({
+    activeModules: ['exams'],
+  });
+
+  const examsManager = policy.roles.find((role) => role.code === 'exams_manager');
+
+  assert.equal(examsManager?.enabled, true);
+  assert.equal(examsManager?.permissions.includes('exams:write'), true);
+  assert.equal(examsManager?.permissions.includes('exams:enter-marks'), true);
+  assert.equal(examsManager?.permissions.includes('exams:approve'), false);
 });
 
 test('evaluateRoleAssignment rejects cross-tenant global roles and unsafe school assignments', () => {

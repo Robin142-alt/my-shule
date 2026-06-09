@@ -1,6 +1,6 @@
 "use client";
 
-import { startTransition, useDeferredValue, useState } from "react";
+import { startTransition, useDeferredValue, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
@@ -421,103 +421,121 @@ export function InventoryModuleScreen({
   }
 
   const deferredItemSearch = useDeferredValue(itemSearch);
-  const filteredItems = dataset.items
-    .filter((item) => !item.archived)
-    .filter((item) => {
-      const term = deferredItemSearch.trim().toLowerCase();
+  const filteredItems = useMemo(() => {
+    return dataset.items
+      .filter((item) => !item.archived)
+      .filter((item) => {
+        const term = deferredItemSearch.trim().toLowerCase();
+        if (!term) {
+          return true;
+        }
+
+        return [item.name, item.sku, item.location, item.supplier].some((value) =>
+          value.toLowerCase().includes(term),
+        );
+      })
+      .filter((item) => itemCategoryFilter === "all" || item.category === itemCategoryFilter)
+      .filter((item) => {
+        if (itemStatusFilter === "all") {
+          return true;
+        }
+
+        return getInventoryItemStatus(item) === itemStatusFilter;
+      })
+      .sort((left, right) => {
+        if (itemSort === "name-asc") {
+          return left.name.localeCompare(right.name);
+        }
+
+        if (itemSort === "quantity-desc") {
+          return right.quantity - left.quantity;
+        }
+
+        if (itemSort === "value-desc") {
+          return right.quantity * right.unitPrice - left.quantity * left.unitPrice;
+        }
+
+        return left.reorderLevel - right.reorderLevel;
+      });
+  }, [dataset.items, deferredItemSearch, itemCategoryFilter, itemStatusFilter, itemSort]);
+  const itemsPageSize = 50;
+  const pagedItems = filteredItems.slice((itemPage - 1) * itemsPageSize, itemPage * itemsPageSize);
+
+  const filteredMovements = useMemo(() => {
+    return dataset.movements.filter((movement) => {
+      const term = activitySearch.trim().toLowerCase();
       if (!term) {
         return true;
       }
 
-      return [item.name, item.sku, item.location, item.supplier].some((value) =>
+      return [movement.item, movement.user, movement.notes, movement.type].some((value) =>
         value.toLowerCase().includes(term),
       );
-    })
-    .filter((item) => itemCategoryFilter === "all" || item.category === itemCategoryFilter)
-    .filter((item) => {
-      if (itemStatusFilter === "all") {
+    });
+  }, [dataset.movements, activitySearch]);
+
+  const filteredSuppliers = useMemo(() => {
+    return dataset.suppliers.filter((supplier) => {
+      const term = supplierSearch.trim().toLowerCase();
+      if (!term) {
         return true;
       }
 
-      return getInventoryItemStatus(item) === itemStatusFilter;
-    })
-    .sort((left, right) => {
-      if (itemSort === "name-asc") {
-        return left.name.localeCompare(right.name);
-      }
-
-      if (itemSort === "quantity-desc") {
-        return right.quantity - left.quantity;
-      }
-
-      if (itemSort === "value-desc") {
-        return right.quantity * right.unitPrice - left.quantity * left.unitPrice;
-      }
-
-      return left.reorderLevel - right.reorderLevel;
+      return [supplier.name, supplier.contact, supplier.email, supplier.phone].some((value) =>
+        value.toLowerCase().includes(term),
+      );
     });
-  const itemsPageSize = 6;
-  const pagedItems = filteredItems.slice((itemPage - 1) * itemsPageSize, itemPage * itemsPageSize);
+  }, [dataset.suppliers, supplierSearch]);
 
-  const filteredMovements = dataset.movements.filter((movement) => {
-    const term = activitySearch.trim().toLowerCase();
-    if (!term) {
-      return true;
-    }
-
-    return [movement.item, movement.user, movement.notes, movement.type].some((value) =>
-      value.toLowerCase().includes(term),
+  const filteredPurchaseOrders = useMemo(() => {
+    return dataset.purchaseOrders.filter(
+      (purchaseOrder) =>
+        purchaseOrderStatusFilter === "all" || purchaseOrder.status === purchaseOrderStatusFilter,
     );
-  });
-
-  const filteredSuppliers = dataset.suppliers.filter((supplier) => {
-    const term = supplierSearch.trim().toLowerCase();
-    if (!term) {
-      return true;
-    }
-
-    return [supplier.name, supplier.contact, supplier.email, supplier.phone].some((value) =>
-      value.toLowerCase().includes(term),
+  }, [dataset.purchaseOrders, purchaseOrderStatusFilter]);
+  const filteredRequests = useMemo(() => {
+    return dataset.requests.filter(
+      (request) => requestStatusFilter === "all" || request.status === requestStatusFilter,
     );
-  });
+  }, [dataset.requests, requestStatusFilter]);
+  const filteredTransfers = useMemo(() => {
+    return dataset.transfers.filter(
+      (transfer) => transferStatusFilter === "all" || transfer.status === transferStatusFilter,
+    );
+  }, [dataset.transfers, transferStatusFilter]);
+  const filteredIncidents = useMemo(() => {
+    return dataset.incidents.filter(
+      (incident) => incidentTypeFilter === "all" || incident.type === incidentTypeFilter,
+    );
+  }, [dataset.incidents, incidentTypeFilter]);
+  const categoryRows = useMemo(() => buildInventoryCategoryBreakdown(dataset), [dataset]);
+  const filteredCategoryRows = useMemo(() => {
+    return categoryRows.filter((category) => {
+      const term = categorySearch.trim().toLowerCase();
+      if (!term) {
+        return true;
+      }
 
-  const filteredPurchaseOrders = dataset.purchaseOrders.filter(
-    (purchaseOrder) =>
-      purchaseOrderStatusFilter === "all" || purchaseOrder.status === purchaseOrderStatusFilter,
-  );
-  const filteredRequests = dataset.requests.filter(
-    (request) => requestStatusFilter === "all" || request.status === requestStatusFilter,
-  );
-  const filteredTransfers = dataset.transfers.filter(
-    (transfer) => transferStatusFilter === "all" || transfer.status === transferStatusFilter,
-  );
-  const filteredIncidents = dataset.incidents.filter(
-    (incident) => incidentTypeFilter === "all" || incident.type === incidentTypeFilter,
-  );
-  const categoryRows = buildInventoryCategoryBreakdown(dataset);
-  const filteredCategoryRows = categoryRows.filter((category) => {
-    const term = categorySearch.trim().toLowerCase();
-    if (!term) {
-      return true;
-    }
-
-    return [
-      category.name,
-      category.code,
-      category.manager,
-      category.storageZones,
-      category.notes,
-    ].some((value) => value.toLowerCase().includes(term));
-  });
+      return [
+        category.name,
+        category.code,
+        category.manager,
+        category.storageZones,
+        category.notes,
+      ].some((value) => value.toLowerCase().includes(term));
+    });
+  }, [categoryRows, categorySearch]);
   const purchaseOrderDraftTotal = calculateInventoryWorkflowDraftTotal(purchaseOrderForm.lineItems);
   const requestDraftUnits = countInventoryWorkflowDraftUnits(requestForm.lineItems);
   const transferDraftUnits = countInventoryWorkflowDraftUnits(transferForm.lineItems);
   const selectedIncidentItem = dataset.items.find((item) => item.id === incidentForm.itemId) ?? null;
 
-  const lowStockItems = dataset.items.filter((item) => {
-    const status = getInventoryItemStatus(item);
-    return status === "low_stock" || status === "out_of_stock";
-  });
+  const lowStockItems = useMemo(() => {
+    return dataset.items.filter((item) => {
+      const status = getInventoryItemStatus(item);
+      return status === "low_stock" || status === "out_of_stock";
+    });
+  }, [dataset.items]);
   const pendingApprovals = [
     ...dataset.requests
       .filter((request) => request.status === "pending" || request.status === "approved")
@@ -1754,8 +1772,8 @@ export function InventoryModuleScreen({
     <>
       <ModuleShell
         eyebrow="Inventory Module"
-        title="Inventory and procurement workspace"
-        description="Operational stock control for Kenyan schools: items, approvals, requests, transfers, damages, and school-facing reports in one dense workspace."
+        title="Inventory and procurement desk"
+        description="Operational stock control for Kenyan schools: items, approvals, requests, transfers, damages, and school-facing reports in one focused section."
         sections={sections}
         activeSection={activeSection}
         onSectionChange={(sectionId) => updateSection(sectionId as InventorySectionId)}
@@ -1767,7 +1785,7 @@ export function InventoryModuleScreen({
                   ? "Live store ledger"
                   : liveSession.apiConfigured
                     ? "Preview data until live sign-in"
-                    : "Review workspace"
+                    : "Review desk"
               }
               tone={isLiveMode ? "ok" : "warning"}
             />
@@ -1794,7 +1812,7 @@ export function InventoryModuleScreen({
             <p className="mt-2 text-sm font-semibold text-foreground">
               {isLiveMode
                 ? `Signed in as ${liveSession.user?.display_name ?? "store staff"} for live inventory operations.`
-                : "Procurement and stock valuation stay visible together in the review workspace until a live tenant session is active."}
+          : "Procurement and stock valuation stay visible together in the review desk until a live school session is active."}
             </p>
             <p className="mt-2 text-sm leading-6 text-muted">
               {moduleError ?? liveSession.error ?? "This keeps store decisions aligned to budget pressure, not just quantity on shelf."}
@@ -1878,7 +1896,7 @@ export function InventoryModuleScreen({
               getRowId={(row) => row.id}
               totalRows={categoryRows.length}
               page={1}
-              pageSize={categoryRows.length || 1}
+              pageSize={50}
               onPageChange={() => undefined}
               searchPlaceholder="Search categories"
               loading={isDatasetLoading}
@@ -2005,7 +2023,7 @@ export function InventoryModuleScreen({
             searchPlaceholder="Search category, code, owner, or storage zone"
             totalRows={filteredCategoryRows.length}
             page={1}
-            pageSize={filteredCategoryRows.length || 1}
+            pageSize={50}
             onPageChange={() => undefined}
             loading={isDatasetLoading}
             loadingLabel="Loading live category controls..."
@@ -2042,7 +2060,7 @@ export function InventoryModuleScreen({
             searchPlaceholder="Search by item, user, note, or movement type"
             totalRows={filteredMovements.length}
             page={1}
-            pageSize={filteredMovements.length || 1}
+            pageSize={50}
             onPageChange={() => undefined}
             loading={isDatasetLoading}
             loadingLabel="Loading live stock movements..."
@@ -2073,7 +2091,7 @@ export function InventoryModuleScreen({
             searchPlaceholder="Search supplier, contact, email, or phone"
             totalRows={filteredSuppliers.length}
             page={1}
-            pageSize={filteredSuppliers.length || 1}
+            pageSize={50}
             onPageChange={() => undefined}
             loading={isDatasetLoading}
             loadingLabel="Loading live suppliers..."
@@ -2112,7 +2130,7 @@ export function InventoryModuleScreen({
               ]}
               totalRows={filteredPurchaseOrders.length}
               page={1}
-              pageSize={filteredPurchaseOrders.length || 1}
+              pageSize={50}
               onPageChange={() => undefined}
               loading={isDatasetLoading}
               loadingLabel="Loading live purchase orders..."
@@ -2193,7 +2211,7 @@ export function InventoryModuleScreen({
               ]}
               totalRows={filteredRequests.length}
               page={1}
-              pageSize={filteredRequests.length || 1}
+              pageSize={50}
               onPageChange={() => undefined}
               loading={isDatasetLoading}
               loadingLabel="Loading live requests..."
@@ -2230,7 +2248,7 @@ export function InventoryModuleScreen({
             ]}
             totalRows={filteredTransfers.length}
             page={1}
-            pageSize={filteredTransfers.length || 1}
+            pageSize={50}
             onPageChange={() => undefined}
             loading={isDatasetLoading}
             loadingLabel="Loading live transfers..."
@@ -2267,7 +2285,7 @@ export function InventoryModuleScreen({
               ]}
               totalRows={filteredIncidents.length}
               page={1}
-              pageSize={filteredIncidents.length || 1}
+              pageSize={50}
               onPageChange={() => undefined}
               loading={isDatasetLoading}
               loadingLabel="Loading live incidents..."
@@ -2360,7 +2378,7 @@ export function InventoryModuleScreen({
               getRowId={(row) => row.id}
               totalRows={lowStockItems.length}
               page={1}
-              pageSize={lowStockItems.length || 1}
+              pageSize={50}
               onPageChange={() => undefined}
               emptyTitle="No low-stock lines"
               emptyDescription="Current stock levels are above the defined reorder thresholds."

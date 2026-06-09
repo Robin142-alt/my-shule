@@ -11,6 +11,26 @@ import {
   MinLength,
 } from 'class-validator';
 
+export class ListClinicMedicinesQueryDto {
+  @IsOptional()
+  @IsString()
+  search?: string;
+
+  @IsOptional()
+  @IsString()
+  category?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  limit?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  offset?: number;
+}
+
 export class CreateMedicineDto {
   @IsString()
   @MinLength(2)

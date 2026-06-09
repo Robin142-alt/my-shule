@@ -37,6 +37,14 @@ interface ClaimedOutboxEventRow {
   session_id: string | null;
 }
 
+interface DashboardStreamCursor {
+  createdAt: string | null;
+  eventId: string | null;
+}
+
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
 @Injectable()
 export class OutboxEventsRepository {
   constructor(private readonly databaseService: DatabaseService) {}
@@ -156,6 +164,47 @@ export class OutboxEventsRepository {
     return result.rows[0] ? this.mapRow(result.rows[0]) : null;
   }
 
+  async listDashboardStreamEvents(
+    tenantId: string,
+    options: { since?: string | null; limit?: number } = {},
+  ): Promise<DomainEvent[]> {
+    const limit = this.normalizeDashboardStreamLimit(options.limit);
+    const cursor = this.parseDashboardStreamCursor(options.since);
+    const result = await this.databaseService.query<OutboxEventRow>(
+      `
+        SELECT
+          id,
+          tenant_id,
+          event_key,
+          event_name,
+          aggregate_type,
+          aggregate_id,
+          payload,
+          headers,
+          status,
+          attempt_count,
+          available_at,
+          published_at,
+          last_error,
+          created_at,
+          updated_at
+        FROM outbox_events
+        WHERE tenant_id = $1
+          AND status = 'published'
+          AND (
+            $2::timestamptz IS NULL
+            OR ($3::uuid IS NULL AND created_at > $2::timestamptz)
+            OR ($3::uuid IS NOT NULL AND (created_at, id) > ($2::timestamptz, $3::uuid))
+          )
+        ORDER BY created_at ASC, id ASC
+        LIMIT $4::integer
+      `,
+      [tenantId, cursor.createdAt, cursor.eventId, limit],
+    );
+
+    return result.rows.map((row) => this.mapRow(row));
+  }
+
   async markPublished(tenantId: string, outboxEventId: string): Promise<void> {
     await this.databaseService.query(
       `
@@ -218,5 +267,39 @@ export class OutboxEventsRepository {
       created_at: row.created_at.toISOString(),
       updated_at: row.updated_at.toISOString(),
     };
+  }
+
+  private parseDashboardStreamCursor(cursor: string | null | undefined): DashboardStreamCursor {
+    if (!cursor) {
+      return { createdAt: null, eventId: null };
+    }
+
+    const [createdAt, eventId] = cursor.split('|');
+    const normalizedCreatedAt = this.normalizeCursorTimestamp(createdAt);
+
+    return {
+      createdAt: normalizedCreatedAt,
+      eventId: normalizedCreatedAt && eventId && UUID_PATTERN.test(eventId.trim()) ? eventId.trim() : null,
+    };
+  }
+
+  private normalizeCursorTimestamp(value: string | undefined): string | null {
+    const timestamp = value?.trim();
+
+    if (!timestamp || !Number.isFinite(Date.parse(timestamp))) {
+      return null;
+    }
+
+    return timestamp;
+  }
+
+  private normalizeDashboardStreamLimit(limit: number | undefined): number {
+    const parsedLimit = Number(limit ?? 50);
+
+    if (!Number.isFinite(parsedLimit)) {
+      return 50;
+    }
+
+    return Math.min(Math.max(Math.trunc(parsedLimit), 1), 100);
   }
 }

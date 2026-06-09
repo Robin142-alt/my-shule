@@ -33,7 +33,11 @@ test('HrSchemaService creates staff management tables with forced RLS', async ()
   assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS staff_profiles/);
   assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS staff_contracts/);
   assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS staff_leave_requests/);
+  assert.match(schemaSql, /ALTER TABLE staff_profiles ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'active'/);
   assert.match(schemaSql, /CREATE UNIQUE INDEX IF NOT EXISTS ux_staff_departments_tenant_lower_name/);
+  assert.match(schemaSql, /CREATE EXTENSION IF NOT EXISTS pg_trgm/);
+  assert.match(schemaSql, /CREATE INDEX IF NOT EXISTS ix_staff_profiles_tenant_status_display_name/);
+  assert.match(schemaSql, /CREATE INDEX IF NOT EXISTS ix_staff_profiles_display_name_trgm/);
   assert.doesNotMatch(schemaSql, /UNIQUE \(tenant_id, lower\(name\)\)/);
   assert.match(schemaSql, /ALTER TABLE staff_profiles FORCE ROW LEVEL SECURITY/);
   assert.doesNotMatch(schemaSql, /payroll/i);
@@ -150,8 +154,63 @@ test('HrService lists staff directory without sensitive identifiers', async () =
     tenant_id: 'tenant-a',
     search: 'Mary',
     status: 'active',
+    limit: 25,
+    offset: 0,
   });
   assert.equal(rows[0]?.full_name, 'Mary Wanjiku');
   assert.equal('statutory_identifiers' in (rows[0] ?? {}), false);
   assert.equal('emergency_contact' in (rows[0] ?? {}), false);
+});
+
+test('HrRepository bounds staff directory reads with pagination', async () => {
+  const queries: Array<{ text: string; values: unknown[] }> = [];
+  const repository = new HrRepository({
+    query: async (text: string, values: unknown[]) => {
+      queries.push({ text, values });
+      return { rows: [] };
+    },
+  } as never);
+
+  await repository.listStaffDirectory({
+    tenant_id: 'tenant-a',
+    search: 'Mary',
+    status: 'active',
+    limit: 999,
+    offset: 8,
+  } as never);
+
+  const directoryQuery = queries[0]?.text ?? '';
+  assert.match(directoryQuery, /WHERE profile\.tenant_id = \$1/);
+  assert.doesNotMatch(directoryQuery, /LIMIT 500/);
+  assert.match(directoryQuery, /LIMIT \$4::integer/);
+  assert.match(directoryQuery, /OFFSET \$5::integer/);
+  assert.deepEqual(queries[0]?.values, ['tenant-a', 'Mary', 'active', 50, 8]);
+});
+
+test('HrService normalizes staff directory search and pagination before querying', async () => {
+  let capturedInput: Record<string, unknown> | null = null;
+  const service = new HrService(
+    { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'user-1' }) } as never,
+    {
+      listStaffDirectory: async (input: Record<string, unknown>) => {
+        capturedInput = input;
+        return [];
+      },
+    } as never,
+  );
+
+  await service.listStaffDirectory({
+    search: ' M ',
+    status: ' active ',
+    limit: '999',
+    offset: '-4',
+  });
+
+  assert.deepEqual(capturedInput, {
+    tenant_id: 'tenant-a',
+    search: undefined,
+    status: 'active',
+    limit: 50,
+    offset: 0,
+  });
 });

@@ -1,3 +1,9 @@
+
+import { Inject } from '@nestjs/common';
+import { DatabaseService } from '../../database/database.service';
+import { RequestContextService } from '../../common/request-context/request-context.service';
+import { SchoolOperationalEventsService } from '../events/school-operational-events.service';
+
 import { Body, Controller, Get, Param, Patch, Post } from '@nestjs/common';
 
 import { Permissions } from '../../auth/decorators/permissions.decorator';
@@ -16,6 +22,16 @@ import { TransportService } from './transport.service';
 @Controller('transport')
 @RequiresModule('transport')
 export class TransportController {
+
+  @Inject(DatabaseService)
+  private readonly db!: DatabaseService;
+
+  @Inject(RequestContextService)
+  private readonly requestContext!: RequestContextService;
+
+  @Inject(SchoolOperationalEventsService)
+  private readonly events!: SchoolOperationalEventsService;
+
   constructor(private readonly transportService: TransportService) {}
 
   @Get('dashboard')
@@ -77,4 +93,29 @@ export class TransportController {
   resolveAlert(@Param('alertId') alertId: string) {
     return this.transportService.resolveAlert(alertId);
   }
+
+  @Post('assignments')
+  @Permissions('transport:write')
+  async createAssignmentPhase5(@Body() body: any) {
+    const store = this.requestContext.requireStore();
+    const result = await this.db.query(
+      `INSERT INTO transport_routes (tenant_id, school_id, name, description) 
+       VALUES ($1, $1, $2, $3) RETURNING *`,
+      [store.tenant_id, store.tenant_id, body.name || 'Route', body.description || 'Route Desc']
+    );
+    await this.events.recordSchoolOperation({
+      schoolId: store.tenant_id,
+      event: { 
+        id: result.rows[0].id,
+        type: 'transport.assignment.created', 
+        module: 'transport', 
+        title: 'New Transport Assignment', 
+        body: 'A new transport assignment was created', 
+        actorRole: store.role || 'system',
+        createdAt: new Date().toISOString()
+      }
+    });
+    return result.rows[0];
+  }
+
 }

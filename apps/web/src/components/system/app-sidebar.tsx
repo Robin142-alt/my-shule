@@ -63,7 +63,7 @@ export function AppSidebar({
   const styles = variantStyles[variant];
   const groupedItems = navItems.reduce<Array<{ group: string; items: ExperienceNavItem[] }>>(
     (groups, item) => {
-      const groupLabel = item.group ?? "Workspace";
+      const groupLabel = item.group ?? "Sections";
       const existingGroup = groups.find((entry) => entry.group === groupLabel);
 
       if (existingGroup) {
@@ -86,7 +86,7 @@ export function AppSidebar({
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-white/60">
-            Workspace
+            Menu
           </p>
           <p className="mt-2 text-lg font-semibold text-white">
             {brand.title}
@@ -146,8 +146,8 @@ export function AppSidebar({
         <p className="mt-3 text-sm font-semibold text-white">
           {profile.name}
         </p>
-        <p className="mt-1 text-sm text-white/70">
-          {profile.roleLabel}
+        <p className="mt-1 text-sm text-white/70" title={profile.roleLabel}>
+          Active role
         </p>
         <p className="mt-3 text-xs uppercase tracking-[0.16em] text-white/50">
           {profile.contextLabel}

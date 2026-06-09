@@ -95,6 +95,7 @@ export class SyncOperationLogsRepository {
     afterVersion: string,
     limit: number,
   ): Promise<SyncOperationLog[]> {
+    const boundedLimit = this.normalizeLimit(limit);
     const result = await this.databaseService.query<SyncOperationLogRow>(
       `
         SELECT
@@ -111,9 +112,9 @@ export class SyncOperationLogsRepository {
           AND entity = $2
           AND version > $3::bigint
         ORDER BY sync_operation_logs.version ASC
-        LIMIT $4
+        LIMIT $4::integer
       `,
-      [tenantId, entity, afterVersion, limit],
+      [tenantId, entity, afterVersion, boundedLimit],
     );
 
     return result.rows.map((row) => this.mapRow(row));
@@ -129,11 +130,15 @@ export class SyncOperationLogsRepository {
       return [];
     }
 
+    const boundedLimit = this.normalizeLimit(limit);
     const cursorValues = entities.map((entity) => BigInt(cursorMap.get(entity) ?? '0'));
     const floorVersion = cursorValues.reduce((minimum, value) =>
       value < minimum ? value : minimum,
     );
-    const scanLimit = Math.max(limit * Math.max(entities.length, 1) * 4, limit + 1);
+    const scanLimit = Math.max(
+      boundedLimit * Math.max(entities.length, 1) * 4,
+      boundedLimit + 1,
+    );
     const result = await this.databaseService.query<SyncOperationLogRow>(
       `
         SELECT
@@ -150,7 +155,7 @@ export class SyncOperationLogsRepository {
           AND entity = ANY($2::text[])
           AND version > $3::bigint
         ORDER BY sync_operation_logs.version ASC
-        LIMIT $4
+        LIMIT $4::integer
       `,
       [tenantId, entities, floorVersion.toString(), scanLimit],
     );
@@ -160,7 +165,7 @@ export class SyncOperationLogsRepository {
       .filter((operation) =>
         BigInt(operation.version) > BigInt(cursorMap.get(operation.entity) ?? '0'),
       )
-      .slice(0, limit);
+      .slice(0, boundedLimit);
   }
 
   async getLatestVersionByEntities(
@@ -196,5 +201,15 @@ export class SyncOperationLogsRepository {
       created_at: row.created_at.toISOString(),
       updated_at: row.updated_at.toISOString(),
     };
+  }
+
+  private normalizeLimit(value: number | undefined): number {
+    const candidate = Number(value);
+
+    if (!Number.isInteger(candidate) || candidate < 1) {
+      return 50;
+    }
+
+    return Math.min(candidate, 100);
   }
 }

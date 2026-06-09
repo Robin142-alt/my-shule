@@ -55,11 +55,17 @@ export class LmsSchemaService implements OnModuleInit {
           student_id uuid NOT NULL,
           status text NOT NULL DEFAULT 'submitted',
           score numeric(8, 2),
+          metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+          submitted_by_user_id uuid,
           submitted_at timestamptz NOT NULL DEFAULT NOW(),
           created_at timestamptz NOT NULL DEFAULT NOW(),
           updated_at timestamptz NOT NULL DEFAULT NOW(),
           audit_log_reference uuid
         );
+        ALTER TABLE lms_submissions
+          ADD COLUMN IF NOT EXISTS metadata jsonb NOT NULL DEFAULT '{}'::jsonb;
+        ALTER TABLE lms_submissions
+          ADD COLUMN IF NOT EXISTS submitted_by_user_id uuid;
         CREATE TABLE IF NOT EXISTS lms_activity_events (
           id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
           tenant_id text NOT NULL,
@@ -74,6 +80,7 @@ export class LmsSchemaService implements OnModuleInit {
       `,
       indexesSql: `
         CREATE INDEX IF NOT EXISTS ix_lms_assignments_course_due ON lms_assignments (tenant_id, course_id, due_at);
+        CREATE INDEX IF NOT EXISTS ix_lms_submissions_student_assignment ON lms_submissions (tenant_id, student_id, assignment_id, submitted_at DESC);
         CREATE INDEX IF NOT EXISTS ix_lms_activity_events_course ON lms_activity_events (tenant_id, course_id, created_at DESC);
       `,
     }));

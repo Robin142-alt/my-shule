@@ -161,9 +161,10 @@ export class InventoryController {
 
   @Get('purchase-orders')
   @Permissions('procurement:read')
-  listPurchaseOrders() {
-    return this.inventoryService.listPurchaseOrders();
+  listPurchaseOrders(@Query() query: ListInventoryQueryDto) {
+    return this.inventoryService.listPurchaseOrders(query);
   }
+
 
   @Post('purchase-orders')
   @Permissions('procurement:write')
@@ -180,16 +181,23 @@ export class InventoryController {
     return this.inventoryService.updatePurchaseOrderStatus(purchaseOrderId, dto);
   }
 
+
   @Get('requests')
   @Permissions('inventory:read')
-  listRequests() {
-    return this.inventoryService.listRequests();
+  listRequests(@Query() query: ListInventoryQueryDto) {
+    return this.inventoryService.listRequests(query);
   }
 
   @Post('requests')
   @Permissions('inventory:write')
   createRequest(@Body() dto: CreateInventoryRequestDto) {
     return this.inventoryService.createRequest(dto);
+  }
+
+  @Post('requisitions')
+  @Permissions('inventory:write')
+  createRequisition(@Body() dto: CreateInventoryRequestDto) {
+    return this.inventoryService.createRequisition(dto);
   }
 
   @Patch('requests/:requestId/status')
@@ -201,10 +209,11 @@ export class InventoryController {
     return this.inventoryService.updateRequestStatus(requestId, dto);
   }
 
+
   @Get('transfers')
   @Permissions('transfers:read')
-  listTransfers() {
-    return this.inventoryService.listTransfers();
+  listTransfers(@Query() query: ListInventoryQueryDto) {
+    return this.inventoryService.listTransfers(query);
   }
 
   @Post('transfers')
@@ -224,8 +233,8 @@ export class InventoryController {
 
   @Get('incidents')
   @Permissions('inventory:read')
-  listIncidents() {
-    return this.inventoryService.listIncidents();
+  listIncidents(@Query() query: ListInventoryQueryDto) {
+    return this.inventoryService.listIncidents(query);
   }
 
   @Post('incidents')

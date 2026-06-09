@@ -54,7 +54,9 @@ export class BiometricAttendanceService {
     let duplicates = 0;
     let unmatched = 0;
 
-    for (const event of dto.events ?? []) {
+    const rule = await this.repository.getAttendanceRule(tenantId) as AttendanceRule;
+
+    await Promise.all((dto.events ?? []).map(async (event) => {
       const registeredEvent = await this.repository.registerEvent({
         tenant_id: tenantId,
         device_id: this.requireText(dto.device_id, 'Device'),
@@ -68,7 +70,7 @@ export class BiometricAttendanceService {
 
       if (registeredEvent.duplicate) {
         duplicates += 1;
-        continue;
+        return;
       }
 
       const identity = await this.repository.findIdentityByHash({
@@ -83,10 +85,9 @@ export class BiometricAttendanceService {
           event_id: String(registeredEvent.id),
           status: 'unmatched',
         });
-        continue;
+        return;
       }
 
-      const rule = await this.repository.getAttendanceRule(tenantId) as AttendanceRule;
       const occurredAt = new Date(String(registeredEvent.occurred_at));
       await this.repository.appendTeacherAttendanceLog({
         tenant_id: tenantId,
@@ -109,7 +110,7 @@ export class BiometricAttendanceService {
         status: 'processed',
       });
       accepted += 1;
-    }
+    }));
 
     await this.audit('teacher_attendance.event_synced', 'biometric_event', undefined, {
       accepted,
@@ -146,17 +147,24 @@ export class BiometricAttendanceService {
     return log;
   }
 
-  listTeacherLogs(teacherUserId?: string) {
+  listTeacherLogs(
+    teacherUserId?: string,
+    limit?: string | number,
+    offset?: string | number,
+  ) {
     return this.repository.listTeacherLogs({
       tenant_id: this.requireTenantId(),
       teacher_user_id: teacherUserId?.trim() || undefined,
+      limit: this.resolveLimit(limit, 25, 1, 50),
+      offset: this.resolveOffset(offset),
     });
   }
 
-  listLiveFeed(limit?: string | number) {
+  listLiveFeed(limit?: string | number, offset?: string | number) {
     return this.repository.listLiveFeed({
       tenant_id: this.requireTenantId(),
-      limit: this.resolveLimit(limit, 50, 1, 200),
+      limit: this.resolveLimit(limit, 25, 1, 50),
+      offset: this.resolveOffset(offset),
     });
   }
 
@@ -284,6 +292,16 @@ export class BiometricAttendanceService {
     }
 
     return Math.min(Math.max(Math.floor(parsed), minimum), maximum);
+  }
+
+  private resolveOffset(value: string | number | undefined): number {
+    const parsed = Number(value ?? 0);
+
+    if (!Number.isFinite(parsed)) {
+      return 0;
+    }
+
+    return Math.max(Math.floor(parsed), 0);
   }
 
   private resolveReportMonth(value?: string): string {

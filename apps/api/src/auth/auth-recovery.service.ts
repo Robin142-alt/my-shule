@@ -185,7 +185,7 @@ export class AuthRecoveryService {
     status: 'sent' | 'failed',
   ): Promise<void> {
     await this.databaseService.query(
-      'SELECT app.mark_auth_email_outbox_delivery($1, $2)',
+      'SELECT app.mark_auth_email_outbox_delivery($1::uuid, $2::text)',
       [outboxId, status],
     );
   }

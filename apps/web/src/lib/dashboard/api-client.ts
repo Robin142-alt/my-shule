@@ -150,8 +150,12 @@ export interface ObservabilityHealthResponse {
 
 const API_TIMEOUT_MS = 4_500;
 
+function normalizeConfiguredUrl(value: string | undefined) {
+  return value?.trim().replace(/^['"]|['"]$/g, "").replace(/\/$/, "") ?? null;
+}
+
 function buildTenantOrigin(tenantId: string, domain: string) {
-  const trimmedDomain = domain.trim().replace(/\/$/, "");
+  const trimmedDomain = normalizeConfiguredUrl(domain)?.replace(/^\.+/, "") ?? "";
 
   if (/^https?:\/\//i.test(trimmedDomain)) {
     const parsed = new URL(trimmedDomain);
@@ -163,8 +167,8 @@ function buildTenantOrigin(tenantId: string, domain: string) {
 }
 
 export function getDashboardApiBaseUrl(tenantId?: string) {
-  const configuredBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "") ?? null;
-  const configuredBaseDomain = process.env.NEXT_PUBLIC_API_BASE_DOMAIN?.trim().replace(/^\.+/, "").replace(/\/$/, "") ?? null;
+  const configuredBaseUrl = normalizeConfiguredUrl(process.env.NEXT_PUBLIC_API_BASE_URL);
+  const configuredBaseDomain = normalizeConfiguredUrl(process.env.NEXT_PUBLIC_API_BASE_DOMAIN)?.replace(/^\.+/, "") ?? null;
 
   if (configuredBaseDomain && tenantId) {
     return buildTenantOrigin(tenantId, configuredBaseDomain);

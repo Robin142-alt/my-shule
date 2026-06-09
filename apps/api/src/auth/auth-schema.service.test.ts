@@ -48,10 +48,34 @@ test('AuthSchemaService links accepted parent invitations to student guardian ro
 
   await service.onModuleInit();
 
-  assert.match(bootstrapSql, /UPDATE student_guardians/);
-  assert.match(bootstrapSql, /user_id = invited_user_id/);
-  assert.match(bootstrapSql, /lower\(email\) = lower\(invite_email\)/);
-  assert.match(bootstrapSql, /status = 'active'/);
+  const consumeInviteFunction = bootstrapSql.match(
+    /CREATE OR REPLACE FUNCTION app\.consume_invite_acceptance_action[\s\S]+?\$\$;/,
+  )?.[0] ?? '';
+
+  assert.match(consumeInviteFunction, /IF invite_role_code = 'parent' THEN[\s\S]+UPDATE student_guardians/);
+  assert.match(consumeInviteFunction, /user_id = invited_user_id/);
+  assert.match(consumeInviteFunction, /lower\(email\) = lower\(invite_email\)/);
+  assert.match(consumeInviteFunction, /status = 'active'/);
+});
+
+test('AuthSchemaService marks accepted invitations and active school memberships', async () => {
+  let bootstrapSql = '';
+  const service = new AuthSchemaService({
+    runSchemaBootstrap: async (sql: string) => {
+      bootstrapSql = sql;
+    },
+  } as never);
+
+  await service.onModuleInit();
+
+  const consumeInviteFunction = bootstrapSql.match(
+    /CREATE OR REPLACE FUNCTION app\.consume_invite_acceptance_action[\s\S]+?\$\$;/,
+  )?.[0] ?? '';
+
+  assert.match(consumeInviteFunction, /status = 'active'/);
+  assert.match(consumeInviteFunction, /ON CONFLICT \(tenant_id, user_id\)[\s\S]+status = 'active'/);
+  assert.match(consumeInviteFunction, /metadata = auth_action_tokens\.metadata \|\| jsonb_build_object\([\s\S]*'status',\s*'accepted'[\s\S]*'accepted_at'/);
+  assert.match(consumeInviteFunction, /consumed_at = NOW\(\)/);
 });
 
 test('AuthSchemaService resolves invite acceptance column-name conflicts', async () => {
@@ -70,6 +94,31 @@ test('AuthSchemaService resolves invite acceptance column-name conflicts', async
 
   assert.match(consumeInviteFunction, /#variable_conflict use_column/);
   assert.match(consumeInviteFunction, /ON CONFLICT \(tenant_id, user_id\)/);
+});
+
+test('AuthSchemaService checks expected tenant before consuming invitation tokens', async () => {
+  let bootstrapSql = '';
+  const service = new AuthSchemaService({
+    runSchemaBootstrap: async (sql: string) => {
+      bootstrapSql = sql;
+    },
+  } as never);
+
+  await service.onModuleInit();
+
+  const consumeInviteFunction = bootstrapSql.match(
+    /CREATE OR REPLACE FUNCTION app\.consume_invite_acceptance_action[\s\S]+?\$\$;/,
+  )?.[0] ?? '';
+
+  assert.match(bootstrapSql, /DROP FUNCTION IF EXISTS app\.consume_invite_acceptance_action\(text,\s*text,\s*text\)/);
+  assert.match(consumeInviteFunction, /input_expected_tenant_id text/);
+  assert.match(consumeInviteFunction, /NULLIF\(input_expected_tenant_id,\s*''\) IS NOT NULL/);
+  assert.match(consumeInviteFunction, /NULLIF\(input_expected_tenant_id,\s*''\) <> invite_tenant_id/);
+  assert.match(consumeInviteFunction, /RAISE EXCEPTION 'Invitation tenant mismatch'/);
+  assert.ok(
+    consumeInviteFunction.indexOf('Invitation tenant mismatch') <
+      consumeInviteFunction.indexOf('UPDATE auth_action_tokens'),
+  );
 });
 
 test('AuthSchemaService defines email verification token functions and route policies', async () => {
@@ -106,6 +155,21 @@ test('AuthSchemaService persists safe email outbox delivery diagnostics for plat
   assert.match(bootstrapSql, /request_path NOT LIKE '%\/auth\/invitations%'/);
   assert.match(bootstrapSql, /\/platform\/schools/);
   assert.match(bootstrapSql, /ck_auth_email_outbox_provider_status_code/);
+});
+
+test('AuthSchemaService removes legacy email outbox delivery overloads before recreating the current function', async () => {
+  let bootstrapSql = '';
+  const service = new AuthSchemaService({
+    runSchemaBootstrap: async (sql: string) => {
+      bootstrapSql = sql;
+    },
+  } as never);
+
+  await service.onModuleInit();
+
+  assert.match(bootstrapSql, /DROP FUNCTION IF EXISTS app\.mark_auth_email_outbox_delivery\(uuid,\s*text\)/);
+  assert.match(bootstrapSql, /DROP FUNCTION IF EXISTS app\.mark_auth_email_outbox_delivery\(text,\s*text\)/);
+  assert.match(bootstrapSql, /CREATE OR REPLACE FUNCTION app\.mark_auth_email_outbox_delivery/);
 });
 
 test('AuthSchemaService does not grant broad public path access to auth token tables', async () => {

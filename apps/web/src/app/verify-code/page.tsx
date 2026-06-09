@@ -11,7 +11,7 @@ export default function VerifyCodePage() {
       heroDescription="Use the one-time code sent to your email to finish opening the right My Shule workspace."
       badge="My Shule secure access"
       logoMark="SH"
-      helper="Verification codes protect high-privilege sessions without exposing passwords or tenant data."
+        helper="Verification codes protect high-privilege sessions without exposing passwords or school data."
       highlights={[
         {
           id: "one-time-code",
@@ -25,8 +25,8 @@ export default function VerifyCodePage() {
         },
         {
           id: "tenant-safe",
-          title: "Tenant-safe session",
-          description: "School access remains scoped to the tenant resolved during sign-in.",
+        title: "School-safe session",
+        description: "School access remains scoped to the school resolved during sign-in.",
         },
       ]}
       trustNotes={[

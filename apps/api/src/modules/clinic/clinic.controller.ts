@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
 
 import { Permissions } from '../../auth/decorators/permissions.decorator';
 import { RequiresModule } from '../module-access/module-access.decorator';
@@ -6,6 +6,7 @@ import { ClinicService } from './clinic.service';
 import {
   CreateMedicineDto,
   DispenseMedicineDto,
+  ListClinicMedicinesQueryDto,
   ReceiveMedicineStockDto,
   RecordClinicVisitDto,
 } from './dto/clinic.dto';
@@ -23,8 +24,8 @@ export class ClinicController {
 
   @Get('medicines')
   @Permissions('clinic:read')
-  listMedicines() {
-    return this.clinicService.listMedicines();
+  listMedicines(@Query() query: ListClinicMedicinesQueryDto) {
+    return this.clinicService.listMedicines(query);
   }
 
   @Post('medicines/:medicineId/stock')

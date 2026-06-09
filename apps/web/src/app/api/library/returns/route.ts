@@ -61,9 +61,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         synced: false,
-        message: "Live library API is not configured; return was saved locally.",
+        message: "Live library API is not configured. The return was not saved to the school database.",
       },
-      { status: 202 },
+      { status: 503 },
     );
   }
 

@@ -154,6 +154,17 @@ export class LibrarySchemaService implements OnModuleInit {
         ON library_borrowers (tenant_id, scan_code)
         WHERE scan_code IS NOT NULL;
 
+      CREATE INDEX IF NOT EXISTS ix_library_circulation_tenant_action_created
+        ON library_circulation_ledger (tenant_id, action, created_at DESC);
+
+      CREATE INDEX IF NOT EXISTS ix_library_circulation_tenant_borrower_action_created
+        ON library_circulation_ledger (tenant_id, borrower_id, action, created_at DESC)
+        WHERE borrower_id IS NOT NULL;
+
+      CREATE INDEX IF NOT EXISTS ix_library_circulation_tenant_copy_action_created
+        ON library_circulation_ledger (tenant_id, copy_id, action, created_at DESC)
+        WHERE copy_id IS NOT NULL;
+
       CREATE OR REPLACE FUNCTION prevent_library_ledger_mutation()
       RETURNS trigger
       LANGUAGE plpgsql

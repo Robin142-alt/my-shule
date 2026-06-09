@@ -1,4 +1,4 @@
-import { Controller, Get, Optional } from '@nestjs/common';
+import { Controller, Get, HttpCode, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
 import { resolveCorsOriginPolicy } from '../../app-cors-policy';
@@ -10,7 +10,10 @@ import { DatabaseService } from '../../database/database.service';
 import { RedisService } from '../../infrastructure/redis/redis.service';
 import { CircuitBreakerService } from '../../infrastructure/resilience/circuit-breaker.service';
 import { SloMonitoringService } from '../observability/slo-monitoring.service';
-import { SupportNotificationDeliveryService } from '../support/support-notification-delivery.service';
+import {
+  SupportNotificationDeliveryService,
+  type SupportNotificationProviderStatus,
+} from '../support/support-notification-delivery.service';
 
 @Controller('health')
 export class HealthController {
@@ -36,16 +39,25 @@ export class HealthController {
 
   @Public()
   @Get('ready')
+  @HttpCode(200)
   @SkipResponseEnvelope()
-  async getReadiness() {
-    const [database, redis] = await Promise.all([
+  async getReadiness(): Promise<any> {
+    try {
+      return await this.buildReadiness();
+    } catch {
+      return this.getFallbackReadiness();
+    }
+  }
+
+  private async buildReadiness(): Promise<any> {
+    const [databaseResult, redisResult] = await Promise.allSettled([
       this.databaseService.ping(),
       this.redisService.ping(),
     ]);
+    const database = databaseResult.status === 'fulfilled' ? databaseResult.value : 'down';
+    const redis = redisResult.status === 'fulfilled' ? redisResult.value : 'degraded';
     const requestContext = this.requestContext.requireStore();
-    const realtimeHealth = this.sloMonitoringService
-      ? await this.sloMonitoringService.getRealtimeHealth()
-      : null;
+    const realtimeHealth = await this.getRealtimeHealthReadiness();
     const emailStatus = this.authEmailService?.getTransactionalEmailStatus() ?? {
       provider: 'resend',
       status: 'missing' as const,
@@ -56,7 +68,7 @@ export class HealthController {
     const corsStatus = this.getCorsReadiness();
     const supportNotificationStatus =
       this.supportNotificationDeliveryService
-        ? await this.supportNotificationDeliveryService.getProviderStatus()
+        ? await this.getSupportNotificationReadiness()
         : null;
     const objectStorageStatus = this.getObjectStorageReadiness();
     const malwareScanStatus = this.getMalwareScanReadiness();
@@ -66,7 +78,9 @@ export class HealthController {
 
     return {
       status:
-        (realtimeHealth && realtimeHealth.overall_status !== 'healthy')
+        this.isSloReadinessDegraded(realtimeHealth)
+        || database !== 'up'
+        || redis !== 'up'
         || corsStatus.status === 'invalid'
         || supportNotificationDegraded
         || this.isOperationalReadinessDegraded(objectStorageStatus.status)
@@ -100,6 +114,38 @@ export class HealthController {
         is_authenticated: requestContext.is_authenticated,
       },
     };
+  }
+
+  private getFallbackReadiness() {
+    return {
+      status: 'degraded',
+      services: {
+        postgres: 'unknown',
+        redis: 'degraded',
+        bullmq: 'degraded',
+        transactional_email: 'unknown',
+        cors: 'unknown',
+        support_notifications: 'unknown',
+        object_storage: 'unknown',
+        malware_scanning: 'unknown',
+      },
+      request_context: this.tryGetRequestContext(),
+    };
+  }
+
+  private tryGetRequestContext() {
+    try {
+      return this.requestContext.requireStore();
+    } catch {
+      return {
+        request_id: null,
+        tenant_id: null,
+        user_id: null,
+        role: null,
+        session_id: null,
+        is_authenticated: false,
+      };
+    }
   }
 
   private getCorsReadiness() {
@@ -148,6 +194,65 @@ export class HealthController {
     return status === 'missing_provider'
       || status === 'missing_credentials'
       || status === 'degraded';
+  }
+
+  private async getRealtimeHealthReadiness(): Promise<
+    Awaited<ReturnType<SloMonitoringService['getRealtimeHealth']>> | null
+  > {
+    if (!this.sloMonitoringService) {
+      return null;
+    }
+
+    try {
+      return await this.sloMonitoringService.getRealtimeHealth();
+    } catch {
+      return {
+        generated_at: new Date().toISOString(),
+        overall_status: 'degraded',
+        active_alert_count: 1,
+        critical_alert_count: 0,
+        subsystem_statuses: [
+          {
+            subsystem: 'api',
+            status: 'degraded',
+          },
+        ],
+      };
+    }
+  }
+
+  private async getSupportNotificationReadiness(): Promise<SupportNotificationProviderStatus | undefined> {
+    try {
+      return await this.supportNotificationDeliveryService?.getProviderStatus();
+    } catch {
+      return {
+        status: 'degraded' as const,
+        email: {
+          status: 'missing' as const,
+          provider: 'unknown',
+          transactional_email: 'missing' as const,
+          recipients_configured: false,
+          recipient_count: 0,
+        },
+        sms: {
+          status: 'degraded' as const,
+          dispatch_provider_configured: false,
+          dispatch_provider_status: 'degraded' as const,
+          webhook_url_configured: false,
+          webhook_token_configured: false,
+          recipients_configured: false,
+          recipient_count: 0,
+          missing: ['provider_status'],
+        },
+        retry: {
+          worker_enabled: false,
+          interval_ms: 0,
+          batch_size: 0,
+          lease_ms: 0,
+          max_attempts: 0,
+        },
+      };
+    }
   }
 
   private getObjectStorageReadiness() {
@@ -237,6 +342,17 @@ export class HealthController {
     return status === 'missing_credentials' || status === 'degraded';
   }
 
+  private isSloReadinessDegraded(
+    realtimeHealth: Awaited<ReturnType<SloMonitoringService['getRealtimeHealth']>> | null,
+  ): boolean {
+    if (!realtimeHealth) {
+      return false;
+    }
+
+    return realtimeHealth.overall_status === 'critical'
+      || (realtimeHealth.critical_alert_count ?? 0) > 0;
+  }
+
   private readStringConfig(key: string): string | undefined {
     const value = this.configService?.get<string | undefined>(key);
 
@@ -252,4 +368,5 @@ export class HealthController {
     const value = this.readStringConfig(key);
     return value === '1' || value?.toLowerCase() === 'true' || value?.toLowerCase() === 'yes';
   }
+
 }

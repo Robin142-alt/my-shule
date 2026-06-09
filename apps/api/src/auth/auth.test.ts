@@ -106,14 +106,26 @@ test('Default school invite catalog exposes the required school operating roles'
     'deputy_principal',
     'secretary',
     'bursar',
+    'accountant',
     'teacher',
+    'dean_academics',
+    'exams_manager',
+    'hod',
+    'class_teacher',
+    'grade_master',
     'nurse',
+    'school_counsellor',
+    'discipline_master',
     'librarian',
     'parent',
     'student',
     'storekeeper',
     'boarding_master',
     'security_officer',
+    'transport_manager',
+    'lab_technician',
+    'admissions_officer',
+    'ict_manager',
   ];
 
   assert.deepEqual(TENANT_INVITABLE_ROLE_CODES, requiredSchoolRoles);
@@ -632,6 +644,15 @@ test('AuthService limits unverified email users to verification-only tenant sess
         status: 'active',
         email_verified_at: null,
       }),
+      findActiveTenantUserByEmail: async () => ({
+        id: 'user-admin',
+        tenant_id: 'tenant-a',
+        email: 'admin@example.test',
+        password_hash: 'hashed-password',
+        display_name: 'School Admin',
+        status: 'active',
+        email_verified_at: null,
+      }),
     } as never,
     {
       findActiveMembership: async () => ({
@@ -723,6 +744,15 @@ test('AuthService exposes verified email state on tenant auth responses', async 
     requestContext,
     {
       findByEmail: async () => ({
+        id: 'user-admin',
+        tenant_id: 'tenant-a',
+        email: 'admin@example.test',
+        password_hash: 'hashed-password',
+        display_name: 'School Admin',
+        status: 'active',
+        email_verified_at: '2026-05-14T00:00:00.000Z',
+      }),
+      findActiveTenantUserByEmail: async () => ({
         id: 'user-admin',
         tenant_id: 'tenant-a',
         email: 'admin@example.test',
@@ -1020,6 +1050,115 @@ test('AuthService ignores default tenant context when generic login resolves one
   assert.equal(synchronizedTenantId, 'greenhill-academy');
 });
 
+test('AuthService uses tenant-scoped user lookup when school login supplies a tenant context', async () => {
+  const requestContext = new RequestContextService();
+  let lookedUpTenantId: string | null = null;
+  let lookedUpEmail: string | null = null;
+  let ensuredTenantId: string | null = null;
+  const service = new AuthService(
+    requestContext,
+    {
+      findByEmail: async () => {
+        throw new Error('generic lookup should not run for explicit school login');
+      },
+      findActiveTenantUserByEmail: async (tenantId: string, email: string) => {
+        lookedUpTenantId = tenantId;
+        lookedUpEmail = email;
+        return {
+          id: 'user-teacher',
+          tenant_id: 'global',
+          email: 'tabithanjuguna410@gmail.com',
+          password_hash: 'hashed-password',
+          display_name: 'Tabitha Wanjiru',
+          status: 'active',
+          email_verified_at: '2026-06-01T08:00:00.000Z',
+        };
+      },
+    } as never,
+    {
+      findActiveMembership: async (userId: string, tenantId: string) => ({
+        id: 'membership-teacher',
+        tenant_id: tenantId,
+        user_id: userId,
+        role_id: 'role-teacher',
+        role_code: 'teacher',
+        role_name: 'Teacher',
+        status: 'active',
+        created_at: new Date(),
+        updated_at: new Date(),
+      }),
+    } as never,
+    {
+      ensureTenantAuthorizationBaseline: async (tenantId: string) => {
+        ensuredTenantId = tenantId;
+      },
+      getPermissionsByRoleId: async () => ['attendance:write'],
+    } as never,
+    {
+      compare: async () => true,
+    } as never,
+    {
+      issueTokenPair: async (payload: Record<string, unknown>) => ({
+        access_token: 'access-token',
+        refresh_token: 'refresh-token',
+        token_type: 'Bearer' as const,
+        access_expires_in: 900,
+        refresh_expires_in: 86400,
+        access_expires_at: '2026-06-01T08:15:00.000Z',
+        refresh_expires_at: '2026-06-02T08:00:00.000Z',
+        access_token_id: 'access-token-id',
+        refresh_token_id: 'refresh-token-id',
+        session_id: String(payload.session_id),
+      }),
+    } as never,
+    {
+      createSession: async () => undefined,
+    } as never,
+    { get: () => undefined } as never,
+    undefined,
+    undefined,
+    {
+      synchronizeRequestSession: async () => undefined,
+    } as never,
+  );
+
+  const response = await requestContext.run(
+    {
+      request_id: 'req-invite-school-login',
+      tenant_id: 'kb-high',
+      tenant_source: 'signed_header',
+      user_id: 'anonymous',
+      role: 'guest',
+      session_id: null,
+      permissions: [],
+      is_authenticated: false,
+      client_ip: '127.0.0.1',
+      user_agent: 'test-suite',
+      method: 'POST',
+      path: '/auth/login',
+      started_at: '2026-06-01T08:00:00.000Z',
+    },
+    () =>
+      service.login(
+        {
+          email: 'tabithanjuguna410@gmail.com',
+          password: 'SecurePass!2026',
+          audience: 'school',
+        },
+        {
+          ip_address: '127.0.0.1',
+          user_agent: 'test-suite',
+        },
+      ),
+  );
+
+  assert.equal(lookedUpTenantId, 'kb-high');
+  assert.equal(lookedUpEmail, 'tabithanjuguna410@gmail.com');
+  assert.equal(response.user.tenant_id, 'kb-high');
+  assert.equal(response.user.role, 'teacher');
+  assert.equal(ensuredTenantId, 'kb-high');
+});
+
 test('AuthService enforces MFA and can persist a trusted device during high-privilege login', async () => {
   const requestContext = new RequestContextService();
   const securityChecks: Record<string, unknown> = {};
@@ -1027,6 +1166,17 @@ test('AuthService enforces MFA and can persist a trusted device during high-priv
     requestContext,
     {
       findByEmail: async () => ({
+        id: 'user-admin',
+        tenant_id: 'tenant-a',
+        email: 'admin@example.test',
+        password_hash: 'hashed-password',
+        display_name: 'School Admin',
+        status: 'active',
+        email_verified_at: '2026-05-14T00:00:00.000Z',
+        mfa_enabled: true,
+        mfa_verified_at: '2026-05-14T00:00:00.000Z',
+      }),
+      findActiveTenantUserByEmail: async () => ({
         id: 'user-admin',
         tenant_id: 'tenant-a',
         email: 'admin@example.test',

@@ -249,16 +249,35 @@ export class AcademicsRepository {
     return result.rows[0];
   }
 
-  async listTeacherAssignments(input: { tenantId: string; teacherUserId?: string }) {
-    const values: unknown[] = [input.tenantId, input.teacherUserId ?? null];
+  async listTeacherAssignments(input: {
+    tenantId: string;
+    teacherUserId?: string;
+    limit?: number;
+    offset?: number;
+  }) {
+    const limit = this.normalizeLimit(input.limit);
+    const offset = this.normalizeOffset(input.offset);
+    const values: unknown[] = [input.tenantId, input.teacherUserId ?? null, limit, offset];
     const result = await this.databaseService.query(
       `
-        SELECT *
+        SELECT
+          id::text,
+          tenant_id,
+          academic_term_id::text,
+          class_section_id::text,
+          subject_id::text,
+          teacher_user_id::text,
+          status,
+          created_by_user_id::text,
+          created_at::text,
+          updated_at::text
         FROM teacher_subject_assignments
         WHERE tenant_id = $1
           AND ($2::uuid IS NULL OR teacher_user_id = $2::uuid)
           AND status = 'active'
         ORDER BY created_at DESC
+        LIMIT $3::integer
+        OFFSET $4::integer
       `,
       values,
     );
@@ -344,5 +363,92 @@ export class AcademicsRepository {
         JSON.stringify(input.metadata ?? {}),
       ],
     );
+  }
+
+  private normalizeLimit(value: number | undefined): number {
+    const candidate = Number(value);
+
+    if (!Number.isInteger(candidate) || candidate < 1) {
+      return 25;
+    }
+
+    return Math.min(candidate, 50);
+  }
+
+  private normalizeOffset(value: number | undefined): number {
+    const candidate = Number(value);
+
+    if (!Number.isInteger(candidate) || candidate < 0) {
+      return 0;
+    }
+
+    return candidate;
+  }
+
+  async createAttendance(input: Record<string, unknown>) {
+    const result = await this.databaseService.query(
+      `
+        INSERT INTO academics_attendance (
+          tenant_id, class_id, attendance_date, student_id, status, submitted_by
+        )
+        VALUES ($1, $2, $3::date, $4::uuid, $5, $6::uuid)
+        RETURNING *
+      `,
+      [
+        input.tenant_id,
+        input.class_id,
+        input.attendance_date,
+        input.student_id,
+        input.status,
+        input.submitted_by,
+      ]
+    );
+    return result.rows[0];
+  }
+
+  async createAssignment(input: Record<string, unknown>) {
+    const result = await this.databaseService.query(
+      `
+        INSERT INTO academics_assignments (
+          tenant_id, title, description, class_id, subject_id, due_date, teacher_id, status
+        )
+        VALUES ($1, $2, $3, $4, $5, $6::timestamptz, $7::uuid, $8)
+        RETURNING *
+      `,
+      [
+        input.tenant_id,
+        input.title,
+        input.description ?? null,
+        input.class_id,
+        input.subject_id,
+        input.due_date,
+        input.teacher_id,
+        input.status ?? 'Draft',
+      ]
+    );
+    return result.rows[0];
+  }
+
+  async createResource(input: Record<string, unknown>) {
+    const result = await this.databaseService.query(
+      `
+        INSERT INTO academics_resources (
+          tenant_id, title, type, url, class_id, subject_id, teacher_id, status
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7::uuid, $8)
+        RETURNING *
+      `,
+      [
+        input.tenant_id,
+        input.title,
+        input.type,
+        input.url ?? null,
+        input.class_id,
+        input.subject_id,
+        input.teacher_id,
+        input.status ?? 'Draft',
+      ]
+    );
+    return result.rows[0];
   }
 }

@@ -9,12 +9,15 @@ import { AuthMessage } from "@/components/auth/auth-message";
 import { AuthPasswordField } from "@/components/auth/auth-password-field";
 import { SecurityBadge, SessionWarning } from "@/components/auth/auth-security";
 import { AuthSubmitButton } from "@/components/auth/auth-submit-button";
+import { buildInviteLoginHref, inviteLoginLabel } from "@/lib/auth/invite-redirect";
 import { acceptInvitation, type InvitationAcceptanceResult } from "@/lib/auth/invitation-client";
 
 export function InviteAcceptanceView({
   initialToken = "",
+  initialTenantSlug = "",
 }: {
   initialToken?: string;
+  initialTenantSlug?: string;
 }) {
   const [token, setToken] = useState(initialToken);
   const [displayName, setDisplayName] = useState("");
@@ -23,6 +26,16 @@ export function InviteAcceptanceView({
   const [busy, setBusy] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [acceptedInvite, setAcceptedInvite] = useState<InvitationAcceptanceResult | null>(null);
+  const acceptedLoginHref = acceptedInvite
+    ? buildInviteLoginHref({
+        role: acceptedInvite.role,
+        email: acceptedInvite.email,
+        tenantId: acceptedInvite.tenantId,
+      })
+    : "/school/login";
+  const acceptedLoginLabel = acceptedInvite
+    ? inviteLoginLabel(acceptedInvite.role)
+    : "Continue to School Login";
 
   const submit = async () => {
     const nextErrors: Record<string, string> = {};
@@ -62,6 +75,7 @@ export function InviteAcceptanceView({
         token: token.trim(),
         password,
         displayName: displayName.trim() || undefined,
+        tenantSlug: initialTenantSlug.trim() || undefined,
       });
       setAcceptedInvite(result);
     } catch (submitError) {
@@ -82,7 +96,7 @@ export function InviteAcceptanceView({
         <div className="space-y-3">
           <div className="flex flex-wrap gap-2">
             <SecurityBadge label="Verified invitation" tone="success" />
-            <SecurityBadge label="Tenant scoped" />
+            <SecurityBadge label="School linked" />
           </div>
           <h2 className="text-3xl font-bold leading-tight text-foreground">
             Accept your invitation
@@ -97,13 +111,13 @@ export function InviteAcceptanceView({
             <AuthMessage
               tone="success"
               title="Invitation accepted"
-              description={`Your account is active for ${acceptedInvite.tenantId ?? "your school workspace"}.`}
+              description="Your account is active for your school."
             />
             <Link
-              href="/login"
+              href={acceptedLoginHref}
               className="inline-flex h-12 w-full items-center justify-center rounded-[var(--radius)] bg-accent px-4 text-sm font-bold text-white shadow-[0_16px_36px_rgba(255,122,26,0.24)] transition hover:bg-accent-hover hover:shadow-[0_18px_42px_rgba(255,122,26,0.3)]"
             >
-              Continue to login
+              {acceptedLoginLabel}
             </Link>
           </div>
         ) : (

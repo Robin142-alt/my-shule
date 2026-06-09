@@ -150,11 +150,9 @@ describe("librarian library workspace", () => {
         submissionId: "borrow-001",
       }),
     ).toEqual({
-      member_id: "00000000-0000-0000-0000-000000000111",
-      book_id: "00000000-0000-0000-0000-000000000222",
-      due_date: "2026-05-21",
-      submission_id: "borrow-001",
-      notes: "Issued by Librarian Amani Prep",
+      borrower_id: "00000000-0000-0000-0000-000000000111",
+      copy_id: "00000000-0000-0000-0000-000000000222",
+      due_on: "2026-05-21",
     });
 
     expect(
@@ -166,10 +164,9 @@ describe("librarian library workspace", () => {
         notes: "Cover torn",
       }),
     ).toEqual({
-      borrowing_id: "00000000-0000-0000-0000-000000000333",
-      condition: "damaged",
-      returned_at: "2026-05-07",
-      notes: "Cover torn | Received by Librarian Amani Prep",
+      loan_id: "00000000-0000-0000-0000-000000000333",
+      returned_on: "2026-05-07",
+      daily_fine_minor: 1000,
     });
   });
 

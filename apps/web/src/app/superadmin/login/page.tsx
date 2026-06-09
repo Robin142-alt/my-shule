@@ -6,14 +6,14 @@ export default function SuperadminLoginPage() {
     <AuthShell
       eyebrow="Super admin login"
       heroTitle="Operate the platform with confidence."
-      heroDescription="Monitor tenant health, subscriptions, MPESA reliability, and infrastructure from one premium control surface designed for platform owners and support teams."
+      heroDescription="Monitor school health, subscriptions, MPESA reliability, and infrastructure from one premium control center designed for platform owners and support teams."
       badge="My Shule Platform Control"
       logoMark="SH"
-      helper="Platform-wide actions are audit logged, role protected, and separated from tenant data access."
+      helper="Platform-wide actions are audit logged, role protected, and separated from school data access."
       highlights={[
         {
           id: "tenant-visibility",
-          title: "Tenant-wide visibility",
+          title: "School-wide visibility",
           description: "Open schools, subscriptions, and support signals without losing platform-level context.",
         },
         {

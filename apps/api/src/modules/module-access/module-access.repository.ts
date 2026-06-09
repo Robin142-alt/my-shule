@@ -248,9 +248,32 @@ export class ModuleAccessRepository {
       await this.databaseService.query(
         `
           INSERT INTO school_module_access (
-            tenant_id, module_id, enabled, enabled_at, disabled_at, updated_by
+            tenant_id,
+            module_id,
+            enabled,
+            enabled_at,
+            disabled_at,
+            updated_by,
+            access_level,
+            trial_ends_at,
+            expires_at,
+            billing_plan_code,
+            feature_flags,
+            activation_reason
           )
-          SELECT $1, id, true, NOW(), NULL, $3::uuid
+          SELECT
+            $1,
+            id,
+            true,
+            NOW(),
+            NULL,
+            $3::uuid,
+            'standard',
+            NULL::timestamptz,
+            NULL::timestamptz,
+            NULL::text,
+            '{}'::jsonb,
+            'superadmin_bulk_allocation'
           FROM module_registry
           WHERE code = ANY($2::text[])
             AND status = 'active'
@@ -260,6 +283,12 @@ export class ModuleAccessRepository {
             enabled_at = COALESCE(school_module_access.enabled_at, NOW()),
             disabled_at = NULL,
             updated_by = EXCLUDED.updated_by,
+            access_level = EXCLUDED.access_level,
+            trial_ends_at = EXCLUDED.trial_ends_at,
+            expires_at = EXCLUDED.expires_at,
+            billing_plan_code = EXCLUDED.billing_plan_code,
+            feature_flags = EXCLUDED.feature_flags,
+            activation_reason = EXCLUDED.activation_reason,
             updated_at = NOW()
         `,
         [input.tenantId, input.moduleCodes, input.updatedBy],

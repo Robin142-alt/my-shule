@@ -7,13 +7,25 @@ export type SchoolExperienceRole =
   | "deputy-principal"
   | "secretary"
   | "bursar"
+  | "accountant"
   | "teacher"
+  | "dean-academics"
+  | "exams-manager"
+  | "hod"
+  | "class-teacher"
+  | "grade-master"
   | "admin"
+  | "student"
   | "storekeeper"
   | "librarian"
   | "nurse"
   | "boarding-master"
   | "security-officer"
+  | "transport-manager"
+  | "ict-manager"
+  | "laboratory-technician"
+  | "guidance-counselling"
+  | "discipline-master"
   | "admissions";
 export type PortalViewer = "parent" | "student";
 
@@ -33,6 +45,10 @@ export interface ExperienceNotificationItem {
   timeLabel: string;
   tone: "ok" | "warning" | "critical";
   href?: string;
+  status?: "unread" | "read" | "sent" | "dismissed" | string;
+  sourceModule?: string;
+  relatedModule?: string | null;
+  relatedRecordId?: string | null;
 }
 
 export interface ExperienceMetric {
@@ -68,4 +84,5 @@ export interface ExperienceProfile {
   name: string;
   roleLabel: string;
   contextLabel: string;
+  roleKey?: SchoolExperienceRole | PortalViewer | "superadmin" | "system-monitor" | "platform-owner";
 }

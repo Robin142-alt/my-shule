@@ -133,25 +133,43 @@ export class CounsellingRepository {
     tenant_id: string;
     query: ListCounsellingQueryDto;
   }) {
+    const limit = this.normalizeLimit(input.query.limit);
+    const offset = this.normalizeOffset(input.query.offset);
     const result = await this.databaseService.query(
       `
-        SELECT *
+        SELECT
+          id,
+          tenant_id,
+          school_id,
+          student_id,
+          class_id,
+          academic_term_id,
+          academic_year_id,
+          incident_id,
+          referred_by_user_id,
+          counsellor_user_id,
+          status,
+          reason,
+          risk_level,
+          response_note,
+          created_at,
+          updated_at
         FROM counselling_referrals
         WHERE tenant_id = $1
           AND ($2::uuid IS NULL OR student_id = $2::uuid)
           AND ($3::uuid IS NULL OR counsellor_user_id = $3::uuid)
           AND ($4::text IS NULL OR status = $4)
         ORDER BY created_at DESC
-        LIMIT $5
-        OFFSET $6
+        LIMIT $5::integer
+        OFFSET $6::integer
       `,
       [
         input.tenant_id,
         input.query.student_id ?? null,
         input.query.counsellor_user_id ?? null,
         input.query.status ?? null,
-        Math.min(input.query.limit ?? 50, 100),
-        input.query.offset ?? 0,
+        limit,
+        offset,
       ],
     );
 
@@ -229,9 +247,25 @@ export class CounsellingRepository {
     can_read_all: boolean;
     actor_user_id: string;
   }): Promise<CounsellingSessionEntity[]> {
+    const limit = this.normalizeLimit(input.query.limit);
+    const offset = this.normalizeOffset(input.query.offset);
     const result = await this.databaseService.query<CounsellingSessionEntity>(
       `
-        SELECT *
+        SELECT
+          id,
+          tenant_id,
+          school_id,
+          student_id,
+          referral_id,
+          counsellor_user_id,
+          status,
+          scheduled_for,
+          completed_at,
+          location,
+          agenda,
+          outcome_summary,
+          created_at,
+          updated_at
         FROM counselling_sessions
         WHERE tenant_id = $1
           AND ($2::uuid IS NULL OR student_id = $2::uuid)
@@ -239,8 +273,8 @@ export class CounsellingRepository {
           AND ($4::text IS NULL OR status = $4)
           AND ($5::boolean OR counsellor_user_id = $6::uuid)
         ORDER BY scheduled_for ASC
-        LIMIT $7
-        OFFSET $8
+        LIMIT $7::integer
+        OFFSET $8::integer
       `,
       [
         input.tenant_id,
@@ -249,8 +283,8 @@ export class CounsellingRepository {
         input.query.status ?? null,
         input.can_read_all,
         input.actor_user_id,
-        Math.min(input.query.limit ?? 50, 100),
-        input.query.offset ?? 0,
+        limit,
+        offset,
       ],
     );
 
@@ -263,7 +297,21 @@ export class CounsellingRepository {
   ): Promise<CounsellingSessionEntity | null> {
     const result = await this.databaseService.query<CounsellingSessionEntity>(
       `
-        SELECT *
+        SELECT
+          id,
+          tenant_id,
+          school_id,
+          student_id,
+          referral_id,
+          counsellor_user_id,
+          status,
+          scheduled_for,
+          completed_at,
+          location,
+          agenda,
+          outcome_summary,
+          created_at,
+          updated_at
         FROM counselling_sessions
         WHERE tenant_id = $1
           AND id = $2::uuid
@@ -355,7 +403,21 @@ export class CounsellingRepository {
   }): Promise<CounsellingNoteEntity[]> {
     const result = await this.databaseService.query<CounsellingNoteEntity>(
       `
-        SELECT *
+        SELECT
+          id,
+          tenant_id,
+          school_id,
+          student_id,
+          counselling_session_id,
+          counsellor_user_id,
+          visibility,
+          encrypted_note,
+          note_nonce,
+          note_auth_tag,
+          safe_summary,
+          risk_indicators,
+          created_at,
+          updated_at
         FROM counselling_notes
         WHERE tenant_id = $1
           AND counselling_session_id = $2::uuid
@@ -421,5 +483,25 @@ export class CounsellingRepository {
     }
 
     return plan;
+  }
+
+  private normalizeLimit(value: number | undefined): number {
+    const candidate = Number(value);
+
+    if (!Number.isInteger(candidate) || candidate < 1) {
+      return 25;
+    }
+
+    return Math.min(candidate, 50);
+  }
+
+  private normalizeOffset(value: number | undefined): number {
+    const candidate = Number(value);
+
+    if (!Number.isInteger(candidate) || candidate < 0) {
+      return 0;
+    }
+
+    return candidate;
   }
 }

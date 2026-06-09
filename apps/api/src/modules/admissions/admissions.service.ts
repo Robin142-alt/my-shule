@@ -64,6 +64,8 @@ type AdmissionsReportExportDefinition = {
   rows: (repository: AdmissionsRepository, tenantId: string) => Promise<ReportCsvValue[][]>;
 };
 
+const ADMISSIONS_REPORT_EXPORT_LIMIT = 500;
+
 function formatReportValue(value: ReportCsvValue) {
   if (value instanceof Date) {
     return value.toISOString().slice(0, 10);
@@ -89,7 +91,10 @@ const ADMISSIONS_REPORT_EXPORTS = new Map<string, AdmissionsReportExportDefiniti
       filename: 'admissions-applications.csv',
       headers: ['Applicant', 'Application No', 'Class', 'Parent Phone', 'Status'],
       rows: async (repository, tenantId) =>
-        (await repository.listApplications(tenantId, { limit: 5000 })).map((application) => [
+        (await repository.listApplications(tenantId, {
+          limit: ADMISSIONS_REPORT_EXPORT_LIMIT,
+          offset: 0,
+        })).map((application) => [
           application.full_name,
           application.application_number,
           application.class_applying,
@@ -106,7 +111,10 @@ const ADMISSIONS_REPORT_EXPORTS = new Map<string, AdmissionsReportExportDefiniti
       filename: 'admissions-documents.csv',
       headers: ['Learner', 'Document', 'File', 'Uploaded On', 'Verification'],
       rows: async (repository, tenantId) =>
-        (await repository.listDocuments(tenantId)).map((document) => [
+        (await repository.listDocuments(tenantId, {
+          limit: ADMISSIONS_REPORT_EXPORT_LIMIT,
+          offset: 0,
+        })).map((document) => [
           document.student_name ?? document.applicant_name ?? 'Unassigned learner',
           document.document_type,
           document.original_file_name,
@@ -123,7 +131,10 @@ const ADMISSIONS_REPORT_EXPORTS = new Map<string, AdmissionsReportExportDefiniti
       filename: 'admissions-allocations.csv',
       headers: ['Student', 'Class', 'Stream', 'Dormitory', 'Route', 'Status'],
       rows: async (repository, tenantId) =>
-        (await repository.listAllocations(tenantId)).map((allocation) => [
+        (await repository.listAllocations(tenantId, {
+          limit: ADMISSIONS_REPORT_EXPORT_LIMIT,
+          offset: 0,
+        })).map((allocation) => [
           [allocation.first_name, allocation.last_name].filter(Boolean).join(' '),
           allocation.class_name,
           allocation.stream_name,
@@ -141,7 +152,10 @@ const ADMISSIONS_REPORT_EXPORTS = new Map<string, AdmissionsReportExportDefiniti
       filename: 'admissions-transfers.csv',
       headers: ['Learner Ref', 'Application Ref', 'Direction', 'School', 'Date', 'Status'],
       rows: async (repository, tenantId) =>
-        (await repository.listTransfers(tenantId)).map((transfer) => [
+        (await repository.listTransfers(tenantId, {
+          limit: ADMISSIONS_REPORT_EXPORT_LIMIT,
+          offset: 0,
+        })).map((transfer) => [
           transfer.student_id ?? 'No student linked',
           transfer.application_id ?? 'No application linked',
           formatReportValue(transfer.transfer_type),
@@ -171,10 +185,13 @@ export class AdmissionsService {
   }
 
   async listApplications(query: ListAdmissionsQueryDto) {
+    const normalized = this.normalizeListQuery(query, 25);
+
     return this.admissionsRepository.listApplications(this.requireTenantId(), {
-      search: query.search?.trim() || undefined,
+      search: this.normalizeSearch(query.search),
       status: query.status?.trim() || undefined,
-      limit: query.limit ?? 50,
+      limit: normalized.limit,
+      offset: normalized.offset,
     });
   }
 
@@ -418,9 +435,12 @@ export class AdmissionsService {
   }
 
   async listStudents(query: ListAdmissionsQueryDto) {
+    const normalized = this.normalizeListQuery(query, 25);
+
     return this.admissionsRepository.listStudentDirectory(this.requireTenantId(), {
-      search: query.search?.trim() || undefined,
-      limit: query.limit ?? 50,
+      search: this.normalizeSearch(query.search),
+      limit: normalized.limit,
+      offset: normalized.offset,
     });
   }
 
@@ -483,12 +503,25 @@ export class AdmissionsService {
     });
   }
 
-  async listParents() {
-    return this.admissionsRepository.listParents(this.requireTenantId());
+  async listParents(query: ListAdmissionsQueryDto = {}) {
+    const normalized = this.normalizeListQuery(query, 25);
+
+    return this.admissionsRepository.listParents(this.requireTenantId(), {
+      search: this.normalizeSearch(query.search),
+      limit: normalized.limit,
+      offset: normalized.offset,
+    });
   }
 
-  async listDocuments() {
-    return this.admissionsRepository.listDocuments(this.requireTenantId());
+  async listDocuments(query: ListAdmissionsQueryDto = {}) {
+    const normalized = this.normalizeListQuery(query, 25);
+
+    return this.admissionsRepository.listDocuments(this.requireTenantId(), {
+      search: this.normalizeSearch(query.search),
+      status: query.status?.trim() || undefined,
+      limit: normalized.limit,
+      offset: normalized.offset,
+    });
   }
 
   async updateDocumentVerificationStatus(
@@ -508,8 +541,14 @@ export class AdmissionsService {
     return document;
   }
 
-  async listAllocations() {
-    return this.admissionsRepository.listAllocations(this.requireTenantId());
+  async listAllocations(query: ListAdmissionsQueryDto = {}) {
+    const normalized = this.normalizeListQuery(query, 25);
+
+    return this.admissionsRepository.listAllocations(this.requireTenantId(), {
+      search: this.normalizeSearch(query.search),
+      limit: normalized.limit,
+      offset: normalized.offset,
+    });
   }
 
   async assignAllocation(studentId: string, dto: CreateAllocationDto) {
@@ -525,8 +564,15 @@ export class AdmissionsService {
     });
   }
 
-  async listTransfers() {
-    return this.admissionsRepository.listTransfers(this.requireTenantId());
+  async listTransfers(query: ListAdmissionsQueryDto = {}) {
+    const normalized = this.normalizeListQuery(query, 25);
+
+    return this.admissionsRepository.listTransfers(this.requireTenantId(), {
+      search: this.normalizeSearch(query.search),
+      status: query.status?.trim() || undefined,
+      limit: normalized.limit,
+      offset: normalized.offset,
+    });
   }
 
   async createTransfer(dto: CreateTransferRecordDto) {
@@ -997,5 +1043,45 @@ export class AdmissionsService {
       academic_enrollment_id: academicEnrollment.id,
       class_section_id: classSection.id,
     });
+  }
+
+  private normalizeListQuery(
+    query: ListAdmissionsQueryDto = {},
+    fallbackLimit: number,
+  ): { limit: number; offset: number } {
+    return {
+      limit: this.parseBoundedInteger(query.limit, fallbackLimit, 50),
+      offset: this.parseOffset(query.offset),
+    };
+  }
+
+  private normalizeSearch(value: string | undefined): string | undefined {
+    const search = value?.trim();
+
+    return search && search.length >= 2 ? search : undefined;
+  }
+
+  private parseBoundedInteger(
+    value: number | undefined,
+    fallback: number,
+    max: number,
+  ): number {
+    const candidate = Number(value);
+
+    if (!Number.isInteger(candidate) || candidate < 1) {
+      return fallback;
+    }
+
+    return Math.min(candidate, max);
+  }
+
+  private parseOffset(value: number | undefined): number {
+    const candidate = Number(value);
+
+    if (!Number.isInteger(candidate) || candidate < 0) {
+      return 0;
+    }
+
+    return candidate;
   }
 }

@@ -177,6 +177,8 @@ export class EventsSchemaService implements OnModuleInit {
         ON outbox_events (status, available_at, created_at);
       CREATE INDEX IF NOT EXISTS ix_outbox_events_tenant_status_available_at
         ON outbox_events (tenant_id, status, available_at, created_at);
+      CREATE INDEX IF NOT EXISTS ix_outbox_events_tenant_status_created_id
+        ON outbox_events (tenant_id, status, created_at, id);
       CREATE INDEX IF NOT EXISTS ix_event_consumer_runs_outbox_consumer
         ON event_consumer_runs (tenant_id, outbox_event_id, consumer_name);
 

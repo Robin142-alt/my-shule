@@ -1,7 +1,8 @@
+import { SchoolOperationalEventsService } from '../events/school-operational-events.service';
 import {
   BadRequestException,
   ConflictException,
-  Injectable,
+  Injectable, Optional,
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -178,6 +179,7 @@ export class InventoryService {
     private readonly requestContext: RequestContextService,
     private readonly databaseService: DatabaseService,
     private readonly inventoryRepository: InventoryRepository,
+    @Optional() private readonly schoolEvents?: SchoolOperationalEventsService,
   ) {}
 
   async getSummary() {
@@ -386,7 +388,10 @@ export class InventoryService {
   }
 
   async listStockMovements(query: ListInventoryQueryDto) {
-    return this.inventoryRepository.listStockMovements(this.requireTenantId(), query.limit ?? 50);
+    return this.inventoryRepository.listStockMovements(this.requireTenantId(), {
+      limit: query.limit ?? 50,
+      offset: query.offset ?? 0,
+    });
   }
 
   async issueDepartmentStock(dto: CreateStockIssueDto) {
@@ -610,8 +615,11 @@ export class InventoryService {
     }
   }
 
-  async listPurchaseOrders() {
-    return this.inventoryRepository.listPurchaseOrders(this.requireTenantId());
+  async listPurchaseOrders(query: ListInventoryQueryDto = {}) {
+    return this.inventoryRepository.listPurchaseOrders(this.requireTenantId(), {
+      limit: query.limit ?? 25,
+      offset: query.offset ?? 0,
+    });
   }
 
   async createPurchaseOrder(dto: CreatePurchaseOrderDto) {
@@ -728,8 +736,61 @@ export class InventoryService {
     });
   }
 
-  async listRequests() {
-    return this.inventoryRepository.listRequests(this.requireTenantId());
+  async listRequests(query: ListInventoryQueryDto = {}) {
+    return this.inventoryRepository.listRequests(this.requireTenantId(), {
+      limit: query.limit ?? 25,
+      offset: query.offset ?? 0,
+    });
+  }
+
+  async createRequisition(dto: CreateInventoryRequestDto) {
+    const tenantId = this.requireTenantId();
+    const result = await this.databaseService.query(
+      `
+        INSERT INTO inventory_requisitions (
+          tenant_id,
+          requisition_number,
+          department,
+          requested_by,
+          status,
+          needed_by,
+          priority,
+          lines,
+          notes
+        )
+        VALUES ($1, $2, $3, $4, $5, $6::date, $7, $8::jsonb, $9)
+        RETURNING id, requisition_number, status
+      `,
+      [
+        tenantId,
+        this.buildNumber('REQ'),
+        dto.department.trim(),
+        dto.requested_by.trim(),
+        'pending',
+        dto.needed_by ?? null,
+        dto.priority?.trim() || 'normal',
+        JSON.stringify(dto.lines.map((line) => ({ ...line }))),
+        dto.notes?.trim() || null,
+      ]
+    );
+
+    const requisition = result.rows[0];
+
+    await this.schoolEvents?.recordSchoolOperation({
+      event: {
+        id: requisition.id,
+        type: 'inventory.requisition_created',
+        module: 'inventory',
+        actorRole: this.requestContext.requireStore().role || 'staff',
+        title: 'Inventory Requisition Created',
+        body: `Requisition ${requisition.requisition_number} created for ${dto.department}`,
+        entityId: requisition.id,
+        severity: 'info',
+        payload: { requisition_number: requisition.requisition_number },
+      },
+    });
+
+    return requisition;
   }
 
   async createRequest(dto: CreateInventoryRequestDto) {
@@ -912,8 +973,11 @@ export class InventoryService {
     });
   }
 
-  async listTransfers() {
-    return this.inventoryRepository.listTransfers(this.requireTenantId());
+  async listTransfers(query: ListInventoryQueryDto = {}) {
+    return this.inventoryRepository.listTransfers(this.requireTenantId(), {
+      limit: query.limit ?? 25,
+      offset: query.offset ?? 0,
+    });
   }
 
   async createTransfer(dto: CreateTransferDto) {
@@ -1107,8 +1171,11 @@ export class InventoryService {
     });
   }
 
-  async listIncidents() {
-    return this.inventoryRepository.listIncidents(this.requireTenantId());
+  async listIncidents(query: ListInventoryQueryDto = {}) {
+    return this.inventoryRepository.listIncidents(this.requireTenantId(), {
+      limit: query.limit ?? 25,
+      offset: query.offset ?? 0,
+    });
   }
 
   async createIncident(dto: CreateIncidentDto) {

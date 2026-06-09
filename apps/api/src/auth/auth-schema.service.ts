@@ -609,6 +609,8 @@ export class AuthSchemaService implements OnModuleInit {
       END;
       $$;
 
+      DROP FUNCTION IF EXISTS app.mark_auth_email_outbox_delivery(uuid, text);
+      DROP FUNCTION IF EXISTS app.mark_auth_email_outbox_delivery(text, text);
       CREATE OR REPLACE FUNCTION app.mark_auth_email_outbox_delivery(
         input_outbox_id uuid,
         input_status text,
@@ -824,10 +826,13 @@ export class AuthSchemaService implements OnModuleInit {
       END;
       $$;
 
+      DROP FUNCTION IF EXISTS app.consume_invite_acceptance_action(text, text, text);
+      DROP FUNCTION IF EXISTS app.consume_invite_acceptance_action(text, text, text, text);
       CREATE OR REPLACE FUNCTION app.consume_invite_acceptance_action(
         input_token_hash text,
         input_password_hash text,
-        input_display_name text
+        input_display_name text,
+        input_expected_tenant_id text DEFAULT NULL
       )
       RETURNS TABLE (
         user_id uuid,
@@ -886,6 +891,12 @@ export class AuthSchemaService implements OnModuleInit {
         IF invite_tenant_id IS NULL OR length(invite_tenant_id) = 0 THEN
           RAISE EXCEPTION 'Invitation tenant is missing'
             USING ERRCODE = '22023';
+        END IF;
+
+        IF NULLIF(input_expected_tenant_id, '') IS NOT NULL
+          AND NULLIF(input_expected_tenant_id, '') <> invite_tenant_id THEN
+          RAISE EXCEPTION 'Invitation tenant mismatch'
+            USING ERRCODE = '28000';
         END IF;
 
         invite_role_code := COALESCE(NULLIF(invite_metadata ->> 'role_code', ''), 'member');
@@ -954,21 +965,29 @@ export class AuthSchemaService implements OnModuleInit {
           status = 'active',
           updated_at = NOW();
 
-        UPDATE student_guardians
-        SET
-          user_id = invited_user_id,
-          status = 'active',
-          accepted_at = COALESCE(accepted_at, NOW()),
-          updated_at = NOW()
-        WHERE tenant_id = invite_tenant_id
-          AND lower(email) = lower(invite_email)
-          AND (user_id IS NULL OR user_id = invited_user_id)
-          AND status IN ('invited', 'active');
+        IF invite_role_code = 'parent' THEN
+          UPDATE student_guardians
+          SET
+            user_id = invited_user_id,
+            status = 'active',
+            accepted_at = COALESCE(accepted_at, NOW()),
+            updated_at = NOW()
+          WHERE tenant_id = invite_tenant_id
+            AND lower(email) = lower(invite_email)
+            AND (user_id IS NULL OR user_id = invited_user_id)
+            AND status IN ('invited', 'active');
+        END IF;
 
         UPDATE auth_action_tokens
         SET
           consumed_at = NOW(),
-          user_id = invited_user_id
+          user_id = invited_user_id,
+          metadata = auth_action_tokens.metadata || jsonb_build_object(
+            'status', 'accepted',
+            'accepted_at', NOW(),
+            'accepted_by_user_id', invited_user_id,
+            'accepted_role_code', invite_role_code
+          )
         WHERE id = token_id;
 
         RETURN QUERY
@@ -1194,6 +1213,9 @@ export class AuthSchemaService implements OnModuleInit {
       CREATE INDEX IF NOT EXISTS ix_tenant_memberships_user_id ON tenant_memberships (user_id);
       CREATE UNIQUE INDEX IF NOT EXISTS ux_auth_action_tokens_hash ON auth_action_tokens (token_hash);
       CREATE INDEX IF NOT EXISTS ix_auth_action_tokens_tenant_email ON auth_action_tokens (tenant_id, lower(email), purpose);
+      CREATE INDEX IF NOT EXISTS ix_auth_action_tokens_tenant_invites
+        ON auth_action_tokens (tenant_id, purpose, consumed_at, expires_at, created_at DESC)
+        WHERE purpose = 'invite_acceptance';
       CREATE INDEX IF NOT EXISTS ix_auth_email_outbox_status ON auth_email_outbox (status, next_attempt_at);
       CREATE INDEX IF NOT EXISTS ix_auth_mfa_challenges_user_active
         ON auth_mfa_challenges (user_id, expires_at)

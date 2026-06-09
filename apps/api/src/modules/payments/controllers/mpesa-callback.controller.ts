@@ -329,8 +329,8 @@ export class MpesaCallbackController {
   }
 
   private getRawBody(request: Request): string {
-    if (request.rawBody) {
-      return request.rawBody.toString('utf8');
+    if ((request as any).rawBody) {
+      return (request as any).rawBody.toString('utf8');
     }
 
     if (typeof request.body === 'string') {

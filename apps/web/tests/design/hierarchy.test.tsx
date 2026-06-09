@@ -39,7 +39,7 @@ describe("STEP 2: Hierarchy tests", () => {
   it("keeps critical labels readable and accessible", () => {
     renderDashboardScreen({ role: "admin" });
 
-    expect(screen.getByLabelText("Switch tenant")).toBeVisible();
+    expect(screen.getByLabelText("Switch school")).toBeVisible();
     expect(screen.getByLabelText("Select term")).toBeVisible();
     expect(screen.getByLabelText("Select academic year")).toBeVisible();
     expect(screen.getByLabelText("Global search")).toBeVisible();

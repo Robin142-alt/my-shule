@@ -60,3 +60,28 @@ export class AssignStudentToClassDto {
   academic_level_id!: string;
   academic_year_id!: string;
 }
+
+export class CreateAttendanceDto {
+  class_id!: string;
+  attendance_date!: string;
+  student_id!: string;
+  status!: string;
+}
+
+export class CreateAssignmentDto {
+  title!: string;
+  description?: string;
+  class_id!: string;
+  subject_id!: string;
+  due_date!: string;
+  status?: string;
+}
+
+export class CreateResourceDto {
+  title!: string;
+  type!: string;
+  url?: string;
+  class_id!: string;
+  subject_id!: string;
+  status?: string;
+}
