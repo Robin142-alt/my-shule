@@ -2785,7 +2785,7 @@ export function ExamsModuleScreen({
     queryKey: ["exams-report-card-batch", liveSession.session?.tenantId, activeBatchId],
     queryFn: () => fetchReportCardBatchStatusLive(liveSession.session!, activeBatchId!),
     enabled: Boolean(liveSession.session && activeBatchId),
-    refetchInterval: activeBatchId ? 3000 : false,
+    refetchInterval: false,
   });
   const isLiveMode = Boolean(liveSession.session);
   const liveWorkspace = liveWorkspaceQuery.data;

@@ -28,16 +28,11 @@ import {
 import type { ExperienceNotificationItem } from "@/lib/experiences/types";
 import {
   getPortalWorkspace,
-  portalAcademicTargets,
-  portalFeeHistory,
-  portalMessages,
-  portalParentChildren,
-  portalPublishedExamResults,
-  portalPublishedReportCards,
-  portalTeacherComments,
+  getPortalAcademicTargets, getPortalFeeHistory, getPortalMessages, getPortalParentChildren, getPortalPublishedExamResults, getPortalPublishedReportCards, getPortalTeacherComments,
   type PortalViewer,
 } from "@/lib/experiences/portal-data";
 import { toPortalPath } from "@/lib/routing/experience-routes";
+import { getCurrentSchoolId } from "@/lib/school/school-operational-store";
 import {
   readSchoolData,
   subscribeToSchoolDataUpdates,
@@ -199,7 +194,7 @@ function portalFeeRowsForLearner(learnerName: string): PortalFeeHistoryRow[] {
       status: item.status,
     }));
 
-  return storedPayments.length > 0 ? storedPayments : portalFeeHistory;
+  return storedPayments.length > 0 ? storedPayments : getPortalFeeHistory(getCurrentSchoolId());
 }
 
 function buildPortalSectionHref(
@@ -367,7 +362,7 @@ function PortalDashboard({ viewer, routeMode }: { viewer: PortalViewer; routeMod
               { id: "reference", header: "Reference", render: (row) => row.reference },
               { id: "status", header: "Status", render: (row) => row.status },
             ]}
-            rows={portalFeeHistory}
+            rows={getPortalFeeHistory(getCurrentSchoolId())}
             getRowKey={(row) => row.id}
           />
         </div>
@@ -392,7 +387,7 @@ function PortalDashboard({ viewer, routeMode }: { viewer: PortalViewer; routeMod
           <ActivityListCard
             title="Messages"
             subtitle="Announcements, reminders, and teacher communication."
-            items={portalMessages}
+            items={getPortalMessages(getCurrentSchoolId())}
           />
           <SimpleListCard
             title="School updates"
@@ -492,14 +487,14 @@ function PortalFeesPage({ viewer }: { viewer: PortalViewer }) {
 }
 
 function PortalAcademicsPage({ viewer }: { viewer: PortalViewer }) {
-  const [activeChildId, setActiveChildId] = useState(portalParentChildren[0]?.id ?? "");
+  const [activeChildId, setActiveChildId] = useState(getPortalParentChildren(getCurrentSchoolId())[0]?.id ?? "");
   const [acknowledgedReports, setAcknowledgedReports] = useState<Record<string, boolean>>({});
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [selectedReportId, setSelectedReportId] = useState<string | null>(null);
-  const activeChild = portalParentChildren.find((child) => child.id === activeChildId) ?? portalParentChildren[0];
-  const visibleReports = portalPublishedReportCards.filter((report) => report.childId === activeChild?.id);
-  const visibleResults = portalPublishedExamResults.filter((row) => row.childName === activeChild?.name);
-  const visibleTargets = portalAcademicTargets.filter((row) => row.childName === activeChild?.name);
+  const activeChild = getPortalParentChildren(getCurrentSchoolId()).find((child) => child.id === activeChildId) ?? getPortalParentChildren(getCurrentSchoolId())[0];
+  const visibleReports = getPortalPublishedReportCards(getCurrentSchoolId()).filter((report) => report.childId === activeChild?.id);
+  const visibleResults = getPortalPublishedExamResults(getCurrentSchoolId()).filter((row) => row.childName === activeChild?.name);
+  const visibleTargets = getPortalAcademicTargets(getCurrentSchoolId()).filter((row) => row.childName === activeChild?.name);
   const selectedReport = visibleReports.find((report) => report.id === selectedReportId) ?? null;
   const latestReport = visibleReports[0];
   const latestResult = visibleResults[0];
@@ -552,7 +547,7 @@ function PortalAcademicsPage({ viewer }: { viewer: PortalViewer }) {
   }
 
   function acknowledgeReport(reportId: string) {
-    const report = portalPublishedReportCards.find((item) => item.id === reportId);
+    const report = getPortalPublishedReportCards(getCurrentSchoolId()).find((item) => item.id === reportId);
 
     if (!report) {
       setStatusMessage("Required source report was not found.");
@@ -610,7 +605,7 @@ function PortalAcademicsPage({ viewer }: { viewer: PortalViewer }) {
       <Card className="p-5">
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">Child switcher</p>
         <div className="mt-4 grid gap-3 md:grid-cols-2">
-          {portalParentChildren.map((child) => {
+          {getPortalParentChildren(getCurrentSchoolId()).map((child) => {
             const active = child.id === activeChild?.id;
 
             return (
@@ -620,8 +615,8 @@ function PortalAcademicsPage({ viewer }: { viewer: PortalViewer }) {
                 onClick={() => {
                   setActiveChildId(child.id);
                   setSelectedReportId(null);
-                  const childReportCount = portalPublishedReportCards.filter((report) => report.childId === child.id).length;
-                  const childResultCount = portalPublishedExamResults.filter((row) => row.childName === child.name).length;
+                  const childReportCount = getPortalPublishedReportCards(getCurrentSchoolId()).filter((report) => report.childId === child.id).length;
+                  const childResultCount = getPortalPublishedExamResults(getCurrentSchoolId()).filter((row) => row.childName === child.name).length;
                   setStatusMessage(
                     `${child.name} academic record selected: ${childReportCount} published report${childReportCount === 1 ? "" : "s"}, ${childResultCount} result row${childResultCount === 1 ? "" : "s"} loaded.`,
                   );
@@ -733,7 +728,7 @@ function PortalAcademicsPage({ viewer }: { viewer: PortalViewer }) {
             <div className="rounded-[var(--radius-sm)] border border-border bg-white px-4 py-3">
               <p className="text-[11px] font-bold uppercase tracking-[0.06em] text-muted">Teacher comments</p>
               <div className="mt-3 space-y-2">
-                {portalTeacherComments.map((comment) => (
+                {getPortalTeacherComments(getCurrentSchoolId()).map((comment) => (
                   <div key={comment.id} className="rounded-[var(--radius-sm)] border border-border bg-surface-muted px-3 py-2">
                     <p className="text-sm font-semibold text-foreground">{comment.title}</p>
                     <p className="mt-1 text-sm text-muted">{comment.detail}</p>
@@ -870,12 +865,12 @@ function PortalAcademicsPage({ viewer }: { viewer: PortalViewer }) {
       <ActivityListCard
         title="Teacher and school comments"
         subtitle="Published teacher, class teacher, and principal comments for the active learner."
-        items={portalTeacherComments}
+        items={getPortalTeacherComments(getCurrentSchoolId())}
       />
       <ActivityListCard
         title="School Messages"
         subtitle="Academic-related notices released to the parent dashboard."
-        items={portalMessages}
+        items={getPortalMessages(getCurrentSchoolId())}
       />
     </div>
   );
@@ -891,7 +886,7 @@ function PortalMessagesPage() {
       <ActivityListCard
         title="School messages"
         subtitle="Recent notices and action-oriented reminders."
-        items={portalMessages}
+        items={getPortalMessages(getCurrentSchoolId())}
       />
     </div>
   );
@@ -1034,7 +1029,7 @@ function PortalNotificationsPage() {
       <ActivityListCard
         title="Notification feed"
         subtitle="Recent alerts and reminders for the learner account."
-        items={portalMessages}
+        items={getPortalMessages(getCurrentSchoolId())}
       />
     </div>
   );
@@ -1062,7 +1057,7 @@ export function PortalPages({
     ...item,
     href: mapPortalHref(viewer, item.href, routeMode),
   }));
-  const notifications: ExperienceNotificationItem[] = portalMessages.map(
+  const notifications: ExperienceNotificationItem[] = getPortalMessages(getCurrentSchoolId()).map(
     (message): ExperienceNotificationItem => ({
       id: message.id,
       title: message.title,

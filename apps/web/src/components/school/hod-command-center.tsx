@@ -24,7 +24,7 @@ import {
 } from "lucide-react";
 
 import { getCurrentSchoolId, publishSchoolOperationalEvent } from "@/lib/school/school-operational-store";
-import { downloadCsvFile } from "@/lib/dashboard/export";
+import { openPrintDocument, downloadCsvFile } from "@/lib/dashboard/export";
 import { useSchoolQuery, useSchoolMutation } from "@/lib/data/school-hooks";
 
 type HodRouteMode = "hosted" | "public";
@@ -969,7 +969,7 @@ export function HodCommandCenter({
 
   function openExportAction(tableTitle: string) {
     setSelectedExport(tableTitle);
-    setNotice(`${tableTitle} export ready for department review.`);
+    setNotice(`Export options ready for ${tableTitle}.`);
   }
 
   function openTableAction(mode: "filter" | "search", tableTitle: string) {
@@ -979,7 +979,7 @@ export function HodCommandCenter({
 
   function openReportReview(title: string) {
     setReportReview({ title });
-    setNotice(`${title} ready for review and export.`);
+    setNotice(`Review options ready for ${title}.`);
   }
 
   function saveReportReview() {
@@ -1016,9 +1016,18 @@ export function HodCommandCenter({
       ],
     });
 
-    setNotice(
-      `${reportReview.title} review request saved for ${schoolId}: hod-report-${reportSlug}, Dean/Exams Manager/Principal notified for Mathematics department export.`,
-    );
+    openPrintDocument({
+      eyebrow: "HOD Report",
+      title: reportReview.title,
+      subtitle: "Department review",
+      rows: [
+        { label: "Department", value: "Mathematics" },
+        { label: "Term", value: "Term 2 2026" }
+      ],
+      footer: "Printed from HOD workspace."
+    });
+
+    setNotice("Opening browser print preview.");
     setReportReview(null);
   }
 
@@ -1151,9 +1160,7 @@ export function HodCommandCenter({
       ],
     });
 
-    setNotice(
-      `${selectedExport} export request saved for ${schoolId}: ${schoolId}-hod-${exportSlug}-${generatedAt.slice(0, 10)}.csv, Dean/Exams Manager/Principal notified.`,
-    );
+    setNotice("CSV export downloaded.");
     setSelectedExport(null);
   }
 

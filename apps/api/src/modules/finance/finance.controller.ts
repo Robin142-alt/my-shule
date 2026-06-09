@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post } from '@nestjs/common';
+import { Body, Controller, Get, Post, Query } from '@nestjs/common';
 
 import { Permissions } from '../../auth/decorators/permissions.decorator';
 import { DatabaseService } from '../../database/database.service';
@@ -119,14 +119,21 @@ export class FinanceController {
 
   @Get('tasks')
   @Permissions('finance:read')
-  async getTasks() {
+  async getTasks(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('status') status?: string,
+  ) {
     const store = this.requestContext.requireStore();
     const tenantId = store.tenant_id;
     if (!tenantId) {
       throw new Error('Tenant context required');
     }
 
-    return this.tasksService.getTasks(tenantId);
+    const pageNum = page ? parseInt(page, 10) : undefined;
+    const limitNum = limit ? parseInt(limit, 10) : undefined;
+
+    return this.tasksService.getTasks(tenantId, pageNum, limitNum, status);
   }
 
   @Post('tasks')

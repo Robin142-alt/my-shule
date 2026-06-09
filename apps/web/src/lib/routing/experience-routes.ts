@@ -45,6 +45,7 @@ export const SCHOOL_SECTIONS = [
   "transport",
   "procurement",
   "school-admin",
+  "my-teaching",
   "hr-payroll",
   "timetable-builder",
   "communication-center",

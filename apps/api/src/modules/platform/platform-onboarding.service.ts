@@ -372,6 +372,37 @@ export class PlatformOnboardingService {
         invitedByUserId,
       });
 
+      const emailConflict = await this.databaseService.query<{ tenant_id: string }>(
+        `
+          SELECT tm.tenant_id 
+          FROM tenant_memberships tm
+          INNER JOIN users u ON u.id = tm.user_id
+          WHERE lower(u.email) = $1
+          LIMIT 1
+        `,
+        [adminEmail]
+      );
+  
+      if (emailConflict.rows.length > 0) {
+        throw new BadRequestException('This email is already registered under another school. Use a different email address for this school.');
+      }
+  
+      const invitationConflict = await this.databaseService.query<{ tenant_id: string }>(
+        `
+          SELECT tenant_id 
+          FROM auth_action_tokens
+          WHERE lower(email) = $1
+            AND purpose = 'invite_acceptance'
+            AND consumed_at IS NULL
+          LIMIT 1
+        `,
+        [adminEmail]
+      );
+  
+      if (invitationConflict.rows.length > 0) {
+        throw new BadRequestException('This email is already registered under another school. Use a different email address for this school.');
+      }
+
       await this.authorizationRepository.ensureTenantAuthorizationBaseline(tenantId);
       const enabledModules = await this.assignInitialModules({
         tenantId,

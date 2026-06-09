@@ -14,11 +14,28 @@ export interface CreateFinanceTaskParams {
 export class FinanceTasksService {
   constructor(private readonly db: DatabaseService) {}
 
-  async getTasks(tenantId: string) {
-    const result = await this.db.query(
-      `SELECT * FROM finance_tasks WHERE tenant_id = $1 ORDER BY created_at DESC`,
-      [tenantId]
-    );
+  async getTasks(tenantId: string, page?: number, limit?: number, status?: string) {
+    let query = `SELECT * FROM finance_tasks WHERE tenant_id = $1`;
+    const params: any[] = [tenantId];
+    
+    if (status) {
+      params.push(status);
+      query += ` AND status = $${params.length}`;
+    }
+    
+    query += ` ORDER BY created_at DESC`;
+    
+    if (limit) {
+      params.push(limit);
+      query += ` LIMIT $${params.length}`;
+      if (page && page > 0) {
+        const offset = (page - 1) * limit;
+        params.push(offset);
+        query += ` OFFSET $${params.length}`;
+      }
+    }
+
+    const result = await this.db.query(query, params);
     return result.rows;
   }
 

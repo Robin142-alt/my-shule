@@ -2869,3 +2869,43 @@ CREATE POLICY security_incidents_tenant_policy ON security_incidents FOR ALL USI
 ALTER TABLE security_panic_alerts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE security_panic_alerts FORCE ROW LEVEL SECURITY;
 CREATE POLICY security_panic_alerts_tenant_policy ON security_panic_alerts FOR ALL USING (tenant_id = app.current_tenant_id()) WITH CHECK (tenant_id = app.current_tenant_id());
+
+-- 1. Indexes for tenant_id
+CREATE INDEX IF NOT EXISTS idx_academics_attendance_tenant_id ON academics_attendance(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_academics_assignments_tenant_id ON academics_assignments(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_academics_resources_tenant_id ON academics_resources(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_operations_emergencies_tenant_id ON operations_emergencies(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_operations_alerts_tenant_id ON operations_alerts(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_operations_reports_tenant_id ON operations_reports(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_security_incidents_tenant_id ON security_incidents(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_security_panic_alerts_tenant_id ON security_panic_alerts(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_finance_tasks_tenant_id ON finance_tasks(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_communication_sms_outbox_tenant_id ON communication_sms_outbox(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_inventory_requisitions_tenant_id ON inventory_requisitions(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_clinic_visits_tenant_id ON clinic_visits(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_library_loans_tenant_id ON library_loans(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_visitors_tenant_id ON visitors(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_discipline_incidents_tenant_id ON discipline_incidents(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_boarding_referrals_tenant_id ON boarding_referrals(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_transport_routes_tenant_id ON transport_routes(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_admissions_applications_tenant_id ON admissions_applications(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_auth_email_outbox_tenant_id ON auth_email_outbox(tenant_id);
+
+-- 2. Common Foreign Keys
+CREATE INDEX IF NOT EXISTS idx_auth_action_tokens_tenant_user ON auth_action_tokens(tenant_id, user_id);
+CREATE INDEX IF NOT EXISTS idx_auth_email_outbox_tenant_user ON auth_email_outbox(tenant_id, user_id);
+CREATE INDEX IF NOT EXISTS idx_payment_intents_tenant_user ON payment_intents(tenant_id, user_id);
+CREATE INDEX IF NOT EXISTS idx_students_tenant_created_by ON students(tenant_id, created_by_user_id);
+
+CREATE INDEX IF NOT EXISTS idx_academics_attendance_tenant_student ON academics_attendance(tenant_id, student_id);
+CREATE INDEX IF NOT EXISTS idx_clinic_visits_tenant_student ON clinic_visits(tenant_id, student_id);
+CREATE INDEX IF NOT EXISTS idx_library_loans_tenant_student ON library_loans(tenant_id, student_id);
+CREATE INDEX IF NOT EXISTS idx_discipline_incidents_tenant_student ON discipline_incidents(tenant_id, student_id);
+
+-- 3. Composite Status Indexes
+CREATE INDEX IF NOT EXISTS idx_users_tenant_status ON users(tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_auth_email_outbox_tenant_status ON auth_email_outbox(tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_finance_tasks_tenant_status ON finance_tasks(tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_operations_reports_tenant_status ON operations_reports(tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_admissions_applications_tenant_status ON admissions_applications(tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_inventory_requisitions_tenant_status ON inventory_requisitions(tenant_id, status);

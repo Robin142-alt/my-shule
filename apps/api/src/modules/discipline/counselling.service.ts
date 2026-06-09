@@ -159,7 +159,18 @@ export class CounsellingService {
       session_id: session.id,
     });
 
-    return Promise.all(notes.map((note) => this.presentNote(note)));
+    const context = this.requestContext.requireStore();
+    let isParentLinked = false;
+    
+    if (this.hasPermission('portal:read_own_children')) {
+      isParentLinked = await this.disciplineRepository.isParentLinkedToStudent({
+        tenant_id: this.requireTenantId(),
+        parent_user_id: context.user_id,
+        student_id: session.student_id,
+      });
+    }
+
+    return Promise.all(notes.map((note) => this.presentNote(note, { isParentLinked })));
   }
 
   async createImprovementPlan(dto: CreateImprovementPlanDto) {
@@ -194,8 +205,8 @@ export class CounsellingService {
     return referral;
   }
 
-  private async presentNote(note: CounsellingNoteEntity) {
-    if (!(await this.canReadNote(note))) {
+  private async presentNote(note: CounsellingNoteEntity, options?: { isParentLinked: boolean }) {
+    if (!(await this.canReadNote(note, options))) {
       return {
         id: note.id,
         visibility: note.visibility,
@@ -216,7 +227,7 @@ export class CounsellingService {
     };
   }
 
-  private async canReadNote(note: CounsellingNoteEntity): Promise<boolean> {
+  private async canReadNote(note: CounsellingNoteEntity, options?: { isParentLinked: boolean }): Promise<boolean> {
     const context = this.requestContext.requireStore();
 
     if (this.hasPermission('counselling:manage') || note.counsellor_user_id === context.user_id) {
@@ -228,6 +239,9 @@ export class CounsellingService {
     }
 
     if (note.visibility === 'parent_visible' && this.hasPermission('portal:read_own_children')) {
+      if (options?.isParentLinked !== undefined) {
+        return options.isParentLinked;
+      }
       return this.disciplineRepository.isParentLinkedToStudent({
         tenant_id: note.tenant_id,
         parent_user_id: context.user_id,

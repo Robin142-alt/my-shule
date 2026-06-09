@@ -35,6 +35,7 @@ import {
   publishSchoolOperationalEvent,
   type SchoolOperationalEvent,
 } from "@/lib/school/school-operational-store";
+import { openPrintDocument } from "@/lib/dashboard/export";
 import { useQueryClient } from "@tanstack/react-query";
 import { useSchoolMutation } from "@/lib/data/school-hooks";
 
@@ -1147,7 +1148,7 @@ export function DeputyPrincipalCommandCenter({ routeMode }: { routeMode: DeputyR
             payload: { reportType: report },
             notifications: []
           });
-          setNotice(`${report} prepared and generated successfully.`);
+          setNotice("PDF generation is unavailable. Use browser print preview for now.");
         },
         onError: (err) => setNotice(`Action failed: ${err.message}`)
       }

@@ -680,10 +680,10 @@ export class AuthService {
     }
 
     if (memberships.length > 1) {
-      throw new UnauthorizedException('Multiple school workspaces are linked to this account. Choose a school after sign-in.');
+      throw new UnauthorizedException('Multiple school memberships detected for this account. Contact Super Admin.');
     }
 
-    throw new UnauthorizedException('User does not have access to an active school workspace');
+    throw new UnauthorizedException('School access pending.');
   }
 
   private requiresCurrentTenantMembership(tenantSource: string | null | undefined): boolean {

@@ -19,6 +19,7 @@ import type {
 } from "@/lib/experiences/types";
 export type { PortalViewer } from "@/lib/experiences/types";
 import { toPortalPath } from "@/lib/routing/experience-routes";
+import { shouldUseKisumuBoysDemoTenant } from "@/lib/demo/kisumu-boys-high-demo";
 
 const portalNavBase = {
   parent: [
@@ -104,7 +105,7 @@ const portalMetrics: Record<PortalViewer, ExperienceMetric[]> = {
   ],
 };
 
-export const portalFeeHistory: Array<{
+const _portalFeeHistory: Array<{
   id: string;
   date: string;
   amount: string;
@@ -113,7 +114,7 @@ export const portalFeeHistory: Array<{
   status: string;
 }> = [];
 
-export const portalAcademicRows: Array<{
+const _portalAcademicRows: Array<{
   id: string;
   subject: string;
   score: string;
@@ -143,7 +144,7 @@ export const portalAcademicRows: Array<{
   },
 ];
 
-export const portalParentChildren: Array<{
+const _portalParentChildren: Array<{
   id: string;
   name: string;
   admissionNumber: string;
@@ -172,7 +173,7 @@ export const portalParentChildren: Array<{
   },
 ];
 
-export const portalPublishedReportCards: Array<{
+const _portalPublishedReportCards: Array<{
   id: string;
   childId: string;
   childName: string;
@@ -244,7 +245,7 @@ export const portalPublishedReportCards: Array<{
   },
 ];
 
-export const portalPublishedExamResults: Array<{
+const _portalPublishedExamResults: Array<{
   id: string;
   childName: string;
   exam: string;
@@ -298,7 +299,7 @@ export const portalPublishedExamResults: Array<{
   },
 ];
 
-export const portalAcademicTargets: Array<{
+const _portalAcademicTargets: Array<{
   id: string;
   childName: string;
   subject: string;
@@ -330,7 +331,7 @@ export const portalAcademicTargets: Array<{
   },
 ];
 
-export const portalTeacherComments: ExperienceActivityItem[] = [
+const _portalTeacherComments: ExperienceActivityItem[] = [
   {
     id: "comment-brian-teacher",
     title: "Mathematics teacher comment",
@@ -354,7 +355,7 @@ export const portalTeacherComments: ExperienceActivityItem[] = [
   },
 ];
 
-export const portalMessages: ExperienceActivityItem[] = [
+const _portalMessages: ExperienceActivityItem[] = [
   {
     id: "message-report-published",
     title: "Report published",
@@ -386,3 +387,19 @@ export function getPortalWorkspace(viewer: PortalViewer) {
     metrics: portalMetrics[viewer],
   };
 }
+
+export function getPortalFeeHistory(schoolId?: string | null) { return shouldUseKisumuBoysDemoTenant(schoolId) ? _portalFeeHistory : []; }
+
+export function getPortalAcademicRows(schoolId?: string | null) { return shouldUseKisumuBoysDemoTenant(schoolId) ? _portalAcademicRows : []; }
+
+export function getPortalParentChildren(schoolId?: string | null) { return shouldUseKisumuBoysDemoTenant(schoolId) ? _portalParentChildren : []; }
+
+export function getPortalPublishedReportCards(schoolId?: string | null) { return shouldUseKisumuBoysDemoTenant(schoolId) ? _portalPublishedReportCards : []; }
+
+export function getPortalPublishedExamResults(schoolId?: string | null) { return shouldUseKisumuBoysDemoTenant(schoolId) ? _portalPublishedExamResults : []; }
+
+export function getPortalAcademicTargets(schoolId?: string | null) { return shouldUseKisumuBoysDemoTenant(schoolId) ? _portalAcademicTargets : []; }
+
+export function getPortalTeacherComments(schoolId?: string | null) { return shouldUseKisumuBoysDemoTenant(schoolId) ? _portalTeacherComments : []; }
+
+export function getPortalMessages(schoolId?: string | null) { return shouldUseKisumuBoysDemoTenant(schoolId) ? _portalMessages : []; }

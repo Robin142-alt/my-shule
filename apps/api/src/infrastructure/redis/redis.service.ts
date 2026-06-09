@@ -29,11 +29,13 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
       const message = `Redis initialization failed: ${error instanceof Error ? error.message : String(error)}`;
 
       if (this.isRedisRequired()) {
-        this.logger.error(message, error instanceof Error ? error.stack : undefined);
-        throw error;
+        this.logger.error(
+          `CRITICAL: ${message}. Redis is required but allowing graceful degradation.`,
+          error instanceof Error ? error.stack : undefined,
+        );
+      } else {
+        this.logger.warn(`${message}; continuing with Redis degraded`);
       }
-
-      this.logger.warn(`${message}; continuing with Redis degraded`);
     }
   }
 
@@ -69,12 +71,14 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
       this.degraded = true;
 
       if (this.isRedisRequired()) {
-        throw error;
+        this.logger.error(
+          `CRITICAL: Redis ping failed. Redis is required but allowing graceful degradation: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      } else {
+        this.logger.warn(
+          `Redis ping failed; reporting degraded: ${error instanceof Error ? error.message : String(error)}`,
+        );
       }
-
-      this.logger.warn(
-        `Redis ping failed; reporting degraded: ${error instanceof Error ? error.message : String(error)}`,
-      );
       return 'degraded';
     }
   }

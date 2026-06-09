@@ -45,6 +45,7 @@ import {
 import { toSchoolPath, type SchoolSection } from "@/lib/routing/experience-routes";
 import { getCurrentSchoolId, publishSchoolOperationalEvent } from "@/lib/school/school-operational-store";
 import { useSchoolQuery, useSchoolMutation } from "@/lib/data/school-hooks";
+import { openPrintDocument, downloadCsvFile } from "@/lib/dashboard/export";
 
 type AccountantRouteMode = "hosted" | "public";
 type AccountantTheme = "dark" | "light";
@@ -68,34 +69,6 @@ const accountantSearchRecords = [
 ] satisfies Array<{ id: string; label: string; detail: string; section: AccountantSection }>;
 
 type AccountantSearchRecord = (typeof accountantSearchRecords)[number];
-
-function downloadCsvFile(filename: string, rows: Array<Record<string, string>>) {
-  const headers = Object.keys(rows[0] ?? {});
-  const csv = [
-    headers.join(","),
-    ...rows.map((row) =>
-      headers
-        .map((header) => `"${String(row[header] ?? "").replaceAll('"', '""')}"`)
-        .join(","),
-    ),
-  ].join("\n");
-
-  if (typeof document === "undefined" || typeof Blob === "undefined" || !window.URL?.createObjectURL) {
-    return csv;
-  }
-
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-  const url = window.URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  window.URL.revokeObjectURL(url);
-
-  return csv;
-}
 
 function getSectionLabel(section: AccountantSection) {
   return sidebarGroups.flatMap((group) => group.items).find((item) => item.href === section)?.label ?? "Finance section";
@@ -960,7 +933,7 @@ function Transactions({
         }
       />
       <div className="mt-6 overflow-hidden rounded-3xl border border-white/10">
-        <div className={cn("hidden grid-cols-[0.9fr_1fr_1fr_0.8fr_0.8fr_0.7fr_1fr_1fr] gap-3 border-b px-4 py-3 text-xs font-black uppercase tracking-[0.14em] md:grid", surface.divider, surface.muted)}>
+        <div className={cn("hidden grid-cols-[0.9fr_1fr_1fr_0.8fr_0.8fr_0.7fr_1fr_1fr_auto] gap-3 border-b px-4 py-3 text-xs font-black uppercase tracking-[0.14em] md:grid", surface.divider, surface.muted)}>
           <span>Receipt number</span>
           <span>Parent name</span>
           <span>Student</span>
@@ -969,10 +942,11 @@ function Transactions({
           <span>Time</span>
           <span>Recorded by</span>
           <span>Verification status</span>
+          <span>Action</span>
         </div>
         <div className="divide-y divide-white/10">
           {transactions.map((row) => (
-            <article key={row.receipt} className="grid gap-3 px-4 py-4 md:grid-cols-[0.9fr_1fr_1fr_0.8fr_0.8fr_0.7fr_1fr_1fr] md:items-center">
+            <article key={row.receipt} className="grid gap-3 px-4 py-4 md:grid-cols-[0.9fr_1fr_1fr_0.8fr_0.8fr_0.7fr_1fr_1fr_auto] md:items-center">
               <p className="font-black">{row.receipt}</p>
               <p className={surface.muted}>{row.parent}</p>
               <p className="font-bold">{row.student}</p>
@@ -980,7 +954,33 @@ function Transactions({
               <p className="font-black">{row.amount}</p>
               <p className={surface.muted}>{row.time}</p>
               <p className={surface.muted}>{row.recordedBy}</p>
-              <StatusChip icon={row.tone === "success" ? CheckCircle2 : AlertTriangle} label={row.status} tone={row.tone} />
+              <div>
+                <StatusChip icon={row.tone === "success" ? CheckCircle2 : AlertTriangle} label={row.status} tone={row.tone} />
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  openPrintDocument({
+                    eyebrow: "Fee Receipt",
+                    title: row.receipt,
+                    subtitle: "School Receipt",
+                    rows: [
+                      { label: "Student", value: row.student },
+                      { label: "Parent", value: row.parent },
+                      { label: "Amount", value: row.amount },
+                      { label: "Method", value: row.method },
+                      { label: "Status", value: row.status },
+                      { label: "Date", value: row.time },
+                      { label: "Recorded by", value: row.recordedBy },
+                      { label: "School", value: getCurrentSchoolId() || "Unknown" },
+                    ],
+                    footer: "Printed from Finance Office",
+                  });
+                }}
+                className={cn("rounded-lg border px-3 py-1.5 text-xs font-black transition hover:bg-white/10", surface.soft)}
+              >
+                Print Receipt
+              </button>
             </article>
           ))}
         </div>
@@ -1179,7 +1179,7 @@ export function AccountantCommandCenter({ routeMode }: { routeMode: AccountantRo
 
   function openFinanceExport(label: string) {
     setExportPreview(label);
-    setNotice(`${label} export ready with ${transactions.length} school-scoped transaction rows for ${getCurrentSchoolId()}.`);
+    setNotice(`Opening export preview for ${label}.`);
   }
 
   function openFinanceInsightAction(insight: FinanceInsight) {
@@ -1248,19 +1248,23 @@ export function AccountantCommandCenter({ routeMode }: { routeMode: AccountantRo
       return;
     }
 
-    const rows = transactions.map((transaction) => ({
-      receipt: transaction.receipt,
-      parent: transaction.parent,
-      student: transaction.student,
-      method: transaction.method,
-      amount: transaction.amount,
-      time: transaction.time,
-      recordedBy: transaction.recordedBy,
-      status: transaction.status,
-    }));
+    const rows = transactions.map((transaction) => ([
+      transaction.receipt,
+      transaction.parent,
+      transaction.student,
+      transaction.method,
+      transaction.amount,
+      transaction.time,
+      transaction.recordedBy,
+      transaction.status,
+    ]));
     const schoolId = getCurrentSchoolId();
     const filename = `${exportPreview.toLowerCase().replaceAll(" ", "-")}-${schoolId}.csv`;
-    downloadCsvFile(filename, rows);
+    downloadCsvFile({
+      filename,
+      headers: ["Receipt", "Parent", "Student", "Method", "Amount", "Time", "Recorded By", "Status"],
+      rows,
+    });
 
     publishSchoolOperationalEvent({
       schoolId,
@@ -1289,7 +1293,7 @@ export function AccountantCommandCenter({ routeMode }: { routeMode: AccountantRo
     });
 
     setNotice(
-      `${exportPreview} export downloaded for ${schoolId}: ${filename}, ${rows.length} transaction rows, Principal/Deputy notified.`,
+      `CSV export downloaded. ${exportPreview} export for ${schoolId}: ${filename}, ${rows.length} transaction rows, Principal/Deputy notified.`,
     );
     setExportPreview(null);
   }

@@ -31,6 +31,7 @@ import {
   type DisciplineAnalytics,
 } from "@/lib/discipline/discipline-live";
 import { getCurrentSchoolId, publishSchoolOperationalEvent } from "@/lib/school/school-operational-store";
+import { openPrintDocument } from "@/lib/dashboard/export";
 
 type DisciplineRouteMode = "hosted" | "public";
 type Tone = "safe" | "authority" | "slate" | "amber" | "danger" | "emerald" | "neutral";
@@ -1165,6 +1166,22 @@ export function DisciplineMasterCommandCenter({
 
   function saveQuickAction() {
     if (!activeQuickAction) return;
+
+    if (activeQuickAction === "Print Discipline Slip") {
+      openPrintDocument({
+        eyebrow: "Discipline office",
+        title: "Student Discipline Slip",
+        subtitle: "MyShule Campus Order",
+        rows: [
+          { label: "Action", value: "Standard Discipline Slip" },
+          { label: "Status", value: "Generated for Review" },
+        ],
+        footer: "Printed from Discipline Office"
+      });
+      setNotice("Discipline slip print preview ready.");
+      setActiveQuickAction(null);
+      return;
+    }
 
     const schoolId = getCurrentSchoolId();
     const actionId = activeQuickAction.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");

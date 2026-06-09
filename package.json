@@ -112,7 +112,9 @@
     "implementation300:certify": "node -r ts-node/register/transpile-only -r tsconfig-paths/register apps/api/src/scripts/implementation300-certification.ts",
     "implementation90:full-release-gate": "npm run build && npm run web:lint && npm run web:build && npm run test && npm run test:tenant-isolation && npm run test:auth-security && npm run test:api-consistency && npm run test:observability && npm run test:chaos && npm run test:gameday && npm run test:disaster-recovery && npm run security:scan && npm run security:pii-scan && npm run security:deps && npm run tenant:isolation:audit && npm run perf:query-plan-review && npm run implementation30:load-profile && npm run implementation90:load-profile && npm run scorecard:production && npm run release:readiness",
     "implementation30:rollout-gate": "node -r ts-node/register/transpile-only -r tsconfig-paths/register apps/api/src/scripts/implementation30-rollout-gate.ts",
-    "module-access:certify": "node -r ts-node/register/transpile-only -r tsconfig-paths/register apps/api/src/scripts/module-access-certification.ts"
+    "module-access:certify": "node -r ts-node/register/transpile-only -r tsconfig-paths/register apps/api/src/scripts/module-access-certification.ts",
+    "seed:base": "node -r ts-node/register/transpile-only -r tsconfig-paths/register apps/api/src/scripts/base-onboarding-seed.ts --apply --confirm-onboarding",
+    "seed:demo:kisumu-boys": "node -r ts-node/register/transpile-only -r tsconfig-paths/register apps/api/src/scripts/kisumu-boys-demo-seed.ts --apply --confirm-kisumu-boys-only"
   },
   "dependencies": {
     "@nestjs/bullmq": "^11.0.0",

@@ -21,6 +21,7 @@ import type { WidgetState } from "@/lib/capability-engine/school-capability-engi
 import { getCurrentSchoolId, publishSchoolOperationalEvent } from "@/lib/school/school-operational-store";
 import { useQueryClient } from "@tanstack/react-query";
 import { useSchoolMutation } from "@/lib/data/school-hooks";
+import { downloadCsvFile, openPrintDocument } from "@/lib/dashboard/export";
 
 type ExamsManagerRouteMode = "hosted" | "public";
 type Tone = "success" | "info" | "warning" | "danger" | "neutral";
@@ -1042,7 +1043,14 @@ function ActiveWidgetContent({
           <div className="mt-4 flex flex-wrap gap-2">
             <ActionButton tone="info" onClick={onOpenMarksEntry}>Enter marks</ActionButton>
             <ActionButton tone="success" onClick={() => alert("Simulating import marks...")}>Import Marks (CSV)</ActionButton>
-            <ActionButton tone="neutral" onClick={() => alert("Simulating export template...")}>Export Marks Template</ActionButton>
+            <ActionButton tone="neutral" onClick={() => {
+              downloadCsvFile({
+                filename: "marks-template.csv",
+                headers: ["Admission Number", "Student Name", "Score"],
+                rows: []
+              });
+              alert("CSV export downloaded");
+            }}>Export Marks Template</ActionButton>
             <ActionButton tone="warning" onClick={() => alert("Zeraki integration not configured for this tenant")}>Zeraki Sync</ActionButton>
           </div>
           <div className="mt-4 space-y-2">
@@ -1703,6 +1711,30 @@ export function ExamsManagerCommandCenter({
     const resultMessage = `${action.label} ${visibleVerb} for ${affectedCount} selected ${itemLabel}${affectedCount === 1 ? "" : "s"}. Selected ${affectedCount}. ${succeededCount} succeeded, ${failedCount} failed.${
       failedCount > 0 ? ` Failed records: ${failedRecords.map((record) => record.title).join(", ")}.` : ""
     }`;
+
+    if (action.label.includes("Print") || action.label.includes("Preview Selected")) {
+      openPrintDocument({
+        eyebrow: "Exams Manager",
+        title: action.label,
+        subtitle: `Previewing ${records.length} selected items`,
+        rows: records.map((r) => ({ label: r.title, value: r.status })),
+        footer: "Printed from Exams Manager Desk"
+      });
+      setNotice(`Opening browser print preview.`);
+      clearLifecycleSelection(view);
+      return;
+    }
+
+    if (action.label.includes("Export")) {
+      downloadCsvFile({
+        filename: `exams-export-${Date.now()}.csv`,
+        headers: ["Title", "Detail", "Status"],
+        rows: records.map((r) => [r.title, r.detail, r.status]),
+      });
+      setNotice(`CSV export downloaded.`);
+      clearLifecycleSelection(view);
+      return;
+    }
     const result: ExamOperationalRecord = {
       id: `exam-manager-action-${Date.now()}`,
       title: "EXAMS_MANAGER_LIFECYCLE_ACTION_EXECUTED",

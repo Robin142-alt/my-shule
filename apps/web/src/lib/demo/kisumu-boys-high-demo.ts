@@ -994,7 +994,11 @@ export function createKisumuBoysHighCommunicationHarness() {
   };
 }
 
-export function getKisumuBoysRoleFeed(role: string) {
+export function getKisumuBoysRoleFeed(role: string, schoolId?: string | null) {
+  if (!shouldUseKisumuBoysDemoTenant(schoolId)) {
+    return [];
+  }
+
   const scenario = getKisumuBoysHighDemoScenario();
   const dashboardRole = role as KisumuBoysDashboardRole;
 

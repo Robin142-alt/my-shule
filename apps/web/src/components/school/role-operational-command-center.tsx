@@ -5466,8 +5466,8 @@ function GenericRoleOperationalCommandCenter({
   const demoRole = blueprintId ?? role;
   const useKisumuBoysDemo = shouldUseKisumuBoysDemoTenant(tenantSlug);
   const kisumuBoysRoleFeed = useMemo(
-    () => (useKisumuBoysDemo ? getKisumuBoysRoleFeed(demoRole) : []),
-    [demoRole, useKisumuBoysDemo],
+    () => getKisumuBoysRoleFeed(demoRole, schoolId),
+    [demoRole, schoolId],
   );
   const kisumuBoysScore = useMemo(
     () => (useKisumuBoysDemo ? scoreKisumuBoysHighDemoReadiness() : null),

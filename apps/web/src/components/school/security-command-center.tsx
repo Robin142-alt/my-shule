@@ -1352,7 +1352,19 @@ export function SecurityCommandCenter({ routeMode }: { routeMode: SecurityRouteM
             },
           ],
         });
-        setNotice(`${visitor.name} checked in. Visitor slip is ready for printing.`);
+        setNotice(`${visitor.name} checked in.`);
+        openPrintDocument({
+          eyebrow: "Visitor slip",
+          title: "Visitor Gate Slip",
+          subtitle: "MyShule Campus Security",
+          rows: [
+            { label: "Visitor Name", value: visitor.name },
+            { label: "Purpose", value: visitor.purpose },
+            { label: "Person to Visit", value: visitor.personVisiting },
+            { label: "Check-in Time", value: newVisitor.entryTime },
+          ],
+          footer: "Visitor must return this slip at checkout."
+        });
       },
       onError: (err) => {
         setNotice(`Action failed: Backend API missing or denied (${err.message})`);

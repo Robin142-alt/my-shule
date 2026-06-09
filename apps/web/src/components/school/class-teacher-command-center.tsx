@@ -1096,7 +1096,7 @@ export function ClassTeacherCommandCenter({ routeMode }: { routeMode: ClassTeach
                     ],
                     footer: "Printed from the Class Teacher workspace.",
                   });
-                  setNotice(`${reportPreview} print preview ready.`);
+                  setNotice("Opening browser print preview.");
                   setReportPreview(null);
                 }}
                 className="rounded-xl bg-[#FF7A1A] px-4 py-2 text-sm font-black text-white"

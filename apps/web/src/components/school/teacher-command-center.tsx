@@ -935,7 +935,7 @@ export function TeacherCommandCenter({ routeMode, isEmbedded }: { routeMode: Tea
   
   // Real API fetching with fallback to demo data to preserve visuals if backend endpoints are missing.
   // TODO: Implement backend routes: /api/academics/teacher/*
-  const { data: fetchedClasses, isLoading: isLoadingClasses, error: classesError } = useSchoolQuery<ClassRecord[]>("/api/academics/teacher/classes");
+  const { data: fetchedClasses, isLoading: isLoadingClasses, error: classesError } = useSchoolQuery<ClassRecord[]>("/api/academics/teacher-assignments");
   const { data: fetchedMarkBatches, isLoading: isLoadingMarks, error: marksError } = useSchoolQuery<MarkBatch[]>("/api/academics/teacher/marks");
   const { data: fetchedAssignments, isLoading: isLoadingAssignments, error: assignmentsError } = useSchoolQuery<AssignmentRecord[]>("/api/academics/teacher/assignments");
   const { data: fetchedResources, isLoading: isLoadingResources, error: resourcesError } = useSchoolQuery<ResourceRecord[]>("/api/academics/teacher/resources");

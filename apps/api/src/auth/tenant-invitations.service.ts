@@ -81,6 +81,8 @@ export class TenantInvitationsService {
     }
 
     return this.databaseService.withRequestTransaction(async () => {
+      await this.assertEmailAvailableForTenant(email, tenantId);
+      
       await this.authorizationRepository.ensureTenantAuthorizationBaseline(tenantId);
       const role = await this.authorizationRepository.getRoleByCode(tenantId, roleCode);
 
@@ -293,6 +295,9 @@ export class TenantInvitationsService {
 
     return this.databaseService.withRequestTransaction(async () => {
       const invitation = await this.loadPendingTenantInvitationForUpdate(invitationId, tenantId);
+      
+      await this.assertEmailAvailableForTenant(invitation.email, tenantId);
+
       const roleCode = this.normalizeRoleCode(invitation.role_code);
       const role = await this.authorizationRepository.getRoleByCode(tenantId, roleCode);
       const schoolName = await this.getSchoolName(tenantId);
@@ -633,6 +638,41 @@ export class TenantInvitationsService {
     );
 
     return result.rows[0]?.name ?? tenantId;
+  }
+
+  private async assertEmailAvailableForTenant(email: string, targetTenantId: string): Promise<void> {
+    const membershipConflict = await this.databaseService.query<{ tenant_id: string }>(
+      `
+        SELECT tm.tenant_id 
+        FROM tenant_memberships tm
+        INNER JOIN users u ON u.id = tm.user_id
+        WHERE lower(u.email) = $1
+          AND tm.tenant_id <> $2
+        LIMIT 1
+      `,
+      [email.toLowerCase(), targetTenantId]
+    );
+
+    if (membershipConflict.rows.length > 0) {
+      throw new BadRequestException('This email is already registered under another school. Use a different email address for this school.');
+    }
+
+    const invitationConflict = await this.databaseService.query<{ tenant_id: string }>(
+      `
+        SELECT tenant_id 
+        FROM auth_action_tokens
+        WHERE lower(email) = $1
+          AND purpose = 'invite_acceptance'
+          AND consumed_at IS NULL
+          AND tenant_id <> $2
+        LIMIT 1
+      `,
+      [email.toLowerCase(), targetTenantId]
+    );
+
+    if (invitationConflict.rows.length > 0) {
+      throw new BadRequestException('This email is already registered under another school. Use a different email address for this school.');
+    }
   }
 
   private async createInvitationAction(input: {

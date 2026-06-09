@@ -27,6 +27,7 @@ import { GradeMasterCommandCenter } from "@/components/school/grade-master-comma
 import { HodCommandCenter } from "@/components/school/hod-command-center";
 import { OperationalBlueprintWorkspace } from "@/components/school/operational-blueprint-workspace";
 import { RoleOperationalCommandCenter } from "@/components/school/role-operational-command-center";
+import { TeacherCommandCenter } from "@/components/school/teacher-command-center";
 import { UserManagementPanel } from "@/components/school/user-management-panel";
 import { SupportCenterWorkspace } from "@/components/support/support-center-workspace";
 import { LearnerPicker } from "@/components/common/learner-picker";
@@ -58,6 +59,8 @@ import {
 } from "@/lib/module-access/school-module-access-cache";
 import { toSchoolPath, toSchoolStudentPath } from "@/lib/routing/experience-routes";
 import { startSchoolOperationalEventSyncRetryWorker } from "@/lib/school/school-operational-store";
+import { useSchoolQuery } from "@/lib/data/school-hooks";
+import { GraduationCap } from "lucide-react";
 import type { LearnerLookupItem } from "@/lib/students/student-lookup";
 
 type SchoolRouteMode = "hosted" | "public";
@@ -5094,6 +5097,10 @@ function SchoolPagesShell({
   const shellNavItems = principalWorkspaceSyncing
     ? navItems
     : filterNavItemsByEnabledModules(navItems, visibleModuleCodes);
+
+  const { data: teachingAssignments } = useSchoolQuery<any[]>("/api/academics/teacher-assignments");
+  const hasTeachingAssignments = role === "teacher" || (Array.isArray(teachingAssignments) && teachingAssignments.length > 0);
+
   const scopedNavItems = shellNavItems
     .filter((item) => !(
       role === "principal"
@@ -5105,6 +5112,16 @@ function SchoolPagesShell({
       ...item,
       href: mapSchoolHref(role, item.href, routeMode),
     }));
+
+  if (hasTeachingAssignments && !scopedNavItems.some(item => item.id === "my-teaching")) {
+    scopedNavItems.push({
+      id: "my-teaching",
+      label: "My Teaching",
+      href: mapSchoolHref(role, toSchoolPath("my-teaching"), routeMode),
+      icon: GraduationCap,
+      group: "Academics",
+    });
+  }
   const principalDashboardEnabled =
     role !== "principal"
     || section !== "dashboard"
@@ -5197,6 +5214,10 @@ function SchoolPagesShell({
 
     if (section === "exams" && role === "deputy-principal") {
       return <DeputyPrincipalCommandCenter routeMode={routeMode} />;
+    }
+
+    if (section === "my-teaching" && hasTeachingAssignments) {
+      return <TeacherCommandCenter routeMode={routeMode as any} />;
     }
 
     if (section === "exams" && role === "exams-manager") {
