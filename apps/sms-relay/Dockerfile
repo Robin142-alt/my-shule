@@ -1,8 +1,8 @@
 FROM node:22-bookworm-slim AS deps
 WORKDIR /app
-COPY apps/sms-relay/package*.json ./
-COPY apps/sms-relay/tsconfig.json ./tsconfig.json
-COPY apps/sms-relay/src ./src
+COPY package*.json ./
+COPY tsconfig.json ./tsconfig.json
+COPY src ./src
 RUN npm install --no-save --no-audit --no-fund typescript@5.7.2 @types/node@22.10.2
 
 FROM deps AS build
