@@ -1175,7 +1175,7 @@ export function DeputyPrincipalCommandCenter({ routeMode }: { routeMode: DeputyR
             <div role="dialog" aria-modal="true" aria-label="Deputy emergency response" className="rounded-[var(--radius-xl)] border border-rose-200 bg-white p-5 text-[#071D49] shadow-[0_18px_50px_rgba(225,29,72,0.14)]">
               <p className="text-xs font-black uppercase tracking-[0.16em] text-rose-700">Deputy emergency response</p>
               <h2 className="mt-2 text-2xl font-black">Emergency response review</h2>
-              <p className="mt-2 text-sm font-semibold leading-6 text-[#5F6F89]">Record that the deputy has reviewed active critical alerts and sent the response to Principal, Security, and Discipline teams inside Kisumu Boys.</p>
+              <p className="mt-2 text-sm font-semibold leading-6 text-[#5F6F89]">Record that the deputy has reviewed active critical alerts and sent the response to Principal, Security, and Discipline teams inside the school.</p>
               <div className="mt-4 flex flex-wrap gap-2">
                 <button type="button" onClick={recordEmergencyResponse} className="min-h-10 rounded-[var(--radius)] bg-[#071D49] px-4 text-sm font-black text-white">
                   Record emergency response

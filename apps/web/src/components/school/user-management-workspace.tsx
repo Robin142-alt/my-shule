@@ -501,7 +501,7 @@ function rolePermissionSummary(role: string) {
 
 export function UserManagementWorkspace({
   schoolId,
-  schoolName = "Kisumu Boys",
+  schoolName = "School",
   actorRole,
   actorName,
   canInviteUsers = true,

@@ -1431,7 +1431,7 @@ export function SecurityCommandCenter({ routeMode }: { routeMode: SecurityRouteM
     openPrintDocument({
       eyebrow: "Visitor slip",
       title: "Visitor Gate Slip",
-      subtitle: "Kisumu Boys security desk",
+      subtitle: "School security desk",
       rows: [
         { label: "Visitor", value: visitor.name },
         { label: "ID / Phone", value: `${visitor.idNumber} | ${visitor.phone}` },
@@ -1503,7 +1503,7 @@ export function SecurityCommandCenter({ routeMode }: { routeMode: SecurityRouteM
                   </p>
                   <div className="mt-4 grid gap-3 sm:grid-cols-3">
                     {[
-                      ["Scope", "Kisumu Boys"],
+                      ["Scope", "School"],
                       ["Recipients", "Principal, Deputy, Security team, and System Monitor"],
                       ["Status", "Pending emergency response"],
                     ].map(([label, value]) => (

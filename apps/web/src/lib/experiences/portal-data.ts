@@ -105,6 +105,24 @@ const portalMetrics: Record<PortalViewer, ExperienceMetric[]> = {
   ],
 };
 
+const emptyPortalProfiles: Record<PortalViewer, ExperienceProfile> = {
+  parent: {
+    name: "Parent",
+    roleLabel: "Parent account",
+    contextLabel: "No linked learners yet",
+  },
+  student: {
+    name: "Student",
+    roleLabel: "Student account",
+    contextLabel: "No learner profile linked yet",
+  },
+};
+
+const emptyPortalMetrics: Record<PortalViewer, ExperienceMetric[]> = {
+  parent: portalMetrics.parent, // Use same structure but it's already zeroed
+  student: portalMetrics.student,
+};
+
 const _portalFeeHistory: Array<{
   id: string;
   date: string;
@@ -379,12 +397,13 @@ const _portalMessages: ExperienceActivityItem[] = [
   },
 ];
 
-export function getPortalWorkspace(viewer: PortalViewer) {
+export function getPortalWorkspace(viewer: PortalViewer, schoolId?: string | null) {
+  const isDemo = shouldUseKisumuBoysDemoTenant(schoolId);
   return {
     viewer,
     navItems: portalNavBase[viewer],
-    profile: portalProfiles[viewer],
-    metrics: portalMetrics[viewer],
+    profile: isDemo ? portalProfiles[viewer] : emptyPortalProfiles[viewer],
+    metrics: isDemo ? portalMetrics[viewer] : emptyPortalMetrics[viewer],
   };
 }
 

@@ -103,7 +103,6 @@ const tenant = {
 } as const;
 
 const kisumuBoysSlugAliases = new Set([
-  "",
   "kisumu-boys",
   "kisumu-boys-high",
   "kisumu-boys-high-school",
@@ -112,7 +111,8 @@ const kisumuBoysSlugAliases = new Set([
 ]);
 
 export function shouldUseKisumuBoysDemoTenant(tenantSlug?: string | null) {
-  return kisumuBoysSlugAliases.has((tenantSlug ?? "").trim().toLowerCase());
+  if (!tenantSlug) return false;
+  return kisumuBoysSlugAliases.has(tenantSlug.trim().toLowerCase());
 }
 
 export const kisumuBoysDashboardRoles: KisumuBoysDashboardRole[] = [

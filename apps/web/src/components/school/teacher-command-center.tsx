@@ -960,7 +960,7 @@ export function TeacherCommandCenter({ routeMode, isEmbedded }: { routeMode: Tea
   const isLoading = isLoadingClasses || isLoadingMarks || isLoadingAssignments || isLoadingResources || isLoadingMessages;
   const combinedError = classesError || marksError || assignmentsError || resourcesError || messagesError;
 
-  const [, setActivityLog] = useState<string[]>(["Teacher dashboard opened for Kisumu Boys."]);
+  const [, setActivityLog] = useState<string[]>(["Teacher dashboard opened for the school."]);
   const [detailPanel, setDetailPanel] = useState<DetailPanel | null>(null);
   const searchResults = searchTerm.trim()
     ? teacherSearchRecords.filter((record) => `${record.label} ${record.detail}`.toLowerCase().includes(searchTerm.trim().toLowerCase()))

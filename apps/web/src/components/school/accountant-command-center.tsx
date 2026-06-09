@@ -1383,7 +1383,7 @@ export function AccountantCommandCenter({ routeMode }: { routeMode: AccountantRo
                   <p className="text-xs font-black uppercase tracking-[0.24em] text-[#FFB36F]">Finance export preview</p>
                   <h2 className="mt-2 text-2xl font-black">{exportPreview}</h2>
                   <p className={cn("mt-2 text-sm leading-6", surface.muted)}>
-                    Kisumu Boys finance export with receipt number, parent, learner, method, amount, time, recorder, and verification status.
+                    School finance export with receipt number, parent, learner, method, amount, time, recorder, and verification status.
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-2">

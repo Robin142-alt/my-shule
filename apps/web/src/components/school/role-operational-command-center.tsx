@@ -4942,7 +4942,7 @@ function KisumuBoysDemoFeedPanel({
     <Card className="border-[#B8D4FF] bg-[linear-gradient(135deg,#FFFFFF_0%,#EDF5FF_100%)] p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="eyebrow">Kisumu Boys live updates</p>
+          <p className="eyebrow">School live updates</p>
           <h3 className="mt-1 text-lg font-black text-[#071D49]">{profile.sidebarTitle} activity is active</h3>
           <p className="mt-1 max-w-2xl text-sm font-semibold leading-6 text-[#40608F]">
             {profile.todayContext} These records come from the {profile.sectionNoun} and update when staff complete

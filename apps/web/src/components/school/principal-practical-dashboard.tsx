@@ -258,7 +258,7 @@ type PrincipalAttendanceRegisterRecord = {
   lateStudents?: Array<string | PrincipalAttendanceContact>;
 };
 
-const schoolName = "Kisumu Boys";
+const schoolName = "School Overview";
 
 export const principalAttendanceActionContracts: DashboardActionContract[] = [
   {
@@ -2162,7 +2162,7 @@ export function PrincipalPracticalCommandCenter({
                 <div>
                   <DashboardGreeting
                     name={greetingName}
-                    context="Here is what needs your attention at Kisumu Boys today."
+                    context="Here is what needs your attention at the school today."
                     tone="dark"
                   />
                   <h2 className="mt-1 text-lg font-black tracking-tight text-[#071D49]">Principal Command Center</h2>

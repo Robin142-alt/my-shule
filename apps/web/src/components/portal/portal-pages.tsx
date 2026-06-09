@@ -274,7 +274,7 @@ function PortalDashboard({ viewer, routeMode }: { viewer: PortalViewer; routeMod
     return <ParentCommandCenter routeMode={routeMode} />;
   }
 
-  const { metrics } = getPortalWorkspace(viewer);
+  const { metrics } = getPortalWorkspace(viewer, getCurrentSchoolId());
 
   return (
     <div className="space-y-6">
@@ -1044,7 +1044,7 @@ export function PortalPages({
   section?: string;
   routeMode?: PortalRouteMode;
 }) {
-  const { navItems, profile } = getPortalWorkspace(viewer);
+  const { navItems, profile } = getPortalWorkspace(viewer, getCurrentSchoolId());
   const activeHref =
     section === "dashboard"
       ? buildPortalSectionHref(viewer, "dashboard", routeMode)
