@@ -374,6 +374,14 @@ const lifecycleWorkQueues: Partial<Record<ExamsManagerView, LifecycleQueueConfig
     itemLabel: "export package",
     records: [
       {
+        id: "export-knec-indices",
+        title: "KNEC Candidate Registers",
+        detail: "Candidate index numbers mapped for national exams registration.",
+        status: "Pending",
+        owner: "Exams Manager",
+        tone: "warning",
+      },
+      {
         id: "export-excel-marksheets",
         title: "Excel marksheets",
         detail: "Internal quality-control export for the exams office.",
@@ -404,6 +412,12 @@ const lifecycleWorkQueues: Partial<Record<ExamsManagerView, LifecycleQueueConfig
         mode: "queued",
         targetRoles: ["Exams Manager", "Dean of Academics"],
         notificationTitle: "Exam export package queued",
+      },
+      {
+        label: "Upload KNEC Index Map",
+        mode: "completed",
+        targetRoles: ["Exams Manager"],
+        notificationTitle: "KNEC Candidate Index mapping updated",
       },
     ],
   },
@@ -1046,7 +1060,7 @@ function ActiveWidgetContent({
             <ActionButton tone="neutral" onClick={() => {
               downloadCsvFile({
                 filename: "marks-template.csv",
-                headers: ["Admission Number", "Student Name", "Score"],
+                headers: ["Admission Number", "KNEC Index Number", "Student Name", "Score"],
                 rows: []
               });
               alert("CSV export downloaded");

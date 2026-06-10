@@ -173,6 +173,7 @@ export interface AdmissionsStudentProfile {
   previousSchool: string;
   kcpeResults: string;
   cbcLevel: string;
+  nemisUpi: string;
   registrationDate: string;
   applicationStatus: ApplicationStatus;
   feesBalance: number;

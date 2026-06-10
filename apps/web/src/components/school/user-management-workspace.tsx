@@ -30,6 +30,8 @@ export type SchoolUserRecord = {
   assignment: string;
   phone: string;
   email: string;
+  tscNumber?: string;
+  employmentType?: "BOM" | "TSC" | "Intern" | "Non-Teaching" | string;
   status: SchoolUserStatus;
   lastActive: string;
   joinedAt: string;
@@ -83,6 +85,8 @@ type InviteFormState = {
   role: string;
   department: string;
   assignment: string;
+  tscNumber?: string;
+  employmentType?: string;
   identifier: string;
   deliveryMethod: InviteDeliveryMethod;
   note: string;
@@ -98,6 +102,8 @@ type ManagedUserApi = {
   role_name?: string;
   department?: string;
   assignment?: string;
+  tsc_number?: string;
+  employment_type?: string;
   status?: "active" | "suspended" | "deactivated" | "invited" | "expired" | "revoked" | "accepted" | "email_failed" | "failed";
   created_at?: string;
   joined_at?: string;
@@ -224,6 +230,8 @@ function initialInviteForm(): InviteFormState {
     role: "Teacher",
     department: "",
     assignment: "",
+    tscNumber: "",
+    employmentType: "",
     identifier: "",
     deliveryMethod: "Email",
     note: "",
@@ -401,6 +409,8 @@ function apiUserToSchoolUser(user: ManagedUserApi, schoolId: string): SchoolUser
     assignment: user.assignment ?? role,
     phone: user.phone ?? "",
     email: user.email ?? "",
+    tscNumber: user.tsc_number,
+    employmentType: user.employment_type,
     status: apiStatusToUserStatus(user.status),
     lastActive: user.last_active_at ? displayDate(user.last_active_at) : "Not yet active today",
     joinedAt: user.joined_at ?? createdAt,
@@ -1223,6 +1233,28 @@ export function UserManagementWorkspace({
             <FormField label="Department" value={inviteForm.department} onChange={(value) => setInviteForm((form) => ({ ...form, department: value }))} />
             <FormField label="Class, grade, stream, or subject assignment" value={inviteForm.assignment} onChange={(value) => setInviteForm((form) => ({ ...form, assignment: value }))} />
             <FormField label="Staff/student/parent identifier" value={inviteForm.identifier} onChange={(value) => setInviteForm((form) => ({ ...form, identifier: value }))} />
+            {inviteForm.role === "Teacher" && (
+              <>
+                <FormField label="TSC Number" value={inviteForm.tscNumber ?? ""} onChange={(value) => setInviteForm((form) => ({ ...form, tscNumber: value }))} />
+                <label className="grid gap-1 text-sm font-bold text-[#40608F]">
+                  Employment Type
+                  <select
+                    value={inviteForm.employmentType ?? ""}
+                    onChange={(event) => {
+                      const value = event.currentTarget.value;
+                      setInviteForm((form) => ({ ...form, employmentType: value }));
+                    }}
+                    className="rounded-xl border border-[#D7E0EF] bg-white px-3 py-2 text-sm font-semibold text-[#071D49] outline-none focus:border-[#9BC5FF]"
+                  >
+                    <option value="">Select type</option>
+                    <option value="TSC">TSC (Government)</option>
+                    <option value="BOM">BOM (Board of Management)</option>
+                    <option value="Intern">Intern / PTA</option>
+                    <option value="Non-Teaching">Non-Teaching Staff</option>
+                  </select>
+                </label>
+              </>
+            )}
             <label className="grid gap-1 text-sm font-bold text-[#40608F]">
               Send invite by
               <input
@@ -1417,7 +1449,11 @@ function UsersTable({
           {users.map((user) => (
             <tr key={user.id} className="align-top">
               <td className="px-3 py-3 font-black text-[#071D49]">{user.name}</td>
-              <td className="px-3 py-3 font-semibold text-[#40608F]">{user.role}</td>
+                <td className="px-3 py-3 text-[#52657F]">
+                  <span className="block font-semibold text-[#40608F]">{user.role}</span>
+                  {user.employmentType && <span className="block text-xs mt-0.5">Emp: {user.employmentType}</span>}
+                  {user.tscNumber && <span className="block text-xs">TSC: {user.tscNumber}</span>}
+                </td>
               <td className="px-3 py-3 text-[#52657F]">
                 <span className="block font-bold">{user.department || "Not assigned"}</span>
                 <span>{user.assignment || "No class/department assignment"}</span>
@@ -1688,6 +1724,20 @@ function EditUserForm({
       <label className="grid gap-1 text-sm font-bold text-[#40608F]">
         Assignment
         <input name="assignment" defaultValue={user.assignment} className="rounded-xl border border-[#D7E0EF] bg-white px-3 py-2 text-sm font-semibold text-[#071D49]" />
+      </label>
+      <label className="grid gap-1 text-sm font-bold text-[#40608F]">
+        TSC Number
+        <input name="tscNumber" defaultValue={user.tscNumber} placeholder="Teaching staff only" className="rounded-xl border border-[#D7E0EF] bg-white px-3 py-2 text-sm font-semibold text-[#071D49]" />
+      </label>
+      <label className="grid gap-1 text-sm font-bold text-[#40608F]">
+        Employment Type
+        <select name="employmentType" defaultValue={user.employmentType ?? ""} className="rounded-xl border border-[#D7E0EF] bg-white px-3 py-2 text-sm font-semibold text-[#071D49]">
+          <option value="">Select type</option>
+          <option value="TSC">TSC (Government)</option>
+          <option value="BOM">BOM (Board of Management)</option>
+          <option value="Intern">Intern / PTA</option>
+          <option value="Non-Teaching">Non-Teaching Staff</option>
+        </select>
       </label>
       <div className="flex flex-wrap gap-2 md:col-span-2 xl:col-span-3">
         <button type="submit" className="rounded-xl border border-[#BFE8D7] bg-[#ECFDF5] px-4 py-2 text-sm font-black text-[#047857]">Save User</button>

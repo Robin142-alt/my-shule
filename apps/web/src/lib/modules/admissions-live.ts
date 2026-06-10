@@ -605,6 +605,10 @@ function buildStudentProfileFromLive(
       typeof admissionsMetadata.nationality === "string"
         ? admissionsMetadata.nationality
         : "Not recorded",
+    nemisUpi:
+      typeof admissionsMetadata.nemis_upi === "string"
+        ? admissionsMetadata.nemis_upi
+        : "Not provided",
     parentName:
       student.primary_guardian_name
       ?? (typeof guardianMetadata.parent_name === "string" ? guardianMetadata.parent_name : null)
@@ -1001,6 +1005,10 @@ export function mapAdmissionsStudentProfileFromLive(
       typeof admissionsMetadata.nationality === "string"
         ? admissionsMetadata.nationality
         : "Not recorded",
+    nemisUpi:
+      typeof admissionsMetadata.nemis_upi === "string"
+        ? admissionsMetadata.nemis_upi
+        : "Not provided",
     parentName:
       input.student.primary_guardian_name
       ?? (typeof guardianMetadata.parent_name === "string" ? guardianMetadata.parent_name : null)

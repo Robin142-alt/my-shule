@@ -56,7 +56,7 @@ export class BiometricAttendanceService {
 
     const rule = await this.repository.getAttendanceRule(tenantId) as AttendanceRule;
 
-    await Promise.all((dto.events ?? []).map(async (event) => {
+    for (const event of dto.events ?? []) {
       const registeredEvent = await this.repository.registerEvent({
         tenant_id: tenantId,
         device_id: this.requireText(dto.device_id, 'Device'),
@@ -70,7 +70,7 @@ export class BiometricAttendanceService {
 
       if (registeredEvent.duplicate) {
         duplicates += 1;
-        return;
+        continue;
       }
 
       const identity = await this.repository.findIdentityByHash({
@@ -85,7 +85,7 @@ export class BiometricAttendanceService {
           event_id: String(registeredEvent.id),
           status: 'unmatched',
         });
-        return;
+        continue;
       }
 
       const occurredAt = new Date(String(registeredEvent.occurred_at));
@@ -110,7 +110,7 @@ export class BiometricAttendanceService {
         status: 'processed',
       });
       accepted += 1;
-    }));
+    }
 
     await this.audit('teacher_attendance.event_synced', 'biometric_event', undefined, {
       accepted,

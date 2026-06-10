@@ -70,12 +70,20 @@ export class CreateApplicationDto {
   @IsOptional()
   @IsString()
   emergency_contact?: string;
+
+  @IsOptional()
+  @IsString()
+  nemis_upi?: string;
 }
 
 export class UpdateApplicationDto {
   @IsOptional()
   @IsString()
   status?: string;
+
+  @IsOptional()
+  @IsString()
+  nemis_upi?: string;
 
   @IsOptional()
   @IsString()

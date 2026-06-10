@@ -207,6 +207,7 @@ export class AdmissionsService {
       previous_school: dto.previous_school?.trim() || null,
       kcpe_results: dto.kcpe_results?.trim() || null,
       cbc_level: dto.cbc_level?.trim() || null,
+      nemis_upi: dto.nemis_upi?.trim() || null,
       class_applying: dto.class_applying.trim(),
       parent_name: dto.parent_name.trim(),
       parent_phone: dto.parent_phone.trim(),
@@ -228,6 +229,7 @@ export class AdmissionsService {
       applicationId,
       {
         status: dto.status?.trim(),
+        nemis_upi: dto.nemis_upi?.trim(),
         review_notes: dto.review_notes?.trim(),
         interview_date: dto.interview_date,
       },
@@ -359,6 +361,7 @@ export class AdmissionsService {
             previous_school: application.previous_school,
             kcpe_results: application.kcpe_results,
             cbc_level: application.cbc_level,
+            nemis_upi: application.nemis_upi,
             nationality: application.nationality,
             medical: {
               allergies: application.allergies,

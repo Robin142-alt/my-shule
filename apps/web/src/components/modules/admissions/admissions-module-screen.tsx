@@ -92,6 +92,7 @@ type RegistrationFormState = {
   dateOfBirth: string;
   gender: string;
   birthCertificateNumber: string;
+  nemisUpi: string;
   nationality: string;
   previousSchool: string;
   kcpeResults: string;
@@ -174,6 +175,7 @@ function createEmptyRegistrationForm(): RegistrationFormState {
     dateOfBirth: "",
     gender: "",
     birthCertificateNumber: "",
+    nemisUpi: "",
     nationality: "Kenyan",
     previousSchool: "",
     kcpeResults: "",
@@ -1113,6 +1115,7 @@ export function AdmissionsModuleScreen({
           date_of_birth: registrationForm.dateOfBirth,
           gender: registrationForm.gender.trim(),
           birth_certificate_number: registrationForm.birthCertificateNumber.trim(),
+          nemis_upi: registrationForm.nemisUpi.trim() || undefined,
           nationality: registrationForm.nationality.trim(),
           previous_school: registrationForm.previousSchool.trim() || undefined,
           kcpe_results: registrationForm.kcpeResults.trim() || undefined,
@@ -2013,6 +2016,16 @@ export function AdmissionsModuleScreen({
                     }
                   />
                 </FieldWrapper>
+                <FieldWrapper label="NEMIS UPI (Optional)">
+                  <input
+                    className={fieldClassName}
+                    value={registrationForm.nemisUpi}
+                    onChange={(event) =>
+                      setRegistrationForm((current) => ({ ...current, nemisUpi: event.target.value }))
+                    }
+                    placeholder="Optional for new admissions"
+                  />
+                </FieldWrapper>
               </div>
             </FormSection>
 
@@ -2323,6 +2336,7 @@ export function AdmissionsModuleScreen({
                                 ["Date of birth", selectedStudentProfile.dateOfBirth],
                                 ["Gender", selectedStudentProfile.gender],
                                 ["Nationality", selectedStudentProfile.nationality],
+                                ["NEMIS UPI", selectedStudentProfile.nemisUpi],
                                 ["Class", `${selectedStudentProfile.className} ${selectedStudentProfile.streamName}`],
                                 ["Dormitory", selectedStudentProfile.dormitoryName],
                                 ...(transportEnabled

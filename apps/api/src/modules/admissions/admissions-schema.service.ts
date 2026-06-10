@@ -41,6 +41,7 @@ export class AdmissionsSchemaService implements OnModuleInit {
         previous_school text,
         kcpe_results text,
         cbc_level text,
+        nemis_upi text,
         class_applying text NOT NULL,
         parent_name text NOT NULL,
         parent_phone text NOT NULL,
@@ -60,6 +61,8 @@ export class AdmissionsSchemaService implements OnModuleInit {
         CONSTRAINT uq_admission_applications_tenant_id_id UNIQUE (tenant_id, id),
         CONSTRAINT uq_admission_applications_number UNIQUE (tenant_id, application_number)
       );
+
+      ALTER TABLE admission_applications ADD COLUMN IF NOT EXISTS nemis_upi text;
 
       CREATE TABLE IF NOT EXISTS admission_documents (
         id uuid PRIMARY KEY DEFAULT gen_random_uuid(),

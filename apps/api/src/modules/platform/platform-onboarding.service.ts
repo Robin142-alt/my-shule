@@ -1104,22 +1104,6 @@ export class PlatformOnboardingService {
   }
 
   private async hardDeleteTenantDeep(tenantId: string): Promise<void> {
-    // Temporarily bypass the append-only protection for hard deletes
-    await this.databaseService.query(`
-      CREATE OR REPLACE FUNCTION app.prevent_append_only_mutation()
-      RETURNS trigger
-      LANGUAGE plpgsql
-      AS $$
-      BEGIN
-        IF current_setting('app.allow_tenant_deletion', true) = 'true' THEN
-          RETURN OLD;
-        END IF;
-        RAISE EXCEPTION 'append-only table "%" cannot be %', TG_TABLE_NAME, lower(TG_OP)
-          USING ERRCODE = '55000';
-      END;
-      $$;
-    `);
-    
     // Enable the bypass for this transaction
     await this.databaseService.query("SET LOCAL app.allow_tenant_deletion = 'true'");
 

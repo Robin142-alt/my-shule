@@ -14,6 +14,7 @@ export interface AdmissionApplicationRecord {
   previous_school: string | null;
   kcpe_results: string | null;
   cbc_level: string | null;
+  nemis_upi: string | null;
   class_applying: string;
   parent_name: string;
   parent_phone: string;
@@ -194,6 +195,7 @@ export class AdmissionsRepository {
           previous_school,
           kcpe_results,
           cbc_level,
+          nemis_upi,
           class_applying,
           parent_name,
           parent_phone,
@@ -209,7 +211,7 @@ export class AdmissionsRepository {
         )
         VALUES (
           $1, $2, $3, $4::date, $5, $6, $7, $8, $9, $10,
-          $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21::date, $22
+          $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22::date, $23
         )
         RETURNING
           id,
@@ -223,6 +225,7 @@ export class AdmissionsRepository {
           previous_school,
           kcpe_results,
           cbc_level,
+          nemis_upi,
           class_applying,
           parent_name,
           parent_phone,
@@ -236,9 +239,9 @@ export class AdmissionsRepository {
           interview_date::text,
           review_notes,
           approved_at::text,
-          admitted_student_id::text,
-          created_at,
-          updated_at
+          admitted_student_id,
+          created_at::text,
+          updated_at::text
       `,
       [
         input.tenant_id,
@@ -251,6 +254,7 @@ export class AdmissionsRepository {
         input.previous_school,
         input.kcpe_results,
         input.cbc_level,
+        input.nemis_upi,
         input.class_applying,
         input.parent_name,
         input.parent_phone,
@@ -263,7 +267,7 @@ export class AdmissionsRepository {
         input.status,
         input.interview_date,
         input.review_notes,
-      ],
+      ]
     );
 
     return result.rows[0];
@@ -360,7 +364,7 @@ export class AdmissionsRepository {
   async updateApplication(
     tenantId: string,
     applicationId: string,
-    input: Partial<Pick<AdmissionApplicationRecord, 'status' | 'review_notes' | 'interview_date'>>,
+    input: Partial<Pick<AdmissionApplicationRecord, 'status' | 'review_notes' | 'interview_date' | 'nemis_upi'>>,
   ) {
     const assignments: string[] = [];
     const values: unknown[] = [tenantId, applicationId];
@@ -384,6 +388,12 @@ export class AdmissionsRepository {
     if (input.interview_date !== undefined) {
       assignments.push(`interview_date = $${parameterIndex}::date`);
       values.push(input.interview_date);
+      parameterIndex += 1;
+    }
+
+    if (input.nemis_upi !== undefined) {
+      assignments.push(`nemis_upi = $${parameterIndex}`);
+      values.push(input.nemis_upi);
       parameterIndex += 1;
     }
 
