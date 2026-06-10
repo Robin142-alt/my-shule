@@ -22,6 +22,7 @@ export class AcademicsService {
   constructor(
     @Inject(forwardRef(() => RequestContextService))
     private readonly requestContext: RequestContextService,
+    @Inject(forwardRef(() => AcademicsRepository))
     private readonly repository: AcademicsRepository,
     @Inject(forwardRef(() => ExamsService))
     private readonly examsService: ExamsService,

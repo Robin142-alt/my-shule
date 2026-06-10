@@ -1,4 +1,4 @@
-import { Injectable, InternalServerErrorException } from '@nestjs/common';
+import { Injectable, InternalServerErrorException, Inject } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto';
 
@@ -9,9 +9,9 @@ const IV_LENGTH_BYTES = 12;
 export class PiiEncryptionService {
   private readonly encryptionKey: Buffer;
 
-  constructor(private readonly configService: ConfigService) {
+  constructor(@Inject(ConfigService) private readonly configService: ConfigService) {
     this.encryptionKey = this.resolveEncryptionKey(
-      this.configService.get<string>('security.piiEncryptionKey') ?? '',
+      this.configService?.get<string>('security.piiEncryptionKey') ?? '',
     );
   }
 
