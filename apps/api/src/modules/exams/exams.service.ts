@@ -1,10 +1,13 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
+  Inject,
   Injectable,
   NotFoundException,
   Optional,
   UnauthorizedException,
+  forwardRef,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
@@ -69,6 +72,7 @@ interface BulkMarkUploadValidationResult {
 @Injectable()
 export class ExamsService {
   constructor(
+    @Inject(forwardRef(() => RequestContextService))
     private readonly requestContext: RequestContextService,
     private readonly repository: ExamsRepository,
     @Optional() private readonly configService?: ConfigService,

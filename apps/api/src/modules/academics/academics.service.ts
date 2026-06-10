@@ -20,6 +20,7 @@ import { AcademicsRepository } from './repositories/academics.repository';
 @Injectable()
 export class AcademicsService {
   constructor(
+    @Inject(forwardRef(() => RequestContextService))
     private readonly requestContext: RequestContextService,
     private readonly repository: AcademicsRepository,
     @Inject(forwardRef(() => ExamsService))
