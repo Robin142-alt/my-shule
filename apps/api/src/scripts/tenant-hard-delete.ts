@@ -43,20 +43,42 @@ async function bootstrap() {
   
   let totalRows = 0;
   
-  for (const table of tablesWithTenantId) {
-    // Check if the table has any rows for this tenant
-    const countRes = await db.query(`SELECT count(*) as count FROM "${table}" WHERE tenant_id = $1`, [schoolId]);
-    const count = parseInt(countRes.rows[0].count, 10);
+  const tablesToProcess = allTablesQuery.rows
+    .map((row) => row.table_name)
+    .filter((t) => t !== 'tenants');
     
-    if (count > 0) {
-      console.log(`[${table}]: ${count} rows`);
-      totalRows += count;
-      
-      if (isExecute && table !== 'tenants') {
-        // Delete child tables first. We skip tenants table to delete it last.
-        await db.query(`DELETE FROM "${table}" WHERE tenant_id = $1`, [schoolId]);
+  let maxRetries = tablesToProcess.length * 3;
+  while (tablesToProcess.length > 0 && maxRetries > 0) {
+    maxRetries--;
+    const table = tablesToProcess.shift()!;
+    try {
+      if (isExecute) {
+        const delRes = await db.query(`DELETE FROM "${table}" WHERE tenant_id = $1`, [schoolId]);
+        const deletedRows = delRes.rowCount ?? 0;
+        if (deletedRows > 0) {
+          console.log(`[${table}]: deleted ${deletedRows} rows`);
+          totalRows += deletedRows;
+        }
+      } else {
+        const countRes = await db.query(`SELECT count(*) as count FROM "${table}" WHERE tenant_id = $1`, [schoolId]);
+        const count = parseInt(countRes.rows[0].count, 10);
+        if (count > 0) {
+          console.log(`[${table}]: ${count} rows`);
+          totalRows += count;
+        }
+      }
+    } catch (error: any) {
+      if (error.code === '23503') {
+        // Foreign key violation, retry later
+        tablesToProcess.push(table);
+      } else {
+        throw error;
       }
     }
+  }
+
+  if (tablesToProcess.length > 0) {
+    console.warn(`WARNING: Could not process some tables due to cyclic dependencies: ${tablesToProcess.join(', ')}`);
   }
   
   // Clean up user accounts that belong ONLY to this tenant.

@@ -24,30 +24,51 @@ async function bootstrap() {
   
   let totalOrphans = 0;
   
-  for (const table of tablesWithTenantId) {
-    if (table === 'tenants') continue;
+  const tablesToProcess = allTablesQuery.rows
+    .map((r) => r.table_name)
+    .filter((t) => t !== 'tenants');
 
-    // Count records where tenant_id is not 'global' and does not exist in tenants
-    const countRes = await db.query(`
-      SELECT count(*) as count 
-      FROM "${table}" 
-      WHERE tenant_id != 'global' 
-      AND tenant_id NOT IN (SELECT id FROM tenants)
-    `);
-    const count = parseInt(countRes.rows[0].count, 10);
-    
-    if (count > 0) {
-      console.log(`[${table}]: ${count} orphaned rows`);
-      totalOrphans += count;
-      
+  let maxRetries = tablesToProcess.length * 3;
+  while (tablesToProcess.length > 0 && maxRetries > 0) {
+    maxRetries--;
+    const table = tablesToProcess.shift()!;
+    try {
       if (isExecute) {
-        await db.query(`
+        const delRes = await db.query(`
           DELETE FROM "${table}" 
           WHERE tenant_id != 'global' 
           AND tenant_id NOT IN (SELECT id FROM tenants)
         `);
+        const count = delRes.rowCount ?? 0;
+        if (count > 0) {
+          console.log(`[${table}]: deleted ${count} orphaned rows`);
+          totalOrphans += count;
+        }
+      } else {
+        const countRes = await db.query(`
+          SELECT count(*) as count 
+          FROM "${table}" 
+          WHERE tenant_id != 'global' 
+          AND tenant_id NOT IN (SELECT id FROM tenants)
+        `);
+        const count = parseInt(countRes.rows[0].count, 10);
+        if (count > 0) {
+          console.log(`[${table}]: ${count} orphaned rows`);
+          totalOrphans += count;
+        }
+      }
+    } catch (error: any) {
+      if (error.code === '23503') {
+        // Foreign key violation, retry later
+        tablesToProcess.push(table);
+      } else {
+        throw error;
       }
     }
+  }
+
+  if (tablesToProcess.length > 0) {
+    console.warn(`WARNING: Could not process some tables due to cyclic dependencies: ${tablesToProcess.join(', ')}`);
   }
 
   // Clean up user accounts that belong ONLY to deleted tenants

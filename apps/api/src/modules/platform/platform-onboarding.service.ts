@@ -1111,10 +1111,28 @@ export class PlatformOnboardingService {
       WHERE column_name = 'tenant_id' AND table_schema = 'public'
     `);
     
-    for (const row of allTablesQuery.rows) {
-      if (row.table_name !== 'tenants') {
-        await this.databaseService.query(`DELETE FROM "${row.table_name}" WHERE tenant_id = $1`, [tenantId]);
+    const tablesToProcess = allTablesQuery.rows
+      .map((r) => r.table_name)
+      .filter((t) => t !== 'tenants');
+
+    let maxRetries = tablesToProcess.length * 3;
+    while (tablesToProcess.length > 0 && maxRetries > 0) {
+      maxRetries--;
+      const table = tablesToProcess.shift()!;
+      try {
+        await this.databaseService.query(`DELETE FROM "${table}" WHERE tenant_id = $1`, [tenantId]);
+      } catch (error: any) {
+        if (error.code === '23503') {
+          // Foreign key violation, push it back to the end of the queue
+          tablesToProcess.push(table);
+        } else {
+          throw error;
+        }
       }
+    }
+
+    if (tablesToProcess.length > 0) {
+      console.warn(`Could not delete some tables due to cyclic dependencies: ${tablesToProcess.join(', ')}`);
     }
 
     // Clean up user accounts that belong ONLY to this tenant
