@@ -1120,8 +1120,11 @@ export class PlatformOnboardingService {
       maxRetries--;
       const table = tablesToProcess.shift()!;
       try {
+        await this.databaseService.query(`SAVEPOINT delete_table_${table}`);
         await this.databaseService.query(`DELETE FROM "${table}" WHERE tenant_id = $1`, [tenantId]);
+        await this.databaseService.query(`RELEASE SAVEPOINT delete_table_${table}`);
       } catch (error: any) {
+        await this.databaseService.query(`ROLLBACK TO SAVEPOINT delete_table_${table}`);
         if (error.code === '23503') {
           // Foreign key violation, push it back to the end of the queue
           tablesToProcess.push(table);
