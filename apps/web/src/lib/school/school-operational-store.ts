@@ -159,7 +159,7 @@ type BackendOperationalEventSyncPayload = {
   sms: SchoolSmsLog[];
 };
 
-const DEFAULT_SCHOOL_ID = "kb-high";
+const DEFAULT_SCHOOL_ID = "";
 const UPDATE_EVENT_NAME = "myshule:school-data-updated";
 
 function nowIso() {

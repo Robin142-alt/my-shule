@@ -514,6 +514,44 @@ export class PlatformOnboardingService {
     });
   }
 
+  async hardDeleteSchool(
+    tenantIdInput: string,
+    dto: DeleteSchoolDto,
+  ): Promise<PlatformSchoolDeleteResponseDto> {
+    const tenantId = this.normalizeTenantId(tenantIdInput);
+    const confirmation = dto.confirmation.trim().toLowerCase();
+    const reason = dto.reason.trim();
+
+    if (confirmation !== tenantId) {
+      throw new BadRequestException(`Type ${tenantId} to confirm school hard deletion.`);
+    }
+
+    if (reason.length < 3) {
+      throw new BadRequestException('Enter a deletion reason for the audit trail.');
+    }
+
+    if (tenantId === 'global') {
+      throw new BadRequestException('Cannot delete the global tenant.');
+    }
+
+    return this.databaseService.withRequestTransaction(async () => {
+      await this.scopeTenantForLifecycleMutation(tenantId);
+      const tenant = await this.findTenantForDelete(tenantId);
+      const usageSummary = await this.getTenantUsageSummary(tenantId);
+
+      await this.writeSchoolLifecycleAudit('platform.school.deleted', tenant, usageSummary, reason);
+      await this.hardDeleteTenantDeep(tenantId);
+
+      return {
+        tenant_id: tenantId,
+        deleted: true,
+        deprovisioned: false,
+        message: `${tenant.name} was permanently hard deleted and all operational records were purged.`,
+        usage_summary: usageSummary,
+      };
+    });
+  }
+
   async deleteSchool(
     tenantIdInput: string,
     dto: DeleteSchoolDto,
@@ -1063,6 +1101,35 @@ export class PlatformOnboardingService {
       activatedAt: ['active', 'grace_period', 'restricted'].includes(state) ? now : null,
       canceledAt: state === 'expired' ? now : null,
     };
+  }
+
+  private async hardDeleteTenantDeep(tenantId: string): Promise<void> {
+    // Dynamically delete from all tables with a tenant_id
+    const allTablesQuery = await this.databaseService.query<{ table_name: string }>(`
+      SELECT table_name 
+      FROM information_schema.columns 
+      WHERE column_name = 'tenant_id' AND table_schema = 'public'
+    `);
+    
+    for (const row of allTablesQuery.rows) {
+      if (row.table_name !== 'tenants') {
+        await this.databaseService.query(`DELETE FROM "${row.table_name}" WHERE tenant_id = $1`, [tenantId]);
+      }
+    }
+
+    // Clean up user accounts that belong ONLY to this tenant
+    const tenantUsersRes = await this.databaseService.query<{ id: string }>('SELECT id FROM users WHERE tenant_id = $1', [tenantId]);
+    for (const userRow of tenantUsersRes.rows) {
+      const otherMemberships = await this.databaseService.query<{ count: string }>('SELECT count(*) as count FROM tenant_memberships WHERE user_id = $1 AND tenant_id != $2', [userRow.id, tenantId]);
+      if (parseInt(otherMemberships.rows[0].count, 10) === 0) {
+        await this.databaseService.query('DELETE FROM users WHERE id = $1', [userRow.id]);
+      } else {
+        await this.databaseService.query('DELETE FROM tenant_memberships WHERE user_id = $1 AND tenant_id = $2', [userRow.id, tenantId]);
+      }
+    }
+
+    // Finally delete the tenant shell
+    await this.databaseService.query('DELETE FROM tenants WHERE id = $1', [tenantId]);
   }
 
   private async deleteTenantShell(tenantId: string): Promise<void> {

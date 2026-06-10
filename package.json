@@ -114,7 +114,9 @@
     "implementation30:rollout-gate": "node -r ts-node/register/transpile-only -r tsconfig-paths/register apps/api/src/scripts/implementation30-rollout-gate.ts",
     "module-access:certify": "node -r ts-node/register/transpile-only -r tsconfig-paths/register apps/api/src/scripts/module-access-certification.ts",
     "seed:base": "node -r ts-node/register/transpile-only -r tsconfig-paths/register apps/api/src/scripts/base-onboarding-seed.ts --apply --confirm-onboarding",
-    "seed:demo:kisumu-boys": "node -r ts-node/register/transpile-only -r tsconfig-paths/register apps/api/src/scripts/kisumu-boys-demo-seed.ts --apply --confirm-kisumu-boys-only"
+    "seed:demo:kisumu-boys": "node -r ts-node/register/transpile-only -r tsconfig-paths/register apps/api/src/scripts/kisumu-boys-demo-seed.ts --apply --confirm-kisumu-boys-only",
+    "tenant:hard-delete": "node -r ts-node/register/transpile-only -r tsconfig-paths/register apps/api/src/scripts/tenant-hard-delete.ts",
+    "cleanup:orphan-tenants": "node -r ts-node/register/transpile-only -r tsconfig-paths/register apps/api/src/scripts/orphan-tenant-cleanup.ts"
   },
   "dependencies": {
     "@nestjs/bullmq": "^11.0.0",

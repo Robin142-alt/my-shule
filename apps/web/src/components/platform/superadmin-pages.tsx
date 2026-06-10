@@ -60,6 +60,7 @@ import {
 import {
   createPlatformSchool,
   deletePlatformSchool,
+  hardDeletePlatformSchool,
   fetchPlatformSchools,
   fetchPlatformTenantProductSummary,
   fetchPlatformModules,
@@ -1062,6 +1063,43 @@ function TenantsTable() {
     }
   }
 
+  async function submitHardDeleteTenant() {
+    if (!deleteTarget) {
+      return;
+    }
+
+    setIsDeleting(true);
+    setDeleteError(null);
+    setDeleteMessage(null);
+
+    try {
+      const response = await hardDeletePlatformSchool({
+        tenantId: deleteTarget.id,
+        confirmation: deleteConfirmation.trim(),
+        reason: deleteReason.trim(),
+      });
+
+      if (response.deleted) {
+        setRows((currentRows) => currentRows.filter((row) => row.id !== response.tenant_id));
+      }
+
+      setDeleteMessage(response.message);
+      setDeleteTarget(null);
+      setDeleteConfirmation("");
+      setDeleteReason("");
+    } catch (error) {
+      if (redirectOnExpiredSessionError(error, "superadmin", (href) => router.replace(href))) {
+        return;
+      }
+
+      setDeleteError(
+        error instanceof Error ? error.message : "Unable to hard delete this school.",
+      );
+    } finally {
+      setIsDeleting(false);
+    }
+  }
+
   const columns: DataTableColumn<PlatformTenantRow>[] = [
     {
       id: "schoolName",
@@ -1623,6 +1661,19 @@ function TenantsTable() {
             >
               <Trash2 className="h-4 w-4" />
               {isDeleting ? "Deleting" : "Delete or deprovision"}
+            </Button>
+            <Button
+              variant="danger"
+              disabled={
+                isDeleting ||
+                !deleteTarget ||
+                deleteConfirmation.trim().toLowerCase() !== deleteTarget.id ||
+                deleteReason.trim().length < 3
+              }
+              onClick={() => void submitHardDeleteTenant()}
+            >
+              <ShieldBan className="h-4 w-4" />
+              {isDeleting ? "Purging" : "Hard Delete (Purge)"}
             </Button>
           </>
         }

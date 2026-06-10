@@ -78,4 +78,12 @@ export class PlatformOnboardingController {
   ): Promise<PlatformSchoolDeleteResponseDto> {
     return this.onboardingService.deleteSchool(tenantId, dto);
   }
+
+  @Delete('schools/:tenantId/hard-delete')
+  hardDeleteSchool(
+    @Param('tenantId') tenantId: string,
+    @Body() dto: DeleteSchoolDto,
+  ): Promise<PlatformSchoolDeleteResponseDto> {
+    return this.onboardingService.hardDeleteSchool(tenantId, dto);
+  }
 }

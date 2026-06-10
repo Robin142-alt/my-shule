@@ -337,3 +337,28 @@ export async function deletePlatformSchool(input: {
 
   return payload as PlatformSchoolDeleteResponse;
 }
+
+export async function hardDeletePlatformSchool(input: {
+  tenantId: string;
+  confirmation: string;
+  reason: string;
+}) {
+  const response = await fetchWithTimeout(
+    `/api/platform/schools/${encodeURIComponent(input.tenantId)}/hard-delete`,
+    {
+      method: "DELETE",
+      headers: {
+        "Content-Type": "application/json",
+        "x-myshule-csrf": await getCsrfToken(),
+      },
+      credentials: "same-origin",
+      body: JSON.stringify({
+        confirmation: input.confirmation,
+        reason: input.reason,
+      }),
+    },
+  );
+  const payload = await parsePlatformResponse<PlatformSchoolDeleteResponse>(response);
+
+  return payload as PlatformSchoolDeleteResponse;
+}
