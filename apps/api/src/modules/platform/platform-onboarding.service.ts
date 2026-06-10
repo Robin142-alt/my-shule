@@ -1150,7 +1150,7 @@ export class PlatformOnboardingService {
     }
 
     // Finally delete the tenant shell
-    await this.databaseService.query('DELETE FROM tenants WHERE id = $1', [tenantId]);
+    await this.databaseService.query('DELETE FROM tenants WHERE tenant_id = $1', [tenantId]);
   }
 
   private async deleteTenantShell(tenantId: string): Promise<void> {
