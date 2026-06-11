@@ -308,7 +308,7 @@ export class AcademicsService {
       teacher_id: this.currentUserId(),
       topic: this.requireText(dto.topic, 'Topic'),
       notes: dto.notes,
-      date: this.requireText(dto.date, 'Date'),
+      
     });
   }
 
@@ -320,12 +320,119 @@ export class AcademicsService {
     return this.repository.listMyAttendance(this.requireTenantId(), this.currentUserId() ?? 'unknown');
   }
 
+  listAcademicYears() {
+    return this.repository.listAcademicYears(this.requireTenantId());
+  }
+
+  listAcademicTerms() {
+    return this.repository.listAcademicTerms(this.requireTenantId());
+  }
+
+  listClassSections() {
+    return this.repository.listClassSections(this.requireTenantId());
+  }
+
+  listSubjects() {
+    return this.repository.listSubjects(this.requireTenantId());
+  }
+
   async getSummary() {
     const tenantId = this.requireTenantId();
-    // Use the repository or database service. We can just use the exams table (even if it doesn't exist yet, we catch the error)
-    // We don't have db injected here directly, but we can access it through the request transaction context if we had to, 
-    // but the easiest way is to just return a stub or inject DatabaseService. Since we can't easily inject without updating constructor,
-    // let's just add the query logic to AcademicsRepository instead and call it here.
     return this.repository.getSummary(tenantId);
+  }
+
+  updateAcademicYear(id: string, dto: any) {
+    return this.repository.updateAcademicYear(this.requireTenantId(), id, dto);
+  }
+
+  archiveAcademicYear(id: string) {
+    return this.repository.archiveAcademicYear(this.requireTenantId(), id);
+  }
+
+  updateAcademicTerm(id: string, dto: any) {
+    return this.repository.updateAcademicTerm(this.requireTenantId(), id, dto);
+  }
+
+  archiveAcademicTerm(id: string) {
+    return this.repository.archiveAcademicTerm(this.requireTenantId(), id);
+  }
+
+  updateClassSection(id: string, dto: any) {
+    return this.repository.updateClassSection(this.requireTenantId(), id, dto);
+  }
+
+  archiveClassSection(id: string) {
+    return this.repository.archiveClassSection(this.requireTenantId(), id);
+  }
+
+  updateSubject(id: string, dto: any) {
+    return this.repository.updateSubject(this.requireTenantId(), id, dto);
+  }
+
+  archiveSubject(id: string) {
+    return this.repository.archiveSubject(this.requireTenantId(), id);
+  }
+
+  createClassStream(dto: any) {
+    return this.repository.createClassStream(
+      this.requireTenantId(),
+      this.requireText(dto.class_section_id, 'Class Section ID'),
+      this.requireText(dto.name, 'Stream Name'),
+      dto.capacity
+    );
+  }
+
+  // --- Departments ---
+  getDepartments() {
+    return this.repository.getDepartments(this.requireTenantId());
+  }
+
+  createDepartment(dto: any) {
+    return this.repository.createDepartment(
+      this.requireTenantId(),
+      this.requireText(dto.name, 'Department name'),
+      dto.head_of_department_user_id || null
+    );
+  }
+
+  archiveDepartment(id: string) {
+    return this.repository.archiveDepartment(this.requireTenantId(), id);
+  }
+
+  // --- Class Teachers ---
+  getClassTeachers() {
+    return this.repository.getClassTeachers(this.requireTenantId());
+  }
+
+  assignClassTeacher(dto: any) {
+    return this.repository.assignClassTeacher(
+      this.requireTenantId(),
+      this.requireText(dto.academic_year_id, 'Academic year ID'),
+      this.requireText(dto.class_section_id, 'Class section ID'),
+      this.requireText(dto.teacher_user_id, 'Teacher user ID')
+    );
+  }
+
+  archiveClassTeacher(id: string) {
+    return this.repository.archiveClassTeacher(this.requireTenantId(), id);
+  }
+
+  // --- Report Card Settings ---
+  getReportCardSettings() {
+    return this.repository.getReportCardSettings(this.requireTenantId());
+  }
+
+  createReportCardSetting(dto: any) {
+    return this.repository.createReportCardSetting(
+      this.requireTenantId(),
+      this.requireText(dto.name, 'Setting name'),
+      dto.grading_system_id || null,
+      dto.show_rank ?? true,
+      dto.show_attendance ?? true
+    );
+  }
+
+  archiveReportCardSetting(id: string) {
+    return this.repository.archiveReportCardSetting(this.requireTenantId(), id);
   }
 }

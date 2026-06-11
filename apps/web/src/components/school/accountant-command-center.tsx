@@ -36,7 +36,9 @@ import { ApprovalInbox } from "@/components/shared/approval-inbox";
 import { NotificationBell } from "@/components/shared/notification-bell";
 import { TaskQueue } from "@/components/shared/task-queue";
 import { WorkflowToast } from "@/components/shared/workflow-toast";
-
+import { useQuery } from "@tanstack/react-query";
+import { useLiveTenantSession } from "@/hooks/use-live-tenant-session";
+import { fetchCollectionsLive, fetchInvoicesLive, fetchAccountsOverviewLive, fetchExpensesLive, fetchBankEntriesLive } from "@/lib/modules/finance-live";
 type RouteMode = "hosted" | "public";
 type Tone = "success" | "info" | "warning" | "danger" | "neutral";
 type ViewId = "overview" | "collections" | "accounts" | "structures" | "billing" | "payments" | "mpesa" | "bank" | "arrears" | "waivers" | "refunds" | "expenses" | "suppliers" | "approvals" | "statements" | "reports" | "audit" | "settings";
@@ -246,6 +248,13 @@ function OverviewWorkspace({ onNavigate }: { onNavigate: (v: ViewId) => void }) 
 }
 
 function CollectionsWorkspace() {
+  const liveSession = useLiveTenantSession();
+  const { data: collections = [], isLoading } = useQuery({
+    queryKey: ["collections", liveSession.session?.tenant_id],
+    queryFn: () => fetchCollectionsLive(liveSession.session!),
+    enabled: !!liveSession.session,
+  });
+
   return (
     <Panel title="Daily Collections" description="Receive payments, issue receipts, and confirm money received today." icon={Wallet} actions={
       <div className="flex gap-2">
@@ -256,19 +265,25 @@ function CollectionsWorkspace() {
       <div className="grid gap-4 md:grid-cols-4 mb-6">
         <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
           <div className="text-sm font-semibold text-[#64748B]">Cash Received</div>
-          <div className="mt-1 text-2xl font-black text-[#071D49]">KES 24,000</div>
+          <div className="mt-1 text-2xl font-black text-[#071D49]">
+            KES {collections.filter(c => c.payment_method === 'cash').reduce((acc, c) => acc + parseInt(c.amount_minor || '0'), 0) / 100}
+          </div>
         </div>
         <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
           <div className="text-sm font-semibold text-[#64748B]">M-Pesa Received</div>
-          <div className="mt-1 text-2xl font-black text-[#071D49]">KES 115,000</div>
+          <div className="mt-1 text-2xl font-black text-[#071D49]">
+            KES {collections.filter(c => c.payment_method === 'mpesa_c2b').reduce((acc, c) => acc + parseInt(c.amount_minor || '0'), 0) / 100}
+          </div>
         </div>
         <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
           <div className="text-sm font-semibold text-[#64748B]">Bank Deposits</div>
-          <div className="mt-1 text-2xl font-black text-[#071D49]">KES 6,000</div>
+          <div className="mt-1 text-2xl font-black text-[#071D49]">
+            KES {collections.filter(c => c.payment_method === 'bank_deposit').reduce((acc, c) => acc + parseInt(c.amount_minor || '0'), 0) / 100}
+          </div>
         </div>
         <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
           <div className="text-sm font-semibold text-[#64748B]">Total Receipts Issued</div>
-          <div className="mt-1 text-2xl font-black text-[#071D49]">23</div>
+          <div className="mt-1 text-2xl font-black text-[#071D49]">{collections.length}</div>
         </div>
       </div>
       <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
@@ -276,7 +291,7 @@ function CollectionsWorkspace() {
           <thead className="bg-[#F8FAFC] text-[#071D49]">
             <tr>
               <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Receipt No.</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Time</th>
+              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Date</th>
               <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Student Name</th>
               <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Method</th>
               <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Amount</th>
@@ -285,16 +300,18 @@ function CollectionsWorkspace() {
             </tr>
           </thead>
           <tbody className="divide-y divide-[#D8E0EC]">
-            {[
-              { no: "RCT-00234", time: "10:45 AM", student: "Brian Otieno", method: "M-Pesa", amount: "KES 12,000", status: "Confirmed" },
-            ].map((c, i) => (
-              <tr key={i} className="hover:bg-[#F8FAFC]">
-                <td className="px-4 py-3 font-semibold text-[#071D49]">{c.no}</td>
-                <td className="px-4 py-3 text-[#64748B]">{c.time}</td>
-                <td className="px-4 py-3 text-[#071D49]">{c.student}</td>
-                <td className="px-4 py-3 text-[#64748B]">{c.method}</td>
-                <td className="px-4 py-3 font-medium">{c.amount}</td>
-                <td className="px-4 py-3"><StatusChip label={c.status} tone="success" /></td>
+            {isLoading ? (
+              <tr><td colSpan={7} className="text-center py-4">Loading...</td></tr>
+            ) : collections.length === 0 ? (
+              <tr><td colSpan={7} className="text-center py-4 text-gray-500">No collections found.</td></tr>
+            ) : collections.map((c, i) => (
+              <tr key={c.id || i} className="hover:bg-[#F8FAFC]">
+                <td className="px-4 py-3 font-semibold text-[#071D49]">{c.receipt_number}</td>
+                <td className="px-4 py-3 text-[#64748B]">{new Date(c.created_at).toLocaleDateString()}</td>
+                <td className="px-4 py-3 text-[#071D49]">{c.payer_name}</td>
+                <td className="px-4 py-3 text-[#64748B]">{c.payment_method}</td>
+                <td className="px-4 py-3 font-medium">KES {(parseInt(c.amount_minor) / 100).toLocaleString()}</td>
+                <td className="px-4 py-3"><StatusChip label="Confirmed" tone="success" /></td>
                 <td className="px-4 py-3 text-right">
                   <button className="text-blue-600 hover:underline font-semibold mr-3">Print</button>
                   <button className="p-1 text-[#64748B] hover:bg-[#D8E0EC] rounded"><MoreHorizontal className="w-4 h-4" /></button>
@@ -309,6 +326,13 @@ function CollectionsWorkspace() {
 }
 
 function AccountsWorkspace() {
+  const liveSession = useLiveTenantSession();
+  const { data: accounts = [], isLoading } = useQuery({
+    queryKey: ["accounts-overview", liveSession.session?.tenant_id],
+    queryFn: () => fetchAccountsOverviewLive(liveSession.session!),
+    enabled: !!liveSession.session,
+  });
+
   return (
     <Panel title="Student Accounts" description="Search and manage individual student fee balances and ledgers." icon={Users} actions={
       <button className="flex items-center gap-2 rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white">Record Payment</button>
@@ -332,22 +356,27 @@ function AccountsWorkspace() {
             </tr>
           </thead>
           <tbody className="divide-y divide-[#D8E0EC]">
-            {[
-              { name: "Brian Otieno", adm: "ADM-2041", cls: "Form 3 Blue", balance: "KES 14,000", status: "ARREARS", tone: "danger" },
-              { name: "Amina Wanjiku", adm: "ADM-2102", cls: "Form 2 East", balance: "KES 0", status: "CLEARED", tone: "success" },
-            ].map((s, i) => (
-              <tr key={i} className="hover:bg-[#F8FAFC]">
-                <td className="px-4 py-3 font-semibold text-[#071D49]">{s.name}</td>
-                <td className="px-4 py-3 text-[#64748B]">{s.adm}</td>
-                <td className="px-4 py-3 text-[#64748B]">{s.cls}</td>
-                <td className="px-4 py-3 font-bold">{s.balance}</td>
-                <td className="px-4 py-3"><StatusChip label={s.status} tone={s.tone as Tone} /></td>
-                <td className="px-4 py-3 text-right">
-                  <button className="text-blue-600 hover:underline font-semibold mr-3">Open Account</button>
-                  <button className="p-1 text-[#64748B] hover:bg-[#D8E0EC] rounded"><MoreHorizontal className="w-4 h-4" /></button>
-                </td>
-              </tr>
-            ))}
+            {isLoading ? (
+              <tr><td colSpan={6} className="text-center py-4">Loading...</td></tr>
+            ) : accounts.length === 0 ? (
+              <tr><td colSpan={6} className="text-center py-4 text-gray-500">No accounts found.</td></tr>
+            ) : accounts.map((s, i) => {
+              const balanceMinor = parseInt(s.balance_minor || '0');
+              const isArrears = balanceMinor < 0;
+              return (
+                <tr key={s.id || i} className="hover:bg-[#F8FAFC]">
+                  <td className="px-4 py-3 font-semibold text-[#071D49]">{s.first_name} {s.last_name}</td>
+                  <td className="px-4 py-3 text-[#64748B]">{s.admission_number}</td>
+                  <td className="px-4 py-3 text-[#64748B]">{s.class_name || 'Unassigned'}</td>
+                  <td className="px-4 py-3 font-bold">KES {(Math.abs(balanceMinor) / 100).toLocaleString()}</td>
+                  <td className="px-4 py-3"><StatusChip label={isArrears ? "ARREARS" : "CLEARED"} tone={isArrears ? "danger" : "success"} /></td>
+                  <td className="px-4 py-3 text-right">
+                    <button className="text-blue-600 hover:underline font-semibold mr-3">Open Account</button>
+                    <button className="p-1 text-[#64748B] hover:bg-[#D8E0EC] rounded"><MoreHorizontal className="w-4 h-4" /></button>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -395,6 +424,13 @@ function StructuresWorkspace() {
 }
 
 function BillingWorkspace() {
+  const liveSession = useLiveTenantSession();
+  const { data: invoices = [], isLoading } = useQuery({
+    queryKey: ["invoices", liveSession.session?.tenant_id],
+    queryFn: () => fetchInvoicesLive(liveSession.session!),
+    enabled: !!liveSession.session,
+  });
+
   return (
     <Panel title="Billing & Invoices" description="Generate charges and invoices for students." icon={FileText} actions={
       <button className="flex items-center gap-2 rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white">Generate Invoice</button>
@@ -412,15 +448,17 @@ function BillingWorkspace() {
             </tr>
           </thead>
           <tbody className="divide-y divide-[#D8E0EC]">
-            {[
-              { no: "INV-1002", student: "Brian Otieno", term: "Term 2, 2026", amount: "KES 20,000", status: "Partially Paid", tone: "warning" },
-            ].map((s, i) => (
-              <tr key={i} className="hover:bg-[#F8FAFC]">
-                <td className="px-4 py-3 font-semibold text-[#071D49]">{s.no}</td>
-                <td className="px-4 py-3 text-[#64748B]">{s.student}</td>
-                <td className="px-4 py-3 text-[#64748B]">{s.term}</td>
-                <td className="px-4 py-3 font-medium">{s.amount}</td>
-                <td className="px-4 py-3"><StatusChip label={s.status} tone={s.tone as Tone} /></td>
+            {isLoading ? (
+              <tr><td colSpan={6} className="text-center py-4">Loading...</td></tr>
+            ) : invoices.length === 0 ? (
+              <tr><td colSpan={6} className="text-center py-4 text-gray-500">No invoices found.</td></tr>
+            ) : invoices.map((s, i) => (
+              <tr key={s.id || i} className="hover:bg-[#F8FAFC]">
+                <td className="px-4 py-3 font-semibold text-[#071D49]">{s.invoice_number}</td>
+                <td className="px-4 py-3 text-[#64748B]">{s.student_id}</td>
+                <td className="px-4 py-3 text-[#64748B]">Current Term</td>
+                <td className="px-4 py-3 font-medium">KES {(parseInt(s.total_amount_minor || '0') / 100).toLocaleString()}</td>
+                <td className="px-4 py-3"><StatusChip label={s.status} tone={s.status === 'paid' ? "success" : "warning"} /></td>
                 <td className="px-4 py-3 text-right">
                   <button className="text-blue-600 hover:underline font-semibold mr-3">View PDF</button>
                 </td>
@@ -434,6 +472,13 @@ function BillingWorkspace() {
 }
 
 function PaymentsWorkspace() {
+  const liveSession = useLiveTenantSession();
+  const { data: collections = [], isLoading } = useQuery({
+    queryKey: ["collections", liveSession.session?.tenant_id],
+    queryFn: () => fetchCollectionsLive(liveSession.session!),
+    enabled: !!liveSession.session,
+  });
+
   return (
     <Panel title="Payments & Receipts" description="Manage payment records and official receipts." icon={Banknote} actions={
       <button className="flex items-center gap-2 rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white">New Receipt</button>
@@ -452,16 +497,18 @@ function PaymentsWorkspace() {
             </tr>
           </thead>
           <tbody className="divide-y divide-[#D8E0EC]">
-            {[
-              { no: "RCT-00234", student: "Brian Otieno", date: "Today", amount: "KES 12,000", method: "M-Pesa", status: "Confirmed", tone: "success" },
-            ].map((s, i) => (
-              <tr key={i} className="hover:bg-[#F8FAFC]">
-                <td className="px-4 py-3 font-semibold text-[#071D49]">{s.no}</td>
-                <td className="px-4 py-3 text-[#64748B]">{s.student}</td>
-                <td className="px-4 py-3 text-[#64748B]">{s.date}</td>
-                <td className="px-4 py-3 font-medium">{s.amount}</td>
-                <td className="px-4 py-3 text-[#64748B]">{s.method}</td>
-                <td className="px-4 py-3"><StatusChip label={s.status} tone={s.tone as Tone} /></td>
+            {isLoading ? (
+              <tr><td colSpan={7} className="text-center py-4">Loading...</td></tr>
+            ) : collections.length === 0 ? (
+              <tr><td colSpan={7} className="text-center py-4 text-gray-500">No payments found.</td></tr>
+            ) : collections.map((s, i) => (
+              <tr key={s.id || i} className="hover:bg-[#F8FAFC]">
+                <td className="px-4 py-3 font-semibold text-[#071D49]">{s.receipt_number}</td>
+                <td className="px-4 py-3 text-[#64748B]">{s.payer_name}</td>
+                <td className="px-4 py-3 text-[#64748B]">{new Date(s.created_at).toLocaleDateString()}</td>
+                <td className="px-4 py-3 font-medium">KES {(parseInt(s.amount_minor || '0') / 100).toLocaleString()}</td>
+                <td className="px-4 py-3 text-[#64748B]">{s.payment_method}</td>
+                <td className="px-4 py-3"><StatusChip label="Confirmed" tone="success" /></td>
                 <td className="px-4 py-3 text-right">
                   <button className="text-blue-600 hover:underline font-semibold mr-3">Print</button>
                 </td>
@@ -519,6 +566,13 @@ function MpesaWorkspace() {
 }
 
 function BankWorkspace() {
+  const liveSession = useLiveTenantSession();
+  const { data: bankEntries = [], isLoading } = useQuery({
+    queryKey: ["bank-entries", liveSession.session?.tenant_id],
+    queryFn: () => fetchBankEntriesLive(liveSession.session!),
+    enabled: !!liveSession.session,
+  });
+
   return (
     <Panel title="Bank & Cashbook" description="Track cash, bank deposits, and cashbook." icon={Building} actions={
       <button className="flex items-center gap-2 rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white">Add Entry</button>
@@ -535,13 +589,19 @@ function BankWorkspace() {
             </tr>
           </thead>
           <tbody className="divide-y divide-[#D8E0EC]">
-            <tr className="hover:bg-[#F8FAFC]">
-              <td className="px-4 py-3 text-[#64748B]">Today</td>
-              <td className="px-4 py-3 font-semibold text-[#071D49]">DEP-002</td>
-              <td className="px-4 py-3 text-[#64748B]">Daily Cash Deposit</td>
-              <td className="px-4 py-3"><StatusChip label="Credit" tone="success" /></td>
-              <td className="px-4 py-3 font-medium">KES 14,000</td>
-            </tr>
+            {isLoading ? (
+              <tr><td colSpan={5} className="text-center py-4">Loading...</td></tr>
+            ) : bankEntries.length === 0 ? (
+              <tr><td colSpan={5} className="text-center py-4 text-gray-500">No bank entries found.</td></tr>
+            ) : bankEntries.map((b, i) => (
+              <tr key={b.id || i} className="hover:bg-[#F8FAFC]">
+                <td className="px-4 py-3 text-[#64748B]">{new Date(b.date).toLocaleDateString()}</td>
+                <td className="px-4 py-3 font-semibold text-[#071D49]">{b.reference}</td>
+                <td className="px-4 py-3 text-[#64748B]">{b.description}</td>
+                <td className="px-4 py-3"><StatusChip label={b.type} tone={b.type === 'Credit' ? 'success' : 'neutral'} /></td>
+                <td className="px-4 py-3 font-medium">KES {(parseInt(b.amount_minor || '0') / 100).toLocaleString()}</td>
+              </tr>
+            ))}
           </tbody>
         </table>
       </div>
@@ -655,6 +715,13 @@ function RefundsWorkspace() {
 }
 
 function ExpensesWorkspace() {
+  const liveSession = useLiveTenantSession();
+  const { data: expenses = [], isLoading } = useQuery({
+    queryKey: ["expenses", liveSession.session?.tenant_id],
+    queryFn: () => fetchExpensesLive(liveSession.session!),
+    enabled: !!liveSession.session,
+  });
+
   return (
     <Panel title="Expenses & Petty Cash" description="Record school expenses and petty cash." icon={ShoppingCart} actions={
       <button className="flex items-center gap-2 rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white">Log Expense</button>
@@ -672,16 +739,22 @@ function ExpensesWorkspace() {
             </tr>
           </thead>
           <tbody className="divide-y divide-[#D8E0EC]">
-            <tr className="hover:bg-[#F8FAFC]">
-              <td className="px-4 py-3 text-[#64748B]">Today</td>
-              <td className="px-4 py-3 text-[#64748B]">Stationery</td>
-              <td className="px-4 py-3 font-semibold text-[#071D49]">Chalks and dusters</td>
-              <td className="px-4 py-3 font-medium">KES 2,500</td>
-              <td className="px-4 py-3"><StatusChip label="Approved" tone="success" /></td>
-              <td className="px-4 py-3 text-right">
-                <button className="text-blue-600 hover:underline font-semibold mr-3">View Receipt</button>
-              </td>
-            </tr>
+            {isLoading ? (
+              <tr><td colSpan={6} className="text-center py-4">Loading...</td></tr>
+            ) : expenses.length === 0 ? (
+              <tr><td colSpan={6} className="text-center py-4 text-gray-500">No expenses found.</td></tr>
+            ) : expenses.map((e, i) => (
+              <tr key={e.id || i} className="hover:bg-[#F8FAFC]">
+                <td className="px-4 py-3 text-[#64748B]">{new Date(e.date).toLocaleDateString()}</td>
+                <td className="px-4 py-3 text-[#64748B]">{e.category}</td>
+                <td className="px-4 py-3 font-semibold text-[#071D49]">{e.description}</td>
+                <td className="px-4 py-3 font-medium">KES {(parseInt(e.amount_minor || '0') / 100).toLocaleString()}</td>
+                <td className="px-4 py-3"><StatusChip label={e.status} tone="success" /></td>
+                <td className="px-4 py-3 text-right">
+                  <button className="text-blue-600 hover:underline font-semibold mr-3">View Receipt</button>
+                </td>
+              </tr>
+            ))}
           </tbody>
         </table>
       </div>

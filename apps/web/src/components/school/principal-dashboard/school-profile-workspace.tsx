@@ -3,6 +3,8 @@
 import { Card } from "@/components/ui/card";
 import { AlertCircle, Building2, Mail, Phone, MapPin, CheckCircle2 } from "lucide-react";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
+import { useState, useRef } from "react";
+import { requestDashboardApi } from "@/lib/dashboard/api-client";
 
 type SchoolProfileData = {
   status: "active" | "degraded" | "setup_required";
@@ -12,6 +14,7 @@ type SchoolProfileData = {
   registrationStatus: string;
   curriculum: string;
   schoolType: string;
+  logoUrl?: string | null;
   contactInfo: {
     email: string;
     phone: string;
@@ -19,7 +22,36 @@ type SchoolProfileData = {
 };
 
 export function PrincipalSchoolProfileWorkspace() {
-  const { data, isLoading, error } = useSchoolQuery<SchoolProfileData>('/admin-command/principal/school-profile');
+  const { data, isLoading, error, refetch } = useSchoolQuery<SchoolProfileData>('/admin-command/principal/school-profile');
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploading(true);
+    setUploadError(null);
+
+    const formData = new FormData();
+    formData.append('logo', file);
+
+    try {
+      await requestDashboardApi('/admin-command/principal/school-profile/logo', {
+        method: 'POST',
+        body: formData
+      });
+      refetch();
+    } catch (err: any) {
+      setUploadError(err.message || 'Failed to upload logo');
+    } finally {
+      setIsUploading(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
 
   if (isLoading) {
     return (
@@ -49,8 +81,31 @@ export function PrincipalSchoolProfileWorkspace() {
   return (
     <div className="space-y-6">
       <Card className="border border-white/10 bg-white/5 p-6 relative overflow-hidden">
-        <div className="absolute top-0 right-0 p-6 opacity-10">
-          <Building2 className="h-32 w-32" />
+        <div className="absolute top-0 right-0 p-6 flex flex-col items-end gap-4 opacity-80">
+          {data.logoUrl ? (
+            <img src={data.logoUrl} alt="School Logo" className="h-24 w-24 object-contain rounded-lg border border-white/10" />
+          ) : (
+            <Building2 className="h-24 w-24 text-white/10" />
+          )}
+          <div className="flex flex-col items-end gap-2">
+            <input 
+              type="file" 
+              ref={fileInputRef} 
+              className="hidden" 
+              accept="image/*"
+              onChange={handleLogoUpload}
+            />
+            <button 
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isUploading}
+              className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg text-sm font-medium transition-colors border border-white/10 disabled:opacity-50"
+            >
+              {isUploading ? 'Uploading...' : 'Upload Logo'}
+            </button>
+            {uploadError && (
+              <p className="text-red-400 text-xs max-w-[200px] text-right">{uploadError}</p>
+            )}
+          </div>
         </div>
         <div className="relative z-10 flex items-start justify-between">
           <div>

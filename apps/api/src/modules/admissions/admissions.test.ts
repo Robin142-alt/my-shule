@@ -1697,6 +1697,7 @@ test('AdmissionsService scans uploaded documents before tenant file persistence 
     } as never,
     undefined,
     undefined,
+    undefined,
     {
       scanIfConfigured: async (file: Record<string, unknown>) => {
         captured.scannedFile = file;
@@ -1748,6 +1749,30 @@ test('AdmissionsService scans uploaded documents before tenant file persistence 
     scannedAt: '2026-05-14T14:30:00.000Z',
     scanId: 'scan-admissions-1',
   });
+});
+
+test('AdmissionsService creates and registers a manual admission application automatically', async () => {
+  const manualResult = await service.createManualAdmission({
+    full_name: 'Manual Test Student',
+    date_of_birth: '2016-01-01',
+    gender: 'male',
+    birth_certificate_number: 'BC-MANUAL-123',
+    nationality: 'Kenyan',
+    class_applying: 'Form 1',
+    stream_name: 'North',
+    parent_name: 'Manual Parent',
+    parent_phone: '0799999999',
+    relationship: 'Mother',
+    admission_number: 'ADM-MANUAL-001'
+  });
+
+  assert.equal(manualResult.application_status, 'registered');
+  assert.ok(manualResult.student.id);
+  assert.equal(manualResult.student.admission_number, 'ADM-MANUAL-001');
+  assert.equal(manualResult.student.first_name, 'Manual');
+  assert.equal(manualResult.allocation?.class_name, 'Form 1');
+  assert.ok(manualResult.fee_invoice);
+  assert.ok(manualResult.academic_enrollment);
 });
 
 test('AdmissionsService updates document verification status', async () => {

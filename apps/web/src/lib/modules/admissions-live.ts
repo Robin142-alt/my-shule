@@ -1155,6 +1155,43 @@ export function fetchAdmissionsStudentSearchLive(session: LiveAuthSession) {
   return withSession<LiveAdmissionsStudent[]>(session, "/admissions/students?limit=100");
 }
 
+export function createManualAdmissionLive(
+  session: LiveAuthSession,
+  input: {
+    student: {
+      full_name: string;
+      date_of_birth: string;
+      gender: string;
+      birth_certificate_number: string;
+      nationality: string;
+      previous_school?: string;
+      kcpe_results?: string;
+      cbc_level?: string;
+      class_applying: string;
+      nemis_upi?: string;
+      allergies?: string;
+      conditions?: string;
+      emergency_contact?: string;
+    };
+    parent: {
+      parent_name: string;
+      parent_phone: string;
+      parent_email?: string;
+      parent_occupation?: string;
+      relationship: string;
+    };
+  },
+) {
+  return withSession<{
+    application: LiveAdmissionApplication;
+    student_id: string;
+    admission_number: string;
+  }>(session, "/admissions/manual", {
+    method: "POST",
+    body: input,
+  });
+}
+
 export function createAdmissionApplicationLive(
   session: LiveAuthSession,
   input: {

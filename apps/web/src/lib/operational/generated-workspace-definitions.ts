@@ -1,4 +1,4 @@
-import { type DocxAddedModuleContract, moduleContract, table, form } from "./myshule-extreme-operating-system";
+import { type DocxAddedModuleContract, moduleContract, table, form } from "./operational-contract-builders";
 
 export const generatedWorkspaceDefinitions: DocxAddedModuleContract[] = [
   moduleContract({

@@ -9,6 +9,7 @@ const ADMIN_COMMAND_TABLES = [
   'duty_rosters',
   'principal_dashboard_snapshots',
   'principal_alerts',
+  'communication_templates',
 ] as const;
 
 @Injectable()
@@ -116,6 +117,22 @@ export class AdminCommandSchemaService implements OnModuleInit {
         audit_log_reference uuid,
         CONSTRAINT ck_principal_alerts_severity CHECK (severity IN ('info', 'warning', 'critical')),
         CONSTRAINT ck_principal_alerts_status CHECK (status IN ('open', 'acknowledged', 'resolved', 'dismissed'))
+      );
+
+      CREATE TABLE IF NOT EXISTS communication_templates (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        tenant_id text NOT NULL,
+        name text NOT NULL,
+        type text NOT NULL,
+        subject text,
+        body text NOT NULL,
+        variables jsonb NOT NULL DEFAULT '[]'::jsonb,
+        is_active boolean NOT NULL DEFAULT TRUE,
+        created_by uuid,
+        created_at timestamptz NOT NULL DEFAULT NOW(),
+        updated_at timestamptz NOT NULL DEFAULT NOW(),
+        CONSTRAINT ck_communication_templates_type CHECK (type IN ('email', 'sms', 'push', 'letter')),
+        CONSTRAINT uq_communication_templates_tenant_name UNIQUE (tenant_id, name)
       );
 
       CREATE INDEX IF NOT EXISTS ix_admin_incidents_queue

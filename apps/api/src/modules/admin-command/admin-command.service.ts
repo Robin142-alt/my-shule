@@ -1,3 +1,5 @@
+import { DatabaseFileStorageService } from '../../common/uploads/database-file-storage.service';
+import { UploadFileMetadata } from '../../common/uploads/upload-policy';
 import {
   BadRequestException,
   Injectable,
@@ -6,7 +8,10 @@ import {
   ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Observable } from 'rxjs';
+
+import { S3CompatibleObjectStorageService } from '../../common/uploads/s3-object-storage.service';
 
 import { RequestContextService } from '../../common/request-context/request-context.service';
 import {
@@ -22,6 +27,9 @@ export class AdminCommandService {
   constructor(
     private readonly requestContext: RequestContextService,
     private readonly repository: AdminCommandRepository,
+    private readonly fileStorage: DatabaseFileStorageService,
+    @Optional() private readonly objectStorage?: S3CompatibleObjectStorageService,
+    private readonly configService?: ConfigService,
     @Optional()
     private readonly principalInsights?: PrincipalInsightsService,
   ) {}
@@ -217,6 +225,47 @@ export class AdminCommandService {
     await this.audit('admin_command.meeting_minutes_created', 'meeting_minutes', minutes?.id, dto);
 
     return minutes;
+  }
+
+  async uploadSchoolLogo(file: UploadFileMetadata) {
+    if (!file?.buffer?.length) {
+      throw new BadRequestException('A logo file is required for upload');
+    }
+
+    const tenantId = this.requireTenantId();
+    let publicUrl: string;
+
+    const useObjectStorage = this.configService?.get<string>('UPLOAD_OBJECT_STORAGE_ENABLED') === 'true';
+
+    if (useObjectStorage && this.objectStorage) {
+      const storagePath = `tenant/${tenantId}/school_logo/${Date.now()}-${file.originalname}`;
+      const result = await this.objectStorage.putObject({
+        tenantId,
+        storagePath,
+        mimeType: file.mimetype,
+        buffer: file.buffer,
+      });
+
+      const endpoint = this.configService?.get<string>('UPLOAD_OBJECT_STORAGE_ENDPOINT')?.replace(/\/$/, '') ?? '';
+      const bucket = this.configService?.get<string>('UPLOAD_OBJECT_STORAGE_BUCKET') ?? '';
+      publicUrl = `${endpoint}/${bucket}/${result.key}`;
+    } else {
+      // Fallback to database file storage if S3 is not enabled
+      const persistedFile = await this.fileStorage.save({
+        tenantId,
+        storagePath: `tenant/${tenantId}/school_logo/${Date.now()}-${file.originalname}`,
+        originalFileName: file.originalname,
+        mimeType: file.mimetype,
+        sizeBytes: file.size,
+        buffer: file.buffer,
+        metadata: { owner_type: 'school_logo' },
+      });
+      publicUrl = `/api/v1/files/${encodeURIComponent(persistedFile.stored_path)}/download`;
+    }
+
+    await this.repository.updateSchoolLogoUrl(tenantId, publicUrl);
+
+    return { url: publicUrl };
   }
 
   private async audit(

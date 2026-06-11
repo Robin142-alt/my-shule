@@ -91,5 +91,29 @@ export class CreateLessonLogDto {
   subject_id!: string;
   topic!: string;
   notes?: string;
-  date!: string;
+}
+
+export class UpdateAcademicYearDto {
+  name?: string;
+  starts_on?: string;
+  ends_on?: string;
+}
+
+export class UpdateAcademicTermDto {
+  name?: string;
+  starts_on?: string;
+  ends_on?: string;
+}
+
+export class UpdateClassSectionDto {
+  name?: string;
+  grade_level?: string;
+  stream?: string;
+  custom_label?: string;
+  capacity?: number;
+}
+
+export class UpdateSubjectDto {
+  code?: string;
+  name?: string;
 }

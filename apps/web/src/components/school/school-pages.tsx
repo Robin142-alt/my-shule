@@ -36,6 +36,10 @@ import { HodCommandCenter } from "@/components/school/hod-command-center";
 import { OperationalBlueprintWorkspace } from "@/components/school/operational-blueprint-workspace";
 import { RoleOperationalCommandCenter } from "@/components/school/role-operational-command-center";
 import { TeacherCommandCenter } from "@/components/school/teacher-command-center";
+import { SecretaryCommandCenter } from "@/components/school/secretary-command-center";
+import { IctManagerCommandCenter } from "@/components/school/ict-manager-command-center";
+import { ProcurementOfficerCommandCenter } from "@/components/school/procurement-officer-command-center";
+import { StudentCommandCenter } from "@/components/school/student-command-center";
 import { UserManagementPanel } from "@/components/school/user-management-panel";
 import { SupportCenterWorkspace } from "@/components/support/support-center-workspace";
 import { LearnerPicker } from "@/components/common/learner-picker";
@@ -5339,6 +5343,22 @@ function SchoolPagesShell({
     !studentId && shouldRenderRoleOperationalWorkspace(role, section);
 
   if (renderRoleOperationalWorkspace) {
+    if (role === "student") {
+      return <StudentCommandCenter routeMode={routeMode} />;
+    }
+
+    if (role === "secretary") {
+      return <SecretaryCommandCenter routeMode={routeMode} />;
+    }
+
+    if (role === "ict-manager") {
+      return <IctManagerCommandCenter routeMode={routeMode} />;
+    }
+
+    if (role === "procurement-officer") {
+      return <ProcurementOfficerCommandCenter routeMode={routeMode} />;
+    }
+
     if (role === "accountant" || role === "bursar") {
       return <AccountantCommandCenter routeMode={routeMode} />;
     }

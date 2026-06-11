@@ -58,6 +58,12 @@ export class ClinicController {
     return this.clinicService.getPrincipalAnalytics();
   }
 
+  @Get('summary')
+  @Permissions('clinic:read')
+  getSummary() {
+    return this.clinicService.getSummary();
+  }
+
   @Get('parent/students/:studentId/history')
   @Permissions('portal:read_own_children')
   getParentMedicalHistory(@Param('studentId') studentId: string) {

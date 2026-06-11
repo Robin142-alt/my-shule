@@ -58,6 +58,7 @@ import {
   buildAdmissionDocumentUploads,
   buildAdmissionRegistrationSummary,
   createAdmissionApplicationLive,
+  createManualAdmissionLive,
   createAdmissionsAllocationLive,
   createAdmissionsTransferLive,
   fetchAdmissionsDatasetLive,
@@ -1125,25 +1126,29 @@ export function AdmissionsModuleScreen({
       const admissionNumber = buildAdmissionNumber(registrationForm.className, dataset.students.length);
 
       if (isLiveMode && liveSession.session) {
-        const createdApplication = await createAdmissionApplicationLive(liveSession.session, {
-          full_name: registrationForm.fullName.trim(),
-          date_of_birth: registrationForm.dateOfBirth,
-          gender: registrationForm.gender.trim(),
-          birth_certificate_number: registrationForm.birthCertificateNumber.trim(),
-          nemis_upi: registrationForm.nemisUpi.trim() || undefined,
-          nationality: registrationForm.nationality.trim(),
-          previous_school: registrationForm.previousSchool.trim() || undefined,
-          kcpe_results: registrationForm.kcpeResults.trim() || undefined,
-          cbc_level: registrationForm.cbcLevel.trim() || undefined,
-          class_applying: registrationForm.className.trim(),
-          parent_name: registrationForm.parentName.trim(),
-          parent_phone: registrationForm.parentPhone.trim(),
-          parent_email: registrationForm.parentEmail.trim() || undefined,
-          parent_occupation: registrationForm.occupation.trim() || undefined,
-          relationship: registrationForm.relationship.trim(),
-          allergies: registrationForm.allergies.trim() || undefined,
-          conditions: registrationForm.conditions.trim() || undefined,
-          emergency_contact: registrationForm.emergencyContact.trim(),
+        const manualAdmission = await createManualAdmissionLive(liveSession.session, {
+          student: {
+            full_name: registrationForm.fullName.trim(),
+            date_of_birth: registrationForm.dateOfBirth,
+            gender: registrationForm.gender.trim(),
+            birth_certificate_number: registrationForm.birthCertificateNumber.trim(),
+            nemis_upi: registrationForm.nemisUpi.trim() || undefined,
+            nationality: registrationForm.nationality.trim(),
+            previous_school: registrationForm.previousSchool.trim() || undefined,
+            kcpe_results: registrationForm.kcpeResults.trim() || undefined,
+            cbc_level: registrationForm.cbcLevel.trim() || undefined,
+            class_applying: registrationForm.className.trim(),
+            allergies: registrationForm.allergies.trim() || undefined,
+            conditions: registrationForm.conditions.trim() || undefined,
+            emergency_contact: registrationForm.emergencyContact.trim(),
+          },
+          parent: {
+            parent_name: registrationForm.parentName.trim(),
+            parent_phone: registrationForm.parentPhone.trim(),
+            parent_email: registrationForm.parentEmail.trim() || undefined,
+            parent_occupation: registrationForm.occupation.trim() || undefined,
+            relationship: registrationForm.relationship.trim(),
+          },
         });
 
         const uploads = buildAdmissionDocumentUploads({
@@ -1156,23 +1161,8 @@ export function AdmissionsModuleScreen({
         });
 
         for (const upload of uploads) {
-          await uploadAdmissionDocumentLive(liveSession.session!, createdApplication.id, upload);
+          await uploadAdmissionDocumentLive(liveSession.session!, manualAdmission.application.id, upload);
         }
-
-        await updateAdmissionApplicationLive(liveSession.session, createdApplication.id, {
-          status: "approved",
-          review_notes: "Direct front-office registration completed.",
-        });
-
-        const response = await registerAdmissionApplicationLive(
-          liveSession.session,
-          createdApplication.id,
-          {
-            admission_number: admissionNumber,
-            class_name: registrationForm.className.trim(),
-            stream_name: "Pending",
-          },
-        );
 
         setRegistrationSummary(
           buildAdmissionRegistrationSummary({
@@ -1183,12 +1173,26 @@ export function AdmissionsModuleScreen({
               streamName: "Pending",
               parentEmail: registrationForm.parentEmail.trim(),
             },
-            response,
+            response: {
+              student: {
+                id: manualAdmission.student_id,
+                admission_number: manualAdmission.admission_number,
+                full_name: manualAdmission.application.full_name,
+              },
+              allocation: {
+                class_name: manualAdmission.application.class_applying,
+                stream_name: "Pending",
+              },
+              guardian_link: manualAdmission.application.parent_email
+                ? { email: manualAdmission.application.parent_email, status: "invited" }
+                : null,
+              application_status: manualAdmission.application.status,
+            },
           }),
         );
         await refreshLiveAdmissionsData();
         setRegistrationForm(createEmptyRegistrationForm());
-        updateSection("student-directory", { student: response.student?.id ?? null });
+        updateSection("student-directory", { student: manualAdmission.student_id });
       } else {
         await new Promise((resolve) => window.setTimeout(resolve, 500));
 

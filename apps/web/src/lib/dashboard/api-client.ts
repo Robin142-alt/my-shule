@@ -208,7 +208,7 @@ export async function requestDashboardApi<T>(
   path: string,
   options?: {
     unwrapEnvelope?: boolean;
-    method?: "GET" | "POST" | "PATCH";
+    method?: "GET" | "POST" | "PATCH" | "DELETE";
     tenantId?: string;
     accessToken?: string | null;
     body?: BodyInit | Record<string, unknown> | null;
@@ -342,5 +342,21 @@ export function fetchApiStudentsSummary(accessToken?: string) {
   return requestDashboardApi<StudentsWidgetData>("/students/summary/dashboard", {
     accessToken,
     unwrapEnvelope: false,
+  });
+}
+
+export function withSession<T>(
+  session: LiveAuthSession,
+  path: string,
+  options?: {
+    method?: "GET" | "POST" | "PATCH" | "DELETE";
+    body?: Record<string, unknown>;
+  },
+): Promise<T> {
+  return requestDashboardApi<T>(path, {
+    tenantId: session.tenantId,
+    accessToken: (session as any).accessToken,
+    method: options?.method || "GET",
+    body: options?.body,
   });
 }

@@ -1,8 +1,12 @@
 "use client";
 
+import { useState } from "react";
 import { Card } from "@/components/ui/card";
-import { AlertCircle, MessageSquare, Send } from "lucide-react";
+import { AlertCircle, MessageSquare, Send, Plus, Loader2 } from "lucide-react";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
+import { Modal } from "@/components/ui/modal";
+import { Button } from "@/components/ui/button";
+import { requestDashboardApi } from "@/lib/dashboard/api-client";
 
 type PrincipalCommunicationData = {
   status: "active" | "degraded" | "setup_required";
@@ -15,7 +19,45 @@ type PrincipalCommunicationData = {
 };
 
 export function PrincipalCommunicationWorkspace() {
-  const { data, isLoading, error } = useSchoolQuery<PrincipalCommunicationData>('/admin-command/principal/communication');
+  const { data, isLoading, error, refetch } = useSchoolQuery<PrincipalCommunicationData>('/admin-command/principal/communication');
+  const { data: templatesData } = useSchoolQuery<any[]>('/admin-command/communication-templates');
+
+  const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [formError, setFormError] = useState("");
+
+  const handleCreateTemplate = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    setFormError("");
+    const formData = new FormData(e.currentTarget);
+    try {
+      await requestDashboardApi('/admin-command/communication-templates', {
+        method: "POST",
+        body: {
+          name: formData.get("name"),
+          type: formData.get("type"),
+          content: formData.get("content"),
+        }
+      });
+      setIsTemplateModalOpen(false);
+      refetch();
+    } catch (err: any) {
+      setFormError(err.message || "Failed to create template");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleArchiveTemplate = async (id: string) => {
+    if (!confirm("Are you sure you want to archive this template?")) return;
+    try {
+      await requestDashboardApi(`/admin-command/communication-templates/${id}`, { method: "DELETE" });
+      refetch();
+    } catch (err: any) {
+      alert(err.message || "Failed to archive template");
+    }
+  };
 
   if (isLoading) {
     return (
@@ -98,11 +140,72 @@ export function PrincipalCommunicationWorkspace() {
             </div>
           ) : (
             <div className="space-y-3 flex-1 overflow-y-auto pr-2">
-              {/* Broadcast list will go here */}
+              <div className="text-white/60 text-sm py-4">Broadcasts will appear here.</div>
             </div>
           )}
         </Card>
       </div>
+
+      <div className="grid gap-6 md:grid-cols-2">
+        <Card className="border border-white/10 bg-white/5 p-6 flex flex-col h-full mt-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-bold text-white">Communication Templates</h2>
+            <Button size="sm" variant="outline" onClick={() => setIsTemplateModalOpen(true)}>
+              <Plus className="h-4 w-4 mr-1" /> Add Template
+            </Button>
+          </div>
+          {!templatesData || templatesData.length === 0 ? (
+            <div className="text-white/60 text-sm py-4 text-center">No communication templates configured yet.</div>
+          ) : (
+            <div className="space-y-2">
+              {templatesData.map((template: any) => (
+                <div key={template.id} className="flex items-center justify-between p-3 rounded-lg bg-white/5 border border-white/10">
+                  <div>
+                    <div className="font-medium text-white">{template.name}</div>
+                    <div className="text-xs text-white/50">{template.type}</div>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button size="sm" variant="outline" className="text-red-400 border-red-500/20 hover:bg-red-500/20" onClick={() => handleArchiveTemplate(template.id)}>
+                      Archive
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+      </div>
+
+      <Modal open={isTemplateModalOpen} onClose={() => setIsTemplateModalOpen(false)} title="Create Template">
+        <form onSubmit={handleCreateTemplate} className="space-y-4">
+          {formError && (
+            <div className="p-3 bg-red-500/10 border border-red-500/20 text-red-500 rounded text-sm">
+              {formError}
+            </div>
+          )}
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Name</label>
+            <input name="name" required className="w-full border rounded p-2 text-sm" placeholder="e.g. Fee Reminder" />
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Type</label>
+            <select name="type" required className="w-full border rounded p-2 text-sm bg-white text-black">
+              <option value="SMS">SMS</option>
+              <option value="EMAIL">Email</option>
+            </select>
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Content</label>
+            <textarea name="content" required className="w-full border rounded p-2 text-sm" placeholder="Message content... Use {{student_name}} for variables." />
+          </div>
+          <div className="pt-4 flex justify-end">
+            <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Create Template
+            </Button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 }

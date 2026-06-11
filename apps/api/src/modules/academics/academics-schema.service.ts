@@ -284,6 +284,28 @@ export class AcademicsSchemaService implements OnModuleInit {
         created_at timestamptz NOT NULL DEFAULT NOW()
       );
 
+      CREATE TABLE IF NOT EXISTS academics_grading_systems (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        tenant_id text NOT NULL,
+        name text NOT NULL,
+        description text,
+        is_active boolean NOT NULL DEFAULT TRUE,
+        created_at timestamptz NOT NULL DEFAULT NOW(),
+        updated_at timestamptz NOT NULL DEFAULT NOW(),
+        CONSTRAINT uq_academics_grading_systems_tenant_name UNIQUE (tenant_id, name)
+      );
+
+      CREATE TABLE IF NOT EXISTS academics_attendance_settings (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        tenant_id text NOT NULL,
+        name text NOT NULL,
+        description text,
+        is_active boolean NOT NULL DEFAULT TRUE,
+        created_at timestamptz NOT NULL DEFAULT NOW(),
+        updated_at timestamptz NOT NULL DEFAULT NOW(),
+        CONSTRAINT uq_academics_attendance_settings_tenant_name UNIQUE (tenant_id, name)
+      );
+
       CREATE INDEX IF NOT EXISTS ix_academic_terms_year
         ON academic_terms (tenant_id, academic_year_id, starts_on);
       CREATE INDEX IF NOT EXISTS ix_class_sections_year
@@ -330,6 +352,21 @@ export class AcademicsSchemaService implements OnModuleInit {
       ALTER TABLE academic_audit_logs ENABLE ROW LEVEL SECURITY;
       ALTER TABLE academic_audit_logs FORCE ROW LEVEL SECURITY;
 
+      ALTER TABLE academics_grading_systems ENABLE ROW LEVEL SECURITY;
+      ALTER TABLE academics_grading_systems FORCE ROW LEVEL SECURITY;
+
+      ALTER TABLE academics_attendance_settings ENABLE ROW LEVEL SECURITY;
+      ALTER TABLE academics_attendance_settings FORCE ROW LEVEL SECURITY;
+
+      DROP POLICY IF EXISTS academics_grading_systems_rls_policy ON academics_grading_systems;
+      CREATE POLICY academics_grading_systems_rls_policy ON academics_grading_systems
+      FOR ALL USING (tenant_id = current_setting('app.tenant_id', true))
+      WITH CHECK (tenant_id = current_setting('app.tenant_id', true));
+
+      DROP POLICY IF EXISTS academics_attendance_settings_rls_policy ON academics_attendance_settings;
+      CREATE POLICY academics_attendance_settings_rls_policy ON academics_attendance_settings
+      FOR ALL USING (tenant_id = current_setting('app.tenant_id', true))
+      WITH CHECK (tenant_id = current_setting('app.tenant_id', true));
 
       DROP POLICY IF EXISTS report_card_comments_rls_policy ON report_card_comments;
       CREATE POLICY report_card_comments_rls_policy ON report_card_comments

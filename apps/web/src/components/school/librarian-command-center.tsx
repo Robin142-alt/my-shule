@@ -46,6 +46,7 @@ import { ApprovalInbox } from "@/components/shared/approval-inbox";
 import { NotificationBell } from "@/components/shared/notification-bell";
 import { TaskQueue } from "@/components/shared/task-queue";
 import { WorkflowToast } from "@/components/shared/workflow-toast";
+import { useSchoolQuery } from "@/lib/data/school-hooks";
 
 type Tone = "success" | "info" | "warning" | "danger" | "neutral";
 type LibrarianView = "overview" | "issue" | "return" | "catalogue" | "add_books" | "loans" | "lost_damaged" | "fines" | "borrowers" | "class_textbooks" | "reservations" | "stocktake" | "departments" | "visits" | "requests" | "reports" | "notices" | "settings";
@@ -163,32 +164,43 @@ function Panel({
 // ----------------------------------------------------------------------
 
 function OverviewWorkspace({ onNavigate }: { onNavigate: (v: LibrarianView) => void }) {
+  const { data: summaryData, isLoading } = useSchoolQuery("/api/library/summary");
+
+  const totalBooks = isLoading ? "..." : (summaryData?.total_catalog_items?.toLocaleString() || "0");
+  const availableBooks = isLoading ? "..." : (summaryData?.available_copies?.toLocaleString() || "0");
+  const issuedOut = isLoading ? "..." : (summaryData?.active_loans?.toLocaleString() || "0");
+  const overdueBooks = isLoading ? "..." : (summaryData?.overdue_loans?.toLocaleString() || "0");
+  const lostBooks = isLoading ? "..." : (summaryData?.lost_or_damaged_copies?.toLocaleString() || "0");
+  const finesPending = isLoading ? "..." : `KES ${(summaryData?.total_fines_minor || 0).toLocaleString()}`;
+
+  const recentActivity = isLoading || !summaryData?.recent_activities ? [] : summaryData.recent_activities;
+
   return (
     <Panel title="Library Overview" description="Manage books, loans, returns, overdue items, stock status, and borrower activity for the current term." icon={Home}>
       <div className="grid gap-4 md:grid-cols-4 lg:grid-cols-6 mb-6">
         <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 cursor-pointer hover:border-blue-300 transition" onClick={() => onNavigate("catalogue")}>
           <div className="text-sm font-semibold text-[#64748B]">Total Books</div>
-          <div className="mt-1 text-2xl font-black text-[#071D49]">12,450</div>
+          <div className="mt-1 text-2xl font-black text-[#071D49]">{totalBooks}</div>
         </div>
         <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 cursor-pointer hover:border-blue-300 transition" onClick={() => onNavigate("catalogue")}>
           <div className="text-sm font-semibold text-[#64748B]">Available</div>
-          <div className="mt-1 text-2xl font-black text-emerald-600">11,200</div>
+          <div className="mt-1 text-2xl font-black text-emerald-600">{availableBooks}</div>
         </div>
         <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 cursor-pointer hover:border-blue-300 transition" onClick={() => onNavigate("loans")}>
           <div className="text-sm font-semibold text-[#64748B]">Issued Out</div>
-          <div className="mt-1 text-2xl font-black text-[#071D49]">1,150</div>
+          <div className="mt-1 text-2xl font-black text-[#071D49]">{issuedOut}</div>
         </div>
         <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 cursor-pointer hover:border-rose-300 transition" onClick={() => onNavigate("loans")}>
           <div className="text-sm font-semibold text-rose-700">Overdue Books</div>
-          <div className="mt-1 text-2xl font-black text-rose-700">84</div>
+          <div className="mt-1 text-2xl font-black text-rose-700">{overdueBooks}</div>
         </div>
         <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 cursor-pointer hover:border-blue-300 transition" onClick={() => onNavigate("lost_damaged")}>
-          <div className="text-sm font-semibold text-[#64748B]">Lost This Year</div>
-          <div className="mt-1 text-2xl font-black text-[#071D49]">16</div>
+          <div className="text-sm font-semibold text-[#64748B]">Lost / Damaged</div>
+          <div className="mt-1 text-2xl font-black text-[#071D49]">{lostBooks}</div>
         </div>
         <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 cursor-pointer hover:border-blue-300 transition" onClick={() => onNavigate("fines")}>
           <div className="text-sm font-semibold text-[#64748B]">Fines Pending</div>
-          <div className="mt-1 text-2xl font-black text-[#071D49]">KES 4,500</div>
+          <div className="mt-1 text-2xl font-black text-[#071D49]">{finesPending}</div>
         </div>
       </div>
 
@@ -239,18 +251,19 @@ function OverviewWorkspace({ onNavigate }: { onNavigate: (v: LibrarianView) => v
               <h3 className="font-bold text-[#071D49]">Recent Activity</h3>
             </div>
             <div className="p-4 space-y-4 text-sm">
-              <div className="flex gap-3">
-                <div className="w-2 h-2 rounded-full bg-emerald-500 mt-1.5 shrink-0"></div>
-                <div><span className="font-semibold">Book Issued:</span> <em>Memories We Lost</em> issued to John Doe (Form 1 West).</div>
-              </div>
-              <div className="flex gap-3">
-                <div className="w-2 h-2 rounded-full bg-blue-500 mt-1.5 shrink-0"></div>
-                <div><span className="font-semibold">Book Returned:</span> <em>KCSE Revision Chemistry</em> by Mary Njeri.</div>
-              </div>
-              <div className="flex gap-3">
-                <div className="w-2 h-2 rounded-full bg-rose-500 mt-1.5 shrink-0"></div>
-                <div><span className="font-semibold">Marked Lost:</span> <em>Secondary Math Bk 2</em> reported lost by Kevin Ochieng.</div>
-              </div>
+              {recentActivity.length === 0 ? (
+                <div className="text-[#64748B] italic">No recent activity.</div>
+              ) : (
+                recentActivity.map((activity: any) => (
+                  <div key={activity.id} className="flex gap-3">
+                    <div className={cn("w-2 h-2 rounded-full mt-1.5 shrink-0", activity.action === "issue" ? "bg-emerald-500" : activity.action === "return" ? "bg-blue-500" : "bg-rose-500")}></div>
+                    <div>
+                      <span className="font-semibold">{activity.action === "issue" ? "Book Issued:" : activity.action === "return" ? "Book Returned:" : "Status Changed:"}</span> 
+                      <em> {activity.item_title}</em> {activity.action === "issue" ? "to" : activity.action === "return" ? "by" : "for"} {activity.borrower_id}.
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </div>
@@ -262,18 +275,16 @@ function OverviewWorkspace({ onNavigate }: { onNavigate: (v: LibrarianView) => v
               <h3 className="font-bold text-rose-900">Urgent Alerts</h3>
             </div>
             <div className="p-4 space-y-3 text-sm text-rose-800">
-              <div className="flex justify-between items-start">
-                <span><strong>84 books</strong> are currently overdue.</span>
-                <button className="text-rose-900 underline font-semibold text-xs" onClick={() => onNavigate("loans")}>View</button>
-              </div>
-              <div className="flex justify-between items-start">
-                <span><strong>5 students</strong> have more than 2 overdue books.</span>
-                <button className="text-rose-900 underline font-semibold text-xs" onClick={() => onNavigate("borrowers")}>View</button>
-              </div>
-              <div className="flex justify-between items-start">
-                <span><strong>2 classes</strong> have not returned termly readers.</span>
-                <button className="text-rose-900 underline font-semibold text-xs" onClick={() => onNavigate("class_textbooks")}>Notify</button>
-              </div>
+              {summaryData?.overdue_loans > 0 ? (
+                <div className="flex justify-between items-start">
+                  <span><strong>{summaryData.overdue_loans} books</strong> are currently overdue.</span>
+                  <button className="text-rose-900 underline font-semibold text-xs" onClick={() => onNavigate("loans")}>View</button>
+                </div>
+              ) : (
+                <div className="flex justify-between items-start text-emerald-700">
+                  <span>No overdue books.</span>
+                </div>
+              )}
             </div>
           </div>
 

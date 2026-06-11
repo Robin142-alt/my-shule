@@ -22,6 +22,24 @@ type TenantNameRow = {
   name: string;
 };
 
+const ROLE_HIERARCHY: Record<string, number> = {
+  super_admin: 100,
+  platform_owner: 100,
+  school_admin: 90,
+  principal: 80,
+  deputy_principal: 70,
+  bursar: 60,
+  hr_officer: 60,
+  dean_academics: 50,
+  exams_manager: 50,
+  secretary: 40,
+  hod: 30,
+  accountant: 30,
+  grade_master: 20,
+  class_teacher: 15,
+  teacher: 10,
+};
+
 type TenantManagedUserRow = {
   id: string;
   kind: 'member' | 'invitation';
@@ -75,6 +93,19 @@ export class TenantInvitationsService {
     const email = dto.email.trim().toLowerCase();
     const displayName = dto.display_name.trim();
     const invitationDetails = this.normalizeInvitationDetails(dto);
+
+    if (context.role) {
+      const inviterLevel = ROLE_HIERARCHY[context.role] || 0;
+      const inviteeLevel = ROLE_HIERARCHY[roleCode] || 0;
+      
+      if (inviterLevel < inviteeLevel) {
+        throw new BadRequestException('You do not have permission to invite a user to a role with higher privileges.');
+      }
+      
+      if (context.role === 'principal' && roleCode === 'principal') {
+        throw new BadRequestException('A Principal cannot invite another Principal.');
+      }
+    }
 
     if (!displayName) {
       throw new BadRequestException('Invitee display name is required.');
@@ -479,6 +510,16 @@ export class TenantInvitationsService {
   ): Promise<TenantManagedUserDto> {
     const tenantId = this.requireTenantId();
     const roleCode = this.normalizeRoleCode(roleCodeInput);
+    const context = this.requestContext.requireStore();
+
+    if (context.role) {
+      const inviterLevel = ROLE_HIERARCHY[context.role] || 0;
+      const inviteeLevel = ROLE_HIERARCHY[roleCode] || 0;
+      
+      if (inviterLevel < inviteeLevel) {
+        throw new BadRequestException('You do not have permission to grant a role with higher privileges.');
+      }
+    }
 
     await this.authorizationRepository.ensureTenantAuthorizationBaseline(tenantId);
     const role = await this.authorizationRepository.getRoleByCode(tenantId, roleCode);

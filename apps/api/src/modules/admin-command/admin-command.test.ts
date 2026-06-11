@@ -271,6 +271,7 @@ test('AdminCommandService creates incidents with audit trail', async () => {
         calls.push(`audit:${input.action}`);
       },
     } as never,
+    {} as never,
   );
 
   const result = await service.createIncident({

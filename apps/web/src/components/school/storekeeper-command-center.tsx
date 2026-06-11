@@ -230,7 +230,7 @@ const heroAlerts: Array<{
   },
 ];
 
-const kpis: Array<{
+const kpis = (data: any, isLoading: boolean): Array<{
   id: string;
   label: string;
   value: string;
@@ -240,89 +240,87 @@ const kpis: Array<{
   icon: LucideIcon;
   points: number[];
   featured?: boolean;
-}> = [
-  {
-    id: "value",
-    label: "Total Inventory Value",
-    value: "KES 3.84M",
-    detail: "Audited value across kitchen, labs, boarding, office, and library.",
-    trend: "+8.6% protected value",
-    tone: "accent",
-    icon: LockKeyhole,
-    points: [44, 48, 46, 55, 58, 62, 66],
-    featured: true,
-  },
-  {
-    id: "issued",
-    label: "Items Issued Today",
-    value: "146",
-    detail: "37 controlled releases across 6 departments.",
-    trend: "+12 vs yesterday",
-    tone: "info",
-    icon: PackageOpen,
-    points: [18, 24, 22, 29, 34, 38, 36],
-  },
-  {
-    id: "received",
-    label: "Goods Received This Week",
-    value: "KES 612K",
-    detail: "12 GRNs, 2 pending verification.",
-    trend: "96% accepted",
-    tone: "success",
-    icon: PackageCheck,
-    points: [12, 18, 25, 22, 32, 36, 40],
-  },
-  {
-    id: "department",
-    label: "Departments Requesting Most",
-    value: "Kitchen",
-    detail: "42% of weekly movement by value.",
-    trend: "+9% consumption",
-    tone: "warning",
-    icon: Building2,
-    points: [36, 40, 39, 48, 55, 52, 60],
-  },
-  {
-    id: "consumed",
-    label: "Most Consumed Item",
-    value: "Sugar",
-    detail: "88 kg issued in 7 days.",
-    trend: "Within expected range",
-    tone: "success",
-    icon: Boxes,
-    points: [20, 25, 23, 24, 27, 31, 30],
-  },
-  {
-    id: "risk",
-    label: "Stock Risk Level",
-    value: "High",
-    detail: "8 live risks need action before Friday.",
-    trend: "3 critical",
-    tone: "critical",
-    icon: AlertTriangle,
-    points: [24, 34, 29, 42, 46, 55, 61],
-  },
-  {
-    id: "damaged",
-    label: "Damaged Goods Value",
-    value: "KES 41K",
-    detail: "Glassware and torn books awaiting write-off.",
-    trend: "-6% this month",
-    tone: "warning",
-    icon: XCircle,
-    points: [32, 30, 28, 26, 29, 24, 22],
-  },
-  {
-    id: "approvals",
-    label: "Pending Approvals",
-    value: "12",
-    detail: "5 urgent, 4 partial approval candidates.",
-    trend: "2 escalated",
-    tone: "accent",
-    icon: ClipboardList,
-    points: [9, 12, 10, 15, 14, 13, 12],
-  },
-];
+}> => {
+  if (isLoading || !data) {
+    return [
+      {
+        id: "value",
+        label: "Total Inventory Value",
+        value: "Loading...",
+        detail: "Audited value across kitchen, labs, boarding, office, and library.",
+        trend: "Calculating...",
+        tone: "accent",
+        icon: LockKeyhole,
+        points: [],
+        featured: true,
+      },
+      {
+        id: "risk",
+        label: "Low Stock Items",
+        value: "Loading...",
+        detail: "Items requiring immediate reorder action.",
+        trend: "Calculating...",
+        tone: "critical",
+        icon: AlertTriangle,
+        points: [],
+      },
+      {
+        id: "approvals",
+        label: "Pending Requests",
+        value: "Loading...",
+        detail: "Requisitions awaiting storekeeper review.",
+        trend: "Calculating...",
+        tone: "warning",
+        icon: ClipboardList,
+        points: [],
+      },
+    ];
+  }
+
+  return [
+    {
+      id: "value",
+      label: "Total Inventory Value",
+      value: `KES ${data.total_inventory_value.toLocaleString("en-KE")}`,
+      detail: "Audited value across kitchen, labs, boarding, office, and library.",
+      trend: "Live value",
+      tone: "accent",
+      icon: LockKeyhole,
+      points: [44, 48, 46, 55, 58, 62, 66],
+      featured: true,
+    },
+    {
+      id: "risk",
+      label: "Low Stock Items",
+      value: String(data.low_stock_items),
+      detail: "Items below reorder level.",
+      trend: `${data.low_stock_items > 0 ? "Action required" : "Healthy"}`,
+      tone: data.low_stock_items > 0 ? "critical" : "success",
+      icon: AlertTriangle,
+      points: [24, 34, 29, 42, 46, 55, 61],
+    },
+    {
+      id: "approvals",
+      label: "Pending Requests",
+      value: String(data.pending_requests),
+      detail: "Requisitions pending approval.",
+      trend: "Awaiting action",
+      tone: data.pending_requests > 0 ? "warning" : "info",
+      icon: ClipboardList,
+      points: [9, 12, 10, 15, 14, 13, 12],
+    },
+    {
+      id: "purchases",
+      label: "Recent Purchases",
+      value: String(data.recent_purchases),
+      detail: "POs generated in the last 30 days.",
+      trend: "Active procurement",
+      tone: "success",
+      icon: ReceiptText,
+      points: [12, 18, 25, 22, 32, 36, 40],
+    },
+  ];
+};
 
 const analytics = [
   {
@@ -1223,8 +1221,20 @@ function AnalyticsPanel({ chart, theme }: { chart: (typeof analytics)[number]; t
   );
 }
 
-function ActivityFeed({ theme }: { theme: StorekeeperTheme }) {
+function ActivityFeed({ data, isLoading, theme }: { data: any, isLoading: boolean, theme: StorekeeperTheme }) {
   const surface = getSurfaceClasses(theme);
+
+  const activeFeed = isLoading || !data?.recent_stock_movement ? activityFeed : data.recent_stock_movement.map((m: any) => ({
+    id: m.id,
+    user: m.actor_display_name || "System",
+    department: m.movement_type,
+    action: m.movement_type === "stock_in" ? "Received stock" : m.movement_type === "stock_issue" ? "Issued stock" : "Adjusted stock",
+    item: m.item_name,
+    quantity: String(m.quantity),
+    time: new Date(m.occurred_at).toLocaleDateString(),
+    status: m.reference || "Recorded",
+    tone: m.movement_type === "stock_in" ? "success" : m.movement_type === "stock_issue" ? "info" : "warning",
+  }));
 
   return (
     <section className={cn("rounded-3xl border p-5 md:p-6", surface.card)}>
@@ -1235,27 +1245,27 @@ function ActivityFeed({ theme }: { theme: StorekeeperTheme }) {
         action={<StatusChip icon={Activity} label="Live pulse" tone="success" />}
       />
       <div className="mt-6 space-y-3">
-        {activityFeed.map((item) => (
+        {activeFeed.map((item: any) => (
           <article key={item.id} className={cn("rounded-3xl border p-4", surface.soft)}>
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-start gap-3">
-                <div className={cn("relative grid h-11 w-11 shrink-0 place-items-center rounded-2xl border font-black", toneStyles[item.tone].chip)}>
+                <div className={cn("relative grid h-11 w-11 shrink-0 place-items-center rounded-2xl border font-black", toneStyles[item.tone as Tone].chip)}>
                   {item.user
                     .split(" ")
-                    .map((part) => part[0])
+                    .map((part: string) => part[0])
                     .join("")
                     .slice(0, 2)}
-                  <span className={cn("absolute -right-1 -top-1 h-3 w-3 rounded-full ring-2 ring-[#071D49]", toneStyles[item.tone].dot)} />
+                  <span className={cn("absolute -right-1 -top-1 h-3 w-3 rounded-full ring-2 ring-[#071D49]", toneStyles[item.tone as Tone].dot)} />
                 </div>
                 <div>
                   <p className="font-black">{item.action}</p>
                   <p className={cn("mt-1 text-sm leading-5", surface.muted)}>
-                    {item.user} in {item.department} moved {item.quantity} of {item.item}.
+                    {item.user} ({item.department}) moved {item.quantity} of {item.item}.
                   </p>
                 </div>
               </div>
               <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-                <StatusChip icon={CheckCircle2} label={item.status} tone={item.tone} />
+                <StatusChip icon={CheckCircle2} label={item.status} tone={item.tone as Tone} />
                 <span className={cn("text-xs font-bold", surface.muted)}>{item.time}</span>
               </div>
             </div>
@@ -1671,6 +1681,7 @@ export function StorekeeperCommandCenter({
 }: {
   routeMode: StorekeeperRouteMode;
 }) {
+  const { data: summaryData, isLoading: isLoadingSummary } = useSchoolQuery<any>("/api/inventory/summary");
   const [theme, setTheme] = useState<StorekeeperTheme>("dark");
   const [searchTerm, setSearchTerm] = useState("");
   const [notice, setNotice] = useState("Store desk ready for receiving, issuing, stock counts, and approvals.");
@@ -1708,6 +1719,8 @@ export function StorekeeperCommandCenter({
     }
   }
 
+  const activeKpis = kpis(summaryData, isLoadingSummary);
+
   return (
     <div className={cn("relative overflow-hidden rounded-[2rem] pb-24 lg:pb-6", surface.page)}>
       <div className="pointer-events-none absolute inset-0 opacity-70">
@@ -1741,14 +1754,14 @@ export function StorekeeperCommandCenter({
               action={<StatusChip icon={Radar} label="Live anomaly scan" tone="accent" />}
             />
             <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-              {heroAlerts.map((alert, index) => (
+              {heroAlerts(summaryData, isLoadingSummary).map((alert, index) => (
                 <HeroAlert key={alert.id} alert={alert} featured={index === 0} theme={theme} />
               ))}
             </div>
           </section>
 
           <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            {kpis.map((item) => (
+            {activeKpis.map((item) => (
               <KpiCard key={item.id} item={item} theme={theme} />
             ))}
           </section>
@@ -1770,7 +1783,7 @@ export function StorekeeperCommandCenter({
                 </div>
               </section>
 
-              <ActivityFeed theme={theme} />
+              <ActivityFeed data={summaryData} isLoading={isLoadingSummary} theme={theme} />
               <RequisitionPanel theme={theme} />
               <Heatmap theme={theme} />
               <SupplierPerformance theme={theme} />

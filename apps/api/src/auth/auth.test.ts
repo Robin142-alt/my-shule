@@ -51,7 +51,7 @@ test('AuthService register rejects direct self-service account creation', async 
       ),
     (error: unknown) =>
       error instanceof ForbiddenException
-      && error.message === 'Account creation requires a valid invitation.',
+      && error.message === 'Self-service account creation is disabled. Please contact your administrator for an invitation.',
   );
 });
 

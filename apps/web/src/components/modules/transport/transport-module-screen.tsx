@@ -19,6 +19,7 @@ import { StatusPill } from "@/components/ui/status-pill";
 import { getCsrfToken } from "@/lib/auth/csrf-client";
 import type { StatusTone } from "@/lib/dashboard/types";
 import { fetchLearnerLookup, type LearnerLookupItem } from "@/lib/students/student-lookup";
+import { useSchoolQuery, useSchoolMutation } from "@/lib/data/school-hooks";
 
 type TransportRouteRow = {
   id: string;

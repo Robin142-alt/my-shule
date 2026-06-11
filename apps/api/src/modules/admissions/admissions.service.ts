@@ -36,6 +36,7 @@ import {
   UpdateDocumentVerificationDto,
   UploadApplicationDocumentDto,
 } from './dto/register-application.dto';
+import { CreateManualAdmissionDto } from './dto/create-manual-admission.dto';
 import { AdmissionsRepository } from './repositories/admissions.repository';
 import {
   AdmissionDocumentStorageService,
@@ -476,6 +477,25 @@ export class AdmissionsService {
         fee_invoice: feeRegistration?.invoice ?? null,
         application_status: 'registered',
       };
+    });
+  }
+
+  async createManualAdmission(dto: CreateManualAdmissionDto) {
+    return this.databaseService.withRequestTransaction(async () => {
+      // 1. Create the application
+      const application = await this.createApplication(dto);
+
+      // 2. Automatically approve it since it's a manual admission
+      await this.updateApplication(application.id, { status: 'approved' });
+
+      // 3. Register it using the existing robust logic
+      return this.registerApprovedApplication(application.id, {
+        admission_number: dto.admission_number,
+        class_name: dto.class_applying,
+        stream_name: dto.stream_name,
+        dormitory_name: dto.dormitory_name,
+        transport_route: dto.transport_route,
+      });
     });
   }
 

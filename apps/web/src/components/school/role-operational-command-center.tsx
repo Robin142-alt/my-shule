@@ -38,7 +38,6 @@ import {
 } from "@/components/operational/operational-form-shell";
 import { OperationalQueue, type OperationalQueueContract } from "@/components/operational/operational-queue";
 import { OperationalTable, type OperationalTableContract } from "@/components/operational/operational-table";
-import { PrincipalCommandCenter } from "@/components/school/principal-command-center";
 import { UserManagementWorkspace } from "@/components/school/user-management-workspace";
 import { OperationalBlueprintWorkspace } from "@/components/school/operational-blueprint-workspace";
 import { Card } from "@/components/ui/card";
@@ -67,7 +66,7 @@ import {
   updateSchoolRecord,
 } from "@/lib/school/school-operational-store";
 import { useQueryClient } from "@tanstack/react-query";
-import { useSchoolMutation, useSchoolQuery } from "@/lib/data/school-hooks";
+import { useSchoolMutation } from "@/lib/data/school-hooks";
 import {
   getKisumuBoysRoleFeed,
   scoreKisumuBoysHighDemoReadiness,
@@ -5341,14 +5340,6 @@ export function RoleOperationalCommandCenter(props: {
   tenantSlug?: string | null;
   routeMode?: "hosted" | "public";
 }) {
-  if (props.role === "principal") {
-    return (
-      <PrincipalCommandCenter
-        routeMode={props.routeMode ?? "hosted"}
-      />
-    );
-  }
-
   return <GenericRoleOperationalCommandCenter {...props} />;
 }
 
@@ -5498,7 +5489,9 @@ function GenericRoleOperationalCommandCenter({
   const isSecretaryWorkspace = primaryRoleWorkspace && (role === "secretary" || role === "admin") && (activeWorkspaceKind === "command" || activeWorkspaceKind === "communication" || /dashboard|front office|visitor|parent|document|appointment|communication/i.test(resolvedWorkspace));
   const isDisciplineWorkspace = primaryRoleWorkspace && role === "discipline-master" && (activeWorkspaceKind === "command" || activeWorkspaceKind === "discipline" || /dashboard|incident|case|discipline|prefect|deputy|counsellor|evidence/i.test(resolvedWorkspace));
   const isCounsellingWorkspace = primaryRoleWorkspace && role === "guidance-counselling" && (activeWorkspaceKind === "command" || activeWorkspaceKind === "counselling" || /dashboard|counselling|counseling|wellness|session|referral|follow-up|parent|welfare|risk/i.test(resolvedWorkspace));
-  const isUserManagementWorkspace = role === "deputy-principal" && /user|invitation|invite|role|permission/i.test(resolvedWorkspace);
+  const isUserManagementWorkspace =
+    (role === "principal" || role === "deputy-principal")
+    && /user|invitation|invite|role|permission/i.test(resolvedWorkspace);
   const diagnosticsWorkspace = isDiagnosticsWorkspace(resolvedWorkspace);
   const commandWorkspace = isCommandWorkspace(resolvedWorkspace, activeWorkspaceIndex);
   const kisumuBoysFeed = filterKisumuBoysFeedForWorkspace({
@@ -8480,8 +8473,9 @@ function GenericRoleOperationalCommandCenter({
             ) : isUserManagementWorkspace ? (
               <UserManagementWorkspace
                 schoolId={schoolId}
-                actorRole="Deputy Principal"
-                actorName={greetingName || "Mr. Otieno"}
+                schoolName={titleize(schoolId)}
+                actorRole={role === "principal" ? "Principal" : "Deputy Principal"}
+                actorName={greetingName || (role === "principal" ? "Principal Wanjiku" : "Mr. Otieno")}
                 canInviteUsers
                 canManageUsers
               />

@@ -32,6 +32,7 @@ import { ApprovalInbox } from "@/components/shared/approval-inbox";
 import { NotificationBell } from "@/components/shared/notification-bell";
 import { TaskQueue } from "@/components/shared/task-queue";
 import { WorkflowToast } from "@/components/shared/workflow-toast";
+import { useSchoolQuery } from "@/lib/data/school-hooks";
 
 type RouteMode = "hosted" | "public";
 type Tone = "success" | "info" | "warning" | "danger" | "neutral";
@@ -199,48 +200,42 @@ function DataTable({
 
 // Fetch helper
 function useClinicData(endpoint: string, fallbackData: any[] = []) {
-  return useQuery({
-    queryKey: ['clinic', endpoint],
-    queryFn: async () => {
-      try {
-        const res = await fetch(`/api/clinic/${endpoint}`);
-        if (!res.ok) return fallbackData;
-        const data = await res.json();
-        return Array.isArray(data) ? data : fallbackData;
-      } catch (err) {
-        return fallbackData;
-      }
-    },
-    initialData: fallbackData,
-  });
+  const query = useSchoolQuery(`/api/clinic/${endpoint}`);
+  return {
+    data: Array.isArray(query.data) ? query.data : fallbackData,
+    isLoading: query.isLoading,
+  };
 }
 
 // Workspaces
 function OverviewWorkspace({ onNavigate }: { onNavigate: (view: ViewId) => void }) {
+  const { data: summaryData, isLoading: loadingSummary } = useSchoolQuery("/api/clinic/summary");
   const { data: queue = [], isLoading: loadingQueue } = useClinicData('queue');
   const { data: inventory = [], isLoading: loadingInventory } = useClinicData('medicines');
   
-  const lowStockCount = inventory.filter((i: any) => i.quantity <= (i.reorder_level || 10)).length || 7;
-  const queueCount = queue.length || 4;
+  const visitsToday = loadingSummary ? "..." : (summaryData?.clinic_visits_today || "0");
+  const queueCount = loadingQueue ? "..." : queue.length;
+  const lowStockCount = loadingSummary ? "..." : (summaryData?.low_stock_medicines || "0");
+  const criticalAlerts = loadingSummary ? "..." : (summaryData?.critical_alerts || "0");
 
   return (
     <div className="space-y-6">
       <div className="grid gap-4 md:grid-cols-4">
          <button onClick={() => onNavigate('records')} className="text-left rounded-xl border border-[#D8E0EC] bg-white p-4 shadow-sm hover:shadow-md transition">
            <p className="text-xs font-black text-[#64748B] uppercase tracking-wider">Visits Today</p>
-           <p className="text-3xl font-black text-[#071D49] mt-2">24</p>
+           <p className="text-3xl font-black text-[#071D49] mt-2">{visitsToday}</p>
          </button>
          <button onClick={() => onNavigate('queue')} className="text-left rounded-xl border border-amber-200 bg-amber-50 p-4 shadow-sm hover:shadow-md transition">
            <p className="text-xs font-black text-amber-700 uppercase tracking-wider">In Queue</p>
-           <p className="text-3xl font-black text-amber-900 mt-2">{loadingQueue ? "..." : queueCount}</p>
+           <p className="text-3xl font-black text-amber-900 mt-2">{queueCount}</p>
          </button>
          <button onClick={() => onNavigate('inventory')} className="text-left rounded-xl border border-rose-200 bg-rose-50 p-4 shadow-sm hover:shadow-md transition">
            <p className="text-xs font-black text-rose-700 uppercase tracking-wider">Low Stock</p>
-           <p className="text-3xl font-black text-rose-900 mt-2">{loadingInventory ? "..." : lowStockCount}</p>
+           <p className="text-3xl font-black text-rose-900 mt-2">{lowStockCount}</p>
          </button>
-         <button onClick={() => onNavigate('referrals')} className="text-left rounded-xl border border-blue-200 bg-blue-50 p-4 shadow-sm hover:shadow-md transition">
-           <p className="text-xs font-black text-blue-700 uppercase tracking-wider">Follow-ups</p>
-           <p className="text-3xl font-black text-blue-900 mt-2">3</p>
+         <button onClick={() => onNavigate('emergencies')} className="text-left rounded-xl border border-rose-200 bg-rose-50 p-4 shadow-sm hover:shadow-md transition">
+           <p className="text-xs font-black text-rose-700 uppercase tracking-wider">Critical Alerts</p>
+           <p className="text-3xl font-black text-rose-900 mt-2">{criticalAlerts}</p>
          </button>
       </div>
 

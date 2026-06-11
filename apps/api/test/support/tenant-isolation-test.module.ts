@@ -21,6 +21,7 @@ import { ComplianceSchemaService } from '../../src/modules/compliance/compliance
 import { EventsSchemaService } from '../../src/modules/events/events-schema.service';
 import { FinanceSchemaService } from '../../src/modules/finance/finance-schema.service';
 import { PaymentsSchemaService } from '../../src/modules/payments/payments-schema.service';
+import { TenantFinanceSchemaService } from '../../src/modules/tenant-finance/tenant-finance-schema.service';
 import { UsageMeterService } from '../../src/modules/billing/usage-meter.service';
 import { StudentEventsService } from '../../src/modules/events/student-events.service';
 import { PiiEncryptionService } from '../../src/modules/security/pii-encryption.service';
@@ -50,6 +51,7 @@ import { TenantModule } from '../../src/tenant/tenant.module';
     EventsSchemaService,
     ComplianceSchemaService,
     FinanceSchemaService,
+    TenantFinanceSchemaService,
     PaymentsSchemaService,
     BillingSchemaService,
     SyncSchemaService,

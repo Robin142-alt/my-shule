@@ -222,7 +222,7 @@ describe('Multi-tenant isolation hardening', () => {
     expect(rows).toHaveLength(1);
     expect(rows[0].id).toBe(tenantA.user_id);
     expect(rows[0].email).toBe(tenantA.email.toLowerCase());
-    expect(rows[0].tenant_id).toBe('global');
+    expect(rows[0].tenant_id).toBe(tenantA.tenant_id);
   });
 
   test('unfiltered reads across all tenant-scoped tables only return tenant A rows', async () => {
@@ -589,8 +589,12 @@ const registerTenantUser = async (
       email,
       password,
       display_name: `Owner ${tenantId}`,
-    })
-    .expect(201);
+    });
+
+  if (response.status !== 201) {
+    console.error('Registration failed:', response.body, response.text);
+    throw new Error(`Expected 201, got ${response.status}`);
+  }
 
   return {
     tenant_id: tenantId,
@@ -635,9 +639,9 @@ const seedTenantCoverageFixtures = async (
   student: CreatedStudent,
   seedSuffix: string,
 ): Promise<TenantCoverageFixture> => {
-  const sharedDeviceId = `shared-device-${seedSuffix}`;
-  const sharedCheckoutRequestId = `shared-checkout-${seedSuffix}`;
-  const sharedMerchantRequestId = `shared-merchant-${seedSuffix}`;
+  const sharedDeviceId = `shared-device-${seedSuffix}-${tenantUser.tenant_id}`;
+  const sharedCheckoutRequestId = `shared-checkout-${seedSuffix}-${tenantUser.tenant_id}`;
+  const sharedMerchantRequestId = `shared-merchant-${seedSuffix}-${tenantUser.tenant_id}`;
 
   return withRlsSession(
     pool,
@@ -1367,7 +1371,7 @@ const withRlsSession = async <T>(
     await client.query('BEGIN');
     await setSessionContext(client, context);
     const result = await callback(client);
-    await client.query('ROLLBACK');
+    await client.query('COMMIT');
     return result;
   } catch (error) {
     await client.query('ROLLBACK');

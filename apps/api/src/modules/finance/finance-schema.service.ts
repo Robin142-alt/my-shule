@@ -129,6 +129,20 @@ export class FinanceSchemaService implements OnModuleInit {
       END;
       $$ LANGUAGE plpgsql;
 
+      CREATE TABLE IF NOT EXISTS finance_fee_categories (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        tenant_id text NOT NULL,
+        name text NOT NULL,
+        description text,
+        amount_minor bigint NOT NULL,
+        currency_code char(3) NOT NULL,
+        is_active boolean NOT NULL DEFAULT TRUE,
+        created_at timestamptz NOT NULL DEFAULT NOW(),
+        updated_at timestamptz NOT NULL DEFAULT NOW(),
+        CONSTRAINT ck_finance_fee_categories_amount_minor CHECK (amount_minor >= 0),
+        CONSTRAINT uq_finance_fee_categories_tenant_name UNIQUE (tenant_id, name)
+      );
+
       CREATE TABLE IF NOT EXISTS accounts (
         id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
         tenant_id text NOT NULL,
@@ -238,6 +252,21 @@ export class FinanceSchemaService implements OnModuleInit {
       ALTER TABLE transactions FORCE ROW LEVEL SECURITY;
       ALTER TABLE ledger_entries ENABLE ROW LEVEL SECURITY;
       ALTER TABLE ledger_entries FORCE ROW LEVEL SECURITY;
+
+      ALTER TABLE finance_fee_categories ENABLE ROW LEVEL SECURITY;
+      ALTER TABLE finance_fee_categories FORCE ROW LEVEL SECURITY;
+
+      DROP POLICY IF EXISTS finance_fee_categories_rls_policy ON finance_fee_categories;
+      CREATE POLICY finance_fee_categories_rls_policy ON finance_fee_categories
+      FOR ALL
+      USING (tenant_id = current_setting('app.tenant_id', true))
+      WITH CHECK (tenant_id = current_setting('app.tenant_id', true));
+
+      DROP TRIGGER IF EXISTS trg_finance_fee_categories_set_updated_at ON finance_fee_categories;
+      CREATE TRIGGER trg_finance_fee_categories_set_updated_at
+      BEFORE UPDATE ON finance_fee_categories
+      FOR EACH ROW
+      EXECUTE FUNCTION set_updated_at();
 
       DROP POLICY IF EXISTS idempotency_keys_rls_policy ON idempotency_keys;
       CREATE POLICY idempotency_keys_rls_policy ON idempotency_keys

@@ -785,6 +785,113 @@ CREATE TABLE idempotency_keys (
     ON DELETE SET NULL
 );
 
+CREATE TABLE academics_grading_systems (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id tenant_key NOT NULL,
+  name text NOT NULL,
+  description text,
+  is_active boolean NOT NULL DEFAULT TRUE,
+  created_at timestamptz NOT NULL DEFAULT NOW(),
+  updated_at timestamptz NOT NULL DEFAULT NOW(),
+  CONSTRAINT ck_academics_grading_systems_tenant_id_non_global CHECK (tenant_id <> 'global'),
+  CONSTRAINT uq_academics_grading_systems_tenant_name UNIQUE (tenant_id, name)
+);
+
+CREATE TABLE communication_templates (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id tenant_key NOT NULL,
+  name text NOT NULL,
+  type text NOT NULL,
+  subject text,
+  body text NOT NULL,
+  variables jsonb NOT NULL DEFAULT '[]'::jsonb,
+  is_active boolean NOT NULL DEFAULT TRUE,
+  created_by uuid,
+  created_at timestamptz NOT NULL DEFAULT NOW(),
+  updated_at timestamptz NOT NULL DEFAULT NOW(),
+  CONSTRAINT ck_communication_templates_tenant_id_non_global CHECK (tenant_id <> 'global'),
+  CONSTRAINT ck_communication_templates_type CHECK (type IN ('email', 'sms', 'push', 'letter')),
+  CONSTRAINT uq_communication_templates_tenant_name UNIQUE (tenant_id, name)
+);
+
+CREATE TABLE academics_attendance_settings (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id tenant_key NOT NULL,
+  name text NOT NULL,
+  description text,
+  is_active boolean NOT NULL DEFAULT TRUE,
+  created_at timestamptz NOT NULL DEFAULT NOW(),
+  updated_at timestamptz NOT NULL DEFAULT NOW(),
+  CONSTRAINT ck_academics_attendance_settings_tenant_id_non_global CHECK (tenant_id <> 'global'),
+  CONSTRAINT uq_academics_attendance_settings_tenant_name UNIQUE (tenant_id, name)
+);
+
+CREATE TABLE finance_fee_categories (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id tenant_key NOT NULL,
+  name text NOT NULL,
+  description text,
+  amount_minor bigint NOT NULL,
+  currency_code char(3) NOT NULL,
+  is_active boolean NOT NULL DEFAULT TRUE,
+  created_at timestamptz NOT NULL DEFAULT NOW(),
+  updated_at timestamptz NOT NULL DEFAULT NOW(),
+  CONSTRAINT ck_finance_fee_categories_amount_minor CHECK (amount_minor >= 0),
+  CONSTRAINT ck_finance_fee_categories_tenant_id_non_global CHECK (tenant_id <> 'global'),
+  CONSTRAINT uq_finance_fee_categories_tenant_name UNIQUE (tenant_id, name)
+);
+CREATE TABLE academics_departments (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id tenant_key NOT NULL,
+  name text NOT NULL,
+  head_of_department_user_id uuid,
+  is_active boolean NOT NULL DEFAULT TRUE,
+  created_at timestamptz NOT NULL DEFAULT NOW(),
+  updated_at timestamptz NOT NULL DEFAULT NOW(),
+  CONSTRAINT ck_academics_departments_tenant_id_non_global CHECK (tenant_id <> 'global'),
+  CONSTRAINT uq_academics_departments_tenant_name UNIQUE (tenant_id, name),
+  CONSTRAINT fk_academics_departments_head
+    FOREIGN KEY (head_of_department_user_id)
+    REFERENCES users (id)
+    ON DELETE SET NULL
+);
+
+CREATE TABLE academics_class_teachers (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id tenant_key NOT NULL,
+  academic_year_id uuid NOT NULL,
+  class_section_id uuid NOT NULL,
+  teacher_user_id uuid NOT NULL,
+  is_active boolean NOT NULL DEFAULT TRUE,
+  created_at timestamptz NOT NULL DEFAULT NOW(),
+  updated_at timestamptz NOT NULL DEFAULT NOW(),
+  CONSTRAINT ck_academics_class_teachers_tenant_id_non_global CHECK (tenant_id <> 'global'),
+  CONSTRAINT uq_academics_class_teachers_section UNIQUE (tenant_id, class_section_id, academic_year_id),
+  CONSTRAINT fk_academics_class_teachers_teacher
+    FOREIGN KEY (teacher_user_id)
+    REFERENCES users (id)
+    ON DELETE RESTRICT
+);
+
+CREATE TABLE academics_report_card_settings (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id tenant_key NOT NULL,
+  name text NOT NULL,
+  grading_system_id uuid,
+  show_rank boolean NOT NULL DEFAULT TRUE,
+  show_attendance boolean NOT NULL DEFAULT TRUE,
+  principal_signature_url text,
+  is_active boolean NOT NULL DEFAULT TRUE,
+  created_at timestamptz NOT NULL DEFAULT NOW(),
+  updated_at timestamptz NOT NULL DEFAULT NOW(),
+  CONSTRAINT ck_academics_report_card_settings_tenant_id_non_global CHECK (tenant_id <> 'global'),
+  CONSTRAINT uq_academics_report_card_settings_name UNIQUE (tenant_id, name),
+  CONSTRAINT fk_academics_report_card_settings_grading
+    FOREIGN KEY (grading_system_id)
+    REFERENCES academics_grading_systems (id)
+    ON DELETE SET NULL
+);
+
 CREATE TABLE accounts (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id tenant_key NOT NULL,
@@ -1884,6 +1991,21 @@ ALTER TABLE event_consumer_runs FORCE ROW LEVEL SECURITY;
 
 ALTER TABLE idempotency_keys ENABLE ROW LEVEL SECURITY;
 ALTER TABLE idempotency_keys FORCE ROW LEVEL SECURITY;
+ALTER TABLE academics_grading_systems ENABLE ROW LEVEL SECURITY;
+ALTER TABLE academics_grading_systems FORCE ROW LEVEL SECURITY;
+
+ALTER TABLE communication_templates ENABLE ROW LEVEL SECURITY;
+ALTER TABLE communication_templates FORCE ROW LEVEL SECURITY;
+
+ALTER TABLE academics_attendance_settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE academics_attendance_settings FORCE ROW LEVEL SECURITY;
+
+ALTER TABLE finance_fee_categories ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE academics_departments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE academics_class_teachers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE academics_report_card_settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE finance_fee_categories FORCE ROW LEVEL SECURITY;
 
 ALTER TABLE accounts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE accounts FORCE ROW LEVEL SECURITY;

@@ -544,4 +544,228 @@ export class AcademicsRepository {
       ],
     };
   }
+
+  async listAcademicYears(tenantId: string) {
+    const result = await this.databaseService.query(
+      `SELECT id, name, starts_on, ends_on FROM academic_years WHERE tenant_id = $1 ORDER BY starts_on DESC`,
+      [tenantId]
+    );
+    return result.rows;
+  }
+
+  async listAcademicTerms(tenantId: string) {
+    const result = await this.databaseService.query(
+      `SELECT id, academic_year_id, name, starts_on, ends_on FROM academic_terms WHERE tenant_id = $1 ORDER BY starts_on DESC`,
+      [tenantId]
+    );
+    return result.rows;
+  }
+
+  async listClassSections(tenantId: string) {
+    const result = await this.databaseService.query(
+      `SELECT id, academic_year_id, name, grade_level, stream, capacity FROM class_sections WHERE tenant_id = $1 ORDER BY grade_level ASC, name ASC`,
+      [tenantId]
+    );
+    return result.rows;
+  }
+
+  async listSubjects(tenantId: string) {
+    const result = await this.databaseService.query(
+      `SELECT id, code, name FROM subjects WHERE tenant_id = $1 ORDER BY name ASC`,
+      [tenantId]
+    );
+    return result.rows;
+  }
+  async updateAcademicYear(tenantId: string, id: string, input: Record<string, unknown>) {
+    const fields = [];
+    const values: unknown[] = [tenantId, id];
+    let i = 3;
+    if (input.name) { fields.push(`name = $${i++}`); values.push(input.name); }
+    if (input.starts_on) { fields.push(`starts_on = $${i++}::date`); values.push(input.starts_on); }
+    if (input.ends_on) { fields.push(`ends_on = $${i++}::date`); values.push(input.ends_on); }
+    if (fields.length === 0) return null;
+    fields.push(`updated_at = NOW()`);
+
+    const result = await this.databaseService.query(
+      `UPDATE academic_years SET ${fields.join(', ')} WHERE tenant_id = $1 AND id = $2::uuid RETURNING *`,
+      values
+    );
+    return result.rows[0];
+  }
+
+  async archiveAcademicYear(tenantId: string, id: string) {
+    const result = await this.databaseService.query(
+      `UPDATE academic_years SET status = 'archived', updated_at = NOW() WHERE tenant_id = $1 AND id = $2::uuid RETURNING *`,
+      [tenantId, id]
+    );
+    return result.rows[0];
+  }
+
+  async updateAcademicTerm(tenantId: string, id: string, input: Record<string, unknown>) {
+    const fields = [];
+    const values: unknown[] = [tenantId, id];
+    let i = 3;
+    if (input.name) { fields.push(`name = $${i++}`); values.push(input.name); }
+    if (input.starts_on) { fields.push(`starts_on = $${i++}::date`); values.push(input.starts_on); }
+    if (input.ends_on) { fields.push(`ends_on = $${i++}::date`); values.push(input.ends_on); }
+    if (fields.length === 0) return null;
+    fields.push(`updated_at = NOW()`);
+
+    const result = await this.databaseService.query(
+      `UPDATE academic_terms SET ${fields.join(', ')} WHERE tenant_id = $1 AND id = $2::uuid RETURNING *`,
+      values
+    );
+    return result.rows[0];
+  }
+
+  async archiveAcademicTerm(tenantId: string, id: string) {
+    const result = await this.databaseService.query(
+      `UPDATE academic_terms SET status = 'archived', updated_at = NOW() WHERE tenant_id = $1 AND id = $2::uuid RETURNING *`,
+      [tenantId, id]
+    );
+    return result.rows[0];
+  }
+
+  async updateClassSection(tenantId: string, id: string, input: Record<string, unknown>) {
+    const fields = [];
+    const values: unknown[] = [tenantId, id];
+    let i = 3;
+    if (input.name) { fields.push(`name = $${i++}`); values.push(input.name); }
+    if (input.grade_level) { fields.push(`grade_level = $${i++}`); values.push(input.grade_level); }
+    if (input.stream) { fields.push(`stream = $${i++}`); values.push(input.stream); }
+    if (input.custom_label) { fields.push(`custom_label = $${i++}`); values.push(input.custom_label); }
+    if (input.capacity !== undefined) { fields.push(`capacity = $${i++}`); values.push(input.capacity); }
+    if (fields.length === 0) return null;
+    fields.push(`updated_at = NOW()`);
+
+    const result = await this.databaseService.query(
+      `UPDATE class_sections SET ${fields.join(', ')} WHERE tenant_id = $1 AND id = $2::uuid RETURNING *`,
+      values
+    );
+    return result.rows[0];
+  }
+
+  async archiveClassSection(tenantId: string, id: string) {
+    const result = await this.databaseService.query(
+      `UPDATE class_sections SET is_active = false, updated_at = NOW() WHERE tenant_id = $1 AND id = $2::uuid RETURNING *`,
+      [tenantId, id]
+    );
+    return result.rows[0];
+  }
+
+  async updateSubject(tenantId: string, id: string, input: Record<string, unknown>) {
+    const fields = [];
+    const values: unknown[] = [tenantId, id];
+    let i = 3;
+    if (input.code) { fields.push(`code = $${i++}`); values.push(input.code); }
+    if (input.name) { fields.push(`name = $${i++}`); values.push(input.name); }
+    if (fields.length === 0) return null;
+    fields.push(`updated_at = NOW()`);
+
+    const result = await this.databaseService.query(
+      `UPDATE subjects SET ${fields.join(', ')} WHERE tenant_id = $1 AND id = $2::uuid RETURNING *`,
+      values
+    );
+    return result.rows[0];
+  }
+
+  async archiveSubject(tenantId: string, id: string) {
+    const result = await this.databaseService.query(
+      `UPDATE subjects SET status = 'archived', updated_at = NOW() WHERE tenant_id = $1 AND id = $2::uuid RETURNING *`,
+      [tenantId, id]
+    );
+    return result.rows[0];
+  }
+
+  async createClassStream(tenantId: string, classSectionId: string, name: string, capacity?: number) {
+    const streamResult = await this.databaseService.query(
+      `
+        INSERT INTO class_streams (
+          tenant_id, class_section_id, name, capacity
+        )
+        VALUES ($1, $2::uuid, $3, $4)
+        RETURNING *
+      `,
+      [tenantId, classSectionId, name, capacity ?? null]
+    );
+    return streamResult.rows[0];
+  }
+
+  // --- Departments ---
+  async getDepartments(tenantId: string) {
+    const result = await this.databaseService.query(
+      `SELECT * FROM academics_departments WHERE tenant_id = $1 AND is_active = true ORDER BY name ASC`,
+      [tenantId]
+    );
+    return result.rows;
+  }
+
+  async createDepartment(tenantId: string, name: string, headUserId: string | null) {
+    const result = await this.databaseService.query(
+      `INSERT INTO academics_departments (tenant_id, name, head_of_department_user_id)
+       VALUES ($1, $2, $3::uuid) RETURNING *`,
+      [tenantId, name, headUserId]
+    );
+    return result.rows[0];
+  }
+
+  async archiveDepartment(tenantId: string, id: string) {
+    const result = await this.databaseService.query(
+      `UPDATE academics_departments SET is_active = false, updated_at = NOW() WHERE tenant_id = $1 AND id = $2::uuid RETURNING *`,
+      [tenantId, id]
+    );
+    return result.rows[0];
+  }
+
+  // --- Class Teachers ---
+  async getClassTeachers(tenantId: string) {
+    const result = await this.databaseService.query(
+      `SELECT * FROM academics_class_teachers WHERE tenant_id = $1 AND is_active = true`,
+      [tenantId]
+    );
+    return result.rows;
+  }
+
+  async assignClassTeacher(tenantId: string, academicYearId: string, classSectionId: string, teacherUserId: string) {
+    const result = await this.databaseService.query(
+      `INSERT INTO academics_class_teachers (tenant_id, academic_year_id, class_section_id, teacher_user_id)
+       VALUES ($1, $2::uuid, $3::uuid, $4::uuid) RETURNING *`,
+      [tenantId, academicYearId, classSectionId, teacherUserId]
+    );
+    return result.rows[0];
+  }
+
+  async archiveClassTeacher(tenantId: string, id: string) {
+    const result = await this.databaseService.query(
+      `UPDATE academics_class_teachers SET is_active = false, updated_at = NOW() WHERE tenant_id = $1 AND id = $2::uuid RETURNING *`,
+      [tenantId, id]
+    );
+    return result.rows[0];
+  }
+
+  // --- Report Card Settings ---
+  async getReportCardSettings(tenantId: string) {
+    const result = await this.databaseService.query(
+      `SELECT * FROM academics_report_card_settings WHERE tenant_id = $1 AND is_active = true ORDER BY name ASC`,
+      [tenantId]
+    );
+    return result.rows;
+  }
+
+  async createReportCardSetting(tenantId: string, name: string, gradingSystemId: string | null, showRank: boolean, showAttendance: boolean) {
+    const result = await this.databaseService.query(
+      `INSERT INTO academics_report_card_settings (tenant_id, name, grading_system_id, show_rank, show_attendance)
+       VALUES ($1, $2, $3::uuid, $4, $5) RETURNING *`,
+      [tenantId, name, gradingSystemId, showRank, showAttendance]
+    );
+    return result.rows[0];
+  }
+
+  async archiveReportCardSetting(tenantId: string, id: string) {
+    const result = await this.databaseService.query(
+      `UPDATE academics_report_card_settings SET is_active = false, updated_at = NOW() WHERE tenant_id = $1 AND id = $2::uuid RETURNING *`,
+      [tenantId, id]
+    );
+    return result.rows[0];
+  }
 }

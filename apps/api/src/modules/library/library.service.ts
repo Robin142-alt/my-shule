@@ -296,6 +296,11 @@ export class LibraryService {
     return this.libraryRepository.listCirculation(input);
   }
 
+  async getSummary() {
+    const tenantId = this.requireTenantId();
+    return this.libraryRepository.buildSummary(tenantId);
+  }
+
   private calculateFineMinor(dueOn: string, returnedOn: string, dailyFineMinor: number): number {
     const due = Date.parse(dueOn);
     const returned = Date.parse(returnedOn);

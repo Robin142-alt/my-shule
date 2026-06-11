@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ForbiddenException,
   Injectable,
   Optional,
@@ -11,6 +12,7 @@ import type { Request } from 'express';
 import { RequestContextService } from '../common/request-context/request-context.service';
 import { DatabaseService } from '../database/database.service';
 import {
+  DEFAULT_ROLE_OWNER,
   SUPERADMIN_ROLE_OWNER,
 } from './auth.constants';
 import {
@@ -116,9 +118,7 @@ export class AuthService {
   }
 
   async register(dto: RegisterDto, metadata: AuthRequestMetadata): Promise<AuthResponseDto> {
-    void dto;
-    void metadata;
-    throw new ForbiddenException('Account creation requires a valid invitation.');
+    throw new ForbiddenException('Self-service account creation is disabled. Please contact your administrator for an invitation.');
   }
 
   async login(dto: LoginDto, metadata: AuthRequestMetadata): Promise<AuthResponseDto> {

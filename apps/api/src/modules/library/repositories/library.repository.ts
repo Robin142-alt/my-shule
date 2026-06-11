@@ -328,6 +328,79 @@ export class LibraryRepository {
       ],
     );
   }
+
+  async buildSummary(tenantId: string) {
+    const [catalogResult, copiesResult, loansResult, circulationResult, finesResult] = await Promise.all([
+      this.databaseService.query(
+        `SELECT COUNT(*) as count FROM library_catalog_items WHERE tenant_id = $1`,
+        [tenantId]
+      ),
+      this.databaseService.query(
+        `SELECT 
+           COUNT(*) as total_copies,
+           SUM(CASE WHEN status = 'available' THEN 1 ELSE 0 END) as available_copies,
+           SUM(CASE WHEN status = 'lost' OR status = 'damaged' THEN 1 ELSE 0 END) as lost_or_damaged_copies
+         FROM library_copies WHERE tenant_id = $1`,
+        [tenantId]
+      ),
+      this.databaseService.query(
+        `SELECT COUNT(*) as count FROM library_loans WHERE tenant_id = $1 AND status = 'active'`,
+        [tenantId]
+      ),
+      this.databaseService.query(
+        `SELECT 
+           COUNT(*) as count,
+           SUM(CASE WHEN metadata->>'due_on' < CURRENT_DATE::text THEN 1 ELSE 0 END) as overdue_count
+         FROM library_circulation_ledger 
+         WHERE tenant_id = $1 AND action = 'issue'
+           AND NOT EXISTS (
+             SELECT 1 FROM library_circulation_ledger r 
+             WHERE r.tenant_id = $1 AND r.copy_id = library_circulation_ledger.copy_id 
+             AND r.action = 'return' AND r.created_at > library_circulation_ledger.created_at
+           )`,
+        [tenantId]
+      ),
+      this.databaseService.query(
+        `SELECT SUM(amount_minor) as total_fines FROM library_fines WHERE tenant_id = $1`,
+        [tenantId]
+      )
+    ]);
+
+    // Gather recent activities
+    const activitiesResult = await this.databaseService.query(
+      `SELECT
+          l.id,
+          l.action,
+          l.created_at,
+          b.subject_id as borrower_id,
+          c.title as item_title
+       FROM library_circulation_ledger l
+       LEFT JOIN library_copies cp ON l.copy_id = cp.id
+       LEFT JOIN library_catalog_items c ON cp.catalog_item_id = c.id
+       LEFT JOIN library_borrowers b ON l.borrower_id = b.id
+       WHERE l.tenant_id = $1
+       ORDER BY l.created_at DESC
+       LIMIT 5`,
+       [tenantId]
+    );
+
+    return {
+      total_catalog_items: parseInt(catalogResult.rows[0]?.count || '0', 10),
+      total_copies: parseInt(copiesResult.rows[0]?.total_copies || '0', 10),
+      available_copies: parseInt(copiesResult.rows[0]?.available_copies || '0', 10),
+      lost_or_damaged_copies: parseInt(copiesResult.rows[0]?.lost_or_damaged_copies || '0', 10),
+      active_loans: parseInt(circulationResult.rows[0]?.count || '0', 10),
+      overdue_loans: parseInt(circulationResult.rows[0]?.overdue_count || '0', 10),
+      total_fines_minor: parseInt(finesResult.rows[0]?.total_fines || '0', 10),
+      recent_activities: activitiesResult.rows.map(row => ({
+        id: row.id,
+        action: row.action,
+        created_at: row.created_at,
+        borrower_id: row.borrower_id,
+        item_title: row.item_title
+      }))
+    };
+  }
 }
 
 function normalizeLibraryListLimit(limit: number | undefined): number {

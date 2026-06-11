@@ -1,8 +1,12 @@
 "use client";
 
+import { useState } from "react";
 import { Card } from "@/components/ui/card";
-import { AlertCircle, FileText, CheckCircle2 } from "lucide-react";
+import { AlertCircle, FileText, CheckCircle2, Plus, Loader2 } from "lucide-react";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
+import { Modal } from "@/components/ui/modal";
+import { Button } from "@/components/ui/button";
+import { requestDashboardApi } from "@/lib/dashboard/api-client";
 
 type PrincipalWorkspaceData = {
   status: "active" | "degraded" | "setup_required";
@@ -13,7 +17,44 @@ type PrincipalWorkspaceData = {
 };
 
 export function PrincipalFinanceOverviewWorkspace() {
-  const { data, isLoading, error } = useSchoolQuery<PrincipalWorkspaceData>('/admin-command/principal/finance-overview');
+  const { data, isLoading, error, refetch } = useSchoolQuery<PrincipalWorkspaceData>('/admin-command/principal/finance-overview');
+  const { data: feeCategoriesData } = useSchoolQuery<any[]>('/finance/fee-categories');
+
+  const [isFeeCategoryModalOpen, setIsFeeCategoryModalOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [formError, setFormError] = useState("");
+
+  const handleCreateFeeCategory = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    setFormError("");
+    const formData = new FormData(e.currentTarget);
+    try {
+      await requestDashboardApi('/finance/fee-categories', {
+        method: "POST",
+        body: {
+          name: formData.get("name"),
+          description: formData.get("description"),
+        }
+      });
+      setIsFeeCategoryModalOpen(false);
+      refetch();
+    } catch (err: any) {
+      setFormError(err.message || "Failed to create fee category");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleArchiveFeeCategory = async (id: string) => {
+    if (!confirm("Are you sure you want to archive this fee category?")) return;
+    try {
+      await requestDashboardApi(`/finance/fee-categories/${id}`, { method: "DELETE" });
+      refetch();
+    } catch (err: any) {
+      alert(err.message || "Failed to archive fee category");
+    }
+  };
 
   if (isLoading) {
     return (
@@ -112,6 +153,60 @@ export function PrincipalFinanceOverviewWorkspace() {
           )}
         </Card>
       </div>
+
+      <div className="grid gap-6 md:grid-cols-2">
+        <Card className="border border-white/10 bg-white/5 p-6 flex flex-col h-full mt-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-bold text-white">Fee Categories</h2>
+            <Button size="sm" variant="outline" onClick={() => setIsFeeCategoryModalOpen(true)}>
+              <Plus className="h-4 w-4 mr-1" /> Add Category
+            </Button>
+          </div>
+          {!feeCategoriesData || feeCategoriesData.length === 0 ? (
+            <div className="text-white/60 text-sm py-4 text-center">No fee categories configured yet.</div>
+          ) : (
+            <div className="space-y-2">
+              {feeCategoriesData.map((category: any) => (
+                <div key={category.id} className="flex items-center justify-between p-3 rounded-lg bg-white/5 border border-white/10">
+                  <div>
+                    <div className="font-medium text-white">{category.name}</div>
+                    <div className="text-xs text-white/50">{category.description || 'No description'}</div>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button size="sm" variant="outline" className="text-red-400 border-red-500/20 hover:bg-red-500/20" onClick={() => handleArchiveFeeCategory(category.id)}>
+                      Archive
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+      </div>
+
+      <Modal open={isFeeCategoryModalOpen} onClose={() => setIsFeeCategoryModalOpen(false)} title="Create Fee Category">
+        <form onSubmit={handleCreateFeeCategory} className="space-y-4">
+          {formError && (
+            <div className="p-3 bg-red-500/10 border border-red-500/20 text-red-500 rounded text-sm">
+              {formError}
+            </div>
+          )}
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Name</label>
+            <input name="name" required className="w-full border rounded p-2 text-sm" placeholder="e.g. Tuition Fee" />
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Description</label>
+            <textarea name="description" className="w-full border rounded p-2 text-sm" placeholder="Optional details..." />
+          </div>
+          <div className="pt-4 flex justify-end">
+            <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Create Category
+            </Button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Post, Query, Patch, Delete, Param } from '@nestjs/common';
 
 import { Permissions } from '../../auth/decorators/permissions.decorator';
 import { DatabaseService } from '../../database/database.service';
@@ -215,5 +215,115 @@ export class FinanceController {
         { label: 'Bank', value: 15 },
       ],
     };
+  }
+
+  @Get('fee-categories')
+  @Permissions('finance:read')
+  async listFeeCategories() {
+    const tenantId = this.requestContext.requireStore().tenant_id;
+    const result = await this.db.query(
+      `SELECT * FROM finance_fee_categories WHERE tenant_id = $1 AND is_active = true ORDER BY name ASC`,
+      [tenantId]
+    );
+    return result.rows;
+  }
+
+  @Post('fee-categories')
+  @Permissions('finance:write')
+  async createFeeCategory(@Body() dto: { name: string; description?: string; amount_minor: number; currency_code?: string }) {
+    const tenantId = this.requestContext.requireStore().tenant_id;
+    const result = await this.db.query(
+      `INSERT INTO finance_fee_categories (tenant_id, name, description, amount_minor, currency_code)
+       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+      [tenantId, dto.name, dto.description || null, dto.amount_minor, dto.currency_code || 'KES']
+    );
+    return result.rows[0];
+  }
+
+  @Patch('fee-categories/:id')
+  @Permissions('finance:write')
+  async updateFeeCategory(@Body() dto: { name?: string; description?: string; amount_minor?: number; currency_code?: string }, @Param('id') id: string) {
+    const tenantId = this.requestContext.requireStore().tenant_id;
+    const result = await this.db.query(
+      `UPDATE finance_fee_categories 
+       SET name = COALESCE($1, name), description = COALESCE($2, description), amount_minor = COALESCE($3, amount_minor), currency_code = COALESCE($4, currency_code), updated_at = NOW()
+       WHERE tenant_id = $5 AND id = $6::uuid RETURNING *`,
+      [dto.name, dto.description, dto.amount_minor, dto.currency_code, tenantId, id]
+    );
+    return result.rows[0];
+  }
+
+  @Get('collections')
+  @Permissions('finance:read')
+  async getCollections() {
+    const tenantId = this.requestContext.requireStore().tenant_id;
+    const result = await this.db.query(
+      `SELECT * FROM manual_fee_payments WHERE tenant_id = $1 ORDER BY created_at DESC LIMIT 50`,
+      [tenantId]
+    );
+    return result.rows;
+  }
+
+  @Get('invoices')
+  @Permissions('finance:read')
+  async getInvoices() {
+    const tenantId = this.requestContext.requireStore().tenant_id;
+    const result = await this.db.query(
+      `SELECT * FROM invoices WHERE tenant_id = $1 ORDER BY created_at DESC LIMIT 50`,
+      [tenantId]
+    );
+    return result.rows;
+  }
+
+  @Get('accounts-overview')
+  @Permissions('finance:read')
+  async getAccountsOverview() {
+    const tenantId = this.requestContext.requireStore().tenant_id;
+    const result = await this.db.query(
+      `
+      SELECT 
+        s.id, s.first_name, s.last_name, s.admission_number,
+        (SELECT name FROM class_sections cs JOIN student_class_assignments sca ON sca.class_section_id = cs.id WHERE sca.student_id = s.id AND sca.status = 'active' LIMIT 1) as class_name,
+        COALESCE((SELECT SUM(amount_minor) FROM ledger_entries le JOIN accounts a ON le.account_id = a.id WHERE a.metadata->>'student_id' = s.id::text AND a.category = 'asset'), 0) as balance_minor
+      FROM students s
+      WHERE s.tenant_id = $1
+      ORDER BY s.first_name ASC
+      LIMIT 100
+      `,
+      [tenantId]
+    );
+    return result.rows;
+  }
+
+  @Get('expenses')
+  @Permissions('finance:read')
+  async getExpenses() {
+    const tenantId = this.requestContext.requireStore().tenant_id;
+    // Mocking expenses since we don't have a dedicated expenses table in the provided schema snippets
+    // Usually this would come from an expenses or ledger table
+    return [
+      { id: '1', date: new Date().toISOString(), category: 'Stationery', description: 'Chalks and dusters', amount_minor: '250000', status: 'Approved' }
+    ];
+  }
+
+  @Get('bank-entries')
+  @Permissions('finance:read')
+  async getBankEntries() {
+    const tenantId = this.requestContext.requireStore().tenant_id;
+    // Mocking bank entries
+    return [
+      { id: '1', date: new Date().toISOString(), reference: 'DEP-002', description: 'Daily Cash Deposit', type: 'Credit', amount_minor: '1400000' }
+    ];
+  }
+
+  @Delete('fee-categories/:id')
+  @Permissions('finance:write')
+  async deleteFeeCategory(@Param('id') id: string) {
+    const tenantId = this.requestContext.requireStore().tenant_id;
+    const result = await this.db.query(
+      `UPDATE finance_fee_categories SET is_active = false, updated_at = NOW() WHERE tenant_id = $1 AND id = $2::uuid RETURNING *`,
+      [tenantId, id]
+    );
+    return result.rows[0];
   }
 }

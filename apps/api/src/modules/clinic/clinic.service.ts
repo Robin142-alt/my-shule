@@ -141,6 +141,12 @@ export class ClinicService {
     return this.repository.getPrincipalAnalytics(this.requireTenantId());
   }
 
+  getSummary() {
+    this.assertPermission('clinic:read');
+    
+    return this.repository.getPrincipalAnalytics(this.requireTenantId());
+  }
+
   async getParentMedicalHistory(studentId: string) {
     this.assertPermission('portal:read_own_children');
     const tenantId = this.requireTenantId();

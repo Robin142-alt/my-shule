@@ -41,6 +41,7 @@ import {
   UpdateDocumentVerificationDto,
   UploadApplicationDocumentDto,
 } from './dto/register-application.dto';
+import { CreateManualAdmissionDto } from './dto/create-manual-admission.dto';
 import { AdmissionsService } from './admissions.service';
 import type { UploadedBinaryFile } from './storage/local-document-storage.service';
 
@@ -107,6 +108,12 @@ export class AdmissionsController {
     @Body() dto: RegisterApplicationDto,
   ) {
     return this.admissionsService.registerApprovedApplication(applicationId, dto);
+  }
+
+  @Post('manual')
+  @Permissions('admissions:write', 'students:write')
+  createManualAdmission(@Body() dto: CreateManualAdmissionDto) {
+    return this.admissionsService.createManualAdmission(dto);
   }
 
   @Get('students')

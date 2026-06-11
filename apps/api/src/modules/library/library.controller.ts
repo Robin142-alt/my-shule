@@ -14,6 +14,11 @@ import { LibraryService } from './library.service';
 @Controller('library')
 @RequiresModule('library')
 export class LibraryController {
+  @Get('summary')
+  @Permissions('library:read')
+  getSummary() {
+    return this.libraryService.getSummary();
+  }
   @Post('loans')
   @Permissions('library:write')
   createLoan(@Body() dto: any) {

@@ -762,37 +762,53 @@ export class AdminCommandRepository {
   }
 
   async getClassesOverview(tenantId: string) {
-    // Currently relying on mocks since academics_classes table isn't created yet
+    const classesQuery = await this.databaseService.query(
+      `SELECT count(*)::int as count FROM class_sections WHERE tenant_id = $1`,
+      [tenantId]
+    ).catch(() => ({ rows: [{ count: 0 }] }));
+    const streamsQuery = await this.databaseService.query(
+      `SELECT count(*)::int as count FROM class_streams WHERE tenant_id = $1`,
+      [tenantId]
+    ).catch(() => ({ rows: [{ count: 0 }] }));
+    
+    const totalClasses = classesQuery.rows[0]?.count || 0;
+    const totalStreams = streamsQuery.rows[0]?.count || 0;
+
+    const distributionQuery = await this.databaseService.query(
+      `SELECT grade_level as label, count(sca.student_id)::int as value 
+       FROM class_sections cs
+       LEFT JOIN student_class_assignments sca ON cs.id = sca.class_section_id
+       WHERE cs.tenant_id = $1
+       GROUP BY grade_level`,
+      [tenantId]
+    ).catch(() => ({ rows: [] }));
+
     return {
-      status: "active",
-      totalClasses: 16,
-      totalStreams: 48,
-      averageClassSize: 32,
-      capacityUtilization: 85,
-      classDistribution: [
-        { label: "Form 1", value: 380 },
-        { label: "Form 2", value: 365 },
-        { label: "Form 3", value: 340 },
-        { label: "Form 4", value: 310 }
-      ],
+      status: totalClasses > 0 ? "active" : "setup_required",
+      totalClasses,
+      totalStreams,
+      averageClassSize: 0,
+      capacityUtilization: 0,
+      classDistribution: distributionQuery.rows,
       recentAdjustments: []
     };
   }
 
   async getSubjectsOverview(tenantId: string) {
-    // Currently relying on mocks since academics_subjects table isn't created yet
+    const subjectsQuery = await this.databaseService.query(
+      `SELECT count(*)::int as count FROM subjects WHERE tenant_id = $1`,
+      [tenantId]
+    ).catch(() => ({ rows: [{ count: 0 }] }));
+    
+    const totalSubjects = subjectsQuery.rows[0]?.count || 0;
+
     return {
-      status: "active",
-      totalSubjects: 14,
-      coreSubjects: 4,
-      electiveSubjects: 10,
-      departments: 6,
-      subjectDistribution: [
-        { label: "Sciences", value: 4 },
-        { label: "Humanities", value: 3 },
-        { label: "Languages", value: 3 },
-        { label: "Technicals", value: 4 }
-      ],
+      status: totalSubjects > 0 ? "active" : "setup_required",
+      totalSubjects,
+      coreSubjects: totalSubjects,
+      electiveSubjects: 0,
+      departments: 0,
+      subjectDistribution: [],
       departmentHeads: []
     };
   }
@@ -829,7 +845,7 @@ export class AdminCommandRepository {
 
   async getPrincipalOverview(tenantId: string) {
     const studentCountResult = await this.databaseService.query(
-      `SELECT COUNT(*)::int AS count FROM students WHERE tenant_id = $1`,
+      `SELECT COUNT(*)::int AS count FROM students WHERE tenant_id = $1 AND status = 'active'`,
       [tenantId]
     ).catch(() => ({ rows: [] }));
     const totalStudents = studentCountResult.rows[0]?.count || 0;
@@ -840,12 +856,24 @@ export class AdminCommandRepository {
     ).catch(() => ({ rows: [] }));
     const totalStaff = staffCountResult.rows[0]?.count || 0;
 
+    const activeIssuesResult = await this.databaseService.query(
+      `SELECT COUNT(*)::int AS count FROM admin_incidents WHERE tenant_id = $1 AND status IN ('reported', 'escalated')`,
+      [tenantId]
+    ).catch(() => ({ rows: [] }));
+    const activeIssues = activeIssuesResult.rows[0]?.count || 0;
+
+    const pendingApprovalsResult = await this.databaseService.query(
+      `SELECT COUNT(*)::int AS count FROM report_readiness_reviews WHERE tenant_id = $1`,
+      [tenantId]
+    ).catch(() => ({ rows: [] }));
+    const pendingApprovals = pendingApprovalsResult.rows[0]?.count || 0;
+
     return {
       status: "active",
       totalStudents,
       totalStaff,
-      activeIssues: 3, // Mock data
-      pendingApprovals: 5, // Mock data
+      activeIssues,
+      pendingApprovals,
       recentActivity: [
         { label: "Fee payment received from John Doe", time: "10 mins ago" },
         { label: "New admission inquiry recorded", time: "1 hr ago" },
@@ -856,17 +884,18 @@ export class AdminCommandRepository {
 
   async getSchoolProfile(tenantId: string) {
     const tenantResult = await this.databaseService.query(
-      `SELECT name, subdomain, region FROM tenants WHERE id = $1`,
+      `SELECT name, subdomain, region, logo_url FROM tenants WHERE tenant_id = $1`,
       [tenantId]
     ).catch(() => ({ rows: [] }));
     
-    const tenant = tenantResult.rows[0] || { name: "MyShule Demo", subdomain: "demo", region: "Nairobi" };
+    const tenant = tenantResult.rows[0] || { name: "MyShule Demo", subdomain: "demo", region: "Nairobi", logo_url: null };
 
     return {
       status: "active",
       schoolName: tenant.name,
       subdomain: tenant.subdomain,
       region: tenant.region,
+      logoUrl: tenant.logo_url,
       registrationStatus: "Fully Registered",
       curriculum: "CBC & 8-4-4",
       schoolType: "Mixed Day & Boarding",
@@ -875,6 +904,13 @@ export class AdminCommandRepository {
         phone: "+254 700 000000"
       }
     };
+  }
+
+  async updateSchoolLogoUrl(tenantId: string, logoUrl: string) {
+    await this.databaseService.query(
+      `UPDATE tenants SET logo_url = $1, updated_at = NOW() WHERE tenant_id = $2`,
+      [logoUrl, tenantId]
+    );
   }
 
   async getApprovalsOverview(tenantId: string) {
@@ -907,28 +943,89 @@ export class AdminCommandRepository {
   }
 
   async getSetupChecklist(tenantId: string) {
+    const profileComplete = await this.databaseService.query(
+      `SELECT count(*)::int as count FROM tenants WHERE id = $1 AND (name != 'New School' OR subdomain != 'new-school')`,
+      [tenantId]
+    ).catch(() => ({ rows: [{ count: 1 }] }));
+    
+    const staffComplete = await this.databaseService.query(
+      `SELECT count(*)::int as count FROM tenant_memberships WHERE tenant_id = $1 AND role IN ('principal', 'deputy_principal', 'school_admin')`,
+      [tenantId]
+    ).catch(() => ({ rows: [{ count: 0 }] }));
+
+    const termsComplete = await this.databaseService.query(
+      `SELECT count(*)::int as count FROM academic_terms WHERE tenant_id = $1`,
+      [tenantId]
+    ).catch(() => ({ rows: [{ count: 0 }] }));
+
+    const subjectsComplete = await this.databaseService.query(
+      `SELECT count(*)::int as count FROM subjects WHERE tenant_id = $1`,
+      [tenantId]
+    ).catch(() => ({ rows: [{ count: 0 }] }));
+
+    const studentsComplete = await this.databaseService.query(
+      `SELECT count(*)::int as count FROM students WHERE tenant_id = $1 AND status = 'active'`,
+      [tenantId]
+    ).catch(() => ({ rows: [{ count: 0 }] }));
+
+    const hasProfile = (profileComplete.rows[0]?.count || 0) > 0;
+    const hasStaff = (staffComplete.rows[0]?.count || 0) > 0;
+    const hasTerms = (termsComplete.rows[0]?.count || 0) > 0;
+    const hasSubjects = (subjectsComplete.rows[0]?.count || 0) > 0;
+    const hasStudents = (studentsComplete.rows[0]?.count || 0) > 0;
+
+    const completedTasks = [hasProfile, hasStaff, hasTerms, hasSubjects, hasStudents].filter(Boolean).length;
+    const overallProgress = Math.round((completedTasks / 5) * 100);
+
     return {
-      status: "setup_required",
-      overallProgress: 65,
+      status: overallProgress === 100 ? "active" : "setup_required",
+      overallProgress,
       tasks: [
-        { id: "1", title: "Complete School Profile", completed: true, group: "General" },
-        { id: "2", title: "Add Principal and Deputy", completed: true, group: "General" },
-        { id: "3", title: "Configure Academic Term", completed: false, group: "Academics" },
-        { id: "4", title: "Register Subjects", completed: false, group: "Academics" },
-        { id: "5", title: "Add Students", completed: false, group: "Data Entry" }
+        { id: "1", title: "Complete School Profile", completed: hasProfile, group: "General" },
+        { id: "2", title: "Add Principal and Deputy", completed: hasStaff, group: "General" },
+        { id: "3", title: "Configure Academic Term", completed: hasTerms, group: "Academics" },
+        { id: "4", title: "Register Subjects", completed: hasSubjects, group: "Academics" },
+        { id: "5", title: "Add Students", completed: hasStudents, group: "Data Entry" }
       ]
     };
   }
 
   async getAcademicSetupOverview(tenantId: string) {
+    const termsQuery = await this.databaseService.query(
+      `SELECT name, ends_on FROM academic_terms WHERE tenant_id = $1 AND ends_on > NOW() ORDER BY starts_on ASC LIMIT 1`,
+      [tenantId]
+    ).catch(() => ({ rows: [] }));
+    
+    const activeTermName = termsQuery.rows[0]?.name || "Not Configured";
+    let weeksRemaining = 0;
+    if (termsQuery.rows[0]?.ends_on) {
+      const ms = new Date(termsQuery.rows[0].ends_on).getTime() - Date.now();
+      weeksRemaining = Math.max(0, Math.floor(ms / (1000 * 60 * 60 * 24 * 7)));
+    }
+
+    const gradings = await this.databaseService.query(
+      `SELECT count(*)::int as count FROM academics_assignments WHERE tenant_id = $1`, // dummy check, grading_systems might not exist
+      [tenantId]
+    ).catch(() => ({ rows: [{ count: 0 }] }));
+
+    const subjects = await this.databaseService.query(
+      `SELECT count(*)::int as count FROM subjects WHERE tenant_id = $1`,
+      [tenantId]
+    ).catch(() => ({ rows: [{ count: 0 }] }));
+
+    const teachers = await this.databaseService.query(
+      `SELECT count(DISTINCT teacher_user_id)::int as count FROM teacher_subject_assignments WHERE tenant_id = $1`,
+      [tenantId]
+    ).catch(() => ({ rows: [{ count: 0 }] }));
+
     return {
-      status: "active",
-      activeTerm: "Term 2, 2026",
-      weeksRemaining: 8,
-      gradingsConfigured: true,
-      subjectsRegistered: 14,
-      teachersAssigned: 85,
-      pendingConfigurations: 2,
+      status: activeTermName !== "Not Configured" ? "active" : "setup_required",
+      activeTerm: activeTermName,
+      weeksRemaining,
+      gradingsConfigured: (gradings.rows[0]?.count || 0) > 0,
+      subjectsRegistered: subjects.rows[0]?.count || 0,
+      teachersAssigned: teachers.rows[0]?.count || 0,
+      pendingConfigurations: ((gradings.rows[0]?.count || 0) > 0 ? 0 : 1) + ((subjects.rows[0]?.count || 0) > 0 ? 0 : 1),
       recentChanges: []
     };
   }

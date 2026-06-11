@@ -8,6 +8,15 @@ import { ClassTeacherService } from './class-teacher.service';
 export class ClassTeacherController {
   constructor(private readonly classTeacherService: ClassTeacherService) {}
 
+  @Get('my-classes')
+  @Permissions('academics:read')
+  getMyClasses(
+    @Headers('x-tenant-id') tenantId: string,
+    @Headers('x-user-id') userId: string,
+  ) {
+    return this.classTeacherService.getMyClasses(tenantId, userId);
+  }
+
   @Get('overview')
   @Permissions('academics:read')
   getOverview(
@@ -26,6 +35,79 @@ export class ClassTeacherController {
     @Query('streamId') streamId: string
   ) {
     return this.classTeacherService.getRegister(tenantId, userId, streamId);
+  }
+
+  @Get('pending-attendance')
+  @Permissions('academics:read')
+  getPendingAttendance(
+    @Headers('x-tenant-id') tenantId: string,
+    @Headers('x-user-id') userId: string,
+  ) {
+    return this.classTeacherService.getPendingAttendance(tenantId, userId);
+  }
+
+  @Get('pending-marks')
+  @Permissions('exams:read')
+  getPendingMarks(
+    @Headers('x-tenant-id') tenantId: string,
+    @Headers('x-user-id') userId: string,
+  ) {
+    return this.classTeacherService.getPendingMarks(tenantId, userId);
+  }
+
+  @Get('timetable')
+  @Permissions('academics:read')
+  getTimetable(
+    @Headers('x-tenant-id') tenantId: string,
+    @Headers('x-user-id') userId: string,
+  ) {
+    return this.classTeacherService.getTimetable(tenantId, userId);
+  }
+
+  @Get('sent-messages')
+  @Permissions('academics:read')
+  getSentMessages(
+    @Headers('x-tenant-id') tenantId: string,
+    @Headers('x-user-id') userId: string,
+  ) {
+    return this.classTeacherService.getSentMessages(tenantId, userId);
+  }
+
+  @Get('register-overview')
+  @Permissions('academics:read')
+  getClassRegisterOverview(
+    @Headers('x-tenant-id') tenantId: string,
+    @Headers('x-user-id') userId: string,
+  ) {
+    return this.classTeacherService.getClassRegisterOverview(tenantId, userId);
+  }
+
+  @Get('discipline-concerns')
+  @Permissions('academics:read')
+  getDisciplineConcerns(
+    @Headers('x-tenant-id') tenantId: string,
+    @Headers('x-user-id') userId: string,
+  ) {
+    return this.classTeacherService.getDisciplineConcerns(tenantId, userId);
+  }
+
+  @Get('report-comments')
+  @Permissions('academics:read')
+  getReportComments(
+    @Headers('x-tenant-id') tenantId: string,
+    @Headers('x-user-id') userId: string,
+  ) {
+    return this.classTeacherService.getReportComments(tenantId, userId);
+  }
+
+  @Post('report-comments')
+  @Permissions('academics:write')
+  saveReportComment(
+    @Headers('x-tenant-id') tenantId: string,
+    @Headers('x-user-id') userId: string,
+    @Body() body: any,
+  ) {
+    return this.classTeacherService.saveReportComment(tenantId, userId, body);
   }
 
   @Get('attendance')

@@ -1,4 +1,5 @@
 import { generatedWorkspaceDefinitions } from './generated-workspace-definitions';
+import type { ExtremeErpBlueprint, ExtremeErpWorkspaceId, OperationalState } from "./extreme-erp-blueprints";
 import type { SearchAccessMode, SearchEntityType } from "@/lib/search/search-access-policy";
 
 export const KENYAN_OPERATIONAL_EXAMPLES = [
@@ -967,6 +968,7 @@ const roleBlueprints: OperationalRoleBlueprint[] = [
       "Attendance Oversight",
       "Student Welfare",
       "Staff Accountability",
+      "Users & Invitations",
       "Parent Confidence",
       "Communication",
       "Transport",
@@ -1370,13 +1372,13 @@ export function getDocxAddedModuleContractByWorkspace(workspaceName: string) {
   return addedModuleContracts[0];
 }
 
-export function generateExtremeErpBlueprintFromContract(workspaceName: string, roleFocus: string): any {
+export function generateExtremeErpBlueprintFromContract(workspaceName: string, roleFocus: string): ExtremeErpBlueprint | null {
   const contract = getDocxAddedModuleContractByWorkspace(workspaceName);
   
   if (!contract) return null;
 
   return {
-    id: contract.id,
+    id: contract.id as ExtremeErpWorkspaceId,
     title: workspaceName,
     moduleCode: contract.id,
     commandQuestion: `What would you like to do in ${workspaceName}?`,
@@ -1402,7 +1404,7 @@ export function generateExtremeErpBlueprintFromContract(workspaceName: string, r
         bulkActions: contract.mainTable.bulkActions,
       }
     ],
-    forms: contract.forms.map((f: any) => ({
+    forms: contract.forms.map((f) => ({
       id: f.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, ""),
       title: f.title,
       purpose: "Standard data entry form",
@@ -1412,7 +1414,7 @@ export function generateExtremeErpBlueprintFromContract(workspaceName: string, r
     })),
     printOutputs: contract.printOutputs,
     sampleData: ["Active", "Pending", "0 Issues"],
-    states: ["LOADING", "SUCCESS", "FAILED"],
+    states: ["LOADING", "EMPTY", "DEGRADED", "FAILED", "LOCKED"] satisfies OperationalState[],
   };
 }
 

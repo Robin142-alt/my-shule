@@ -64,7 +64,7 @@ export const practicalRoleProfiles: Record<SchoolExperienceRole, PracticalRolePr
     todayContext: "Attendance, fees, discipline, sick bay, visitors, boarding, transport, approvals, and school alerts.",
     sectionNoun: "leadership desk",
     summaryCards: [
-      { label: "Students Present", value: "1,186", helper: "18 absent, 12 late", source: "From teacher registers", tone: "ok" },
+      { label: "Students Present Today", value: "1,186", helper: "18 absent, 12 late", source: "From teacher registers", tone: "ok" },
       { label: "Fees Today", value: "KSh 248,500", helper: "1 M-Pesa retry", source: "From accountant records", tone: "warning" },
       { label: "Visitors Inside", value: "6", helper: "2 parents waiting", source: "From security gate log", tone: "warning" },
       { label: "Pending Approvals", value: "15", helper: "Fees, stock, exeats, discipline", source: "From office requests", tone: "critical" },
