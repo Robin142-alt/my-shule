@@ -18,15 +18,29 @@ export interface StatStripDataItem {
 }
 
 export type AdmissionsSectionId =
-  | "dashboard"
+  | "overview"
+  | "enquiries"
   | "applications"
+  | "applicant-profiles"
+  | "documents"
+  | "interviews"
+  | "selection"
+  | "fee-clearance"
+  | "enrolment"
+  | "placement"
+  | "parents"
+  | "transfers"
+  | "communication"
+  | "appointments"
+  | "imports"
+  | "reports"
+  | "tasks"
+  | "templates"
+  | "dashboard"
   | "new-registration"
   | "student-directory"
   | "parent-information"
-  | "documents"
-  | "class-allocation"
-  | "transfers"
-  | "reports";
+  | "class-allocation";
 
 export type ApplicationStatus =
   | "pending"
@@ -240,67 +254,26 @@ export function buildAdmissionsModuleSections(
 ): ModuleShellSectionData[] {
   const pendingApplications = data.applications.filter((item) => item.status === "pending").length;
   const missingDocs = data.documents.filter((item) => item.verificationStatus === "missing").length;
-  const pendingAllocations = data.allocations.filter((item) => item.status === "pending").length;
-  const transportEnabled = options.transportEnabled === true;
 
   return [
-    {
-      id: "dashboard",
-      label: "Admissions Dashboard",
-      description: "Approvals, missing files, and daily front-office pressure.",
-    },
-    {
-      id: "applications",
-      label: "Applications",
-      description: "Review status, parent contact, and admission readiness.",
-      badge: `${data.applications.length}`,
-    },
-    {
-      id: "new-registration",
-      label: "New Registration",
-      description: "Capture personal, academic, guardian, medical, and file data.",
-    },
-    {
-      id: "student-directory",
-      label: "Student Directory",
-      description: "Registered learners and profile records from admissions.",
-      badge: `${data.students.length}`,
-    },
-    {
-      id: "parent-information",
-      label: "Parent Information",
-      description: "Guardian contacts, occupation, relationship, and learner links.",
-      badge: `${data.parents.length}`,
-    },
-    {
-      id: "documents",
-      label: "Documents",
-      description: "Uploaded files, missing items, and verification status.",
-      badge: `${missingDocs} missing`,
-      tone: missingDocs > 0 ? "critical" : "ok",
-    },
-    {
-      id: "class-allocation",
-      label: "Class Allocation",
-      description: transportEnabled
-        ? "Class, stream, dormitory, and route assignment."
-        : "Class, stream, and dormitory assignment.",
-      badge: `${pendingAllocations} pending`,
-      tone: pendingAllocations > 0 ? "warning" : "ok",
-    },
-    {
-      id: "transfers",
-      label: "Transfers",
-      description: "Incoming, outgoing, and historical transfer control.",
-      badge: `${data.transfers.length}`,
-    },
-    {
-      id: "reports",
-      label: "Reports",
-      description: "Application mix, document compliance, and allocation completion.",
-      badge: `${pendingApplications} queue`,
-      tone: pendingApplications > 0 ? "warning" : "ok",
-    },
+    { id: "overview", label: "Overview", description: "Admissions dashboard overview." },
+    { id: "enquiries", label: "Enquiries & Walk-ins", description: "Manage walk-in enquiries." },
+    { id: "applications", label: "Applications", description: "Review application status.", badge: `${data.applications.length}` },
+    { id: "applicant-profiles", label: "Applicant Profiles", description: "Detailed applicant records." },
+    { id: "documents", label: "Documents & Verification", description: "Verify uploaded documents.", badge: `${missingDocs} missing`, tone: missingDocs > 0 ? "critical" : "ok" },
+    { id: "interviews", label: "Interviews & Assessments", description: "Schedule and manage interviews." },
+    { id: "selection", label: "Selection & Offers", description: "Send and track admission offers." },
+    { id: "fee-clearance", label: "Admission Fee Clearance", description: "Verify admission fee payments." },
+    { id: "enrolment", label: "Enrolment & Admission Numbers", description: "Generate admission numbers." },
+    { id: "placement", label: "Class & Stream Placement", description: "Allocate students to classes." },
+    { id: "parents", label: "Parents & Guardians", description: "Manage parent information." },
+    { id: "transfers", label: "Transfers & Re-admissions", description: "Handle incoming/outgoing transfers." },
+    { id: "communication", label: "Communication", description: "Send SMS and emails to applicants." },
+    { id: "appointments", label: "Appointments & Visits", description: "Manage parent visits." },
+    { id: "imports", label: "Imports & Bulk Uploads", description: "Bulk import records." },
+    { id: "reports", label: "Reports & Downloads", description: "Generate admissions reports." },
+    { id: "tasks", label: "Tasks & Follow-ups", description: "Admissions workflow tasks." },
+    { id: "templates", label: "Admission Templates", description: "Manage letter and email templates." }
   ];
 }
 

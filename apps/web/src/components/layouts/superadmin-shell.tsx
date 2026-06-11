@@ -21,6 +21,10 @@ import {
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, type ReactNode } from "react";
+import { TaskQueue } from "../shared/task-queue";
+import { ApprovalInbox } from "../shared/approval-inbox";
+import { NotificationBell } from "../shared/notification-bell";
+import { WorkflowToast } from "../shared/workflow-toast";
 
 /* ─── Nav Config ─────────────────────────────────────────────────── */
 const superadminNav = [
@@ -275,46 +279,10 @@ export function SuperAdminShell({
                   </div>
                 ) : null}
               </label>
-              <div className="relative">
-                <button
-                  type="button"
-                  aria-label="Platform notifications"
-                  aria-expanded={notificationsOpen}
-                  onClick={() => {
-                    setNotificationsOpen((value) => !value);
-                    setProfileOpen(false);
-                    setSearchTerm("");
-                  }}
-                  className="relative rounded-xl border border-border bg-surface-muted p-2.5 text-primary transition hover:border-accent/50 hover:text-accent"
-                >
-                  <Bell className="h-4 w-4" />
-                  <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-[#FF7A1A] text-[9px] font-bold text-white">
-                    {platformNotifications.length}
-                  </span>
-                </button>
-                {notificationsOpen ? (
-                  <div className="fade-in-panel absolute right-0 top-12 z-30 w-80 rounded-xl border border-border bg-white p-2 shadow-xl">
-                    <div className="flex items-center justify-between gap-3 px-2 py-1">
-                      <p className="text-sm font-bold text-primary">Platform items needing review</p>
-                      <span className="rounded-full bg-[#FF7A1A]/12 px-2 py-0.5 text-[11px] font-black text-[#FF7A1A]">
-                        {platformNotifications.length}
-                      </span>
-                    </div>
-                    <div className="mt-1 max-h-80 space-y-1 overflow-y-auto pr-1">
-                      {platformNotifications.map((item) => (
-                        <button
-                          key={item.id}
-                          type="button"
-                          onClick={() => openPlatformPath(item.href, `Navigating to ${item.title} platform follow-up.`)}
-                          className="block w-full rounded-lg px-3 py-2 text-left transition hover:bg-surface-muted"
-                        >
-                          <span className="block text-sm font-bold text-primary">{item.title}</span>
-                          <span className="mt-1 block text-xs leading-5 text-muted">{item.detail}</span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                ) : null}
+              <div className="flex items-center gap-2">
+                <TaskQueue />
+                <ApprovalInbox currentUserId="super-admin-user" />
+                <NotificationBell />
               </div>
               <div className="relative">
                 <button

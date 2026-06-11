@@ -22,6 +22,14 @@ import { VisitorManagementModuleScreen } from "@/components/modules/visitors/vis
 import { ErpShell } from "@/components/school/erp-shell";
 import { DeanAcademicsCommandCenter } from "@/components/school/dean-academics-command-center";
 import { DeputyPrincipalCommandCenter } from "@/components/school/deputy-principal-command-center";
+import { BoardingMasterCommandCenter } from "@/components/school/boarding-master-command-center";
+import { LaboratoryTechnicianCommandCenter } from "@/components/school/laboratory-technician-command-center";
+import { AccountantCommandCenter } from "@/components/school/accountant-command-center";
+import { NurseCommandCenter } from "@/components/school/nurse-command-center";
+import { CounsellorCommandCenter } from "@/components/school/counsellor-command-center";
+import { LibrarianCommandCenter } from "@/components/school/librarian-command-center";
+import { DisciplineMasterCommandCenter } from "@/components/school/discipline-master-command-center";
+import { SecurityCommandCenter } from "@/components/school/security-command-center";
 import { ExamsManagerCommandCenter } from "@/components/school/exams-manager-command-center";
 import { GradeMasterCommandCenter } from "@/components/school/grade-master-command-center";
 import { HodCommandCenter } from "@/components/school/hod-command-center";
@@ -891,6 +899,26 @@ function SchoolStudentsPage({
   const [parentContact, setParentContact] = useState("");
   const [studentError, setStudentError] = useState<string | null>(null);
   const [studentMessage, setStudentMessage] = useState<string | null>(null);
+  const [summaryData, setSummaryData] = useState<any>(null);
+  const [summaryLoading, setSummaryLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadSummary() {
+      setSummaryLoading(true);
+      try {
+        const response = await fetch(buildBillingApiPath("/api/students/summary/dashboard", tenantSlug), {
+          cache: "no-store",
+        });
+        if (response.ok) {
+          setSummaryData(await response.json());
+        }
+      } catch (e) {
+      } finally {
+        setSummaryLoading(false);
+      }
+    }
+    loadSummary();
+  }, [tenantSlug]);
 
   function resetStudentDraft() {
     setLearnerName("");
@@ -962,6 +990,32 @@ function SchoolStudentsPage({
           {studentMessage}
         </div>
       ) : null}
+      {!summaryLoading && summaryData && (
+        <MetricGrid
+          columns="three"
+          items={[
+            {
+              id: "total",
+              label: "Total Students",
+              value: summaryData.total?.toString() || "0",
+              helper: "Registered students",
+              trend: summaryData.trendLabel || "Stable",
+            },
+            {
+              id: "active",
+              label: "Active Students",
+              value: summaryData.active?.toString() || "0",
+              helper: "Currently enrolled",
+            },
+            {
+              id: "new",
+              label: "New Admissions",
+              value: summaryData.newAdmissions?.toString() || "0",
+              helper: "Admitted this month",
+            },
+          ]}
+        />
+      )}
       <DataTable
         title="Students"
         subtitle="Admission, family contact, class placement, and fee balance in one table."
@@ -1298,6 +1352,23 @@ function SchoolFinancePage({
   const [invoiceError, setInvoiceError] = useState<string | null>(null);
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const [financeMessage, setFinanceMessage] = useState<string | null>(null);
+  const [summaryData, setSummaryData] = useState<any>(null);
+  const [summaryLoading, setSummaryLoading] = useState(true);
+
+  async function loadSummary() {
+    setSummaryLoading(true);
+    try {
+      const response = await fetch(buildBillingApiPath("/api/finance/summary", tenantSlug), {
+        cache: "no-store",
+      });
+      if (response.ok) {
+        setSummaryData(await response.json());
+      }
+    } catch (e) {
+    } finally {
+      setSummaryLoading(false);
+    }
+  }
 
   async function loadFinanceActivity() {
     setActivityLoading(true);
@@ -1425,16 +1496,7 @@ function SchoolFinancePage({
   }
 
   useEffect(() => {
-    const timer = window.setTimeout(() => {
-      void loadFinanceActivity();
-      void loadStudentBalances();
-      void loadReconciliationReport();
-      void loadFeeStructures();
-    }, 0);
-
-    return () => window.clearTimeout(timer);
-    // The initial finance loaders are intentionally scoped to the active tenant.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    void loadFeeStructures();
   }, [tenantSlug]);
 
   function openInvoiceModal() {
@@ -2058,7 +2120,36 @@ function SchoolFinancePage({
           {financeMessage}
         </div>
       ) : null}
-      <MetricGrid items={buildFinanceSummaryItems(activity, activityLoading)} />
+      {!summaryLoading && summaryData ? (
+        <MetricGrid
+          columns="three"
+          items={[
+            {
+              id: "collections",
+              label: "Today Collections",
+              value: summaryData.collectionsToday || "KES 0",
+              helper: "Ledger activity",
+              trend: summaryData.trendLabel || "Stable",
+            },
+            {
+              id: "outstanding",
+              label: "Outstanding Invoices",
+              value: summaryData.outstandingInvoices || "KES 0",
+              helper: "To be collected",
+              trend: "Needs review",
+            },
+            {
+              id: "failed",
+              label: "Failed Payments",
+              value: summaryData.failedPayments || "0",
+              helper: "Requires follow-up",
+              trend: "Action required",
+            },
+          ]}
+        />
+      ) : (
+        <MetricGrid items={buildFinanceSummaryItems(activity, activityLoading)} />
+      )}
       <SubscriptionLifecyclePanel subscription={subscription} role={role} routeMode={routeMode} />
       <section className="space-y-5 rounded-xl border border-border bg-surface px-5 py-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -3707,6 +3798,26 @@ function SchoolAcademicsPage({
   tenantSlug?: string | null;
 }) {
   const { model } = getSchoolWorkspace(role, tenantSlug);
+  const [summaryData, setSummaryData] = useState<any>(null);
+  const [summaryLoading, setSummaryLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadSummary() {
+      setSummaryLoading(true);
+      try {
+        const response = await fetch(buildBillingApiPath("/api/academics/summary", tenantSlug), {
+          cache: "no-store",
+        });
+        if (response.ok) {
+          setSummaryData(await response.json());
+        }
+      } catch (e) {
+      } finally {
+        setSummaryLoading(false);
+      }
+    }
+    loadSummary();
+  }, [tenantSlug]);
 
   return (
     <div className="space-y-6">
@@ -3715,14 +3826,42 @@ function SchoolAcademicsPage({
         title="CBC academics"
         description="Marks entry, subject oversight, report cards, and classroom performance in a structure that feels familiar to schools."
       />
-      <MetricGrid
-        items={model.academics.summary.map((item) => ({
-          id: item.id,
-          label: item.label,
-          value: item.value,
-          helper: item.helper,
-        }))}
-      />
+      {!summaryLoading && summaryData ? (
+        <MetricGrid
+          columns="three"
+          items={[
+            {
+              id: "exam",
+              label: "Next Exam",
+              value: summaryData.nextExam || "Not scheduled",
+              helper: "Upcoming assessments",
+              trend: "Stable",
+            },
+            {
+              id: "grading",
+              label: "Grading Queue",
+              value: summaryData.gradingQueue || "0 pending",
+              helper: "Assignments to grade",
+            },
+            {
+              id: "performance",
+              label: "Performance Trend",
+              value: summaryData.performanceTrend || "Stable",
+              helper: "School-wide average",
+              trend: "Stable",
+            },
+          ]}
+        />
+      ) : (
+        <MetricGrid
+          items={model.academics.summary.map((item) => ({
+            id: item.id,
+            label: item.label,
+            value: item.value,
+            helper: item.helper,
+          }))}
+        />
+      )}
       <Tabs
         items={[
           {
@@ -5200,12 +5339,44 @@ function SchoolPagesShell({
     !studentId && shouldRenderRoleOperationalWorkspace(role, section);
 
   if (renderRoleOperationalWorkspace) {
+    if (role === "accountant" || role === "bursar") {
+      return <AccountantCommandCenter routeMode={routeMode} />;
+    }
+
+    if (role === "discipline-master") {
+      return <DisciplineMasterCommandCenter />;
+    }
+
+    if (role === "librarian") {
+      return <LibrarianCommandCenter />;
+    }
+
+    if (role === "boarding-master") {
+      return <BoardingMasterCommandCenter routeMode={routeMode} />;
+    }
+
+    if (role === "nurse") {
+      return <NurseCommandCenter routeMode={routeMode} />;
+    }
+
+    if (role === "guidance-counselling") {
+      return <CounsellorCommandCenter routeMode={routeMode} />;
+    }
+
+    if (role === "laboratory-technician") {
+      return <LaboratoryTechnicianCommandCenter routeMode={routeMode} />;
+    }
+
+    if (role === "security-officer") {
+      return <SecurityCommandCenter routeMode={routeMode} />;
+    }
+
     if (section === "exams" && role === "grade-master") {
       return <GradeMasterCommandCenter routeMode={routeMode} />;
     }
 
     if (section === "exams" && role === "hod") {
-      return <HodCommandCenter routeMode={routeMode} initialView="exams" />;
+      return <HodCommandCenter routeMode={routeMode} />;
     }
 
     if (section === "exams" && role === "dean-academics") {

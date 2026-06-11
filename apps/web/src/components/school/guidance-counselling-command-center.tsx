@@ -25,6 +25,10 @@ import {
   UsersRound,
   type LucideIcon,
 } from "lucide-react";
+import { ApprovalInbox } from "@/components/shared/approval-inbox";
+import { NotificationBell } from "@/components/shared/notification-bell";
+import { TaskQueue } from "@/components/shared/task-queue";
+import { WorkflowToast } from "@/components/shared/workflow-toast";
 
 import {
   fetchCounsellingDashboard,
@@ -584,6 +588,11 @@ function TopNav({
             ) : null}
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-2">
+              <TaskQueue />
+              <ApprovalInbox currentUserId="school" />
+              <NotificationBell />
+            </div>
             <LightStatusChip icon={Siren} label="2 emergency alerts" tone="critical" />
             <LightStatusChip icon={Bell} label="19 notifications" tone="amber" />
             <LightStatusChip icon={LockKeyhole} label="Confidential mode" tone="lavender" />
@@ -1416,6 +1425,7 @@ export function GuidanceCounsellingCommandCenter({
         </main>
       </div>
       <MobileQuickActions onInterventionAction={openInterventionAction} />
+      
     </div>
   );
 }

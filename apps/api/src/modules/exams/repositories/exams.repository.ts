@@ -1090,4 +1090,369 @@ export class ExamsRepository {
     );
     return result.rows;
   }
+
+  async createTimetableSlot(input: Record<string, unknown>) {
+    const result = await this.databaseService.query(
+      `
+        INSERT INTO exam_timetable_slots (
+          tenant_id,
+          exam_series_id,
+          assessment_id,
+          date,
+          start_time,
+          end_time,
+          room_name
+        )
+        VALUES ($1, $2::uuid, $3::uuid, $4::date, $5::time, $6::time, $7)
+        RETURNING *
+      `,
+      [
+        input.tenant_id,
+        input.exam_series_id,
+        input.assessment_id ?? null,
+        input.date,
+        input.start_time,
+        input.end_time,
+        input.room_name ?? null,
+      ],
+    );
+    return result.rows[0];
+  }
+
+  async assignInvigilator(input: Record<string, unknown>) {
+    const result = await this.databaseService.query(
+      `
+        INSERT INTO exam_invigilators (
+          tenant_id,
+          timetable_slot_id,
+          staff_user_id,
+          role
+        )
+        VALUES ($1, $2::uuid, $3::uuid, $4)
+        RETURNING *
+      `,
+      [
+        input.tenant_id,
+        input.timetable_slot_id,
+        input.staff_user_id,
+        input.role ?? 'invigilator',
+      ],
+    );
+    return result.rows[0];
+  }
+
+  async markAttendance(input: Record<string, unknown>) {
+    const result = await this.databaseService.query(
+      `
+        INSERT INTO exam_attendance_records (
+          tenant_id,
+          timetable_slot_id,
+          student_id,
+          status,
+          remarks,
+          recorded_by_user_id
+        )
+        VALUES ($1, $2::uuid, $3::uuid, $4, $5, $6::uuid)
+        RETURNING *
+      `,
+      [
+        input.tenant_id,
+        input.timetable_slot_id,
+        input.student_id,
+        input.status,
+        input.remarks ?? null,
+        input.actor_user_id,
+      ],
+    );
+    return result.rows[0];
+  }
+
+  async reportStudentCase(input: Record<string, unknown>) {
+    const result = await this.databaseService.query(
+      `
+        INSERT INTO exam_student_cases (
+          tenant_id,
+          exam_series_id,
+          student_id,
+          case_type,
+          description,
+          reported_by_user_id
+        )
+        VALUES ($1, $2::uuid, $3::uuid, $4, $5, $6::uuid)
+        RETURNING *
+      `,
+      [
+        input.tenant_id,
+        input.exam_series_id,
+        input.student_id,
+        input.case_type,
+        input.description,
+        input.actor_user_id,
+      ],
+    );
+    return result.rows[0];
+  }
+
+  async getTimetableSlots(tenantId: string, filters: Record<string, any> = {}) {
+    let query = `SELECT * FROM exam_timetable_slots WHERE tenant_id = $1`;
+    const params: any[] = [tenantId];
+    let paramCount = 2;
+
+    if (filters.exam_series_id) {
+      query += ` AND exam_series_id = $${paramCount}::uuid`;
+      params.push(filters.exam_series_id);
+      paramCount++;
+    }
+    
+    query += ` ORDER BY date ASC, start_time ASC`;
+    const result = await this.databaseService.query(query, params);
+    return result.rows;
+  }
+
+  async getInvigilators(tenantId: string, filters: Record<string, any> = {}) {
+    let query = `SELECT * FROM exam_invigilators WHERE tenant_id = $1`;
+    const params: any[] = [tenantId];
+    let paramCount = 2;
+
+    if (filters.timetable_slot_id) {
+      query += ` AND timetable_slot_id = $${paramCount}::uuid`;
+      params.push(filters.timetable_slot_id);
+      paramCount++;
+    }
+    
+    const result = await this.databaseService.query(query, params);
+    return result.rows;
+  }
+
+  async getAttendance(tenantId: string, filters: Record<string, any> = {}) {
+    let query = `SELECT * FROM exam_attendance_records WHERE tenant_id = $1`;
+    const params: any[] = [tenantId];
+    let paramCount = 2;
+
+    if (filters.timetable_slot_id) {
+      query += ` AND timetable_slot_id = $${paramCount}::uuid`;
+      params.push(filters.timetable_slot_id);
+      paramCount++;
+    }
+    
+    const result = await this.databaseService.query(query, params);
+    return result.rows;
+  }
+
+  async getStudentCases(tenantId: string, filters: Record<string, any> = {}) {
+    let query = `SELECT * FROM exam_student_cases WHERE tenant_id = $1`;
+    const params: any[] = [tenantId];
+    let paramCount = 2;
+
+    if (filters.exam_series_id) {
+      query += ` AND exam_series_id = $${paramCount}::uuid`;
+      params.push(filters.exam_series_id);
+      paramCount++;
+    }
+    
+    query += ` ORDER BY created_at DESC`;
+    const result = await this.databaseService.query(query, params);
+    return result.rows;
+  }
+
+  async getExamSeries(tenantId: string, filters: Record<string, any> = {}) {
+    let query = `SELECT * FROM exam_series WHERE tenant_id = $1`;
+    const params: any[] = [tenantId];
+    let paramCount = 2;
+
+    if (filters.status) {
+      query += ` AND status = $${paramCount}`;
+      params.push(filters.status);
+      paramCount++;
+    }
+    
+    query += ` ORDER BY starts_on DESC`;
+    const result = await this.databaseService.query(query, params);
+    return result.rows;
+  }
+
+  async getExamAssessments(tenantId: string, filters: Record<string, any> = {}) {
+    let query = `SELECT * FROM exam_assessments WHERE tenant_id = $1`;
+    const params: any[] = [tenantId];
+    let paramCount = 2;
+
+    if (filters.exam_series_id) {
+      query += ` AND exam_series_id = $${paramCount}::uuid`;
+      params.push(filters.exam_series_id);
+      paramCount++;
+    }
+    
+    query += ` ORDER BY name ASC`;
+    const result = await this.databaseService.query(query, params);
+    return result.rows;
+  }
+
+  async getGradingPolicies(tenantId: string, filters: Record<string, any> = {}) {
+    let query = `SELECT * FROM exam_grading_policies WHERE tenant_id = $1`;
+    const params: any[] = [tenantId];
+    let paramCount = 2;
+
+    if (filters.status) {
+      query += ` AND status = $${paramCount}`;
+      params.push(filters.status);
+      paramCount++;
+    }
+    
+    query += ` ORDER BY name ASC`;
+    const result = await this.databaseService.query(query, params);
+    return result.rows;
+  }
+
+  async getAuditLogs(tenantId: string, filters: Record<string, any> = {}) {
+    let query = `SELECT * FROM exam_marks_audit_logs WHERE tenant_id = $1`;
+    const params: any[] = [tenantId];
+    let paramCount = 2;
+
+    if (filters.exam_series_id) {
+      query += ` AND exam_series_id = $${paramCount}::uuid`;
+      params.push(filters.exam_series_id);
+      paramCount++;
+    }
+    
+    query += ` ORDER BY created_at DESC LIMIT 100`;
+    const result = await this.databaseService.query(query, params);
+    return result.rows;
+  }
+
+  async getSubjectWeightings(tenantId: string, filters: Record<string, any> = {}) {
+    let query = `SELECT * FROM exam_subject_weightings WHERE tenant_id = $1`;
+    const params: any[] = [tenantId];
+    let paramCount = 2;
+
+    if (filters.grading_policy_id) {
+      query += ` AND grading_policy_id = $${paramCount}::uuid`;
+      params.push(filters.grading_policy_id);
+      paramCount++;
+    }
+    
+    query += ` ORDER BY created_at DESC`;
+    const result = await this.databaseService.query(query, params);
+    return result.rows;
+  }
+
+  async getAssessmentComponents(tenantId: string, filters: Record<string, any> = {}) {
+    let query = `SELECT * FROM exam_assessment_components WHERE tenant_id = $1`;
+    const params: any[] = [tenantId];
+    let paramCount = 2;
+
+    if (filters.assessment_id) {
+      query += ` AND assessment_id = $${paramCount}::uuid`;
+      params.push(filters.assessment_id);
+      paramCount++;
+    }
+    
+    query += ` ORDER BY component_name ASC`;
+    const result = await this.databaseService.query(query, params);
+    return result.rows;
+  }
+
+  async getMarkEntryWindows(tenantId: string, filters: Record<string, any> = {}) {
+    let query = `SELECT * FROM exam_mark_entry_windows WHERE tenant_id = $1`;
+    const params: any[] = [tenantId];
+    let paramCount = 2;
+
+    if (filters.exam_series_id) {
+      query += ` AND exam_series_id = $${paramCount}::uuid`;
+      params.push(filters.exam_series_id);
+      paramCount++;
+    }
+    
+    query += ` ORDER BY opens_at ASC`;
+    const result = await this.databaseService.query(query, params);
+    return result.rows;
+  }
+
+  async getMarks(tenantId: string, filters: Record<string, any> = {}) {
+    let query = `SELECT * FROM exam_marks WHERE tenant_id = $1`;
+    const params: any[] = [tenantId];
+    let paramCount = 2;
+
+    if (filters.exam_series_id) {
+      query += ` AND exam_series_id = $${paramCount}::uuid`;
+      params.push(filters.exam_series_id);
+      paramCount++;
+    }
+
+    if (filters.student_id) {
+      query += ` AND student_id = $${paramCount}::uuid`;
+      params.push(filters.student_id);
+      paramCount++;
+    }
+    
+    query += ` ORDER BY updated_at DESC LIMIT 1000`;
+    const result = await this.databaseService.query(query, params);
+    return result.rows;
+  }
+
+  async getMarkVersions(tenantId: string, filters: Record<string, any> = {}) {
+    let query = `SELECT * FROM exam_mark_versions WHERE tenant_id = $1`;
+    const params: any[] = [tenantId];
+    let paramCount = 2;
+
+    if (filters.approval_state) {
+      query += ` AND approval_state = $${paramCount}`;
+      params.push(filters.approval_state);
+      paramCount++;
+    }
+    
+    query += ` ORDER BY created_at DESC LIMIT 500`;
+    const result = await this.databaseService.query(query, params);
+    return result.rows;
+  }
+
+  async getReportCardBatches(tenantId: string, filters: Record<string, any> = {}) {
+    let query = `SELECT * FROM report_card_generation_batches WHERE tenant_id = $1`;
+    const params: any[] = [tenantId];
+    let paramCount = 2;
+
+    if (filters.exam_series_id) {
+      query += ` AND exam_series_id = $${paramCount}::uuid`;
+      params.push(filters.exam_series_id);
+      paramCount++;
+    }
+    
+    query += ` ORDER BY created_at DESC LIMIT 100`;
+    const result = await this.databaseService.query(query, params);
+    return result.rows;
+  }
+
+  async getReportCards(tenantId: string, filters: Record<string, any> = {}) {
+    let query = `SELECT * FROM student_report_cards WHERE tenant_id = $1`;
+    const params: any[] = [tenantId];
+    let paramCount = 2;
+
+    if (filters.exam_series_id) {
+      query += ` AND exam_series_id = $${paramCount}::uuid`;
+      params.push(filters.exam_series_id);
+      paramCount++;
+    }
+
+    if (filters.status) {
+      query += ` AND status = $${paramCount}`;
+      params.push(filters.status);
+      paramCount++;
+    }
+    
+    query += ` ORDER BY created_at DESC LIMIT 500`;
+    const result = await this.databaseService.query(query, params);
+    return result.rows;
+  }
+
+  async getExamDashboardStats(tenantId: string) {
+    const query = `
+      SELECT 
+        (SELECT COUNT(*) FROM exam_series WHERE tenant_id = $1) AS total_series,
+        (SELECT COUNT(*) FROM exam_marks WHERE tenant_id = $1 AND status = 'draft') AS draft_marks,
+        (SELECT COUNT(*) FROM student_report_cards WHERE tenant_id = $1 AND status = 'published') AS published_reports,
+        (SELECT COUNT(*) FROM exam_mark_versions WHERE tenant_id = $1 AND approval_state = 'pending') AS pending_moderations
+    `;
+    const result = await this.databaseService.query(query, [tenantId]);
+    return result.rows[0];
+  }
+
 }

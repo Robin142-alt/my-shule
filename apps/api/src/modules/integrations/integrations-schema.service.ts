@@ -192,22 +192,7 @@ export class IntegrationsSchemaService implements OnModuleInit {
         ON users (phone_number_hash)
         WHERE phone_number_hash IS NOT NULL;
 
-      ALTER TABLE library_copies
-        ADD COLUMN IF NOT EXISTS barcode text,
-        ADD COLUMN IF NOT EXISTS qr_code text,
-        ADD COLUMN IF NOT EXISTS shelf_location text;
 
-      ALTER TABLE library_catalog_items
-        ADD COLUMN IF NOT EXISTS category text;
-
-      CREATE UNIQUE INDEX IF NOT EXISTS ux_library_copies_tenant_barcode
-        ON library_copies (tenant_id, barcode)
-        WHERE barcode IS NOT NULL;
-      CREATE UNIQUE INDEX IF NOT EXISTS ux_library_copies_tenant_qr_code
-        ON library_copies (tenant_id, qr_code)
-        WHERE qr_code IS NOT NULL;
-      CREATE INDEX IF NOT EXISTS ix_library_copies_tenant_accession
-        ON library_copies (tenant_id, accession_number);
 
       ${TENANT_TABLES.map((table) => `
         ALTER TABLE ${table} ENABLE ROW LEVEL SECURITY;

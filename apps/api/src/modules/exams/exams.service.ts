@@ -25,6 +25,10 @@ import {
   LockExamMarksDto,
   ModerateExamMarksDto,
   PublishReportCardDto,
+  CreateTimetableSlotDto,
+  AssignInvigilatorDto,
+  MarkExamAttendanceDto,
+  ReportStudentExamCaseDto,
 } from './dto/exams.dto';
 import { ExamsRepository } from './repositories/exams.repository';
 import { ReportCardGenerationService } from './services/report-card-generation.service';
@@ -1154,6 +1158,155 @@ export class ExamsService {
 
     return this.reportCardGenerationService;
   }
+
+  async createTimetableSlot(dto: CreateTimetableSlotDto) {
+    const tenantId = this.requireTenantId();
+    const result = await this.repository.createTimetableSlot({
+      tenant_id: tenantId,
+      exam_series_id: this.requireText(dto.exam_series_id, 'Exam series'),
+      assessment_id: dto.assessment_id,
+      date: this.requireText(dto.date, 'Date'),
+      start_time: this.requireText(dto.start_time, 'Start time'),
+      end_time: this.requireText(dto.end_time, 'End time'),
+      room_name: dto.room_name,
+    });
+    return { success: true, message: 'Timetable slot created', data: result };
+  }
+
+  async assignInvigilator(dto: AssignInvigilatorDto) {
+    const tenantId = this.requireTenantId();
+    const result = await this.repository.assignInvigilator({
+      tenant_id: tenantId,
+      timetable_slot_id: this.requireText(dto.timetable_slot_id, 'Timetable slot'),
+      staff_user_id: this.requireText(dto.staff_user_id, 'Staff user'),
+      role: dto.role,
+    });
+    return { success: true, message: 'Invigilator assigned', data: result };
+  }
+
+  async markAttendance(dto: MarkExamAttendanceDto) {
+    const tenantId = this.requireTenantId();
+    const actorUserId = this.requireUserId();
+    const result = await this.repository.markAttendance({
+      tenant_id: tenantId,
+      timetable_slot_id: this.requireText(dto.timetable_slot_id, 'Timetable slot'),
+      student_id: this.requireText(dto.student_id, 'Student'),
+      status: this.requireText(dto.status, 'Status'),
+      remarks: dto.remarks,
+      actor_user_id: actorUserId,
+    });
+    return { success: true, message: 'Attendance marked', data: result };
+  }
+
+  async reportStudentCase(dto: ReportStudentExamCaseDto) {
+    const tenantId = this.requireTenantId();
+    const actorUserId = this.requireUserId();
+    const result = await this.repository.reportStudentCase({
+      tenant_id: tenantId,
+      exam_series_id: this.requireText(dto.exam_series_id, 'Exam series'),
+      student_id: this.requireText(dto.student_id, 'Student'),
+      case_type: this.requireText(dto.case_type, 'Case type'),
+      description: this.requireText(dto.description, 'Description'),
+      actor_user_id: actorUserId,
+    });
+    return { success: true, message: 'Student case reported', data: result };
+  }
+  async getTimetableSlots(filters: Record<string, string | undefined>) {
+    const tenantId = this.requireTenantId();
+    const data = await this.repository.getTimetableSlots(tenantId, filters);
+    return { success: true, data };
+  }
+
+  async getInvigilators(filters: Record<string, string | undefined>) {
+    const tenantId = this.requireTenantId();
+    const data = await this.repository.getInvigilators(tenantId, filters);
+    return { success: true, data };
+  }
+
+  async getAttendance(filters: Record<string, string | undefined>) {
+    const tenantId = this.requireTenantId();
+    const data = await this.repository.getAttendance(tenantId, filters);
+    return { success: true, data };
+  }
+
+  async getStudentCases(filters: Record<string, string | undefined>) {
+    const tenantId = this.requireTenantId();
+    const data = await this.repository.getStudentCases(tenantId, filters);
+    return { success: true, data };
+  }
+
+  async getExamSeries(filters: Record<string, string | undefined>) {
+    const tenantId = this.requireTenantId();
+    const data = await this.repository.getExamSeries(tenantId, filters);
+    return { success: true, data };
+  }
+
+  async getExamAssessments(filters: Record<string, string | undefined>) {
+    const tenantId = this.requireTenantId();
+    const data = await this.repository.getExamAssessments(tenantId, filters);
+    return { success: true, data };
+  }
+
+  async getGradingPolicies(filters: Record<string, string | undefined>) {
+    const tenantId = this.requireTenantId();
+    const data = await this.repository.getGradingPolicies(tenantId, filters);
+    return { success: true, data };
+  }
+
+  async getAuditLogs(filters: Record<string, string | undefined>) {
+    const tenantId = this.requireTenantId();
+    const data = await this.repository.getAuditLogs(tenantId, filters);
+    return { success: true, data };
+  }
+
+  async getSubjectWeightings(filters: Record<string, string | undefined>) {
+    const tenantId = this.requireTenantId();
+    const data = await this.repository.getSubjectWeightings(tenantId, filters);
+    return { success: true, data };
+  }
+
+  async getAssessmentComponents(filters: Record<string, string | undefined>) {
+    const tenantId = this.requireTenantId();
+    const data = await this.repository.getAssessmentComponents(tenantId, filters);
+    return { success: true, data };
+  }
+
+  async getMarkEntryWindows(filters: Record<string, string | undefined>) {
+    const tenantId = this.requireTenantId();
+    const data = await this.repository.getMarkEntryWindows(tenantId, filters);
+    return { success: true, data };
+  }
+
+  async getMarks(filters: Record<string, string | undefined>) {
+    const tenantId = this.requireTenantId();
+    const data = await this.repository.getMarks(tenantId, filters);
+    return { success: true, data };
+  }
+
+  async getMarkVersions(filters: Record<string, string | undefined>) {
+    const tenantId = this.requireTenantId();
+    const data = await this.repository.getMarkVersions(tenantId, filters);
+    return { success: true, data };
+  }
+
+  async getReportCardBatches(filters: Record<string, string | undefined>) {
+    const tenantId = this.requireTenantId();
+    const data = await this.repository.getReportCardBatches(tenantId, filters);
+    return { success: true, data };
+  }
+
+  async getReportCards(filters: Record<string, string | undefined>) {
+    const tenantId = this.requireTenantId();
+    const data = await this.repository.getReportCards(tenantId, filters);
+    return { success: true, data };
+  }
+
+  async getExamDashboardStats() {
+    const tenantId = this.requireTenantId();
+    const data = await this.repository.getExamDashboardStats(tenantId);
+    return { success: true, data };
+  }
+
 }
 
 function signParentReportCardDownloadToken(

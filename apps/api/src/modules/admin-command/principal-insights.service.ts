@@ -40,6 +40,78 @@ export class PrincipalInsightsService {
     return this.buildDashboardPayload(tenantId, enabledModules, permissions);
   }
 
+  async getFinanceOverview(tenantId: string) {
+    return this.repository.getFinanceOverview(tenantId);
+  }
+
+  async getStudentsOverview(tenantId: string) {
+    return this.repository.getStudentsOverview(tenantId);
+  }
+
+  async getDisciplineOverview(tenantId: string) {
+    return this.repository.getDisciplineOverview(tenantId);
+  }
+
+  async getAttendanceOverview(tenantId: string) {
+    return this.repository.getAttendanceOverview(tenantId);
+  }
+
+  async getAcademicsOverview(tenantId: string) {
+    return this.repository.getAcademicsOverview(tenantId);
+  }
+
+  async getExamsOverview(tenantId: string) {
+    return this.repository.getExamsOverview(tenantId);
+  }
+
+  async getCommunicationOverview(tenantId: string) {
+    return this.repository.getCommunicationOverview(tenantId);
+  }
+
+  async getClassesOverview(tenantId: string) {
+    return this.repository.getClassesOverview(tenantId);
+  }
+
+  async getSubjectsOverview(tenantId: string) {
+    return this.repository.getSubjectsOverview(tenantId);
+  }
+
+  async getStaffOverview(tenantId: string) {
+    return this.repository.getStaffOverview(tenantId);
+  }
+
+  async getPrincipalOverview(tenantId: string) {
+    return this.repository.getPrincipalOverview(tenantId);
+  }
+
+  async getSchoolProfile(tenantId: string) {
+    return this.repository.getSchoolProfile(tenantId);
+  }
+
+  async getApprovalsOverview(tenantId: string) {
+    return this.repository.getApprovalsOverview(tenantId);
+  }
+
+  async getPrincipalReportsOverview(tenantId: string) {
+    return this.repository.getPrincipalReportsOverview(tenantId);
+  }
+
+  async getSetupChecklist(tenantId: string) {
+    return this.repository.getSetupChecklist(tenantId);
+  }
+
+  async getAcademicSetupOverview(tenantId: string) {
+    return this.repository.getAcademicSetupOverview(tenantId);
+  }
+
+  async getPrincipalSettings(tenantId: string) {
+    return this.repository.getPrincipalSettings(tenantId);
+  }
+
+  async getPrincipalTeachingSchedule(tenantId: string) {
+    return this.repository.getPrincipalTeachingSchedule(tenantId);
+  }
+
   async buildDashboardForTenant(
     tenantId: string,
     permissions: string[],

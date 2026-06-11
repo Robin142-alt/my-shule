@@ -26,6 +26,7 @@ export type SchoolExperienceRole =
   | "laboratory-technician"
   | "guidance-counselling"
   | "discipline-master"
+  | "procurement-officer"
   | "admissions";
 export type PortalViewer = "parent" | "student";
 

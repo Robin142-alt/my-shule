@@ -5,6 +5,9 @@ import { startTransition, useDeferredValue, useState, type ReactNode } from "rea
 import { usePathname, useRouter } from "next/navigation";
 
 import { DashboardGreeting } from "@/components/common/dashboard-greeting";
+import { ApprovalInbox } from "@/components/shared/approval-inbox";
+import { NotificationBell } from "@/components/shared/notification-bell";
+import { TaskQueue } from "@/components/shared/task-queue";
 import { StatusPill } from "@/components/ui/status-pill";
 import type {
   ExperienceNavItem,
@@ -654,6 +657,13 @@ export function AppTopbar({
               <p className="truncate text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">
                 {profile.roleLabel}
               </p>
+            </div>
+          ) : null}
+          {variant === "school" ? (
+            <div className="flex items-center gap-2 mr-2 ml-2">
+              <TaskQueue />
+              <ApprovalInbox currentUserId="school" />
+              <NotificationBell />
             </div>
           ) : null}
           {actions}

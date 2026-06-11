@@ -1,0 +1,1013 @@
+# Deputy Principal Dashboard — MyShule Blueprint
+
+## Role Identity
+
+**Role:** Deputy Principal
+**Dashboard Type:** Senior School Operations Dashboard
+
+---
+
+# 1. Overview Workspace
+
+## Purpose
+This is the Deputy Principal’s landing page. It should show the state of the school today: attendance, discipline, staff duty, unresolved issues, timetable gaps, urgent escalations, and academic concerns.
+
+## Top Summary Cards
+
+1. **Today’s Learner Attendance**
+   * Present
+   * Absent
+   * Late
+   * Not marked classes
+   * Button: `Open Attendance`
+
+2. **Discipline Alerts**
+   * New incidents today
+   * Serious cases pending
+   * Parent summons pending
+   * Button: `Review Incidents`
+
+3. **Staff Duty Status**
+   * Staff on duty today
+   * Missing duty reports
+   * Uncovered duty zones
+   * Button: `View Duty Roster`
+
+4. **Lesson Coverage**
+   * Lessons covered
+   * Relief lessons needed
+   * Teachers absent
+   * Button: `Assign Relief`
+
+5. **Student Welfare Flags**
+   * Sick bay visits today
+   * Counselling referrals
+   * Repeated absenteeism
+   * Button: `View Welfare Cases`
+
+6. **Pending Approvals**
+   * Leave requests
+   * Discipline actions
+   * Class movement requests
+   * Operational escalations
+   * Button: `Open Approvals`
+
+## Main Work Area
+
+### Section: “Today’s Priority Queue”
+
+Table columns:
+| Column           | Description                                      |
+| ---------------- | ------------------------------------------------ |
+| Priority         | Critical, High, Normal                           |
+| Type             | Attendance, Discipline, Staff, Academic, Welfare |
+| Student/Staff    | Affected person                                  |
+| Class/Department | Scope                                            |
+| Status           | New, In Review, Escalated, Resolved              |
+| Assigned To      | Deputy, Teacher, Counsellor, Nurse, Principal    |
+| Last Update      | Time                                             |
+| Actions          | Row actions                                      |
+
+### Row Actions
+* `Open`
+* `Assign`
+* `Escalate`
+* `Mark Resolved`
+* `Send Message`
+* `Print Summary`
+
+### Bulk Actions
+* `Assign Selected`
+* `Escalate Selected`
+* `Mark as Reviewed`
+* `Export Selected`
+* `Print Selected`
+
+## Buttons
+Primary buttons:
+* `Start Morning Review`
+* `Open Attendance Gaps`
+* `Assign Relief Teacher`
+* `Create Discipline Case`
+* `Send Staff Notice`
+* `Generate Daily Summary`
+
+---
+
+# 2. Daily Operations Workspace
+
+## Purpose
+This workspace is for the Deputy to manage the school day from morning to evening.
+
+## Summary Cards
+1. **Morning Readiness**
+   * Parade status
+   * Staff duty present
+   * Gate report received
+
+2. **Classes Not Started**
+   * Classes without first lesson log
+   * Classes without attendance
+
+3. **Operational Incidents**
+   * Security alerts
+   * Sick bay alerts
+   * Discipline alerts
+
+4. **End-Day Pending**
+   * Unclosed incidents
+   * Missing duty reports
+   * Unresolved student movements
+
+## Main Tabs
+
+### Tab 1: Morning Checklist
+Checklist items:
+* Gate opened and security report submitted
+* Staff on duty confirmed
+* Attendance marking started
+* Parade notes recorded
+* Sick bay ready
+* Timetable disruptions checked
+* Urgent announcements sent
+
+Buttons:
+* `Mark Step Done`
+* `Add Morning Note`
+* `Send Morning Notice`
+* `Print Morning Brief`
+
+### Tab 2: Active School Day
+Table columns:
+| Time | Area | Issue | Reported By | Status | Assigned To | Actions |
+| ---- | ---- | ----- | ----------- | ------ | ----------- | ------- |
+
+Row actions:
+* `Open`
+* `Assign Staff`
+* `Send Notice`
+* `Escalate`
+* `Resolve`
+
+### Tab 3: End-Day Handover
+Fields:
+* General school day summary
+* Attendance concerns
+* Discipline cases
+* Staff issues
+* Parent escalations
+* Academic concerns
+* Items for Principal
+* Items for tomorrow
+
+Buttons:
+* `Save Draft`
+* `Submit Handover`
+* `Send to Principal`
+* `Download PDF`
+
+## Create Operation Note Modal
+Fields:
+* Date
+* Time
+* Category
+* Location
+* Description
+* Urgency
+* Attach file/photo
+* Assigned staff
+* Notify Principal? checkbox
+
+Buttons:
+* `Cancel`
+* `Save Note`
+* `Save and Notify`
+
+---
+
+# 3. Attendance & Punctuality Workspace
+
+## Purpose
+The Deputy Principal monitors learner attendance at school level.
+
+## Summary Cards
+1. **Attendance Completion**
+2. **Absent Learners**
+3. **Late Learners**
+4. **Critical Learners**
+
+## Main Table
+| Student | Admission No. | Class | Stream | Status | Time | Reason | Marked By | Parent Notified | Actions |
+| ------- | ------------- | ----- | ------ | ------ | ---- | ------ | --------- | --------------- | ------- |
+
+## Row Actions
+* `View Student Profile`
+* `View Attendance History`
+* `Contact Parent`
+* `Send to Class Teacher`
+* `Create Follow-Up`
+* `Refer to Counsellor`
+* `Escalate to Principal`
+* `Mark Reviewed`
+* `Print Attendance Slip`
+
+## Bulk Actions
+* `Notify Parents`
+* `Send Reminder to Class Teachers`
+* `Create Follow-Up Tasks`
+* `Export Attendance`
+* `Print Absentee List`
+* `Mark Selected Reviewed`
+
+## Buttons
+* `Remind Unmarked Classes`
+* `Download Daily Attendance`
+* `Print Latecomers List`
+* `Create Attendance Follow-Up`
+* `Send Parent SMS`
+* `Export CSV`
+* `Export PDF`
+
+## Attendance Follow-Up Drawer
+Fields:
+* Student
+* Class
+* Attendance issue type
+* Number of occurrences
+* Follow-up owner
+* Parent contacted?
+* Notes
+* Next action date
+
+Buttons:
+* `Save Follow-Up`
+* `Save and Notify Parent`
+* `Save and Refer to Counsellor`
+
+---
+
+# 4. Discipline & Behaviour Workspace
+
+## Purpose
+This handles student behaviour incidents, investigations, parent summons, punishment tracking, suspensions, referrals, and escalations.
+
+## Summary Cards
+1. **New Incidents**
+2. **Serious Cases**
+3. **Pending Parent Summons**
+4. **Discipline Actions Pending**
+5. **Counselling Referrals**
+
+## Main Table
+| Case No. | Student | Class | Incident | Severity | Reported By | Status | Parent Status | Actions |
+| -------- | ------- | ----- | -------- | -------- | ----------- | ------ | ------------- | ------- |
+
+## Row Actions
+* `Open Case`
+* `Add Statement`
+* `Assign Investigator`
+* `Notify Parent`
+* `Create Parent Summons`
+* `Refer to Counsellor`
+* `Refer to Principal`
+* `Recommend Suspension`
+* `Issue Warning Letter`
+* `Mark Resolved`
+* `Print Case File`
+* `View Audit Trail`
+
+## Bulk Actions
+* `Assign Selected`
+* `Notify Parents`
+* `Export Cases`
+* `Print Selected`
+* `Mark Reviewed`
+
+## Buttons
+* `Create Incident`
+* `Create Parent Summons`
+* `Generate Warning Letter`
+* `Open Serious Cases`
+* `Download Discipline Report`
+* `Print Case Register`
+
+## Create Incident Form
+Fields:
+* Student name / admission number
+* Class and stream
+* Incident date/time
+* Location
+* Incident category
+* Severity
+* Description
+* Reported by
+* Witnesses
+* Evidence attachments
+* Immediate action taken
+* Parent notification required?
+* Counselling referral required?
+* Principal approval required?
+
+Buttons:
+* `Save Incident`
+* `Save and Notify Parent`
+* `Save and Refer to Counsellor`
+* `Save and Escalate to Principal`
+
+## Discipline Case Detail Drawer
+Sections:
+1. Student details
+2. Incident summary
+3. Previous discipline history
+4. Statements
+5. Parent communication
+6. Actions taken
+7. Referrals
+8. Attachments
+9. Audit trail
+
+Actions inside drawer:
+* `Add Note`
+* `Add Statement`
+* `Upload Evidence`
+* `Send Parent Message`
+* `Schedule Meeting`
+* `Generate Letter`
+* `Escalate`
+* `Resolve Case`
+
+---
+
+# 5. Student Welfare Workspace
+
+## Purpose
+This workspace handles non-punitive student support: sickness, counselling, absenteeism concerns, home issues, boarding concerns, repeated lateness, and general welfare.
+
+## Summary Cards
+1. **Active Welfare Cases**
+2. **Sick Bay Visits Today**
+3. **Counselling Referrals**
+4. **Repeated Absenteeism**
+5. **Boarding/Hostel Concerns**
+6. **Parent Follow-Up Needed**
+
+## Main Table
+| Student | Class | Concern | Source | Assigned To | Parent Contact | Status | Actions |
+| ------- | ----- | ------- | ------ | ----------- | -------------- | ------ | ------- |
+
+## Row Actions
+* `Open Case`
+* `Assign to Counsellor`
+* `Refer to Nurse`
+* `Refer to Boarding Master`
+* `Contact Parent`
+* `Schedule Meeting`
+* `Add Note`
+* `Close Case`
+* `Print Welfare Summary`
+
+## Buttons
+* `Create Welfare Case`
+* `Refer to Counsellor`
+* `Refer to Nurse`
+* `Schedule Parent Meeting`
+* `Download Welfare Report`
+
+## Create Welfare Case Form
+Fields:
+* Student
+* Class
+* Welfare category
+* Description
+* Source of concern
+* Urgency
+* Assigned officer
+* Parent contact required?
+* Follow-up date
+* Confidential notes permission
+
+Buttons:
+* `Save Case`
+* `Save and Assign`
+* `Save and Notify Parent`
+
+---
+
+# 6. Staff Duty & Supervision Workspace
+
+## Purpose
+The Deputy manages staff duty rosters, supervision zones, teacher presence, missing duty reports, class coverage, and daily staff performance issues.
+
+## Summary Cards
+1. **Staff on Duty Today**
+2. **Duty Zones Covered**
+3. **Missing Duty Reports**
+4. **Teacher Absences**
+5. **Supervision Issues**
+
+## Main Table
+| Staff | Role | Duty Area | Time | Status | Report Submitted | Actions |
+| ----- | ---- | --------- | ---- | ------ | ---------------- | ------- |
+
+## Row Actions
+* `View Staff`
+* `Mark Present`
+* `Mark Absent`
+* `Reassign Duty`
+* `Request Duty Report`
+* `Send Reminder`
+* `Add Supervision Note`
+* `Print Duty Slip`
+
+## Bulk Actions
+* `Send Reminders`
+* `Print Duty Roster`
+* `Export Duty Report`
+* `Mark Reviewed`
+
+## Buttons
+* `Create Duty Roster`
+* `Assign Duty`
+* `Request Reports`
+* `Print Today’s Roster`
+* `Download Weekly Duty Report`
+
+## Create/Edit Duty Assignment Form
+Fields:
+* Staff member
+* Duty date
+* Duty area
+* Start time
+* End time
+* Instructions
+* Backup staff
+* Notify staff checkbox
+
+Buttons:
+* `Save Duty`
+* `Save and Notify`
+* `Cancel`
+
+## Duty Report Form
+Fields:
+* Duty area
+* Summary
+* Incidents observed
+* Learners involved
+* Action taken
+* Follow-up needed
+* Attachments
+
+Buttons:
+* `Submit Report`
+* `Save Draft`
+
+---
+
+# 7. Timetable & Relief Lessons Workspace
+
+## Purpose
+Deputy Principal handles lesson disruptions, teacher absences, relief lessons, class supervision, and timetable monitoring.
+
+## Summary Cards
+1. **Today’s Lessons**
+2. **Uncovered Lessons**
+3. **Teacher Absences**
+4. **Relief Assigned**
+5. **Classes Without Teacher**
+
+## Tabs
+### View 1: Timetable Grid
+Rows:
+* Time slots
+Columns:
+* Classes/streams
+Cells:
+* Subject
+* Teacher
+* Room
+* Status
+
+### View 2: Relief Queue
+| Lesson | Class | Subject | Absent Teacher | Time | Suggested Relief | Status | Actions |
+| ------ | ----- | ------- | -------------- | ---- | ---------------- | ------ | ------- |
+
+## Row Actions
+* `Assign Relief`
+* `View Teacher Load`
+* `Notify Class`
+* `Notify Relief Teacher`
+* `Mark Covered`
+* `Mark Missed`
+* `Add Note`
+* `Print Relief Slip`
+
+## Buttons
+* `Assign Relief Teacher`
+* `Create Timetable Note`
+* `Notify Affected Classes`
+* `Print Daily Timetable`
+* `Download Relief Report`
+
+## Assign Relief Modal
+Fields:
+* Date
+* Lesson
+* Class
+* Subject
+* Absent teacher
+* Suggested available teachers
+* Selected relief teacher
+* Room
+* Instructions
+* Notify teacher checkbox
+* Notify class teacher checkbox
+
+Buttons:
+* `Assign Relief`
+* `Assign and Notify`
+* `Cancel`
+
+---
+
+# 8. Academics Monitoring Workspace
+
+## Purpose
+Deputy Principal supervises academic progress without replacing the Dean, HOD, Exams Manager, or Teachers.
+
+## Summary Cards
+1. **Syllabus Coverage**
+2. **Lesson Logs**
+3. **Weak Performance Alerts**
+4. **Missing Assessments**
+5. **Academic Interventions**
+
+## Main Table: Academic Monitoring
+| Class | Subject | Teacher | Coverage % | Last Lesson Log | Assessment Status | Concern | Actions |
+| ----- | ------- | ------- | ---------- | --------------- | ----------------- | ------- | ------- |
+
+## Row Actions
+* `View Details`
+* `Message Teacher`
+* `Message HOD`
+* `Request Lesson Log`
+* `Create Intervention`
+* `Schedule Observation`
+* `Escalate to Dean`
+* `Print Academic Summary`
+
+## Buttons
+* `Request Missing Lesson Logs`
+* `Create Academic Intervention`
+* `Download Coverage Report`
+* `Print Weak Subjects`
+* `Send Reminder to Teachers`
+* `Export Academic Summary`
+
+## Academic Intervention Form
+Fields:
+* Class
+* Stream
+* Subject
+* Concern
+* Evidence
+* Assigned owner
+* Intervention plan
+* Start date
+* Review date
+* Expected improvement
+* Notify HOD/Dean checkbox
+
+Buttons:
+* `Save Intervention`
+* `Save and Notify`
+* `Cancel`
+
+---
+
+# 9. Teaching Workspace
+
+## Purpose
+A Deputy Principal can also be a teacher. This workspace appears only if the Deputy is assigned teaching responsibilities.
+
+## Summary Cards
+1. **My Classes Today**
+2. **Attendance to Mark**
+3. **Assignments Due**
+4. **Marks Pending**
+5. **Lesson Logs Pending**
+
+## Main Table: My Teaching Classes
+| Class | Stream | Subject | Lesson Time | Attendance | Lesson Log | Actions |
+| ----- | ------ | ------- | ----------- | ---------- | ---------- | ------- |
+
+## Row Actions
+* `Open Class`
+* `Mark Attendance`
+* `Enter Lesson Log`
+* `Create Assignment`
+* `View Learners`
+* `Enter Marks`
+* `Message Class`
+
+## Buttons
+* `Mark Attendance`
+* `Create Lesson Log`
+* `Create Assignment`
+* `Enter Marks`
+* `Print Class List`
+
+## Mark Attendance Form
+Fields:
+* Date
+* Class
+* Stream
+* Subject/lesson
+* Learner list
+* Present/Absent/Late
+* Reason
+* Notes
+
+Buttons:
+* `Save Attendance`
+* `Save and Notify Class Teacher`
+* `Save Draft`
+
+## Lesson Log Form
+Fields:
+* Class
+* Subject
+* Topic taught
+* Subtopic
+* Curriculum strand/topic
+* Learning objective
+* Resources used
+* Homework given
+* Learners absent
+* Challenges
+* Next lesson plan
+
+Buttons:
+* `Submit Lesson Log`
+* `Save Draft`
+
+---
+
+# 10. Exams & Marks Workspace
+
+## Purpose
+Deputy Principal monitors exams at senior level and can enter marks only for subjects/classes they teach or are assigned to mark.
+
+## Summary Cards
+1. **Active Exams**
+2. **Marks Pending**
+3. **My Mark Entry**
+4. **Exam Irregularities**
+5. **Reports Awaiting Approval**
+
+## Tabs
+### Tab 1: Exam Monitoring
+| Exam | Class | Subject | Status | Marks Progress | Teacher | Actions |
+| ---- | ----- | ------- | ------ | -------------- | ------- | ------- |
+
+Row actions:
+* `View Progress`
+* `Message Teacher`
+* `Message Exams Manager`
+* `Flag Delay`
+* `Export Progress`
+
+### Tab 2: My Mark Entry
+| Exam | Class | Subject | Learners | Entered | Moderation Status | Actions |
+| ---- | ----- | ------- | -------- | ------- | ----------------- | ------- |
+
+Row actions:
+* `Enter Marks`
+* `Upload Marks`
+* `View Learners`
+* `Submit to HOD`
+* `Print Mark Sheet`
+
+### Tab 3: Invigilation
+| Exam Paper | Date | Time | Room | Invigilator | Status | Actions |
+| ---------- | ---- | ---- | ---- | ----------- | ------ | ------- |
+
+Row actions:
+* `View Paper`
+* `Mark Invigilator Present`
+* `Report Irregularity`
+* `Print Invigilation Slip`
+
+## Buttons
+* `Enter My Marks`
+* `Upload Marks CSV`
+* `Download Mark Sheet`
+* `Submit Marks`
+* `Report Exam Irregularity`
+* `Download Exam Progress`
+* `Print Invigilation Roster`
+
+## Mark Entry Table
+| Student | Admission No. | Score | Grade | Comment | Status |
+| ------- | ------------- | ----- | ----- | ------- | ------ |
+
+Actions:
+* `Save Draft`
+* `Validate Marks`
+* `Submit to HOD`
+* `Download Template`
+* `Upload CSV`
+
+---
+
+# 11. Classes & Streams Workspace
+
+## Purpose
+Deputy Principal monitors classes and streams from an operational angle: class teachers, learner counts, discipline trends, attendance trends, academic concerns, and class-level alerts.
+
+## Summary Cards
+1. **Total Classes**
+2. **Streams**
+3. **Classes With Issues**
+4. **Class Teacher Reports Pending**
+5. **High-Risk Classes**
+
+## Main Table
+| Class | Stream | Class Teacher | Learners | Attendance % | Discipline Cases | Academic Alerts | Actions |
+| ----- | ------ | ------------- | -------- | ------------ | ---------------- | --------------- | ------- |
+
+## Row Actions
+* `Open Class`
+* `View Learners`
+* `Message Class Teacher`
+* `View Attendance`
+* `View Discipline`
+* `View Academics`
+* `Create Class Note`
+* `Print Class Summary`
+
+## Buttons
+* `Download Class Summary`
+* `Print Class Lists`
+* `Message Class Teachers`
+* `Create Class Follow-Up`
+
+## Class Detail Drawer
+Sections:
+1. Class overview
+2. Class teacher
+3. Learner count
+4. Attendance trend
+5. Discipline cases
+6. Academic concerns
+7. Fee arrears visibility if permitted
+8. Parent follow-up
+9. Reports
+
+Actions:
+* `Message Class Teacher`
+* `Create Follow-Up`
+* `Print Class Report`
+* `Export Learners`
+
+---
+
+# 12. Approvals & Escalations Workspace
+
+## Purpose
+Deputy Principal handles operational approvals and escalations.
+
+## Summary Cards
+1. **Pending My Approval**
+2. **Escalated to Principal**
+3. **Returned for Correction**
+4. **Overdue Approvals**
+
+## Main Table
+| Request | Type | Raised By | Affected Person | Date | Priority | Status | Actions |
+| ------- | ---- | --------- | --------------- | ---- | -------- | ------ | ------- |
+
+## Row Actions
+* `Open`
+* `Approve`
+* `Reject`
+* `Return for Correction`
+* `Escalate to Principal`
+* `Add Comment`
+* `View Audit Trail`
+
+## Bulk Actions
+* `Approve Selected`
+* `Return Selected`
+* `Escalate Selected`
+* `Export Selected`
+
+## Approval Detail Drawer
+Sections:
+* Request details
+* Affected student/staff
+* Supporting evidence
+* Previous actions
+* Comments
+* Approval history
+* Audit trail
+
+Buttons:
+* `Approve`
+* `Reject`
+* `Return for Correction`
+* `Escalate`
+* `Close`
+
+---
+
+# 13. Communication Workspace
+
+## Purpose
+Deputy Principal communicates with teachers, class teachers, parents, students, Principal, HODs, counsellor, nurse, boarding master, security, and transport manager.
+
+## Summary Cards
+1. **Messages Sent Today**
+2. **Unread Replies**
+3. **Failed SMS/Email**
+4. **Scheduled Notices**
+
+## Tabs
+### Tab 1: Compose
+Fields:
+* Recipient type
+* Message type
+* Channel
+* Template
+* Message body
+* Schedule time
+* Attach PDF
+* Require acknowledgement?
+
+Buttons:
+* `Send Now`
+* `Schedule`
+* `Save Draft`
+* `Preview`
+
+### Tab 2: Message History
+| Date | Recipient | Channel | Type | Status | Sent By | Actions |
+| ---- | --------- | ------- | ---- | ------ | ------- | ------- |
+
+Row actions:
+* `View`
+* `Resend`
+* `Duplicate`
+* `Download Delivery Report`
+
+### Tab 3: Templates
+| Template | Category | Last Used | Actions |
+| -------- | -------- | --------- | ------- |
+
+Row actions:
+* `Use Template`
+* `Edit`
+* `Duplicate`
+* `Delete`
+
+## Buttons
+* `Compose Message`
+* `Send Staff Notice`
+* `Send Parent SMS`
+* `Create Template`
+* `Download Delivery Report`
+
+---
+
+# 14. Reports & Downloads Workspace
+
+## Purpose
+Deputy Principal needs quick operational reports for meetings, daily review, BOM/principal briefings, discipline reviews, attendance meetings, and staff supervision.
+
+## Main Table
+| Report | Category | Period | Last Generated | Format | Actions |
+| ------ | -------- | ------ | -------------- | ------ | ------- |
+
+## Row Actions
+* `Generate`
+* `Preview`
+* `Download PDF`
+* `Download Excel`
+* `Print`
+* `Schedule Report`
+
+## Buttons
+* `Generate Report`
+* `Download PDF`
+* `Download Excel`
+* `Print`
+* `Schedule Weekly Report`
+
+## Generate Report Modal
+Fields:
+* Report type
+* Academic year
+* Term
+* Date range
+* Class
+* Stream
+* Include charts?
+* Include student names?
+* Include audit trail?
+* Format
+
+Buttons:
+* `Preview`
+* `Generate`
+* `Download`
+
+---
+
+# 15. Staff & Roles Workspace
+
+## Purpose
+Deputy Principal can support staff management, especially duty assignment, teacher supervision, departmental follow-up, and invitations if the school allows Deputy to invite staff.
+
+## Summary Cards
+1. **Active Staff**
+2. **Pending Invites**
+3. **Teachers on Duty**
+4. **Staff With Missing Reports**
+
+## Main Table
+| Staff | Role | Department | Status | Last Active | Duty Today | Actions |
+| ----- | ---- | ---------- | ------ | ----------- | ---------- | ------- |
+
+## Row Actions
+* `View Staff`
+* `Message`
+* `Assign Duty`
+* `View Timetable`
+* `View Reports`
+* `Resend Invite`
+* `Deactivate Access`
+* `View Audit Trail`
+
+## Buttons
+* `Invite Staff`
+* `Assign Duty`
+* `Export Staff List`
+* `Print Staff Duty List`
+* `Request Reports`
+
+## Invite Staff Form
+Fields:
+* Full name
+* Email
+* Phone
+* Role
+* Department
+* Assigned classes
+* Assigned subjects
+* Permission group
+* Send invite by email/SMS
+
+Buttons:
+* `Send Invite`
+* `Save Draft`
+* `Cancel`
+
+---
+
+# 16. Settings Workspace
+
+## Purpose
+Deputy settings must be limited.
+
+## Sections
+### Personal Settings
+* Profile
+* Phone
+* Email
+* Password
+* Notification preferences
+* Signature for letters/reports
+
+### Dashboard Preferences
+* Default landing page
+* Compact mode
+* Show/hide teaching workspace
+* Report default format
+* SMS preview before send
+
+### Delegated Permissions View
+Read-only list of what Deputy can do:
+* Can approve discipline?
+* Can invite staff?
+* Can publish reports?
+* Can send parent SMS?
+* Can access finance overview?
+* Can manage duty roster?
+* Can enter marks?
+
+## Buttons
+* `Save Preferences`
+* `Update Password`
+* `Update Signature`
+* `Test Notification`
+* `View My Permissions`

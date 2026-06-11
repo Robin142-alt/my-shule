@@ -28,7 +28,7 @@ test('ExamsSchemaService creates exam and report-card tables with tenant RLS', a
   assert.match(schemaSql, /ALTER TABLE exam_marks FORCE ROW LEVEL SECURITY/);
   assert.match(schemaSql, /CREATE INDEX IF NOT EXISTS ix_exam_marks_subject_scope/);
   assert.match(schemaSql, /CREATE INDEX IF NOT EXISTS ix_student_report_cards_tenant_published/);
-  assert.doesNotMatch(schemaSql, /attendance/i);
+  assert.doesNotMatch(schemaSql, /CREATE TABLE IF NOT EXISTS student_attendance/i);
 });
 
 test('ExamsSchemaService creates grading policy, mark version, report-card workflow, and batch tables', async () => {

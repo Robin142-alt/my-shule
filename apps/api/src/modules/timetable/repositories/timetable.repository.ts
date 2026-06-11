@@ -234,6 +234,42 @@ export class TimetableRepository {
     return result.rows;
   }
 
+  async listTeacherSchedule(input: {
+    tenant_id: string;
+    teacher_id: string;
+    day_of_week?: string;
+  }) {
+    const result = await this.databaseService.query(
+      `
+        SELECT
+          slot.id::text AS slot_id,
+          slot.class_section_id,
+          slot.subject_id,
+          slot.room_id,
+          slot.day_of_week,
+          slot.starts_at::text,
+          slot.ends_at::text,
+          slot.status,
+          version.academic_year,
+          version.term_name
+        FROM timetable_versions version
+        JOIN timetable_slots slot
+          ON slot.tenant_id = version.tenant_id
+         AND slot.academic_year = version.academic_year
+         AND slot.term_name = version.term_name
+         AND slot.status <> 'cancelled'
+        WHERE version.tenant_id = $1
+          AND version.status = 'published'
+          AND slot.teacher_id = $2
+          AND ($3::text IS NULL OR slot.day_of_week = $3)
+        ORDER BY slot.day_of_week, slot.starts_at, slot.class_section_id
+      `,
+      [input.tenant_id, input.teacher_id, input.day_of_week ?? null],
+    );
+
+    return result.rows;
+  }
+
   async appendAuditLog(input: {
     tenant_id: string;
     version_id?: string | null;

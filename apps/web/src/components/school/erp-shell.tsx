@@ -5,6 +5,7 @@ import { useState, type ReactNode } from "react";
 import { AppFrame } from "@/components/system/app-frame";
 import { AppSidebar } from "@/components/system/app-sidebar";
 import { AppTopbar } from "@/components/system/app-topbar";
+import { WorkflowToast } from "@/components/shared/workflow-toast";
 import type {
   ExperienceNavItem,
   ExperienceNotificationItem,
@@ -80,6 +81,7 @@ export function ErpShell({
       }
     >
       {children}
+      
     </AppFrame>
   );
 }

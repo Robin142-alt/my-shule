@@ -85,3 +85,11 @@ export class CreateResourceDto {
   subject_id!: string;
   status?: string;
 }
+
+export class CreateLessonLogDto {
+  class_id!: string;
+  subject_id!: string;
+  topic!: string;
+  notes?: string;
+  date!: string;
+}

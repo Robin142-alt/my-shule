@@ -14,6 +14,7 @@ import {
   CreateAttendanceDto,
   CreateAssignmentDto,
   CreateResourceDto,
+  CreateLessonLogDto,
 } from './dto/academic.dto';
 import { AcademicsRepository } from './repositories/academics.repository';
 
@@ -287,6 +288,44 @@ export class AcademicsService {
 
   enterMarks(dto: EnterExamMarkDto) {
     // Delegate to ExamsService to prevent duplicate logic/tables
+    // Delegate to ExamsService to prevent duplicate logic/tables
     return this.examsService.enterMark(dto);
+  }
+
+  getMyAssignments() {
+    return this.repository.listMyAssignments(this.requireTenantId(), this.currentUserId() ?? 'unknown');
+  }
+
+  getMyResources() {
+    return this.repository.listMyResources(this.requireTenantId(), this.currentUserId() ?? 'unknown');
+  }
+
+  createLessonLog(dto: CreateLessonLogDto) {
+    return this.repository.createLessonLog({
+      tenant_id: this.requireTenantId(),
+      class_id: this.requireText(dto.class_id, 'Class ID'),
+      subject_id: this.requireText(dto.subject_id, 'Subject ID'),
+      teacher_id: this.currentUserId(),
+      topic: this.requireText(dto.topic, 'Topic'),
+      notes: dto.notes,
+      date: this.requireText(dto.date, 'Date'),
+    });
+  }
+
+  getMyLessonLogs() {
+    return this.repository.listMyLessonLogs(this.requireTenantId(), this.currentUserId() ?? 'unknown');
+  }
+
+  getMyAttendance() {
+    return this.repository.listMyAttendance(this.requireTenantId(), this.currentUserId() ?? 'unknown');
+  }
+
+  async getSummary() {
+    const tenantId = this.requireTenantId();
+    // Use the repository or database service. We can just use the exams table (even if it doesn't exist yet, we catch the error)
+    // We don't have db injected here directly, but we can access it through the request transaction context if we had to, 
+    // but the easiest way is to just return a stub or inject DatabaseService. Since we can't easily inject without updating constructor,
+    // let's just add the query logic to AcademicsRepository instead and call it here.
+    return this.repository.getSummary(tenantId);
   }
 }

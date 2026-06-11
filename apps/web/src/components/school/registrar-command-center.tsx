@@ -36,6 +36,10 @@ import {
   getCurrentSchoolId,
   publishSchoolOperationalEvent,
 } from "@/lib/school/school-operational-store";
+import { ApprovalInbox } from "@/components/shared/approval-inbox";
+import { NotificationBell } from "@/components/shared/notification-bell";
+import { TaskQueue } from "@/components/shared/task-queue";
+import { WorkflowToast } from "@/components/shared/workflow-toast";
 
 type RegistrarRouteMode = "hosted" | "public";
 type Tone = "secure" | "info" | "success" | "warning" | "danger" | "cyan";
@@ -501,7 +505,11 @@ function TopHeader({
           <div className="flex flex-wrap items-center gap-2">
             <LightStatusChip icon={CalendarClock} label="2026 Admission Year" tone="info" />
             <LightStatusChip icon={ShieldCheck} label="Main Campus" tone="success" />
-            <LightStatusChip icon={Bell} label="18 active alerts" tone="warning" />
+            <div className="flex items-center gap-2">
+              <TaskQueue />
+              <ApprovalInbox currentUserId="school" />
+              <NotificationBell />
+            </div>
             <LightStatusChip icon={BrainCircuit} label="AI insights ready" tone="cyan" />
             <button
               type="button"
@@ -1242,6 +1250,7 @@ export function RegistrarCommandCenter({ routeMode }: { routeMode: RegistrarRout
         </main>
       </div>
       <MobileActions />
+      
     </div>
   );
 }

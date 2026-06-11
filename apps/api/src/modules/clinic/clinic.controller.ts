@@ -75,4 +75,40 @@ export class ClinicController {
   runLowStockCheck() {
     return this.clinicService.runLowStockCheck();
   }
+
+  @Get('emergencies')
+  @Permissions('clinic:read')
+  listEmergencies() {
+    return this.clinicService.listEmergencies();
+  }
+
+  @Post('emergencies')
+  @Permissions('clinic:write')
+  recordEmergency(@Body() dto: Record<string, any>) {
+    return this.clinicService.recordEmergency(dto);
+  }
+
+  @Get('referrals')
+  @Permissions('clinic:read')
+  listReferrals() {
+    return this.clinicService.listReferrals();
+  }
+
+  @Post('referrals')
+  @Permissions('clinic:write')
+  createReferral(@Body() dto: Record<string, any>) {
+    return this.clinicService.createReferral(dto);
+  }
+
+  @Get('queue')
+  @Permissions('clinic:read')
+  getSickBayQueue() {
+    return this.clinicService.getSickBayQueue();
+  }
+
+  @Post('queue')
+  @Permissions('clinic:write')
+  addToQueue(@Body() dto: Record<string, any>) {
+    return this.clinicService.addToQueue(dto);
+  }
 }

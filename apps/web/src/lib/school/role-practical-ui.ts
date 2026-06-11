@@ -395,6 +395,17 @@ export const practicalRoleProfiles: Record<SchoolExperienceRole, PracticalRolePr
     urgentAlerts: ["Router in computer lab needs restart", "Projector repair request pending", "Printer toner issue from secretary"],
     emptyState: "No ICT device issue waiting right now.",
   },
+  "procurement-officer": {
+    title: "Procurement Dashboard",
+    subtitle: "Manage school purchasing and supplies",
+    sidebarTitle: "Procurement",
+    sidebarSubtitle: "Purchasing & Supplies",
+    todayContext: "Today's Purchasing",
+    sectionNoun: "Orders",
+    summaryCards: [],
+    urgentAlerts: [],
+    emptyState: "No procurement data available",
+  },
 };
 
 export function getPracticalRoleProfile(role: SchoolExperienceRole): PracticalRoleProfile {

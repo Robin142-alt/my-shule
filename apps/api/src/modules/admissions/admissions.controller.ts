@@ -1,5 +1,12 @@
 
 import { Inject } from '@nestjs/common';
+import { CreateEnquiryDto } from './dto/create-enquiry.dto';
+import { CreateInterviewDto } from './dto/create-interview.dto';
+import { CreateOfferDto } from './dto/create-offer.dto';
+import { CreateAppointmentDto } from './dto/create-appointment.dto';
+import { CreateTaskDto } from './dto/create-task.dto';
+import { CreateTemplateDto } from './dto/create-template.dto';
+
 import { DatabaseService } from '../../database/database.service';
 import { RequestContextService } from '../../common/request-context/request-context.service';
 import { SchoolOperationalEventsService } from '../events/school-operational-events.service';
@@ -220,6 +227,49 @@ export class AdmissionsController {
       }
     });
     return result.rows[0];
+  }
+
+
+  @Post('enquiries')
+  @Permissions('admissions:write')
+  async createEnquiry(@Body() dto: CreateEnquiryDto) {
+    const store = this.requestContext.requireStore();
+    return this.admissionsService.createEnquiry(store.tenant_id as string, dto, store.user_id as string);
+  }
+
+  @Post('interviews')
+  @Permissions('admissions:write')
+  async createInterview(@Body() dto: CreateInterviewDto) {
+    const store = this.requestContext.requireStore();
+    return this.admissionsService.createInterview(store.tenant_id as string, dto);
+  }
+
+  @Post('offers')
+  @Permissions('admissions:write')
+  async createOffer(@Body() dto: CreateOfferDto) {
+    const store = this.requestContext.requireStore();
+    return this.admissionsService.createOffer(store.tenant_id as string, dto);
+  }
+
+  @Post('appointments')
+  @Permissions('admissions:write')
+  async createAppointment(@Body() dto: CreateAppointmentDto) {
+    const store = this.requestContext.requireStore();
+    return this.admissionsService.createAppointment(store.tenant_id as string, dto);
+  }
+
+  @Post('tasks')
+  @Permissions('admissions:write')
+  async createTask(@Body() dto: CreateTaskDto) {
+    const store = this.requestContext.requireStore();
+    return this.admissionsService.createTask(store.tenant_id as string, dto);
+  }
+
+  @Post('templates')
+  @Permissions('admissions:write')
+  async createTemplate(@Body() dto: CreateTemplateDto) {
+    const store = this.requestContext.requireStore();
+    return this.admissionsService.createTemplate(store.tenant_id as string, dto, store.user_id as string);
   }
 
 }

@@ -14,8 +14,10 @@ import {
   CreateAttendanceDto,
   CreateAssignmentDto,
   CreateResourceDto,
+  CreateLessonLogDto,
 } from './dto/academic.dto';
 import { EnterExamMarkDto } from '../exams/dto/exams.dto';
+import { AcademicsWidgetDataDto } from '../dashboard/dashboard.dto';
 
 @Controller('academics')
 @RequiresModule('academics')
@@ -96,5 +98,44 @@ export class AcademicsController {
   @Permissions('academics:write')
   enterMarks(@Body() dto: EnterExamMarkDto) {
     return this.academicsService.enterMarks(dto);
+  }
+
+  @Get('my-assignments')
+  @Permissions('academics:read')
+  getMyAssignments() {
+    return this.academicsService.getMyAssignments();
+  }
+
+  @Get('my-resources')
+  @Permissions('academics:read')
+  getMyResources() {
+    return this.academicsService.getMyResources();
+  }
+
+  @Post('lesson-logs')
+  @Permissions('academics:write')
+  createLessonLog(@Body() dto: CreateLessonLogDto) {
+    return this.academicsService.createLessonLog(dto);
+  }
+
+  @Get('my-lesson-logs')
+  @Permissions('academics:read')
+  getMyLessonLogs() {
+    return this.academicsService.getMyLessonLogs();
+  }
+
+  @Get('my-attendance')
+  @Permissions('academics:read')
+  getMyAttendance() {
+    return this.academicsService.getMyAttendance();
+  }
+
+  @Get('summary')
+  @Permissions('academics:read')
+  async getSummary(): Promise<AcademicsWidgetDataDto> {
+    const store = (this as any).requestContext?.getStore();
+    // Assuming AcademicsController has DatabaseService injected via AcademicsService, or we can just inject it.
+    // Wait, AcademicsController only has AcademicsService injected. I'll add the method to AcademicsService.
+    return this.academicsService.getSummary();
   }
 }

@@ -44,6 +44,7 @@ const allowedRoles = [
   "laboratory-technician",
   "guidance-counselling",
   "discipline-master",
+  "procurement-officer",
 ] as const;
 
 function isAllowedRole(value: string): value is SchoolExperienceRole {

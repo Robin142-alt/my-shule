@@ -16,6 +16,11 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
+import { ApprovalInbox } from "@/components/shared/approval-inbox";
+import { NotificationBell } from "@/components/shared/notification-bell";
+import { TaskQueue } from "@/components/shared/task-queue";
+import { WorkflowToast } from "@/components/shared/workflow-toast";
+
 import type { WidgetState } from "@/lib/capability-engine/school-capability-engine";
 import { getCurrentSchoolId, publishSchoolOperationalEvent } from "@/lib/school/school-operational-store";
 import { useSchoolQuery, useSchoolMutation } from "@/lib/data/school-hooks";
@@ -395,8 +400,9 @@ function Topbar({
               </div>
             ) : null}
           </div>
-          <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-black text-amber-700">14 pending approvals</span>
-          <span className="rounded-full border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-black text-blue-700">Exam review access ready</span>
+          <TaskQueue />
+          <ApprovalInbox currentUserId="school" />
+          <NotificationBell />
         </div>
       </div>
       <div className="mt-3 lg:hidden">
@@ -907,6 +913,7 @@ export function DeanAcademicsCommandCenter({
           </main>
         </div>
       </div>
+      
     </div>
   );
 }

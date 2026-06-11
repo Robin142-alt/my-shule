@@ -3,6 +3,17 @@ type ApiEnvelope<T> = {
   meta: Record<string, unknown>;
 };
 
+import type {
+  AlertItem,
+  DashboardRole,
+  DashboardSnapshot,
+  NotificationItem,
+  StatusTone,
+  FinanceWidgetData,
+  AcademicsWidgetData,
+  StudentsWidgetData
+} from "./types";
+
 export interface LiveAuthUser {
   user_id: string;
   tenant_id: string | null;
@@ -304,4 +315,32 @@ export function fetchApiObservabilityHealth() {
 
 export function fetchApiObservabilityAlerts() {
   return requestDashboardApi<ObservabilityAlertsResponse>("/observability/alerts");
+}
+
+export function fetchApiDashboardSummary(role: string, accessToken?: string) {
+  return requestDashboardApi<any>(`/dashboard/summary?role=${encodeURIComponent(role)}`, {
+    accessToken,
+    unwrapEnvelope: false,
+  });
+}
+
+export function fetchApiFinanceSummary(accessToken?: string) {
+  return requestDashboardApi<FinanceWidgetData>("/finance/summary", {
+    accessToken,
+    unwrapEnvelope: false,
+  });
+}
+
+export function fetchApiAcademicsSummary(accessToken?: string) {
+  return requestDashboardApi<AcademicsWidgetData>("/academics/summary", {
+    accessToken,
+    unwrapEnvelope: false,
+  });
+}
+
+export function fetchApiStudentsSummary(accessToken?: string) {
+  return requestDashboardApi<StudentsWidgetData>("/students/summary/dashboard", {
+    accessToken,
+    unwrapEnvelope: false,
+  });
 }

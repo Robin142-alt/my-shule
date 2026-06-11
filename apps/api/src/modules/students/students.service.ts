@@ -268,4 +268,41 @@ export class StudentsService {
     const parsedValue = BigInt(normalizedValue);
     return parsedValue > 0n ? parsedValue : null;
   }
+
+  async getSummary(tenantId: string) {
+    const [
+      totalRes,
+      activeRes,
+      newAdmissionsRes,
+      boysRes,
+      girlsRes,
+    ] = await Promise.all([
+      this.databaseService.query('SELECT COUNT(*) as count FROM students WHERE tenant_id = $1', [tenantId]),
+      this.databaseService.query('SELECT COUNT(*) as count FROM students WHERE tenant_id = $1 AND status = \'active\'', [tenantId]),
+      this.databaseService.query('SELECT COUNT(*) as count FROM students WHERE tenant_id = $1 AND created_at >= date_trunc(\'month\', CURRENT_DATE)', [tenantId]),
+      this.databaseService.query('SELECT COUNT(*) as count FROM students WHERE tenant_id = $1 AND gender ILIKE \'male\'', [tenantId]),
+      this.databaseService.query('SELECT COUNT(*) as count FROM students WHERE tenant_id = $1 AND gender ILIKE \'female\'', [tenantId]),
+    ]);
+
+    const totalStudents = Number(totalRes.rows[0]?.count || 0);
+    const newEnrollments = Number(newAdmissionsRes.rows[0]?.count || 0);
+    const boysCount = Number(boysRes.rows[0]?.count || 0);
+    const girlsCount = Number(girlsRes.rows[0]?.count || 0);
+    
+    // We compute percentage if there are students, else default to 50/50 visual stub
+    const totalGender = boysCount + girlsCount;
+    const boysPct = totalGender > 0 ? Math.round((boysCount / totalGender) * 100) : 50;
+    const girlsPct = totalGender > 0 ? Math.round((girlsCount / totalGender) * 100) : 50;
+
+    return {
+      totalStudents: totalStudents.toString(),
+      absentToday: '0', // Stubbable until attendance module is linked
+      newEnrollments: newEnrollments.toString(),
+      trendLabel: newEnrollments > 0 ? `+${newEnrollments} this month` : 'Stable',
+      demographics: [
+        { label: 'Boys', value: boysPct },
+        { label: 'Girls', value: girlsPct },
+      ]
+    };
+  }
 }

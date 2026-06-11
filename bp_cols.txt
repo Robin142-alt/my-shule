@@ -1,0 +1,581 @@
+--
+--
+--
+--
+--
+--
+--
+--
+--
+--
+--
+--
+--
+--
+--
+--
+--
+--
+--
+--
+--
+--
+--
+--
+--
+--
+--
+--
+--
+--
+--
+--
+--
+--
+--
+--
+--
+--
+--
+--
+--
+--
+--
+--
+--
+--
+--
+--
+--
+--
+Absent
+Academic status
+Academic summary
+Accepted date
+Accession no.
+Action
+Actions
+Actions
+Actions
+Actions
+Actions
+Actions
+Actions
+Actions
+Actions
+Actions
+Actions
+Actions
+Actions
+Actions
+Actions
+Actions
+Actions
+Actions
+Actions
+Actions
+Actions
+Actions
+Actions
+Actions
+Actions
+Actions
+Actions
+Actions
+Actions
+Actions
+Actions
+Actions
+Actions
+Actions
+Actions
+Actions
+Actions
+Actions
+Actions
+Actions
+Actions
+Actions
+Actions
+Actions
+Actions
+Actions
+Actions
+Active modules
+Admission No.
+Admission No.
+Admission no.
+Admission no.
+Admission no.
+Amount
+Amount
+Amount
+Amount
+Applicant
+Applicant
+Applicant
+Applicant
+Applicant
+Applicant
+Applicant
+Applicant
+Applicant Name
+Application No.
+Applying Class
+Applying Class
+Applying Class
+Applying For
+Approval Status
+Approved
+Approved by
+Asset code
+Assigned To
+Assigned office
+Assigned officer
+Assigned role
+Assigned teacher
+Assignment
+Assignments
+Assignments due
+Attendance
+Attendance %
+Attendance link
+Author
+Available
+Balance
+Balance
+Balance
+Batch no.
+Bed
+Birth Certificate
+Boarding/Day
+Boarding/Day
+Capacity
+Capacity
+Capacity Status
+Case no.
+Category
+Category
+Category
+Channel
+Class
+Class
+Class
+Class
+Class
+Class
+Class
+Class
+Class
+Class
+Class
+Class
+Class
+Class
+Class
+Class
+Class
+Class
+Class
+Class
+Class
+Class
+Class
+Class
+Class
+Class teacher
+Classes
+Classes
+Classes
+Code
+Comment
+Comment
+Condition
+Copies
+County
+County
+Coverage
+Coverage
+Coverage %
+Coverage %
+Covered topic
+Created By
+Created by
+Created date
+Created date
+Current School
+Curriculum
+Curriculum
+Curriculum
+Curriculum mode
+Custodian
+Data isolation alerts
+Date
+Date
+Date
+Date/Time
+Date/Time
+Days absent
+Days overdue
+Deadline
+Decision
+Department
+Department
+Department
+Department
+Department
+Discipline status
+Document Status
+Document Status
+Documents
+Dorm
+Download Materials
+Download PDF
+Driver
+Due Date
+Due date
+Due date
+Due time
+Duty
+Email
+Email
+Email
+Email
+Email
+End date
+Enquiry Code
+Enrolment Status
+Entity
+Error Message
+Estimated cost
+Exam
+Expected return
+Expected topic
+Expiry
+Expiry date
+Export Workload
+Failed background jobs queue
+Failed jobs CSV
+Failed sync queue
+Fee balance summary if allowed
+Fees status
+Finance Status
+Finance Status
+Follow-up Date
+Follow-up status
+Gender
+Grade
+Guardian Name
+HOD
+Health status
+Highest
+Hostel
+IP/device
+Incident
+Incident
+Incident type
+Interested Class
+Interview Score
+Interview Status
+Interview date
+Invalid
+Invite status
+Invite status
+Invoice
+Invoice no.
+Item
+Item
+Items
+Last Updated
+Last activity
+Last attendance
+Last login
+Last login
+Last payment
+Late
+Learner
+Learners
+Learning materials
+Leaving Certificate
+Lesson logs
+Lessons/week
+Lessons/week
+Library books
+Linked Students
+Linked students
+Location
+Location
+Location
+Location
+Lowest
+M-Pesa code
+Marks status
+Marks status
+Match confidence
+Mean
+Mean score
+Medicine
+Method
+Missing
+Missing
+Moderation flags
+Modules active
+Monthly platform activity report
+Name
+Name
+Name
+New value
+Note
+Note
+Note type
+Notices
+Offer Date
+Offer Status
+Old value
+Outliers
+Overall Status
+Paid
+Panel
+Parent
+Parent
+Parent
+Parent ID
+Parent Link
+Parent Phone
+Parent Phone
+Parent Phone
+Parent contact
+Parent contacted?
+Parent notified
+Parent notified
+Parent notified?
+Parent notified?
+Parent views
+Parent/Guardian
+Payment Status
+Payment Status
+Pending issues
+Per-school setup progress drawer
+Person to see
+Phone
+Phone
+Phone
+Phone
+Phone
+Phone/ID optional
+Photo
+Platform schools report PDF
+Portal Status
+Portal status
+Present
+Previous School
+Principal invited?
+Principal name
+Principal status
+Priority
+Priority
+Priority
+Published
+Publishing panel
+Purpose
+Purpose
+Purpose
+Quantity
+Quantity
+Quantity
+Queue no.
+Reason
+Reason category
+Recent platform audit feed
+Recipient
+Recommend Reassignment
+Recommendation
+Recommendation
+Recorded by
+Reference
+Referred by
+Relationship
+Reorder level
+Report Conflict
+Report Form
+Report card approval queue
+Report status
+Reported by
+Reports generated
+Request no.
+Requested Class
+Required Deposit
+Role
+Role
+Role
+Role
+Room
+Room
+Route
+Row No.
+School
+School
+School
+School name
+School name
+Score
+Score
+Sent At
+Sent By
+Sent date
+Serial no.
+Setup status
+Severity
+Severity
+Severity
+Severity
+Slow query alerts
+Source
+Source
+Staff
+Staff
+Staff Assigned
+Staff name
+Start date
+Status
+Status
+Status
+Status
+Status
+Status
+Status
+Status
+Status
+Status
+Status
+Status
+Status
+Status
+Status
+Status
+Status
+Status
+Status
+Status
+Status
+Status
+Status
+Status
+Status
+Status
+Status
+Status
+Status
+Status
+Status
+Status
+Status
+Status
+Status
+Status
+Status
+Status
+Status
+Status
+Status
+Status
+Status
+Status
+Status
+Status
+Status
+Status
+Status
+Status
+Status: present, absent, late, excused
+Stops
+Stream
+Stream
+Stream
+Stream
+Stream
+Student
+Student
+Student
+Student
+Student
+Student
+Student
+Student
+Student
+Student
+Student
+Student
+Student
+Student
+Student
+Student
+Student
+Student
+Student
+Student Name
+Student Name
+Student Record
+Student matched
+Student/Applicant
+Students
+Students
+Subject
+Subject
+Subject
+Subject
+Subject
+Subject
+Subject
+Subject
+Subject/class scope
+Subjects
+Subjects
+Subjects
+Subjects
+Submitted
+Submitted
+Submitted Date
+Submitted date
+Submitted time
+Symptoms
+Task
+Task
+Teacher
+Teacher
+Teacher
+Teacher
+Teacher
+Teacher
+Teacher
+Teacher
+Template
+Template Name
+Tenant health Excel
+Tenant health snapshot
+Tenant status
+Term
+Time
+Time
+Time
+Time in
+Time in
+Time out
+Time out
+Title
+Topic taught
+Total fees
+Type
+Type
+Updated By
+User
+User
+Validation status
+Vehicle
+View Assignments
+View Messages
+Visibility
+Visitor/Parent
+Waiting time
+Week
+Year

@@ -1,0 +1,1810 @@
+Below is a **thorough production-ready Discipline Master dashboard definition** for MyShule. It is designed for a real Kenyan school, with clear daily workflows, working buttons, tables, row actions, approvals, parent communication, reports, audit logs, and strict `school_id` tenant isolation.
+
+# Discipline Master Dashboard
+
+## 1. Dashboard Purpose
+
+The **Discipline Master Dashboard** is used to manage student behavior cases from the moment they are reported until they are resolved.
+
+The Discipline Master should be able to:
+
+* Receive discipline reports from teachers, class teachers, boarding masters, security officers, transport managers, and administrators.
+* Log new incidents.
+* Investigate cases.
+* Record statements and actions taken.
+* Notify parents or guardians.
+* Refer students to the counsellor where needed.
+* Request approval from Deputy Principal or Principal for serious actions.
+* Track repeated behavior concerns.
+* Print letters, case summaries, suspension requests, warning letters, and discipline reports.
+* Generate termly and yearly discipline analytics.
+* Maintain a clear audit trail.
+
+The dashboard must **not** be decorative. Every sidebar item must open a real working workspace.
+
+---
+
+# Main Dashboard Layout
+
+## Top Header
+
+### Left Side
+
+Displays:
+
+* Greeting: `Good Morning, Discipline Master`
+* School name
+* Current academic year
+* Current term
+* Current week
+* Role scope: `Discipline Office`
+
+Example:
+
+```txt
+Good Morning, Discipline Master
+Kisumu Boys High School · 2026 Academic Year · Term 2
+```
+
+### Right Side Buttons
+
+| Button                | Purpose                                   |
+| --------------------- | ----------------------------------------- |
+| `+ Log Incident`      | Opens quick incident form                 |
+| `Teacher Reports`     | Opens submitted reports inbox             |
+| `Print Weekly Report` | Downloads current week discipline summary |
+| `Notifications`       | Opens pending discipline notifications    |
+| `Help`                | Opens short workflow guide                |
+
+---
+
+# Sidebar Workspaces
+
+The Discipline Master sidebar should contain these workspaces:
+
+1. Overview
+2. Report Intake
+3. Log Incident
+4. Incident Register
+5. Triage Queue
+6. Student Conduct Profiles
+7. Investigations
+8. Actions & Interventions
+9. Parent Communication
+10. Counselling Referrals
+11. Serious Cases & Approvals
+12. Detention / Corrective Programs
+13. Class & House Monitoring
+14. Reports & Downloads
+15. Templates & Rules
+16. Audit Trail
+17. Settings
+
+---
+
+# 1. Overview Workspace
+
+## Purpose
+
+This is the Discipline Master’s daily command center. It shows urgent cases, pending work, unresolved reports, parent follow-ups, and discipline trends.
+
+## Summary Cards
+
+| Card                     | Meaning                                          | Click Action                                   |
+| ------------------------ | ------------------------------------------------ | ---------------------------------------------- |
+| `Open Cases`             | All unresolved discipline cases                  | Opens Incident Register filtered by open cases |
+| `New Reports Today`      | Reports submitted today by teachers/staff        | Opens Report Intake                            |
+| `Pending Parent Contact` | Cases where parent has not been informed         | Opens Parent Communication                     |
+| `Pending Approval`       | Serious cases awaiting Deputy/Principal approval | Opens Serious Cases & Approvals                |
+| `Counselling Referrals`  | Students referred to counsellor                  | Opens Counselling Referrals                    |
+| `Repeat Concerns`        | Students with multiple cases this term           | Opens Student Conduct Profiles                 |
+| `Closed This Week`       | Cases resolved this week                         | Opens Reports                                  |
+| `High Priority Cases`    | Serious unresolved cases                         | Opens Triage Queue                             |
+
+## Main Area
+
+### Section 1: Urgent Discipline Queue
+
+Table columns:
+
+| Column      | Description                             |
+| ----------- | --------------------------------------- |
+| Case No.    | Unique case number                      |
+| Student     | Student name                            |
+| Class       | Class and stream                        |
+| Category    | Type of issue                           |
+| Severity    | Low, Medium, High, Critical             |
+| Reported By | Staff who reported                      |
+| Date/Time   | When incident happened                  |
+| Status      | New, Under Review, Action Taken, Closed |
+| Next Action | Required next step                      |
+| Actions     | Row buttons                             |
+
+### Row Actions
+
+| Action             | Purpose                                                                 |
+| ------------------ | ----------------------------------------------------------------------- |
+| `View`             | Opens case detail drawer                                                |
+| `Triage`           | Opens severity/status assignment modal                                  |
+| `Assign Follow-up` | Assigns case to Discipline Master, Deputy, Class Teacher, or Counsellor |
+| `Notify Parent`    | Opens parent SMS/message modal                                          |
+| `Refer Counsellor` | Creates counselling referral                                            |
+| `Request Approval` | Sends serious case to Deputy/Principal                                  |
+| `Close Case`       | Opens closure form                                                      |
+
+## Main Buttons
+
+| Button                        | Purpose                             |
+| ----------------------------- | ----------------------------------- |
+| `+ Log Incident`              | Create new discipline case          |
+| `Review Teacher Reports`      | Go to reports submitted by teachers |
+| `Generate Weekly Summary`     | Create PDF report                   |
+| `Send Pending Parent Notices` | Bulk-send selected parent notices   |
+| `Export Cases`                | Export filtered cases to Excel/CSV  |
+
+## Empty State
+
+```txt
+No active discipline cases today.
+New teacher reports, student incidents, or parent follow-ups will appear here.
+```
+
+Button:
+
+```txt
++ Log Incident
+```
+
+---
+
+# 2. Report Intake Workspace
+
+## Purpose
+
+This workspace receives discipline reports submitted by other roles.
+
+Sources include:
+
+* Teacher dashboard
+* Class Teacher dashboard
+* Grade/Form Master dashboard
+* Boarding Master dashboard
+* Security Officer dashboard
+* Transport Manager dashboard
+* Dean of Academics dashboard
+* Deputy Principal dashboard
+* Principal dashboard
+
+## Summary Cards
+
+| Card                     | Meaning                                     |
+| ------------------------ | ------------------------------------------- |
+| `New Reports`            | Reports not reviewed                        |
+| `Returned for More Info` | Reports needing clarification               |
+| `Converted to Cases`     | Reports already accepted into case register |
+| `Dismissed Reports`      | Reports marked as not requiring formal case |
+| `Reports This Week`      | Total reports received this week            |
+
+## Table Columns
+
+| Column              | Description                           |
+| ------------------- | ------------------------------------- |
+| Report ID           | Unique report number                  |
+| Reported By         | Staff member                          |
+| Role                | Teacher, Security, Boarding, etc.     |
+| Student             | Involved student                      |
+| Class               | Class/stream                          |
+| Incident Type       | Category                              |
+| Description Preview | Short summary                         |
+| Date Submitted      | Submission date                       |
+| Status              | New, Needs Info, Converted, Dismissed |
+| Actions             | Row actions                           |
+
+## Row Actions
+
+| Action                     | Purpose                                     |
+| -------------------------- | ------------------------------------------- |
+| `Preview`                  | Opens report drawer                         |
+| `Convert to Case`          | Creates official discipline case            |
+| `Ask for More Info`        | Sends message back to reporter              |
+| `Merge with Existing Case` | Links report to an open case                |
+| `Dismiss Report`           | Marks report as not requiring formal action |
+| `Print Report`             | Downloads report as PDF                     |
+
+## Bulk Actions
+
+| Bulk Action        | Purpose                           |
+| ------------------ | --------------------------------- |
+| `Convert Selected` | Convert multiple reports to cases |
+| `Mark Reviewed`    | Mark reports as reviewed          |
+| `Assign Reviewer`  | Assign selected reports to staff  |
+| `Export`           | Download selected reports         |
+
+## Convert to Case Modal
+
+Fields:
+
+| Field                | Type          | Required |
+| -------------------- | ------------- | -------- |
+| Student              | Search select | Yes      |
+| Incident Category    | Dropdown      | Yes      |
+| Severity             | Dropdown      | Yes      |
+| Incident Date        | Date/time     | Yes      |
+| Location             | Dropdown/text | Yes      |
+| Report Summary       | Textarea      | Yes      |
+| Initial Action Taken | Textarea      | No       |
+| Notify Parent Now?   | Toggle        | No       |
+| Refer to Counsellor? | Toggle        | No       |
+
+Buttons:
+
+| Button                   | Purpose                             |
+| ------------------------ | ----------------------------------- |
+| `Create Case`            | Saves official case                 |
+| `Create & Notify Parent` | Saves case and opens parent message |
+| `Cancel`                 | Closes modal                        |
+
+Success message:
+
+```txt
+Case DM-2026-0042 created for Brian Otieno.
+```
+
+---
+
+# 3. Log Incident Workspace
+
+## Purpose
+
+Used to quickly record a new discipline incident directly from the Discipline Master’s office.
+
+## Main Form
+
+### Student Section
+
+| Field                        | Type         | Validation |
+| ---------------------------- | ------------ | ---------- |
+| Student Name / Admission No. | Search input | Required   |
+| Class & Stream               | Auto-filled  | Required   |
+| Class Teacher                | Auto-filled  | Optional   |
+| Parent/Guardian              | Auto-filled  | Optional   |
+
+### Incident Details
+
+| Field            | Type         | Validation                      |
+| ---------------- | ------------ | ------------------------------- |
+| Incident Date    | Date picker  | Required                        |
+| Incident Time    | Time picker  | Required                        |
+| Location         | Dropdown     | Required                        |
+| Category         | Dropdown     | Required                        |
+| Severity         | Dropdown     | Required                        |
+| Description      | Textarea     | Required, minimum 10 characters |
+| Reported By      | Search staff | Required                        |
+| Witnesses        | Multi-select | Optional                        |
+| Related Students | Multi-select | Optional                        |
+
+### Category Options
+
+Examples:
+
+* Lateness
+* Absenteeism
+* Uniform issue
+* Class disruption
+* Disrespect
+* Property damage
+* Bullying concern
+* Fighting concern
+* Examination misconduct
+* Dormitory issue
+* Transport issue
+* Security/gate issue
+* Other
+
+Keep categories school-appropriate and avoid overly harsh labels.
+
+### Action Section
+
+| Field                        | Type     |
+| ---------------------------- | -------- |
+| Immediate Action Taken       | Textarea |
+| Parent Contact Required      | Toggle   |
+| Counsellor Referral Required | Toggle   |
+| Deputy Review Required       | Toggle   |
+| Principal Approval Required  | Toggle   |
+| Attach File                  | Upload   |
+| Internal Notes               | Textarea |
+
+## Buttons
+
+| Button                      | Purpose                               |
+| --------------------------- | ------------------------------------- |
+| `Save Draft`                | Saves incomplete incident             |
+| `Submit Case`               | Creates active case                   |
+| `Submit & Notify Parent`    | Creates case and opens message modal  |
+| `Submit & Refer Counsellor` | Creates case and counselling referral |
+| `Clear Form`                | Clears current form                   |
+| `Cancel`                    | Returns to previous page              |
+
+## Validation Messages
+
+| Scenario            | Message                                                |
+| ------------------- | ------------------------------------------------------ |
+| Missing student     | `Select a student before submitting the incident.`     |
+| Missing category    | `Choose an incident category.`                         |
+| Missing description | `Add a short description of what happened.`            |
+| Missing severity    | `Select severity so the case can be routed correctly.` |
+
+## Success State
+
+```txt
+Incident DM-2026-0043 has been logged successfully.
+```
+
+Buttons after save:
+
+| Button            | Purpose                          |
+| ----------------- | -------------------------------- |
+| `View Case`       | Opens case detail                |
+| `Notify Parent`   | Opens parent communication modal |
+| `Print Case Slip` | Downloads case summary           |
+| `Log Another`     | Clears form for new case         |
+
+---
+
+# 4. Incident Register Workspace
+
+## Purpose
+
+This is the master list of all discipline cases in the school.
+
+## Filters
+
+| Filter              | Options                                                          |
+| ------------------- | ---------------------------------------------------------------- |
+| Academic Year       | Current and past years                                           |
+| Term                | Term 1, Term 2, Term 3                                           |
+| Class               | All classes                                                      |
+| Stream              | All streams                                                      |
+| Category            | Incident categories                                              |
+| Severity            | Low, Medium, High, Critical                                      |
+| Status              | Draft, New, Under Review, Action Taken, Pending Approval, Closed |
+| Parent Notified     | Yes/No                                                           |
+| Counsellor Referral | Yes/No                                                           |
+| Date Range          | Custom                                                           |
+| Reporter            | Staff search                                                     |
+
+## Table Columns
+
+| Column         | Description               |
+| -------------- | ------------------------- |
+| Case No.       | Unique case reference     |
+| Student        | Name and admission number |
+| Class          | Class/stream              |
+| Category       | Incident type             |
+| Severity       | Case seriousness          |
+| Status         | Current workflow state    |
+| Reported By    | Staff member              |
+| Parent Contact | Notified / Not notified   |
+| Last Updated   | Latest activity           |
+| Next Action    | Required next step        |
+| Actions        | Row buttons               |
+
+## Row Actions
+
+| Action             | Purpose                                 |
+| ------------------ | --------------------------------------- |
+| `View`             | Opens full case detail drawer           |
+| `Edit`             | Edit case if not closed                 |
+| `Add Note`         | Add internal case note                  |
+| `Add Action Taken` | Record disciplinary action              |
+| `Notify Parent`    | Send SMS/email/in-app message           |
+| `Refer Counsellor` | Create counselling referral             |
+| `Escalate`         | Send to Deputy/Principal                |
+| `Request Approval` | Create formal approval request          |
+| `Print Letter`     | Print warning/meeting/suspension letter |
+| `Close Case`       | Mark case as resolved                   |
+| `Reopen`           | Reopen closed case with reason          |
+
+## Bulk Actions
+
+| Bulk Action           | Purpose                                      |
+| --------------------- | -------------------------------------------- |
+| `Export Selected`     | Download cases                               |
+| `Print Selected`      | Generate case pack                           |
+| `Assign Follow-up`    | Assign cases to staff                        |
+| `Send Parent Notices` | Bulk parent messaging                        |
+| `Mark Reviewed`       | Update status                                |
+| `Close Selected`      | Only allowed for low-severity resolved cases |
+
+## Case Detail Drawer
+
+Sections:
+
+1. Student summary
+2. Incident details
+3. Reporter details
+4. Timeline
+5. Parent communication
+6. Actions taken
+7. Counselling referrals
+8. Approval history
+9. Attachments
+10. Audit trail
+
+Buttons:
+
+| Button             | Purpose                     |
+| ------------------ | --------------------------- |
+| `Edit Case`        | Edit allowed fields         |
+| `Add Statement`    | Add student/staff statement |
+| `Add Action`       | Record intervention         |
+| `Notify Parent`    | Send communication          |
+| `Refer Counsellor` | Create referral             |
+| `Request Approval` | Escalate serious action     |
+| `Print Summary`    | Download PDF                |
+| `Close Case`       | Complete case               |
+
+---
+
+# 5. Triage Queue Workspace
+
+## Purpose
+
+Used to review new or unresolved cases and decide what happens next.
+
+## Status Flow
+
+```txt
+New Report
+→ Triage
+→ Under Review
+→ Action Taken
+→ Parent Follow-up
+→ Closed
+```
+
+For serious cases:
+
+```txt
+New Report
+→ Triage
+→ Under Review
+→ Approval Requested
+→ Deputy/Principal Decision
+→ Action Taken
+→ Closed
+```
+
+## Table Columns
+
+| Column                | Description                    |
+| --------------------- | ------------------------------ |
+| Priority              | Urgency badge                  |
+| Case No.              | Case number                    |
+| Student               | Student involved               |
+| Category              | Type                           |
+| Severity              | Suggested severity             |
+| Current Status        | Workflow state                 |
+| Age                   | How long case has been pending |
+| Recommended Next Step | System suggestion              |
+| Actions               | Row actions                    |
+
+## Row Actions
+
+| Action                  | Purpose                                        |
+| ----------------------- | ---------------------------------------------- |
+| `Start Review`          | Marks case as under review                     |
+| `Set Severity`          | Change severity                                |
+| `Assign Owner`          | Assign staff follow-up                         |
+| `Request Statement`     | Ask reporter/student/class teacher for details |
+| `Parent Contact Needed` | Flags parent follow-up                         |
+| `Send to Counsellor`    | Creates referral                               |
+| `Escalate to Deputy`    | Sends high-severity case                       |
+| `Close as Resolved`     | Closes low-severity case                       |
+
+## Triage Modal
+
+Fields:
+
+| Field                         | Type         |
+| ----------------------------- | ------------ |
+| Confirm Category              | Dropdown     |
+| Confirm Severity              | Dropdown     |
+| Immediate Risk?               | Yes/No       |
+| Parent Contact Required?      | Yes/No       |
+| Counsellor Referral Required? | Yes/No       |
+| Deputy Review Required?       | Yes/No       |
+| Principal Approval Required?  | Yes/No       |
+| Assigned Owner                | Staff select |
+| Due Date                      | Date picker  |
+| Triage Notes                  | Textarea     |
+
+Buttons:
+
+| Button                 | Purpose                       |
+| ---------------------- | ----------------------------- |
+| `Save Triage`          | Saves decisions               |
+| `Save & Notify Parent` | Saves and opens message modal |
+| `Save & Escalate`      | Sends to Deputy/Principal     |
+| `Cancel`               | Closes modal                  |
+
+---
+
+# 6. Student Conduct Profiles Workspace
+
+## Purpose
+
+Shows each student’s discipline history, trends, interventions, parent communication, and support referrals.
+
+This should help the school understand patterns without unfairly labeling students.
+
+## Search
+
+Search by:
+
+* Student name
+* Admission number
+* Class
+* Stream
+* Parent name
+* Case number
+
+## Table Columns
+
+| Column                | Description                     |
+| --------------------- | ------------------------------- |
+| Student               | Name/admission number           |
+| Class                 | Current class                   |
+| Open Cases            | Active cases                    |
+| Cases This Term       | Count                           |
+| Parent Contacted      | Latest contact status           |
+| Counselling Referrals | Count                           |
+| Last Incident         | Date                            |
+| Support Level         | Normal, Monitor, Support Needed |
+| Actions               | Row buttons                     |
+
+## Row Actions
+
+| Action                  | Purpose                            |
+| ----------------------- | ---------------------------------- |
+| `View Profile`          | Opens full student conduct profile |
+| `View Cases`            | Opens filtered case list           |
+| `Add Note`              | Add conduct note                   |
+| `Contact Parent`        | Send message                       |
+| `Refer Counsellor`      | Create referral                    |
+| `Schedule Meeting`      | Create parent/student meeting      |
+| `Print Conduct Summary` | Download PDF                       |
+
+## Student Profile View
+
+Sections:
+
+1. Student bio
+2. Class teacher details
+3. Parent/guardian contacts
+4. Current term conduct cases
+5. Historical cases
+6. Actions taken
+7. Counselling referrals
+8. Parent meetings
+9. Attendance link
+10. Academic concern link
+11. Notes
+12. Timeline
+
+## Buttons
+
+| Button                | Purpose                              |
+| --------------------- | ------------------------------------ |
+| `Log New Incident`    | Opens incident form for this student |
+| `Contact Parent`      | Opens communication modal            |
+| `Schedule Meeting`    | Opens meeting form                   |
+| `Refer to Counsellor` | Creates counselling referral         |
+| `Print Profile`       | Downloads conduct profile            |
+| `Export Timeline`     | Downloads case timeline              |
+
+---
+
+# 7. Investigations Workspace
+
+## Purpose
+
+Used to collect statements, notes, witnesses, attachments, and follow-up information for active cases.
+
+## Summary Cards
+
+| Card                        | Meaning                        |
+| --------------------------- | ------------------------------ |
+| `Pending Statements`        | Statements not yet collected   |
+| `Cases Under Investigation` | Open investigation cases       |
+| `Overdue Follow-ups`        | Cases past follow-up date      |
+| `Ready for Decision`        | Cases ready for action/closure |
+
+## Table Columns
+
+| Column                | Description                 |
+| --------------------- | --------------------------- |
+| Case No.              | Case reference              |
+| Student               | Student                     |
+| Category              | Case category               |
+| Assigned Investigator | Staff assigned              |
+| Pending Info          | Missing statements/files    |
+| Due Date              | Investigation deadline      |
+| Status                | In progress, waiting, ready |
+| Actions               | Row actions                 |
+
+## Row Actions
+
+| Action                    | Purpose                             |
+| ------------------------- | ----------------------------------- |
+| `Open Investigation`      | Opens investigation workspace       |
+| `Add Statement`           | Add student/staff/witness statement |
+| `Request Statement`       | Sends request to staff role         |
+| `Upload Attachment`       | Upload file                         |
+| `Add Finding`             | Record investigation finding        |
+| `Mark Ready for Decision` | Sends case to actions stage         |
+| `Extend Due Date`         | Requires reason                     |
+| `Close Investigation`     | Completes investigation section     |
+
+## Add Statement Modal
+
+Fields:
+
+| Field          | Type                |
+| -------------- | ------------------- |
+| Statement From | Student/staff/other |
+| Name           | Search/input        |
+| Role/Class     | Auto/manual         |
+| Statement Date | Date                |
+| Statement Text | Textarea            |
+| Attachment     | Upload              |
+| Confidential?  | Toggle              |
+| Internal Note  | Textarea            |
+
+Buttons:
+
+| Button                   | Purpose                            |
+| ------------------------ | ---------------------------------- |
+| `Save Statement`         | Saves statement                    |
+| `Save & Request Another` | Saves and opens new statement form |
+| `Cancel`                 | Closes modal                       |
+
+---
+
+# 8. Actions & Interventions Workspace
+
+## Purpose
+
+Records the action taken after a case is reviewed.
+
+Actions should be educational, fair, documented, and approval-controlled where necessary.
+
+## Possible Action Types
+
+* Verbal warning
+* Written warning
+* Parent meeting
+* Apology/restorative conversation
+* School service/corrective task
+* Detention
+* Counselling referral
+* Behavior monitoring
+* Loss/damage repayment request
+* Class teacher follow-up
+* Deputy review
+* Principal review
+* Suspension recommendation
+* Board-level escalation, if school policy requires it
+
+## Table Columns
+
+| Column             | Description                |
+| ------------------ | -------------------------- |
+| Case No.           | Case                       |
+| Student            | Student                    |
+| Recommended Action | Proposed action            |
+| Approval Required  | Yes/No                     |
+| Current Status     | Pending, approved, applied |
+| Responsible Staff  | Staff member               |
+| Due Date           | Deadline                   |
+| Actions            | Row buttons                |
+
+## Row Actions
+
+| Action             | Purpose                                    |
+| ------------------ | ------------------------------------------ |
+| `Record Action`    | Add action taken                           |
+| `Edit Action`      | Edit before finalization                   |
+| `Request Approval` | Send to Deputy/Principal                   |
+| `Apply Action`     | Mark action as applied                     |
+| `Notify Parent`    | Send action notice                         |
+| `Print Letter`     | Generate warning/meeting/suspension letter |
+| `Mark Completed`   | Complete action follow-up                  |
+| `Reassign`         | Assign responsible staff                   |
+
+## Record Action Modal
+
+Fields:
+
+| Field                         | Type         |
+| ----------------------------- | ------------ |
+| Action Type                   | Dropdown     |
+| Action Date                   | Date         |
+| Responsible Staff             | Staff select |
+| Description                   | Textarea     |
+| Requires Approval?            | Toggle       |
+| Parent Notification Required? | Toggle       |
+| Follow-up Date                | Date         |
+| Attach Letter?                | Toggle       |
+| Notes                         | Textarea     |
+
+Buttons:
+
+| Button                    | Purpose                          |
+| ------------------------- | -------------------------------- |
+| `Save Action`             | Records action                   |
+| `Save & Notify Parent`    | Records and opens parent message |
+| `Save & Request Approval` | Records and sends approval       |
+| `Cancel`                  | Closes modal                     |
+
+---
+
+# 9. Parent Communication Workspace
+
+## Purpose
+
+Used to contact parents or guardians about discipline matters.
+
+Communication should be logged automatically.
+
+## Summary Cards
+
+| Card                        | Meaning                      |
+| --------------------------- | ---------------------------- |
+| `Pending Parent Notices`    | Cases needing parent contact |
+| `Messages Sent Today`       | Sent discipline messages     |
+| `Failed Messages`           | SMS/email failures           |
+| `Parent Meetings Scheduled` | Upcoming meetings            |
+
+## Table Columns
+
+| Column          | Description               |
+| --------------- | ------------------------- |
+| Case No.        | Linked case               |
+| Student         | Student                   |
+| Parent/Guardian | Contact person            |
+| Phone/Email     | Contact details           |
+| Message Status  | Pending, sent, failed     |
+| Last Contact    | Date                      |
+| Meeting Status  | None, scheduled, attended |
+| Actions         | Row actions               |
+
+## Row Actions
+
+| Action                   | Purpose                   |
+| ------------------------ | ------------------------- |
+| `Send SMS`               | Opens SMS modal           |
+| `Send Email`             | Opens email modal         |
+| `Call Logged`            | Record phone call         |
+| `Schedule Meeting`       | Create meeting            |
+| `Print Parent Letter`    | Generate printable letter |
+| `View Communication Log` | Opens history             |
+| `Retry Failed Message`   | Resend failed SMS/email   |
+
+## SMS Modal
+
+Fields:
+
+| Field                       | Type                               |
+| --------------------------- | ---------------------------------- |
+| Parent/Guardian             | Auto-filled                        |
+| Phone Number                | Auto-filled/editable by permission |
+| Template                    | Dropdown                           |
+| Message                     | Textarea                           |
+| Language                    | English/Kiswahili/custom           |
+| Send Copy to Class Teacher? | Toggle                             |
+| Internal Note               | Textarea                           |
+
+Buttons:
+
+| Button       | Purpose       |
+| ------------ | ------------- |
+| `Send SMS`   | Sends message |
+| `Save Draft` | Saves message |
+| `Cancel`     | Closes modal  |
+
+## Message Templates
+
+Examples:
+
+```txt
+Dear Parent/Guardian, you are requested to attend a discipline meeting regarding your child on [DATE] at [TIME]. Kindly report to the school office.
+```
+
+```txt
+Dear Parent/Guardian, this is to inform you that a discipline concern involving your child has been recorded. Please contact the school for follow-up.
+```
+
+## Meeting Form
+
+Fields:
+
+| Field           | Type         |
+| --------------- | ------------ |
+| Student         | Auto-filled  |
+| Parent/Guardian | Auto-filled  |
+| Meeting Date    | Date picker  |
+| Meeting Time    | Time picker  |
+| Venue           | Text input   |
+| Attendees       | Multi-select |
+| Agenda          | Textarea     |
+| Reminder SMS    | Toggle       |
+
+Buttons:
+
+| Button                     | Purpose                       |
+| -------------------------- | ----------------------------- |
+| `Schedule Meeting`         | Creates meeting               |
+| `Schedule & Notify Parent` | Creates meeting and sends SMS |
+| `Cancel`                   | Closes form                   |
+
+---
+
+# 10. Counselling Referrals Workspace
+
+## Purpose
+
+Used when a case needs support from the school counsellor.
+
+The Discipline Master can create referrals but should not view confidential counselling notes unless permitted.
+
+## Summary Cards
+
+| Card                     | Meaning                            |
+| ------------------------ | ---------------------------------- |
+| `Pending Referrals`      | Sent but not accepted              |
+| `Accepted by Counsellor` | Counsellor has received            |
+| `Follow-up Required`     | Cases needing discipline follow-up |
+| `Closed Referrals`       | Completed support referrals        |
+
+## Table Columns
+
+| Column         | Description                         |
+| -------------- | ----------------------------------- |
+| Referral No.   | Unique referral                     |
+| Student        | Student                             |
+| Linked Case    | Discipline case                     |
+| Reason         | General reason                      |
+| Priority       | Normal, urgent                      |
+| Counsellor     | Assigned counsellor                 |
+| Status         | Sent, accepted, in progress, closed |
+| Follow-up Date | Date                                |
+| Actions        | Row actions                         |
+
+## Row Actions
+
+| Action                 | Purpose                                |
+| ---------------------- | -------------------------------------- |
+| `View Referral`        | Opens referral summary                 |
+| `Create Referral`      | Creates new referral                   |
+| `Send Reminder`        | Reminds counsellor                     |
+| `Add Discipline Note`  | Adds note visible to discipline team   |
+| `View Outcome Summary` | Shows non-confidential outcome summary |
+| `Close Follow-up`      | Closes discipline follow-up            |
+
+## Create Referral Modal
+
+Fields:
+
+| Field                    | Type               |
+| ------------------------ | ------------------ |
+| Student                  | Search/auto-filled |
+| Linked Case              | Select             |
+| Referral Reason          | Dropdown           |
+| Priority                 | Dropdown           |
+| Summary for Counsellor   | Textarea           |
+| Parent Already Notified? | Yes/No             |
+| Requested Follow-up Date | Date               |
+| Attach Case Summary      | Toggle             |
+
+Buttons:
+
+| Button          | Purpose                       |
+| --------------- | ----------------------------- |
+| `Send Referral` | Sends to counsellor dashboard |
+| `Save Draft`    | Saves referral                |
+| `Cancel`        | Closes modal                  |
+
+Success message:
+
+```txt
+Counselling referral sent for Brian Otieno.
+```
+
+---
+
+# 11. Serious Cases & Approvals Workspace
+
+## Purpose
+
+Used to manage cases that require Deputy Principal, Principal, or Board-level approval.
+
+The Discipline Master should **request** approval, not secretly apply serious actions alone.
+
+## Approval Types
+
+* Suspension recommendation
+* Expulsion recommendation
+* Serious property damage action
+* Examination misconduct action
+* Repeated serious misconduct action
+* Board review request
+* Parent disciplinary hearing
+
+## Summary Cards
+
+| Card                         | Meaning                         |
+| ---------------------------- | ------------------------------- |
+| `Draft Requests`             | Approval requests not submitted |
+| `Pending Deputy Review`      | Waiting for Deputy              |
+| `Pending Principal Approval` | Waiting for Principal           |
+| `Returned for Correction`    | Needs more details              |
+| `Approved`                   | Approved requests               |
+| `Rejected`                   | Rejected requests               |
+
+## Table Columns
+
+| Column             | Description                                  |
+| ------------------ | -------------------------------------------- |
+| Request No.        | Approval request                             |
+| Case No.           | Linked case                                  |
+| Student            | Student                                      |
+| Recommended Action | Proposed action                              |
+| Requested By       | Discipline Master                            |
+| Current Approver   | Deputy/Principal                             |
+| Status             | Draft, pending, returned, approved, rejected |
+| Date Submitted     | Date                                         |
+| Actions            | Row actions                                  |
+
+## Row Actions
+
+| Action              | Purpose                          |
+| ------------------- | -------------------------------- |
+| `View Request`      | Opens full approval request      |
+| `Edit Draft`        | Edit before submission           |
+| `Submit`            | Send for approval                |
+| `Attach Evidence`   | Add supporting files/statements  |
+| `Respond to Return` | Fix request returned by approver |
+| `Print Request`     | Download approval request        |
+| `Withdraw Request`  | Withdraw with reason             |
+| `View Decision`     | Shows approver decision          |
+
+## Approval Request Form
+
+Fields:
+
+| Field                     | Type             |
+| ------------------------- | ---------------- |
+| Linked Case               | Select           |
+| Student                   | Auto-filled      |
+| Recommended Action        | Dropdown         |
+| Reason for Recommendation | Textarea         |
+| Summary of Incident       | Textarea         |
+| Previous Related Cases    | Auto-list        |
+| Parent Contacted?         | Yes/No           |
+| Counsellor Involved?      | Yes/No           |
+| Attached Statements       | Multi-select     |
+| Requested Approver        | Deputy/Principal |
+| Urgency                   | Normal/Urgent    |
+| Internal Notes            | Textarea         |
+
+Buttons:
+
+| Button                | Purpose                 |
+| --------------------- | ----------------------- |
+| `Save Draft`          | Saves request           |
+| `Submit for Approval` | Sends to approver       |
+| `Preview PDF`         | Opens printable preview |
+| `Cancel`              | Closes form             |
+
+## Approval Status Handling
+
+| Status                     | Meaning                      |
+| -------------------------- | ---------------------------- |
+| Draft                      | Not submitted                |
+| Pending Deputy Review      | Waiting for Deputy           |
+| Pending Principal Approval | Waiting for Principal        |
+| Returned                   | Needs correction             |
+| Approved                   | Action can proceed           |
+| Rejected                   | Action cannot proceed        |
+| Withdrawn                  | Removed by Discipline Master |
+
+---
+
+# 12. Detention / Corrective Programs Workspace
+
+## Purpose
+
+Manages scheduled corrective programs such as detention, supervised service, reflection sessions, or behavior monitoring.
+
+## Summary Cards
+
+| Card                  | Meaning                               |
+| --------------------- | ------------------------------------- |
+| `Scheduled Today`     | Programs happening today              |
+| `Pending Attendance`  | Attendance not marked                 |
+| `Missed Sessions`     | Students absent from assigned session |
+| `Completed This Week` | Completed programs                    |
+
+## Table Columns
+
+| Column       | Description                            |
+| ------------ | -------------------------------------- |
+| Program No.  | Unique record                          |
+| Student      | Student                                |
+| Program Type | Detention/service/monitoring           |
+| Date         | Scheduled date                         |
+| Time         | Scheduled time                         |
+| Supervisor   | Staff in charge                        |
+| Status       | Scheduled, attended, missed, completed |
+| Actions      | Row actions                            |
+
+## Row Actions
+
+| Action          | Purpose               |
+| --------------- | --------------------- |
+| `View`          | Opens program details |
+| `Mark Attended` | Records attendance    |
+| `Mark Missed`   | Records absence       |
+| `Reschedule`    | Changes date/time     |
+| `Notify Parent` | Sends update          |
+| `Print Slip`    | Prints student slip   |
+| `Close Program` | Marks completed       |
+
+## Buttons
+
+| Button               | Purpose                          |
+| -------------------- | -------------------------------- |
+| `+ Schedule Program` | Opens program form               |
+| `Mark Attendance`    | Opens attendance mode            |
+| `Print Today’s List` | Downloads list                   |
+| `Send Reminders`     | Sends reminders to staff/parents |
+
+## Schedule Program Form
+
+Fields:
+
+| Field          | Type         |
+| -------------- | ------------ |
+| Student        | Search       |
+| Linked Case    | Select       |
+| Program Type   | Dropdown     |
+| Date           | Date picker  |
+| Start Time     | Time         |
+| End Time       | Time         |
+| Supervisor     | Staff select |
+| Location       | Input        |
+| Instructions   | Textarea     |
+| Notify Parent? | Toggle       |
+
+Buttons:
+
+| Button              | Purpose                 |
+| ------------------- | ----------------------- |
+| `Schedule`          | Saves program           |
+| `Schedule & Notify` | Saves and sends message |
+| `Cancel`            | Closes modal            |
+
+---
+
+# 13. Class & House Monitoring Workspace
+
+## Purpose
+
+Shows discipline trends by class, stream, dormitory, house, route, or department.
+
+Useful for identifying areas needing guidance, supervision, or staff follow-up.
+
+## Tabs
+
+1. By Class
+2. By Stream
+3. By House
+4. By Dormitory
+5. By Transport Route
+6. By Incident Location
+7. By Category
+
+## Summary Cards
+
+| Card                   | Meaning                         |
+| ---------------------- | ------------------------------- |
+| `Highest Case Class`   | Class with most cases this term |
+| `Most Common Category` | Most reported issue             |
+| `Dormitory Cases`      | Boarding-related cases          |
+| `Transport Cases`      | Bus/route-related cases         |
+| `Improved Classes`     | Classes with fewer cases        |
+
+## Tables
+
+### Class Monitoring Table
+
+| Column                | Description  |
+| --------------------- | ------------ |
+| Class                 | Class name   |
+| Stream                | Stream       |
+| Total Cases           | Count        |
+| Open Cases            | Active count |
+| Most Common Category  | Category     |
+| Parent Meetings       | Count        |
+| Counselling Referrals | Count        |
+| Trend                 | Up/down/same |
+| Actions               | Row actions  |
+
+## Row Actions
+
+| Action                  | Purpose                          |
+| ----------------------- | -------------------------------- |
+| `View Class Cases`      | Opens filtered incident register |
+| `Notify Class Teacher`  | Sends internal message           |
+| `Generate Class Report` | Downloads PDF                    |
+| `Schedule Class Talk`   | Creates guidance session         |
+| `Export Data`           | Downloads class data             |
+
+---
+
+# 14. Reports & Downloads Workspace
+
+## Purpose
+
+Generates printable and downloadable discipline reports.
+
+## Report Types
+
+| Report                       | Purpose                    |
+| ---------------------------- | -------------------------- |
+| Daily Incident Report        | Cases logged today         |
+| Weekly Discipline Summary    | Weekly overview            |
+| Term Discipline Report       | Term-wide report           |
+| Student Conduct Report       | Individual student summary |
+| Class Discipline Report      | Class-level summary        |
+| Parent Meeting Report        | Parent contact/meeting log |
+| Counselling Referral Summary | Referral overview          |
+| Serious Cases Report         | Approval-related cases     |
+| Closed Cases Report          | Resolved cases             |
+| Audit Report                 | Sensitive action history   |
+
+## Filters
+
+| Filter        | Options         |
+| ------------- | --------------- |
+| Academic Year | Year            |
+| Term          | Term            |
+| Date Range    | Custom          |
+| Class         | All/classes     |
+| Category      | All/categories  |
+| Severity      | All/severity    |
+| Status        | Open/closed/all |
+| Format        | PDF, Excel, CSV |
+
+## Buttons
+
+| Button               | Purpose                   |
+| -------------------- | ------------------------- |
+| `Generate Report`    | Creates selected report   |
+| `Preview`            | Opens report preview      |
+| `Download PDF`       | Downloads PDF             |
+| `Download Excel`     | Downloads Excel           |
+| `Print`              | Opens print view          |
+| `Email to Principal` | Sends report to Principal |
+| `Save to Files`      | Saves in school documents |
+
+## Report Preview Actions
+
+| Action              | Purpose          |
+| ------------------- | ---------------- |
+| `Print`             | Print report     |
+| `Download`          | Download file    |
+| `Send to Principal` | Share internally |
+| `Send to Deputy`    | Share internally |
+| `Close Preview`     | Close modal      |
+
+---
+
+# 15. Templates & Rules Workspace
+
+## Purpose
+
+Allows the school to manage discipline message templates, letter templates, categories, severity levels, and escalation rules.
+
+Only users with permission should edit rules.
+
+## Tabs
+
+1. Incident Categories
+2. Severity Rules
+3. Parent SMS Templates
+4. Warning Letter Templates
+5. Meeting Letter Templates
+6. Suspension Request Templates
+7. Escalation Rules
+8. Printable Slips
+
+## Incident Category Table
+
+| Column                     | Description     |
+| -------------------------- | --------------- |
+| Category Name              | Name            |
+| Default Severity           | Low/Medium/High |
+| Requires Parent Notice     | Yes/No          |
+| Requires Counsellor Review | Yes/No          |
+| Requires Deputy Review     | Yes/No          |
+| Active                     | Yes/No          |
+| Actions                    | Row actions     |
+
+## Row Actions
+
+| Action            | Purpose                |
+| ----------------- | ---------------------- |
+| `Edit`            | Edit category/rule     |
+| `Deactivate`      | Hide from forms        |
+| `Duplicate`       | Copy template          |
+| `Preview`         | Preview letter/message |
+| `Restore Default` | Restore system default |
+
+## Buttons
+
+| Button            | Purpose                         |
+| ----------------- | ------------------------------- |
+| `+ Add Category`  | Creates category                |
+| `+ Add Template`  | Creates message/letter template |
+| `Import Defaults` | Loads standard templates        |
+| `Save Changes`    | Saves settings                  |
+| `Reset`           | Reverts unsaved changes         |
+
+## Template Form Fields
+
+| Field               | Type             |
+| ------------------- | ---------------- |
+| Template Name       | Input            |
+| Template Type       | SMS/email/letter |
+| Subject             | Input            |
+| Body                | Rich text        |
+| Available Variables | Helper list      |
+| Active              | Toggle           |
+
+Variables:
+
+```txt
+[STUDENT_NAME]
+[ADMISSION_NO]
+[CLASS]
+[DATE]
+[TIME]
+[PARENT_NAME]
+[SCHOOL_NAME]
+[CASE_NO]
+[MEETING_DATE]
+```
+
+---
+
+# 16. Audit Trail Workspace
+
+## Purpose
+
+Shows sensitive discipline actions for accountability.
+
+The Discipline Master can view audit logs depending on permission. Principal and Super Admin may have broader access.
+
+## Audit Events to Track
+
+* Case created
+* Case edited
+* Case closed
+* Case reopened
+* Severity changed
+* Parent notified
+* SMS sent
+* Approval requested
+* Approval withdrawn
+* Action recorded
+* Counselling referral created
+* Attachment uploaded
+* Report downloaded
+* Template changed
+* Case deleted, if allowed
+
+## Table Columns
+
+| Column | Description |
+| --- | --- |
+| Date/Time | When action happened |
+| User | Staff member |
+| Role | User role |
+| Action | What was done |
+| Record Type | Case/referral/template/report |
+| Record ID | Linked record |
+| Before | Previous value |
+| After | New value |
+| IP/Device | Optional security metadata |
+| Actions | Row actions |
+
+## Row Actions
+
+| Action | Purpose |
+| --- | --- |
+| `View Details` | Opens audit detail |
+| `Open Record` | Opens linked case/template |
+| `Export Entry` | Download audit item |
+
+## Buttons
+
+| Button | Purpose |
+| --- | --- |
+| `Export Audit Log` | Downloads logs |
+| `Filter` | Opens advanced filter |
+| `Print` | Prints audit list |
+
+---
+
+# 17. Settings Workspace
+
+## Purpose
+
+Controls Discipline Master dashboard preferences and discipline workflow settings.
+
+## Sections
+
+### A. Dashboard Preferences
+
+| Setting | Type |
+| --- | --- |
+| Default landing workspace | Dropdown |
+| Default case filter | Dropdown |
+| Show high priority first | Toggle |
+| Compact table mode | Toggle |
+| Enable mobile quick log | Toggle |
+
+### B. Notification Settings
+
+| Setting | Type |
+| --- | --- |
+| Notify Discipline Master on teacher report | Toggle |
+| Notify Class Teacher when case is created | Toggle |
+| Notify Deputy on high severity cases | Toggle |
+| Notify Parent automatically for selected categories | Toggle |
+| SMS fallback when email fails | Toggle |
+
+### C. Approval Settings
+
+| Setting | Type |
+| --- | --- |
+| Require Deputy approval for high severity | Toggle |
+| Require Principal approval for suspension recommendation | Toggle |
+| Require parent contact before closure | Toggle |
+| Require closure reason | Toggle |
+
+### D. Case Numbering
+
+Example:
+
+`DM-2026-0001`
+
+Fields:
+
+| Field | Type |
+| --- | --- |
+| Prefix | Input |
+| Year Format | Dropdown |
+| Auto Numbering | Toggle |
+
+## Buttons
+
+| Button | Purpose |
+| --- | --- |
+| `Save Settings` | Saves changes |
+| `Reset to School Default` | Restores defaults |
+| `Cancel` | Discards changes |
+
+---
+
+# Global Buttons Used Across Dashboard
+
+| Button | Meaning |
+| --- | --- |
+| `View` | Open detail drawer |
+| `Edit` | Modify allowed fields |
+| `Add Note` | Add internal note |
+| `Notify Parent` | Send message |
+| `Refer Counsellor` | Create counselling referral |
+| `Request Approval` | Send to Deputy/Principal |
+| `Print` | Generate printable document |
+| `Export` | Download data |
+| `Close Case` | Resolve case |
+| `Reopen` | Reopen with reason |
+| `Save Draft` | Save incomplete form |
+| `Submit` | Submit final data |
+| `Cancel` | Close without saving |
+| `Retry` | Retry failed operation |
+
+---
+
+# Global Case Statuses
+
+Use simple clear statuses:
+
+* DRAFT
+* NEW
+* UNDER_REVIEW
+* AWAITING_INFORMATION
+* ACTION_RECORDED
+* PARENT_CONTACT_PENDING
+* COUNSELLING_REFERRED
+* APPROVAL_REQUESTED
+* APPROVED
+* REJECTED
+* CLOSED
+* REOPENED
+
+Do not use confusing decorative statuses.
+
+---
+
+# Global Severity Levels
+
+* LOW
+* MEDIUM
+* HIGH
+* CRITICAL
+
+Recommended behavior:
+
+| Severity | Meaning |
+| --- | --- |
+| Low | Minor issue handled by Discipline Master/Class Teacher |
+| Medium | Requires parent/class teacher follow-up |
+| High | Requires Deputy review |
+| Critical | Requires Principal or senior approval |
+
+---
+
+# Cross-Dashboard Communication
+
+### Teacher → Discipline Master
+Teacher submits discipline report.
+Discipline Master receives it in: Report Intake.
+Notification: *New discipline report submitted by Mr. Otieno for Brian Otieno.*
+
+### Discipline Master → Parent
+Discipline Master sends parent SMS.
+Parent portal receives: *Discipline notice regarding your child. Please contact the school.*
+
+### Discipline Master → Counsellor
+Discipline Master creates referral.
+Counsellor dashboard receives: *New counselling referral from Discipline Office.*
+
+### Discipline Master → Deputy Principal
+High-severity case escalated.
+Deputy dashboard receives: *Discipline case requires your review.*
+
+### Discipline Master → Principal
+Serious approval request submitted.
+Principal dashboard receives: *Discipline approval request pending.*
+
+### Discipline Master → Class Teacher
+Case opened for class student.
+Class Teacher dashboard receives: *A discipline case has been recorded for a learner in your class.*
+
+### Security / Boarding / Transport → Discipline Master
+Operational roles submit cases from their own dashboards.
+Discipline Master receives them in: Report Intake.
+
+All communication must be restricted by: `school_id`. No school should ever see another school’s discipline cases.
+
+---
+
+# Required Backend Tables
+
+Minimum production tables:
+
+* `discipline_cases`
+* `discipline_reports`
+* `discipline_case_notes`
+* `discipline_actions`
+* `discipline_parent_messages`
+* `discipline_referrals`
+* `discipline_approval_requests`
+* `discipline_programs`
+* `discipline_templates`
+* `discipline_audit_logs`
+* `discipline_attachments`
+
+Important fields:
+
+### `discipline_cases`
+* id
+* school_id
+* academic_year_id
+* term_id
+* case_no
+* student_id
+* class_id
+* stream_id
+* reported_by_user_id
+* category
+* severity
+* status
+* incident_date
+* incident_time
+* location
+* description
+* parent_contact_required
+* parent_notified_at
+* counsellor_referral_required
+* approval_required
+* assigned_to_user_id
+* closed_at
+* closed_by_user_id
+* closure_reason
+* created_at
+* updated_at
+
+### `discipline_reports`
+* id
+* school_id
+* student_id
+* reported_by_user_id
+* source_role
+* category
+* description
+* incident_date
+* status
+* converted_case_id
+* created_at
+* updated_at
+
+### `discipline_actions`
+* id
+* school_id
+* case_id
+* action_type
+* description
+* requires_approval
+* responsible_user_id
+* action_date
+* follow_up_date
+* status
+* created_by_user_id
+* created_at
+* updated_at
+
+### `discipline_parent_messages`
+* id
+* school_id
+* case_id
+* student_id
+* guardian_id
+* channel
+* message
+* status
+* sent_at
+* sent_by_user_id
+* failure_reason
+* created_at
+
+### `discipline_approval_requests`
+* id
+* school_id
+* case_id
+* requested_by_user_id
+* approver_user_id
+* approval_type
+* recommendation
+* reason
+* status
+* decision_notes
+* decided_at
+* created_at
+* updated_at
+
+### `discipline_audit_logs`
+* id
+* school_id
+* user_id
+* role
+* action
+* record_type
+* record_id
+* before_value
+* after_value
+* ip_address
+* device_info
+* created_at
+
+---
+
+# Required API Routes
+
+Example REST routes:
+
+```txt
+GET    /api/discipline/overview
+GET    /api/discipline/reports
+POST   /api/discipline/reports
+PATCH  /api/discipline/reports/:id
+
+GET    /api/discipline/cases
+POST   /api/discipline/cases
+GET    /api/discipline/cases/:id
+PATCH  /api/discipline/cases/:id
+POST   /api/discipline/cases/:id/notes
+POST   /api/discipline/cases/:id/actions
+POST   /api/discipline/cases/:id/close
+POST   /api/discipline/cases/:id/reopen
+
+POST   /api/discipline/cases/:id/notify-parent
+POST   /api/discipline/cases/:id/refer-counsellor
+POST   /api/discipline/cases/:id/request-approval
+
+GET    /api/discipline/approvals
+POST   /api/discipline/approvals
+PATCH  /api/discipline/approvals/:id
+
+GET    /api/discipline/programs
+POST   /api/discipline/programs
+PATCH  /api/discipline/programs/:id
+
+GET    /api/discipline/templates
+POST   /api/discipline/templates
+PATCH  /api/discipline/templates/:id
+
+GET    /api/discipline/reports/download
+GET    /api/discipline/audit
+```
+
+Every route must enforce: `school_id = currentUser.school_id`
+
+---
+
+# Permissions
+
+### Discipline Master Can
+* View discipline cases in their school.
+* Create cases.
+* Convert reports into cases.
+* Add notes.
+* Add actions.
+* Notify parents.
+* Refer to counsellor.
+* Request approvals.
+* Print reports.
+* Close low/medium cases where allowed.
+* View discipline analytics.
+
+### Discipline Master Cannot
+* Approve their own serious-case request.
+* Secretly delete serious discipline cases.
+* View confidential counselling session notes unless allowed.
+* Access another school’s records.
+* Override Principal/Deputy decisions.
+* Change global school policy without permission.
+
+### Deputy Principal Can
+* Review escalated cases.
+* Approve or return some serious cases.
+* View discipline reports.
+* Monitor unresolved cases.
+
+### Principal Can
+* Approve highest-level cases.
+* View all discipline analytics.
+* Download official reports.
+* Configure school-level discipline rules.
+
+---
+
+# Loading, Error, Empty, and Success States
+
+## Loading State
+`Loading discipline cases...`
+Use skeleton cards and skeleton table rows.
+
+## Error State
+`Could not load discipline cases.`
+Buttons: Retry, Go Back
+
+## Empty State
+`No discipline cases found for this filter.`
+Buttons: `+ Log Incident`, Clear Filters
+
+## Success Messages
+
+| Action | Message |
+| --- | --- |
+| Case created | Discipline case DM-2026-0044 created successfully. |
+| Parent notified | Parent notification sent successfully. |
+| Referral sent | Counselling referral sent successfully. |
+| Approval requested | Approval request submitted to Deputy Principal. |
+| Case closed | Case DM-2026-0044 closed successfully. |
+| Report exported | Discipline report downloaded successfully. |
+
+## Disabled Button Reasons
+
+Examples:
+
+| Button | Disabled Reason |
+| --- | --- |
+| Close Case | Parent contact is required before closure. |
+| Request Approval | Add recommendation before requesting approval. |
+| Notify Parent | No guardian contact found for this student. |
+| Submit Case | Required fields are missing. |
+| Apply Action | This action requires approval first. |
+
+---
+
+# Mobile Layout
+
+On mobile:
+* Sidebar becomes drawer.
+* `+ Log Incident` stays as floating action button.
+* Tables become stacked cards.
+* Row actions collapse into More.
+* Filters open in bottom sheet.
+* Parent communication modal is full-screen.
+* Case detail drawer becomes full-screen page.
+* Summary cards display in 2-column grid.
+* Avoid tiny split panes.
+
+Mobile case card example:
+```txt
+DM-2026-0044
+Brian Otieno · Form 2 East
+Category: Lateness
+Severity: Medium
+Status: Parent Contact Pending
+
+[View] [Notify Parent] [More]
+```
+
+---
+
+# Desktop Layout
+
+For 1366×768 and 1920×1080 screens:
+* Fixed left sidebar.
+* Main workspace should use full width.
+* Avoid unnecessary nested cards.
+* Keep key actions above the fold.
+* Use sticky table headers.
+* Use right-side detail drawer for case preview.
+* Filters should be collapsible.
+* Do not create small cramped panels.
+
+---
+
+# Final Discipline Master Sidebar Structure
+
+```txt
+Discipline Master
+├── Overview
+├── Report Intake
+├── Log Incident
+├── Incident Register
+├── Triage Queue
+├── Student Conduct Profiles
+├── Investigations
+├── Actions & Interventions
+├── Parent Communication
+├── Counselling Referrals
+├── Serious Cases & Approvals
+├── Detention / Corrective Programs
+├── Class & House Monitoring
+├── Reports & Downloads
+├── Templates & Rules
+├── Audit Trail
+└── Settings
+```
+
+This dashboard should make the Discipline Master able to run the entire school discipline office from one place, while still connecting properly to Teachers, Class Teachers, Deputy Principal, Principal, Counsellor, Parent Portal, Boarding, Security, and Transport dashboards.

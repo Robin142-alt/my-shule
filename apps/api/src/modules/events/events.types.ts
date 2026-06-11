@@ -8,7 +8,16 @@ export type SupportedDomainEventName =
   | 'discipline.case.escalated'
   | 'school.operation.recorded'
   | 'workflow.action.dispatched'
-  | 'workflow.action.completed';
+  | 'workflow.action.completed'
+  | 'boarding.request.submitted'
+  | 'transport.request.submitted'
+  | 'counselling.referral.submitted'
+  | 'procurement.request.submitted'
+  | 'lab.request.submitted'
+  | 'asset.request.submitted'
+  | 'attendance.register.marked'
+  | 'discipline.incident.reported'
+  | 'welfare.case.referred';
 export type OutboxEventStatus =
   | 'pending'
   | 'processing'
@@ -167,6 +176,96 @@ export interface StudentAcademicLifecycleChangedPayload {
   occurred_at: string;
 }
 
+export interface BoardingRequestSubmittedPayload {
+  tenant_id: string;
+  request_id: string;
+  student_id: string;
+  requested_by_user_id: string;
+  requested_at: string;
+  reason: string;
+  status: string;
+}
+
+export interface TransportRequestSubmittedPayload {
+  tenant_id: string;
+  request_id: string;
+  student_id: string;
+  requested_by_user_id: string;
+  requested_at: string;
+  route_id?: string;
+  status: string;
+}
+
+export interface CounsellingReferralSubmittedPayload {
+  tenant_id: string;
+  referral_id: string;
+  student_id: string;
+  referred_by_user_id: string;
+  referred_at: string;
+  reason: string;
+  priority: 'low' | 'medium' | 'high' | 'critical';
+  status: string;
+}
+
+export interface ProcurementRequestSubmittedPayload {
+  tenant_id: string;
+  request_id: string;
+  requested_by_user_id: string;
+  requested_at: string;
+  item_name: string;
+  quantity: number;
+  estimated_cost: number;
+  status: string;
+}
+
+export interface LabRequestSubmittedPayload {
+  tenant_id: string;
+  request_id: string;
+  requested_by_user_id: string;
+  requested_at: string;
+  equipment_id: string;
+  date_needed: string;
+  status: string;
+}
+
+export interface AssetRequestSubmittedPayload {
+  tenant_id: string;
+  request_id: string;
+  requested_by_user_id: string;
+  requested_at: string;
+  asset_type: string;
+  reason: string;
+  status: string;
+}
+
+export interface AttendanceRegisterMarkedPayload {
+  tenant_id: string;
+  stream_id: string;
+  marked_by_user_id: string;
+  date: string;
+  present_count: number;
+  absent_count: number;
+}
+
+export interface DisciplineIncidentReportedPayload {
+  tenant_id: string;
+  incident_id: string;
+  student_id: string;
+  reported_by_user_id: string;
+  date: string;
+  description: string;
+  severity: 'low' | 'medium' | 'high' | 'critical';
+}
+
+export interface WelfareCaseReferredPayload {
+  tenant_id: string;
+  referral_id: string;
+  student_id: string;
+  referred_by_user_id: string;
+  date: string;
+  reason: string;
+}
+
 export interface DomainEventPayloadMap {
   'student.created': StudentCreatedPayload;
   'student.academic_enrollment.created': StudentAcademicEnrollmentCreatedPayload;
@@ -178,6 +277,15 @@ export interface DomainEventPayloadMap {
   'school.operation.recorded': SchoolOperationRecordedPayload;
   'workflow.action.dispatched': WorkflowActionDispatchedPayload;
   'workflow.action.completed': WorkflowActionCompletedPayload;
+  'boarding.request.submitted': BoardingRequestSubmittedPayload;
+  'transport.request.submitted': TransportRequestSubmittedPayload;
+  'counselling.referral.submitted': CounsellingReferralSubmittedPayload;
+  'procurement.request.submitted': ProcurementRequestSubmittedPayload;
+  'lab.request.submitted': LabRequestSubmittedPayload;
+  'asset.request.submitted': AssetRequestSubmittedPayload;
+  'attendance.register.marked': AttendanceRegisterMarkedPayload;
+  'discipline.incident.reported': DisciplineIncidentReportedPayload;
+  'welfare.case.referred': WelfareCaseReferredPayload;
 }
 
 export interface DomainEvent<
@@ -265,7 +373,16 @@ export type DashboardRealtimeEventType =
   | 'DISCIPLINE_CASE_ESCALATED'
   | 'SCHOOL_OPERATION_RECORDED'
   | 'WORKFLOW_ACTION_DISPATCHED'
-  | 'WORKFLOW_ACTION_COMPLETED';
+  | 'WORKFLOW_ACTION_COMPLETED'
+  | 'BOARDING_REQUEST_SUBMITTED'
+  | 'TRANSPORT_REQUEST_SUBMITTED'
+  | 'COUNSELLING_REFERRAL_SUBMITTED'
+  | 'PROCUREMENT_REQUEST_SUBMITTED'
+  | 'LAB_REQUEST_SUBMITTED'
+  | 'ASSET_REQUEST_SUBMITTED'
+  | 'ATTENDANCE_REGISTER_MARKED'
+  | 'DISCIPLINE_INCIDENT_REPORTED'
+  | 'WELFARE_CASE_REFERRED';
 
 export interface DashboardRealtimeNotification {
   id: string;

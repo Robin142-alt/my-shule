@@ -33,6 +33,7 @@ const allowedRoles = [
   "laboratory-technician",
   "guidance-counselling",
   "discipline-master",
+  "procurement-officer",
 ] as const;
 export default async function SchoolSectionPage({
   params,

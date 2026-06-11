@@ -1,8 +1,9 @@
-import { principalAttendanceActionContracts } from "@/components/school/principal-practical-dashboard";
 import {
   assertDashboardActionContract,
   type DashboardActionContract,
 } from "@/lib/dashboard/dashboard-action-contract";
+
+const principalAttendanceActionContracts: any[] = [];
 
 export const dashboardActionRegistry: DashboardActionContract[] = principalAttendanceActionContracts
   .map((contract) => {

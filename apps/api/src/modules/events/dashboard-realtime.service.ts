@@ -188,6 +188,120 @@ const eventConfigs: Partial<Record<SupportedDomainEventName, DashboardEventConfi
       return `${actionId} completed through ${workflowId}.`;
     },
   },
+  'boarding.request.submitted': {
+    type: 'BOARDING_REQUEST_SUBMITTED',
+    sourceModule: 'boarding',
+    requiredPermission: 'boarding:read',
+    roleChannels: ['role:boarding-master', 'role:deputy-principal'],
+    title: 'New Boarding Request',
+    tone: 'info',
+    body: (event) => {
+      const payload = payloadRecord(event);
+      return `New boarding request for student ${payload.student_id}.`;
+    },
+  },
+  'transport.request.submitted': {
+    type: 'TRANSPORT_REQUEST_SUBMITTED',
+    sourceModule: 'transport',
+    requiredPermission: 'transport:read',
+    roleChannels: ['role:transport-manager', 'role:deputy-principal'],
+    title: 'New Transport Request',
+    tone: 'info',
+    body: (event) => {
+      const payload = payloadRecord(event);
+      return `New transport request for student ${payload.student_id}.`;
+    },
+  },
+  'counselling.referral.submitted': {
+    type: 'COUNSELLING_REFERRAL_SUBMITTED',
+    sourceModule: 'counselling',
+    requiredPermission: 'counselling:read',
+    roleChannels: ['role:counsellor', 'role:deputy-principal'],
+    title: 'New Counselling Referral',
+    tone: (event) => {
+      const payload = payloadRecord(event);
+      return payload.priority === 'critical' ? 'critical' : payload.priority === 'high' ? 'warning' : 'info';
+    },
+    body: (event) => {
+      const payload = payloadRecord(event);
+      return `New counselling referral for student ${payload.student_id}.`;
+    },
+  },
+  'procurement.request.submitted': {
+    type: 'PROCUREMENT_REQUEST_SUBMITTED',
+    sourceModule: 'procurement',
+    requiredPermission: 'procurement:read',
+    roleChannels: ['role:storekeeper', 'role:hod', 'role:principal'],
+    title: 'New Procurement Request',
+    tone: 'info',
+    body: (event) => {
+      const payload = payloadRecord(event);
+      return `Procurement request for ${payload.quantity} ${payload.item_name}.`;
+    },
+  },
+  'lab.request.submitted': {
+    type: 'LAB_REQUEST_SUBMITTED',
+    sourceModule: 'lab',
+    requiredPermission: 'lab:read',
+    roleChannels: ['role:lab-technician', 'role:hod'],
+    title: 'New Lab Request',
+    tone: 'info',
+    body: (event) => {
+      const payload = payloadRecord(event);
+      return `Lab equipment ${payload.equipment_id} requested for ${payload.date_needed}.`;
+    },
+  },
+  'asset.request.submitted': {
+    type: 'ASSET_REQUEST_SUBMITTED',
+    sourceModule: 'asset',
+    requiredPermission: 'asset:read',
+    roleChannels: ['role:system-monitor', 'role:deputy-principal'],
+    title: 'New Asset Request',
+    tone: 'info',
+    body: (event) => {
+      const payload = payloadRecord(event);
+      return `Asset request submitted for ${payload.asset_type}.`;
+    },
+  },
+  'attendance.register.marked': {
+    type: 'ATTENDANCE_REGISTER_MARKED',
+    sourceModule: 'academics',
+    requiredPermission: 'attendance:read',
+    roleChannels: ['role:principal', 'role:deputy-principal'],
+    title: 'Attendance Register Marked',
+    tone: 'info',
+    body: (event) => {
+      const payload = payloadRecord(event);
+      return `Register marked. Present: ${payload.present_count}, Absent: ${payload.absent_count}.`;
+    },
+  },
+  'discipline.incident.reported': {
+    type: 'DISCIPLINE_INCIDENT_REPORTED',
+    sourceModule: 'academics',
+    requiredPermission: 'discipline:read',
+    roleChannels: ['role:discipline-master', 'role:principal', 'role:deputy-principal'],
+    title: 'New Discipline Incident',
+    tone: (event) => {
+      const payload = payloadRecord(event);
+      return payload.severity === 'critical' || payload.severity === 'high' ? 'critical' : 'warning';
+    },
+    body: (event) => {
+      const payload = payloadRecord(event);
+      return `New discipline incident reported for student ${payload.student_id}.`;
+    },
+  },
+  'welfare.case.referred': {
+    type: 'WELFARE_CASE_REFERRED',
+    sourceModule: 'academics',
+    requiredPermission: 'counselling:read',
+    roleChannels: ['role:counsellor', 'role:deputy-principal'],
+    title: 'New Welfare Case Referred',
+    tone: 'info',
+    body: (event) => {
+      const payload = payloadRecord(event);
+      return `Welfare case referred for student ${payload.student_id}.`;
+    },
+  },
 };
 
 @Injectable()

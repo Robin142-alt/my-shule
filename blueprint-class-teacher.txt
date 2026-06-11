@@ -1,0 +1,1666 @@
+MyShule Class Teacher Dashboard — Full Workspace Blueprint
+The Class Teacher Dashboard is the daily control center for one assigned class/stream, for example Form 2 East, Grade 6 Blue, or PP2 A. It is not a general admin dashboard. It helps the class teacher monitor learners, mark attendance, follow up discipline/welfare/fees issues, communicate with parents, prepare class reports, and add class teacher comments to report cards.
+The Class Teacher can also be a normal subject teacher, but this dashboard focuses on class ownership. Subject teaching tasks can remain in the Teacher Dashboard.
+
+1. Dashboard Scope
+Role name
+Class Teacher
+Main responsibility
+Manage one assigned class or stream during the current academic year and term.
+Example scope
+School: Kisumu Boys High School
+Academic Year: 2026
+Term: Term 2
+Class: Form 2
+Stream: East
+Class Teacher: Mr. Otieno
+
+Data access
+The Class Teacher can only access:
+school_id = current user school
+academic_year_id = active academic year
+term_id = active term
+class_id / stream_id = assigned class or stream
+
+They must not see learners from another school, another stream, or another class unless given extra permission.
+
+2. Sidebar Structure
+Recommended sidebar for Class Teacher:
+1. Overview
+2. My Class Register
+3. Attendance
+4. Learner Profiles
+5. Academic Progress
+6. Report Card Comments
+7. Discipline & Behaviour
+8. Welfare & Counselling
+9. Health Notes
+10. Fees Follow-up
+11. Parent Communication
+12. Meetings & Appointments
+13. Homework & Class Tasks
+14. Timetable
+15. Documents & Letters
+16. Requests & Approvals
+17. Reports & Downloads
+18. Notifications
+19. Settings
+
+Each sidebar item must open a real workspace, not a decorative card page.
+
+3. Global Dashboard Layout
+Top bar
+Should show:
+Good morning, Mr. Otieno
+Class Teacher — Form 2 East
+2026 Academic Year · Term 2
+
+Top bar actions
+Buttons:
+Mark Today’s Attendance
+Send Message to Parents
+Generate Class Report
+Add Class Note
+Print Class List
+
+Global filters
+Available on most workspaces:
+Academic Year
+Term
+Class
+Stream
+Gender
+Boarding/Day Scholar
+Status: Active / Transferred / Suspended / Completed
+Search learner by name, admission number, parent phone
+
+Global warning banners
+Examples:
+3 learners absent today.
+5 report card comments missing.
+2 discipline cases awaiting follow-up.
+7 learners have fee arrears.
+1 learner has a health alert.
+
+4. Workspace 1 — Overview
+Purpose
+This is the Class Teacher’s command center. It shows the class condition today.
+
+Summary cards
+Cards should be backed by real queries:
+Total Learners
+Present Today
+Absent Today
+Late Today
+Pending Report Comments
+Open Discipline Cases
+Learners Needing Welfare Follow-up
+Fee Arrears Count
+Parent Messages Sent This Week
+Upcoming Meetings
+
+Main sections
+A. Today’s Class Status
+Table columns:
+Learner
+Admission No.
+Attendance Status
+Arrival Time
+Discipline Flag
+Health Flag
+Fees Flag
+Last Parent Contact
+Action
+
+Row actions:
+Open Profile
+Mark Present
+Mark Absent
+Mark Late
+Send Parent Message
+Add Class Note
+Refer to Counsellor
+View Fees
+View Discipline
+
+B. Urgent Follow-up Queue
+Shows learners who need attention.
+Queue categories:
+Absent without explanation
+Repeated lateness
+Open discipline case
+Low academic performance
+Missing marks
+Fee arrears
+Health concern
+Counselling referral
+Parent meeting pending
+
+Row actions:
+Open Learner
+Contact Parent
+Create Meeting
+Add Follow-up Note
+Mark as Followed Up
+Escalate to Deputy
+Refer to Counsellor
+
+C. Quick actions
+Buttons:
+Mark Attendance
+Send Class Message
+Print Class List
+Generate Weekly Summary
+Add Learner Note
+Create Parent Meeting
+Open Report Comments
+
+Empty state
+No urgent follow-ups for this class today.
+Button: View Class Register
+
+Error state
+Could not load class overview.
+Button: Retry
+
+5. Workspace 2 — My Class Register
+Purpose
+Shows all learners officially assigned to the class/stream.
+The Class Teacher should not create learners directly unless the school allows it. Admissions or School Admin handles official admission. The Class Teacher can flag incorrect records.
+
+Main table columns
+Photo
+Admission No.
+Learner Name
+Gender
+Class / Stream
+Boarding Status
+Parent / Guardian
+Parent Phone
+Status
+Attendance %
+Academic Alert
+Discipline Alert
+Fees Alert
+Action
+
+Top buttons
+Print Class List
+Export Excel
+Export PDF
+Download Parent Contacts
+Request Student Correction
+View Inactive Learners
+
+Search and filters
+Search by name
+Search by admission number
+Search by parent phone
+Gender
+Boarding/day scholar
+Active/inactive
+Has missing parent contact
+Has discipline issue
+Has fee arrears
+
+Row actions
+Open Learner Profile
+View Attendance
+View Academic Progress
+View Discipline
+View Health Notes
+View Fees Summary
+Message Parent
+Schedule Parent Meeting
+Add Class Teacher Note
+Request Record Correction
+Print Learner Slip
+
+Bulk actions
+Message Selected Parents
+Print Selected Learner Slips
+Export Selected
+Mark Selected for Follow-up
+Request Bulk Record Correction
+
+Request correction modal
+Fields:
+Learner
+Correction Type:
+- Wrong name spelling
+- Wrong parent contact
+- Wrong class/stream
+- Missing photo
+- Missing guardian details
+- Wrong boarding status
+- Other
+
+Description
+Attach document/photo optional
+Submit to School Admin
+
+Buttons:
+Submit Correction Request
+Cancel
+
+Success message:
+Correction request for Brian Otieno sent to School Admin.
+
+6. Workspace 3 — Attendance
+Purpose
+Daily class roll call. This is one of the most important Class Teacher tasks.
+
+Modes
+Morning Attendance
+Afternoon Attendance
+Lesson Attendance View
+Weekly Attendance Review
+Monthly Attendance Summary
+
+Top cards
+Expected Learners
+Marked Present
+Absent
+Late
+Not Marked
+Absent This Week
+Repeated Latecomers
+
+Main attendance table
+Columns:
+Admission No.
+Learner Name
+Gender
+Status
+Arrival Time
+Reason
+Parent Notified
+Marked By
+Last Updated
+Action
+
+Status options
+Present
+Absent
+Late
+Excused
+Sick
+Sent Home
+School Activity
+Not Marked
+
+Main buttons
+Start Roll Call
+Mark All Present
+Save Attendance
+Submit Attendance
+Send Absence SMS
+Print Attendance Sheet
+Export Attendance
+View Weekly Pattern
+
+Row actions
+Mark Present
+Mark Absent
+Mark Late
+Add Reason
+Notify Parent
+Open Learner Profile
+View Attendance History
+Mark as Excused
+Send to Nurse
+Refer to Discipline
+
+Bulk actions
+Mark Selected Present
+Mark Selected Absent
+Mark Selected Late
+Send SMS to Selected Parents
+Add Common Reason
+Export Selected
+
+Attendance form validation
+Rules:
+Cannot submit attendance with unmarked learners unless allowed.
+Late learners require arrival time.
+Excused absence requires reason.
+Sick status should allow optional nurse referral.
+Attendance cannot be edited after lock period unless permission is granted.
+
+Save behaviour
+Buttons:
+Save Draft
+Submit Final Attendance
+Cancel
+
+Success messages:
+Attendance saved for Form 2 East.
+Attendance submitted for Form 2 East.
+SMS sent to 3 parents of absent learners.
+
+Cross-dashboard notifications
+When learner is absent:
+Parent receives SMS/in-app message.
+Deputy can see attendance concern if absence is repeated.
+Principal sees attendance summary.
+
+When learner is marked sick:
+Nurse receives sick bay referral.
+Parent can be notified if school policy allows.
+
+7. Workspace 4 — Learner Profiles
+Purpose
+Detailed learner view for class follow-up.
+
+Profile header
+Shows:
+Photo
+Name
+Admission Number
+Class / Stream
+Gender
+Age
+Boarding Status
+Parent/Guardian
+Emergency Contact
+Status
+
+Profile tabs
+Overview
+Attendance
+Academics
+Discipline
+Health
+Fees
+Parent Communication
+Documents
+Notes
+
+Main profile actions
+Message Parent
+Call Parent
+Schedule Meeting
+Add Class Note
+Print Learner Summary
+Request Record Correction
+Refer to Counsellor
+Refer to Discipline Master
+Refer to Nurse
+
+Notes section
+Class Teacher can add notes like:
+Academic concern
+Behaviour concern
+Family/welfare concern
+Attendance concern
+Parent communication note
+Positive achievement
+General observation
+
+Fields:
+Note Type
+Visibility:
+- Private to Class Teacher
+- Visible to Deputy/Principal
+- Visible to Counsellor
+- Visible to Discipline Master
+Description
+Follow-up Date
+
+Buttons:
+Save Note
+Cancel
+
+Sensitive notes
+Some notes must have restricted visibility.
+Examples:
+Counselling notes should not be visible to every teacher.
+Health notes should only show safe alerts unless Nurse permission exists.
+Discipline notes should follow school permission rules.
+
+8. Workspace 5 — Academic Progress
+Purpose
+Class Teacher monitors overall academic performance of the assigned class.
+The Class Teacher does not replace the Exams Manager or Subject Teacher. They monitor gaps and follow up learners.
+
+Summary cards
+Class Mean Score
+Class Mean Grade
+Top Performer
+Most Improved Learner
+Learners Below Target
+Missing Marks
+Subjects Below Target
+Report Cards Ready
+
+Main table columns
+Rank
+Learner
+Admission No.
+Total Marks
+Mean Score
+Grade / Performance Level
+Position
+Trend
+Missing Subjects
+Class Teacher Comment Status
+Action
+
+Filters
+Exam
+Assessment
+Subject
+Grade band
+Missing marks only
+Below target only
+Improved learners
+Declining learners
+
+Top buttons
+View Exam Results
+View Subject Breakdown
+Export Class Results
+Print Merit List
+Print Progress List
+Message Parents of Selected Learners
+Open Report Comments
+
+Row actions
+Open Learner Performance
+View Subject Breakdown
+Add Academic Note
+Message Parent
+Create Parent Meeting
+Mark for Follow-up
+Refer to HOD
+Refer to Counsellor
+
+Subject breakdown table
+Columns:
+Subject
+Teacher
+Class Average
+Learner Score
+Grade
+Rank in Subject
+Missing Marks
+Teacher Comment
+Action
+
+Actions:
+View Subject Learners
+Message Subject Teacher
+Flag Missing Marks
+Add Follow-up Note
+
+Missing marks workflow
+If some learners have missing marks:
+Button:
+Flag Missing Marks
+
+Modal fields:
+Exam
+Subject
+Learners affected
+Message to Subject Teacher / Exams Manager
+Priority
+
+Success:
+Missing marks issue sent to Exams Manager and subject teacher.
+
+9. Workspace 6 — Report Card Comments
+Purpose
+Class Teacher adds final comments before report cards are approved/published.
+
+Summary cards
+Total Learners
+Comments Completed
+Comments Missing
+Reports Ready for Review
+Reports Blocked
+Pending Principal Approval
+
+Main table columns
+Learner
+Admission No.
+Mean Score
+Grade / Level
+Attendance Summary
+Discipline Summary
+Comment Status
+Report Status
+Action
+
+Top buttons
+Generate Comment Suggestions
+Save Drafts
+Submit Comments
+Print Draft Reports
+Export Comment Status
+
+Row actions
+Add Comment
+Edit Comment
+Preview Report Card
+View Learner Academics
+View Attendance Summary
+View Discipline Summary
+Message Parent
+Mark Comment Complete
+
+Comment editor
+Fields:
+Learner
+Academic Comment
+Behaviour Comment
+Attendance Comment
+Improvement Advice
+Class Teacher Final Comment
+
+Optional template buttons:
+Positive Performance
+Needs Consistency
+Attendance Concern
+Behaviour Improvement
+Excellent Improvement
+Parent Meeting Needed
+
+Buttons:
+Save Draft
+Save and Next
+Mark Complete
+Cancel
+
+Validation
+Comment cannot be empty.
+Comment must be professional.
+Comment should not expose sensitive health/counselling details.
+Cannot submit comments if learner has no report card generated.
+Cannot edit after final publishing unless reopened by Exams Manager/Principal.
+
+Bulk actions
+Mark Selected Complete
+Export Missing Comments
+Print Selected Draft Reports
+Send Parent Meeting Request
+
+Cross-dashboard flow
+Subject Teachers enter marks/comments.
+Exams Manager verifies marks.
+Class Teacher adds class comments.
+Principal/Deputy approves report cards.
+Parent portal receives published report cards.
+
+10. Workspace 7 — Discipline & Behaviour
+Purpose
+Class Teacher sees class-level behaviour issues and records minor incidents.
+Serious cases should be escalated to Discipline Master or Deputy Principal.
+
+Summary cards
+Open Cases
+Minor Incidents This Week
+Repeated Offenders
+Resolved Cases
+Pending Parent Contact
+Referred to Discipline Master
+
+Main table columns
+Date
+Learner
+Incident Type
+Severity
+Reported By
+Status
+Parent Contacted
+Follow-up Date
+Action
+
+Severity levels
+Minor
+Moderate
+Serious
+Critical
+
+Top buttons
+Record Minor Incident
+Refer Case
+Print Behaviour Summary
+Export Discipline Log
+Message Parent
+
+Row actions
+Open Case
+Add Follow-up Note
+Message Parent
+Schedule Parent Meeting
+Refer to Discipline Master
+Refer to Counsellor
+Mark Resolved
+Print Incident Summary
+
+Create incident modal
+Fields:
+Learner
+Incident Date
+Incident Type
+Location
+Severity
+Description
+Immediate Action Taken
+Parent Notified?
+Need Discipline Master?
+Need Counsellor?
+Attachment optional
+
+Buttons:
+Save Incident
+Save and Notify Parent
+Save and Refer
+Cancel
+
+Validation
+Serious/Critical cases cannot be closed by Class Teacher alone.
+Suspension/expulsion cannot be done by Class Teacher.
+Parent notification must use approved templates.
+All discipline changes must be audit logged.
+
+Notifications
+Moderate/serious case → Discipline Master
+Repeated cases → Deputy Principal
+Counselling referral → Counsellor
+Parent message → Parent portal/SMS
+
+11. Workspace 8 — Welfare & Counselling
+Purpose
+Class Teacher identifies learners who may need extra support and refers them safely.
+This is not a place to expose private counselling notes. It is mainly for referral and follow-up status.
+
+Summary cards
+Open Welfare Concerns
+Counselling Referrals
+Pending Follow-ups
+Resolved Welfare Cases
+Parent Meetings Needed
+
+Main table columns
+Learner
+Concern Type
+Reported Date
+Priority
+Referral Status
+Assigned Officer
+Next Follow-up
+Action
+
+Concern types
+Academic struggle
+Frequent absence
+Behaviour change
+Family concern
+Financial hardship
+Peer conflict
+General welfare concern
+Other
+
+Top buttons
+Create Welfare Concern
+Refer to Counsellor
+Schedule Parent Meeting
+Export Welfare Follow-ups
+
+Row actions
+Open Concern
+Add Follow-up Note
+Refer to Counsellor
+Message Parent
+Schedule Meeting
+Mark Followed Up
+Escalate to Deputy
+
+Referral form
+Fields:
+Learner
+Concern Type
+Priority
+Brief Description
+Suggested Support
+Parent Contact Needed?
+Attach Evidence optional
+
+Buttons:
+Submit Referral
+Cancel
+
+Privacy rule
+Class Teacher can see:
+Referral status
+Follow-up date
+General support outcome
+
+Class Teacher should not see:
+Private counselling session details
+Sensitive counsellor notes
+Confidential health details
+
+12. Workspace 9 — Health Notes
+Purpose
+Shows safe learner health alerts and nurse-related class follow-ups.
+The Class Teacher should not manage medicine or sick bay inventory. That belongs to the Nurse dashboard.
+
+Summary cards
+Learners with Health Alerts
+Sick Today
+Sent to Nurse This Week
+Medication Alert Count
+Emergency Contact Missing
+
+Main table columns
+Learner
+Health Alert
+Emergency Contact
+Last Sick Bay Visit
+Nurse Status
+Parent Notified
+Action
+
+Top buttons
+Send Learner to Nurse
+Print Emergency Contact List
+Request Missing Health Details
+Message Parent
+
+Row actions
+Open Safe Health Summary
+Send to Nurse
+Message Parent
+Call Emergency Contact
+Request Health Info Update
+Add Class Observation
+
+Send to Nurse modal
+Fields:
+Learner
+Reason
+Symptoms observed
+Urgency:
+- Normal
+- Urgent
+- Emergency
+
+Parent notification needed?
+
+Buttons:
+Send Referral
+Cancel
+
+Health privacy
+Class Teacher sees only what is needed for school safety:
+Allergy alert
+Emergency contact
+General restrictions
+Nurse visit status
+Parent notified status
+
+Detailed medical records remain in Nurse dashboard.
+
+13. Workspace 10 — Fees Follow-up
+Purpose
+Class Teacher can see basic fee status for follow-up, but cannot create fee structures, edit balances, reverse receipts, or reconcile payments.
+Those belong to Accountant/Bursar.
+
+Summary cards
+Learners with Arrears
+Total Class Arrears
+Cleared Learners
+High Arrears Cases
+Parent Reminders Sent
+
+Main table columns
+Learner
+Admission No.
+Parent/Guardian
+Fee Balance
+Last Payment Date
+Payment Status
+Reminder Status
+Action
+
+Top buttons
+View Arrears List
+Send Reminder Request
+Export Arrears Follow-up
+Print Parent Follow-up List
+
+Row actions
+View Fee Summary
+Message Parent
+Request Accountant Statement
+Schedule Parent Meeting
+Mark Parent Follow-up Done
+Add Follow-up Note
+
+Important restrictions
+Class Teacher cannot:
+Change fee balance
+Create invoice
+Issue receipt
+Reverse payment
+Approve waiver
+Change fee structure
+
+Class Teacher can:
+View balance
+Follow up parent
+Request statement
+Escalate hardship case
+Schedule parent meeting
+
+Cross-dashboard flow
+Class Teacher requests statement → Accountant receives task.
+Class Teacher flags hardship → Principal/Deputy/Counsellor can review.
+Parent receives approved reminder message.
+
+14. Workspace 11 — Parent Communication
+Purpose
+Send and track parent/guardian communication for the class.
+
+Summary cards
+Messages Sent This Week
+Unread Parent Replies
+Failed SMS
+Pending Parent Follow-ups
+Meetings Scheduled
+
+Message tabs
+Class Broadcasts
+Individual Messages
+Parent Replies
+Message Templates
+Failed Messages
+
+Main table columns
+Date
+Learner
+Parent
+Channel
+Subject
+Status
+Sent By
+Action
+
+Channels
+SMS
+Email
+In-app Parent Portal
+Printed Letter
+Phone Call Log
+
+Top buttons
+Send Class Message
+Send Individual Message
+Use Template
+Log Phone Call
+Export Communication Log
+Retry Failed SMS
+
+Row actions
+Open Message
+Reply
+Retry
+Mark Followed Up
+Schedule Meeting
+Open Learner Profile
+Print Message
+
+Send message modal
+Fields:
+Recipients:
+- Whole class
+- Selected learners
+- Individual parent
+- Parents of absent learners
+- Parents with pending meeting
+- Parents with fee arrears
+- Parents of learners below target
+
+Channel
+Template
+Subject
+Message Body
+Language optional
+Send Now / Save Draft
+
+Buttons:
+Preview
+Send Message
+Save Draft
+Cancel
+
+Message templates
+Examples:
+Absence alert
+Late arrival alert
+Parent meeting invitation
+Academic concern
+Improvement praise
+Discipline follow-up
+Fee follow-up request
+Class announcement
+Exam/report card notice
+
+Validation
+Cannot send empty message.
+Cannot send to parents with missing phone/email unless alternative channel selected.
+Bulk SMS must show estimated SMS count.
+Sensitive information must use approved templates.
+
+15. Workspace 12 — Meetings & Appointments
+Purpose
+Track parent meetings and learner follow-ups.
+
+Summary cards
+Meetings Today
+Upcoming Meetings
+Missed Meetings
+Completed Meetings
+Parent Follow-ups Pending
+
+Calendar/list view
+Views:
+Today
+This Week
+This Term
+Calendar View
+List View
+
+Main table columns
+Date
+Time
+Learner
+Parent/Guardian
+Reason
+Meeting Type
+Status
+Action
+
+Meeting types
+Academic follow-up
+Discipline follow-up
+Attendance concern
+Fees discussion
+General class meeting
+Welfare concern
+Report card discussion
+
+Top buttons
+Schedule Meeting
+Send Meeting Reminders
+Print Meeting List
+Export Meetings
+
+Row actions
+Open Meeting
+Reschedule
+Mark Attended
+Mark Missed
+Add Meeting Notes
+Send Reminder
+Cancel Meeting
+Print Meeting Slip
+
+Schedule meeting modal
+Fields:
+Learner
+Parent/Guardian
+Reason
+Meeting Date
+Start Time
+End Time
+Location
+Meeting Type
+Notify Parent?
+Add Deputy/Counsellor/Discipline Master?
+Notes
+
+Buttons:
+Schedule Meeting
+Schedule and Notify
+Cancel
+
+Meeting notes form
+Fields:
+Attendance
+Discussion Summary
+Agreed Action
+Next Follow-up Date
+Escalation Needed?
+
+Buttons:
+Save Meeting Notes
+Save and Close Meeting
+Cancel
+
+16. Workspace 13 — Homework & Class Tasks
+Purpose
+Class Teacher can view class-wide homework/task load and create class notices or tasks.
+Subject-specific assignments are created by subject teachers, but Class Teacher can monitor overload and pending work.
+
+Summary cards
+Active Assignments
+Due This Week
+Overdue Submissions
+Subjects with Heavy Workload
+Class Notices Active
+
+Main table columns
+Task / Assignment
+Subject
+Teacher
+Due Date
+Submission Status
+Learners Pending
+Action
+
+Top buttons
+Create Class Task
+Create Class Notice
+Print Task List
+Export Homework Tracker
+Message Parents of Pending Learners
+
+Row actions
+Open Task
+View Pending Learners
+Message Parent
+Message Subject Teacher
+Add Class Reminder
+Print Task
+
+Create class task modal
+Fields:
+Title
+Description
+Due Date
+Applies To:
+- Whole class
+- Selected learners
+
+Priority
+Attachment optional
+Notify learners/parents?
+
+Buttons:
+Save Task
+Save and Notify
+Cancel
+
+17. Workspace 14 — Timetable
+Purpose
+Class Teacher views the class timetable and daily schedule.
+They should not create the official school timetable unless given timetable permission.
+
+Summary cards
+Lessons Today
+Free Periods
+Upcoming Assessment
+Teacher Missing Lesson Log
+Class Events This Week
+
+Timetable view
+Columns:
+Time
+Subject
+Teacher
+Room
+Lesson Status
+Action
+
+Top buttons
+Print Timetable
+Export Timetable
+View Today
+View Week
+Report Timetable Issue
+
+Row actions
+View Lesson
+Message Subject Teacher
+Report Teacher Absent
+Report Room Issue
+Add Class Note
+
+Timetable issue modal
+Fields:
+Date
+Period
+Issue Type:
+- Teacher absent
+- Room conflict
+- Wrong subject
+- Time conflict
+- Other
+
+Description
+
+Buttons:
+Submit Issue
+Cancel
+
+Notification goes to:
+Deputy Principal
+Dean of Academics
+Timetable Manager / School Admin
+
+18. Workspace 15 — Documents & Letters
+Purpose
+Generate class-related printable documents.
+
+Document categories
+Class list
+Parent contact list
+Attendance sheet
+Learner summary slip
+Parent meeting invitation
+Warning letter request
+Class performance summary
+Discipline follow-up letter
+Fee follow-up request letter
+Report card acknowledgement list
+
+Main table columns
+Document
+Type
+Generated Date
+Generated By
+Status
+Action
+
+Top buttons
+Generate Document
+Upload Class Document
+Print Class List
+Download Parent Contacts
+
+Row actions
+Preview
+Download PDF
+Print
+Share with Parent
+Archive
+Regenerate
+
+Generate document modal
+Fields:
+Document Type
+Learner or Whole Class
+Academic Year
+Term
+Include Contacts?
+Include Attendance?
+Include Academic Summary?
+Include Fees Summary? permission-based
+
+Buttons:
+Generate PDF
+Preview
+Cancel
+
+19. Workspace 16 — Requests & Approvals
+Purpose
+Class Teacher creates requests that need action from other roles.
+This workspace should show the status of requests sent by the Class Teacher.
+
+Request types
+Student record correction
+Parent contact update
+Missing marks follow-up
+Counselling referral
+Discipline escalation
+Nurse referral
+Fee statement request
+Hardship case review
+Timetable issue
+Store item request
+Class trip/activity request
+Document approval
+
+Summary cards
+Open Requests
+Approved
+Rejected
+Pending Review
+Needs More Information
+
+Main table columns
+Request ID
+Type
+Learner / Class
+Sent To
+Status
+Date Submitted
+Last Update
+Action
+
+Top buttons
+Create Request
+Filter Pending
+Export Requests
+
+Row actions
+Open Request
+Add Comment
+Attach Document
+Cancel Request
+Resubmit
+View Audit Trail
+
+Create request modal
+Fields:
+Request Type
+Learner optional
+Description
+Priority
+Target Role
+Attachment optional
+Due Date optional
+
+Buttons:
+Submit Request
+Save Draft
+Cancel
+
+Statuses
+Draft
+Submitted
+In Review
+Approved
+Rejected
+Needs More Information
+Completed
+Cancelled
+
+20. Workspace 17 — Reports & Downloads
+Purpose
+Generate class-level reports for daily, weekly, termly, and end-term use.
+
+Report types
+Daily attendance report
+Weekly attendance summary
+Monthly attendance summary
+Class academic progress report
+Class discipline summary
+Parent communication report
+Parent meeting report
+Fee follow-up list
+Learner concern list
+Report card comment completion report
+Class register export
+Emergency contact list
+
+Main table columns
+Report Name
+Category
+Academic Year
+Term
+Generated By
+Generated Date
+Format
+Action
+
+Top buttons
+Generate Report
+Download Latest
+Print Report
+Export Excel
+Export PDF
+
+Generate report modal
+Fields:
+Report Type
+Academic Year
+Term
+Date Range
+Include Learners?
+Include Parent Contacts?
+Include Sensitive Notes? permission-based
+Format:
+- PDF
+- Excel
+- CSV
+
+Buttons:
+Generate
+Preview
+Cancel
+
+Row actions
+Preview
+Download
+Print
+Regenerate
+Share with Principal
+Archive
+
+21. Workspace 18 — Notifications
+Purpose
+Shows all tasks, alerts, replies, approvals, and system messages relevant to the Class Teacher.
+
+Notification categories
+Attendance alerts
+Parent replies
+Report card reminders
+Discipline updates
+Counselling referral updates
+Nurse referral updates
+Fees follow-up updates
+Meeting reminders
+Request approvals
+System notices
+
+Main table columns
+Time
+Type
+Message
+Related Learner
+Priority
+Read Status
+Action
+
+Top buttons
+Mark All Read
+Filter Urgent
+Open Parent Replies
+Retry Failed Messages
+
+Row actions
+Open
+Mark Read
+Mark Unread
+Dismiss
+Open Learner
+Open Related Request
+
+22. Workspace 19 — Settings
+Purpose
+Small class-level preferences. The Class Teacher should not edit school-wide settings here.
+
+Settings sections
+Class Dashboard Preferences
+Attendance Defaults
+Parent Communication Preferences
+Report Comment Templates
+Notification Preferences
+Print Preferences
+
+Editable options
+Default attendance view
+Default class report format
+Preferred parent message channel
+Enable/disable comment templates
+Show/hide fee alert cards if permitted
+Notification frequency
+
+Buttons
+Save Settings
+Reset to Default
+Cancel
+
+Restrictions
+Class Teacher cannot set:
+Term dates
+Fee structures
+School profile
+Subjects
+Class creation
+Stream creation
+Staff roles
+Exam grading rules
+Report card templates
+SMS gateway settings
+
+23. Class Teacher Permissions Matrix
+Feature | Allowed? | Notes
+View assigned class learners | Yes | Only own school and assigned class/stream
+Add new learner officially | Usually No | Admissions/School Admin handles this
+Request student record correction | Yes | Goes to School Admin
+Mark class attendance | Yes | Core task
+Edit submitted attendance | Limited | Only before lock or with permission
+View academic performance | Yes | Class-level monitoring
+Enter subject marks | Only if also subject teacher | Through Teacher/Marks workspace
+Add report card comments | Yes | For assigned class
+Publish report cards | No | Principal/Exams Manager approval
+Record minor discipline case | Yes | Serious cases escalated
+Suspend learner | No | Deputy/Principal/Discipline Master process
+View fee balances | Limited | Read-only follow-up
+Edit fees/receipts | No | Accountant/Bursar only
+Send parent messages | Yes | Within policy/templates
+View health alerts | Limited | Safe alerts only
+Dispense medicine | No | Nurse only
+Refer learner to counsellor | Yes | Cannot view private counselling notes
+Generate class reports | Yes | Permission-based fields
+Change school settings | No | Admin/Principal only
+
+24. Backend Entities Needed
+Core tables/models:
+schools
+academic_years
+terms
+classes
+streams
+students
+guardians
+student_guardians
+staff
+users
+role_assignments
+class_teacher_assignments
+attendance_records
+attendance_sessions
+student_notes
+academic_results
+exam_results
+report_cards
+report_card_comments
+discipline_cases
+discipline_followups
+welfare_referrals
+counselling_referrals
+health_alerts
+sick_bay_referrals
+fee_accounts
+fee_balances
+parent_messages
+message_templates
+parent_meetings
+class_tasks
+timetable_periods
+documents
+requests
+approvals
+notifications
+audit_logs
+
+Every table must include where relevant:
+id
+school_id
+academic_year_id
+term_id
+class_id
+stream_id
+created_by
+updated_by
+created_at
+updated_at
+deleted_at optional
+
+Sensitive tables must include:
+visibility_scope
+permission_required
+audit_required
+
+25. Important API Routes
+Example API structure:
+GET    /api/class-teacher/overview
+GET    /api/class-teacher/register
+GET    /api/class-teacher/students/:studentId
+GET    /api/class-teacher/attendance/session
+POST   /api/class-teacher/attendance/save
+POST   /api/class-teacher/attendance/submit
+POST   /api/class-teacher/attendance/notify-parents
+
+GET    /api/class-teacher/academic-progress
+GET    /api/class-teacher/report-comments
+POST   /api/class-teacher/report-comments/save
+POST   /api/class-teacher/report-comments/submit
+
+GET    /api/class-teacher/discipline
+POST   /api/class-teacher/discipline/minor-case
+POST   /api/class-teacher/discipline/refer
+
+GET    /api/class-teacher/welfare
+POST   /api/class-teacher/welfare/referral
+
+GET    /api/class-teacher/health-alerts
+POST   /api/class-teacher/nurse-referral
+
+GET    /api/class-teacher/fees-followup
+POST   /api/class-teacher/fees/request-statement
+
+GET    /api/class-teacher/messages
+POST   /api/class-teacher/messages/send
+POST   /api/class-teacher/messages/retry
+
+GET    /api/class-teacher/meetings
+POST   /api/class-teacher/meetings
+PATCH  /api/class-teacher/meetings/:meetingId
+
+GET    /api/class-teacher/reports
+POST   /api/class-teacher/reports/generate
+
+GET    /api/class-teacher/requests
+POST   /api/class-teacher/requests
+
+GET    /api/class-teacher/notifications
+PATCH  /api/class-teacher/notifications/:id/read
+
+Every API must enforce:
+school_id isolation
+assigned class/stream scope
+role permission
+module availability
+audit logging for sensitive actions
+
+26. Mobile Layout Requirements
+On mobile:
+Sidebar becomes drawer.
+Top cards become horizontal scroll or 2-column compact grid.
+Tables become stacked learner cards.
+Primary action floats at bottom: Mark Attendance / Save / Send.
+Filters collapse into bottom sheet.
+Row actions become three-dot menu.
+Attendance marking must be thumb-friendly.
+Parent phone/message buttons must be large enough.
+
+Mobile learner card example:
+Brian Otieno
+ADM: 2045 · Form 2 East
+Attendance: Present
+Flags: Fees, Discipline
+
+Buttons:
+Present | Absent | Late | More
+
+27. Desktop Layout Requirements
+For 1366×768 and 1920×1080:
+Fixed sidebar.
+Sticky top bar.
+Large main workspace.
+Cards limited to useful summary only.
+Tables should use full width.
+Avoid tiny split panels.
+Action buttons must be visible above the fold.
+Detail drawers open from the right.
+Create/edit forms open in modal or drawer.
+
+28. Loading, Empty, Error, Success States
+Loading
+Loading Form 2 East attendance...
+Loading learner profiles...
+Loading report comments...
+
+Use skeletons, not blank pages.
+
+Empty
+No learners found in this class.
+Button: Request class assignment check
+
+No attendance session for today.
+Button: Start Roll Call
+
+Error
+Could not load attendance records.
+Button: Retry
+
+Success
+Attendance submitted for Form 2 East.
+Parent message sent to 42 guardians.
+Comment saved for Brian Otieno.
+Meeting scheduled with Aisha Wanjiku’s guardian.
+
+Disabled buttons
+Examples:
+Submit Attendance disabled: 4 learners are still unmarked.
+Submit Comments disabled: 5 learners have missing comments.
+Send SMS disabled: SMS module is not enabled for this school.
+Edit Attendance disabled: Attendance has been locked by Deputy Principal.
+
+29. Audit Logs
+Audit log must be created for:
+Attendance submission
+Attendance edit after submission
+Parent message sent
+Discipline case created
+Discipline case escalated
+Welfare referral
+Nurse referral
+Report card comment submission
+Fee follow-up request
+Student record correction request
+Document generation containing sensitive data
+
+Audit log fields:
+school_id
+user_id
+role
+action
+entity_type
+entity_id
+old_value optional
+new_value optional
+ip_address optional
+device optional
+created_at
+
+30. Best Final Sidebar Order
+This is the clean final sidebar I recommend:
+Overview
+My Class Register
+Attendance
+Learner Profiles
+Academic Progress
+Report Card Comments
+Discipline & Behaviour
+Welfare & Counselling
+Health Notes
+Fees Follow-up
+Parent Communication
+Meetings & Appointments
+Homework & Class Tasks
+Timetable
+Documents & Letters
+Requests & Approvals
+Reports & Downloads
+Notifications
+Settings
+
+This gives the Class Teacher everything needed for daily class control without turning them into Principal, Accountant, Nurse, or School Admin.

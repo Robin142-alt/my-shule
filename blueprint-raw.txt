@@ -1,0 +1,4327 @@
+
+# 1. Super Admin Dashboard
+
+Super Admin controls the whole MyShule platform, not daily school operations.
+
+## Sidebar Items
+
+1. Platform Overview
+2. Schools
+3. School Onboarding
+4. Principal Invites
+5. Module Access Control
+6. Tenant Health
+7. Users & Roles
+8. Gateways
+9. Communication Templates
+10. Audit Logs
+11. Support Desk
+12. System Settings
+
+---
+
+## 1.1 Platform Overview Workspace
+
+Purpose: monitor the whole SaaS platform.
+
+Summary cards:
+
+* Total schools
+* Active schools
+* Suspended schools
+* Pending onboarding
+* Failed jobs
+* SMS/email queue health
+* Payment gateway status
+* Recent support tickets
+
+Main areas:
+
+* School activity table
+* Tenant health snapshot
+* Failed background jobs queue
+* Recent platform audit feed
+
+Buttons:
+
+* Add School
+* View Tenant Health
+* Retry Failed Jobs
+* Export Platform Report
+* Open Audit Logs
+
+Table columns:
+
+* School name
+* County
+* Principal status
+* Modules active
+* Last activity
+* Tenant status
+* Health status
+* Actions
+
+Reports/downloads:
+
+* Platform schools report PDF
+* Tenant health Excel
+* Failed jobs CSV
+* Monthly platform activity report
+
+---
+
+## 1.2 Schools Workspace
+
+Purpose: create and manage schools as tenants.
+
+Buttons:
+
+* Create School
+* Edit School
+* Suspend School
+* Reactivate School
+* View Tenant
+* Export Schools
+* Download School Profile
+
+Create school form:
+
+* School name
+* School code
+* County
+* Sub-county
+* Curriculum mode: CBC, Hybrid CBC/8-4-4
+* School type: primary, junior, senior, mixed, boarding, day
+* Contact email
+* Phone
+* Address
+* Logo upload
+* Status
+
+Table columns:
+
+* School name
+* Code
+* County
+* Curriculum mode
+* Principal invited?
+* Setup status
+* Active modules
+* Status
+* Created date
+* Actions
+
+Row actions:
+
+* View profile
+* Edit
+* Invite Principal
+* Manage modules
+* View audit
+* Suspend
+* Delete only if allowed and no protected data
+
+Cross-dashboard effect:
+
+* Creating a school creates a clean tenant.
+* No demo data should be copied.
+* Only Kisumu Boys demo tenant may have demo data.
+
+---
+
+## 1.3 School Onboarding Workspace
+
+Purpose: track onboarding progress.
+
+Main area:
+
+* Onboarding checklist table
+* Per-school setup progress drawer
+
+Checklist items:
+
+* School profile completed
+* Principal accepted invite
+* Academic year created
+* Term dates set
+* Classes created
+* Streams created
+* Subjects created
+* Staff invited
+* Students imported
+* Parents linked
+* Finance setup completed
+* Communication templates checked
+
+Buttons:
+
+* View Checklist
+* Mark Internal Note
+* Resend Setup Reminder
+* Open School Tenant
+* Export Onboarding Report
+
+Reports/downloads:
+
+* Onboarding progress PDF
+* Setup gaps Excel
+
+---
+
+## 1.4 Principal Invites Workspace
+
+Purpose: invite the first Principal only.
+
+Important rule:
+
+**Only Super Admin invites the first Principal. Principal dashboard must not include “Invite Principal.”**
+
+Buttons:
+
+* Invite Principal
+* Resend Invite
+* Revoke Invite
+* Copy Invite Link
+* View Invite Status
+
+Invite form:
+
+* School
+* Principal full name
+* Email
+* Phone
+* Invite message
+* Expiry date
+
+Table columns:
+
+* School
+* Principal name
+* Email
+* Invite status
+* Sent date
+* Expiry
+* Accepted date
+* Actions
+
+Statuses:
+
+* Pending
+* Accepted
+* Expired
+* Revoked
+
+Cross-dashboard effect:
+
+* Accepted invite creates Principal user in that school only.
+* Principal then completes school setup and invites school staff.
+
+---
+
+## 1.5 Module Access Control Workspace
+
+Purpose: manually enable/disable paid modules per school.
+
+Buttons:
+
+* Enable Module
+* Disable Module
+* Edit Module Access
+* Save Access Rules
+* Export Module Matrix
+
+Main table:
+
+* School
+* Module
+* Status
+* Enabled date
+* Enabled by
+* Notes
+* Actions
+
+Module list:
+
+1. Students & Admissions
+2. Parent & Guardian Records
+3. Academics & Teaching Management
+4. Learner Attendance
+5. Exams, Assessments & Report Cards
+6. Timetable & Scheduling
+7. Finance, Fees & Receipting
+8. M-Pesa & Payment Integration
+9. Parent Portal & Parent Communication
+10. SMS, Email & Notifications
+11. Student Portal
+12. Discipline & Behavior Management
+13. Counselling & Student Welfare
+14. Health / Sick Bay
+15. Library Management
+16. Inventory / Store Management
+17. Procurement & Suppliers
+18. Boarding / Hostel Management
+19. Transport Management
+20. Security, Gate & Visitor Management
+21. Reception & Front Office
+22. Staff / HR Management
+23. Payroll Management
+24. ICT, Assets & Facilities
+
+Locked module behavior:
+
+* Sidebar item hidden or locked
+* Workspace shows “Module not active”
+* No fake data
+* No unauthorized API calls
+
+---
+
+## 1.6 Tenant Health Workspace
+
+Purpose: detect tenant data problems.
+
+Cards:
+
+* Schools with errors
+* Schools with sync failures
+* Schools with no recent activity
+* Schools with failed notifications
+* Schools with database anomalies
+
+Tables:
+
+* Tenant health table
+* Failed sync queue
+* Data isolation alerts
+* Slow query alerts
+
+Buttons:
+
+* Run Tenant Check
+* Retry Sync
+* View Logs
+* Export Health Report
+
+---
+
+## 1.7 Users & Roles Workspace
+
+Purpose: platform-level user oversight.
+
+Buttons:
+
+* Search User
+* Disable User
+* Reset Access
+* View Role Assignments
+* Export Users
+
+Table columns:
+
+* User
+* Email
+* School
+* Role
+* Status
+* Last login
+* Actions
+
+Super Admin can view platform role assignments but must not interfere with daily school workflows unless support requires it.
+
+---
+
+## 1.8 Gateways Workspace
+
+Purpose: manage SMS, email, M-Pesa, and integrations.
+
+Sections:
+
+* SMS provider settings
+* Email provider settings
+* M-Pesa gateway status
+* Webhook logs
+* Failed delivery queue
+
+Buttons:
+
+* Test SMS
+* Test Email
+* Retry Webhook
+* Save Gateway Settings
+* Download Gateway Logs
+
+---
+
+## 1.9 Communication Templates Workspace
+
+Purpose: manage global message templates.
+
+Templates:
+
+* Principal invite
+* Staff invite
+* Parent fee reminder
+* Attendance absent SMS
+* Discipline notice
+* Sick bay notice
+* Library overdue notice
+* Report card published notice
+
+Buttons:
+
+* Create Template
+* Edit Template
+* Preview
+* Send Test
+* Activate
+* Archive
+
+---
+
+## 1.10 Audit Logs Workspace
+
+Purpose: platform-wide audit tracking.
+
+Filters:
+
+* School
+* User
+* Role
+* Action
+* Module
+* Date range
+* Severity
+
+Buttons:
+
+* Export Audit Logs
+* Download PDF
+* Search
+* Open Record
+
+Table:
+
+* Time
+* School
+* User
+* Role
+* Action
+* Entity
+* Old value
+* New value
+* IP/device
+* Severity
+
+---
+
+# 2. Principal Dashboard
+
+Principal is the school owner/admin after accepting invite.
+
+## Sidebar Items
+
+1. Overview
+2. Setup Checklist
+3. School Profile
+4. Academic Setup
+5. Classes & Streams
+6. Subjects & Departments
+7. Staff & Roles
+8. Students
+9. Attendance
+10. Academics
+11. Exams & Report Cards
+12. Finance Overview
+13. Discipline
+14. Communication
+15. Approvals
+16. Reports
+17. Settings
+
+---
+
+## 2.1 Principal Overview Workspace
+
+Purpose: whole-school leadership view.
+
+Cards:
+
+* Total students
+* Staff present today
+* Learners absent today
+* Fee collection this term
+* Pending approvals
+* Discipline cases
+* Exams pending publication
+* Low stock alerts
+
+Main areas:
+
+* Daily school operations timeline
+* Urgent leadership queue
+* Department performance summary
+* Finance snapshot
+* Attendance heatmap
+
+Buttons:
+
+* Review Approvals
+* Send Announcement
+* View Reports
+* Print Daily Brief
+* Export Overview
+
+Downloads:
+
+* Daily principal brief PDF
+* Weekly school operations PDF
+* Term leadership report
+
+---
+
+## 2.2 Setup Checklist Workspace
+
+Purpose: complete school setup.
+
+Checklist table:
+
+* School profile
+* Academic year
+* Terms
+* Classes
+* Streams
+* Subjects
+* Departments
+* Staff
+* Students
+* Parents
+* Fee structures
+* Report templates
+* Communication templates
+* Permissions
+
+Buttons:
+
+* Continue Setup
+* Mark Step Complete
+* Open Related Workspace
+* Import Data
+* Download Setup Gaps
+
+Each item opens the correct workspace.
+
+---
+
+## 2.3 School Profile Workspace
+
+Purpose: manage official school identity.
+
+Forms:
+
+* School name
+* Motto
+* Logo
+* Address
+* Contacts
+* KNEC code
+* County/sub-county
+* School type
+* Curriculum mode
+* Principal name
+* Signature upload
+* Stamp upload
+
+Buttons:
+
+* Save Profile
+* Upload Logo
+* Upload Stamp
+* Preview Letterhead
+* Download Profile PDF
+
+Reports:
+
+* School profile PDF
+* Letterhead preview PDF
+
+Audit:
+
+* Profile edits must be logged.
+
+---
+
+## 2.4 Academic Setup Workspace
+
+Purpose: define years, terms, grading, curriculum.
+
+Sections:
+
+### Academic Years
+
+Buttons:
+
+* Create Academic Year
+* Set Active Year
+* Close Year
+* Archive Year
+
+Table:
+
+* Year
+* Start date
+* End date
+* Status
+* Created by
+* Actions
+
+### Terms
+
+Buttons:
+
+* Add Term
+* Edit Term Dates
+* Set Current Term
+* Lock Term
+* Reopen Term with approval
+
+Form:
+
+* Term name
+* Start date
+* End date
+* Opening date
+* Closing date
+* Midterm date
+* Exam period
+* Report release date
+
+### Curriculum Mode
+
+Options:
+
+* CBC
+* Hybrid CBC/8-4-4
+
+Buttons:
+
+* Save Curriculum Setup
+* Preview Report Logic
+
+Cross-dashboard effect:
+
+* Term dates affect attendance, exams, finance, reports, portals, timetables.
+
+---
+
+## 2.5 Classes & Streams Workspace
+
+Purpose: create classes, grades, forms, and streams.
+
+Buttons:
+
+* Add Class/Grade/Form
+* Add Stream
+* Assign Class Teacher
+* Promote Learners
+* Merge Stream
+* Archive Class
+
+Class form:
+
+* Name
+* Curriculum type
+* Level
+* Section
+* Capacity
+* Class teacher
+* Grade/Form master
+* Status
+
+Table:
+
+* Class
+* Stream
+* Curriculum
+* Students
+* Class teacher
+* Capacity
+* Status
+* Actions
+
+Downloads:
+
+* Class list PDF
+* Stream list Excel
+* Promotion report
+
+---
+
+## 2.6 Subjects & Departments Workspace
+
+Purpose: manage subjects and departments.
+
+Buttons:
+
+* Add Subject
+* Add Department
+* Assign HOD
+* Assign Teachers
+* Set Subject Grading Rules
+* Import Subjects
+
+Subject form:
+
+* Subject name
+* Code
+* Curriculum type
+* Department
+* Compulsory/optional
+* Applicable classes
+* Teacher assignments
+
+Department form:
+
+* Department name
+* HOD
+* Subjects
+* Staff members
+
+Tables:
+
+* Subjects table
+* Departments table
+* Teacher-subject allocation table
+
+Downloads:
+
+* Subject allocation PDF
+* Department workload Excel
+
+---
+
+## 2.7 Staff & Roles Workspace
+
+Purpose: invite and manage school staff only.
+
+Principal can invite:
+
+* Deputy Principal
+* School Admin
+* Dean of Academics
+* Exams Manager
+* HOD
+* Teachers
+* Class Teachers
+* Accountant/Bursar
+* Secretary
+* Admissions Officer
+* Discipline Master
+* Counsellor
+* Nurse
+* Librarian
+* Storekeeper
+* Procurement Officer
+* Boarding Master
+* Security Officer
+* Transport Manager
+* Lab Technician
+* ICT/Assets Officer
+
+Buttons:
+
+* Invite Staff
+* Assign Role
+* Change Role
+* Disable Staff
+* Resend Invite
+* Reset Password
+* Export Staff List
+
+Invite form:
+
+* Full name
+* Email
+* Phone
+* Role
+* Department
+* Class scope if needed
+* Subject scope if needed
+* Employment type
+* Access start date
+
+Table:
+
+* Staff name
+* Role
+* Email
+* Phone
+* Department
+* Status
+* Last login
+* Invite status
+* Actions
+
+Reports:
+
+* Staff list PDF
+* Role assignment matrix Excel
+* Staff access audit
+
+Important:
+
+* No “Invite Principal” here.
+
+---
+
+## 2.8 Students Workspace
+
+Purpose: view and oversee students.
+
+Buttons:
+
+* Add Student
+* Import Students
+* Assign Class
+* Promote Students
+* Transfer Student
+* Deactivate Student
+* Download Student List
+
+Student table:
+
+* Admission number
+* Name
+* Class
+* Stream
+* Gender
+* Parent linked?
+* Fee status
+* Attendance status
+* Status
+* Actions
+
+Student detail drawer:
+
+* Profile
+* Parent/guardian
+* Attendance
+* Fees
+* Academics
+* Discipline
+* Health
+* Library
+* Transport
+* Boarding
+
+Reports:
+
+* Student register PDF
+* Class list Excel
+* Parent linkage report
+
+---
+
+## 2.9 Attendance Workspace
+
+Purpose: leadership-level attendance monitoring.
+
+Cards:
+
+* Present today
+* Absent today
+* Late today
+* Classes not marked
+* Chronic absenteeism cases
+
+Main table:
+
+* Class
+* Stream
+* Marked by
+* Present
+* Absent
+* Late
+* Not marked
+* Time submitted
+* Actions
+
+Buttons:
+
+* View Class Attendance
+* Notify Parents
+* Escalate to Deputy
+* Print Daily Attendance
+* Export Attendance
+
+Reports:
+
+* Daily attendance PDF
+* Weekly attendance Excel
+* Chronic absenteeism report
+
+---
+
+## 2.10 Academics Workspace
+
+Purpose: monitor academic operations.
+
+Sections:
+
+* Syllabus coverage
+* Lesson logs
+* Teacher workload
+* Class performance
+* Department reports
+
+Buttons:
+
+* View Coverage
+* Request Department Report
+* Send Academic Notice
+* Export Academic Summary
+
+Tables:
+
+* Department performance
+* Teacher lesson logs
+* Syllabus coverage by class
+* Subject performance trends
+
+Reports:
+
+* Academic performance PDF
+* Department coverage Excel
+* Teacher workload report
+
+---
+
+## 2.11 Exams & Report Cards Workspace
+
+Purpose: approve and publish exam/report card outputs.
+
+Cards:
+
+* Exams active
+* Marks submitted
+* Marks pending
+* Reports ready
+* Reports returned
+* Reports published
+
+Main areas:
+
+* Exam cycle table
+* Report card approval queue
+* Moderation flags
+* Publishing panel
+
+Buttons:
+
+* View Exam
+* Approve Results
+* Return for Correction
+* Publish Report Cards
+* Lock Exam
+* Download Reports
+* Print Report Cards
+
+Tables:
+
+* Exam name
+* Class
+* Subject coverage
+* Marks completion
+* Moderation status
+* Report status
+* Actions
+
+Reports/downloads:
+
+* Class mark sheets
+* Subject analysis
+* Report cards PDF
+* Merit list
+* Grade distribution
+* CBC competency report
+* 8-4-4 marks report
+
+Danger:
+
+* Publish Report Cards requires confirmation and audit.
+
+---
+
+## 2.12 Finance Overview Workspace
+
+Purpose: leadership financial visibility, not full accounting.
+
+Cards:
+
+* Expected fees
+* Collected fees
+* Arrears
+* Waiver requests
+* Pending reconciliations
+
+Tables:
+
+* Collection by class
+* Arrears aging
+* Recent payments
+* Waiver approval queue
+
+Buttons:
+
+* View Arrears
+* Approve Waiver
+* Reject Waiver
+* Print Finance Summary
+* Export Finance Report
+
+Reports:
+
+* Fee collection summary PDF
+* Arrears Excel
+* Waiver report
+
+---
+
+## 2.13 Discipline Workspace
+
+Purpose: leadership view of discipline cases.
+
+Cards:
+
+* Open cases
+* Severe cases
+* Suspensions pending
+* Counselling referrals
+* Repeat offenders
+
+Table:
+
+* Student
+* Class
+* Incident type
+* Severity
+* Reported by
+* Status
+* Parent notified?
+* Actions
+
+Buttons:
+
+* View Case
+* Approve Action
+* Reject Action
+* Refer to Counsellor
+* Notify Parent
+* Print Discipline Summary
+
+Reports:
+
+* Discipline cases PDF
+* Term discipline analysis
+* Severe cases report
+
+---
+
+## 2.14 Communication Workspace
+
+Purpose: send official school communication.
+
+Buttons:
+
+* Send Announcement
+* Send SMS
+* Send Email
+* Create Notice
+* Schedule Message
+* Preview Message
+* Download Delivery Report
+
+Form:
+
+* Audience
+* Class
+* Stream
+* Staff role
+* Message title
+* Message body
+* Channel: SMS, email, portal, in-app
+* Schedule time
+* Attachment
+
+Tables:
+
+* Sent messages
+* Scheduled messages
+* Failed messages
+* Delivery reports
+
+Reports:
+
+* SMS delivery Excel
+* Communication log PDF
+
+---
+
+## 2.15 Approvals Workspace
+
+Purpose: all principal approval queues.
+
+Approval categories:
+
+* Finance waivers
+* Suspensions
+* Report card publishing
+* Procurement
+* High-value stock issue
+* Staff access changes
+* Term reopening
+* Student transfer
+* Major profile changes
+
+Buttons:
+
+* Approve Selected
+* Reject Selected
+* Return for Correction
+* View Details
+* Add Comment
+* Download Approval Log
+
+Approval table:
+
+* Request type
+* Requested by
+* Student/item/record
+* Amount/severity
+* Date
+* Status
+* Actions
+
+Each approval must show:
+
+* Request details
+* Supporting documents
+* Previous comments
+* Audit trail
+* Approve/reject reason field
+
+---
+
+## 2.16 Reports Workspace
+
+Purpose: official school reporting.
+
+Report categories:
+
+* Attendance
+* Academics
+* Exams
+* Finance
+* Discipline
+* Staff
+* Students
+* Inventory
+* Boarding
+* Transport
+* Health
+* Library
+
+Buttons:
+
+* Generate Report
+* Preview
+* Download PDF
+* Export Excel
+* Print
+* Schedule Report
+
+Filters:
+
+* Academic year
+* Term
+* Class
+* Stream
+* Department
+* Date range
+* Status
+
+---
+
+## 2.17 Settings Workspace
+
+Purpose: school-level settings.
+
+Sections:
+
+* School preferences
+* Role permissions
+* Notification rules
+* Report card templates
+* Fee preferences
+* Attendance rules
+* Data import rules
+* Portal visibility
+
+Buttons:
+
+* Save Settings
+* Reset Section
+* Preview Changes
+* Export Settings
+* View Audit Log
+
+Sensitive settings require audit.
+
+---
+
+# 3. Deputy Principal Dashboard
+
+The Deputy Principal handles operations, attendance, discipline coordination, staff duty, and daily school order.
+
+## Sidebar Items
+
+1. Overview
+2. Daily Operations
+3. Attendance Monitoring
+4. Staff Duty Roster
+5. Discipline Coordination
+6. Student Welfare
+7. Approvals
+8. Communication
+9. Reports
+
+---
+
+## 3.1 Overview
+
+Cards:
+
+* Classes not marked
+* Teachers absent
+* Discipline cases today
+* Late students
+* Boarding alerts
+* Visitors awaiting clearance
+
+Buttons:
+
+* Print Daily Operations Brief
+* Send Staff Notice
+* Open Duty Roster
+* Review Discipline
+
+---
+
+## 3.2 Daily Operations
+
+Main area:
+
+* Daily task board
+* Operations checklist
+* Incident queue
+
+Buttons:
+
+* Add Daily Note
+* Assign Task
+* Escalate to Principal
+* Mark Resolved
+* Print Daily Log
+
+Table:
+
+* Task
+* Assigned role
+* Priority
+* Status
+* Due time
+* Actions
+
+---
+
+## 3.3 Attendance Monitoring
+
+Purpose: ensure teachers/class teachers mark attendance.
+
+Buttons:
+
+* View Unmarked Classes
+* Remind Teacher
+* Notify Parents
+* Escalate Repeat Absence
+* Export Attendance
+
+Table:
+
+* Class
+* Stream
+* Assigned teacher
+* Status
+* Present
+* Absent
+* Late
+* Submitted time
+
+---
+
+## 3.4 Staff Duty Roster
+
+Buttons:
+
+* Create Duty Roster
+* Assign Duty
+* Swap Duty
+* Print Roster
+* Notify Staff
+
+Form:
+
+* Staff member
+* Duty location
+* Date
+* Time slot
+* Notes
+
+Table:
+
+* Date
+* Staff
+* Duty
+* Location
+* Status
+* Actions
+
+---
+
+## 3.5 Discipline Coordination
+
+Buttons:
+
+* Open Case
+* Assign Discipline Master
+* Refer to Counsellor
+* Notify Parent
+* Recommend Suspension
+* Print Case Summary
+
+Table:
+
+* Student
+* Class
+* Incident
+* Severity
+* Assigned officer
+* Status
+* Actions
+
+---
+
+## 3.6 Student Welfare
+
+Sections:
+
+* Sick bay alerts
+* Counselling referrals
+* Boarding welfare
+* Chronic absenteeism
+* Parent concerns
+
+Buttons:
+
+* View Student Profile
+* Assign Follow-up
+* Notify Parent
+* Escalate to Principal
+* Export Welfare Report
+
+---
+
+## 3.7 Approvals
+
+Deputy approvals:
+
+* Minor discipline actions
+* Leave permissions
+* Daily duty changes
+* Student movement approvals
+
+Buttons:
+
+* Approve
+* Reject
+* Return
+* Add Comment
+
+---
+
+# 4. School Admin Dashboard
+
+School Admin maintains setup, data, imports, records, and operational configuration.
+
+## Sidebar Items
+
+1. Overview
+2. Data Setup
+3. Students
+4. Parents
+5. Staff Records
+6. Classes & Streams
+7. Subjects
+8. Imports
+9. Data Quality
+10. Reports
+11. Settings
+
+---
+
+## 4.1 Data Setup
+
+Purpose: maintain operational school data.
+
+Buttons:
+
+* Add Academic Year
+* Add Term
+* Add Class
+* Add Stream
+* Add Subject
+* Add Department
+* Import Setup Data
+
+Tables:
+
+* Academic setup records
+* Classes
+* Streams
+* Subjects
+* Departments
+
+Downloads:
+
+* Setup template Excel
+* Current setup export
+
+---
+
+## 4.2 Students
+
+Buttons:
+
+* Add Student
+* Import Students
+* Edit Student
+* Link Parent
+* Assign Class
+* Promote
+* Transfer
+* Deactivate
+
+Student form:
+
+* Admission number
+* First name
+* Middle name
+* Last name
+* Gender
+* Date of birth
+* Class
+* Stream
+* Boarding/day
+* Transport route
+* Medical notes
+* Parent/guardian link
+
+---
+
+## 4.3 Parents
+
+Buttons:
+
+* Add Parent
+* Link to Student
+* Verify Contact
+* Send Portal Invite
+* Merge Duplicate
+* Export Parent List
+
+Form:
+
+* Name
+* Phone
+* Email
+* Relationship
+* ID optional
+* Address
+* Portal access status
+
+Table:
+
+* Parent
+* Phone
+* Email
+* Linked students
+* Portal status
+* Actions
+
+---
+
+## 4.4 Staff Records
+
+Buttons:
+
+* Add Staff Record
+* Update Staff Details
+* Assign Department
+* Assign Role Scope
+* Export Staff Register
+
+Table:
+
+* Staff
+* Role
+* Department
+* Subject/class scope
+* Status
+* Actions
+
+---
+
+## 4.5 Imports
+
+Purpose: upload bulk data.
+
+Import types:
+
+* Students
+* Parents
+* Staff
+* Subjects
+* Classes
+* Fee balances
+* Library books
+* Inventory items
+
+Buttons:
+
+* Download Template
+* Upload File
+* Validate
+* Preview Import
+* Confirm Import
+* Download Error File
+
+Import states:
+
+* Uploaded
+* Validating
+* Errors found
+* Ready to import
+* Imported
+* Failed
+
+---
+
+## 4.6 Data Quality
+
+Purpose: detect missing or duplicate records.
+
+Cards:
+
+* Students without parents
+* Parents without phone
+* Duplicate admission numbers
+* Staff without roles
+* Classes without teachers
+* Subjects without teachers
+
+Buttons:
+
+* Fix Record
+* Merge Duplicate
+* Export Issues
+* Mark Reviewed
+
+---
+
+# 5. Dean of Academics Dashboard
+
+The Dean owns academic delivery, syllabus coverage, curriculum quality, and department performance.
+
+## Sidebar Items
+
+1. Overview
+2. Curriculum Coverage
+3. Lesson Plans
+4. Lesson Logs
+5. Teacher Workload
+6. Department Performance
+7. Assessments
+8. Academic Interventions
+9. Reports
+
+---
+
+## 5.1 Overview
+
+Cards:
+
+* Coverage percentage
+* Teachers missing lesson logs
+* Low-performing classes
+* Pending HOD reports
+* Assessment completion
+
+Buttons:
+
+* Request HOD Report
+* View Coverage
+* Create Intervention
+* Export Academic Brief
+
+---
+
+## 5.2 Curriculum Coverage
+
+Buttons:
+
+* Add Coverage Record
+* Review Coverage
+* Flag Behind Schedule
+* Notify HOD
+* Export Coverage
+
+Table:
+
+* Subject
+* Class
+* Teacher
+* Expected topic
+* Covered topic
+* Coverage %
+* Status
+* Actions
+
+Filters:
+
+* Department
+* Class
+* Subject
+* Teacher
+* Term
+
+Reports:
+
+* Coverage report PDF
+* Coverage gap Excel
+
+---
+
+## 5.3 Lesson Plans
+
+Buttons:
+
+* Review Lesson Plan
+* Approve
+* Return for Correction
+* Comment
+* Download Plan
+
+Table:
+
+* Teacher
+* Subject
+* Class
+* Week
+* Submitted date
+* Status
+* Actions
+
+---
+
+## 5.4 Lesson Logs
+
+Buttons:
+
+* View Log
+* Mark Reviewed
+* Flag Missing
+* Send Reminder
+* Export Logs
+
+Table:
+
+* Teacher
+* Class
+* Subject
+* Date
+* Topic taught
+* Attendance link
+* Status
+
+---
+
+## 5.5 Teacher Workload
+
+Cards:
+
+* Average lessons per teacher
+* Overloaded teachers
+* Under-assigned teachers
+* Missing subject allocation
+
+Buttons:
+
+* View Timetable
+* Recommend Reassignment
+* Export Workload
+
+Table:
+
+* Teacher
+* Subjects
+* Classes
+* Lessons/week
+* Department
+* Status
+
+---
+
+## 5.6 Department Performance
+
+Buttons:
+
+* View Department
+* Request Report
+* Compare Terms
+* Export Department Analysis
+
+Table:
+
+* Department
+* HOD
+* Subjects
+* Mean score
+* Coverage
+* Pending issues
+* Actions
+
+---
+
+## 5.7 Academic Interventions
+
+Purpose: track support for weak learners/classes.
+
+Buttons:
+
+* Create Intervention
+* Assign Teacher
+* Add Learners
+* Track Progress
+* Notify Parents
+* Close Intervention
+
+Form:
+
+* Intervention title
+* Target class/students
+* Subject
+* Reason
+* Assigned teacher
+* Start date
+* End date
+* Success measure
+
+---
+
+# 6. Exams Manager Dashboard
+
+Owns exam cycles, mark entry setup, moderation, analysis, and report card generation.
+
+## Sidebar Items
+
+1. Overview
+2. Exam Setup
+3. Exam Timetable
+4. Marks Entry
+5. Moderation
+6. Report Cards
+7. Publishing
+8. Analysis
+9. Reports
+
+---
+
+## 6.1 Exam Setup
+
+Buttons:
+
+* Create Exam
+* Add Assessment
+* Set Grading
+* Assign Subjects
+* Lock Setup
+* Duplicate Previous Exam
+
+Exam form:
+
+* Exam name
+* Academic year
+* Term
+* Classes
+* Curriculum type
+* Start date
+* End date
+* Weight
+* Status
+
+Table:
+
+* Exam
+* Classes
+* Subjects
+* Marks status
+* Report status
+* Actions
+
+---
+
+## 6.2 Exam Timetable
+
+Buttons:
+
+* Add Paper
+* Assign Room
+* Assign Invigilator
+* Print Timetable
+* Export Timetable
+
+Form:
+
+* Exam
+* Subject
+* Class
+* Date
+* Start time
+* End time
+* Room
+* Invigilator
+
+Calendar view:
+
+* Daily paper schedule
+* Conflict warnings
+
+---
+
+## 6.3 Marks Entry
+
+Purpose: manage mark entry windows.
+
+Buttons:
+
+* Open Marks Entry
+* Close Marks Entry
+* Assign Teacher
+* Send Reminder
+* Export Mark Sheet
+* Import Marks
+
+Table:
+
+* Subject
+* Class
+* Teacher
+* Submitted
+* Missing
+* Invalid
+* Status
+* Actions
+
+Validation:
+
+* No negative marks
+* No marks above maximum
+* Missing marks flagged
+* Outliers flagged
+* Comments required where configured
+
+---
+
+## 6.4 Moderation
+
+Buttons:
+
+* Review Marks
+* Approve Subject Marks
+* Return to Teacher
+* Flag Outliers
+* Add Moderation Note
+* Export Moderation Report
+
+Table:
+
+* Subject
+* Class
+* Teacher
+* Mean
+* Highest
+* Lowest
+* Outliers
+* Status
+* Actions
+
+---
+
+## 6.5 Report Cards
+
+Buttons:
+
+* Generate Report Cards
+* Preview Template
+* Add Class Teacher Comment
+* Add Principal Comment
+* Regenerate
+* Download Batch PDF
+
+Report logic:
+
+* CBC report format for CBC classes
+* 8-4-4 format for Form 3/Form 4 or legacy classes
+* Hybrid school can run both formats per class
+
+---
+
+## 6.6 Publishing
+
+Buttons:
+
+* Submit to Principal
+* Publish to Parent Portal
+* Unpublish with Approval
+* Send Parent Notification
+* Download Publishing Log
+
+Table:
+
+* Class
+* Reports generated
+* Approved
+* Published
+* Parent views
+* Actions
+
+Danger:
+
+* Publishing requires approval and audit.
+
+---
+
+## 6.7 Analysis
+
+Reports:
+
+* Subject analysis
+* Class analysis
+* Stream comparison
+* Learner ranking where allowed
+* CBC competency summary
+* Grade distribution
+* Term comparison
+
+Buttons:
+
+* Generate Analysis
+* Export Excel
+* Download PDF
+* Print
+
+---
+
+# 7. HOD Dashboard
+
+HOD manages department teachers, subjects, coverage, marks, and resources.
+
+## Sidebar Items
+
+1. Overview
+2. Department Teachers
+3. Subject Allocation
+4. Coverage Review
+5. Lesson Plans
+6. Marks Moderation
+7. Resource Requests
+8. Reports
+
+---
+
+## 7.1 Department Teachers
+
+Buttons:
+
+* View Teacher
+* Assign Subject
+* Request Reassignment
+* Send Department Notice
+
+Table:
+
+* Teacher
+* Subjects
+* Classes
+* Lessons/week
+* Coverage %
+* Lesson logs
+* Status
+
+---
+
+## 7.2 Subject Allocation
+
+Buttons:
+
+* Assign Teacher
+* Remove Assignment
+* Export Allocation
+
+Table:
+
+* Subject
+* Class
+* Stream
+* Teacher
+* Status
+* Actions
+
+---
+
+## 7.3 Coverage Review
+
+Buttons:
+
+* Review Coverage
+* Flag Delay
+* Add HOD Note
+* Send Reminder
+* Export Coverage
+
+---
+
+## 7.4 Marks Moderation
+
+Buttons:
+
+* Review Marks
+* Approve
+* Return to Teacher
+* Add Comment
+* Submit to Exams Manager
+
+---
+
+# 8. Teacher Dashboard
+
+Teacher performs daily class/subject work.
+
+## Sidebar Items
+
+1. Overview
+2. My Timetable
+3. Attendance
+4. Subjects & Classes
+5. Lesson Plans
+6. Lesson Logs
+7. Assignments/Homework
+8. Marks Entry
+9. Student Notes
+10. Resource Requests
+11. Messages
+12. Reports
+
+---
+
+## 8.1 Overview
+
+Cards:
+
+* Lessons today
+* Classes to mark attendance
+* Assignments due
+* Marks pending
+* Messages
+* Resource request status
+
+Buttons:
+
+* Mark Attendance
+* Enter Marks
+* Add Lesson Log
+* Create Assignment
+
+---
+
+## 8.2 My Timetable
+
+Calendar:
+
+* Day/week timetable
+* Class
+* Subject
+* Room
+* Time
+
+Buttons:
+
+* Print Timetable
+* Download PDF
+* Report Conflict
+
+---
+
+## 8.3 Attendance
+
+Purpose: mark learner attendance if teacher has assigned class/session.
+
+Buttons:
+
+* Mark All Present
+* Save Attendance
+* Submit Attendance
+* Notify Parent
+* Add Late Note
+* Print Attendance Sheet
+
+Table:
+
+* Student
+* Admission no.
+* Status: present, absent, late, excused
+* Note
+* Parent notified?
+* Actions
+
+Validation:
+
+* Cannot submit empty attendance
+* Late requires optional reason
+* Absence can trigger parent SMS
+
+---
+
+## 8.4 Subjects & Classes
+
+Table:
+
+* Subject
+* Class
+* Stream
+* Learners
+* Coverage
+* Assignments
+* Marks status
+
+Buttons:
+
+* Open Class
+* View Learners
+* Add Topic
+* Download Class List
+
+---
+
+## 8.5 Lesson Plans
+
+Buttons:
+
+* Create Lesson Plan
+* Save Draft
+* Submit to HOD
+* Edit
+* Download Plan
+
+Form:
+
+* Week
+* Class
+* Subject
+* Topic
+* Objectives
+* Learning activities
+* Materials
+* Assessment method
+* Reflection
+
+---
+
+## 8.6 Lesson Logs
+
+Buttons:
+
+* Add Lesson Log
+* Save
+* Attach Evidence
+* Submit
+* Export Logs
+
+Form:
+
+* Date
+* Class
+* Subject
+* Topic taught
+* Attendance link
+* Homework given
+* Challenges
+* Follow-up needed
+
+---
+
+## 8.7 Assignments/Homework
+
+Buttons:
+
+* Create Assignment
+* Attach File
+* Assign to Class
+* Mark Submitted
+* Grade Assignment
+* Send Reminder
+* Download Submissions
+
+Table:
+
+* Assignment
+* Class
+* Due date
+* Submitted
+* Missing
+* Status
+* Actions
+
+---
+
+## 8.8 Marks Entry
+
+Buttons:
+
+* Enter Marks
+* Save Draft
+* Validate Marks
+* Submit to HOD
+* Import Marks
+* Download Mark Sheet
+
+Table:
+
+* Student
+* Admission no.
+* Score
+* Grade
+* Comment
+* Validation status
+
+Disabled submit if:
+
+* Missing marks
+* Invalid marks
+* Exam window closed
+* Teacher lacks subject scope
+
+---
+
+## 8.9 Student Notes
+
+Purpose: record academic or behavioral observations.
+
+Buttons:
+
+* Add Note
+* Flag Concern
+* Refer to Class Teacher
+* Refer to Counsellor
+* Notify Parent
+
+Table:
+
+* Student
+* Class
+* Note type
+* Visibility
+* Created date
+* Actions
+
+---
+
+## 8.10 Resource Requests
+
+Purpose: request books, lab items, stationery, sports items, etc.
+
+Buttons:
+
+* New Request
+* Submit Request
+* Cancel Request
+* Track Status
+
+Form:
+
+* Item
+* Quantity
+* Department
+* Reason
+* Needed date
+* Priority
+
+Cross-dashboard effect:
+
+* Request appears for Storekeeper or Procurement depending on item type.
+* High-value requests may require approval.
+
+---
+
+# 9. Class Teacher / Grade Master Dashboard
+
+Class Teacher owns class welfare, parent contact, attendance follow-up, comments, and class records.
+
+## Sidebar Items
+
+1. Overview
+2. My Class
+3. Attendance Follow-up
+4. Learner Profiles
+5. Parent Contacts
+6. Class Academics
+7. Report Comments
+8. Discipline Follow-up
+9. Welfare Notes
+10. Reports
+
+---
+
+## 9.1 My Class
+
+Cards:
+
+* Total learners
+* Absent today
+* Fee arrears
+* Discipline concerns
+* Health alerts
+* Pending report comments
+
+Buttons:
+
+* Download Class List
+* Contact Parents
+* Add Class Note
+* Print Class Register
+
+Table:
+
+* Student
+* Admission no.
+* Parent contact
+* Attendance %
+* Fees status
+* Academic status
+* Discipline status
+* Actions
+
+---
+
+## 9.2 Attendance Follow-up
+
+Buttons:
+
+* Call Parent
+* Send SMS
+* Mark Follow-up Done
+* Escalate to Deputy
+* Export Absentee List
+
+Table:
+
+* Student
+* Days absent
+* Last attendance
+* Parent contacted?
+* Follow-up status
+* Actions
+
+---
+
+## 9.3 Report Comments
+
+Buttons:
+
+* Add Comment
+* Save Draft
+* Submit Comments
+* Bulk Apply Template
+* Download Missing Comments
+
+Table:
+
+* Student
+* Academic summary
+* Attendance
+* Comment
+* Status
+* Actions
+
+---
+
+# 10. Accountant / Bursar Dashboard
+
+Owns fees, invoicing, payments, receipts, arrears, reconciliation, and finance reports.
+
+## Sidebar Items
+
+1. Overview
+2. Fee Structures
+3. Invoices
+4. Payments
+5. Receipts
+6. M-Pesa Reconciliation
+7. Arrears
+8. Waivers & Discounts
+9. Expenses
+10. Reports
+11. Settings
+
+---
+
+## 10.1 Overview
+
+Cards:
+
+* Expected this term
+* Collected
+* Outstanding
+* Today’s payments
+* Failed M-Pesa matches
+* Waiver requests
+
+Buttons:
+
+* Record Payment
+* Generate Invoices
+* Reconcile M-Pesa
+* Print Daily Collection
+
+---
+
+## 10.2 Fee Structures
+
+Buttons:
+
+* Create Fee Structure
+* Add Fee Item
+* Assign to Class
+* Duplicate Previous Term
+* Lock Fee Structure
+* Export Fee Structure
+
+Form:
+
+* Academic year
+* Term
+* Class
+* Fee item
+* Amount
+* Required/optional
+* Due date
+
+Table:
+
+* Class
+* Term
+* Total fees
+* Items
+* Status
+* Actions
+
+---
+
+## 10.3 Invoices
+
+Buttons:
+
+* Generate Invoice
+* Bulk Generate
+* Send Invoice
+* Print Invoice
+* Download PDF
+
+Table:
+
+* Invoice no.
+* Student
+* Class
+* Amount
+* Balance
+* Status
+* Actions
+
+---
+
+## 10.4 Payments
+
+Buttons:
+
+* Record Manual Payment
+* Search Student
+* Allocate Payment
+* Reverse Payment with Approval
+* Print Receipt
+
+Form:
+
+* Student
+* Amount
+* Payment method
+* Reference
+* Date
+* Notes
+
+Table:
+
+* Date
+* Student
+* Amount
+* Method
+* Reference
+* Recorded by
+* Status
+* Actions
+
+---
+
+## 10.5 Receipts
+
+Buttons:
+
+* Print Receipt
+* Download Receipt
+* Send to Parent
+* Reissue Receipt
+* Export Receipts
+
+---
+
+## 10.6 M-Pesa Reconciliation
+
+Buttons:
+
+* Import Statement
+* Auto Match
+* Manual Match
+* Mark Unmatched
+* Retry Webhook
+* Export Reconciliation
+
+Table:
+
+* M-Pesa code
+* Phone
+* Amount
+* Student matched
+* Match confidence
+* Status
+* Actions
+
+---
+
+## 10.7 Arrears
+
+Buttons:
+
+* Send Reminder
+* Print Statement
+* Export Arrears
+* Create Payment Plan
+* Escalate to Principal
+
+Table:
+
+* Student
+* Class
+* Parent
+* Balance
+* Days overdue
+* Last payment
+* Status
+* Actions
+
+---
+
+## 10.8 Waivers & Discounts
+
+Buttons:
+
+* Create Waiver Request
+* Submit to Principal
+* Approve if permitted
+* Reject
+* Print Waiver Form
+
+---
+
+# 11. Secretary / Front Office Dashboard
+
+Handles reception, parent queue, visitors, letters, appointments, and communication.
+
+## Sidebar Items
+
+1. Overview
+2. Reception Queue
+3. Visitors
+4. Appointments
+5. Calls Log
+6. Letters & Documents
+7. Parent Messages
+8. Student Clearance
+9. Reports
+
+---
+
+## 11.1 Reception Queue
+
+Buttons:
+
+* Add Parent/Visitor
+* Assign to Office
+* Mark Served
+* Escalate
+* Print Queue Slip
+
+Form:
+
+* Visitor/parent name
+* Phone
+* Purpose
+* Student linked
+* Office/person to see
+* Priority
+
+Table:
+
+* Queue no.
+* Name
+* Purpose
+* Waiting time
+* Assigned office
+* Status
+* Actions
+
+---
+
+## 11.2 Visitors
+
+Buttons:
+
+* Register Visitor
+* Check Out
+* Print Visitor Pass
+* Mark Frequent Visitor
+* Export Visitor Log
+
+Table:
+
+* Name
+* Phone/ID optional
+* Purpose
+* Person to see
+* Time in
+* Time out
+* Status
+* Actions
+
+---
+
+## 11.3 Appointments
+
+Buttons:
+
+* Create Appointment
+* Reschedule
+* Cancel
+* Send Reminder
+* Print Appointment List
+
+Calendar:
+
+* Parent meetings
+* Principal appointments
+* Staff appointments
+
+---
+
+## 11.4 Letters & Documents
+
+Templates:
+
+* Admission letter
+* Clearance letter
+* Fee balance letter
+* Transfer letter
+* Discipline summons
+* Parent meeting invite
+
+Buttons:
+
+* Generate Letter
+* Preview
+* Print
+* Download PDF
+* Send to Parent
+
+---
+
+# 12. Admissions Officer Dashboard
+
+Handles new student intake.
+
+## Sidebar Items
+
+1. Overview
+2. Applications
+3. Interviews
+4. Admissions
+5. Class Placement
+6. Documents
+7. Parent Linking
+8. Reports
+
+---
+
+## 12.1 Applications
+
+Buttons:
+
+* Add Application
+* Upload Documents
+* Review
+* Shortlist
+* Reject
+* Export Applicants
+
+Form:
+
+* Applicant name
+* Gender
+* Date of birth
+* Applying class
+* Previous school
+* Parent details
+* Documents
+
+Table:
+
+* Applicant
+* Class
+* Parent
+* Status
+* Interview date
+* Actions
+
+---
+
+## 12.2 Admissions
+
+Buttons:
+
+* Admit Student
+* Generate Admission Number
+* Assign Class
+* Create Student Profile
+* Send Admission Letter
+
+Cross-dashboard effect:
+
+* Creates student record.
+* Links parent.
+* Sends to finance for invoice generation.
+* Sends to class teacher register.
+
+---
+
+# 13. Discipline Master Dashboard
+
+## Sidebar Items
+
+1. Overview
+2. Incident Log
+3. Cases
+4. Actions & Sanctions
+5. Parent Summons
+6. Counselling Referrals
+7. Reports
+
+---
+
+## 13.1 Incident Log
+
+Buttons:
+
+* Create Incident
+* Attach Evidence
+* Notify Class Teacher
+* Notify Parent
+* Escalate
+* Print Incident Form
+
+Form:
+
+* Student
+* Class
+* Incident type
+* Severity
+* Date/time
+* Location
+* Description
+* Witnesses
+* Action taken
+
+Table:
+
+* Case no.
+* Student
+* Incident
+* Severity
+* Status
+* Parent notified
+* Actions
+
+---
+
+## 13.2 Actions & Sanctions
+
+Buttons:
+
+* Add Warning
+* Recommend Suspension
+* Assign Detention
+* Refer to Counsellor
+* Submit to Principal
+
+All severe sanctions require approval.
+
+---
+
+# 14. Counsellor Dashboard
+
+## Sidebar Items
+
+1. Overview
+2. Referrals
+3. Sessions
+4. Follow-ups
+5. Welfare Notes
+6. Parent Engagement
+7. Reports
+
+---
+
+## 14.1 Referrals
+
+Buttons:
+
+* Accept Referral
+* Schedule Session
+* Return Referral
+* Escalate Welfare Concern
+
+Table:
+
+* Student
+* Referred by
+* Reason category
+* Priority
+* Status
+* Actions
+
+Sensitive notes should be permission-controlled.
+
+---
+
+## 14.2 Sessions
+
+Buttons:
+
+* Add Session Note
+* Schedule Follow-up
+* Mark Complete
+* Notify Class Teacher if allowed
+
+Form:
+
+* Student
+* Session date
+* Concern category
+* Notes
+* Follow-up date
+* Visibility level
+
+---
+
+# 15. Nurse / Sick Bay Dashboard
+
+## Sidebar Items
+
+1. Overview
+2. Sick Bay Queue
+3. Visits
+4. Medicine Inventory
+5. Dispensing Log
+6. Parent Notifications
+7. Health Reports
+
+---
+
+## 15.1 Sick Bay Queue
+
+Buttons:
+
+* Add Visit
+* Start Consultation
+* Mark Treated
+* Refer Home
+* Notify Parent
+* Print Visit Slip
+
+Table:
+
+* Student
+* Class
+* Symptoms
+* Time in
+* Status
+* Parent notified
+* Actions
+
+---
+
+## 15.2 Medicine Inventory
+
+Buttons:
+
+* Add Medicine
+* Update Stock
+* Mark Expired
+* Set Reorder Level
+* Export Medicine Stock
+
+Table:
+
+* Medicine
+* Batch no.
+* Quantity
+* Expiry date
+* Reorder level
+* Status
+* Actions
+
+---
+
+## 15.3 Dispensing Log
+
+Buttons:
+
+* Dispense Medicine
+* Print Dispensing Record
+* Notify Parent
+* Export Log
+
+Form:
+
+* Student
+* Medicine
+* Dosage
+* Quantity
+* Symptoms
+* Nurse note
+* Parent notification toggle
+
+---
+
+# 16. Librarian Dashboard
+
+## Sidebar Items
+
+1. Overview
+2. Books
+3. Issue Book
+4. Return Book
+5. Borrowers
+6. Overdue Books
+7. Fines/Lost/Damaged
+8. Reports
+
+---
+
+## 16.1 Books
+
+Buttons:
+
+* Add Book
+* Scan Barcode
+* Import Books
+* Edit Book
+* Mark Lost
+* Mark Damaged
+* Export Catalogue
+
+Table:
+
+* Accession no.
+* Title
+* Author
+* Category
+* Copies
+* Available
+* Status
+* Actions
+
+---
+
+## 16.2 Issue Book
+
+Buttons:
+
+* Search Student
+* Scan Book
+* Issue Book
+* Print Issue Slip
+
+Form:
+
+* Student
+* Book
+* Issue date
+* Due date
+* Condition out
+* Notes
+
+---
+
+## 16.3 Return Book
+
+Buttons:
+
+* Scan Book
+* Return Book
+* Return All
+* Mark Damaged
+* Mark Lost
+* Calculate Fine
+* Print Return Slip
+
+---
+
+## 16.4 Overdue Books
+
+Buttons:
+
+* Send Parent SMS
+* Send Student Reminder
+* Print Overdue List
+* Export Overdue Report
+
+---
+
+# 17. Storekeeper Dashboard
+
+## Sidebar Items
+
+1. Overview
+2. Items
+3. Stock In
+4. Stock Issue
+5. Requests
+6. Low Stock
+7. Stocktake
+8. Damaged/Missing
+9. Reports
+
+---
+
+## 17.1 Items
+
+Buttons:
+
+* Add Item
+* Edit Item
+* Import Items
+* Set Reorder Level
+* Export Item List
+
+Form:
+
+* Item name
+* Category
+* Unit
+* Perishable?
+* Reorder level
+* Storage location
+* Status
+
+---
+
+## 17.2 Stock In
+
+Buttons:
+
+* Receive Stock
+* Attach Delivery Note
+* Save Batch
+* Print Goods Received Note
+
+Form:
+
+* Item
+* Quantity
+* Supplier
+* Batch no.
+* Expiry date if applicable
+* Unit cost
+* Received by
+
+---
+
+## 17.3 Stock Issue
+
+Buttons:
+
+* Issue Stock
+* Approve Issue if allowed
+* Print Issue Voucher
+* Notify Requester
+
+Form:
+
+* Item
+* Quantity
+* Department/class
+* Requested by
+* Purpose
+* Approval required?
+
+---
+
+## 17.4 Requests
+
+Buttons:
+
+* Approve Request
+* Reject Request
+* Issue Item
+* Forward to Procurement
+* Add Comment
+
+---
+
+## 17.5 Stocktake
+
+Buttons:
+
+* Start Stocktake
+* Count Item
+* Mark Missing
+* Mark Damaged
+* Resolve Discrepancy
+* Export Stocktake
+
+---
+
+# 18. Procurement Officer Dashboard
+
+## Sidebar Items
+
+1. Overview
+2. Purchase Requests
+3. Suppliers
+4. Quotations
+5. Purchase Orders
+6. Deliveries
+7. Reports
+
+---
+
+## 18.1 Purchase Requests
+
+Buttons:
+
+* Create Request
+* Review Request
+* Submit for Approval
+* Convert to LPO
+* Reject
+
+Table:
+
+* Request no.
+* Item
+* Quantity
+* Department
+* Estimated cost
+* Status
+* Actions
+
+---
+
+## 18.2 Suppliers
+
+Buttons:
+
+* Add Supplier
+* Edit Supplier
+* View History
+* Export Suppliers
+
+Form:
+
+* Supplier name
+* Contact person
+* Phone
+* Email
+* Category
+* KRA PIN optional
+* Address
+
+---
+
+## 18.3 Purchase Orders
+
+Buttons:
+
+* Generate LPO
+* Send to Supplier
+* Mark Delivered
+* Download LPO PDF
+
+---
+
+# 19. Boarding Master Dashboard
+
+## Sidebar Items
+
+1. Overview
+2. Hostels
+3. Rooms & Beds
+4. Allocation
+5. Boarding Attendance
+6. Leave/Exit
+7. Incidents
+8. Reports
+
+---
+
+## 19.1 Rooms & Beds
+
+Buttons:
+
+* Add Hostel
+* Add Room
+* Add Bed
+* Assign Student
+* Move Student
+* Print Bed List
+
+Table:
+
+* Hostel
+* Room
+* Bed
+* Student
+* Status
+* Actions
+
+---
+
+## 19.2 Boarding Attendance
+
+Buttons:
+
+* Mark Present
+* Mark Absent
+* Mark Late
+* Notify Parent
+* Export Attendance
+
+Table:
+
+* Student
+* Dorm
+* Status
+* Time
+* Note
+* Actions
+
+---
+
+## 19.3 Leave/Exit
+
+Buttons:
+
+* Create Leave Request
+* Approve Exit
+* Reject
+* Print Gate Pass
+* Notify Parent
+
+---
+
+# 20. Security Officer Dashboard
+
+## Sidebar Items
+
+1. Overview
+2. Gate Register
+3. Visitors
+4. Student Exit Passes
+5. Staff Movement
+6. Incidents
+7. Reports
+
+---
+
+## 20.1 Gate Register
+
+Buttons:
+
+* Register Visitor
+* Quick Entry
+* Check Out
+* Print Pass
+* Mark Frequent Visitor
+
+Form:
+
+* Name
+* Phone
+* ID optional
+* Purpose
+* Person to see
+* Vehicle plate optional
+* Time in
+
+---
+
+## 20.2 Student Exit Passes
+
+Buttons:
+
+* Verify Pass
+* Approve Gate Exit if permitted
+* Deny Exit
+* Notify Deputy
+* Print Exit Log
+
+Table:
+
+* Student
+* Class
+* Reason
+* Approved by
+* Time out
+* Expected return
+* Status
+
+---
+
+# 21. Transport Manager Dashboard
+
+## Sidebar Items
+
+1. Overview
+2. Routes
+3. Vehicles
+4. Drivers
+5. Student Transport List
+6. Trips
+7. Fuel & Maintenance
+8. Reports
+
+---
+
+## 21.1 Routes
+
+Buttons:
+
+* Add Route
+* Add Stop
+* Assign Vehicle
+* Assign Driver
+* Export Routes
+
+Table:
+
+* Route
+* Stops
+* Vehicle
+* Driver
+* Students
+* Status
+* Actions
+
+---
+
+## 21.2 Vehicles
+
+Buttons:
+
+* Add Vehicle
+* Update Insurance
+* Update Service Date
+* Mark Under Maintenance
+* Export Vehicle List
+
+---
+
+## 21.3 Student Transport List
+
+Buttons:
+
+* Add Student to Route
+* Remove Student
+* Change Stop
+* Notify Parent
+* Download Bus List
+
+---
+
+# 22. Laboratory Technician Dashboard
+
+## Sidebar Items
+
+1. Overview
+2. Lab Inventory
+3. Apparatus Issue
+4. Chemicals
+5. Lab Timetable
+6. Safety Incidents
+7. Reports
+
+---
+
+## 22.1 Lab Inventory
+
+Buttons:
+
+* Add Apparatus
+* Add Chemical
+* Update Stock
+* Mark Damaged
+* Mark Missing
+* Export Inventory
+
+Table:
+
+* Item
+* Category
+* Quantity
+* Condition
+* Location
+* Status
+* Actions
+
+---
+
+## 22.2 Apparatus Issue
+
+Buttons:
+
+* Issue Apparatus
+* Return Apparatus
+* Mark Broken
+* Print Issue Slip
+
+Form:
+
+* Teacher
+* Class
+* Practical
+* Items
+* Quantity
+* Condition out/in
+
+---
+
+## 22.3 Chemicals
+
+Buttons:
+
+* Add Chemical
+* Update Quantity
+* Mark Expired
+* Print Chemical Register
+
+---
+
+# 23. ICT / Assets Officer Dashboard
+
+## Sidebar Items
+
+1. Overview
+2. Assets
+3. Asset Assignment
+4. Maintenance
+5. Loans & Returns
+6. Facilities Issues
+7. Reports
+
+---
+
+## 23.1 Assets
+
+Buttons:
+
+* Add Asset
+* Import Assets
+* Assign Asset
+* Mark In Use
+* Mark Damaged
+* Mark Missing
+* Print Asset Tag
+* Export Register
+
+Table:
+
+* Asset code
+* Name
+* Category
+* Serial no.
+* Location
+* Custodian
+* Status
+* Actions
+
+Statuses:
+
+* Available
+* In Use
+* Missing
+* Damaged
+
+---
+
+## 23.2 Maintenance
+
+Buttons:
+
+* Log Fault
+* Assign Repair
+* Mark Resolved
+* Add Cost
+* Download Maintenance Report
+
+---
+
+## 23.3 Loans & Returns
+
+Buttons:
+
+* Loan Asset
+* Return Asset
+* Print Loan Form
+* Notify Custodian
+
+---
+
+# 24. Parent Portal
+
+## Sidebar Items
+
+1. Dashboard
+2. Fees
+3. Academics
+4. Behavior
+5. Health
+6. Messages
+7. Downloads
+8. Notifications
+
+---
+
+## 24.1 Parent Dashboard
+
+Cards:
+
+* Child attendance
+* Fee balance
+* Latest exam/report status
+* New messages
+* Discipline notices
+* Health alerts
+
+Buttons:
+
+* View Fees
+* Download Statement
+* View Report Card
+* Send Message
+* Switch Child
+
+---
+
+## 24.2 Fees
+
+Buttons:
+
+* View Statement
+* Download Statement
+* Download Receipt
+* Pay via M-Pesa
+* Send Payment Query
+
+Table:
+
+* Invoice
+* Amount
+* Paid
+* Balance
+* Due date
+* Status
+* Actions
+
+---
+
+## 24.3 Academics
+
+Buttons:
+
+* View Results
+* Download Report Card
+* Acknowledge Report
+* View Teacher Comments
+
+Only published reports/results should appear.
+
+---
+
+## 24.4 Behavior
+
+Parent sees:
+
+* Published discipline notices
+* Required meetings
+* Resolved cases where allowed
+
+Buttons:
+
+* Acknowledge Notice
+* Request Meeting
+* Download Notice
+
+---
+
+## 24.5 Health
+
+Parent sees:
+
+* Sick bay notices
+* Dispensing notifications
+* Health alerts
+
+Buttons:
+
+* Acknowledge
+* Contact School
+* Download Visit Note where allowed
+
+---
+
+# 25. Student Portal
+
+## Sidebar Items
+
+1. Dashboard
+2. Fees
+3. Academics
+4. Behavior
+5. Messages
+6. Downloads
+7. Notifications
+
+---
+
+## 25.1 Student Dashboard
+
+Cards:
+
+* Today timetable
+* Assignments due
+* Library books
+* Notices
+* Fee balance summary if allowed
+
+Buttons:
+
+* View Timetable
+* View Assignments
+* View Messages
+* Download Materials
+
+---
+
+## 25.2 Academics
+
+Student sees:
+
+* Published results only if school allows
+* Assignments
+* Teacher comments where allowed
+* Timetable
+* Learning materials
+
+Buttons:
+
+* Download Assignment
+* Submit Assignment if enabled
+* View Published Report
+
+# 22. Admissions Dashboard
+
+Admissions Officer handles the full journey from first enquiry to official student enrolment.
+
+## 22.1 Overview Workspace
+
+Purpose: A daily command center for the Admission Officer to see admissions progress, pending work, and urgent follow-ups.
+
+Summary Cards:
+* New Enquiries Today
+* Submitted Applications
+* Documents Pending
+* Interviews Today
+* Accepted Applicants
+* Fee Clearance Pending
+* Ready for Enrolment
+* Enrolled This Term
+
+Buttons:
+* New Enquiry
+* New Application
+* Schedule Interviews
+* Export Pipeline
+* Refresh
+
+Main Areas:
+* Admission Pipeline Board
+
+Row actions:
+* Open
+* Move Stage
+* Call Parent
+* Send SMS
+* Add Note
+
+## 22.2 Enquiries & Walk-ins Workspace
+
+Purpose: Capture parents or guardians who ask about joining the school before submitting a full application.
+
+Table Columns:
+* Enquiry Code
+* Student Name
+* Parent/Guardian
+* Phone
+* Interested Class
+* Source
+* Boarding/Day
+* Status
+* Follow-up Date
+* Created By
+
+Buttons:
+* Add Enquiry
+* Import Enquiries
+* Send Follow-up SMS
+* Export CSV
+* Print List
+
+Row actions:
+* Open
+* Edit
+* Convert to Application
+* Schedule Visit
+* Send Requirements
+* Call Log
+* Mark Lost
+* Delete
+
+Form:
+* Student first name
+* Student last name
+* Parent/guardian name
+* Parent phone
+* Class applying for
+* Enquiry source
+* Boarding/day preference
+* Current school
+* Location
+* Email
+* Notes
+* Follow-up date
+* Referred by
+
+## 22.3 Applications Workspace
+
+Purpose: Manage submitted admission applications.
+
+Table Columns:
+* Application No.
+* Applicant Name
+* Applying For
+* Curriculum
+* Gender
+* Parent Phone
+* Current School
+* Status
+* Document Status
+* Interview Status
+* Payment Status
+* Submitted Date
+
+Buttons:
+* New Application
+* Import Applications
+* Bulk SMS
+* Export Applications
+* Print Register
+* Filter
+
+Row actions:
+* Open Profile
+* Edit Application
+* Verify Documents
+* Schedule Interview
+* Accept
+* Waitlist
+* Reject
+* Send SMS
+* Print Form
+* Download PDF
+* Mark Duplicate
+* Withdraw
+
+Form:
+* First name
+* Middle name
+* Last name
+* Gender
+* Date of birth
+* Birth certificate number
+* Nationality
+* Religion
+* Medical notes
+* Special needs
+* Applying for Grade/Form
+* Curriculum type
+* Previous school
+* Previous class
+* Last exam score/grade
+* Report form upload
+* Transfer reason
+* Primary guardian name
+* Relationship
+* Phone
+* Email
+* ID number
+* Occupation
+* Address/location
+* Secondary guardian details
+* Boarding/day scholar
+* Transport required
+* Hostel preference
+* Sibling in school
+* Preferred stream
+* Intake term
+* Birth certificate
+* Previous school report
+* Passport photo
+* Parent/guardian ID
+* Leaving certificate
+* Medical document
+* Transfer letter
+
+## 22.4 Applicant Profiles Workspace
+
+Purpose: A detailed single-applicant workspace showing everything about the learner before enrolment.
+
+Buttons:
+* Edit Profile
+* Move Stage
+* Send SMS
+* Print Application
+* Download PDF
+* Reject / Withdraw
+* Convert to Student
+
+Main Areas:
+* Profile Header
+* Profile Tabs
+* Timeline Events
+* Notes
+
+## 22.5 Documents & Verification Workspace
+
+Purpose: Track missing, uploaded, verified, rejected, or expired admission documents.
+
+Summary Cards:
+* Complete Files
+* Missing Birth Certificates
+* Missing Report Forms
+* Rejected Documents
+* Ready for Interview
+
+Table Columns:
+* Applicant
+* Applying Class
+* Birth Certificate
+* Report Form
+* Photo
+* Parent ID
+* Leaving Certificate
+* Overall Status
+
+Row actions:
+* Open Documents
+* Upload Document
+* Verify
+* Reject
+* Request Re-upload
+* Print Checklist
+* Mark Exception
+
+## 22.6 Interviews & Assessments Workspace
+
+Purpose: Schedule and record interviews, entry assessments, or placement tests.
+
+Summary Cards:
+* Interviews Today
+* Pending Scheduling
+* Completed Interviews
+* Passed
+* Failed / Not Recommended
+* No-shows
+
+Table Columns:
+* Applicant
+* Applying Class
+* Date/Time
+* Panel
+* Location
+* Status
+* Score
+* Recommendation
+
+Buttons:
+* Schedule Interview
+* Bulk Schedule
+* Print Interview List
+* Send Reminders
+* Export Results
+
+Row actions:
+* Open
+* Reschedule
+* Mark Arrived
+* Mark No-show
+* Enter Score
+* Record Recommendation
+* Send Reminder
+* Print Slip
+
+Form:
+* Interview date
+* Start time
+* End time
+* Location
+* Interviewer/panel
+* Assessment type
+* Notes
+* Parent reminder enabled
+* SMS template
+* Reading score
+* Writing score
+* Mathematics score
+* English/Kiswahili score
+* General conduct
+* Previous performance
+* Recommendation
+* Interviewer comment
+
+## 22.7 Selection & Offers Workspace
+
+Purpose: Manage final selection decisions and offer letters.
+
+Table Columns:
+* Applicant
+* Applying Class
+* Document Status
+* Interview Score
+* Recommendation
+* Capacity Status
+* Decision
+* Offer Status
+
+Buttons:
+* Generate Offers
+* Send Offer SMS
+* Print Offer Letters
+* Export Decision List
+
+Row actions:
+* Accept Applicant
+* Waitlist
+* Reject Applicant
+* Generate Offer Letter
+* Send Offer
+* Expire Offer
+* Request Capacity Override
+* View Decision History
+
+## 22.8 Admission Fee Clearance Workspace
+
+Purpose: Track admission fee/deposit payment progress before enrolment.
+
+Summary Cards:
+* Offers Sent
+* Deposit Pending
+* Proof Received
+* Finance Cleared
+* Overdue Offers
+
+Table Columns:
+* Applicant
+* Class
+* Parent Phone
+* Offer Date
+* Required Deposit
+* Payment Status
+* Finance Status
+* Deadline
+
+Buttons:
+* Send Payment Instructions
+* Request Finance Confirmation
+* Export Pending List
+* Print Clearance List
+
+Row actions:
+* View Fee Details
+* Upload Payment Proof
+* Send Reminder
+* Notify Accountant
+* View Finance Response
+* Mark Parent Contacted
+* Cancel Offer
+
+## 22.9 Enrolment & Admission Numbers Workspace
+
+Purpose: Convert finance-cleared applicants into official student records.
+
+Summary Cards:
+* Ready for Admission No.
+* Admission Numbers Issued
+* Pending Student Creation
+* Fully Enrolled
+
+Table Columns:
+* Applicant
+* Class
+* Finance Status
+* Admission No.
+* Student Record
+* Parent Link
+* Enrolment Status
+
+Buttons:
+* Generate Admission Numbers
+* Create Student Records
+* Print Admission Register
+* Export Enrolled Students
+
+Row actions:
+* Generate Admission No.
+* Edit Admission No.
+* Create Student Record
+* Link Parent
+* Print Admission Slip
+* Undo Enrolment
+* Open Student Profile
+
+## 22.10 Class & Stream Placement Workspace
+
+Purpose: Assign admitted learners to classes, streams, curriculum track, and boarding/day status.
+
+Summary Cards:
+* Unplaced Learners
+* Classes Near Capacity
+* Boarders Pending Hostel
+* Transport Requests
+
+Table Columns:
+* Student
+* Admission No.
+* Class
+* Stream
+* Curriculum
+* Boarding/Day
+* Capacity
+
+Buttons:
+* Auto-place Students
+* Bulk Assign Stream
+* Print Class Lists
+* Export Placement
+* Request Capacity Override
+
+Row actions:
+* Assign Class
+* Assign Stream
+* Change Placement
+* Request Override
+* Notify Class Teacher
+* Print Joining Slip
+* View Capacity
+
+Form:
+* Class
+* Stream
+* Curriculum type
+* Boarding/day status
+* Transport required
+* Notes
+* Effective date
+
+## 22.11 Parents & Guardians Workspace
+
+Purpose: Ensure every admitted learner has correct guardian records and parent portal access.
+
+Summary Cards:
+* Parents Linked
+* Missing Guardian Info
+* Portal Invites Pending
+* Duplicate Guardians
+
+Table Columns:
+* Student/Applicant
+* Guardian Name
+* Relationship
+* Phone
+* Email
+* Portal Status
+* Linked Students
+
+Buttons:
+* Add Guardian
+* Link Existing Guardian
+* Send Portal Invites
+* Export Contacts
+* Print Parent Register
+
+Row actions:
+* Open Guardian
+* Edit Guardian
+* Link to Student
+* Unlink
+* Send Portal Invite
+* Send SMS
+* Merge Duplicate
+* View Linked Students
+
+## 22.12 Transfers & Re-admissions Workspace
+
+Purpose: Handle students transferring into the school or returning after leaving.
+
+Table Columns:
+* Learner
+* Type
+* Previous School
+* Requested Class
+* Documents
+* Approval Status
+
+Buttons:
+* New Transfer Application
+* New Re-admission
+* Print Transfer Checklist
+* Export Transfers
+
+Row actions:
+* Open
+* Verify Transfer Letter
+* Request Approval
+* Approve for Placement
+* Reject
+* Create Student Record
+* Print Admission Slip
+
+## 22.13 Communication Workspace
+
+Purpose: Send admission-related SMS, email, or in-app messages to parents/guardians.
+
+Table Columns:
+* Recipient
+* Student
+* Channel
+* Template
+* Status
+* Sent By
+* Sent At
+
+Buttons:
+* New Message
+* Use Template
+* Bulk SMS
+* Retry Failed
+* Export Logs
+
+Row actions:
+* View Message
+* Retry
+* Copy Message
+* Open Applicant
+* Mark Follow-up Needed
+
+Form:
+* Recipients
+* Channel
+* Template
+* Message body
+* Attach offer letter
+* Schedule send
+* Internal note
+
+## 22.14 Appointments & Visits Workspace
+
+Purpose: Manage parent visits, school tours, interview appointments, and admission office meetings.
+
+Table Columns:
+* Visitor/Parent
+* Applicant
+* Purpose
+* Date/Time
+* Staff Assigned
+* Status
+
+Buttons:
+* New Appointment
+* Print Today’s Visits
+* Send Reminders
+* Export Calendar
+
+Row actions:
+* Open
+* Reschedule
+* Mark Arrived
+* Mark Done
+* Mark No-show
+* Send Reminder
+* Create Application
+* Notify Security
+
+## 22.15 Imports & Bulk Uploads Workspace
+
+Purpose: Import enquiries, applications, or previously collected admission lists from Excel/CSV.
+
+Table Columns:
+* Row No.
+* Student Name
+* Parent Phone
+* Class
+* Status
+* Error Message
+
+Buttons:
+* Download Template
+* Upload File
+* Validate File
+* Import Valid Rows
+* Download Error Report
+* Undo Last Import
+
+Row actions:
+* Edit Row
+* Ignore Row
+* Merge Duplicate
+* View Error
+
+## 22.16 Reports & Downloads Workspace
+
+Purpose: Generate admission reports for management, finance, class teachers, and records.
+
+Buttons:
+* Generate Report
+* Download PDF
+* Download Excel
+* Print
+* Send to Principal
+* Schedule Report
+* Save Filter
+
+Row actions:
+* Open Applicant
+* Export Visible Rows
+* Print Current Page
+* Share Internally
+
+## 22.17 Tasks & Follow-ups Workspace
+
+Purpose: Manage daily admission follow-ups.
+
+Table Columns:
+* Task
+* Applicant
+* Due Date
+* Priority
+* Assigned To
+* Status
+* Source
+
+Buttons:
+* New Task
+* Assign Task
+* Mark Done
+* Export Tasks
+
+Row actions:
+* Open
+* Mark Done
+* Reschedule
+* Assign
+* Add Note
+* Open Applicant
+* Send SMS
+
+## 22.18 Admission Templates Workspace
+
+Purpose: Manage admission office templates that do not change core school setup.
+
+Table Columns:
+* Template Name
+* Type
+* Status
+* Last Updated
+* Updated By
+
+Buttons:
+* New Template
+* Preview
+* Set Active
+* Duplicate
+* Export Template
+* Restore Default
+
+Row actions:
+* Edit
+* Preview
+* Set Active
+* Duplicate
+* Archive
+* View History
+

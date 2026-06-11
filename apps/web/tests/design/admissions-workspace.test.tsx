@@ -51,11 +51,11 @@ describe("admissions workspace", () => {
 
     const fileInputs = document.querySelectorAll('input[type="file"]');
     await user.upload(
-      fileInputs[0]!,
+      fileInputs[0] as HTMLElement,
       new File(["birth"], "amina-birth-certificate.pdf", { type: "application/pdf" }),
     );
     await user.upload(
-      fileInputs[1]!,
+      fileInputs[1] as HTMLElement,
       new File(["photo"], "amina-passport-photo.jpg", { type: "image/jpeg" }),
     );
 

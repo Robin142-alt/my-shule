@@ -42,6 +42,132 @@ export class AdminCommandService {
     return this.principalInsights.streamDashboard(this.requireTenantId());
   }
 
+  getPrincipalFinanceOverview() {
+    if (this.principalInsights) {
+      return this.principalInsights.getFinanceOverview(this.requireTenantId());
+    }
+    return this.repository.getFinanceOverview(this.requireTenantId());
+  }
+
+  getPrincipalStudentsOverview() {
+    if (this.principalInsights) {
+      return this.principalInsights.getStudentsOverview(this.requireTenantId());
+    }
+    return this.repository.getStudentsOverview(this.requireTenantId());
+  }
+
+  getPrincipalDisciplineOverview() {
+    if (this.principalInsights) {
+      return this.principalInsights.getDisciplineOverview(this.requireTenantId());
+    }
+    return this.repository.getDisciplineOverview(this.requireTenantId());
+  }
+
+  getPrincipalAttendanceOverview() {
+    if (this.principalInsights) {
+      return this.principalInsights.getAttendanceOverview(this.requireTenantId());
+    }
+    return this.repository.getAttendanceOverview(this.requireTenantId());
+  }
+
+  getPrincipalAcademicsOverview() {
+    if (this.principalInsights) {
+      return this.principalInsights.getAcademicsOverview(this.requireTenantId());
+    }
+    return this.repository.getAcademicsOverview(this.requireTenantId());
+  }
+
+  getPrincipalExamsOverview() {
+    if (this.principalInsights) {
+      return this.principalInsights.getExamsOverview(this.requireTenantId());
+    }
+    return this.repository.getExamsOverview(this.requireTenantId());
+  }
+
+  getPrincipalCommunicationOverview() {
+    if (this.principalInsights) {
+      return this.principalInsights.getCommunicationOverview(this.requireTenantId());
+    }
+    return this.repository.getCommunicationOverview(this.requireTenantId());
+  }
+
+  getPrincipalClassesOverview() {
+    if (this.principalInsights) {
+      return this.principalInsights.getClassesOverview(this.requireTenantId());
+    }
+    return this.repository.getClassesOverview(this.requireTenantId());
+  }
+
+  getPrincipalSubjectsOverview() {
+    if (this.principalInsights) {
+      return this.principalInsights.getSubjectsOverview(this.requireTenantId());
+    }
+    return this.repository.getSubjectsOverview(this.requireTenantId());
+  }
+
+  getPrincipalStaffOverview() {
+    if (this.principalInsights) {
+      return this.principalInsights.getStaffOverview(this.requireTenantId());
+    }
+    return this.repository.getStaffOverview(this.requireTenantId());
+  }
+
+  getPrincipalOverview() {
+    if (this.principalInsights) {
+      return this.principalInsights.getPrincipalOverview(this.requireTenantId());
+    }
+    return this.repository.getPrincipalOverview(this.requireTenantId());
+  }
+
+  getSchoolProfile() {
+    if (this.principalInsights) {
+      return this.principalInsights.getSchoolProfile(this.requireTenantId());
+    }
+    return this.repository.getSchoolProfile(this.requireTenantId());
+  }
+
+  getApprovalsOverview() {
+    if (this.principalInsights) {
+      return this.principalInsights.getApprovalsOverview(this.requireTenantId());
+    }
+    return this.repository.getApprovalsOverview(this.requireTenantId());
+  }
+
+  getPrincipalReportsOverview() {
+    if (this.principalInsights) {
+      return this.principalInsights.getPrincipalReportsOverview(this.requireTenantId());
+    }
+    return this.repository.getPrincipalReportsOverview(this.requireTenantId());
+  }
+
+  getSetupChecklist() {
+    if (this.principalInsights) {
+      return this.principalInsights.getSetupChecklist(this.requireTenantId());
+    }
+    return this.repository.getSetupChecklist(this.requireTenantId());
+  }
+
+  getAcademicSetupOverview() {
+    if (this.principalInsights) {
+      return this.principalInsights.getAcademicSetupOverview(this.requireTenantId());
+    }
+    return this.repository.getAcademicSetupOverview(this.requireTenantId());
+  }
+
+  getPrincipalSettings() {
+    if (this.principalInsights) {
+      return this.principalInsights.getPrincipalSettings(this.requireTenantId());
+    }
+    return this.repository.getPrincipalSettings(this.requireTenantId());
+  }
+
+  getPrincipalTeachingSchedule() {
+    if (this.principalInsights) {
+      return this.principalInsights.getPrincipalTeachingSchedule(this.requireTenantId());
+    }
+    return this.repository.getPrincipalTeachingSchedule(this.requireTenantId());
+  }
+
   getDeputyDashboard() {
     return this.repository.getDeputyDashboard(this.requireTenantId());
   }

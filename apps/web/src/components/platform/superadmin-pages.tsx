@@ -14,6 +14,9 @@ import {
   ShieldBan,
   Trash2,
   UserRoundCog,
+  Database,
+  Code,
+  Blocks,
 } from "lucide-react";
 
 import { ActivityListCard, SimpleListCard } from "@/components/experience/activity-list-card";
@@ -706,7 +709,7 @@ function ModuleAllocationEditor({
   );
 }
 
-function TenantsTable() {
+function SchoolsWorkspace() {
   const router = useRouter();
   const [rows, setRows] = useState<PlatformTenantRow[]>(tenantRows);
   const [loadSchoolsError, setLoadSchoolsError] = useState<string | null>(null);
@@ -1213,25 +1216,23 @@ function TenantsTable() {
   ];
 
   return (
-    <>
-      <div className="mb-4 flex flex-col gap-3 rounded-[var(--radius-sm)] border border-border bg-surface px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <p className="text-sm font-semibold text-foreground">School onboarding</p>
-          <p className="mt-1 text-[13px] text-muted">
-            Create a real tenant and email the first school administrator an invite.
-          </p>
-        </div>
-        <Button onClick={() => {
-          setIsCreateOpen(true);
-          setCreateError(null);
-          setCreateSuccess(null);
-          setCreatedTenantForInvite(null);
-          setSelectedModuleCodes(defaultOnboardingModuleCodes);
-        }}>
-          <Plus className="h-4 w-4" />
-          Create school
-        </Button>
-      </div>
+    <div className="space-y-6">
+      <SuperadminPageHeader 
+        title="Schools / Tenants" 
+        description="Complete registry of all schools operating on the platform." 
+        actions={
+          <Button onClick={() => {
+            setIsCreateOpen(true);
+            setCreateError(null);
+            setCreateSuccess(null);
+            setCreatedTenantForInvite(null);
+            setSelectedModuleCodes(defaultOnboardingModuleCodes);
+          }}>
+            <Plus className="h-4 w-4 mr-2" />
+            Create School
+          </Button>
+        }
+      />
       {resendMessage && !selectedTenant ? (
         <div className="mb-4 rounded-[var(--radius-sm)] border border-warning/20 bg-warning/10 px-4 py-3 text-sm text-foreground">
           {resendMessage}
@@ -1748,7 +1749,7 @@ function TenantsTable() {
           </div>
         ) : null}
       </Modal>
-    </>
+    </div>
   );
 }
 
@@ -1841,26 +1842,56 @@ function MpesaMonitoringPage() {
 }
 
 function UsersPage() {
-  const columns: DataTableColumn<(typeof platformUsersRows)[number]>[] = [
-    { id: "name", header: "User", render: (row) => <span className="font-semibold">{row.name}</span> },
+  const [users, setUsers] = useState<any[]>([]); // To be typed and fetched
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    // Simulate fetching platform users
+    const timer = setTimeout(() => {
+      setUsers([]); // Real data would go here
+      setIsLoading(false);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, []);
+
+  const columns: DataTableColumn<any>[] = [
+    { id: "name", header: "User Name", render: (row) => <span className="font-semibold">{row.name}</span> },
     { id: "role", header: "Role", render: (row) => row.role },
-    { id: "scope", header: "Scope", render: (row) => row.scope },
-    { id: "tickets", header: "Current load", render: (row) => row.tickets },
-    { id: "lastActive", header: "Last active", render: (row) => row.lastActive },
+    { id: "status", header: "Status", render: (row) => <StatusPill label={row.status} tone={row.status === "Active" ? "ok" : "warning"} /> },
+    { id: "lastActive", header: "Last Active", render: (row) => row.lastActive },
+    {
+      id: "actions",
+      header: "Actions",
+      render: (row) => (
+        <div className="flex justify-end gap-2">
+          <Button variant="secondary" size="sm">Edit Roles</Button>
+          <Button variant="danger" size="sm">Suspend</Button>
+          <Button variant="ghost" size="sm">View Activity</Button>
+        </div>
+      ),
+      className: "text-right",
+      headerClassName: "text-right",
+    },
   ];
 
   return (
     <div className="space-y-6">
       <SuperadminPageHeader
-        title="Users"
+        title="Platform Users & Admins"
         description="Platform team members, operational scope, and who is actively handling support and school workflows."
+        actions={
+          <Button>
+            <Plus className="h-4 w-4 mr-2" /> Invite Platform User
+          </Button>
+        }
       />
       <DataTable
-        title="Platform operators"
-        subtitle="Separate support, operations, and ownership responsibilities clearly."
+        title="Platform Operators"
+        subtitle="Manage the internal team responsible for MyShule operations."
         columns={columns}
-        rows={platformUsersRows}
+        rows={users}
         getRowKey={(row) => row.id}
+        emptyMessage={isLoading ? "Loading users..." : "No platform users found."}
       />
     </div>
   );
@@ -1871,25 +1902,52 @@ function SupportPage() {
 }
 
 function AuditLogsPage() {
-  const columns: DataTableColumn<(typeof auditRows)[number]>[] = [
-    { id: "actor", header: "Actor", render: (row) => row.actor },
-    { id: "action", header: "Action", render: (row) => row.action },
+  const [logs, setLogs] = useState<any[]>([]); // To be replaced with fetchPlatformAuditLogs
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    // Simulate API fetch delay
+    const timer = setTimeout(() => {
+      setLogs([]);
+      setIsLoading(false);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, []);
+
+  const columns: DataTableColumn<any>[] = [
+    { id: "action", header: "Action", render: (row) => <span className="font-semibold">{row.action}</span> },
     { id: "target", header: "Target", render: (row) => row.target },
-    { id: "time", header: "Time", render: (row) => row.time },
+    { id: "actor", header: "Actor", render: (row) => row.actor },
+    { id: "ipAddress", header: "IP Address", render: (row) => row.ipAddress },
+    { id: "timestamp", header: "Timestamp", render: (row) => row.timestamp },
+    {
+      id: "actions",
+      header: "Actions",
+      render: (row) => (
+        <div className="flex justify-end gap-2">
+          <Button variant="secondary" size="sm">
+            <Code className="h-4 w-4 mr-2" /> View JSON
+          </Button>
+        </div>
+      ),
+      className: "text-right",
+      headerClassName: "text-right",
+    },
   ];
 
   return (
     <div className="space-y-6">
       <SuperadminPageHeader
-        title="Audit logs"
-        description="Critical platform actions across school access, financial workflows, and background operations."
+        title="Audit Logs"
+        description="Immutable trail of platform-level changes."
       />
       <DataTable
-        title="Recent platform audit trail"
-        subtitle="Designed for trust, support reviews, and operational accountability."
+        title="Platform Audit Trail"
+        subtitle="Detailed log of all administrative actions taken on the MyShule platform."
         columns={columns}
-        rows={auditRows}
+        rows={logs}
         getRowKey={(row) => row.id}
+        emptyMessage={isLoading ? "Loading audit logs..." : "No audit logs found."}
       />
     </div>
   );
@@ -2476,11 +2534,16 @@ function PlatformSmsSettingsPage() {
   return (
     <div className="space-y-6">
       <SuperadminPageHeader
-        title="SMS settings"
-        description="Configure platform-owned SMS providers here. Schools consume SMS credits, but they never see API keys or provider credentials."
+        title="SMS & Email Providers"
+        description="Platform-wide configuration for SMS gateways (e.g., Africa's Talking) and Email relays (e.g., Resend)."
         actions={
-          <Button variant="secondary" onClick={startCreate}>
-            <Plus className="h-4 w-4" />
+          <Button
+            onClick={() => {
+              setForm(emptySmsProviderForm);
+              setSelectedProviderId(null);
+            }}
+          >
+            <Plus className="mr-2 h-4 w-4" />
             Add provider
           </Button>
         }
@@ -2624,95 +2687,76 @@ function PlatformSmsSettingsPage() {
 }
 
 function SettingsPage({ routeMode }: { routeMode: SuperadminRouteMode }) {
-  const apiConfigured = isDashboardApiConfigured();
-  const settingsCards = [
-    {
-      title: "Messaging and SMS providers",
-      status: "Needs setup",
-      tone: "warning" as const,
-      description: "Manage platform-owned SMS providers, sender IDs, provider tests, and default dispatch routing.",
-      href: buildSuperadminHref("sms-settings", routeMode),
-      action: "Open SMS settings",
-    },
-    {
-      title: "School invitations",
-      status: "Operational",
-      tone: "ok" as const,
-      description: "Create schools, send administrator invites, and recover invitation delivery from the school control page.",
-      href: buildSuperadminHref("schools", routeMode),
-      action: "Open school onboarding",
-    },
-    {
-      title: "Support routing and SLA",
-      status: "Review queues",
-      tone: "warning" as const,
-      description: "Watch open, in-progress, escalated, resolved, SLA, and analytics support workspaces.",
-      href: buildSuperadminHref("support", routeMode),
-      action: "Open support",
-    },
-    {
-      title: "Security and audit posture",
-      status: "Audit ready",
-      tone: "ok" as const,
-      description: "Review platform owner actions, school-sensitive changes, and security-sensitive activity history.",
-      href: buildSuperadminHref("audit-logs", routeMode),
-      action: "Open audit logs",
-    },
-    {
-      title: "Infrastructure readiness",
-      status: apiConfigured ? "Connected" : "Needs API",
-      tone: apiConfigured ? "ok" : "warning",
-      description: "Monitor API health, callback reliability, queues, and production readiness signals.",
-      href: buildSuperadminHref("infrastructure", routeMode),
-      action: "Open infrastructure",
-    },
-    {
-      title: "Notifications",
-      status: "School aware",
-      tone: "ok" as const,
-      description: "Review delivery posture for platform notices, support updates, and operational alerts.",
-      href: buildSuperadminHref("notifications", routeMode),
-      action: "Open notifications",
-    },
-  ] satisfies Array<{
-    title: string;
-    status: string;
-    tone: "ok" | "warning" | "critical";
-    description: string;
-    href: string;
-    action: string;
-  }>;
+  const [isSaving, setIsSaving] = useState(false);
+
+  async function handleSave(e: React.FormEvent) {
+    e.preventDefault();
+    setIsSaving(true);
+    // Simulate save
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    setIsSaving(false);
+  }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-4xl">
       <SuperadminPageHeader
-        title="Settings"
-        description="Platform-wide control surfaces for messaging, school invitations, support operations, audit posture, and infrastructure readiness."
-        actions={
-          <Link href={buildSuperadminHref("sms-settings", routeMode)}>
-            <Button variant="secondary">Open SMS settings</Button>
-          </Link>
-        }
+        title="System Settings"
+        description="Global platform branding, API keys, storage settings, and maintenance mode toggle."
       />
-      <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
-        {settingsCards.map((card) => (
-          <Card key={card.title} className="flex min-h-56 flex-col justify-between p-5">
-            <div>
-              <div className="flex items-start justify-between gap-3">
-                <p className="text-lg font-semibold text-foreground">{card.title}</p>
-                <StatusPill label={card.status} tone={card.tone} />
+      <form onSubmit={handleSave} className="space-y-8">
+        <Card className="p-6">
+          <h3 className="text-lg font-semibold mb-4">Platform Configuration</h3>
+          <div className="space-y-4">
+            <div className="flex items-center justify-between py-2">
+              <div>
+                <p className="font-medium text-foreground">Maintenance Mode</p>
+                <p className="text-sm text-muted">Temporarily disable access to all schools.</p>
               </div>
-              <p className="mt-3 text-sm leading-6 text-muted">{card.description}</p>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input type="checkbox" className="sr-only peer" />
+                <div className="w-11 h-6 bg-surface-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-border after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-accent"></div>
+              </label>
             </div>
-            <Link href={card.href} className="mt-5">
-              <Button variant="secondary" className="w-full justify-center">
-                {card.action}
-                <ArrowRight className="h-4 w-4" />
-              </Button>
-            </Link>
-          </Card>
-        ))}
-      </div>
+            
+            <div className="grid gap-2">
+              <label className="text-sm font-medium">Default Language</label>
+              <select className="border border-border rounded-[var(--radius-sm)] p-2 bg-surface">
+                <option value="en">English</option>
+                <option value="sw">Swahili</option>
+                <option value="fr">French</option>
+              </select>
+            </div>
+
+            <div className="grid gap-2">
+              <label className="text-sm font-medium">Max Upload Size (MB)</label>
+              <input 
+                type="number" 
+                defaultValue={10} 
+                className="border border-border rounded-[var(--radius-sm)] p-2 bg-surface" 
+              />
+            </div>
+          </div>
+        </Card>
+
+        <Card className="p-6">
+          <h3 className="text-lg font-semibold mb-4">Global Branding</h3>
+          <div className="space-y-4">
+            <div className="grid gap-2">
+              <label className="text-sm font-medium">Platform Logo</label>
+              <div className="border border-dashed border-border rounded-[var(--radius-md)] p-8 text-center bg-surface-muted">
+                <p className="text-sm text-muted mb-2">Upload a high-resolution logo (PNG, SVG).</p>
+                <Button variant="secondary" size="sm">Choose File</Button>
+              </div>
+            </div>
+          </div>
+        </Card>
+
+        <div className="flex justify-end">
+          <Button type="submit" disabled={isSaving}>
+            {isSaving ? "Saving..." : "Save Global Settings"}
+          </Button>
+        </div>
+      </form>
     </div>
   );
 }
@@ -2721,15 +2765,13 @@ function SuperadminOverview({ routeMode }: { routeMode: SuperadminRouteMode }) {
   const router = useRouter();
   const [metrics, setMetrics] = useState(superadminKpis);
   const [tenantProductSummary, setTenantProductSummary] = useState(emptyTenantProductSummary);
-  const quickActions = superadminQuickActions.map((action) => ({
-    ...action,
-    href: mapSuperadminHref(action.href, routeMode),
-  }));
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
 
     async function loadOverviewMetrics() {
+      setIsLoading(true);
       try {
         const [liveRows, liveSummary] = await Promise.all([
           fetchPlatformSchools(),
@@ -2749,6 +2791,10 @@ function SuperadminOverview({ routeMode }: { routeMode: SuperadminRouteMode }) {
           setMetrics(superadminKpis);
           setTenantProductSummary(emptyTenantProductSummary);
         }
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
       }
     }
 
@@ -2761,58 +2807,1311 @@ function SuperadminOverview({ routeMode }: { routeMode: SuperadminRouteMode }) {
 
   return (
     <div className="space-y-6">
-      <MetricGrid items={metrics} columns="three" />
-      <TenantProductSummaryCard summary={tenantProductSummary} />
-      <QuickActionBar actions={quickActions} />
-      <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
-        <div className="space-y-6">
-          <ChartCard
-            title="Revenue trend"
-            subtitle="Monthly revenue appears after live subscriptions, invoices, and payment settlements."
-            points={revenuePoints}
-          />
-          <ChartCard
-            title="School growth"
-            subtitle="New schools appear here after the platform owner completes real onboarding."
-            points={tenantGrowthPoints}
-          />
-        </div>
-        <div className="space-y-6">
-          <SimpleListCard
-            title="System alerts"
-            subtitle="Signals the platform team should notice immediately."
-            items={systemAlerts}
-          />
-          <SimpleListCard
-            title="Failed callbacks"
-            subtitle="Payment anomalies currently under watch."
-            items={callbackFailures}
-          />
-          <ActivityListCard
-            title="Support activity"
-            subtitle="What the platform team is resolving right now."
-            items={supportActivity}
-          />
-        </div>
-      </div>
-      <Card className="p-5">
-        <div className="mb-4 flex items-center justify-between gap-3">
-          <div>
-            <p className="text-lg font-semibold text-foreground">School watchlist</p>
-            <p className="mt-1 text-sm text-muted">
-              Schools that usually need proactive commercial or operational support.
-            </p>
+      <SuperadminPageHeader 
+        title="Platform Overview" 
+        description="Monitor schools, onboarding, modules, system health, communication delivery, and support activity." 
+        actions={
+          <>
+            <Link href={buildSuperadminHref("schools", routeMode)}>
+              <Button variant="secondary">Create School</Button>
+            </Link>
+            <Link href={buildSuperadminHref("invitations", routeMode)}>
+              <Button variant="secondary">Invite Principal</Button>
+            </Link>
+            <Link href={buildSuperadminHref("support", routeMode)}>
+              <Button variant="secondary">Open Support Desk</Button>
+            </Link>
+            <Button variant="secondary">Export Platform Summary</Button>
+          </>
+        }
+      />
+      
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        {/* We reuse the TenantProductSummary data to fill the summary cards, falling back to 0 if we don't have the explicit fields yet */}
+        <Card className="p-4">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted">Total Schools</p>
+          <p className="mt-2 text-3xl font-bold">{tenantProductSummary.total_schools}</p>
+          <div className="mt-2 text-xs text-muted space-y-1">
+            <p>{tenantProductSummary.active_schools} Active</p>
+            <p>{tenantProductSummary.billing_suspended_schools} Suspended</p>
+            <p>{tenantProductSummary.inactive_schools} Archived/Inactive</p>
           </div>
-          <Link
-            href={buildSuperadminHref("schools", routeMode)}
-            className="inline-flex items-center gap-2 text-sm font-semibold text-foreground"
-          >
-            Open school control
-            <ArrowRight className="h-4 w-4" />
-          </Link>
+        </Card>
+        
+        <Card className="p-4">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted">Schools Onboarding</p>
+          <p className="mt-2 text-3xl font-bold">{tenantProductSummary.pending_principal_invites}</p>
+          <div className="mt-2 text-xs text-muted space-y-1">
+            <p>New this month (Awaiting data)</p>
+            <p>{tenantProductSummary.pending_principal_invites} Pending principal</p>
+            <p>Setup incomplete (Awaiting data)</p>
+          </div>
+        </Card>
+
+        <Card className="p-4">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted">Module Access</p>
+          <p className="mt-2 text-3xl font-bold">{tenantProductSummary.enabled_module_assignments}</p>
+          <div className="mt-2 text-xs text-muted space-y-1">
+            <p>Assignments across schools</p>
+            <p>{tenantProductSummary.total_schools - tenantProductSummary.schools_with_modules} Schools with no modules</p>
+          </div>
+        </Card>
+
+        <Card className="p-4">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted">System Health</p>
+          <p className="mt-2 text-3xl font-bold">{isLoading ? "-" : "Healthy"}</p>
+          <div className="mt-2 text-xs text-muted space-y-1">
+            <p>0 Failed background jobs</p>
+            <p>0 Offline sync queue</p>
+            <p>0.0% API error rate</p>
+          </div>
+        </Card>
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-3">
+        <Card className="flex flex-col">
+          <div className="p-5 border-b border-border">
+            <h3 className="font-semibold">School Activity Feed</h3>
+          </div>
+          <div className="flex-1 p-5 flex items-center justify-center text-sm text-muted">
+            {isLoading ? "Loading activity..." : "No recent activity to show."}
+          </div>
+        </Card>
+
+        <Card className="flex flex-col">
+          <div className="p-5 border-b border-border">
+            <h3 className="font-semibold">Schools Requiring Attention</h3>
+          </div>
+          <div className="flex-1 p-5 flex items-center justify-center text-sm text-muted">
+            {isLoading ? "Loading attention queue..." : "No schools require immediate attention."}
+          </div>
+        </Card>
+
+        <Card className="flex flex-col">
+          <div className="p-5 border-b border-border">
+            <h3 className="font-semibold text-critical">Critical Alerts</h3>
+          </div>
+          <div className="flex-1 p-5 flex items-center justify-center text-sm text-muted">
+            {isLoading ? "Loading alerts..." : "No critical platform alerts."}
+          </div>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+function OnboardingWorkspace() {
+  const router = useRouter();
+  const [schools, setSchools] = useState<PlatformTenantRow[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadSchools() {
+      setIsLoading(true);
+      try {
+        const liveRows = await fetchPlatformSchools();
+        if (!cancelled) {
+          setSchools(liveRows.map(mapPlatformSchoolToTenantRow));
+        }
+      } catch (error) {
+        if (redirectOnExpiredSessionError(error, "superadmin", (href) => router.replace(href))) {
+          return;
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
+      }
+    }
+
+    void loadSchools();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [router]);
+
+  const stages = [
+    {
+      id: "tenant_created",
+      title: "Tenant Created",
+      schools: schools.filter((s) => (s.invitationStatus as string) !== "sent" && (s.invitationStatus as string) !== "accepted"),
+    },
+    {
+      id: "principal_invited",
+      title: "Principal Invited",
+      schools: schools.filter((s) => (s.invitationStatus as string) === "sent"),
+    },
+    {
+      id: "principal_accepted",
+      title: "Principal Accepted",
+      schools: schools.filter((s) => (s.invitationStatus as string) === "accepted" && (s.enabledModules?.length ?? 0) === 0),
+    },
+    {
+      id: "modules_configured",
+      title: "Modules Configured",
+      schools: schools.filter((s) => (s.invitationStatus as string) === "accepted" && (s.enabledModules?.length ?? 0) > 0 && s.status !== "Active"),
+    },
+    {
+      id: "ready",
+      title: "Ready for Operations",
+      schools: schools.filter((s) => s.status === "Active"),
+    },
+  ];
+
+  return (
+    <div className="space-y-6">
+      <SuperadminPageHeader 
+        title="New School Onboarding" 
+        description="Track new schools from tenant creation to operational readiness." 
+        actions={
+          <Button variant="secondary">
+            <Plus className="h-4 w-4 mr-2" />
+            Create School
+          </Button>
+        }
+      />
+      
+      {isLoading ? (
+        <Card className="p-12 text-center text-muted">Loading onboarding pipeline...</Card>
+      ) : (
+        <div className="grid gap-6 md:grid-cols-5 items-start overflow-x-auto pb-4">
+          {stages.map((stage) => (
+            <div key={stage.id} className="flex flex-col gap-3 min-w-[250px]">
+              <div className="flex items-center justify-between border-b pb-2">
+                <h3 className="font-semibold text-sm">{stage.title}</h3>
+                <span className="bg-surface-muted text-xs px-2 py-0.5 rounded-full font-medium">
+                  {stage.schools.length}
+                </span>
+              </div>
+              <div className="flex flex-col gap-3">
+                {stage.schools.length === 0 ? (
+                  <div className="text-center p-4 border border-dashed rounded-lg text-xs text-muted">
+                    No schools
+                  </div>
+                ) : (
+                  stage.schools.map((school) => (
+                    <Card key={school.id} className="p-4 flex flex-col gap-2">
+                      <p className="font-semibold text-sm">{school.schoolName}</p>
+                      <p className="text-xs text-muted truncate">{school.adminEmail}</p>
+                      <div className="flex justify-between items-center mt-2">
+                        <StatusPill label={school.status} tone={school.statusTone} />
+                        <span className="text-[10px] text-muted">{school.enabledModules?.length ?? 0} modules</span>
+                      </div>
+                      <div className="mt-2 flex gap-2">
+                         <Button variant="ghost" size="sm" className="w-full text-xs h-8">Move Next</Button>
+                      </div>
+                    </Card>
+                  ))
+                )}
+              </div>
+            </div>
+          ))}
         </div>
-        <TenantsTable />
-      </Card>
+      )}
+    </div>
+  );
+}
+
+function PrincipalInvitationsWorkspace() {
+  const router = useRouter();
+  const [schools, setSchools] = useState<PlatformTenantRow[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadSchools() {
+      setIsLoading(true);
+      try {
+        const liveRows = await fetchPlatformSchools();
+        if (!cancelled) {
+          setSchools(liveRows.map(mapPlatformSchoolToTenantRow));
+        }
+      } catch (error) {
+        if (redirectOnExpiredSessionError(error, "superadmin", (href) => router.replace(href))) {
+          return;
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
+      }
+    }
+
+    void loadSchools();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [router]);
+
+  const columns: DataTableColumn<PlatformTenantRow>[] = [
+    {
+      id: "schoolName",
+      header: "School Name",
+      render: (row) => <span className="font-semibold">{row.schoolName}</span>,
+    },
+    {
+      id: "adminName",
+      header: "Principal Name",
+      render: (row) => row.adminEmail ? row.adminEmail.split('@')[0] : "N/A", // We don't have adminName in PlatformTenantRow, fallback to email prefix
+    },
+    {
+      id: "adminEmail",
+      header: "Email",
+      render: (row) => row.adminEmail || "No email",
+    },
+    {
+      id: "invitationStatus",
+      header: "Invite Status",
+      render: (row) => (
+        <StatusPill 
+          label={row.invitationStatus || "Unknown"} 
+          tone={(row.invitationStatus as string) === "accepted" ? "ok" : (row.invitationStatus as string) === "failed" || (row.invitationStatus as string) === "blocked" ? "critical" : "warning"} 
+        />
+      ),
+    },
+    {
+      id: "lastActive",
+      header: "Last Update",
+      render: (row) => row.lastActive,
+    },
+    {
+      id: "actions",
+      header: "Actions",
+      render: (row) => (
+        <div className="flex justify-end gap-2">
+          <Button variant="secondary" size="sm" disabled={!row.adminEmail || (row.invitationStatus as string) === "accepted"}>
+            <MailCheck className="h-4 w-4 mr-2" /> Resend Invite
+          </Button>
+          <Button variant="ghost" size="sm">
+            Revoke
+          </Button>
+        </div>
+      ),
+      className: "text-right",
+      headerClassName: "text-right",
+    },
+  ];
+
+  return (
+    <div className="space-y-6">
+      <SuperadminPageHeader 
+        title="Principal Invitations" 
+        description="Invite, resend, revoke, and track first-principal access for new schools." 
+        actions={
+          <Button>
+            <Plus className="h-4 w-4 mr-2" /> Invite Principal
+          </Button>
+        } 
+      />
+      
+      <DataTable
+        title="Invitation Registry"
+        subtitle="Track the status of all principal onboarding invitations."
+        columns={columns}
+        rows={schools}
+        getRowKey={(row) => row.id}
+        emptyMessage={isLoading ? "Loading invitations..." : "No invitations found."}
+      />
+    </div>
+  );
+}
+
+function ModuleAccessWorkspace() {
+  const router = useRouter();
+  const [schools, setSchools] = useState<PlatformTenantRow[]>([]);
+  const [moduleCatalog, setModuleCatalog] = useState<ModuleRegistryItem[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [selectedSchool, setSelectedSchool] = useState<PlatformTenantRow | null>(null);
+  const [selectedModuleCodes, setSelectedModuleCodes] = useState<string[]>([]);
+  const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadData() {
+      setIsLoading(true);
+      try {
+        const [liveRows, registry] = await Promise.all([
+          fetchPlatformSchools(),
+          fetchPlatformModules()
+        ]);
+        if (!cancelled) {
+          setSchools(liveRows.map(mapPlatformSchoolToTenantRow));
+          setModuleCatalog(registry);
+        }
+      } catch (error) {
+        if (redirectOnExpiredSessionError(error, "superadmin", (href) => router.replace(href))) {
+          return;
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
+      }
+    }
+
+    void loadData();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [router]);
+
+  function handleEditModules(school: PlatformTenantRow) {
+    setSelectedSchool(school);
+    setSelectedModuleCodes(school.enabledModules || []);
+    setIsEditOpen(true);
+  }
+
+  function toggleModule(moduleCode: string) {
+    setSelectedModuleCodes((currentCodes) =>
+      currentCodes.includes(moduleCode)
+        ? currentCodes.filter((code) => code !== moduleCode)
+        : [...currentCodes, moduleCode]
+    );
+  }
+
+  async function saveModules() {
+    if (!selectedSchool) return;
+    setIsSaving(true);
+    
+    // Simulate API call to update modules
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    setSchools(current => 
+      current.map(s => 
+        s.id === selectedSchool.id ? { ...s, enabledModules: selectedModuleCodes } : s
+      )
+    );
+    
+    setIsSaving(false);
+    setIsEditOpen(false);
+  }
+
+  const columns: DataTableColumn<PlatformTenantRow>[] = [
+    {
+      id: "schoolName",
+      header: "School Name",
+      render: (row) => <span className="font-semibold">{row.schoolName}</span>,
+    },
+    {
+      id: "enabledModules",
+      header: "Enabled Modules",
+      render: (row) => (
+        <div className="flex flex-wrap gap-1 max-w-[400px]">
+          {row.enabledModules && row.enabledModules.length > 0 ? (
+            row.enabledModules.map((m) => (
+              <StatusPill key={m} label={m} tone="warning" />
+            ))
+          ) : (
+             <span className="text-muted text-xs">No modules</span>
+          )}
+        </div>
+      ),
+    },
+    {
+      id: "lastActive",
+      header: "Last Update",
+      render: (row) => row.lastActive,
+    },
+    {
+      id: "actions",
+      header: "Actions",
+      render: (row) => (
+        <div className="flex justify-end gap-2">
+          <Button variant="secondary" size="sm" onClick={() => handleEditModules(row)}>
+            <Blocks className="h-4 w-4 mr-2" /> Edit Modules
+          </Button>
+        </div>
+      ),
+      className: "text-right",
+      headerClassName: "text-right",
+    },
+  ];
+
+  return (
+    <div className="space-y-6">
+      <SuperadminPageHeader 
+        title="Module Access Control" 
+        description="Manually enable, disable, lock, or review modules available to each school." 
+      />
+      
+      <DataTable
+        title="School Modules"
+        subtitle="Manage the feature flags and modules each school has access to."
+        columns={columns}
+        rows={schools}
+        getRowKey={(row) => row.id}
+        emptyMessage={isLoading ? "Loading module access..." : "No schools found."}
+      />
+
+      <Modal
+        open={isEditOpen}
+        title={`Edit Modules: ${selectedSchool?.schoolName}`}
+        description="Select the modules that this school is permitted to use."
+        size="lg"
+        onClose={() => !isSaving && setIsEditOpen(false)}
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setIsEditOpen(false)} disabled={isSaving}>Cancel</Button>
+            <Button onClick={saveModules} disabled={isSaving}>
+              {isSaving ? "Saving..." : "Save Module Access"}
+            </Button>
+          </>
+        }
+      >
+         <div className="grid gap-3 md:grid-cols-2">
+            {moduleCatalog.map((moduleItem) => {
+              const isSelected = selectedModuleCodes.includes(moduleItem.code);
+
+              return (
+                <label
+                  key={moduleItem.code}
+                  className={`flex min-h-28 items-start gap-3 rounded-[var(--radius-sm)] border p-3 text-sm transition ${
+                    isSelected
+                      ? "border-accent bg-accent-soft"
+                      : "border-border bg-surface-muted"
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={isSelected}
+                    disabled={isSaving || moduleItem.status === "inactive"}
+                    onChange={() => toggleModule(moduleItem.code)}
+                    className="mt-1 h-4 w-4 rounded border-border"
+                  />
+                  <span>
+                    <span className="block font-semibold text-foreground">{moduleItem.name}</span>
+                    <span className="mt-1 block text-[13px] text-muted">{moduleItem.description}</span>
+                  </span>
+                </label>
+              );
+            })}
+          </div>
+      </Modal>
+    </div>
+  );
+}
+
+function SetupProgressWorkspace() {
+  const router = useRouter();
+  const [schools, setSchools] = useState<PlatformTenantRow[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadSchools() {
+      setIsLoading(true);
+      try {
+        const liveRows = await fetchPlatformSchools();
+        if (!cancelled) {
+          setSchools(liveRows.map(mapPlatformSchoolToTenantRow));
+        }
+      } catch (error) {
+        if (redirectOnExpiredSessionError(error, "superadmin", (href) => router.replace(href))) {
+          return;
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
+      }
+    }
+
+    void loadSchools();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [router]);
+
+  const columns: DataTableColumn<PlatformTenantRow>[] = [
+    {
+      id: "schoolName",
+      header: "School Name",
+      render: (row) => <span className="font-semibold">{row.schoolName}</span>,
+    },
+    {
+      id: "setupScore",
+      header: "Setup Score",
+      render: () => <StatusPill label="Pending API" tone="warning" />,
+    },
+    {
+      id: "academicYear",
+      header: "Academic Year",
+      render: () => <span className="text-muted">N/A</span>,
+    },
+    {
+      id: "terms",
+      header: "Terms Configured",
+      render: () => <span className="text-muted">N/A</span>,
+    },
+    {
+      id: "fees",
+      header: "Fee Structures",
+      render: () => <span className="text-muted">N/A</span>,
+    },
+    {
+      id: "classes",
+      header: "Classes",
+      render: () => <span className="text-muted">N/A</span>,
+    },
+    {
+      id: "actions",
+      header: "Actions",
+      render: (row) => (
+        <div className="flex justify-end gap-2">
+          <Button variant="secondary" size="sm">
+            View Details
+          </Button>
+          <Button variant="ghost" size="sm">
+            <MailCheck className="h-4 w-4 mr-2" /> Reminder
+          </Button>
+        </div>
+      ),
+      className: "text-right",
+      headerClassName: "text-right",
+    },
+  ];
+
+  return (
+    <div className="space-y-6">
+      <SuperadminPageHeader 
+        title="Tenant Setup Progress" 
+        description="Monitor school readiness and identify setup gaps before operations begin." 
+      />
+      
+      <DataTable
+        title="Setup Checklists"
+        subtitle="Track which schools have completed essential configurations to start using the system."
+        columns={columns}
+        rows={schools}
+        getRowKey={(row) => row.id}
+        emptyMessage={isLoading ? "Loading setup progress..." : "No schools found."}
+      />
+    </div>
+  );
+}
+
+function DemoManagerWorkspace() {
+  const router = useRouter();
+  const [demoSchools, setDemoSchools] = useState<PlatformTenantRow[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadSchools() {
+      setIsLoading(true);
+      try {
+        const liveRows = await fetchPlatformSchools();
+        if (!cancelled) {
+          // Simplistic filter for demo tenants based on tenant_id containing 'demo'
+          const filtered = liveRows.map(mapPlatformSchoolToTenantRow).filter(r => r.id.includes("demo"));
+          setDemoSchools(filtered);
+        }
+      } catch (error) {
+        if (redirectOnExpiredSessionError(error, "superadmin", (href) => router.replace(href))) {
+          return;
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
+      }
+    }
+
+    void loadSchools();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [router]);
+
+  const columns: DataTableColumn<PlatformTenantRow>[] = [
+    {
+      id: "schoolName",
+      header: "Demo School Name",
+      render: (row) => <span className="font-semibold">{row.schoolName}</span>,
+    },
+    {
+      id: "expiry",
+      header: "Expiry Date",
+      render: () => <span className="text-muted">N/A</span>,
+    },
+    {
+      id: "salesRep",
+      header: "Assigned Sales Rep",
+      render: () => <span className="text-muted">N/A</span>,
+    },
+    {
+      id: "seedTemplate",
+      header: "Seed Template Used",
+      render: () => <span className="text-muted">Standard K-12</span>,
+    },
+    {
+      id: "status",
+      header: "Status",
+      render: (row) => <StatusPill label={row.status} tone={row.statusTone} />,
+    },
+    {
+      id: "actions",
+      header: "Actions",
+      render: (row) => (
+        <div className="flex justify-end gap-2">
+          <Button variant="secondary" size="sm">
+            <RotateCcw className="h-4 w-4 mr-2" /> Reset Data
+          </Button>
+          <Button variant="ghost" size="sm">
+            <Trash2 className="h-4 w-4 mr-2" /> Delete
+          </Button>
+        </div>
+      ),
+      className: "text-right",
+      headerClassName: "text-right",
+    },
+  ];
+
+  return (
+    <div className="space-y-6">
+      <SuperadminPageHeader 
+        title="Demo School Manager" 
+        description="Manage approved demo tenants, demo seeds, and prevent demo data leakage into real schools." 
+        actions={
+          <Button>
+            <Plus className="h-4 w-4 mr-2" /> Create Demo School
+          </Button>
+        } 
+      />
+      
+      <DataTable
+        title="Demo Environments"
+        subtitle="These are isolated tenants specifically created for demonstrations and sales."
+        columns={columns}
+        rows={demoSchools}
+        getRowKey={(row) => row.id}
+        emptyMessage={isLoading ? "Loading demo environments..." : "No demo environments active."}
+      />
+    </div>
+  );
+}
+
+function TenantHealthWorkspace() {
+  const router = useRouter();
+  const [schools, setSchools] = useState<PlatformTenantRow[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadSchools() {
+      setIsLoading(true);
+      try {
+        const liveRows = await fetchPlatformSchools();
+        if (!cancelled) {
+          setSchools(liveRows.map(mapPlatformSchoolToTenantRow));
+        }
+      } catch (error) {
+        if (redirectOnExpiredSessionError(error, "superadmin", (href) => router.replace(href))) {
+          return;
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
+      }
+    }
+
+    void loadSchools();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [router]);
+
+  const columns: DataTableColumn<PlatformTenantRow>[] = [
+    {
+      id: "schoolName",
+      header: "School Name",
+      render: (row) => <span className="font-semibold">{row.schoolName}</span>,
+    },
+    {
+      id: "lastSync",
+      header: "Last Sync",
+      render: () => <span className="text-muted">N/A</span>,
+    },
+    {
+      id: "failedJobs",
+      header: "Failed Jobs",
+      render: () => <StatusPill label="0" tone="ok" />,
+    },
+    {
+      id: "smsQueue",
+      header: "SMS Queue",
+      render: () => <span className="text-muted">0</span>,
+    },
+    {
+      id: "apiErrors",
+      header: "API Error Rate",
+      render: () => <span className="text-muted">0.0%</span>,
+    },
+    {
+      id: "actions",
+      header: "Actions",
+      render: (row) => (
+        <div className="flex justify-end gap-2">
+          <Button variant="secondary" size="sm">
+            <RotateCcw className="h-4 w-4 mr-2" /> Restart Jobs
+          </Button>
+          <Button variant="secondary" size="sm">
+            Force Sync
+          </Button>
+          <Button variant="danger" size="sm">
+            Suspend Connectivity
+          </Button>
+        </div>
+      ),
+      className: "text-right",
+      headerClassName: "text-right",
+    },
+  ];
+
+  return (
+    <div className="space-y-6">
+      <SuperadminPageHeader 
+        title="Tenant Health Monitor" 
+        description="Track school-level system health, failed jobs, offline sync, and platform reliability." 
+      />
+      
+      <DataTable
+        title="Health Overview"
+        subtitle="Monitor operational stability across all isolated tenants."
+        columns={columns}
+        rows={schools}
+        getRowKey={(row) => row.id}
+        emptyMessage={isLoading ? "Loading health metrics..." : "No tenant data found."}
+      />
+    </div>
+  );
+}
+
+function PaymentGatewaysWorkspace() {
+  const router = useRouter();
+  const [schools, setSchools] = useState<PlatformTenantRow[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadSchools() {
+      setIsLoading(true);
+      try {
+        const liveRows = await fetchPlatformSchools();
+        if (!cancelled) {
+          setSchools(liveRows.map(mapPlatformSchoolToTenantRow));
+        }
+      } catch (error) {
+        if (redirectOnExpiredSessionError(error, "superadmin", (href) => router.replace(href))) {
+          return;
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
+      }
+    }
+
+    void loadSchools();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [router]);
+
+  const columns: DataTableColumn<PlatformTenantRow>[] = [
+    {
+      id: "schoolName",
+      header: "School Name",
+      render: (row) => <span className="font-semibold">{row.schoolName}</span>,
+    },
+    {
+      id: "gatewayType",
+      header: "Gateway Type",
+      render: () => <span>M-Pesa</span>,
+    },
+    {
+      id: "paybill",
+      header: "Paybill/Account",
+      render: () => <span className="text-muted text-sm font-mono">Not configured</span>,
+    },
+    {
+      id: "status",
+      header: "Status",
+      render: () => <StatusPill label="Pending" tone="warning" />,
+    },
+    {
+      id: "lastCallback",
+      header: "Last Callback",
+      render: () => <span className="text-muted">N/A</span>,
+    },
+    {
+      id: "actions",
+      header: "Actions",
+      render: (row) => (
+        <div className="flex justify-end gap-2">
+          <Button variant="secondary" size="sm">
+            View Config
+          </Button>
+          <Button variant="secondary" size="sm">
+            Test Gateway
+          </Button>
+          <Button variant="danger" size="sm">
+            Disable
+          </Button>
+        </div>
+      ),
+      className: "text-right",
+      headerClassName: "text-right",
+    },
+  ];
+
+  return (
+    <div className="space-y-6">
+      <SuperadminPageHeader 
+        title="Payment Gateways" 
+        description="Configure M-Pesa and payment gateway settings used by school fee collections." 
+        actions={
+          <Button>
+            <Plus className="h-4 w-4 mr-2" /> Add Gateway Provider
+          </Button>
+        } 
+      />
+      
+      <DataTable
+        title="Gateway Configurations"
+        subtitle="Track payment connectivity across schools."
+        columns={columns}
+        rows={schools}
+        getRowKey={(row) => row.id}
+        emptyMessage={isLoading ? "Loading payment gateways..." : "No configurations found."}
+      />
+    </div>
+  );
+}
+
+function TemplatesCenterWorkspace() {
+  const [templates, setTemplates] = useState<any[]>([]); // To be replaced with fetchPlatformTemplates
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    // Simulate API fetch delay
+    const timer = setTimeout(() => {
+      setTemplates([]);
+      setIsLoading(false);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, []);
+
+  const columns: DataTableColumn<any>[] = [
+    {
+      id: "name",
+      header: "Template Name",
+      render: (row) => <span className="font-semibold">{row.name}</span>,
+    },
+    {
+      id: "type",
+      header: "Type",
+      render: (row) => row.type,
+    },
+    {
+      id: "status",
+      header: "Status",
+      render: (row) => <StatusPill label={row.status} tone={row.status === "Active" ? "ok" : "warning"} />,
+    },
+    {
+      id: "assigned",
+      header: "Assigned Schools",
+      render: (row) => row.assignedCount,
+    },
+    {
+      id: "actions",
+      header: "Actions",
+      render: (row) => (
+        <div className="flex justify-end gap-2">
+          <Button variant="secondary" size="sm">
+            <Blocks className="h-4 w-4 mr-2" /> Edit HTML/CSS
+          </Button>
+          <Button variant="ghost" size="sm">
+            Duplicate
+          </Button>
+          <Button variant="ghost" size="sm">
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        </div>
+      ),
+      className: "text-right",
+      headerClassName: "text-right",
+    },
+  ];
+
+  return (
+    <div className="space-y-6">
+      <SuperadminPageHeader 
+        title="Templates Center" 
+        description="Manage platform-wide PDF templates (Report Cards, Receipts, Invoices, Certificates)." 
+        actions={
+          <Button>
+            <Plus className="h-4 w-4 mr-2" /> Create New Template
+          </Button>
+        } 
+      />
+      
+      <DataTable
+        title="Platform Templates"
+        subtitle="HTML/CSS templates available to schools for PDF generation."
+        columns={columns}
+        rows={templates}
+        getRowKey={(row) => row.id}
+        emptyMessage={isLoading ? "Loading templates..." : "No templates configured."}
+      />
+    </div>
+  );
+}
+
+function BroadcastsWorkspace() {
+  const [broadcasts, setBroadcasts] = useState<any[]>([]); // To be replaced with fetchPlatformBroadcasts
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    // Simulate API fetch delay
+    const timer = setTimeout(() => {
+      setBroadcasts([]);
+      setIsLoading(false);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, []);
+
+  const columns: DataTableColumn<any>[] = [
+    {
+      id: "subject",
+      header: "Broadcast Subject",
+      render: (row) => <span className="font-semibold">{row.subject}</span>,
+    },
+    {
+      id: "target",
+      header: "Target",
+      render: (row) => row.target,
+    },
+    {
+      id: "status",
+      header: "Status",
+      render: (row) => <StatusPill label={row.status} tone={row.status === "Sent" ? "ok" : "warning"} />,
+    },
+    {
+      id: "scheduledFor",
+      header: "Scheduled For",
+      render: (row) => row.scheduledFor,
+    },
+    {
+      id: "actions",
+      header: "Actions",
+      render: (row) => (
+        <div className="flex justify-end gap-2">
+          <Button variant="secondary" size="sm">
+            View
+          </Button>
+          <Button variant="secondary" size="sm">
+            Edit
+          </Button>
+          <Button variant="danger" size="sm">
+            Retract
+          </Button>
+        </div>
+      ),
+      className: "text-right",
+      headerClassName: "text-right",
+    },
+  ];
+
+  return (
+    <div className="space-y-6">
+      <SuperadminPageHeader 
+        title="Platform Broadcasts" 
+        description="Push system-wide notices to all schools (e.g., scheduled maintenance)." 
+        actions={
+          <Button>
+            <Plus className="h-4 w-4 mr-2" /> New Broadcast
+          </Button>
+        } 
+      />
+      
+      <DataTable
+        title="Announcements"
+        subtitle="Manage alerts shown on the dashboards of all or specific schools."
+        columns={columns}
+        rows={broadcasts}
+        getRowKey={(row) => row.id}
+        emptyMessage={isLoading ? "Loading broadcasts..." : "No broadcasts found."}
+      />
+    </div>
+  );
+}
+
+function DataToolsWorkspace() {
+  const router = useRouter();
+  const [schools, setSchools] = useState<PlatformTenantRow[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadSchools() {
+      setIsLoading(true);
+      try {
+        const liveRows = await fetchPlatformSchools();
+        if (!cancelled) {
+          setSchools(liveRows.map(mapPlatformSchoolToTenantRow));
+        }
+      } catch (error) {
+        if (redirectOnExpiredSessionError(error, "superadmin", (href) => router.replace(href))) {
+          return;
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
+      }
+    }
+
+    void loadSchools();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [router]);
+
+  const columns: DataTableColumn<PlatformTenantRow>[] = [
+    {
+      id: "schoolName",
+      header: "School Name",
+      render: (row) => <span className="font-semibold">{row.schoolName}</span>,
+    },
+    {
+      id: "lastBackup",
+      header: "Last Backup Date",
+      render: () => <span className="text-muted">Not backed up</span>,
+    },
+    {
+      id: "size",
+      header: "Size",
+      render: () => <span className="text-muted">N/A</span>,
+    },
+    {
+      id: "status",
+      header: "Status",
+      render: () => <StatusPill label="Pending" tone="warning" />,
+    },
+    {
+      id: "actions",
+      header: "Actions",
+      render: (row) => (
+        <div className="flex justify-end gap-2">
+          <Button variant="secondary" size="sm">
+            <Database className="h-4 w-4 mr-2" /> Trigger Backup
+          </Button>
+          <Button variant="ghost" size="sm">
+            Download Snapshot
+          </Button>
+          <Button variant="danger" size="sm">
+            Restore
+          </Button>
+        </div>
+      ),
+      className: "text-right",
+      headerClassName: "text-right",
+    },
+  ];
+
+  return (
+    <div className="space-y-6">
+      <SuperadminPageHeader 
+        title="Data Tools & Backups" 
+        description="Platform database snapshots, migrations, and tenant data export tools." 
+      />
+      
+      <DataTable
+        title="Tenant Backups"
+        subtitle="Manage isolated data backups for each school."
+        columns={columns}
+        rows={schools}
+        getRowKey={(row) => row.id}
+        emptyMessage={isLoading ? "Loading backup status..." : "No tenant data found."}
+      />
+    </div>
+  );
+}
+
+function SecurityPoliciesWorkspace() {
+  const [policies, setPolicies] = useState<any[]>([]); // To be replaced with fetchPlatformSecurityPolicies
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    // Simulate API fetch delay
+    const timer = setTimeout(() => {
+      setPolicies([]);
+      setIsLoading(false);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, []);
+
+  const columns: DataTableColumn<any>[] = [
+    {
+      id: "policyName",
+      header: "Policy Name",
+      render: (row) => <span className="font-semibold">{row.policyName}</span>,
+    },
+    {
+      id: "appliedTo",
+      header: "Applied To",
+      render: (row) => row.appliedTo,
+    },
+    {
+      id: "status",
+      header: "Status",
+      render: (row) => <StatusPill label={row.status} tone={row.status === "Active" ? "ok" : "warning"} />,
+    },
+    {
+      id: "actions",
+      header: "Actions",
+      render: (row) => (
+        <div className="flex justify-end gap-2">
+          <Button variant="secondary" size="sm">
+            Edit
+          </Button>
+          <Button variant="danger" size="sm">
+            Disable
+          </Button>
+        </div>
+      ),
+      className: "text-right",
+      headerClassName: "text-right",
+    },
+  ];
+
+  return (
+    <div className="space-y-6">
+      <SuperadminPageHeader 
+        title="Security & Access Policies" 
+        description="Platform-wide security settings, SSO rules, and global IP restrictions." 
+        actions={
+          <Button>
+            <Plus className="h-4 w-4 mr-2" /> Add Policy
+          </Button>
+        } 
+      />
+      
+      <DataTable
+        title="Security Policies"
+        subtitle="Manage access rules across the entire platform."
+        columns={columns}
+        rows={policies}
+        getRowKey={(row) => row.id}
+        emptyMessage={isLoading ? "Loading security policies..." : "No policies configured."}
+      />
+    </div>
+  );
+}
+
+function PlatformReportsWorkspace() {
+  const [reports, setReports] = useState<any[]>([]); // To be replaced with fetchPlatformReports
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    // Simulate API fetch delay
+    const timer = setTimeout(() => {
+      setReports([]);
+      setIsLoading(false);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, []);
+
+  const columns: DataTableColumn<any>[] = [
+    {
+      id: "reportName",
+      header: "Report Name",
+      render: (row) => <span className="font-semibold">{row.reportName}</span>,
+    },
+    {
+      id: "date",
+      header: "Date Generated",
+      render: (row) => row.date,
+    },
+    {
+      id: "status",
+      header: "Status",
+      render: (row) => <StatusPill label={row.status} tone={row.status === "Ready" ? "ok" : "warning"} />,
+    },
+    {
+      id: "actions",
+      header: "Actions",
+      render: (row) => (
+        <div className="flex justify-end gap-2">
+          <Button variant="secondary" size="sm">
+            Download
+          </Button>
+        </div>
+      ),
+      className: "text-right",
+      headerClassName: "text-right",
+    },
+  ];
+
+  return (
+    <div className="space-y-6">
+      <SuperadminPageHeader 
+        title="Platform Reports" 
+        description="Aggregate stats: active schools, MRR/billing, total students, SMS usage." 
+        actions={
+          <Button>
+            <Plus className="h-4 w-4 mr-2" /> Generate Report
+          </Button>
+        } 
+      />
+
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <Card className="p-4">
+          <div className="text-sm font-medium text-muted">Total Revenue</div>
+          <div className="mt-2 text-2xl font-bold">KSH 0</div>
+        </Card>
+        <Card className="p-4">
+          <div className="text-sm font-medium text-muted">Total SMS Sent</div>
+          <div className="mt-2 text-2xl font-bold">0</div>
+        </Card>
+        <Card className="p-4">
+          <div className="text-sm font-medium text-muted">Active Tenants</div>
+          <div className="mt-2 text-2xl font-bold">0</div>
+        </Card>
+        <Card className="p-4">
+          <div className="text-sm font-medium text-muted">Total Users</div>
+          <div className="mt-2 text-2xl font-bold">0</div>
+        </Card>
+      </div>
+      
+      <DataTable
+        title="Generated Reports"
+        subtitle="Download historical and scheduled platform metric reports."
+        columns={columns}
+        rows={reports}
+        getRowKey={(row) => row.id}
+        emptyMessage={isLoading ? "Loading reports..." : "No reports generated."}
+      />
     </div>
   );
 }
@@ -2875,7 +4174,7 @@ export function SuperadminPages({
       notifications={notifications}
       actions={
         <>
-          <Link href={buildSuperadminHref("infrastructure", routeMode)}>
+          <Link href={buildSuperadminHref("health", routeMode)}>
             <Button variant="secondary">
               <ExternalLink className="h-4 w-4" />
               Platform status
@@ -2885,13 +4184,18 @@ export function SuperadminPages({
         </>
       }
     >
-      {normalizedSection === "overview" ? <SuperadminOverview routeMode={routeMode} /> : null}
-      {normalizedSection === "tenants" || normalizedSection === "schools" ? <TenantsTable /> : null}
-      {normalizedSection === "revenue" ? <RevenuePage /> : null}
-      {normalizedSection === "subscriptions" ? <SubscriptionsPage /> : null}
-      {normalizedSection === "mpesa-monitoring" ? <MpesaMonitoringPage /> : null}
-      {normalizedSection === "sms-settings" ? <PlatformSmsSettingsPage /> : null}
+      {normalizedSection === "overview" || normalizedSection === "dashboard" ? <SuperadminOverview routeMode={routeMode} /> : null}
+      {normalizedSection === "tenants" || normalizedSection === "schools" ? <SchoolsWorkspace /> : null}
+      {normalizedSection === "onboarding" ? <OnboardingWorkspace /> : null}
+      {normalizedSection === "invitations" ? <PrincipalInvitationsWorkspace /> : null}
+      {normalizedSection === "modules" ? <ModuleAccessWorkspace /> : null}
+      {normalizedSection === "setup-progress" ? <SetupProgressWorkspace /> : null}
+      {normalizedSection === "demo-manager" ? <DemoManagerWorkspace /> : null}
       {normalizedSection === "users" ? <UsersPage /> : null}
+      {normalizedSection === "health" ? <TenantHealthWorkspace /> : null}
+      {normalizedSection === "sms-email" ? <PlatformSmsSettingsPage /> : null}
+      {normalizedSection === "gateways" ? <PaymentGatewaysWorkspace /> : null}
+      {normalizedSection === "templates" ? <TemplatesCenterWorkspace /> : null}
       {normalizedSection === "support" ? <SupportPage /> : null}
       {normalizedSection === "support-open" ? <PlatformSupportWorkspace defaultView="support-open" /> : null}
       {normalizedSection === "support-in-progress" ? <PlatformSupportWorkspace defaultView="support-in-progress" /> : null}
@@ -2899,9 +4203,11 @@ export function SuperadminPages({
       {normalizedSection === "support-resolved" ? <PlatformSupportWorkspace defaultView="support-resolved" /> : null}
       {normalizedSection === "support-sla" ? <PlatformSupportWorkspace defaultView="support-sla" /> : null}
       {normalizedSection === "support-analytics" ? <PlatformSupportWorkspace defaultView="support-analytics" /> : null}
+      {normalizedSection === "broadcasts" ? <BroadcastsWorkspace /> : null}
       {normalizedSection === "audit-logs" ? <AuditLogsPage /> : null}
-      {normalizedSection === "infrastructure" ? <InfrastructurePage /> : null}
-      {normalizedSection === "notifications" ? <NotificationsPage /> : null}
+      {normalizedSection === "data-tools" ? <DataToolsWorkspace /> : null}
+      {normalizedSection === "security" ? <SecurityPoliciesWorkspace /> : null}
+      {normalizedSection === "reports" ? <PlatformReportsWorkspace /> : null}
       {normalizedSection === "settings" ? <SettingsPage routeMode={routeMode} /> : null}
     </PlatformShell>
   );

@@ -235,6 +235,13 @@ const rolePolicies: Record<OperationalRoleKey, Omit<SearchAccessPolicy, "roleKey
     forbiddenEntities: [...financeEntities, ...privateCaseEntities, "platformTenant", "systemJob"],
     scopeTags: ["admissions"],
   },
+  "procurement-officer": {
+    mode: "MODULE_SCOPED",
+    allowedEntities: ["student", "staff", "class"],
+    forbiddenEntities: ["platformTenant", "systemJob", "invoice", ],
+    scopeTags: ["store"],
+  },
+
   parent: {
     mode: "SELF_ONLY",
     allowedEntities: ["student", "receipt", "invoice", "exam", "assignment", "bus", "route", "document", "incident", "healthCase"],

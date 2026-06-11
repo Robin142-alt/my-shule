@@ -2,7 +2,7 @@ import { ArrowRight } from "lucide-react";
 
 import { Card } from "@/components/ui/card";
 import { StatusPill } from "@/components/ui/status-pill";
-import type { AlertItem } from "@/lib/dashboard/types";
+import type { AlertItem, StatusTone } from "@/lib/dashboard/types";
 
 export function AlertsPanel({ alerts }: { alerts: AlertItem[] }) {
   if (alerts.length === 0) {
@@ -11,7 +11,7 @@ export function AlertsPanel({ alerts }: { alerts: AlertItem[] }) {
 
   // Sort by severity: critical first
   const sortedAlerts = [...alerts].sort((a, b) => {
-    const order = { critical: 0, warning: 1, ok: 2 };
+    const order: Record<StatusTone, number> = { critical: 0, warning: 1, ok: 2 };
     return (order[a.severity] ?? 2) - (order[b.severity] ?? 2);
   });
 

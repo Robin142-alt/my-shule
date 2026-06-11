@@ -8,6 +8,7 @@ import { FinanceController } from './finance.controller';
 import { LedgerService } from './ledger.service';
 import { TransactionService } from './transaction.service';
 import { FinanceTasksService } from './finance-tasks.service';
+import { FinancePaymentCompletedConsumer } from './finance-events.handler';
 import { AccountsRepository } from './repositories/accounts.repository';
 import { TransactionsRepository } from './repositories/transactions.repository';
 import { LedgerEntriesRepository } from './repositories/ledger-entries.repository';
@@ -21,11 +22,19 @@ import { IdempotencyKeysRepository } from './repositories/idempotency-keys.repos
     LedgerService,
     TransactionService,
     FinanceTasksService,
+    FinancePaymentCompletedConsumer,
     AccountsRepository,
     TransactionsRepository,
     LedgerEntriesRepository,
     IdempotencyKeysRepository,
   ],
-  exports: [FinanceSchemaService, LedgerService, TransactionService, FinanceTasksService, AccountsRepository],
+  exports: [
+    FinanceSchemaService, 
+    LedgerService, 
+    TransactionService, 
+    FinanceTasksService, 
+    FinancePaymentCompletedConsumer, 
+    AccountsRepository
+  ],
 })
 export class FinanceModule {}

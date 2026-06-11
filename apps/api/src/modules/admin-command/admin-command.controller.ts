@@ -28,6 +28,132 @@ export class AdminCommandController {
     return this.adminCommandService.streamPrincipalDashboard();
   }
 
+  @Get('principal/finance-overview')
+  @RequiresModule('admin_command_centers', 'principal_dashboard')
+  @Permissions('principal:read', 'finance:read')
+  getPrincipalFinanceOverview() {
+    return this.adminCommandService.getPrincipalFinanceOverview();
+  }
+
+  @Get('principal/students')
+  @RequiresModule('admin_command_centers', 'principal_dashboard')
+  @Permissions('principal:read', 'students:read')
+  getPrincipalStudents() {
+    return this.adminCommandService.getPrincipalStudentsOverview();
+  }
+
+  @Get('principal/discipline')
+  @RequiresModule('admin_command_centers', 'principal_dashboard')
+  @Permissions('principal:read', 'discipline:read')
+  getPrincipalDiscipline() {
+    return this.adminCommandService.getPrincipalDisciplineOverview();
+  }
+
+  @Get('principal/attendance')
+  @RequiresModule('admin_command_centers', 'principal_dashboard')
+  @Permissions('principal:read', 'attendance:read')
+  getPrincipalAttendance() {
+    return this.adminCommandService.getPrincipalAttendanceOverview();
+  }
+
+  @Get('principal/academics')
+  @RequiresModule('admin_command_centers', 'principal_dashboard')
+  @Permissions('principal:read', 'academics:read')
+  getPrincipalAcademics() {
+    return this.adminCommandService.getPrincipalAcademicsOverview();
+  }
+
+  @Get('principal/exams')
+  @RequiresModule('admin_command_centers', 'principal_dashboard')
+  @Permissions('principal:read', 'exams:read')
+  getPrincipalExams() {
+    return this.adminCommandService.getPrincipalExamsOverview();
+  }
+
+  @Get('principal/communication')
+  @RequiresModule('admin_command_centers', 'principal_dashboard')
+  @Permissions('principal:read', 'communication:read')
+  getPrincipalCommunication() {
+    return this.adminCommandService.getPrincipalCommunicationOverview();
+  }
+
+  @Get('principal/classes')
+  @RequiresModule('admin_command_centers', 'principal_dashboard')
+  @Permissions('principal:read', 'classes:read')
+  getPrincipalClasses() {
+    return this.adminCommandService.getPrincipalClassesOverview();
+  }
+
+  @Get('principal/subjects')
+  @RequiresModule('admin_command_centers', 'principal_dashboard')
+  @Permissions('principal:read', 'subjects:read')
+  getPrincipalSubjects() {
+    return this.adminCommandService.getPrincipalSubjectsOverview();
+  }
+
+  @Get('principal/staff')
+  @RequiresModule('admin_command_centers', 'principal_dashboard')
+  @Permissions('principal:read', 'staff:read')
+  getPrincipalStaff() {
+    return this.adminCommandService.getPrincipalStaffOverview();
+  }
+
+  @Get('principal/overview')
+  @RequiresModule('admin_command_centers', 'principal_dashboard')
+  @Permissions('principal:read')
+  getPrincipalOverview() {
+    return this.adminCommandService.getPrincipalOverview();
+  }
+
+  @Get('principal/school-profile')
+  @RequiresModule('admin_command_centers', 'principal_dashboard')
+  @Permissions('principal:read', 'school_profile:read')
+  getSchoolProfile() {
+    return this.adminCommandService.getSchoolProfile();
+  }
+
+  @Get('principal/approvals')
+  @RequiresModule('admin_command_centers', 'principal_dashboard')
+  @Permissions('principal:read', 'approvals:read')
+  getApprovalsOverview() {
+    return this.adminCommandService.getApprovalsOverview();
+  }
+
+  @Get('principal/reports')
+  @RequiresModule('admin_command_centers', 'principal_dashboard')
+  @Permissions('principal:read', 'reports:read')
+  getPrincipalReportsOverview() {
+    return this.adminCommandService.getPrincipalReportsOverview();
+  }
+
+  @Get('principal/setup-checklist')
+  @RequiresModule('admin_command_centers', 'principal_dashboard')
+  @Permissions('principal:read')
+  getSetupChecklist() {
+    return this.adminCommandService.getSetupChecklist();
+  }
+
+  @Get('principal/academic-setup')
+  @RequiresModule('admin_command_centers', 'principal_dashboard')
+  @Permissions('principal:read')
+  getAcademicSetupOverview() {
+    return this.adminCommandService.getAcademicSetupOverview();
+  }
+
+  @Get('principal/settings')
+  @RequiresModule('admin_command_centers', 'principal_dashboard')
+  @Permissions('principal:read')
+  getPrincipalSettings() {
+    return this.adminCommandService.getPrincipalSettings();
+  }
+
+  @Get('principal/teaching')
+  @RequiresModule('admin_command_centers', 'principal_dashboard')
+  @Permissions('principal:read')
+  getPrincipalTeachingSchedule() {
+    return this.adminCommandService.getPrincipalTeachingSchedule();
+  }
+
   @Get('deputy/dashboard')
   @Permissions('deputy:read')
   getDeputyDashboard() {

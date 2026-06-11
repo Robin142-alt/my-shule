@@ -47,7 +47,7 @@ const roleOptions = [
   { value: "class_teacher", label: "Class Teacher" },
   { value: "grade_master", label: "Grade/Form Master" },
   { value: "nurse", label: "Nurse" },
-  { value: "school_counsellor", label: "School Counsellor" },
+  { value: "guidance-counselling", label: "School Counsellor" },
   { value: "discipline_master", label: "Discipline Master" },
   { value: "librarian", label: "Librarian" },
   { value: "parent", label: "Parent" },

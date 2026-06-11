@@ -199,7 +199,7 @@ export function Topbar({
   };
 
   const unresolvedNotifications = notifications.filter(
-    (n) => n.severity === "critical" || n.severity === "warning",
+    (n) => !n.isRead && (n.severity === "critical" || n.severity === "warning" || n.severity === "ok" || n.severity === "info" as any)
   ).length;
 
   return (
@@ -424,16 +424,21 @@ export function Topbar({
                 <Link
                   key={notification.id}
                   href={notification.href}
-                  className="block rounded-[var(--radius-sm)] px-3 py-2 transition-colors hover:bg-surface-muted"
+                  className={`block rounded-[var(--radius-sm)] px-3 py-2 transition-colors hover:bg-surface-muted ${notification.isRead ? "opacity-70" : ""}`}
                 >
                   <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <p className="text-[13px] font-medium text-foreground truncate">
-                        {notification.title}
-                      </p>
-                      <p className="mt-0.5 text-[11px] text-muted">
-                        {notification.timeLabel}
-                      </p>
+                    <div className="min-w-0 flex items-center gap-2">
+                      {!notification.isRead && (
+                        <div className="h-2 w-2 shrink-0 rounded-full bg-accent" />
+                      )}
+                      <div>
+                        <p className={`text-[13px] truncate ${notification.isRead ? "font-normal text-muted" : "font-medium text-foreground"}`}>
+                          {notification.title}
+                        </p>
+                        <p className="mt-0.5 text-[11px] text-muted">
+                          {notification.timeLabel}
+                        </p>
+                      </div>
                     </div>
                     <StatusPill label={notification.severity} tone={notification.severity} compact />
                   </div>

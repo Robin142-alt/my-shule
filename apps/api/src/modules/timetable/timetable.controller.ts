@@ -27,4 +27,10 @@ export class TimetableController {
   listPublishedSchedules(@Query() query: Record<string, string | undefined>) {
     return this.timetableService.listPublishedSchedules(query);
   }
+
+  @Get('my-schedule')
+  @Permissions('timetable:read', 'academics:read')
+  getMySchedule(@Query() query: Record<string, string | undefined>) {
+    return this.timetableService.getMySchedule(query);
+  }
 }

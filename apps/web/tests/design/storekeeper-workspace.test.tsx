@@ -55,6 +55,11 @@ function createStorekeeperTestDataset(): StorekeeperDataset {
     transfers: [],
     movements: [],
     processedSubmissionIds: [],
+    returns: [],
+    damagedMissing: [],
+    stocktakeSessions: [],
+    locations: [],
+    notifications: [],
   };
 }
 

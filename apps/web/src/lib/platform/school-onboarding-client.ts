@@ -5,6 +5,7 @@ import {
   sortModuleCatalog,
   type ModuleRegistryItem,
 } from "@/lib/module-access/module-access-map";
+import { DashboardApi } from "@/lib/client/dashboard-api";
 
 export type PlatformSchool = {
   tenant_id: string;
@@ -12,7 +13,7 @@ export type PlatformSchool = {
   subdomain: string;
   status: "active" | "inactive";
   invitation_sent: boolean;
-  invitation_status: "sent" | "queued" | "failed" | "blocked";
+  invitation_status: "sent" | "queued" | "failed" | "blocked" | "accepted" | null;
   invitation_message: string;
   invitation_failure_code?: string;
   invitation_failure_reason?: string;
@@ -234,6 +235,19 @@ export async function createPlatformSchool(input: {
     }),
   });
   const payload = await parsePlatformResponse<PlatformSchool>(response);
+  if (!payload || !('tenant_id' in payload)) throw new Error("Failed to create school");
+
+  // Dispatch workflow event
+  try {
+    await DashboardApi.createEvent({
+      event_type: 'SCHOOL_CREATED',
+      entity_type: 'school',
+      entity_id: payload.tenant_id,
+      module_name: 'superadmin',
+      action_name: 'create_school',
+      metadata: { schoolName: payload.school_name }
+    });
+  } catch (e) { console.error('Failed to dispatch event', e); }
 
   return payload as PlatformSchool;
 }
@@ -260,6 +274,18 @@ export async function updatePlatformSchoolModules(input: {
     response,
     "Unable to update school modules.",
   );
+
+  // Dispatch workflow event
+  try {
+    await DashboardApi.createEvent({
+      event_type: 'MODULES_UPDATED',
+      entity_type: 'school',
+      entity_id: input.tenantId,
+      module_name: 'superadmin',
+      action_name: 'update_modules',
+      metadata: { moduleCodes: input.moduleCodes }
+    });
+  } catch (e) { console.error('Failed to dispatch event', e); }
 
   return Array.isArray(payload) ? sortModuleCatalog(payload) as PlatformSchoolModuleAccess[] : [];
 }
@@ -290,6 +316,18 @@ export async function updatePlatformSchoolBilling(input: {
     response,
     "Unable to update school billing.",
   );
+
+  // Dispatch workflow event
+  try {
+    await DashboardApi.createEvent({
+      event_type: 'BILLING_UPDATED',
+      entity_type: 'school',
+      entity_id: input.tenantId,
+      module_name: 'superadmin',
+      action_name: 'update_billing',
+      metadata: { state: input.state }
+    });
+  } catch (e) { console.error('Failed to dispatch event', e); }
 
   return payload as PlatformSchool;
 }
@@ -335,6 +373,18 @@ export async function deletePlatformSchool(input: {
   );
   const payload = await parsePlatformResponse<PlatformSchoolDeleteResponse>(response);
 
+  // Dispatch workflow event
+  try {
+    await DashboardApi.createEvent({
+      event_type: 'SCHOOL_DELETED',
+      entity_type: 'school',
+      entity_id: input.tenantId,
+      module_name: 'superadmin',
+      action_name: 'delete_school',
+      metadata: { reason: input.reason }
+    });
+  } catch (e) { console.error('Failed to dispatch event', e); }
+
   return payload as PlatformSchoolDeleteResponse;
 }
 
@@ -359,6 +409,18 @@ export async function hardDeletePlatformSchool(input: {
     },
   );
   const payload = await parsePlatformResponse<PlatformSchoolDeleteResponse>(response);
+
+  // Dispatch workflow event
+  try {
+    await DashboardApi.createEvent({
+      event_type: 'SCHOOL_HARD_DELETED',
+      entity_type: 'school',
+      entity_id: input.tenantId,
+      module_name: 'superadmin',
+      action_name: 'hard_delete_school',
+      metadata: { reason: input.reason }
+    });
+  } catch (e) { console.error('Failed to dispatch event', e); }
 
   return payload as PlatformSchoolDeleteResponse;
 }

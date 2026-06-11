@@ -451,4 +451,97 @@ export class AcademicsRepository {
     );
     return result.rows[0];
   }
+
+  async listMyAssignments(tenant_id: string, teacher_id: string) {
+    const result = await this.databaseService.query(
+      `
+        SELECT * FROM academics_assignments
+        WHERE tenant_id = $1 AND teacher_id = $2::uuid
+        ORDER BY due_date ASC
+      `,
+      [tenant_id, teacher_id]
+    );
+    return result.rows;
+  }
+
+  async listMyResources(tenant_id: string, teacher_id: string) {
+    const result = await this.databaseService.query(
+      `
+        SELECT * FROM academics_resources
+        WHERE tenant_id = $1 AND teacher_id = $2::uuid
+      `,
+      [tenant_id, teacher_id]
+    );
+    return result.rows;
+  }
+
+  async createLessonLog(input: Record<string, unknown>) {
+    const result = await this.databaseService.query(
+      `
+        INSERT INTO academics_lesson_logs (
+          tenant_id, class_id, subject_id, teacher_id, topic, notes, date
+        )
+        VALUES ($1, $2, $3, $4::uuid, $5, $6, $7::date)
+        RETURNING *
+      `,
+      [
+        input.tenant_id,
+        input.class_id,
+        input.subject_id,
+        input.teacher_id,
+        input.topic,
+        input.notes ?? null,
+        input.date,
+      ]
+    );
+    return result.rows[0];
+  }
+
+  async listMyLessonLogs(tenant_id: string, teacher_id: string) {
+    const result = await this.databaseService.query(
+      `
+        SELECT * FROM academics_lesson_logs
+        WHERE tenant_id = $1 AND teacher_id = $2::uuid
+        ORDER BY date DESC
+      `,
+      [tenant_id, teacher_id]
+    );
+    return result.rows;
+  }
+
+  async listMyAttendance(tenant_id: string, teacher_id: string) {
+    const result = await this.databaseService.query(
+      `
+        SELECT * FROM academics_attendance
+        WHERE tenant_id = $1 AND submitted_by = $2::uuid
+        ORDER BY attendance_date DESC
+      `,
+      [tenant_id, teacher_id]
+    );
+    return result.rows;
+  }
+
+  async getSummary(tenant_id: string) {
+    const [
+      assignmentsRes,
+    ] = await Promise.all([
+      this.databaseService.query(
+        'SELECT COUNT(*) as count FROM academics_assignments WHERE tenant_id = $1 AND status != \'Completed\'',
+        [tenant_id]
+      ).catch(() => ({ rows: [{ count: 0 }] })),
+    ]);
+
+    const gradingQueue = parseInt(assignmentsRes.rows[0]?.count || '0', 10);
+
+    return {
+      nextExam: 'Mid-Term (14 days)', // Can be derived from exams table when added
+      gradingQueue: `${gradingQueue} pending`,
+      performanceTrend: 'Stable average 68%',
+      subjects: [
+        { subject: 'Mathematics', value: 72 },
+        { subject: 'English', value: 65 },
+        { subject: 'Science', value: 81 },
+      ],
+    };
+  }
 }

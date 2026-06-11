@@ -328,6 +328,58 @@ export class ExamsSchemaService implements OnModuleInit {
         created_at timestamptz NOT NULL DEFAULT NOW()
       );
 
+      CREATE TABLE IF NOT EXISTS exam_timetable_slots (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        tenant_id text NOT NULL,
+        exam_series_id uuid NOT NULL,
+        assessment_id uuid,
+        date date NOT NULL,
+        start_time time NOT NULL,
+        end_time time NOT NULL,
+        room_name text,
+        status text NOT NULL DEFAULT 'scheduled',
+        created_at timestamptz NOT NULL DEFAULT NOW(),
+        updated_at timestamptz NOT NULL DEFAULT NOW(),
+        CONSTRAINT ck_exam_timetable_slots_time CHECK (end_time > start_time)
+      );
+
+      CREATE TABLE IF NOT EXISTS exam_invigilators (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        tenant_id text NOT NULL,
+        timetable_slot_id uuid NOT NULL,
+        staff_user_id uuid NOT NULL,
+        role text NOT NULL DEFAULT 'invigilator',
+        status text NOT NULL DEFAULT 'assigned',
+        created_at timestamptz NOT NULL DEFAULT NOW(),
+        updated_at timestamptz NOT NULL DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS exam_attendance_records (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        tenant_id text NOT NULL,
+        timetable_slot_id uuid NOT NULL,
+        student_id uuid NOT NULL,
+        status text NOT NULL DEFAULT 'present',
+        remarks text,
+        recorded_by_user_id uuid,
+        created_at timestamptz NOT NULL DEFAULT NOW(),
+        updated_at timestamptz NOT NULL DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS exam_student_cases (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        tenant_id text NOT NULL,
+        exam_series_id uuid NOT NULL,
+        student_id uuid NOT NULL,
+        case_type text NOT NULL,
+        description text NOT NULL,
+        status text NOT NULL DEFAULT 'pending',
+        resolution text,
+        reported_by_user_id uuid,
+        created_at timestamptz NOT NULL DEFAULT NOW(),
+        updated_at timestamptz NOT NULL DEFAULT NOW()
+      );
+
       CREATE INDEX IF NOT EXISTS ix_exam_marks_subject_scope
         ON exam_marks (tenant_id, exam_series_id, academic_term_id, class_section_id, subject_id);
       CREATE INDEX IF NOT EXISTS ix_exam_marks_student
@@ -380,6 +432,14 @@ export class ExamsSchemaService implements OnModuleInit {
       ALTER TABLE student_report_card_audit_logs FORCE ROW LEVEL SECURITY;
       ALTER TABLE exam_mark_audit_logs ENABLE ROW LEVEL SECURITY;
       ALTER TABLE exam_mark_audit_logs FORCE ROW LEVEL SECURITY;
+      ALTER TABLE exam_timetable_slots ENABLE ROW LEVEL SECURITY;
+      ALTER TABLE exam_timetable_slots FORCE ROW LEVEL SECURITY;
+      ALTER TABLE exam_invigilators ENABLE ROW LEVEL SECURITY;
+      ALTER TABLE exam_invigilators FORCE ROW LEVEL SECURITY;
+      ALTER TABLE exam_attendance_records ENABLE ROW LEVEL SECURITY;
+      ALTER TABLE exam_attendance_records FORCE ROW LEVEL SECURITY;
+      ALTER TABLE exam_student_cases ENABLE ROW LEVEL SECURITY;
+      ALTER TABLE exam_student_cases FORCE ROW LEVEL SECURITY;
 
       DROP POLICY IF EXISTS exam_series_tenant_policy ON exam_series;
       CREATE POLICY exam_series_tenant_policy ON exam_series
@@ -458,6 +518,26 @@ export class ExamsSchemaService implements OnModuleInit {
 
       DROP POLICY IF EXISTS exam_mark_audit_logs_tenant_policy ON exam_mark_audit_logs;
       CREATE POLICY exam_mark_audit_logs_tenant_policy ON exam_mark_audit_logs
+      FOR ALL USING (tenant_id = current_setting('app.tenant_id', true))
+      WITH CHECK (tenant_id = current_setting('app.tenant_id', true));
+
+      DROP POLICY IF EXISTS exam_timetable_slots_tenant_policy ON exam_timetable_slots;
+      CREATE POLICY exam_timetable_slots_tenant_policy ON exam_timetable_slots
+      FOR ALL USING (tenant_id = current_setting('app.tenant_id', true))
+      WITH CHECK (tenant_id = current_setting('app.tenant_id', true));
+
+      DROP POLICY IF EXISTS exam_invigilators_tenant_policy ON exam_invigilators;
+      CREATE POLICY exam_invigilators_tenant_policy ON exam_invigilators
+      FOR ALL USING (tenant_id = current_setting('app.tenant_id', true))
+      WITH CHECK (tenant_id = current_setting('app.tenant_id', true));
+
+      DROP POLICY IF EXISTS exam_attendance_records_tenant_policy ON exam_attendance_records;
+      CREATE POLICY exam_attendance_records_tenant_policy ON exam_attendance_records
+      FOR ALL USING (tenant_id = current_setting('app.tenant_id', true))
+      WITH CHECK (tenant_id = current_setting('app.tenant_id', true));
+
+      DROP POLICY IF EXISTS exam_student_cases_tenant_policy ON exam_student_cases;
+      CREATE POLICY exam_student_cases_tenant_policy ON exam_student_cases
       FOR ALL USING (tenant_id = current_setting('app.tenant_id', true))
       WITH CHECK (tenant_id = current_setting('app.tenant_id', true));
     `);

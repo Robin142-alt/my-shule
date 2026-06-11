@@ -1,3 +1,10 @@
+import { CreateEnquiryDto } from './dto/create-enquiry.dto';
+import { CreateInterviewDto } from './dto/create-interview.dto';
+import { CreateOfferDto } from './dto/create-offer.dto';
+import { CreateAppointmentDto } from './dto/create-appointment.dto';
+import { CreateTaskDto } from './dto/create-task.dto';
+import { CreateTemplateDto } from './dto/create-template.dto';
+
 import {
   BadRequestException,
   Injectable,
@@ -18,6 +25,7 @@ import { UploadMalwareScanService } from '../../common/uploads/upload-malware-sc
 import { validateUploadedFile } from '../../common/uploads/upload-policy';
 import { DatabaseService } from '../../database/database.service';
 import { EventPublisherService } from '../events/event-publisher.service';
+import { SchoolOperationalEventsService } from '../events/school-operational-events.service';
 import { CreateApplicationDto, UpdateApplicationDto } from './dto/create-application.dto';
 import { ListAdmissionsQueryDto } from './dto/list-admissions-query.dto';
 import {
@@ -177,6 +185,7 @@ export class AdmissionsService {
     private readonly studentsService: StudentsService,
     @Optional() private readonly tenantInvitationsService?: TenantInvitationsService,
     @Optional() private readonly eventPublisher?: EventPublisherService,
+    @Optional() private readonly schoolOperationalEventsService?: SchoolOperationalEventsService,
     @Optional() private readonly uploadMalwareScan?: UploadMalwareScanService,
   ) {}
 
@@ -421,6 +430,39 @@ export class AdmissionsService {
         student.id,
         dto.class_name.trim(),
       );
+
+      if (this.schoolOperationalEventsService) {
+        await this.schoolOperationalEventsService.recordSchoolOperation({
+          schoolId: tenantId,
+          event: {
+            id: randomUUID(),
+            type: 'admission.application.registered',
+            module: 'admissions',
+            actorRole: 'admissions',
+            title: 'Application Registered',
+            body: `Admission application for ${application.full_name} has been completed.`,
+            entityId: application.id,
+            severity: 'success',
+            payload: {
+              application_id: application.id,
+              student_id: student.id,
+              admission_number: dto.admission_number,
+              class_name: dto.class_name,
+            },
+          },
+          notifications: [
+            {
+              audienceRoles: ['finance', 'principal'],
+              title: 'Fee Collection Required',
+              body: `Registration fees for newly admitted student ${application.full_name} (${dto.admission_number}) require collection.`,
+              requiresAction: true,
+              type: 'fee_collection',
+              severity: 'warning',
+              actionUrl: `/finance/fee-collection?studentId=${student.id}`,
+            },
+          ],
+        }).catch(() => undefined);
+      }
 
       return {
         student,
@@ -1086,5 +1128,29 @@ export class AdmissionsService {
     }
 
     return candidate;
+  }
+
+  async createEnquiry(tenantId: string, dto: CreateEnquiryDto, userId: string) {
+    throw new Error('Method not implemented.');
+  }
+
+  async createInterview(tenantId: string, dto: CreateInterviewDto) {
+    throw new Error('Method not implemented.');
+  }
+
+  async createOffer(tenantId: string, dto: CreateOfferDto) {
+    throw new Error('Method not implemented.');
+  }
+
+  async createAppointment(tenantId: string, dto: CreateAppointmentDto) {
+    throw new Error('Method not implemented.');
+  }
+
+  async createTask(tenantId: string, dto: CreateTaskDto) {
+    throw new Error('Method not implemented.');
+  }
+
+  async createTemplate(tenantId: string, dto: CreateTemplateDto, userId: string) {
+    throw new Error('Method not implemented.');
   }
 }

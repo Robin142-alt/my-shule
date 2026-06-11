@@ -18,8 +18,7 @@ export default async function SuperadminSectionPage({
     notFound();
   }
 
-  const mappedSection =
-    section === "tenants" ? "schools" : (section as SuperadminSection);
+  const mappedSection = section as SuperadminSection;
 
   return <SuperadminPages section={mappedSection} routeMode="public" />;
 }

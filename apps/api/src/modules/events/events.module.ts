@@ -4,6 +4,20 @@ import { OperationalWorkflowCompletedConsumer } from './consumers/operational-wo
 import { OperationalWorkflowDispatchedConsumer } from './consumers/operational-workflow-dispatched.consumer';
 import { OperationalWorkflowExecutionConsumer } from './consumers/operational-workflow-execution.consumer';
 import { PaymentCompletedConsumer } from './consumers/payment-completed.consumer';
+import { BoardingEventConsumer } from './consumers/boarding-event.consumer';
+import { TransportEventConsumer } from './consumers/transport-event.consumer';
+import { CounsellingEventConsumer } from './consumers/counselling-event.consumer';
+import { ProcurementEventConsumer } from './consumers/procurement-event.consumer';
+import { LabEventConsumer } from './consumers/lab-event.consumer';
+import { AssetEventConsumer } from './consumers/asset-event.consumer';
+import { AttendanceMarkedConsumer } from './consumers/attendance-marked.consumer';
+import { DisciplineIncidentConsumer } from './consumers/discipline-incident.consumer';
+import { WelfareCaseConsumer } from './consumers/welfare-case.consumer';
+import { ApprovalChainService } from './approval-chain.service';
+import { NotificationRouterController } from './notification-router.controller';
+import { NotificationRouterService } from './notification-router.service';
+import { AuditTrailController } from './audit-trail.controller';
+import { AuditTrailService } from './audit-trail.service';
 import { DashboardRealtimeController } from './dashboard-realtime.controller';
 import { DashboardRealtimeService } from './dashboard-realtime.service';
 import { OperationalWorkflowDispatcherController } from './operational-workflow-dispatcher.controller';
@@ -22,12 +36,15 @@ import { AuditLogsRepository } from './repositories/audit-logs.repository';
 import { EventConsumerRunsRepository } from './repositories/event-consumer-runs.repository';
 import { OutboxEventsRepository } from './repositories/outbox-events.repository';
 import { SchoolOperationNotificationsRepository } from './repositories/school-operation-notifications.repository';
+import { WorkflowRepository } from './repositories/workflow.repository';
 
 @Module({
   controllers: [
     DashboardRealtimeController,
     OperationalWorkflowDispatcherController,
     SchoolOperationalEventsController,
+    NotificationRouterController,
+    AuditTrailController,
   ],
   providers: [
     EventsSchemaService,
@@ -49,6 +66,19 @@ import { SchoolOperationNotificationsRepository } from './repositories/school-op
     OperationalWorkflowExecutionConsumer,
     StudentCreatedConsumer,
     PaymentCompletedConsumer,
+    BoardingEventConsumer,
+    TransportEventConsumer,
+    CounsellingEventConsumer,
+    ProcurementEventConsumer,
+    LabEventConsumer,
+    AssetEventConsumer,
+    AttendanceMarkedConsumer,
+    DisciplineIncidentConsumer,
+    WelfareCaseConsumer,
+    WorkflowRepository,
+    ApprovalChainService,
+    NotificationRouterService,
+    AuditTrailService,
   ],
   exports: [
     EventPublisherService,
@@ -58,6 +88,10 @@ import { SchoolOperationNotificationsRepository } from './repositories/school-op
     OperationalWorkflowDispatcherService,
     SchoolOperationalEventsService,
     SchoolOperationNotificationsRepository,
+    WorkflowRepository,
+    ApprovalChainService,
+    NotificationRouterService,
+    AuditTrailService,
   ],
 })
 export class EventsModule {}

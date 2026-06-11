@@ -1,0 +1,261 @@
+<USER_REQUEST>
+Below is a **production-ready MyShule workspace structure blueprint**. It is designed so that **every sidebar item opens a real workspace**, not decorative cards. Each workspace includes **task area, buttons, actions, tables, forms, reports, downloads, permissions, audit logs, and cross-role effects**.
+
+---
+
+# MyShule Role Dashboard + Sidebar Workspace Blueprint
+
+## 0. Global Rule for Every Workspace
+
+Every sidebar workspace in every role dashboard must follow this structure:
+
+### A. Workspace Header
+
+Each page must have:
+
+**Title:** clear role-specific name
+**Description:** what this workspace helps the user do
+**Context bar:** school name, academic year, term, week/date, user role, scope
+**Permission badge:** full access, view-only, restricted, approval required
+**Module status:** active, locked, pending setup, disabled by Super Admin
+
+Example:
+
+> **Learner Attendance**
+> Mark daily attendance, track absenteeism, notify parents, and generate attendance reports.
+> Context: Term 2, 2026 · Grade 7 Blue · Class Teacher Scope
+
+---
+
+### B. Summary Cards
+
+Every workspace should have 3–6 useful cards backed by real database queries.
+
+Examples:
+
+* Total learners
+* Pending approvals
+* Today’s absentees
+* Unpaid invoices
+* Low stock items
+* Sick bay visits today
+* Books overdue
+* Visitors currently inside school
+* Exams awaiting moderation
+* Reports ready for publishing
+
+Cards must have:
+
+* Real values from API
+* Loading skeleton
+* Empty state
+* Error state with retry
+* Click action where useful
+
+---
+
+### C. Main Work Area
+
+Every workspace must have the actual workflow tool:
+
+* Table
+* Form
+* Calendar
+* Kanban board
+* Queue
+* Report builder
+* Wizard
+* Detail drawer
+* Approval panel
+* Print preview
+* Upload/import area
+* Bulk action toolbar
+
+No workspace should only show cards.
+
+---
+
+### D. Standard Buttons
+
+Every workspace should use clear action buttons.
+
+Common buttons:
+
+* **Create**
+* **Add New**
+* **Save**
+* **Sav
+<truncated 45214 bytes>
+er
+
+Buttons:
+
+* Register Visitor
+* Quick Entry
+* Check Out
+* Print Pass
+* Mark Frequent Visitor
+
+Form:
+
+* Name
+* Phone
+* ID optional
+* Purpose
+* Person to see
+* Vehicle plate optional
+* Time in
+
+---
+
+## 20.2 Student Exit Passes
+
+Buttons:
+
+* Verify Pass
+* Approve Gate Exit if permitted
+* Deny Exit
+* Notify Deputy
+* Print Exit Log
+
+Table:
+
+* Student
+* Class
+* Reason
+* Approved by
+* Time out
+* Expected return
+* Status
+
+---
+
+# 21. Transport Manager Dashboard
+
+## Sidebar Items
+
+1. Overview
+2. Routes
+3. Vehicles
+4. Drivers
+5. Student Transport List
+6. Trips
+7. Fuel & Maintenance
+8. Reports
+
+---
+
+## 21.1 Routes
+
+Buttons:
+
+* Add Route
+* Add Stop
+* Assign Vehicle
+* Assign Driver
+* Export Routes
+
+Table:
+
+* Route
+* Stops
+* Vehicle
+* Driver
+* Students
+* Status
+* Actions
+
+---
+
+## 21.2 Vehicles
+
+Buttons:
+
+* Add Vehicle
+* Update Insurance
+* Update Service Date
+* Mark Under Maintenance
+* Export Vehicle List
+
+---
+
+## 21.3 Student Transport List
+
+Buttons:
+
+* Add Student to Route
+* Remove Student
+* Change Stop
+* Notify Parent
+* Download Bus List
+
+---
+
+# 22. Laboratory Technician Dashboard
+
+## Sidebar Items
+
+1. Overview
+2. Lab Inventory
+3. Apparatus Issue
+4. Chemicals
+5. Lab Timetable
+6. Safety Incidents
+7. Reports
+
+---
+
+## 22.1 Lab Inventory
+
+Buttons:
+
+* Add Apparatus
+* Add Chemical
+* Update Stock
+* Mark Damaged
+* Mark Missing
+* Export Inventory
+
+Table:
+
+* Item
+* Category
+* Quantity
+* Condition
+* Location
+* Status
+* Actions
+
+---
+
+## 22.2 Apparatus Issue
+
+Buttons:
+
+* Issue Apparatus
+* Return Apparatus
+* Mark Broken
+* Print Issue Slip
+
+Form:
+
+* Teacher
+* Class
+* Practical
+* Items
+* Quantity
+* Condition out/in
+
+---
+
+## 22.3 Chemicals
+
+Buttons:
+
+* Add Chemical
+* Update Quantity
+* Mark Expired
+* Print Chemical Regis
+<truncated 7227 bytes>
+
+NOTE: The output was truncated because it was too long. Use a more targeted query or a smaller range to get the information you need.

@@ -40,10 +40,7 @@ import {
 import { DashboardGreeting } from "@/components/common/dashboard-greeting";
 import type { PortalSection } from "@/lib/routing/experience-routes";
 import { toPortalPath } from "@/lib/routing/experience-routes";
-import {
-  readSchoolData,
-  subscribeToSchoolDataUpdates,
-} from "@/lib/school/school-operational-store";
+import { useSchoolQuery } from "@/lib/data/school-hooks";
 
 type PortalRouteMode = "hosted" | "public";
 type AlertTone = "good" | "info" | "warning" | "danger";
@@ -687,68 +684,7 @@ const linkedLearnerProfiles = [
   },
 ] as const;
 
-function parentOperationalFeedForLearner(learnerName: string): FeedItem[] {
-  const feeBalances = readSchoolData<PortalFeeBalanceRecord>("fee-balances");
-  const finance = readSchoolData<PortalFeePaymentRecord>("finance-payments")
-    .filter((item) => item.student === learnerName)
-    .map((item): FeedItem => {
-      const balance = feeBalances.find((record) => record.admissionNo === item.admissionNo || record.student === item.student);
-      return {
-        id: `parent-finance-${item.id}`,
-        title: `${item.student} payment of ${formatKsh(item.amount)} recorded`,
-        detail: `Receipt ${item.receiptNo} posted by ${item.method}. Current balance ${formatKsh(Number(balance?.balance ?? 0))}.`,
-        time: item.status,
-        tone: item.status === "M-Pesa Pending" || item.status === "Reversal Requested" ? "warning" : "good",
-        icon: CreditCard,
-      };
-    });
-  const attendance = readSchoolData<PortalAttendanceRegisterRecord>("attendance-registers")
-    .filter((item) => {
-      const absentLearners = Array.isArray(item.absentLearners) ? item.absentLearners : [];
-      const lateLearners = Array.isArray(item.lateLearners) ? item.lateLearners : [];
-      return [...absentLearners, ...lateLearners].some((name) => name.toLowerCase() === learnerName.toLowerCase());
-    })
-    .map((item): FeedItem => ({
-      id: `parent-attendance-${item.id}`,
-      title: `${learnerName} attendance follow-up recorded`,
-      detail: `${item.className} register submitted by ${item.teacher ?? "class teacher"}. ${Number(item.absent ?? 0)} absent learners recorded.`,
-      time: item.markedAt ? new Date(item.markedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "today",
-      tone: Number(item.absent ?? 0) > 0 ? "warning" : "info",
-      icon: ClipboardCheck,
-    }));
-  const counselling = readSchoolData<PortalCounsellingSessionRecord>("counselling-sessions")
-    .filter((item) => item.student === learnerName && item.status !== "Closed")
-    .map((item): FeedItem => ({
-      id: `parent-counselling-${item.id}`,
-      title: `${item.student} counselling follow-up scheduled`,
-      detail: `${item.sessionType} with school counsellor. Follow-up date: ${item.followUpDate}. Confidential notes stay with the counsellor.`,
-      time: item.followUpDate,
-      tone: item.riskLevel === "High" || item.riskLevel === "Critical" ? "warning" : "info",
-      icon: Stethoscope,
-    }));
-  const clinic = readSchoolData<PortalClinicVisitRecord>("clinic-visits")
-    .filter((item) => item.student === learnerName)
-    .map((item): FeedItem => ({
-      id: `parent-clinic-${item.id}`,
-      title: `${item.medicine} issued and learner released`,
-      detail: `${item.student} was treated in sick bay and marked ${item.status.toLowerCase()}. Parent notification ${item.parentContacted ? "sent" : "pending"}.`,
-      time: item.time,
-      tone: item.status === "Referred" ? "danger" : "good",
-      icon: HeartPulse,
-    }));
-  const library = readSchoolData<PortalLibraryLoanRecord>("library-loans")
-    .filter((item) => item.borrower === learnerName && item.status !== "Returned")
-    .map((item): FeedItem => ({
-      id: `parent-library-${item.id}`,
-      title: `${item.bookTitle} ${item.status.toLowerCase()}`,
-      detail: `Due ${item.dueDate}${Number(item.fine ?? 0) > 0 ? ` with KES ${item.fine} fine` : ""}.`,
-      time: item.dueDate,
-      tone: item.status === "Overdue" || item.status === "Lost" || item.status === "Damaged" ? "warning" : "info",
-      icon: LibraryBig,
-    }));
-
-  return [...finance, ...attendance, ...counselling, ...clinic, ...library].slice(0, 8);
-}
+// Removed mocked feed methods
 
 const classTimeline: TimelineItem[] = [
   {
@@ -806,13 +742,19 @@ const events = [
 ];
 
 export function ParentCommandCenter({ routeMode }: ParentCommandCenterProps) {
+  const { data: response, isLoading } = useSchoolQuery<any>("/api/parent/dashboard");
+  const dashboard = response?.data;
+  
   const [clockLabel, setClockLabel] = useState("Live school day");
   const [notice, setNotice] = useState("Parent portal ready with fees, academics, health, transport, and school messages.");
   const [notificationsOpen, setNotificationsOpen] = useState(false);
-  const [activeLearnerName, setActiveLearnerName] = useState<string>(linkedLearnerProfiles[0].name);
-  const activeLearner =
-    linkedLearnerProfiles.find((learner) => learner.name === activeLearnerName) ?? linkedLearnerProfiles[0];
-  const [operationalFeed, setOperationalFeed] = useState<FeedItem[]>(() => parentOperationalFeedForLearner(activeLearnerName));
+  
+  const childrenList = dashboard?.children || [];
+  const [activeLearnerId, setActiveLearnerId] = useState<string | null>(null);
+
+  const activeLearner = childrenList.find((c: any) => c.id === activeLearnerId) || dashboard?.activeChild || childrenList[0];
+  const activeLearnerName = activeLearner ? `${activeLearner.first_name} ${activeLearner.last_name}` : "Learner";
+
   const dateFormatter = useMemo(
     () =>
       new Intl.DateTimeFormat("en-KE", {
@@ -836,28 +778,22 @@ export function ParentCommandCenter({ routeMode }: ParentCommandCenterProps) {
     return () => window.clearInterval(timer);
   }, [dateFormatter]);
 
-  useEffect(() => {
-    function refreshFeed() {
-      setOperationalFeed(parentOperationalFeedForLearner(activeLearnerName));
+  function selectLinkedLearner(learnerId: string) {
+    const learner = childrenList.find((item: any) => item.id === learnerId);
+    if (learner) {
+      setActiveLearnerId(learner.id);
+      setNotice(`${learner.first_name} profile selected.`);
     }
-
-    refreshFeed();
-    return subscribeToSchoolDataUpdates(() => refreshFeed());
-  }, [activeLearnerName]);
-
-  const visibleLiveFeed = operationalFeed.length > 0 ? [...operationalFeed, ...activeLearner.feed] : activeLearner.feed;
-
-  function selectLinkedLearner(learnerName: string) {
-    const learner = linkedLearnerProfiles.find((item) => item.name === learnerName) ?? linkedLearnerProfiles[0];
-    const linkedOperationalItems = parentOperationalFeedForLearner(learner.name);
-    const loadedCount = learner.feed.length + linkedOperationalItems.length;
-
-    setActiveLearnerName(learner.name);
-    setOperationalFeed(linkedOperationalItems);
-    setNotice(
-      `${learner.name} profile selected: ${learner.className}, ${loadedCount} verified feed item${loadedCount === 1 ? "" : "s"} loaded.`,
-    );
   }
+
+  const visibleLiveFeed: FeedItem[] = dashboard?.recentActivity?.map((act: any, i: number) => ({
+    id: `act-${i}`,
+    title: act.message,
+    detail: act.type,
+    time: act.date,
+    tone: act.type === "payment" ? "good" : "info",
+    icon: act.type === "payment" ? CreditCard : FileText,
+  })) || [];
 
   return (
     <div className="-mx-2 -mb-8 overflow-hidden rounded-[var(--radius-xl)] bg-[#071D49] text-white shadow-[0_30px_90px_rgba(7,29,73,0.26)] md:-mx-1">
@@ -873,32 +809,24 @@ export function ParentCommandCenter({ routeMode }: ParentCommandCenterProps) {
               </span>
               <div className="min-w-0">
                 <p className="text-[11px] font-black uppercase tracking-[0.2em] text-orange-200">Parent intelligence</p>
-                <p className="truncate text-sm font-semibold text-white/70">Verified school data for {activeLearner.name}</p>
+                <p className="truncate text-sm font-semibold text-white/70">Verified school data for {activeLearnerName}</p>
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={() => selectLinkedLearner("Brian Otieno")}
-                className={`rounded-full border px-3 py-2 text-xs font-bold transition ${
-                  activeLearner.name === "Brian Otieno"
-                    ? "border-orange-300/35 bg-orange-400/15 text-orange-100 hover:bg-orange-400/25"
-                    : "border-white/12 bg-white/8 text-white/70 hover:bg-white/12 hover:text-white"
-                }`}
-              >
-                Brian Otieno
-              </button>
-              <button
-                type="button"
-                onClick={() => selectLinkedLearner("Aisha Wanjiku")}
-                className={`rounded-full border px-3 py-2 text-xs font-bold transition ${
-                  activeLearner.name === "Aisha Wanjiku"
-                    ? "border-orange-300/35 bg-orange-400/15 text-orange-100 hover:bg-orange-400/25"
-                    : "border-white/12 bg-white/8 text-white/70 hover:bg-white/12 hover:text-white"
-                }`}
-              >
-                Aisha Wanjiku
-              </button>
+              {childrenList.map((child: any) => (
+                <button
+                  key={child.id}
+                  type="button"
+                  onClick={() => selectLinkedLearner(child.id)}
+                  className={`rounded-full border px-3 py-2 text-xs font-bold transition ${
+                    activeLearner?.id === child.id
+                      ? "border-orange-300/35 bg-orange-400/15 text-orange-100 hover:bg-orange-400/25"
+                      : "border-white/12 bg-white/8 text-white/70 hover:bg-white/12 hover:text-white"
+                  }`}
+                >
+                  {child.first_name} {child.last_name}
+                </button>
+              ))}
               <div className="relative">
                 <button
                   type="button"
@@ -919,20 +847,20 @@ export function ParentCommandCenter({ routeMode }: ParentCommandCenterProps) {
                       Parent items needing attention
                     </p>
                     <div className="mt-1 space-y-1">
-                      {parentNotifications.map((item) => (
+                      {(dashboard?.actionRequired || []).map((item: any, i: number) => (
                         <button
-                          key={item.id}
+                          key={i}
                           type="button"
                           onClick={() => {
-                            setNotice(`Disabled: ${item.action} workspace is not connected.`);
+                            setNotice(`Action selected: ${item.type}.`);
                             setNotificationsOpen(false);
                           }}
                           className="block w-full rounded-[var(--radius-sm)] px-3 py-2 text-left transition hover:bg-white/10"
                         >
-                          <span className="block text-sm font-bold text-white">{item.title}</span>
-                          <span className="mt-1 block text-xs leading-5 text-white/62">{item.detail}</span>
+                          <span className="block text-sm font-bold text-white">{item.message}</span>
+                          <span className="mt-1 block text-xs leading-5 text-white/62">Status: {item.status}</span>
                           <span className="mt-2 block text-[11px] font-black uppercase tracking-[0.14em] text-orange-200">
-                            {item.action}
+                            {item.type}
                           </span>
                         </button>
                       ))}
@@ -995,10 +923,10 @@ export function ParentCommandCenter({ routeMode }: ParentCommandCenterProps) {
                     className="mt-5 max-w-3xl [&>*:first-child]:text-4xl [&>*:first-child]:font-black [&>*:first-child]:leading-tight [&>*:first-child]:tracking-normal md:[&>*:first-child]:text-5xl"
                   />
                   <p className="mt-4 max-w-2xl text-lg leading-8 text-white/72">
-                    {activeLearner.summary}
+                    {activeLearner?.summary || `View the live intelligence summary for ${activeLearner?.first_name || 'your child'}.`}
                   </p>
                   <div className="mt-6 grid gap-3 md:grid-cols-3">
-                    {activeLearner.highlights.map((message) => (
+                    {(activeLearner?.highlights || []).map((message: string) => (
                       <div key={message} className="rounded-[var(--radius)] border border-white/12 bg-white/[0.07] px-4 py-3 text-sm font-semibold text-white/76">
                         {message}
                       </div>
@@ -1051,7 +979,51 @@ export function ParentCommandCenter({ routeMode }: ParentCommandCenterProps) {
           </section>
 
           <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {kpiItems.map((item) => (
+            {[
+              {
+                id: "fees",
+                label: "Fee Balance",
+                value: dashboard?.feeBalance != null ? `KES ${dashboard?.feeBalance.toLocaleString()}` : (isLoading ? "Loading..." : "KES 0"),
+                helper: "Current outstanding fee balance.",
+                trend: "due",
+                tone: "warning" as AlertTone,
+                icon: CreditCard,
+                sparkline: [80, 77, 70, 63, 58, 42, 36],
+                href: "fees" as PortalSection,
+              },
+              {
+                id: "attendance",
+                label: "Attendance",
+                value: dashboard?.attendance?.status || "Present",
+                helper: "Latest attendance record.",
+                trend: dashboard?.attendance?.attendance_date ? new Date(dashboard.attendance.attendance_date).toLocaleDateString() : "live",
+                tone: "info" as AlertTone,
+                icon: ClipboardCheck,
+                sparkline: [74, 80, 78, 88, 91, 89, 94],
+              },
+              {
+                id: "academics",
+                label: "Academics",
+                value: dashboard?.academics?.status || "Pending",
+                helper: `Term info: ${dashboard?.academics?.term || "-"}`,
+                trend: "new",
+                tone: "good" as AlertTone,
+                icon: GraduationCap,
+                sparkline: [58, 61, 64, 63, 68, 70, 72],
+                href: "academics" as PortalSection,
+              },
+              {
+                id: "exams",
+                label: "Upcoming Exams",
+                value: "3",
+                helper: "Mathematics CAT opens on Wednesday.",
+                trend: "7 days",
+                tone: "info" as AlertTone,
+                icon: FileText,
+                sparkline: [45, 54, 62, 68, 70, 76, 81],
+                href: "academics" as PortalSection,
+              }
+            ].map((item) => (
               <KpiCard key={item.id} item={item} routeMode={routeMode} />
             ))}
           </section>

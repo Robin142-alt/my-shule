@@ -59,6 +59,7 @@ export const schoolRoleGreetingNames: Record<SchoolExperienceRole, string> = {
   "guidance-counselling": "Counselor",
   "discipline-master": "Discipline Master",
   admissions: "Admissions Officer",
+  "procurement-officer": "Procurement Officer",
 };
 
 export function getSchoolRoleGreetingName(role: SchoolExperienceRole) {

@@ -62,6 +62,10 @@ import { TransportModule } from './modules/transport/transport.module';
 import { VisitorsModule } from './modules/visitors/visitors.module';
 import { OperationsModule } from './modules/operations/operations.module';
 import { CommunicationModule } from './modules/communication/communication.module';
+import { ParentPortalModule } from './parent-portal/parent-portal.module';
+import { DashboardModule } from './modules/dashboard/dashboard.module';
+import { GradeMasterModule } from './modules/grade-master/grade-master.module';
+import { ClassTeacherModule } from './modules/class-teacher/class-teacher.module';
 
 @Module({
   imports: [
@@ -97,6 +101,7 @@ import { CommunicationModule } from './modules/communication/communication.modul
     DisciplineModule,
     LabsModule,
     AdminCommandModule,
+    DashboardModule,
     AiInsightsModule,
     AssetsModule,
     BiometricAttendanceModule,
@@ -117,6 +122,9 @@ import { CommunicationModule } from './modules/communication/communication.modul
     ComplianceModule,
     OperationsModule,
     CommunicationModule,
+    ParentPortalModule,
+    GradeMasterModule,
+    ClassTeacherModule,
   ],
   providers: [
     {

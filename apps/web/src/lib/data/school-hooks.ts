@@ -32,12 +32,13 @@ interface SchoolQueryOptions<T>
  * Reusable data fetching hook scoped to the active tenant/school.
  * Enforces `tenantId` in the queryKey.
  */
-export function useSchoolQuery<T>(path: string, options?: SchoolQueryOptions<T>) {
+export function useSchoolQuery<T>(path: string | null, options?: SchoolQueryOptions<T>) {
   const activeTenantId = options?.tenantId || getCurrentSchoolId();
 
   return useQuery<T, Error>({
     queryKey: ["school", activeTenantId, path],
     queryFn: async () => {
+      if (!path) return null as T;
       if (!activeTenantId) {
         throw new Error("Missing active school context");
       }

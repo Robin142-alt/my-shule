@@ -21,6 +21,12 @@ export class AuthContextMiddleware implements NestMiddleware {
 
   async use(request: Request, _response: Response, next: NextFunction): Promise<void> {
     try {
+      const requestContext = this.requestContext.requireStore();
+      const audience = this.resolveAudience(request);
+      const expectedTenantId = audience === 'superadmin' ? null : requestContext.tenant_id;
+
+
+
       const accessToken = this.authService.extractBearerToken(request);
 
       if (!accessToken) {
@@ -28,45 +34,9 @@ export class AuthContextMiddleware implements NestMiddleware {
         return;
       }
 
-      const requestContext = this.requestContext.requireStore();
-
-      const audience = this.resolveAudience(request);
-      const expectedTenantId = audience === 'superadmin' ? null : requestContext.tenant_id;
-
-      if (!requestContext.tenant_id && expectedTenantId !== null) {
-        throw new UnauthorizedException('Tenant context is required before authentication');
-      }
-
-      if (accessToken.startsWith(MONITORING_TOKEN_PREFIX)) {
-        if (!expectedTenantId) {
-          throw new UnauthorizedException('Monitoring tokens require tenant context');
-        }
-
-        if (!this.isReadOnlyRequest(request.method)) {
-          throw new ForbiddenException('Monitoring tokens are read-only');
-        }
-
-        const principal = await this.monitoringServiceAccountService.verifyToken(
-          accessToken,
-          expectedTenantId,
-        );
-
-        this.requestContext.setUserId(principal.user_id);
-        this.requestContext.setAudience(principal.audience);
-        this.requestContext.setRole(principal.role);
-        this.requestContext.setSessionId(principal.session_id);
-        this.requestContext.setPermissions(principal.permissions);
-        this.requestContext.setAuthenticated(principal.is_authenticated);
-
-        await this.databaseService.synchronizeRequestSession(this.requestContext.requireStore());
-
-        next();
-        return;
-      }
-
       const principal = await this.authService.authenticateAccessToken(
-        accessToken,
-        expectedTenantId,
+        accessToken as string,
+        expectedTenantId ?? null,
         audience,
       );
 

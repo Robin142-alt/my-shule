@@ -5,6 +5,9 @@ import { OperationalWorkflowDispatchedConsumer } from './consumers/operational-w
 import { OperationalWorkflowExecutionConsumer } from './consumers/operational-workflow-execution.consumer';
 import { PaymentCompletedConsumer } from './consumers/payment-completed.consumer';
 import { StudentCreatedConsumer } from './consumers/student-created.consumer';
+import { AttendanceMarkedConsumer } from './consumers/attendance-marked.consumer';
+import { DisciplineIncidentConsumer } from './consumers/discipline-incident.consumer';
+import { WelfareCaseConsumer } from './consumers/welfare-case.consumer';
 import { EventConsumerDescriptor, SupportedDomainEventName } from './events.types';
 
 @Injectable()
@@ -20,12 +23,18 @@ export class EventConsumerRegistryService {
     operationalWorkflowDispatchedConsumer: OperationalWorkflowDispatchedConsumer,
     operationalWorkflowExecutionConsumer: OperationalWorkflowExecutionConsumer,
     operationalWorkflowCompletedConsumer: OperationalWorkflowCompletedConsumer,
+    attendanceMarkedConsumer: AttendanceMarkedConsumer,
+    disciplineIncidentConsumer: DisciplineIncidentConsumer,
+    welfareCaseConsumer: WelfareCaseConsumer,
   ) {
     this.register(studentCreatedConsumer);
     this.register(paymentCompletedConsumer);
     this.register(operationalWorkflowDispatchedConsumer);
     this.register(operationalWorkflowExecutionConsumer);
     this.register(operationalWorkflowCompletedConsumer);
+    this.register(attendanceMarkedConsumer);
+    this.register(disciplineIncidentConsumer);
+    this.register(welfareCaseConsumer);
   }
 
   getConsumersForEvent(eventName: SupportedDomainEventName): EventConsumerDescriptor[] {

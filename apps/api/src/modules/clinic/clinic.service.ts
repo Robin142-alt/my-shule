@@ -206,6 +206,36 @@ export class ClinicService {
     };
   }
 
+  listEmergencies() {
+    this.assertPermission('clinic:read');
+    return [];
+  }
+
+  async recordEmergency(dto: Record<string, any>) {
+    this.assertPermission('clinic:write');
+    return { id: 'em-placeholder', ...dto, tenant_id: this.requireTenantId() };
+  }
+
+  listReferrals() {
+    this.assertPermission('clinic:read');
+    return [];
+  }
+
+  async createReferral(dto: Record<string, any>) {
+    this.assertPermission('clinic:write');
+    return { id: 'ref-placeholder', ...dto, tenant_id: this.requireTenantId() };
+  }
+
+  getSickBayQueue() {
+    this.assertPermission('clinic:read');
+    return [];
+  }
+
+  async addToQueue(dto: Record<string, any>) {
+    this.assertPermission('clinic:write');
+    return { id: 'q-placeholder', ...dto, tenant_id: this.requireTenantId() };
+  }
+
   private assertBatchCanBeDispensed(
     batch: ClinicBatchForDispensing | null,
     quantityDispensed: number,

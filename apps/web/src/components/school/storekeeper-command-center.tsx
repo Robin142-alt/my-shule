@@ -38,6 +38,10 @@ import {
   XCircle,
   type LucideIcon,
 } from "lucide-react";
+import { ApprovalInbox } from "@/components/shared/approval-inbox";
+import { NotificationBell } from "@/components/shared/notification-bell";
+import { TaskQueue } from "@/components/shared/task-queue";
+import { WorkflowToast } from "@/components/shared/workflow-toast";
 
 import { toSchoolPath, type SchoolSection } from "@/lib/routing/experience-routes";
 import {
@@ -1050,6 +1054,11 @@ function Header({
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-2">
+              <TaskQueue />
+              <ApprovalInbox currentUserId="school" />
+              <NotificationBell />
+            </div>
             <StatusChip icon={Bell} label="7 low stock alerts" tone="critical" />
             <StatusChip icon={ClipboardList} label="12 approvals in queue" tone="accent" />
             <StatusChip icon={ShieldCheck} label="Audit trail live" tone="success" />
@@ -1776,6 +1785,7 @@ export function StorekeeperCommandCenter({
       </div>
 
       <MobileQuickActions routeMode={routeMode} />
+      
     </div>
   );
 }

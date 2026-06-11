@@ -329,6 +329,7 @@ export function parseExperienceSession(
   experience: Exclude<PlatformExperience, "public">,
   cookieValue: string | null | undefined,
 ): ExperienceSession | null {
+
   if (!cookieValue) {
     return null;
   }

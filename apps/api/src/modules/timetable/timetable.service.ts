@@ -80,6 +80,14 @@ export class TimetableService {
     });
   }
 
+  getMySchedule(query: Record<string, string | undefined> = {}) {
+    return this.timetableRepository.listTeacherSchedule({
+      tenant_id: this.requireTenantId(),
+      teacher_id: this.getActorUserId() ?? 'unknown-teacher',
+      day_of_week: this.optionalText(query.day_of_week),
+    });
+  }
+
   private requireTenantId(): string {
     const tenantId = this.requestContext.getStore()?.tenant_id;
 

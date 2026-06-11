@@ -14,7 +14,7 @@ jest.mock("@/lib/auth/csrf-client", () => ({
   getCsrfToken: jest.fn(async () => "csrf-iot-token"),
 }));
 
-const iotDashboard = {
+const iotDashboard: any = {
   registered_devices: 3,
   online_devices: 2,
   offline_devices: 1,
@@ -94,7 +94,7 @@ describe("IoT and Smart Campus module workspace", () => {
         json: async () => ({ data: iotDashboard }),
       } as Response)
       );
-    }) as unknown as typeof fetch;
+    });
     global.fetch = fetchMock as unknown as typeof fetch;
   });
 

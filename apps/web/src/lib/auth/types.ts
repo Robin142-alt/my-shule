@@ -18,6 +18,7 @@ export type SchoolRole =
   | "admin"
   | "storekeeper"
   | "librarian"
+  | "procurement-officer"
   | "admissions";
 
 /** Portal roles */

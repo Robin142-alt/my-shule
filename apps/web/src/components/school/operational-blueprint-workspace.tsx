@@ -12,6 +12,8 @@ import { RightDetailsDrawer } from "@/components/operational/right-details-drawe
 import type { OperationalActionContract } from "@/components/operational/operational-action-button";
 import type { ExtremeErpBlueprint } from "@/lib/operational/extreme-erp-blueprints";
 import { getDocxAddedModuleContract } from "@/lib/operational/myshule-extreme-operating-system";
+import { WorkspaceHeader } from "@/components/operational/workspace-header";
+import { WorkspaceSummaryCard, WorkspaceSummaryGrid } from "@/components/operational/workspace-summary-cards";
 
 function slug(value: string) {
   return value
@@ -131,42 +133,49 @@ export function OperationalBlueprintWorkspace({ blueprint }: { blueprint: Extrem
 
   return (
     <div className="space-y-5">
-      <section className="rounded-[var(--radius-xl)] border border-[#C8D5EA]/45 bg-[linear-gradient(135deg,#071D49_0%,#123A7A_62%,#0F172A_100%)] p-5 text-white shadow-[0_24px_70px_rgba(7,29,73,0.20)]">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <p className="text-xs font-bold uppercase tracking-[0.18em] text-cyan-100/80">School operations section</p>
-            <h1 className="mt-2 text-2xl font-black">{blueprint.title}</h1>
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-white/78">{blueprint.roleFocus}</p>
-          </div>
-          <StatusPill label="ACTIVE" tone="ok" />
+      <WorkspaceHeader
+        title={blueprint.title}
+        description={blueprint.roleFocus}
+        contextBar={{
+          schoolName: "MyShule Academy",
+          academicYear: "2026/2027",
+          term: "Term 2",
+          weekDate: "Week 4",
+          userRole: "Super Admin",
+          scope: "Global",
+        }}
+        permission="FULL_ACCESS"
+        moduleStatus="ACTIVE"
+      />
+
+      <div className="rounded-[var(--radius-lg)] border border-border bg-surface p-4">
+        <p className="text-sm font-bold text-foreground mb-4">{blueprint.commandQuestion}</p>
+        <div className="mb-6 flex flex-wrap gap-2">
+          {blueprint.urgentActions.map((action) => (
+            <button
+              key={action}
+              type="button"
+              aria-label={action}
+              className="inline-flex items-center gap-2 rounded-[var(--radius-sm)] border border-accent bg-accent/10 px-3 py-2 text-xs font-bold text-accent transition hover:-translate-y-0.5 hover:bg-accent/20"
+            >
+              <Zap className="h-3.5 w-3.5" />
+              {action}
+            </button>
+          ))}
         </div>
-        <div className="mt-5 rounded-[var(--radius-lg)] border border-white/15 bg-white/[0.08] p-4">
-          <p className="text-sm font-bold text-cyan-100">{blueprint.commandQuestion}</p>
-          <div className="mt-3 flex flex-wrap gap-2">
-            {blueprint.urgentActions.map((action) => (
-              <button
-                key={action}
-                type="button"
-                aria-label={action}
-                className="inline-flex items-center gap-2 rounded-[var(--radius-sm)] border border-white/15 bg-white/[0.10] px-3 py-2 text-xs font-bold text-white transition hover:-translate-y-0.5 hover:bg-white/[0.16]"
-              >
-                <Zap className="h-3.5 w-3.5 text-cyan-200" />
-                {action}
-              </button>
-            ))}
-          </div>
-          <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-            {blueprint.sampleData.map((item) => (
-              <span
-                key={item}
-                className="rounded-[var(--radius-xs)] border border-white/15 bg-white/[0.08] px-3 py-2 text-[11px] font-semibold text-white/80"
-              >
-                {item}
-              </span>
-            ))}
-          </div>
-        </div>
-      </section>
+
+        <WorkspaceSummaryGrid>
+          {blueprint.sampleData.map((item, i) => (
+            <WorkspaceSummaryCard
+              key={item}
+              title={`Summary ${i + 1}`}
+              value={item}
+              state="SUCCESS"
+              icon={<Zap className="h-4 w-4" />}
+            />
+          ))}
+        </WorkspaceSummaryGrid>
+      </div>
 
       {docxContract ? (
         <section className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">

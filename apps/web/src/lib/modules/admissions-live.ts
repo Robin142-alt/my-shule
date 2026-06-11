@@ -1175,6 +1175,7 @@ export function createAdmissionApplicationLive(
     allergies?: string;
     conditions?: string;
     emergency_contact?: string;
+    nemis_upi?: string;
   },
 ) {
   return withSession<LiveAdmissionApplication>(session, "/admissions/applications", {
@@ -1318,6 +1319,105 @@ export function createAdmissionsTransferLive(
   },
 ) {
   return withSession(session, "/admissions/transfers", {
+    method: "POST",
+    body: input,
+  });
+}
+
+export function createAdmissionsEnquiryLive(
+  session: LiveAuthSession,
+  input: {
+    first_name: string;
+    last_name: string;
+    phone: string;
+    email?: string;
+    source?: string;
+    program_interested?: string;
+    notes?: string;
+  },
+) {
+  return withSession(session, "/admissions/enquiries", {
+    method: "POST",
+    body: input,
+  });
+}
+
+export function createAdmissionsInterviewLive(
+  session: LiveAuthSession,
+  input: {
+    application_id: string;
+    scheduled_date: string;
+    interviewer_id?: string;
+    status: string;
+    notes?: string;
+  },
+) {
+  return withSession(session, "/admissions/interviews", {
+    method: "POST",
+    body: input,
+  });
+}
+
+export function createAdmissionsOfferLive(
+  session: LiveAuthSession,
+  input: {
+    application_id: string;
+    offer_date: string;
+    expiry_date?: string;
+    status: string;
+    notes?: string;
+  },
+) {
+  return withSession(session, "/admissions/offers", {
+    method: "POST",
+    body: input,
+  });
+}
+
+export function createAdmissionsAppointmentLive(
+  session: LiveAuthSession,
+  input: {
+    visitor_name: string;
+    phone?: string;
+    scheduled_date: string;
+    purpose?: string;
+    status: string;
+    notes?: string;
+  },
+) {
+  return withSession(session, "/admissions/appointments", {
+    method: "POST",
+    body: input,
+  });
+}
+
+export function createAdmissionsTaskLive(
+  session: LiveAuthSession,
+  input: {
+    title: string;
+    description?: string;
+    due_date?: string;
+    status: string;
+    assignee_id?: string;
+    application_id?: string;
+  },
+) {
+  return withSession(session, "/admissions/tasks", {
+    method: "POST",
+    body: input,
+  });
+}
+
+export function createAdmissionsTemplateLive(
+  session: LiveAuthSession,
+  input: {
+    name: string;
+    type: string;
+    content: string;
+    is_active: boolean;
+  },
+) {
+  return withSession(session, "/admissions/templates", {
     method: "POST",
     body: input,
   });

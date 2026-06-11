@@ -38,6 +38,18 @@ const roleNarratives: Record<DashboardRole, { title: string; description: string
     title: "Admissions office",
     description: "Applications and registration activity will appear after real admissions work begins.",
   },
+  "exam-manager": {
+    title: "Examinations desk",
+    description: "Exam scheduling, mark sheets, and report cards will appear after academic setup.",
+  },
+  hod: {
+    title: "Department command center",
+    description: "Departmental activity, syllabus coverage, and academic supervision will appear here.",
+  },
+  dean: {
+    title: "Dean's desk",
+    description: "Academic oversight and student affairs will appear after setup.",
+  },
 };
 
 export function getTenantOptions(): TenantOption[] {
@@ -153,6 +165,13 @@ export function buildDashboardSnapshot(
       gradingQueue: "0",
       performanceTrend: "No live academic data yet",
       subjects: [],
+    },
+    students: {
+      totalStudents: "0",
+      absentToday: "0",
+      newEnrollments: "0",
+      trendLabel: "No live student data yet",
+      demographics: [],
     },
     contextSections: [],
     activityFeed: [],

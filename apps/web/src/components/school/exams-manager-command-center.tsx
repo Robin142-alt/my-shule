@@ -22,6 +22,10 @@ import { getCurrentSchoolId, publishSchoolOperationalEvent } from "@/lib/school/
 import { useQueryClient } from "@tanstack/react-query";
 import { useSchoolMutation } from "@/lib/data/school-hooks";
 import { downloadCsvFile, openPrintDocument } from "@/lib/dashboard/export";
+import { ApprovalInbox } from "@/components/shared/approval-inbox";
+import { NotificationBell } from "@/components/shared/notification-bell";
+import { TaskQueue } from "@/components/shared/task-queue";
+import { WorkflowToast } from "@/components/shared/workflow-toast";
 
 type ExamsManagerRouteMode = "hosted" | "public";
 type Tone = "success" | "info" | "warning" | "danger" | "neutral";
@@ -1897,6 +1901,11 @@ export function ExamsManagerCommandCenter({
                     </div>
                   ) : null}
                 </div>
+                <div className="flex items-center gap-2">
+                  <TaskQueue />
+                  <ApprovalInbox currentUserId="school" />
+                  <NotificationBell />
+                </div>
                 <span className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-black text-emerald-700">
                   <CheckCircle2 className="h-4 w-4" />
                   Ready for Dean review
@@ -1958,6 +1967,7 @@ export function ExamsManagerCommandCenter({
           </main>
         </div>
       </div>
+      
     </div>
   );
 }

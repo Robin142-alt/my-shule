@@ -39,6 +39,9 @@ test('EventConsumerRegistryService subscribes workflow.action.dispatched to the 
     workflowConsumer,
     { event_name: 'workflow.action.dispatched', name: 'workflow-action-dispatched.execution' } as never,
     { event_name: 'workflow.action.completed', name: 'workflow-action-completed.audit' } as never,
+    { event_name: 'attendance.register.marked', name: 'attendance-marked.audit' } as never,
+    { event_name: 'discipline.incident.reported', name: 'discipline-incident.audit' } as never,
+    { event_name: 'welfare.case.referred', name: 'welfare-case.audit' } as never,
   );
 
   const consumers = registry.getConsumersForEvent('workflow.action.dispatched');

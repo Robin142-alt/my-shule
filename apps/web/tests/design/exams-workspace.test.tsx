@@ -377,7 +377,7 @@ describe("exams workspace", () => {
         schoolName: "Baraka Academy",
         tenantSlug: "barakaacademy",
         initialLiveWorkspace: buildInitialLiveExamsWorkspace(),
-        liveSessionOverride: mockUseLiveTenantSession(),
+        liveSessionOverride: mockUseLiveTenantSession({} as any),
       }),
     );
 
@@ -418,7 +418,7 @@ describe("exams workspace", () => {
         schoolName: "Baraka Academy",
         tenantSlug: "barakaacademy",
         initialLiveWorkspace: buildLiveWorkspaceWithoutReportCards(),
-        liveSessionOverride: mockUseLiveTenantSession(),
+        liveSessionOverride: mockUseLiveTenantSession({} as any),
       }),
     );
 
@@ -444,7 +444,7 @@ describe("exams workspace", () => {
         schoolName: "Baraka Academy",
         tenantSlug: "barakaacademy",
         initialLiveWorkspace: buildInitialLiveExamsWorkspace(),
-        liveSessionOverride: mockUseLiveTenantSession(),
+        liveSessionOverride: mockUseLiveTenantSession({} as any),
       }),
     );
 
@@ -473,7 +473,7 @@ describe("exams workspace", () => {
         schoolName: "Baraka Academy",
         tenantSlug: "barakaacademy",
         initialLiveWorkspace: buildInitialLiveExamsWorkspace(),
-        liveSessionOverride: mockUseLiveTenantSession(),
+        liveSessionOverride: mockUseLiveTenantSession({} as any),
       }),
     );
 

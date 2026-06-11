@@ -6,6 +6,9 @@ export const DASHBOARD_ROLES = [
   "storekeeper",
   "librarian",
   "admissions",
+  "exam-manager",
+  "hod",
+  "dean",
 ] as const;
 
 export type DashboardRole = (typeof DASHBOARD_ROLES)[number];
@@ -41,6 +44,7 @@ export interface NotificationItem {
   timeLabel: string;
   severity: StatusTone;
   href: string;
+  isRead?: boolean;
 }
 
 export interface AlertItem {
@@ -79,6 +83,14 @@ export interface AcademicsWidgetData {
   gradingQueue: string;
   performanceTrend: string;
   subjects: Array<{ subject: string; value: number }>;
+}
+
+export interface StudentsWidgetData {
+  totalStudents: string;
+  absentToday: string;
+  newEnrollments: string;
+  trendLabel: string;
+  demographics: Array<{ label: string; value: number }>;
 }
 
 export interface ContextChartPoint {
@@ -151,6 +163,7 @@ export interface DashboardSnapshot {
   kpis: KpiCard[];
   finance: FinanceWidgetData;
   academics: AcademicsWidgetData;
+  students: StudentsWidgetData;
   contextSections: ContextSection[];
   activityFeed: ActivityItem[];
   quickActions: QuickActionItem[];

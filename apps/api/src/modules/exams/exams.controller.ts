@@ -13,6 +13,10 @@ import {
   LockExamMarksDto,
   ModerateExamMarksDto,
   PublishReportCardDto,
+  CreateTimetableSlotDto,
+  AssignInvigilatorDto,
+  MarkExamAttendanceDto,
+  ReportStudentExamCaseDto,
 } from './dto/exams.dto';
 import { ExamsService } from './exams.service';
 
@@ -182,4 +186,124 @@ export class ExamsController {
   publishExamSeries(@Param('id') id: string) {
     return this.examsService.publishExamSeries(id);
   }
+
+  @Post('timetable-slots')
+  @Permissions('exams:write')
+  createTimetableSlot(@Body() dto: CreateTimetableSlotDto) {
+    return this.examsService.createTimetableSlot(dto);
+  }
+
+  @Post('invigilators')
+  @Permissions('exams:write')
+  assignInvigilator(@Body() dto: AssignInvigilatorDto) {
+    return this.examsService.assignInvigilator(dto);
+  }
+
+  @Post('attendance')
+  @Permissions('exams:write')
+  markAttendance(@Body() dto: MarkExamAttendanceDto) {
+    return this.examsService.markAttendance(dto);
+  }
+
+  @Post('student-cases')
+  @Permissions('exams:write')
+  reportStudentCase(@Body() dto: ReportStudentExamCaseDto) {
+    return this.examsService.reportStudentCase(dto);
+  }
+  @Get('timetable-slots')
+  @Permissions('exams:read')
+  getTimetableSlots(@Query() query: Record<string, string | undefined>) {
+    return this.examsService.getTimetableSlots(query);
+  }
+
+  @Get('invigilators')
+  @Permissions('exams:read')
+  getInvigilators(@Query() query: Record<string, string | undefined>) {
+    return this.examsService.getInvigilators(query);
+  }
+
+  @Get('attendance')
+  @Permissions('exams:read')
+  getAttendance(@Query() query: Record<string, string | undefined>) {
+    return this.examsService.getAttendance(query);
+  }
+
+  @Get('student-cases')
+  @Permissions('exams:read')
+  getStudentCases(@Query() query: Record<string, string | undefined>) {
+    return this.examsService.getStudentCases(query);
+  }
+
+  @Get('series')
+  @Permissions('exams:read')
+  getExamSeries(@Query() query: Record<string, string | undefined>) {
+    return this.examsService.getExamSeries(query);
+  }
+
+  @Get('assessments')
+  @Permissions('exams:read')
+  getExamAssessments(@Query() query: Record<string, string | undefined>) {
+    return this.examsService.getExamAssessments(query);
+  }
+
+  @Get('grading-policies')
+  @Permissions('exams:read')
+  getGradingPolicies(@Query() query: Record<string, string | undefined>) {
+    return this.examsService.getGradingPolicies(query);
+  }
+
+  @Get('audit-logs')
+  @Permissions('exams:read')
+  getAuditLogs(@Query() query: Record<string, string | undefined>) {
+    return this.examsService.getAuditLogs(query);
+  }
+
+  @Get('subject-weightings')
+  @Permissions('exams:read')
+  getSubjectWeightings(@Query() query: Record<string, string | undefined>) {
+    return this.examsService.getSubjectWeightings(query);
+  }
+
+  @Get('assessment-components')
+  @Permissions('exams:read')
+  getAssessmentComponents(@Query() query: Record<string, string | undefined>) {
+    return this.examsService.getAssessmentComponents(query);
+  }
+
+  @Get('mark-entry-windows')
+  @Permissions('exams:read')
+  getMarkEntryWindows(@Query() query: Record<string, string | undefined>) {
+    return this.examsService.getMarkEntryWindows(query);
+  }
+
+  @Get('marks')
+  @Permissions('exams:read')
+  getMarks(@Query() query: Record<string, string | undefined>) {
+    return this.examsService.getMarks(query);
+  }
+
+  @Get('mark-versions')
+  @Permissions('exams:read')
+  getMarkVersions(@Query() query: Record<string, string | undefined>) {
+    return this.examsService.getMarkVersions(query);
+  }
+
+  @Get('report-card-batches')
+  @Permissions('exams:read')
+  getReportCardBatches(@Query() query: Record<string, string | undefined>) {
+    return this.examsService.getReportCardBatches(query);
+  }
+
+  @Get('report-cards')
+  @Permissions('exams:read')
+  getReportCards(@Query() query: Record<string, string | undefined>) {
+    return this.examsService.getReportCards(query);
+  }
+
+  @Get('dashboard-stats')
+  @Permissions('exams:read')
+  getExamDashboardStats() {
+    return this.examsService.getExamDashboardStats();
+  }
+
 }

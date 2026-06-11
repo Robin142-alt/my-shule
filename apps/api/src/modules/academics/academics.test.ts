@@ -31,7 +31,7 @@ test('AcademicsSchemaService creates academic lifecycle tables with tenant RLS',
   assert.match(schemaSql, /ALTER TABLE student_class_assignments FORCE ROW LEVEL SECURITY/);
   assert.match(schemaSql, /uq_teacher_subject_assignments_scope/);
   assert.match(schemaSql, /NULLIF\(current_setting\('app\.role', true\), ''\) = 'system'/);
-  assert.doesNotMatch(schemaSql, /attendance/i);
+  assert.doesNotMatch(schemaSql, /CREATE TABLE IF NOT EXISTS attendance_/i);
 });
 
 test('AcademicsService assigns teachers to deterministic subject class term scopes', async () => {

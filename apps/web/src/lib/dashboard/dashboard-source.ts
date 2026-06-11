@@ -2,6 +2,7 @@ import {
   fetchApiObservabilityAlerts,
   fetchApiObservabilityHealth,
   fetchApiReadiness,
+  fetchApiDashboardSummary,
   isDashboardApiConfigured,
 } from "./api-client";
 import { buildDashboardSnapshot, getTenantOptions } from "./empty-data";
@@ -230,5 +231,25 @@ export async function fetchDashboardSnapshot(
     return baseline;
   }
 
-  return hydrateWithLiveSignals(baseline);
+  try {
+    const liveSummary = await fetchApiDashboardSummary(role);
+    
+    // Merge live summary into baseline
+    const merged = {
+      ...baseline,
+      kpis: liveSummary.kpis || baseline.kpis,
+      finance: liveSummary.finance || baseline.finance,
+      academics: liveSummary.academics || baseline.academics,
+      students: liveSummary.students || baseline.students,
+      contextSections: liveSummary.contextSections || baseline.contextSections,
+      activityFeed: liveSummary.activityFeed || baseline.activityFeed,
+      pageTitle: liveSummary.pageTitle || baseline.pageTitle,
+      pageDescription: liveSummary.pageDescription || baseline.pageDescription,
+    };
+
+    return hydrateWithLiveSignals(merged);
+  } catch (err) {
+    console.error("Failed to fetch dashboard summary, falling back to empty baseline", err);
+    return hydrateWithLiveSignals(baseline);
+  }
 }

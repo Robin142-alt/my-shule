@@ -14,7 +14,7 @@ jest.mock("@/lib/auth/csrf-client", () => ({
   getCsrfToken: jest.fn(async () => "csrf-procurement-module-token"),
 }));
 
-const procurementDashboard = {
+const procurementDashboard: any = {
   open_requests: 2,
   pending_approvals: 1,
   active_suppliers: 3,
@@ -88,7 +88,7 @@ describe("procurement module workspace", () => {
         json: async () => ({ data: procurementDashboard }),
       } as Response)
       );
-    }) as unknown as typeof fetch;
+    });
     global.fetch = fetchMock as unknown as typeof fetch;
   });
 

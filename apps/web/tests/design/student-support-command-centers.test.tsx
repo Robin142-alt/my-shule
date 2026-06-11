@@ -27,7 +27,7 @@ describe("student support and admissions command center interactions", () => {
   it("makes discipline search and case actions visible as working controls", async () => {
     const user = userEvent.setup();
 
-    renderWithProviders(<DisciplineMasterCommandCenter routeMode="hosted" liveDataEnabled={false} />);
+    renderWithProviders(<DisciplineMasterCommandCenter />);
 
     await user.type(screen.getByLabelText(/search student, case, dorm, teacher report, parent meeting/i), "Kevin");
     await user.click(screen.getByRole("button", { name: /kevin otieno/i }));
@@ -70,7 +70,7 @@ describe("student support and admissions command center interactions", () => {
   it("makes counselling search and session actions visible as working controls", async () => {
     const user = userEvent.setup();
 
-    renderWithProviders(<GuidanceCounsellingCommandCenter routeMode="hosted" liveDataEnabled={false} />);
+    renderWithProviders(<GuidanceCounsellingCommandCenter routeMode="hosted" />);
 
     await user.type(screen.getByLabelText(/search student cases, appointments, referrals, parent meetings, wellness alerts, or reports/i), "Faith");
     await user.click(screen.getByRole("button", { name: /faith akinyi referral/i }));

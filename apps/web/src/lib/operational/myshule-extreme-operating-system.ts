@@ -1,3 +1,4 @@
+import { generatedWorkspaceDefinitions } from './generated-workspace-definitions';
 import type { SearchAccessMode, SearchEntityType } from "@/lib/search/search-access-policy";
 
 export const KENYAN_OPERATIONAL_EXAMPLES = [
@@ -193,21 +194,7 @@ export type DocxRoleId =
   | "superadmin"
   | "system-monitor";
 
-export type DocxAddedModuleId =
-  | "school-admin"
-  | "hr-payroll"
-  | "timetable-builder"
-  | "communication-center"
-  | "procurement"
-  | "school-calendar"
-  | "canteen-meals"
-  | "co-curricular"
-  | "data-security"
-  | "setup-wizard"
-  | "ict-assets"
-  | "document-printing"
-  | "reports-analytics"
-  | "universal-approvals";
+export type DocxAddedModuleId = string;
 
 type OperationalTableContract = {
   title: string;
@@ -266,6 +253,7 @@ export type DocxAddedModuleContract = {
   printOutputs: string[];
   auditTrail: string[];
   permissionChecks: string[];
+  sampleData?: string[];
   states: string[];
   mobileBehavior: string[];
   lowBandwidthBehavior: string[];
@@ -482,13 +470,33 @@ const implementation1370RoleEnrichment: Record<DocxRoleId, RolePracticalityEnric
     queueActions: ["Assign Owner", "Emergency Broadcast", "Open System Health"],
   },
   "deputy-principal": {
-    firstViewport: ["discipline", "attendance", "teacher movement", "duty roster", "missing student", "security"],
-    sidebar: ["Teacher Movement", "Missing Students", "Security Escalations", "Attendance Follow-up"],
-    primaryActions: ["Reassign Teacher", "Open Missing Student Protocol", "Notify Security", "Update Duty Roster"],
-    workflows: ["Missing student -> Deputy review -> Security alert -> Parent/staff notification -> Closed"],
-    communicationTriggers: ["Security alert", "Teacher movement update", "Duty roster notice"],
-    printOutputs: ["Teacher movement report", "Missing student protocol sheet"],
-    dependencies: ["security", "boarding", "attendance", "discipline", "staff"],
+    firstViewport: ["overview", "daily operations", "attendance", "discipline", "staff duty", "timetable"],
+    sidebar: [
+      "Overview",
+      "Daily Operations",
+      "Attendance & Punctuality",
+      "Discipline & Behaviour",
+      "Student Welfare",
+      "Staff Duty & Supervision",
+      "Timetable & Relief Lessons",
+      "Academics Monitoring",
+      "Teaching",
+      "Exams & Marks",
+      "Classes & Streams",
+      "Approvals & Escalations",
+      "Communication",
+      "Reports & Downloads",
+      "Staff & Roles",
+      "Settings"
+    ],
+    primaryActions: ["Start Morning Review", "Assign Relief Teacher", "Create Discipline Case", "Generate Daily Summary", "Send Staff Notice"],
+    workflows: ["Discipline escalation -> Deputy review -> Parent summons -> Resolution"],
+    communicationTriggers: ["Parent summons", "Staff notice", "Timetable disruption"],
+    printOutputs: ["Daily Summary", "Discipline Report", "Relief Timetable", "Attendance Slip"],
+    dependencies: ["attendance", "discipline", "academics", "staff", "communication"],
+    tableColumns: ["Student", "Class", "Type", "Status", "Assigned To"],
+    formFields: ["Incident Category", "Severity", "Description", "Assigned Staff"],
+    queueActions: ["Assign", "Escalate", "Mark Resolved"]
   },
   secretary: {
     firstViewport: ["parent phone", "fee balance preview", "document request queue", "visitor pass", "book appointment"],
@@ -782,11 +790,11 @@ function enrichQueues(queues: OperationalRoleQueueContract[], enrichment: RolePr
   }));
 }
 
-function table(title: string, columns: string[], rowActions: string[], bulkActions: string[]): OperationalTableContract {
+export function table(title: string, columns: string[], rowActions: string[], bulkActions: string[]): OperationalTableContract {
   return { title, columns, rowActions, bulkActions };
 }
 
-function form(title: string, fields: string[], extraFooterActions: string[] = []): OperationalFormContract {
+export function form(title: string, fields: string[], extraFooterActions: string[] = []): OperationalFormContract {
   return {
     title,
     fields,
@@ -895,7 +903,7 @@ function roleBlueprint(
   };
 }
 
-function moduleContract(input: Omit<DocxAddedModuleContract, "auditTrail" | "states" | "mobileBehavior" | "lowBandwidthBehavior"> & Partial<Pick<DocxAddedModuleContract, "mobileBehavior" | "lowBandwidthBehavior">>): DocxAddedModuleContract {
+export function moduleContract(input: Omit<DocxAddedModuleContract, "auditTrail" | "states" | "mobileBehavior" | "lowBandwidthBehavior"> & Partial<Pick<DocxAddedModuleContract, "mobileBehavior" | "lowBandwidthBehavior">>): DocxAddedModuleContract {
   const modulePracticality = implementation1370ModuleEnrichment[input.id] ?? {};
   const mainTable = enrichTables(enrichTables([input.mainTable], implementation1370UniversalModuleEnrichment), modulePracticality)[0] ?? input.mainTable;
 
@@ -1266,7 +1274,26 @@ const roleBlueprints: OperationalRoleBlueprint[] = [
     id: "admissions",
     identity: "Enrollment pipeline for inquiries, applications, document verification, admission approval, fees setup, and parent onboarding.",
     firstViewport: ["new inquiries", "applications pending", "documents missing", "interviews scheduled", "admission letters pending"],
-    sidebar: ["Admissions Command Center", "Inquiries", "Applications", "Documents", "Interviews", "Approvals", "Reports"],
+    sidebar: [
+      "Overview",
+      "Enquiries & Walk-ins",
+      "Applications",
+      "Applicant Profiles",
+      "Documents & Verification",
+      "Interviews & Assessments",
+      "Selection & Offers",
+      "Admission Fee Clearance",
+      "Enrolment & Admission Numbers",
+      "Class & Stream Placement",
+      "Parents & Guardians",
+      "Transfers & Re-admissions",
+      "Communication",
+      "Appointments & Visits",
+      "Imports & Bulk Uploads",
+      "Reports & Downloads",
+      "Tasks & Follow-ups",
+      "Admission Templates"
+    ],
     primaryActions: ["Add Inquiry", "Approve Admission", "Request Document", "Print Admission Letter", "Send Parent SMS"],
     tables: [table("Admissions Pipeline", ["Applicant", "Class", "Parent Phone", "Documents", "Status", "Action"], ["View", "Approve", "Reject", "Print Letter"], ["Send SMS", "Export"])],
     forms: [form("Application Form", ["Student name", "Class", "Previous school", "Parent name", "Parent phone", "Documents"], ["Submit Application"])],
@@ -1320,198 +1347,78 @@ export const DOCX_ADDED_MODULE_IDS: DocxAddedModuleId[] = [
   "universal-approvals",
 ];
 
-const addedModuleContracts: DocxAddedModuleContract[] = [
-  moduleContract({
-    id: "school-admin",
-    title: "School Administrator Dashboard",
-    uniqueSidebar: ["Front Office", "Student Records", "Parent Records", "Admissions Support", "Visitor Log", "Letters & Documents", "Printing Center", "Reports"],
-    urgentActionStrip: ["Add Student", "Update Parent Phone", "Record Visitor", "Print Admission Letter", "Reply to Parent"],
-    mainTable: table("Student Records Table", ["Admission No", "Student", "Class", "Stream", "Parent Phone", "Status"], ["View Profile", "Edit", "Print Profile", "Send Parent SMS"], ["Print selected", "Send SMS"]),
-    forms: [form("Student Record Form", ["Admission number", "First name", "Surname", "Gender", "County", "Class", "Stream", "Parent phone"], ["Save Student", "Preview Profile"])],
-    rightDetailsDrawer: ["student summary", "guardian contacts", "documents", "audit history", "communication history"],
-    approvalWorkflow: "Draft -> Submitted -> Under Review -> Approved -> Executed -> Archived",
-    smsTriggers: ["parent record updated", "appointment scheduled", "document ready"],
-    printOutputs: ["Student profile", "Admission letter", "Visitor slip"],
-    permissionChecks: ["CAN_VIEW_STUDENTS", "CAN_UPDATE_STUDENT_RECORDS", "CAN_PRINT_DOCUMENTS"],
-  }),
-  moduleContract({
-    id: "hr-payroll",
-    title: "HR and Payroll Dashboard",
-    uniqueSidebar: ["HR Command Center", "Staff Records", "Payroll", "Leave", "Duty Coverage", "Appraisals", "Payslips", "Reports"],
-    urgentActionStrip: ["Approve Leave", "Assign Substitute", "Review Payroll Exception", "Print Payslip"],
-    mainTable: table("Staff Operations Table", ["Staff", "Role", "Department", "Attendance", "Payroll Status", "Action"], ["View", "Edit", "Assign Cover", "View Audit"], ["Send notice", "Export"]),
-    forms: [form("Staff Profile Form", ["Staff name", "Phone", "Role", "Department", "Employment type", "Login enabled"], ["Send Login Credentials"])],
-    rightDetailsDrawer: ["staff profile", "documents", "leave history", "payroll history", "audit"],
-    approvalWorkflow: "Draft -> Submitted -> Under Review -> Approved -> Payroll Applied -> Archived",
-    smsTriggers: ["leave decision", "duty assignment", "payroll exception"],
-    printOutputs: ["Payslip", "Payroll summary", "Leave letter"],
-    permissionChecks: ["CAN_VIEW_HR", "CAN_APPROVE_LEAVE", "CAN_PROCESS_PAYROLL"],
-  }),
-  moduleContract({
-    id: "timetable-builder",
-    title: "Timetable Builder Dashboard",
-    uniqueSidebar: ["Builder", "Classes", "Teachers", "Rooms", "Conflicts", "Substitutions", "Publishing", "Reports"],
-    urgentActionStrip: ["Resolve Clash", "Assign Substitute", "Publish Timetable", "Notify Staff"],
-    mainTable: table("Timetable Periods", ["Class", "Subject", "Teacher", "Room", "Status", "Action"], ["Edit", "Resolve", "Notify", "Open Audit"], ["Publish selected", "Export"]),
-    forms: [form("Conflict Resolution Form", ["Affected class", "Subject", "Teacher", "Conflict type", "Substitute teacher", "Resolution note"], ["Notify Staff"])],
-    rightDetailsDrawer: ["conflict details", "affected classes", "teacher workload", "room availability", "audit"],
-    approvalWorkflow: "Draft -> Validated -> Approved -> Published -> Archived",
-    smsTriggers: ["teacher timetable changed", "substitute assigned", "class notified"],
-    printOutputs: ["Class timetable", "Teacher timetable", "Room timetable"],
-    permissionChecks: ["CAN_VIEW_TIMETABLE", "CAN_EDIT_TIMETABLE", "CAN_PUBLISH_TIMETABLE"],
-  }),
-  moduleContract({
-    id: "communication-center",
-    title: "Communication Center",
-    uniqueSidebar: ["Command Center", "SMS", "WhatsApp", "Email", "Templates", "Delivery Logs", "Emergency Broadcasts", "Reports"],
-    urgentActionStrip: ["Send SMS", "Emergency Broadcast", "Retry Failed Messages", "Schedule Notice"],
-    mainTable: table("Communication Log", ["Recipient", "Channel", "Type", "Status", "Timestamp", "Action"], ["View", "Retry", "Change Channel", "Open Audit"], ["Retry selected", "Export log"]),
-    forms: [form("Bulk Message Form", ["Audience", "Channel", "Template", "Message", "Schedule time", "Approval required"], ["Send Now", "Submit for Approval"])],
-    rightDetailsDrawer: ["recipient details", "delivery attempts", "template", "read receipts", "audit"],
-    approvalWorkflow: "Draft -> Submitted -> Approved -> Sent -> Delivered -> Archived",
-    smsTriggers: ["bulk SMS", "fee reminder", "attendance alert", "emergency broadcast"],
-    printOutputs: ["Delivery log", "Emergency contact list", "Communication report"],
-    permissionChecks: ["CAN_VIEW_COMMUNICATION", "CAN_SEND_SMS", "CAN_SEND_BROADCAST"],
-  }),
-  moduleContract({
-    id: "procurement",
-    title: "Procurement Dashboard",
-    uniqueSidebar: ["Procurement Command Center", "Purchase Requests", "Supplier Quotes", "Supplier Comparison", "LPOs", "Goods Received", "Reports"],
-    urgentActionStrip: ["Approve Request", "Compare Quotes", "Generate LPO", "Save GRN"],
-    mainTable: table("Purchase Requests", ["Request No", "Department", "Item", "Amount", "Status", "Action"], ["View", "Approve", "Reject", "Generate LPO"], ["Approve selected", "Export"]),
-    forms: [form("Goods Received Note", ["LPO number", "Supplier", "Items expected", "Items received", "Quantity rejected", "Remarks"], ["Print GRN", "Notify Storekeeper"])],
-    rightDetailsDrawer: ["request details", "quotations", "supplier history", "budget link", "audit"],
-    approvalWorkflow: "Draft -> Submitted -> Approved -> LPO Generated -> Delivered -> Closed",
-    smsTriggers: ["supplier selected", "LPO sent", "delivery received"],
-    printOutputs: ["LPO", "Goods received note", "Quotation comparison"],
-    permissionChecks: ["CAN_VIEW_PROCUREMENT", "CAN_APPROVE_PROCUREMENT", "CAN_GENERATE_LPO"],
-  }),
-  moduleContract({
-    id: "school-calendar",
-    title: "School Calendar and Events Dashboard",
-    uniqueSidebar: ["Calendar Command Center", "Academic Calendar", "Events", "Meetings", "Exam Dates", "Fee Deadlines", "Trips", "Reminders"],
-    urgentActionStrip: ["Approve Event", "Publish Event", "Send Reminder", "Notify Transport"],
-    mainTable: table("Events Table", ["Event", "Type", "Date", "Audience", "Status", "Action"], ["View", "Edit", "Publish", "Send Reminder"], ["Print event list", "Send reminders"]),
-    forms: [form("Event Form", ["Event title", "Event type", "Start date", "End date", "Location", "Target audience", "Transport required"], ["Submit for Approval", "Publish Event"])],
-    rightDetailsDrawer: ["event details", "target audience", "transport needs", "consent workflow", "audit"],
-    approvalWorkflow: "Draft -> Submitted -> Approved -> Published -> Completed -> Archived",
-    smsTriggers: ["event published", "reminder due", "consent required"],
-    printOutputs: ["Event list", "Trip consent form", "Parent meeting schedule"],
-    permissionChecks: ["CAN_VIEW_CALENDAR", "CAN_CREATE_EVENT", "CAN_PUBLISH_EVENT"],
-  }),
-  moduleContract({
-    id: "canteen-meals",
-    title: "Canteen, Meals, and Kitchen Stock Dashboard",
-    uniqueSidebar: ["Meals Command Center", "Meal Plans", "Meal Attendance", "Kitchen Stock", "Receive Food Stock", "Special Diets", "Supplier Deliveries"],
-    urgentActionStrip: ["Print Meal Count", "Issue Kitchen Stock", "Record Meal Attendance", "Request Procurement"],
-    mainTable: table("Meal Plan Table", ["Date", "Meal Type", "Menu", "Expected Students", "Special Diets", "Status"], ["View", "Edit Menu", "Print Meal Count", "Issue Stock"], ["Print selected", "Export"]),
-    forms: [form("Meal Plan Form", ["Date", "Meal type", "Menu items", "Expected students", "Special diets", "Ingredients"], ["Print Meal Plan", "Notify Boarding Master"])],
-    rightDetailsDrawer: ["meal details", "stock requirements", "special diets", "supplier deliveries", "audit"],
-    approvalWorkflow: "Draft -> Approved -> Stock Issued -> Attendance Recorded -> Reconciled",
-    smsTriggers: ["special diet notice", "supplier delivery reminder", "boarding meal update"],
-    printOutputs: ["Meal count", "Kitchen stock slip", "Special diet list"],
-    permissionChecks: ["CAN_VIEW_MEALS", "CAN_ISSUE_KITCHEN_STOCK", "CAN_RECORD_MEAL_ATTENDANCE"],
-  }),
-  moduleContract({
-    id: "co-curricular",
-    title: "Co-curricular Activities Dashboard",
-    uniqueSidebar: ["Activities Command Center", "Clubs", "Sports", "Competitions", "Trips", "Attendance", "Parent Consent", "Reports"],
-    urgentActionStrip: ["Send Parent Consent", "Request Equipment", "Notify Transport", "Mark Attendance"],
-    mainTable: table("Activities Table", ["Activity", "Type", "Patron", "Students", "Next Event", "Status"], ["View", "Edit", "Add Members", "Send Notice"], ["Send SMS", "Export"]),
-    forms: [form("Trip/Competition Form", ["Event title", "Activity", "Date", "Location", "Students", "Transport required", "Fee required"], ["Submit for Approval", "Send Parent Consent"])],
-    rightDetailsDrawer: ["activity roster", "consent status", "payments", "transport", "audit"],
-    approvalWorkflow: "Draft -> Principal Approval -> Consent Sent -> Event Completed -> Archived",
-    smsTriggers: ["parent consent", "activity notice", "transport update"],
-    printOutputs: ["Student list", "Trip consent form", "Certificate list"],
-    permissionChecks: ["CAN_VIEW_ACTIVITIES", "CAN_CREATE_ACTIVITY", "CAN_SEND_CONSENT"],
-  }),
-  moduleContract({
-    id: "data-security",
-    title: "Data Security, Backup, and Admin Control",
-    uniqueSidebar: ["Security Command Center", "Login History", "User Sessions", "Permission Changes", "Deleted Records", "Backup Status", "Data Exports"],
-    urgentActionStrip: ["Force Logout", "Suspend User", "Run Backup", "Restore Record"],
-    mainTable: table("Login History Table", ["User", "Role", "Device", "IP", "Status", "Action"], ["View Details", "Force Logout", "Suspend User", "View Audit"], ["Flag suspicious", "Export"]),
-    forms: [form("Deleted Record Recovery Form", ["Record type", "Record name", "Deleted by", "Reason", "Recovery status"], ["Restore", "View Audit"])],
-    rightDetailsDrawer: ["login details", "session history", "export history", "backup status", "audit"],
-    approvalWorkflow: "Detected -> Reviewed -> Approved -> Restored/Blocked -> Archived",
-    smsTriggers: ["admin security alert", "backup failure alert", "permission change alert"],
-    printOutputs: ["Backup report", "Audit trail report", "Login activity report"],
-    permissionChecks: ["CAN_VIEW_SECURITY", "CAN_RESTORE_RECORDS", "CAN_MANAGE_SESSIONS"],
-  }),
-  moduleContract({
-    id: "setup-wizard",
-    title: "First-Time Onboarding and Setup Wizard",
-    uniqueSidebar: ["Setup Wizard", "School Profile", "Academic Year", "Classes", "Staff Users", "Student Import", "Fees", "SMS", "M-Pesa"],
-    urgentActionStrip: ["Validate Import", "Fix Errors", "Save Step", "Launch School"],
-    mainTable: table("Student Import Validation", ["Admission No", "Student", "Class", "Parent Phone", "Status", "Error"], ["Fix", "Validate", "Import", "Cancel"], ["Import students", "Export errors"]),
-    forms: [form("School Profile Step", ["School name", "County", "Academic year", "Current term", "Classes", "Streams"], ["Save Step"])],
-    rightDetailsDrawer: ["step help", "sample data", "validation errors", "launch readiness", "audit"],
-    approvalWorkflow: "Profile -> Imports -> Finance -> Permissions -> Final Review -> Launch",
-    smsTriggers: ["test SMS", "login credentials", "launch notification"],
-    printOutputs: ["Import error report", "Setup review", "Launch checklist"],
-    permissionChecks: ["CAN_RUN_SETUP", "CAN_IMPORT_STUDENTS", "CAN_LAUNCH_SCHOOL"],
-  }),
-  moduleContract({
-    id: "ict-assets",
-    title: "ICT and Digital Assets Dashboard",
-    uniqueSidebar: ["ICT Command Center", "Computer Lab", "ICT Assets", "Issue/Return", "Repairs", "Software Licenses", "Printer Management", "Reports"],
-    urgentActionStrip: ["Issue Device", "Return Device", "Approve Lab Booking", "Report Fault"],
-    mainTable: table("ICT Asset Register", ["Asset Tag", "Asset", "Serial", "Location", "Condition", "Status"], ["Issue", "Return", "Move Asset", "Report Fault"], ["Print tags", "Export"]),
-    forms: [form("Add ICT Asset Form", ["Asset name", "Category", "Serial number", "Asset tag", "Purchase cost", "Warranty expiry"], ["Save Asset", "Preview Barcode"])],
-    rightDetailsDrawer: ["asset details", "movement history", "repair history", "booking context", "audit"],
-    approvalWorkflow: "Requested -> Approved -> Issued/Moved -> Returned/Reconciled -> Archived",
-    smsTriggers: ["device overdue", "repair update", "lab booking approved"],
-    printOutputs: ["Asset tag", "Issue slip", "Lab booking list"],
-    permissionChecks: ["CAN_VIEW_ICT_ASSETS", "CAN_ISSUE_DEVICE", "CAN_APPROVE_LAB_BOOKING"],
-  }),
-  moduleContract({
-    id: "document-printing",
-    title: "Document and Printing Center",
-    uniqueSidebar: ["Printing Center", "Student Documents", "Finance Documents", "Academic Documents", "Operations Documents", "Templates", "Archive"],
-    urgentActionStrip: ["Preview", "Print", "Download PDF", "Send to Parent", "Retry Print"],
-    mainTable: table("Printing Center Table", ["Document Type", "Module", "Requested By", "Related Record", "Print Status", "Copies"], ["Preview", "Print", "Download PDF", "View Audit"], ["Print selected", "Archive selected"]),
-    forms: [form("Print Template Settings", ["Template name", "Module", "School logo", "Signature area", "Paper size", "Show QR code"], ["Preview Template", "Print Test Page"])],
-    rightDetailsDrawer: ["preview", "print status", "related record", "template", "audit"],
-    approvalWorkflow: "Requested -> Generated -> Printed/Sent -> Archived",
-    smsTriggers: ["document sent to parent", "print failed", "report card ready"],
-    printOutputs: ["Student profile", "Fee receipt", "Report card", "Visitor slip", "LPO", "Goods received note"],
-    permissionChecks: ["CAN_VIEW_DOCUMENTS", "CAN_PRINT_DOCUMENTS", "CAN_SEND_DOCUMENTS"],
-  }),
-  moduleContract({
-    id: "reports-analytics",
-    title: "Reports and Analytics Center",
-    uniqueSidebar: ["Reports Command Center", "Academic Reports", "Finance Reports", "Attendance Reports", "Discipline Reports", "Inventory Reports", "System Reports"],
-    urgentActionStrip: ["Export PDF", "Export Excel", "Print", "Schedule Report"],
-    mainTable: table("Reports Catalog", ["Report", "Module", "Date Range", "Owner", "Status", "Action"], ["Preview", "Export", "Print", "Schedule"], ["Export selected", "Schedule selected"]),
-    forms: [form("Report Filter Form", ["Date range", "Term", "Academic year", "Class/stream", "Module", "Format"], ["Export PDF", "Export Excel", "Print"])],
-    rightDetailsDrawer: ["report preview", "filters", "drilldown", "schedule", "audit"],
-    approvalWorkflow: "Draft -> Generated -> Exported/Scheduled -> Archived",
-    smsTriggers: ["scheduled report ready", "failed export alert", "principal summary"],
-    printOutputs: ["Fee collection report", "Attendance report", "Audit trail report", "Backup report"],
-    permissionChecks: ["CAN_VIEW_REPORTS", "CAN_EXPORT_REPORTS", "CAN_SCHEDULE_REPORTS"],
-  }),
-  moduleContract({
-    id: "universal-approvals",
-    title: "Universal Approval Center",
-    uniqueSidebar: ["Approval Center", "Fee Waivers", "Reversals", "Admissions", "Procurement", "Leave", "Events", "Report Cards"],
-    urgentActionStrip: ["Approve", "Reject", "Return for Correction", "Escalate", "Assign Reviewer"],
-    mainTable: table("Approval Inbox", ["Approval Type", "Requested By", "Module", "Priority", "Due Date", "Status"], ["View", "Approve", "Reject", "View Audit"], ["Approve selected", "Assign selected"]),
-    forms: [form("Approval Modal", ["Decision", "Comment", "Effective date", "Notify requester", "Attachment", "Internal note"], ["Approve", "Reject", "Return", "Escalate"])],
-    rightDetailsDrawer: ["approval details", "affected entity", "workflow timeline", "attachments", "audit"],
-    approvalWorkflow: "Submitted -> Under Review -> Approved/Rejected/Returned -> Executed -> Archived",
-    smsTriggers: ["requester notified", "affected user notified", "approval overdue"],
-    printOutputs: ["Approval register", "Decision letter", "Audit trail"],
-    permissionChecks: ["CAN_VIEW_APPROVALS", "CAN_APPROVE_REQUESTS", "CAN_ESCALATE_APPROVALS"],
-  }),
-];
+const addedModuleContracts: DocxAddedModuleContract[] = generatedWorkspaceDefinitions;
+export function getDocxAddedModuleContractByWorkspace(workspaceName: string) {
+  // First, check by title or exact match
+  let contract = addedModuleContracts.find((c) => c.title.toLowerCase() === workspaceName.toLowerCase());
+  if (contract) return contract;
 
-export function getOperationalRoleBlueprint(roleId: string) {
-  return roleBlueprints.find((blueprint) => blueprint.id === roleId);
+  // Then check by unique sidebar matching
+  contract = addedModuleContracts.find((c) => 
+    c.uniqueSidebar.some(s => s.toLowerCase() === workspaceName.toLowerCase())
+  );
+  if (contract) return contract;
+
+  // Then check for partial matches in title
+  contract = addedModuleContracts.find((c) => 
+    c.title.toLowerCase().includes(workspaceName.toLowerCase()) || 
+    workspaceName.toLowerCase().includes(c.title.toLowerCase())
+  );
+  if (contract) return contract;
+
+  // Fallback to the first one as a generic template
+  return addedModuleContracts[0];
 }
 
-export function getDocxAddedModuleContract(moduleId: string) {
-  return addedModuleContracts.find((contract) => contract.id === moduleId);
+export function generateExtremeErpBlueprintFromContract(workspaceName: string, roleFocus: string): any {
+  const contract = getDocxAddedModuleContractByWorkspace(workspaceName);
+  
+  if (!contract) return null;
+
+  return {
+    id: contract.id,
+    title: workspaceName,
+    moduleCode: contract.id,
+    commandQuestion: `What would you like to do in ${workspaceName}?`,
+    roleFocus: roleFocus,
+    urgentActions: contract.urgentActionStrip,
+    queues: [
+      {
+        id: `${contract.id}-queue`,
+        title: "Executable workflow queue",
+        owner: roleFocus,
+        priority: "Medium",
+        workflow: contract.approvalWorkflow,
+        actions: ["Review", "Approve", "Return"],
+        auditEvent: "ACTION_PERFORMED",
+      }
+    ],
+    tables: [
+      {
+        id: `${contract.id}-table`,
+        title: contract.mainTable.title,
+        columns: contract.mainTable.columns,
+        rowActions: contract.mainTable.rowActions,
+        bulkActions: contract.mainTable.bulkActions,
+      }
+    ],
+    forms: contract.forms.map((f: any) => ({
+      id: f.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, ""),
+      title: f.title,
+      purpose: "Standard data entry form",
+      fields: f.fields,
+      footerActions: f.footerActions,
+      auditAction: "FORM_SUBMITTED",
+    })),
+    printOutputs: contract.printOutputs,
+    sampleData: ["Active", "Pending", "0 Issues"],
+    states: ["LOADING", "SUCCESS", "FAILED"],
+  };
 }
+
+export function getOperationalRoleBlueprint(roleId: string) { return roleBlueprints.find((blueprint) => blueprint.id === roleId); }
+
+export function getDocxAddedModuleContract(moduleId: string) { return addedModuleContracts.find((contract) => contract.id === moduleId); }
 
 export const MYSHULE_OPERATIONAL_ROLE_BLUEPRINTS = roleBlueprints;
 export const DOCX_ADDED_MODULE_CONTRACTS = addedModuleContracts;

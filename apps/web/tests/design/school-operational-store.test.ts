@@ -75,7 +75,7 @@ describe("school operational store", () => {
   });
 
   it("syncs published school operations to the backend event endpoint with tenant metadata", async () => {
-    const fetchMock = jest.fn(async (input: RequestInfo | URL) => {
+    const fetchMock = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
 
       if (url === "/api/auth/csrf") {
@@ -153,7 +153,7 @@ describe("school operational store", () => {
   });
 
   it("returns truthful sync status before UI claims a school operation is saved", async () => {
-    const fetchMock = jest.fn(async (input: RequestInfo | URL) => {
+    const fetchMock = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
 
       if (url === "/api/auth/csrf") {
@@ -200,7 +200,7 @@ describe("school operational store", () => {
   });
 
   it("returns queued sync status when backend persistence fails", async () => {
-    const fetchMock = jest.fn(async (input: RequestInfo | URL) => {
+    const fetchMock = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
 
       if (url === "/api/auth/csrf") {
@@ -242,7 +242,7 @@ describe("school operational store", () => {
   });
 
   it("retries queued school operation syncs and clears them after backend acceptance", async () => {
-    const fetchMock = jest.fn(async (input: RequestInfo | URL) => {
+    const fetchMock = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
       const backendAttempts = fetchMock.mock.calls.filter(([requestUrl]) =>
         String(requestUrl) === "/api/events/school-operations"
@@ -300,7 +300,7 @@ describe("school operational store", () => {
 
   it("starts a retry worker for queued school operation syncs", async () => {
     jest.useFakeTimers();
-    const fetchMock = jest.fn(async (input: RequestInfo | URL) => {
+    const fetchMock = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
       const backendAttempts = fetchMock.mock.calls.filter(([requestUrl]) =>
         String(requestUrl) === "/api/events/school-operations"

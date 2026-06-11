@@ -14,7 +14,7 @@ jest.mock("@/lib/auth/csrf-client", () => ({
   getCsrfToken: jest.fn(async () => "csrf-transport-token"),
 }));
 
-const transportDashboard = {
+const transportDashboard: any = {
   active_routes: 2,
   active_vehicles: 3,
   active_manifests: 4,
@@ -115,7 +115,7 @@ describe("transport module workspace", () => {
         json: async () => ({ data: transportDashboard }),
       } as Response)
       );
-    }) as unknown as typeof fetch;
+    });
     global.fetch = fetchMock as unknown as typeof fetch;
   });
 

@@ -1,0 +1,641 @@
+
+# 22. Admissions Dashboard
+
+Admissions Officer handles the full journey from first enquiry to official student enrolment.
+
+## 22.1 Overview Workspace
+
+Purpose: A daily command center for the Admission Officer to see admissions progress, pending work, and urgent follow-ups.
+
+Summary Cards:
+* New Enquiries Today
+* Submitted Applications
+* Documents Pending
+* Interviews Today
+* Accepted Applicants
+* Fee Clearance Pending
+* Ready for Enrolment
+* Enrolled This Term
+
+Buttons:
+* New Enquiry
+* New Application
+* Schedule Interviews
+* Export Pipeline
+* Refresh
+
+Main Areas:
+* Admission Pipeline Board
+
+Row actions:
+* Open
+* Move Stage
+* Call Parent
+* Send SMS
+* Add Note
+
+## 22.2 Enquiries & Walk-ins Workspace
+
+Purpose: Capture parents or guardians who ask about joining the school before submitting a full application.
+
+Table Columns:
+* Enquiry Code
+* Student Name
+* Parent/Guardian
+* Phone
+* Interested Class
+* Source
+* Boarding/Day
+* Status
+* Follow-up Date
+* Created By
+
+Buttons:
+* Add Enquiry
+* Import Enquiries
+* Send Follow-up SMS
+* Export CSV
+* Print List
+
+Row actions:
+* Open
+* Edit
+* Convert to Application
+* Schedule Visit
+* Send Requirements
+* Call Log
+* Mark Lost
+* Delete
+
+Form:
+* Student first name
+* Student last name
+* Parent/guardian name
+* Parent phone
+* Class applying for
+* Enquiry source
+* Boarding/day preference
+* Current school
+* Location
+* Email
+* Notes
+* Follow-up date
+* Referred by
+
+## 22.3 Applications Workspace
+
+Purpose: Manage submitted admission applications.
+
+Table Columns:
+* Application No.
+* Applicant Name
+* Applying For
+* Curriculum
+* Gender
+* Parent Phone
+* Current School
+* Status
+* Document Status
+* Interview Status
+* Payment Status
+* Submitted Date
+
+Buttons:
+* New Application
+* Import Applications
+* Bulk SMS
+* Export Applications
+* Print Register
+* Filter
+
+Row actions:
+* Open Profile
+* Edit Application
+* Verify Documents
+* Schedule Interview
+* Accept
+* Waitlist
+* Reject
+* Send SMS
+* Print Form
+* Download PDF
+* Mark Duplicate
+* Withdraw
+
+Form:
+* First name
+* Middle name
+* Last name
+* Gender
+* Date of birth
+* Birth certificate number
+* Nationality
+* Religion
+* Medical notes
+* Special needs
+* Applying for Grade/Form
+* Curriculum type
+* Previous school
+* Previous class
+* Last exam score/grade
+* Report form upload
+* Transfer reason
+* Primary guardian name
+* Relationship
+* Phone
+* Email
+* ID number
+* Occupation
+* Address/location
+* Secondary guardian details
+* Boarding/day scholar
+* Transport required
+* Hostel preference
+* Sibling in school
+* Preferred stream
+* Intake term
+* Birth certificate
+* Previous school report
+* Passport photo
+* Parent/guardian ID
+* Leaving certificate
+* Medical document
+* Transfer letter
+
+## 22.4 Applicant Profiles Workspace
+
+Purpose: A detailed single-applicant workspace showing everything about the learner before enrolment.
+
+Buttons:
+* Edit Profile
+* Move Stage
+* Send SMS
+* Print Application
+* Download PDF
+* Reject / Withdraw
+* Convert to Student
+
+Main Areas:
+* Profile Header
+* Profile Tabs
+* Timeline Events
+* Notes
+
+## 22.5 Documents & Verification Workspace
+
+Purpose: Track missing, uploaded, verified, rejected, or expired admission documents.
+
+Summary Cards:
+* Complete Files
+* Missing Birth Certificates
+* Missing Report Forms
+* Rejected Documents
+* Ready for Interview
+
+Table Columns:
+* Applicant
+* Applying Class
+* Birth Certificate
+* Report Form
+* Photo
+* Parent ID
+* Leaving Certificate
+* Overall Status
+
+Row actions:
+* Open Documents
+* Upload Document
+* Verify
+* Reject
+* Request Re-upload
+* Print Checklist
+* Mark Exception
+
+## 22.6 Interviews & Assessments Workspace
+
+Purpose: Schedule and record interviews, entry assessments, or placement tests.
+
+Summary Cards:
+* Interviews Today
+* Pending Scheduling
+* Completed Interviews
+* Passed
+* Failed / Not Recommended
+* No-shows
+
+Table Columns:
+* Applicant
+* Applying Class
+* Date/Time
+* Panel
+* Location
+* Status
+* Score
+* Recommendation
+
+Buttons:
+* Schedule Interview
+* Bulk Schedule
+* Print Interview List
+* Send Reminders
+* Export Results
+
+Row actions:
+* Open
+* Reschedule
+* Mark Arrived
+* Mark No-show
+* Enter Score
+* Record Recommendation
+* Send Reminder
+* Print Slip
+
+Form:
+* Interview date
+* Start time
+* End time
+* Location
+* Interviewer/panel
+* Assessment type
+* Notes
+* Parent reminder enabled
+* SMS template
+* Reading score
+* Writing score
+* Mathematics score
+* English/Kiswahili score
+* General conduct
+* Previous performance
+* Recommendation
+* Interviewer comment
+
+## 22.7 Selection & Offers Workspace
+
+Purpose: Manage final selection decisions and offer letters.
+
+Table Columns:
+* Applicant
+* Applying Class
+* Document Status
+* Interview Score
+* Recommendation
+* Capacity Status
+* Decision
+* Offer Status
+
+Buttons:
+* Generate Offers
+* Send Offer SMS
+* Print Offer Letters
+* Export Decision List
+
+Row actions:
+* Accept Applicant
+* Waitlist
+* Reject Applicant
+* Generate Offer Letter
+* Send Offer
+* Expire Offer
+* Request Capacity Override
+* View Decision History
+
+## 22.8 Admission Fee Clearance Workspace
+
+Purpose: Track admission fee/deposit payment progress before enrolment.
+
+Summary Cards:
+* Offers Sent
+* Deposit Pending
+* Proof Received
+* Finance Cleared
+* Overdue Offers
+
+Table Columns:
+* Applicant
+* Class
+* Parent Phone
+* Offer Date
+* Required Deposit
+* Payment Status
+* Finance Status
+* Deadline
+
+Buttons:
+* Send Payment Instructions
+* Request Finance Confirmation
+* Export Pending List
+* Print Clearance List
+
+Row actions:
+* View Fee Details
+* Upload Payment Proof
+* Send Reminder
+* Notify Accountant
+* View Finance Response
+* Mark Parent Contacted
+* Cancel Offer
+
+## 22.9 Enrolment & Admission Numbers Workspace
+
+Purpose: Convert finance-cleared applicants into official student records.
+
+Summary Cards:
+* Ready for Admission No.
+* Admission Numbers Issued
+* Pending Student Creation
+* Fully Enrolled
+
+Table Columns:
+* Applicant
+* Class
+* Finance Status
+* Admission No.
+* Student Record
+* Parent Link
+* Enrolment Status
+
+Buttons:
+* Generate Admission Numbers
+* Create Student Records
+* Print Admission Register
+* Export Enrolled Students
+
+Row actions:
+* Generate Admission No.
+* Edit Admission No.
+* Create Student Record
+* Link Parent
+* Print Admission Slip
+* Undo Enrolment
+* Open Student Profile
+
+## 22.10 Class & Stream Placement Workspace
+
+Purpose: Assign admitted learners to classes, streams, curriculum track, and boarding/day status.
+
+Summary Cards:
+* Unplaced Learners
+* Classes Near Capacity
+* Boarders Pending Hostel
+* Transport Requests
+
+Table Columns:
+* Student
+* Admission No.
+* Class
+* Stream
+* Curriculum
+* Boarding/Day
+* Capacity
+
+Buttons:
+* Auto-place Students
+* Bulk Assign Stream
+* Print Class Lists
+* Export Placement
+* Request Capacity Override
+
+Row actions:
+* Assign Class
+* Assign Stream
+* Change Placement
+* Request Override
+* Notify Class Teacher
+* Print Joining Slip
+* View Capacity
+
+Form:
+* Class
+* Stream
+* Curriculum type
+* Boarding/day status
+* Transport required
+* Notes
+* Effective date
+
+## 22.11 Parents & Guardians Workspace
+
+Purpose: Ensure every admitted learner has correct guardian records and parent portal access.
+
+Summary Cards:
+* Parents Linked
+* Missing Guardian Info
+* Portal Invites Pending
+* Duplicate Guardians
+
+Table Columns:
+* Student/Applicant
+* Guardian Name
+* Relationship
+* Phone
+* Email
+* Portal Status
+* Linked Students
+
+Buttons:
+* Add Guardian
+* Link Existing Guardian
+* Send Portal Invites
+* Export Contacts
+* Print Parent Register
+
+Row actions:
+* Open Guardian
+* Edit Guardian
+* Link to Student
+* Unlink
+* Send Portal Invite
+* Send SMS
+* Merge Duplicate
+* View Linked Students
+
+## 22.12 Transfers & Re-admissions Workspace
+
+Purpose: Handle students transferring into the school or returning after leaving.
+
+Table Columns:
+* Learner
+* Type
+* Previous School
+* Requested Class
+* Documents
+* Approval Status
+
+Buttons:
+* New Transfer Application
+* New Re-admission
+* Print Transfer Checklist
+* Export Transfers
+
+Row actions:
+* Open
+* Verify Transfer Letter
+* Request Approval
+* Approve for Placement
+* Reject
+* Create Student Record
+* Print Admission Slip
+
+## 22.13 Communication Workspace
+
+Purpose: Send admission-related SMS, email, or in-app messages to parents/guardians.
+
+Table Columns:
+* Recipient
+* Student
+* Channel
+* Template
+* Status
+* Sent By
+* Sent At
+
+Buttons:
+* New Message
+* Use Template
+* Bulk SMS
+* Retry Failed
+* Export Logs
+
+Row actions:
+* View Message
+* Retry
+* Copy Message
+* Open Applicant
+* Mark Follow-up Needed
+
+Form:
+* Recipients
+* Channel
+* Template
+* Message body
+* Attach offer letter
+* Schedule send
+* Internal note
+
+## 22.14 Appointments & Visits Workspace
+
+Purpose: Manage parent visits, school tours, interview appointments, and admission office meetings.
+
+Table Columns:
+* Visitor/Parent
+* Applicant
+* Purpose
+* Date/Time
+* Staff Assigned
+* Status
+
+Buttons:
+* New Appointment
+* Print Today’s Visits
+* Send Reminders
+* Export Calendar
+
+Row actions:
+* Open
+* Reschedule
+* Mark Arrived
+* Mark Done
+* Mark No-show
+* Send Reminder
+* Create Application
+* Notify Security
+
+## 22.15 Imports & Bulk Uploads Workspace
+
+Purpose: Import enquiries, applications, or previously collected admission lists from Excel/CSV.
+
+Table Columns:
+* Row No.
+* Student Name
+* Parent Phone
+* Class
+* Status
+* Error Message
+
+Buttons:
+* Download Template
+* Upload File
+* Validate File
+* Import Valid Rows
+* Download Error Report
+* Undo Last Import
+
+Row actions:
+* Edit Row
+* Ignore Row
+* Merge Duplicate
+* View Error
+
+## 22.16 Reports & Downloads Workspace
+
+Purpose: Generate admission reports for management, finance, class teachers, and records.
+
+Buttons:
+* Generate Report
+* Download PDF
+* Download Excel
+* Print
+* Send to Principal
+* Schedule Report
+* Save Filter
+
+Row actions:
+* Open Applicant
+* Export Visible Rows
+* Print Current Page
+* Share Internally
+
+## 22.17 Tasks & Follow-ups Workspace
+
+Purpose: Manage daily admission follow-ups.
+
+Table Columns:
+* Task
+* Applicant
+* Due Date
+* Priority
+* Assigned To
+* Status
+* Source
+
+Buttons:
+* New Task
+* Assign Task
+* Mark Done
+* Export Tasks
+
+Row actions:
+* Open
+* Mark Done
+* Reschedule
+* Assign
+* Add Note
+* Open Applicant
+* Send SMS
+
+## 22.18 Admission Templates Workspace
+
+Purpose: Manage admission office templates that do not change core school setup.
+
+Table Columns:
+* Template Name
+* Type
+* Status
+* Last Updated
+* Updated By
+
+Buttons:
+* New Template
+* Preview
+* Set Active
+* Duplicate
+* Export Template
+* Restore Default
+
+Row actions:
+* Edit
+* Preview
+* Set Active
+* Duplicate
+* Archive
+* View History

@@ -38,13 +38,15 @@ import {
 } from "@/components/operational/operational-form-shell";
 import { OperationalQueue, type OperationalQueueContract } from "@/components/operational/operational-queue";
 import { OperationalTable, type OperationalTableContract } from "@/components/operational/operational-table";
-import { PrincipalPracticalCommandCenter } from "@/components/school/principal-practical-dashboard";
+import { PrincipalCommandCenter } from "@/components/school/principal-command-center";
 import { UserManagementWorkspace } from "@/components/school/user-management-workspace";
+import { OperationalBlueprintWorkspace } from "@/components/school/operational-blueprint-workspace";
 import { Card } from "@/components/ui/card";
 import { StatusPill } from "@/components/ui/status-pill";
 import { downloadCsvFile, openPrintDocument } from "@/lib/dashboard/export";
 import type { SchoolExperienceRole } from "@/lib/experiences/types";
 import {
+  generateExtremeErpBlueprintFromContract,
   getOperationalRoleBlueprint,
   type DocxRoleId,
   type OperationalRoleBlueprint,
@@ -5341,10 +5343,8 @@ export function RoleOperationalCommandCenter(props: {
 }) {
   if (props.role === "principal") {
     return (
-      <PrincipalPracticalCommandCenter
-        initialSection={props.initialSection}
-        initialWorkspace={props.initialWorkspace}
-        tenantSlug={props.tenantSlug}
+      <PrincipalCommandCenter
+        routeMode={props.routeMode ?? "hosted"}
       />
     );
   }
@@ -5398,6 +5398,10 @@ function GenericRoleOperationalCommandCenter({
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [healthById, setHealthById] = useState<Record<string, OperationalActionHealth>>({});
+
+  const generatedBlueprint = useMemo(() => {
+    return generateExtremeErpBlueprintFromContract(activeWorkspace, role);
+  }, [activeWorkspace, role]);
   const [executionLog, setExecutionLog] = useState<ExecutionLogItem[]>([]);
   const [runtimeEntries, setRuntimeEntries] = useState<RuntimeWorkspaceEntry[]>([]);
   const [attendanceRegisters, setAttendanceRegisters] = useState<AttendanceRegisterRecord[]>([]);
@@ -5484,7 +5488,7 @@ function GenericRoleOperationalCommandCenter({
   const activeWorkspaceKind = workspaceKind(role, resolvedWorkspace);
   const primaryRoleWorkspace = isPrimaryRoleWorkspace(resolvedWorkspace, activeWorkspaceIndex);
   const isNurseClinicWorkspace = primaryRoleWorkspace && role === "nurse" && (activeWorkspaceKind === "clinic" || /clinic command center/i.test(resolvedWorkspace));
-  const isAdmissionsWorkspace = primaryRoleWorkspace && role === "admissions" && (activeWorkspaceKind === "admissions" || /admissions command center/i.test(resolvedWorkspace));
+  const isAdmissionsWorkspace = false;
   const isLibraryWorkspace = primaryRoleWorkspace && role === "librarian" && (activeWorkspaceKind === "library" || /library command center|library operations|library desk/i.test(resolvedWorkspace));
   const isStorekeeperWorkspace = primaryRoleWorkspace && role === "storekeeper" && (activeWorkspaceKind === "inventory" || /store command center|inventory command center|inventory operations|store desk|stock/i.test(resolvedWorkspace));
   const isBoardingWorkspace = primaryRoleWorkspace && role === "boarding-master" && (activeWorkspaceKind === "boarding" || /boarding command center|hostel|dorm|roll call/i.test(resolvedWorkspace));
@@ -8525,19 +8529,6 @@ function GenericRoleOperationalCommandCenter({
                 onPrint={printClinicSlip}
                 onPrintRegister={printClinicRegister}
               />
-            ) : isAdmissionsWorkspace ? (
-              <AdmissionsWorkspace
-                applicants={admissionApplicants}
-                notice={admissionsNotice}
-                onAddApplicant={recordAdmissionApplicant}
-                onVerifyDocuments={verifyAdmissionDocuments}
-                onScheduleInterview={scheduleAdmissionInterview}
-                onApprove={approveAdmissionApplicant}
-                onReject={rejectAdmissionApplicant}
-                onSendSms={sendAdmissionParentSms}
-                onPrintLetter={printAdmissionLetter}
-                onPrintPipeline={printAdmissionsPipeline}
-              />
             ) : isLibraryWorkspace ? (
               <LibraryWorkspace
                 books={libraryBooks}
@@ -8654,6 +8645,8 @@ function GenericRoleOperationalCommandCenter({
                 </div>
                 <OperationalQueue contract={visibleQueueContract} onExecute={(action) => void executeAction(action)} />
               </div>
+            ) : generatedBlueprint ? (
+              <OperationalBlueprintWorkspace blueprint={generatedBlueprint} />
             ) : (
               <div className="grid min-h-0 gap-4">
                 <WorkspaceActionStrip actions={actions} onExecute={(action) => void executeAction(action)} />

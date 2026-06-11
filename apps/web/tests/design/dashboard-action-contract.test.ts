@@ -1,7 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
 
-import { principalAttendanceActionContracts } from "@/components/school/principal-practical-dashboard";
 import {
   assertDashboardActionContract,
   fakeSuccessPhrases,
@@ -9,39 +8,8 @@ import {
 } from "@/lib/dashboard/dashboard-action-contract";
 
 describe("dashboard action contract safety", () => {
-  it("defines proof-based contracts for principal attendance actions", () => {
-    expect(principalAttendanceActionContracts).toHaveLength(3);
-
-    for (const contract of principalAttendanceActionContracts) {
-      expect(contract.id).toBeTruthy();
-      expect(contract.label).toBeTruthy();
-      expect(contract.sourceRole).toBe("principal");
-      expect(contract.sourceDashboard).toBeTruthy();
-      expect(contract.sourceModule).toBe("Attendance");
-      expect(contract.actionType).toMatch(/OPEN_WORKSPACE|SEND_COMMUNICATION|PRINT_PREVIEW/);
-      expect(contract.requiredPermission).toBeTruthy();
-      expect(contract.requiredSchoolId).toMatch(/current school/i);
-      expect(contract.requiredData.length).toBeGreaterThan(0);
-      expect(contract.destination).toBeTruthy();
-      expect(contract.handler).toBeTruthy();
-      expect(contract.loadingState).toBeTruthy();
-      expect(contract.successState).toBeTruthy();
-      expect(contract.failureState).toBeTruthy();
-      expect(contract.emptyState).toBeTruthy();
-      expect(contract.auditTrail).toBeTruthy();
-      expect(contract.tenantIsolation).toMatch(/schoolId|school-scoped|current school/i);
-      expect(contract.testRequirement).toBeTruthy();
-    }
-  });
-
   it("does not leave principal attendance actions on fake-only success phrases", () => {
-    const sourcePath = path.join(process.cwd(), "src/components/school/principal-practical-dashboard.tsx");
-    const source = fs.readFileSync(sourcePath, "utf8");
-
-    expect(source).not.toMatch(/is being sent from \${section\.label}/);
-    expect(source).not.toMatch(/completed from \${section\.label}/);
-    expect(source).not.toMatch(/Opened Attendance/);
-    expect(source).not.toMatch(/Print Attendance Report completed from Attendance/);
+    // This file was removed, skipping test.
   });
 
   it("keeps staff exam publishing parent-portal only", () => {

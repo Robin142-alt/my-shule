@@ -26,6 +26,10 @@ import {
   Wrench,
   type LucideIcon,
 } from "lucide-react";
+import { ApprovalInbox } from "@/components/shared/approval-inbox";
+import { NotificationBell } from "@/components/shared/notification-bell";
+import { TaskQueue } from "@/components/shared/task-queue";
+import { WorkflowToast } from "@/components/shared/workflow-toast";
 
 type TransportRouteMode = "hosted" | "public";
 type Tone = "success" | "info" | "warning" | "danger" | "neutral";
@@ -268,7 +272,7 @@ function Topbar({
             <h1 className="text-xl font-black text-[#071D49]">Transport Workspace</h1>
           </div>
         </div>
-        <div className="grid gap-2 md:grid-cols-[minmax(240px,1fr)_auto_auto_auto] xl:min-w-[760px]">
+        <div className="grid gap-2 md:grid-cols-[minmax(240px,1fr)_auto_auto_auto_auto] xl:min-w-[760px]">
           <div className="relative">
             <label className="flex min-h-11 items-center gap-3 rounded-xl border border-[#D8E0EC] bg-white/88 px-3 text-[#64748B] shadow-sm">
               <Search className="h-4 w-4" aria-hidden="true" />
@@ -308,6 +312,11 @@ function Topbar({
           </div>
           <StatusChip label="Operations normal" tone="success" />
           <StatusChip label={today} tone="neutral" />
+          <div className="flex items-center gap-2">
+            <TaskQueue />
+            <ApprovalInbox currentUserId="school" />
+            <NotificationBell />
+          </div>
           <button type="button" onClick={() => onViewChange("incidents")} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#FF7A1A] px-4 text-sm font-black text-white shadow-[0_14px_30px_rgba(255,122,26,0.25)]">
             Quick actions
           </button>
@@ -965,6 +974,7 @@ export function TransportManagerCommandCenter({ routeMode }: { routeMode: Transp
           </main>
         </div>
       </div>
+      
     </div>
   );
 }

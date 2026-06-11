@@ -2912,3 +2912,666 @@ CREATE INDEX IF NOT EXISTS idx_finance_tasks_tenant_status ON finance_tasks(tena
 CREATE INDEX IF NOT EXISTS idx_operations_reports_tenant_status ON operations_reports(tenant_id, status);
 CREATE INDEX IF NOT EXISTS idx_admissions_applications_tenant_status ON admissions_applications(tenant_id, status);
 CREATE INDEX IF NOT EXISTS idx_inventory_requisitions_tenant_status ON inventory_requisitions(tenant_id, status);
+
+-- ==============================================================================
+-- COUNSELLING MODULE SCHEMA
+-- ==============================================================================
+
+CREATE TABLE IF NOT EXISTS counselling_cases (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    school_id VARCHAR(50) NOT NULL,
+    student_id UUID NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+    case_number VARCHAR(50) NOT NULL,
+    category VARCHAR(100) NOT NULL,
+    priority VARCHAR(50) NOT NULL,
+    status VARCHAR(50) NOT NULL DEFAULT 'New',
+    opened_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    assigned_counsellor_id UUID REFERENCES users(id) ON DELETE SET NULL,
+    referral_id UUID,
+    summary TEXT,
+    private_initial_note TEXT,
+    opened_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    closed_at TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS counselling_referrals (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    school_id VARCHAR(50) NOT NULL,
+    student_id UUID NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+    referred_by_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+    source_role VARCHAR(100),
+    source_module VARCHAR(100),
+    reason TEXT NOT NULL,
+    category VARCHAR(100),
+    priority VARCHAR(50),
+    status VARCHAR(50) NOT NULL DEFAULT 'New',
+    reviewed_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    reviewed_at TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS counselling_sessions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    school_id VARCHAR(50) NOT NULL,
+    case_id UUID REFERENCES counselling_cases(id) ON DELETE CASCADE,
+    student_id UUID NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+    counsellor_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    session_type VARCHAR(100) NOT NULL,
+    session_date DATE NOT NULL,
+    start_time TIME NOT NULL,
+    end_time TIME NOT NULL,
+    private_note TEXT,
+    shared_summary TEXT,
+    follow_up_required BOOLEAN DEFAULT false,
+    follow_up_date DATE,
+    visibility_level VARCHAR(50) DEFAULT 'Private',
+    locked_at TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS counselling_appointments (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    school_id VARCHAR(50) NOT NULL,
+    student_id UUID NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+    case_id UUID REFERENCES counselling_cases(id) ON DELETE CASCADE,
+    appointment_type VARCHAR(100) NOT NULL,
+    date DATE NOT NULL,
+    start_time TIME NOT NULL,
+    end_time TIME NOT NULL,
+    location VARCHAR(200),
+    status VARCHAR(50) NOT NULL DEFAULT 'Scheduled',
+    reminder_sent BOOLEAN DEFAULT false,
+    created_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS counselling_followups (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    school_id VARCHAR(50) NOT NULL,
+    case_id UUID REFERENCES counselling_cases(id) ON DELETE CASCADE,
+    student_id UUID NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+    reason TEXT NOT NULL,
+    due_date DATE NOT NULL,
+    priority VARCHAR(50),
+    assigned_to UUID REFERENCES users(id) ON DELETE SET NULL,
+    status VARCHAR(50) NOT NULL DEFAULT 'Pending',
+    completed_at TIMESTAMP WITH TIME ZONE,
+    notes TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS welfare_concerns (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    school_id VARCHAR(50) NOT NULL,
+    student_id UUID NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+    category VARCHAR(100) NOT NULL,
+    description TEXT NOT NULL,
+    priority VARCHAR(50),
+    source VARCHAR(100),
+    reported_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    status VARCHAR(50) NOT NULL DEFAULT 'Open',
+    follow_up_date DATE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS parent_contact_logs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    school_id VARCHAR(50) NOT NULL,
+    student_id UUID NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+    case_id UUID REFERENCES counselling_cases(id) ON DELETE CASCADE,
+    guardian_id UUID, 
+    contact_method VARCHAR(50),
+    reason TEXT NOT NULL,
+    summary TEXT,
+    agreed_action TEXT,
+    follow_up_date DATE,
+    contacted_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS counselling_escalations (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    school_id VARCHAR(50) NOT NULL,
+    case_id UUID REFERENCES counselling_cases(id) ON DELETE CASCADE,
+    student_id UUID NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+    priority VARCHAR(50) NOT NULL,
+    reason TEXT NOT NULL,
+    recommended_action TEXT,
+    escalated_to VARCHAR(100) NOT NULL,
+    status VARCHAR(50) NOT NULL DEFAULT 'Submitted',
+    created_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    closed_at TIMESTAMP WITH TIME ZONE
+);
+
+ALTER TABLE counselling_cases ENABLE ROW LEVEL SECURITY;
+ALTER TABLE counselling_cases FORCE ROW LEVEL SECURITY;
+CREATE POLICY counselling_cases_tenant_policy ON counselling_cases FOR ALL USING (tenant_id = app.current_tenant_id()) WITH CHECK (tenant_id = app.current_tenant_id());
+
+ALTER TABLE counselling_referrals ENABLE ROW LEVEL SECURITY;
+ALTER TABLE counselling_referrals FORCE ROW LEVEL SECURITY;
+CREATE POLICY counselling_referrals_tenant_policy ON counselling_referrals FOR ALL USING (tenant_id = app.current_tenant_id()) WITH CHECK (tenant_id = app.current_tenant_id());
+
+ALTER TABLE counselling_sessions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE counselling_sessions FORCE ROW LEVEL SECURITY;
+CREATE POLICY counselling_sessions_tenant_policy ON counselling_sessions FOR ALL USING (tenant_id = app.current_tenant_id()) WITH CHECK (tenant_id = app.current_tenant_id());
+
+ALTER TABLE counselling_appointments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE counselling_appointments FORCE ROW LEVEL SECURITY;
+CREATE POLICY counselling_appointments_tenant_policy ON counselling_appointments FOR ALL USING (tenant_id = app.current_tenant_id()) WITH CHECK (tenant_id = app.current_tenant_id());
+
+ALTER TABLE counselling_followups ENABLE ROW LEVEL SECURITY;
+ALTER TABLE counselling_followups FORCE ROW LEVEL SECURITY;
+CREATE POLICY counselling_followups_tenant_policy ON counselling_followups FOR ALL USING (tenant_id = app.current_tenant_id()) WITH CHECK (tenant_id = app.current_tenant_id());
+
+ALTER TABLE welfare_concerns ENABLE ROW LEVEL SECURITY;
+ALTER TABLE welfare_concerns FORCE ROW LEVEL SECURITY;
+CREATE POLICY welfare_concerns_tenant_policy ON welfare_concerns FOR ALL USING (tenant_id = app.current_tenant_id()) WITH CHECK (tenant_id = app.current_tenant_id());
+
+ALTER TABLE parent_contact_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE parent_contact_logs FORCE ROW LEVEL SECURITY;
+CREATE POLICY parent_contact_logs_tenant_policy ON parent_contact_logs FOR ALL USING (tenant_id = app.current_tenant_id()) WITH CHECK (tenant_id = app.current_tenant_id());
+
+ALTER TABLE counselling_escalations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE counselling_escalations FORCE ROW LEVEL SECURITY;
+CREATE POLICY counselling_escalations_tenant_policy ON counselling_escalations FOR ALL USING (tenant_id = app.current_tenant_id()) WITH CHECK (tenant_id = app.current_tenant_id());
+
+CREATE INDEX IF NOT EXISTS idx_counselling_cases_tenant_id ON counselling_cases(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_counselling_referrals_tenant_id ON counselling_referrals(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_counselling_sessions_tenant_id ON counselling_sessions(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_counselling_appointments_tenant_id ON counselling_appointments(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_counselling_followups_tenant_id ON counselling_followups(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_welfare_concerns_tenant_id ON welfare_concerns(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_parent_contact_logs_tenant_id ON parent_contact_logs(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_counselling_escalations_tenant_id ON counselling_escalations(tenant_id);
+
+-- ==========================================
+-- WORKFLOW & CROSS-DASHBOARD COMMUNICATION
+-- ==========================================
+
+-- 1. Notifications
+CREATE TABLE IF NOT EXISTS notifications (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id text NOT NULL,
+    notification_key text,
+    recipient_user_id uuid,
+    recipient_guardian_id uuid,
+    recipient_role text,
+    type text NOT NULL,
+    title text NOT NULL,
+    body text NOT NULL,
+    status text NOT NULL DEFAULT 'unread',
+    priority text,
+    source_module text,
+    source_record_id text,
+    metadata jsonb DEFAULT '{}'::jsonb,
+    read_at timestamptz,
+    created_at timestamptz NOT NULL DEFAULT NOW(),
+    updated_at timestamptz NOT NULL DEFAULT NOW(),
+    CONSTRAINT fk_notifications_recipient_user
+        FOREIGN KEY (recipient_user_id) REFERENCES users (id) ON DELETE CASCADE,
+    CONSTRAINT uq_notifications_tenant_key UNIQUE (tenant_id, notification_key)
+);
+
+CREATE INDEX IF NOT EXISTS idx_notifications_tenant_recipient ON notifications(tenant_id, recipient_user_id);
+CREATE INDEX IF NOT EXISTS idx_notifications_tenant_role ON notifications(tenant_id, recipient_role);
+CREATE INDEX IF NOT EXISTS idx_notifications_tenant_status ON notifications(tenant_id, status);
+
+ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
+ALTER TABLE notifications FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS notifications_tenant_policy ON notifications;
+CREATE POLICY notifications_tenant_policy ON notifications FOR ALL USING (tenant_id = current_setting('app.tenant_id', true)) WITH CHECK (tenant_id = current_setting('app.tenant_id', true));
+
+DROP TRIGGER IF EXISTS trg_notifications_updated_at ON notifications;
+CREATE TRIGGER trg_notifications_updated_at BEFORE UPDATE ON notifications FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+-- 2. Tasks
+CREATE TABLE IF NOT EXISTS tasks (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id text NOT NULL,
+    task_key text,
+    assigned_to_user_id uuid,
+    assigned_to_role text,
+    created_by_user_id uuid,
+    title text NOT NULL,
+    description text,
+    module text,
+    record_id text,
+    status text NOT NULL DEFAULT 'OPEN',
+    priority text,
+    due_date timestamptz,
+    metadata jsonb DEFAULT '{}'::jsonb,
+    completed_at timestamptz,
+    created_at timestamptz NOT NULL DEFAULT NOW(),
+    updated_at timestamptz NOT NULL DEFAULT NOW(),
+    CONSTRAINT fk_tasks_assigned_user
+        FOREIGN KEY (assigned_to_user_id) REFERENCES users (id) ON DELETE SET NULL,
+    CONSTRAINT fk_tasks_created_user
+        FOREIGN KEY (created_by_user_id) REFERENCES users (id) ON DELETE SET NULL,
+    CONSTRAINT uq_tasks_tenant_key UNIQUE (tenant_id, task_key)
+);
+
+CREATE INDEX IF NOT EXISTS idx_tasks_tenant_assigned_to ON tasks(tenant_id, assigned_to_user_id);
+CREATE INDEX IF NOT EXISTS idx_tasks_tenant_role ON tasks(tenant_id, assigned_to_role);
+CREATE INDEX IF NOT EXISTS idx_tasks_tenant_status ON tasks(tenant_id, status);
+
+ALTER TABLE tasks ENABLE ROW LEVEL SECURITY;
+ALTER TABLE tasks FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tasks_tenant_policy ON tasks;
+CREATE POLICY tasks_tenant_policy ON tasks FOR ALL USING (tenant_id = current_setting('app.tenant_id', true)) WITH CHECK (tenant_id = current_setting('app.tenant_id', true));
+
+DROP TRIGGER IF EXISTS trg_tasks_updated_at ON tasks;
+CREATE TRIGGER trg_tasks_updated_at BEFORE UPDATE ON tasks FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+-- 3. Approval Requests
+CREATE TABLE IF NOT EXISTS approval_requests (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id text NOT NULL,
+    approval_key text,
+    requested_by_user_id uuid,
+    approver_role text,
+    approver_user_id uuid,
+    module text,
+    record_id text,
+    approval_type text,
+    reason text,
+    status text NOT NULL DEFAULT 'PENDING',
+    decision_note text,
+    metadata jsonb DEFAULT '{}'::jsonb,
+    decided_at timestamptz,
+    created_at timestamptz NOT NULL DEFAULT NOW(),
+    updated_at timestamptz NOT NULL DEFAULT NOW(),
+    CONSTRAINT fk_approvals_requested_user
+        FOREIGN KEY (requested_by_user_id) REFERENCES users (id) ON DELETE SET NULL,
+    CONSTRAINT fk_approvals_approver_user
+        FOREIGN KEY (approver_user_id) REFERENCES users (id) ON DELETE SET NULL,
+    CONSTRAINT uq_approvals_tenant_key UNIQUE (tenant_id, approval_key)
+);
+
+CREATE INDEX IF NOT EXISTS idx_approvals_tenant_approver ON approval_requests(tenant_id, approver_user_id);
+CREATE INDEX IF NOT EXISTS idx_approvals_tenant_role ON approval_requests(tenant_id, approver_role);
+CREATE INDEX IF NOT EXISTS idx_approvals_tenant_status ON approval_requests(tenant_id, status);
+
+ALTER TABLE approval_requests ENABLE ROW LEVEL SECURITY;
+ALTER TABLE approval_requests FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS approval_requests_tenant_policy ON approval_requests;
+CREATE POLICY approval_requests_tenant_policy ON approval_requests FOR ALL USING (tenant_id = current_setting('app.tenant_id', true)) WITH CHECK (tenant_id = current_setting('app.tenant_id', true));
+
+DROP TRIGGER IF EXISTS trg_approval_requests_updated_at ON approval_requests;
+CREATE TRIGGER trg_approval_requests_updated_at BEFORE UPDATE ON approval_requests FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+-- Migration: 002_finance_projections
+-- Description: Creates projection tables for Finance Overview dashboard
+
+CREATE TABLE IF NOT EXISTS tenant_finance_summary (
+    tenant_id UUID NOT NULL,
+    current_term VARCHAR(50) NOT NULL,
+    total_collections_minor BIGINT NOT NULL DEFAULT 0,
+    total_arrears_minor BIGINT NOT NULL DEFAULT 0,
+    last_updated TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (tenant_id, current_term)
+);
+
+CREATE TABLE IF NOT EXISTS tenant_pending_waivers (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id UUID NOT NULL,
+    waiver_number VARCHAR(50) NOT NULL,
+    student_id UUID NOT NULL,
+    student_name VARCHAR(255) NOT NULL,
+    class_name VARCHAR(100) NOT NULL,
+    amount_minor BIGINT NOT NULL,
+    reason TEXT NOT NULL,
+    status VARCHAR(50) NOT NULL DEFAULT 'pending',
+    requested_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- RLS Policies for tenant_finance_summary
+ALTER TABLE tenant_finance_summary ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Tenant isolation for tenant_finance_summary" 
+ON tenant_finance_summary 
+FOR ALL 
+USING (tenant_id = current_setting('app.current_tenant_id')::UUID);
+
+-- RLS Policies for tenant_pending_waivers
+ALTER TABLE tenant_pending_waivers ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Tenant isolation for tenant_pending_waivers" 
+ON tenant_pending_waivers 
+FOR ALL 
+USING (tenant_id = current_setting('app.current_tenant_id')::UUID);
+
+-- Indexes for fast retrieval
+CREATE INDEX IF NOT EXISTS idx_tenant_finance_summary_tenant ON tenant_finance_summary(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_tenant_pending_waivers_tenant ON tenant_pending_waivers(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_tenant_pending_waivers_status ON tenant_pending_waivers(tenant_id, status);
+
+-- ==========================================
+-- GRADE MASTER DASHBOARD SCHEMA ADDITIONS
+-- ==========================================
+
+-- 1. Grade Master Assignments
+CREATE TABLE IF NOT EXISTS grade_master_assignments (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id tenant_key NOT NULL,
+    user_id UUID NOT NULL REFERENCES users(id),
+    grade_level_id UUID NOT NULL, -- UUID only, no strict reference yet
+    academic_year_id UUID NOT NULL, -- UUID only, no strict reference yet
+    created_by_user_id UUID NOT NULL REFERENCES users(id),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE grade_master_assignments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE grade_master_assignments FORCE ROW LEVEL SECURITY;
+CREATE POLICY grade_master_assignments_tenant_policy ON grade_master_assignments FOR ALL USING (tenant_id = app.current_tenant_id()) WITH CHECK (tenant_id = app.current_tenant_id());
+CREATE INDEX IF NOT EXISTS idx_grade_master_assignments_tenant_id ON grade_master_assignments(tenant_id);
+
+-- 2. Learner Notes
+CREATE TABLE IF NOT EXISTS learner_notes (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id tenant_key NOT NULL,
+    student_id UUID NOT NULL REFERENCES students(id),
+    grade_level_id UUID NOT NULL,
+    academic_year_id UUID NOT NULL,
+    note_type TEXT NOT NULL,
+    description TEXT NOT NULL,
+    follow_up_date DATE,
+    created_by_user_id UUID NOT NULL REFERENCES users(id),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE learner_notes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE learner_notes FORCE ROW LEVEL SECURITY;
+CREATE POLICY learner_notes_tenant_policy ON learner_notes FOR ALL USING (tenant_id = app.current_tenant_id()) WITH CHECK (tenant_id = app.current_tenant_id());
+CREATE INDEX IF NOT EXISTS idx_learner_notes_tenant_id ON learner_notes(tenant_id);
+
+-- 3. Attendance Followups
+CREATE TABLE IF NOT EXISTS attendance_followups (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id tenant_key NOT NULL,
+    student_id UUID NOT NULL REFERENCES students(id),
+    date DATE NOT NULL,
+    reason_category TEXT NOT NULL,
+    detailed_reason TEXT,
+    parent_contacted BOOLEAN NOT NULL DEFAULT FALSE,
+    follow_up_required BOOLEAN NOT NULL DEFAULT FALSE,
+    follow_up_date DATE,
+    assigned_to UUID REFERENCES users(id),
+    created_by_user_id UUID NOT NULL REFERENCES users(id),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE attendance_followups ENABLE ROW LEVEL SECURITY;
+ALTER TABLE attendance_followups FORCE ROW LEVEL SECURITY;
+CREATE POLICY attendance_followups_tenant_policy ON attendance_followups FOR ALL USING (tenant_id = app.current_tenant_id()) WITH CHECK (tenant_id = app.current_tenant_id());
+CREATE INDEX IF NOT EXISTS idx_attendance_followups_tenant_id ON attendance_followups(tenant_id);
+
+-- 4. Academic Interventions
+CREATE TABLE IF NOT EXISTS academic_interventions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id tenant_key NOT NULL,
+    student_id UUID NOT NULL REFERENCES students(id),
+    subject TEXT NOT NULL,
+    concern_type TEXT NOT NULL,
+    current_performance TEXT,
+    target TEXT,
+    intervention_plan TEXT NOT NULL,
+    responsible_person UUID REFERENCES users(id),
+    review_date DATE,
+    created_by_user_id UUID NOT NULL REFERENCES users(id),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE academic_interventions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE academic_interventions FORCE ROW LEVEL SECURITY;
+CREATE POLICY academic_interventions_tenant_policy ON academic_interventions FOR ALL USING (tenant_id = app.current_tenant_id()) WITH CHECK (tenant_id = app.current_tenant_id());
+CREATE INDEX IF NOT EXISTS idx_academic_interventions_tenant_id ON academic_interventions(tenant_id);
+
+-- 5. Report Readiness Reviews
+CREATE TABLE IF NOT EXISTS report_readiness_reviews (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id tenant_key NOT NULL,
+    student_id UUID NOT NULL REFERENCES students(id),
+    exam_id UUID NOT NULL, -- UUID only
+    readiness_status TEXT NOT NULL,
+    missing_items TEXT,
+    reviewed_by_user_id UUID NOT NULL REFERENCES users(id),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE report_readiness_reviews ENABLE ROW LEVEL SECURITY;
+ALTER TABLE report_readiness_reviews FORCE ROW LEVEL SECURITY;
+CREATE POLICY report_readiness_reviews_tenant_policy ON report_readiness_reviews FOR ALL USING (tenant_id = app.current_tenant_id()) WITH CHECK (tenant_id = app.current_tenant_id());
+CREATE INDEX IF NOT EXISTS idx_report_readiness_reviews_tenant_id ON report_readiness_reviews(tenant_id);
+
+-- 6. Grade Form Requests
+CREATE TABLE IF NOT EXISTS grade_form_requests (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id tenant_key NOT NULL,
+    student_id UUID REFERENCES students(id),
+    request_type TEXT NOT NULL,
+    priority TEXT NOT NULL,
+    description TEXT NOT NULL,
+    assigned_department TEXT,
+    status TEXT NOT NULL DEFAULT 'open',
+    suggested_action TEXT,
+    created_by_user_id UUID NOT NULL REFERENCES users(id),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE grade_form_requests ENABLE ROW LEVEL SECURITY;
+ALTER TABLE grade_form_requests FORCE ROW LEVEL SECURITY;
+CREATE POLICY grade_form_requests_tenant_policy ON grade_form_requests FOR ALL USING (tenant_id = app.current_tenant_id()) WITH CHECK (tenant_id = app.current_tenant_id());
+CREATE INDEX IF NOT EXISTS idx_grade_form_requests_tenant_id ON grade_form_requests(tenant_id);
+
+-- 7. Grade Form Notifications
+CREATE TABLE IF NOT EXISTS grade_form_notifications (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id tenant_key NOT NULL,
+    grade_level_id UUID NOT NULL,
+    type TEXT NOT NULL,
+    message TEXT NOT NULL,
+    priority TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'unread',
+    related_student_id UUID REFERENCES students(id),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE grade_form_notifications ENABLE ROW LEVEL SECURITY;
+ALTER TABLE grade_form_notifications FORCE ROW LEVEL SECURITY;
+CREATE POLICY grade_form_notifications_tenant_policy ON grade_form_notifications FOR ALL USING (tenant_id = app.current_tenant_id()) WITH CHECK (tenant_id = app.current_tenant_id());
+CREATE INDEX IF NOT EXISTS idx_grade_form_notifications_tenant_id ON grade_form_notifications(tenant_id);
+
+-- 8. Grade Form Followups
+CREATE TABLE IF NOT EXISTS grade_form_followups (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id tenant_key NOT NULL,
+    student_id UUID NOT NULL REFERENCES students(id),
+    followup_type TEXT NOT NULL,
+    summary TEXT,
+    date DATE NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    created_by_user_id UUID NOT NULL REFERENCES users(id),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE grade_form_followups ENABLE ROW LEVEL SECURITY;
+ALTER TABLE grade_form_followups FORCE ROW LEVEL SECURITY;
+CREATE POLICY grade_form_followups_tenant_policy ON grade_form_followups FOR ALL USING (tenant_id = app.current_tenant_id()) WITH CHECK (tenant_id = app.current_tenant_id());
+CREATE INDEX IF NOT EXISTS idx_grade_form_followups_tenant_id ON grade_form_followups(tenant_id);
+
+-- Migration: 003_discipline_schema
+-- Description: Creates the admin_incidents table for discipline tracking
+
+CREATE TABLE IF NOT EXISTS admin_incidents (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id UUID NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    description TEXT NOT NULL,
+    severity VARCHAR(50) NOT NULL CHECK (severity IN ('low', 'medium', 'high', 'critical')),
+    involved_parties JSONB NOT NULL DEFAULT '[]'::jsonb,
+    status VARCHAR(50) NOT NULL DEFAULT 'reported' CHECK (status IN ('reported', 'reviewed', 'escalated', 'resolved')),
+    created_by UUID NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- RLS Policies
+ALTER TABLE admin_incidents ENABLE ROW LEVEL SECURITY;
+
+-- Migration: 003_discipline_schema
+-- Description: Creates the admin_incidents table for discipline tracking
+
+CREATE TABLE IF NOT EXISTS admin_incidents (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id UUID NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    description TEXT NOT NULL,
+    severity VARCHAR(50) NOT NULL CHECK (severity IN ('low', 'medium', 'high', 'critical')),
+    involved_parties JSONB NOT NULL DEFAULT '[]'::jsonb,
+    status VARCHAR(50) NOT NULL DEFAULT 'reported' CHECK (status IN ('reported', 'reviewed', 'escalated', 'resolved')),
+    created_by UUID NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- RLS Policies
+ALTER TABLE admin_incidents ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Tenant isolation for admin_incidents" 
+ON admin_incidents 
+FOR ALL 
+USING (tenant_id = current_setting('app.current_tenant_id')::UUID);
+
+-- Indexes
+CREATE INDEX IF NOT EXISTS idx_admin_incidents_tenant ON admin_incidents(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_admin_incidents_status ON admin_incidents(tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_admin_incidents_severity ON admin_incidents(tenant_id, severity);
+
+-- Migration: 004_workflow_communication
+-- Description: Core tables for cross-dashboard communication
+
+CREATE TABLE IF NOT EXISTS schools (
+    id tenant_key PRIMARY KEY,
+    name TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'active',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS workflow_events (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id tenant_key NOT NULL,
+    source_user_id UUID,
+    source_role TEXT,
+    target_roles JSONB NOT NULL DEFAULT '[]'::jsonb,
+    event_type TEXT NOT NULL,
+    entity_type TEXT NOT NULL,
+    entity_id TEXT,
+    title TEXT NOT NULL,
+    message TEXT,
+    priority TEXT NOT NULL DEFAULT 'normal',
+    payload JSONB NOT NULL DEFAULT '{}'::jsonb,
+    status TEXT NOT NULL DEFAULT 'pending',
+    handled_by_user_id UUID,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE workflow_events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE workflow_events FORCE ROW LEVEL SECURITY;
+CREATE POLICY workflow_events_tenant_policy ON workflow_events FOR ALL USING (tenant_id = app.current_tenant_id()) WITH CHECK (tenant_id = app.current_tenant_id());
+CREATE INDEX IF NOT EXISTS idx_workflow_events_tenant_id ON workflow_events(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_workflow_events_status ON workflow_events(tenant_id, status);
+
+CREATE TABLE IF NOT EXISTS dashboard_tasks (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id tenant_key NOT NULL,
+    workflow_event_id UUID REFERENCES workflow_events(id) ON DELETE SET NULL,
+    target_role TEXT,
+    target_user_id UUID,
+    title TEXT NOT NULL,
+    description TEXT,
+    status TEXT NOT NULL DEFAULT 'open',
+    due_date TIMESTAMPTZ,
+    assigned_to_user_id UUID,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE dashboard_tasks ENABLE ROW LEVEL SECURITY;
+ALTER TABLE dashboard_tasks FORCE ROW LEVEL SECURITY;
+CREATE POLICY dashboard_tasks_tenant_policy ON dashboard_tasks FOR ALL USING (tenant_id = app.current_tenant_id()) WITH CHECK (tenant_id = app.current_tenant_id());
+CREATE INDEX IF NOT EXISTS idx_dashboard_tasks_tenant_id ON dashboard_tasks(tenant_id);
+
+CREATE TABLE IF NOT EXISTS approval_requests (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id tenant_key NOT NULL,
+    requested_by_user_id UUID NOT NULL,
+    requested_by_role TEXT NOT NULL,
+    approver_roles JSONB NOT NULL DEFAULT '[]'::jsonb,
+    approval_type TEXT NOT NULL,
+    entity_type TEXT NOT NULL,
+    entity_id TEXT NOT NULL,
+    title TEXT NOT NULL,
+    reason TEXT,
+    payload JSONB NOT NULL DEFAULT '{}'::jsonb,
+    status TEXT NOT NULL DEFAULT 'pending',
+    approved_by_user_id UUID,
+    comment TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE approval_requests ENABLE ROW LEVEL SECURITY;
+ALTER TABLE approval_requests FORCE ROW LEVEL SECURITY;
+CREATE POLICY approval_requests_tenant_policy ON approval_requests FOR ALL USING (tenant_id = app.current_tenant_id()) WITH CHECK (tenant_id = app.current_tenant_id());
+CREATE INDEX IF NOT EXISTS idx_approval_requests_tenant_id ON approval_requests(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_approval_requests_status ON approval_requests(tenant_id, status);
+
+CREATE TABLE IF NOT EXISTS notifications (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id tenant_key NOT NULL,
+    user_id UUID,
+    target_role TEXT,
+    title TEXT NOT NULL,
+    message TEXT NOT NULL,
+    type TEXT NOT NULL,
+    priority TEXT NOT NULL DEFAULT 'normal',
+    entity_type TEXT,
+    entity_id TEXT,
+    action_url TEXT,
+    is_read BOOLEAN NOT NULL DEFAULT FALSE,
+    read_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
+ALTER TABLE notifications FORCE ROW LEVEL SECURITY;
+CREATE POLICY notifications_tenant_policy ON notifications FOR ALL USING (tenant_id = app.current_tenant_id()) WITH CHECK (tenant_id = app.current_tenant_id());
+CREATE INDEX IF NOT EXISTS idx_notifications_tenant_id ON notifications(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_notifications_unread ON notifications(tenant_id, is_read);

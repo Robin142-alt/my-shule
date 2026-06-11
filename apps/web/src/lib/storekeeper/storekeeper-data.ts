@@ -23,22 +23,38 @@ export type StorekeeperSectionId =
   | "items"
   | "receiving"
   | "issuing"
+  | "requests"
+  | "returns"
   | "transfers"
+  | "locations"
+  | "damaged-missing"
+  | "stocktake"
   | "suppliers"
   | "reorder-alerts"
+  | "perishables"
   | "reports"
-  | "activity-log";
+  | "notifications"
+  | "activity-log"
+  | "settings";
 
 export const storekeeperSections: StorekeeperSectionId[] = [
   "dashboard",
   "items",
   "receiving",
   "issuing",
+  "requests",
+  "returns",
   "transfers",
+  "locations",
+  "damaged-missing",
+  "stocktake",
   "suppliers",
   "reorder-alerts",
+  "perishables",
   "reports",
+  "notifications",
   "activity-log",
+  "settings",
 ];
 
 export const storekeeperSidebarItems: Array<{
@@ -50,11 +66,19 @@ export const storekeeperSidebarItems: Array<{
   { id: "items", label: "Inventory", href: "/school/storekeeper/inventory?section=items" },
   { id: "receiving", label: "Stock Receiving", href: "/school/storekeeper/inventory?section=receiving" },
   { id: "issuing", label: "Stock Issuing", href: "/school/storekeeper/inventory?section=issuing" },
-  { id: "transfers", label: "Transfers", href: "/school/storekeeper/inventory?section=transfers" },
+  { id: "requests", label: "Requests", href: "/school/storekeeper/inventory?section=requests" },
+  { id: "returns", label: "Returns", href: "/school/storekeeper/inventory?section=returns" },
+  { id: "reorder-alerts", label: "Low Stock & Reorder", href: "/school/storekeeper/inventory?section=reorder-alerts" },
+  { id: "perishables", label: "Perishables & Expiry", href: "/school/storekeeper/inventory?section=perishables" },
+  { id: "damaged-missing", label: "Damaged / Missing", href: "/school/storekeeper/inventory?section=damaged-missing" },
+  { id: "stocktake", label: "Stocktake", href: "/school/storekeeper/inventory?section=stocktake" },
+  { id: "locations", label: "Locations", href: "/school/storekeeper/inventory?section=locations" },
   { id: "suppliers", label: "Suppliers", href: "/school/storekeeper/inventory?section=suppliers" },
-  { id: "reorder-alerts", label: "Reorder Alerts", href: "/school/storekeeper/inventory?section=reorder-alerts" },
+  { id: "transfers", label: "Transfers", href: "/school/storekeeper/inventory?section=transfers" },
   { id: "reports", label: "Reports", href: "/school/storekeeper/reports?source=inventory" },
+  { id: "notifications", label: "Notifications", href: "/school/storekeeper/notifications?source=inventory" },
   { id: "activity-log", label: "Activity Log", href: "/school/storekeeper/audit-logs?source=inventory" },
+  { id: "settings", label: "Settings", href: "/school/storekeeper/settings?source=inventory" },
 ];
 
 export type StoreItemStatus = "healthy" | "low" | "critical";
@@ -134,6 +158,64 @@ export interface StorekeeperMovement {
   notes: string;
 }
 
+export interface StorekeeperReturn {
+  id: string;
+  reference: string;
+  returnedBy: string;
+  department: string;
+  originalVoucher: string;
+  dateReturned: string;
+  itemsCount: number;
+  condition: "good" | "damaged" | "partial";
+  status: "posted" | "pending_inspection";
+}
+
+export interface StorekeeperDamagedMissing {
+  id: string;
+  caseNo: string;
+  itemName: string;
+  quantity: number;
+  type: "damaged" | "missing" | "expired";
+  reportedBy: string;
+  location: string;
+  date: string;
+  status: "open" | "investigating" | "resolved";
+  responsiblePerson: string;
+}
+
+export interface StorekeeperStocktakeSession {
+  id: string;
+  sessionNo: string;
+  scope: string;
+  startedBy: string;
+  startDate: string;
+  countedItems: number;
+  varianceItems: number;
+  status: "draft" | "counting" | "review" | "posted";
+}
+
+export interface StorekeeperLocation {
+  id: string;
+  locationCode: string;
+  locationName: string;
+  storeType: "main" | "boarding" | "kitchen" | "office" | "lab" | "cleaning" | "sports" | "maintenance";
+  parentLocation?: string;
+  itemsCount: number;
+  totalQuantity: number;
+  responsiblePerson: string;
+  status: "active" | "inactive";
+}
+
+export interface StorekeeperNotification {
+  id: string;
+  type: "request" | "approval" | "low_stock" | "expiry" | "return" | "other";
+  message: string;
+  relatedRecord: string;
+  from: string;
+  date: string;
+  status: "unread" | "read";
+}
+
 export interface StorekeeperAlert {
   id: string;
   title: string;
@@ -147,8 +229,13 @@ export interface StorekeeperDataset {
   items: StorekeeperItem[];
   suppliers: StorekeeperSupplier[];
   requests: StorekeeperRequest[];
+  returns: StorekeeperReturn[];
   transfers: StorekeeperTransfer[];
   movements: StorekeeperMovement[];
+  damagedMissing: StorekeeperDamagedMissing[];
+  stocktakeSessions: StorekeeperStocktakeSession[];
+  locations: StorekeeperLocation[];
+  notifications: StorekeeperNotification[];
   processedSubmissionIds: string[];
 }
 
@@ -233,8 +320,13 @@ function cloneDataset(dataset: StorekeeperDataset): StorekeeperDataset {
     items: dataset.items.map((item) => ({ ...item })),
     suppliers: dataset.suppliers.map((supplier) => ({ ...supplier })),
     requests: dataset.requests.map((request) => ({ ...request })),
+    returns: dataset.returns.map((r) => ({ ...r })),
     transfers: dataset.transfers.map((transfer) => ({ ...transfer })),
     movements: dataset.movements.map((movement) => ({ ...movement })),
+    damagedMissing: dataset.damagedMissing.map((d) => ({ ...d })),
+    stocktakeSessions: dataset.stocktakeSessions.map((s) => ({ ...s })),
+    locations: dataset.locations.map((l) => ({ ...l })),
+    notifications: dataset.notifications.map((n) => ({ ...n })),
     processedSubmissionIds: [...dataset.processedSubmissionIds],
   };
 }
@@ -280,8 +372,13 @@ export function createStorekeeperInventoryDataset(): StorekeeperDataset {
     items: [],
     suppliers: [],
     requests: [],
+    returns: [],
     transfers: [],
     movements: [],
+    damagedMissing: [],
+    stocktakeSessions: [],
+    locations: [],
+    notifications: [],
     processedSubmissionIds: [],
   });
 }

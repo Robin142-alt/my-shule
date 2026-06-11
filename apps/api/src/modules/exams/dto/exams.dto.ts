@@ -76,3 +76,32 @@ export class ModerateExamMarksDto {
 export class LockExamMarksDto {
   mark_ids!: string[];
 }
+
+export class CreateTimetableSlotDto {
+  exam_series_id!: string;
+  assessment_id?: string;
+  date!: string;
+  start_time!: string;
+  end_time!: string;
+  room_name?: string;
+}
+
+export class AssignInvigilatorDto {
+  timetable_slot_id!: string;
+  staff_user_id!: string;
+  role?: string;
+}
+
+export class MarkExamAttendanceDto {
+  timetable_slot_id!: string;
+  student_id!: string;
+  status!: string;
+  remarks?: string;
+}
+
+export class ReportStudentExamCaseDto {
+  exam_series_id!: string;
+  student_id!: string;
+  case_type!: string;
+  description!: string;
+}

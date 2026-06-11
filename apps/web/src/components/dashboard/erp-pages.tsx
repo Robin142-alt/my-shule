@@ -25,8 +25,10 @@ import { AlertsPanel } from "@/components/dashboard/alerts-panel";
 import { KpiCards } from "@/components/dashboard/kpi-cards";
 import { AdmissionsDashboardHome } from "@/components/modules/admissions/admissions-dashboard-home";
 import { AdmissionsModuleScreen } from "@/components/modules/admissions/admissions-module-screen";
+import { DeanModuleScreen } from "@/components/modules/dean/dean-module-screen";
 import { InventoryDashboardHome } from "@/components/modules/inventory/inventory-dashboard-home";
 import { InventoryModuleScreen } from "@/components/modules/inventory/inventory-module-screen";
+import { ExamsManagerModuleScreen } from "@/components/modules/exams-manager/exams-manager-module-screen";
 import { QuickActions } from "@/components/dashboard/quick-actions";
 import { Card } from "@/components/ui/card";
 import { Button, buttonClasses } from "@/components/ui/button";
@@ -510,18 +512,26 @@ export function StudentsPage({
   const [studentError, setStudentError] = useState("");
   const [studentNotice, setStudentNotice] = useState("");
 
-  const studentMetrics = model.students.metrics.map((item) => {
-    if (item.id === "students-count") {
-      return { ...item, value: `${studentRows.length}` };
-    }
-    if (item.id === "students-balances") {
-      return { ...item, value: `${studentRows.filter((row) => row.balanceTone !== "ok").length}` };
-    }
-    if (item.id === "students-clear") {
-      return { ...item, value: `${studentRows.filter((row) => row.balanceTone === "ok").length}` };
-    }
-    return item;
-  });
+  const studentMetrics = [
+    {
+      id: "students-count",
+      label: role === "parent" ? "Linked learners" : "Total students",
+      value: role === "parent" ? `${studentRows.length}` : snapshot.students.totalStudents,
+      helper: role === "parent" ? "Children linked to this account" : "Active learners registered",
+    },
+    {
+      id: "students-enrollments",
+      label: "New Enrollments",
+      value: snapshot.students.newEnrollments,
+      helper: "Joined this month",
+    },
+    {
+      id: "students-absent",
+      label: "Absent Today",
+      value: snapshot.students.absentToday,
+      helper: "Marked absent in attendance",
+    },
+  ];
 
   const filteredRows = studentRows.filter((row) => {
     const matchesSearch =
@@ -2793,6 +2803,14 @@ export function ModuleScreen({
 }) {
   if (moduleName === "students") {
     return <StudentsPage role={role} snapshot={snapshot} online={online} />;
+  }
+
+  if (role === "exam-manager") {
+    return <ExamsManagerModuleScreen role={role} moduleName={moduleName} snapshot={snapshot} online={online} />;
+  }
+
+  if (role === "dean") {
+    return <DeanModuleScreen role={role} moduleName={moduleName} snapshot={snapshot} online={online} />;
   }
 
   if (moduleName === "inventory") {

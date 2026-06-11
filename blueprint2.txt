@@ -1,0 +1,243 @@
+<USER_REQUEST>
+ the plan should make sure the syste,m aligns exactly with this Below is a **production-ready MyShule workspace structure blueprint**. It is designed so that **every sidebar item opens a real workspace**, not decorative cards. Each workspace includes **task area, buttons, actions, tables, forms, reports, downloads, permissions, audit logs, and cross-role effects**.
+
+---
+
+# MyShule Role Dashboard + Sidebar Workspace Blueprint
+
+## 0. Global Rule for Every Workspace
+
+Every sidebar workspace in every role dashboard must follow this structure:
+
+### A. Workspace Header
+
+Each page must have:
+
+**Title:** clear role-specific name
+**Description:** what this workspace helps the user do
+**Context bar:** school name, academic year, term, week/date, user role, scope
+**Permission badge:** full access, view-only, restricted, approval required
+**Module status:** active, locked, pending setup, disabled by Super Admin
+
+Example:
+
+> **Learner Attendance**
+> Mark daily attendance, track absenteeism, notify parents, and generate attendance reports.
+> Context: Term 2, 2026 · Grade 7 Blue · Class Teacher Scope
+
+---
+
+### B. Summary Cards
+
+Every workspace should have 3–6 useful cards backed by real database queries.
+
+Examples:
+
+* Total learners
+* Pending approvals
+* Today’s absentees
+* Unpaid invoices
+* Low stock items
+* Sick bay visits today
+* Books overdue
+* Visitors currently inside school
+* Exams awaiting moderation
+* Reports ready for publishing
+
+Cards must have:
+
+* Real values from API
+* Loading skeleton
+* Empty state
+* Error state with retry
+* Click action where useful
+
+---
+
+### C. Main Work Area
+
+Every workspace must have the actual workflow tool:
+
+* Table
+* Form
+* Calendar
+* Kanban board
+* Queue
+* Report builder
+* Wizard
+* Detail drawer
+* Approval panel
+* Print preview
+* Upload/import area
+* Bulk action toolbar
+
+No workspace should only show cards.
+
+---
+
+### D. Standard Buttons
+
+Every workspace should use clear action buttons.
+
+Common buttons:
+
+* **Create**
+* **Add New**
+* **Save**
+* **Save Draft**
+* **Submit*
+<truncated 45214 bytes>
+ifications
+* Health alerts
+
+Buttons:
+
+* Acknowledge
+* Contact School
+* Download Visit Note where allowed
+
+---
+
+# 25. Student Portal
+
+## Sidebar Items
+
+1. Dashboard
+2. Fees
+3. Academics
+4. Behavior
+5. Messages
+6. Downloads
+7. Notifications
+
+---
+
+## 25.1 Student Dashboard
+
+Cards:
+
+* Today timetable
+* Assignments due
+* Library books
+* Notices
+* Fee balance summary if allowed
+
+Buttons:
+
+* View Timetable
+* View Assignments
+* View Messages
+* Download Materials
+
+---
+
+## 25.2 Academics
+
+Student sees:
+
+* Published results only if school allows
+* Assignments
+* Teacher comments where allowed
+* Timetable
+* Learning materials
+
+Buttons:
+
+* Download Assignment
+* Submit Assignment if enabled
+* View Published Report
+
+---
+
+# 26. Reports Every Role Should Have
+
+Every role should only access reports relevant to their scope.
+
+Examples:
+
+## Principal
+
+* Whole school report
+* Attendance report
+* Finance summary
+* Academic performance
+* Discipline summary
+* Staff report
+* Exam/report card report
+
+## Teacher
+
+* Class attendance
+* Marks sheet
+* Lesson log report
+* Assignment report
+
+## Accountant
+
+* Fee statements
+* Receipts
+* Arrears
+* Payment reconciliation
+* Daily collection
+* Waivers
+
+## Nurse
+
+* Sick bay visits
+* Medicine stock
+* Dispensing log
+* Parent notification log
+
+## Librarian
+
+* Book catalogue
+* Issued books
+* Overdue books
+* Lost/damaged books
+* Fine report
+
+## Storekeeper
+
+* Stock balance
+* Stock in
+* Stock issue
+* Low stock
+* Stocktake
+* Damaged/missing
+
+## Security
+
+* Visitor log
+* Gate movement
+* Student exit
+* Incident log
+
+## Transport
+
+* Route lists
+* Vehicle maintenance
+* Student bus list
+* Fuel log
+
+---
+
+# 27. Buttons That Must Never Be Fake
+
+These buttons must always connect to real APIs and show success/error states:
+
+* Save
+* Submit
+* Approve
+* Reject
+* Publish
+* Send SMS
+* Send Email
+* Print
+* Download PDF
+* Export Excel
+* Import CSV
+* Upload File
+* Record 
+<truncated 3086 bytes>
+
+NOTE: The output was truncated because it was too long. Use a more targeted query or a smaller range to get the information you need.

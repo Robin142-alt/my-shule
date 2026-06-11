@@ -224,7 +224,7 @@ describe("MyShule widget registry enforcer", () => {
         {
           actionId: "export-ledger",
           label: "Export Ledger",
-          type: "API",
+          type: "EVENT",
           capabilityRequired: "finance:read",
           handler: {
             type: "API",

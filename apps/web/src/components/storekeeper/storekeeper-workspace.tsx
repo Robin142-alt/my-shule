@@ -144,6 +144,46 @@ const sectionCopy: Record<
     description: "Trace every quantity change by user, timestamp, movement type, and counterparty.",
     icon: History,
   },
+  requests: {
+    title: "Requests",
+    description: "Manage incoming stock requests from departments.",
+    icon: ClipboardList,
+  },
+  returns: {
+    title: "Returns",
+    description: "Process returned stock from departments or users.",
+    icon: ArrowRightLeft,
+  },
+  "damaged-missing": {
+    title: "Damaged / Missing",
+    description: "Track and investigate damaged or missing stock.",
+    icon: AlertTriangle,
+  },
+  stocktake: {
+    title: "Stocktake",
+    description: "Manage physical inventory counts and reconcile records.",
+    icon: ClipboardList,
+  },
+  locations: {
+    title: "Locations",
+    description: "Manage storage locations within the school store.",
+    icon: Boxes,
+  },
+  perishables: {
+    title: "Perishables & Expiry",
+    description: "Track items nearing expiry date.",
+    icon: AlertTriangle,
+  },
+  notifications: {
+    title: "Notifications",
+    description: "Alerts, approvals, and workflow notifications.",
+    icon: ClipboardList,
+  },
+  settings: {
+    title: "Settings",
+    description: "Storekeeper preferences and system configuration.",
+    icon: ClipboardList,
+  },
 };
 
 const reportFilterDefaults: ReportFilters = {
@@ -1572,6 +1612,158 @@ export function StorekeeperWorkspace({
     return renderMovementTable(dataset.movements, "Complete stock movement audit trail");
   }
 
+  function renderRequests() {
+    const columns: DataTableColumn<any>[] = [
+      { id: "dept", header: "Department", render: (r) => r.department },
+      { id: "item", header: "Item", render: (r) => r.itemName },
+      { id: "qty", header: "Quantity", render: (r) => `${r.quantity} ${r.unit}` },
+      { id: "req", header: "Requested By", render: (r) => r.requestedBy },
+      { id: "need", header: "Needed By", render: (r) => r.neededBy },
+      { id: "status", header: "Status", render: (r) => <StatusPill label={r.status} tone={r.status === "approved" ? "ok" : "warning"} compact /> },
+    ];
+    return (
+      <DataTable
+        title="Stock Requests"
+        subtitle="Review and approve department requests."
+        columns={columns}
+        rows={dataset.requests}
+        getRowKey={(r) => r.id}
+        pageSize={8}
+      />
+    );
+  }
+
+  function renderReturns() {
+    const columns: DataTableColumn<any>[] = [
+      { id: "ref", header: "Reference", render: (r) => r.reference },
+      { id: "dept", header: "Department", render: (r) => r.department },
+      { id: "ret", header: "Returned By", render: (r) => r.returnedBy },
+      { id: "date", header: "Date", render: (r) => r.dateReturned },
+      { id: "cond", header: "Condition", render: (r) => r.condition },
+      { id: "status", header: "Status", render: (r) => <StatusPill label={r.status.replace("_", " ")} tone={r.status === "posted" ? "ok" : "warning"} compact /> },
+    ];
+    return (
+      <DataTable
+        title="Stock Returns"
+        subtitle="Process stock brought back to the store."
+        columns={columns}
+        rows={dataset.returns}
+        getRowKey={(r) => r.id}
+        pageSize={8}
+      />
+    );
+  }
+
+  function renderDamagedMissing() {
+    const columns: DataTableColumn<any>[] = [
+      { id: "case", header: "Case No", render: (d) => d.caseNo },
+      { id: "item", header: "Item", render: (d) => d.itemName },
+      { id: "qty", header: "Quantity", render: (d) => d.quantity },
+      { id: "type", header: "Type", render: (d) => d.type },
+      { id: "rep", header: "Reported By", render: (d) => d.reportedBy },
+      { id: "status", header: "Status", render: (d) => <StatusPill label={d.status} tone={d.status === "resolved" ? "ok" : "warning"} compact /> },
+    ];
+    return (
+      <DataTable
+        title="Damaged / Missing Stock"
+        subtitle="Investigations and write-offs."
+        columns={columns}
+        rows={dataset.damagedMissing}
+        getRowKey={(d) => d.id}
+        pageSize={8}
+      />
+    );
+  }
+
+  function renderStocktake() {
+    const columns: DataTableColumn<any>[] = [
+      { id: "session", header: "Session No", render: (s) => s.sessionNo },
+      { id: "scope", header: "Scope", render: (s) => s.scope },
+      { id: "start", header: "Start Date", render: (s) => s.startDate },
+      { id: "items", header: "Counted", render: (s) => s.countedItems },
+      { id: "variance", header: "Variance", render: (s) => s.varianceItems },
+      { id: "status", header: "Status", render: (s) => <StatusPill label={s.status} tone={s.status === "posted" ? "ok" : "warning"} compact /> },
+    ];
+    return (
+      <DataTable
+        title="Stocktake Sessions"
+        subtitle="Physical counts and reconciliations."
+        columns={columns}
+        rows={dataset.stocktakeSessions}
+        getRowKey={(s) => s.id}
+        pageSize={8}
+      />
+    );
+  }
+
+  function renderLocations() {
+    const columns: DataTableColumn<any>[] = [
+      { id: "code", header: "Code", render: (l) => l.locationCode },
+      { id: "name", header: "Name", render: (l) => l.locationName },
+      { id: "type", header: "Type", render: (l) => l.storeType },
+      { id: "items", header: "Items Count", render: (l) => l.itemsCount },
+      { id: "qty", header: "Total Qty", render: (l) => l.totalQuantity },
+      { id: "status", header: "Status", render: (l) => <StatusPill label={l.status} tone={l.status === "active" ? "ok" : "warning"} compact /> },
+    ];
+    return (
+      <DataTable
+        title="Storage Locations"
+        subtitle="Manage logical and physical storage bins."
+        columns={columns}
+        rows={dataset.locations}
+        getRowKey={(l) => l.id}
+        pageSize={8}
+      />
+    );
+  }
+
+  function renderPerishables() {
+    return (
+      <Panel title="Expiring items" subtitle="Batched items that need attention.">
+        <div className="space-y-2">
+          {dashboard.expiringItems.map((item) => (
+            <CompactRow
+              key={item.id}
+              title={item.name}
+              detail={`Batch ${item.batchNumber ?? "N/A"} | ${item.location}`}
+              value={item.expiryDate}
+              tone="warning"
+            />
+          ))}
+        </div>
+      </Panel>
+    );
+  }
+
+  function renderNotifications() {
+    const columns: DataTableColumn<any>[] = [
+      { id: "type", header: "Type", render: (n) => n.type },
+      { id: "msg", header: "Message", render: (n) => n.message },
+      { id: "from", header: "From", render: (n) => n.from },
+      { id: "date", header: "Date", render: (n) => n.date },
+      { id: "status", header: "Status", render: (n) => <StatusPill label={n.status} tone={n.status === "read" ? "ok" : "warning"} compact /> },
+    ];
+    return (
+      <DataTable
+        title="Notifications"
+        subtitle="Alerts and approvals."
+        columns={columns}
+        rows={dataset.notifications}
+        getRowKey={(n) => n.id}
+        pageSize={8}
+      />
+    );
+  }
+
+  function renderSettings() {
+    return (
+      <Card className="p-4">
+        <h3 className="text-lg font-semibold mb-2">Storekeeper Settings</h3>
+        <p className="text-muted text-sm">Configure reorder alert thresholds, workflow approvals, and default locations.</p>
+      </Card>
+    );
+  }
+
   function renderActiveSection() {
     switch (section) {
       case "dashboard":
@@ -1592,6 +1784,22 @@ export function StorekeeperWorkspace({
         return renderReports();
       case "activity-log":
         return renderActivityLog();
+      case "requests":
+        return renderRequests();
+      case "returns":
+        return renderReturns();
+      case "damaged-missing":
+        return renderDamagedMissing();
+      case "stocktake":
+        return renderStocktake();
+      case "locations":
+        return renderLocations();
+      case "perishables":
+        return renderPerishables();
+      case "notifications":
+        return renderNotifications();
+      case "settings":
+        return renderSettings();
     }
   }
 

@@ -114,6 +114,42 @@ export class EventPublisherService {
     });
   }
 
+  async publishAttendanceRegisterMarked(
+    payload: import('./events.types').AttendanceRegisterMarkedPayload,
+  ): Promise<DomainEvent<'attendance.register.marked'>> {
+    return this.publish({
+      event_key: `attendance.register.marked:${payload.stream_id}:${payload.date}`,
+      event_name: 'attendance.register.marked',
+      aggregate_type: 'attendance_register',
+      aggregate_id: `${payload.stream_id}:${payload.date}`,
+      payload,
+    });
+  }
+
+  async publishDisciplineIncidentReported(
+    payload: import('./events.types').DisciplineIncidentReportedPayload,
+  ): Promise<DomainEvent<'discipline.incident.reported'>> {
+    return this.publish({
+      event_key: `discipline.incident.reported:${payload.incident_id}`,
+      event_name: 'discipline.incident.reported',
+      aggregate_type: 'discipline_incident',
+      aggregate_id: payload.incident_id,
+      payload,
+    });
+  }
+
+  async publishWelfareCaseReferred(
+    payload: import('./events.types').WelfareCaseReferredPayload,
+  ): Promise<DomainEvent<'welfare.case.referred'>> {
+    return this.publish({
+      event_key: `welfare.case.referred:${payload.referral_id}`,
+      event_name: 'welfare.case.referred',
+      aggregate_type: 'welfare_case',
+      aggregate_id: payload.referral_id,
+      payload,
+    });
+  }
+
   private requireNonEmptyText(value: string, fieldName: string): string {
     const normalizedValue = value.trim();
 
