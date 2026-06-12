@@ -251,6 +251,7 @@ export async function requestDashboardApi<T>(
           : {}),
       },
       cache: "no-store",
+      credentials: "include",
       signal: controller.signal,
       ...(requestBody !== undefined ? { body: requestBody } : {}),
     });
