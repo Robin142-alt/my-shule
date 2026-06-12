@@ -58,6 +58,23 @@ export class ClinicService {
     });
   }
 
+  async listVisits() {
+    this.assertPermission('clinic:read');
+    const tenantId = this.requestContext.requireStore().tenant_id;
+    const db = (this.repository as any).databaseService;
+    const res = await db.query(
+      `SELECT v.id, v.created_at, v.reason, v.status, v.outcome, v.student_id
+       FROM clinic_visits v
+       WHERE v.tenant_id = $1
+       ORDER BY v.created_at DESC LIMIT 50`,
+      [tenantId]
+    );
+    return res.rows.map((r: any) => ({
+      ...r,
+      student_name: 'Unknown Student'
+    }));
+  }
+
   async receiveMedicineStock(medicineId: string, dto: ReceiveMedicineStockDto) {
     this.assertPermission('clinic:inventory');
     const expiryDate = this.requireDate(dto.expiry_date, 'Expiry date');

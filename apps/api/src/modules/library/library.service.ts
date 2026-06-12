@@ -1,7 +1,7 @@
 import { SchoolOperationalEventsService } from '../events/school-operational-events.service';
 import { BadRequestException, Injectable, Optional, UnauthorizedException } from '@nestjs/common';
 
-import { DatabaseService } from '../../database/database.service';
+import { PrismaService } from '../../database/prisma.service';
 import { RequestContextService } from '../../common/request-context/request-context.service';
 import type {
   IssueLibraryCopyDto,
@@ -24,10 +24,27 @@ interface LibraryBillingHandoff {
 
 @Injectable()
 export class LibraryService {
-  constructor(
-    private readonly requestContext: RequestContextService,
+
+  private async executeSql<T = any>(query: string, params: any[] = []): Promise<{ rows: T[], rowCount: number }> {
+    const firstParam = params[0];
+    const isUuid = typeof firstParam === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(firstParam);
+    
+    if (isUuid) {
+      return this.prisma.executeWithTenant(firstParam, null, async (tx: any) => {
+        const result = await tx.$queryRawUnsafe(query, ...params);
+        const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+      });
+    } else {
+      const result = await this.prisma.$queryRawUnsafe(query, ...params);
+      const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+    }
+  }
+
+  constructor(private readonly prisma: PrismaService, private readonly requestContext: RequestContextService,
     private readonly libraryRepository: LibraryRepository,
-      private readonly db: DatabaseService,
+      private readonly db: PrismaService,
       @Optional() private readonly schoolEvents?: SchoolOperationalEventsService,
     @Optional() private readonly billingService?: LibraryBillingHandoff,
   ) {}
@@ -357,6 +374,23 @@ export class LibraryService {
   async getSummary() {
     const tenantId = this.requireTenantId();
     return this.libraryRepository.buildSummary(tenantId);
+  }
+
+  async listCatalogItems() {
+    const tenantId = this.requireTenantId();
+    const db = (this.libraryRepository as any).databaseService;
+    const res = await db.query(
+      `SELECT c.id, c.title, c.author, c.isbn, c.category_id as subject, 
+              COUNT(cp.id)::int as total,
+              SUM(CASE WHEN cp.status = 'available' THEN 1 ELSE 0 END)::int as available
+       FROM library_catalog_items c
+       LEFT JOIN library_copies cp ON c.id = cp.catalog_item_id AND c.tenant_id = cp.tenant_id
+       WHERE c.tenant_id = $1
+       GROUP BY c.id, c.title, c.author, c.isbn, c.category_id
+       ORDER BY c.title ASC`,
+      [tenantId]
+    );
+    return res.rows;
   }
 
   private calculateFineMinor(dueOn: string, returnedOn: string, dailyFineMinor: number): number {

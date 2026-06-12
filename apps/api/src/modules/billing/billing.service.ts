@@ -13,7 +13,7 @@ import {
   type ReportCsvValue,
 } from '../../common/reports/report-csv-artifact';
 import { RequestContextService } from '../../common/request-context/request-context.service';
-import { DatabaseService } from '../../database/database.service';
+import { PrismaService } from '../../database/prisma.service';
 import {
   BILLING_DEFAULT_CURRENCY_CODE,
   BILLING_INVOICE_NUMBER_PREFIX,
@@ -193,9 +193,27 @@ const BILLING_REPORT_EXPORTS = new Map<string, BillingReportExportDefinition>([
 
 @Injectable()
 export class BillingService {
+
+  private async executeSql<T = any>(query: string, params: any[] = []): Promise<{ rows: T[], rowCount: number }> {
+    const firstParam = params[0];
+    const isUuid = typeof firstParam === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(firstParam);
+    
+    if (isUuid) {
+      return this.prisma.executeWithTenant(firstParam, null, async (tx: any) => {
+        const result = await tx.$queryRawUnsafe(query, ...params);
+        const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+      });
+    } else {
+      const result = await this.prisma.$queryRawUnsafe(query, ...params);
+      const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+    }
+  }
+
   constructor(
     private readonly requestContext: RequestContextService,
-    private readonly databaseService: DatabaseService,
+    private readonly prisma: PrismaService,
     private readonly billingAccessService: BillingAccessService,
     private readonly billingLifecycleService: BillingLifecycleService,
     private readonly billingNotificationService: BillingNotificationService,
@@ -207,7 +225,7 @@ export class BillingService {
   ) {}
 
   async createSubscription(dto: CreateSubscriptionDto): Promise<SubscriptionResponseDto> {
-    const response = await this.databaseService.withRequestTransaction(async () => {
+    const response = await this.prisma.withRequestTransaction(async () => {
       const tenantId = this.requireTenantId();
       const plan = BILLING_PLAN_CATALOG[dto.plan_code];
       const now = new Date();
@@ -291,7 +309,7 @@ export class BillingService {
   }
 
   async createInvoice(dto: CreateInvoiceDto): Promise<InvoiceResponseDto> {
-    const invoice = await this.databaseService.withRequestTransaction(async () => {
+    const invoice = await this.prisma.withRequestTransaction(async () => {
       const tenantId = this.requireTenantId();
       const subscription = await this.requireBillableSubscription(tenantId);
       const dueAt = dto.due_at
@@ -332,7 +350,7 @@ export class BillingService {
     const totalAmountMinor = lineItems
       .reduce((total, item) => total + BigInt(item.amount_minor), 0n)
       .toString();
-    const feeStructure = await this.databaseService.withRequestTransaction(() =>
+    const feeStructure = await this.prisma.withRequestTransaction(() =>
       feeStructuresRepository.create({
         tenant_id: tenantId,
         name: dto.name.trim(),
@@ -397,7 +415,7 @@ export class BillingService {
     feeStructureId: string,
   ): Promise<FeeStructureResponseDto> {
     const tenantId = this.requireTenantId();
-    const archivedFeeStructure = await this.databaseService.withRequestTransaction(() =>
+    const archivedFeeStructure = await this.prisma.withRequestTransaction(() =>
       this.requireFeeStructuresRepository().archive(tenantId, feeStructureId),
     );
 
@@ -421,7 +439,7 @@ export class BillingService {
       throw new BadRequestException('Fee structure id is required for bulk invoice generation');
     }
 
-    const generated = await this.databaseService.withRequestTransaction(async () => {
+    const generated = await this.prisma.withRequestTransaction(async () => {
       const tenantId = this.requireTenantId();
       await this.subscriptionsRepository.acquireTenantMutationLock(tenantId);
       const subscription = await this.requireBillableSubscription(tenantId);
@@ -540,7 +558,7 @@ export class BillingService {
   }
 
   async ensureRenewalInvoice(): Promise<InvoiceResponseDto> {
-    const invoice = await this.databaseService.withRequestTransaction(async () => {
+    const invoice = await this.prisma.withRequestTransaction(async () => {
       const tenantId = this.requireTenantId();
       await this.subscriptionsRepository.acquireTenantMutationLock(tenantId);
       const subscription = await this.requireBillableSubscription(tenantId);
@@ -1025,7 +1043,7 @@ export class BillingService {
       return;
     }
 
-    await this.databaseService.withRequestTransaction(async () => {
+    await this.prisma.withRequestTransaction(async () => {
       const invoice = await this.invoicesRepository.lockByPaymentIntentId(
         tenantId,
         paymentIntentId,

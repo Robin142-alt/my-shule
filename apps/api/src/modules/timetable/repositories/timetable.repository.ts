@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 
-import { DatabaseService } from '../../../database/database.service';
+import { PrismaService } from '../../../database/prisma.service';
 import type { CreateTimetableSlotDto, PublishTimetableVersionDto } from '../dto/timetable.dto';
 
 export interface TimetableConflict {
@@ -19,13 +19,31 @@ export interface TimetableVersionRecord {
 
 @Injectable()
 export class TimetableRepository {
-  constructor(private readonly databaseService: DatabaseService) {}
+
+  private async executeSql<T = any>(query: string, params: any[] = []): Promise<{ rows: T[], rowCount: number }> {
+    const firstParam = params[0];
+    const isUuid = typeof firstParam === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(firstParam);
+    
+    if (isUuid) {
+      return this.prisma.executeWithTenant(firstParam, null, async (tx: any) => {
+        const result = await tx.$queryRawUnsafe(query, ...params);
+        const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+      });
+    } else {
+      const result = await this.prisma.$queryRawUnsafe(query, ...params);
+      const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+    }
+  }
+
+  constructor(private readonly prisma: PrismaService) {}
 
   async findSlotConflicts(
     tenantId: string,
     input: CreateTimetableSlotDto,
   ): Promise<TimetableConflict[]> {
-    const result = await this.databaseService.query<TimetableConflict>(
+    const result = await this.executeSql<TimetableConflict>(
       `
         SELECT 'teacher' AS type, id::text AS slot_id
         FROM timetable_slots
@@ -78,7 +96,7 @@ export class TimetableRepository {
   }
 
   async findVersionConflicts(tenantId: string, input: PublishTimetableVersionDto) {
-    const result = await this.databaseService.query<{ conflict_count: number }>(
+    const result = await this.executeSql<{ conflict_count: number }>(
       `
         SELECT COUNT(*)::int AS conflict_count
         FROM timetable_slots left_slot
@@ -112,7 +130,7 @@ export class TimetableRepository {
     tenant_id: string;
     created_by_user_id: string | null;
   }) {
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
         INSERT INTO timetable_slots (
           tenant_id,
@@ -152,7 +170,7 @@ export class TimetableRepository {
     tenant_id: string;
     published_by_user_id: string | null;
   }): Promise<TimetableVersionRecord> {
-    const result = await this.databaseService.query<TimetableVersionRecord>(
+    const result = await this.executeSql<TimetableVersionRecord>(
       `
         INSERT INTO timetable_versions (
           tenant_id,
@@ -198,7 +216,7 @@ export class TimetableRepository {
     const limit = requestedLimit > 0 ? Math.min(requestedLimit, 100) : 50;
     const offset = Math.max(requestedOffset, 0);
 
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
         SELECT
           version.id::text AS version_id,
@@ -239,7 +257,7 @@ export class TimetableRepository {
     teacher_id: string;
     day_of_week?: string;
   }) {
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
         SELECT
           slot.id::text AS slot_id,
@@ -278,7 +296,7 @@ export class TimetableRepository {
     action: string;
     metadata?: Record<string, unknown>;
   }): Promise<void> {
-    await this.databaseService.query(
+    await this.executeSql(
       `
         INSERT INTO timetable_audit_logs (
           tenant_id,

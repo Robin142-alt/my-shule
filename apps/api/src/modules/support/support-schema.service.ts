@@ -2,17 +2,35 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import format from 'pg-format';
 
 import { FILE_OBJECT_STORAGE_SCHEMA_SQL } from '../../common/uploads/file-object-schema';
-import { DatabaseService } from '../../database/database.service';
+import { PrismaService } from '../../database/prisma.service';
 import { SUPPORT_CATEGORIES } from './dto/support.dto';
 
 @Injectable()
 export class SupportSchemaService implements OnModuleInit {
+
+  private async executeSql<T = any>(query: string, params: any[] = []): Promise<{ rows: T[], rowCount: number }> {
+    const firstParam = params[0];
+    const isUuid = typeof firstParam === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(firstParam);
+    
+    if (isUuid) {
+      return this.prisma.executeWithTenant(firstParam, null, async (tx: any) => {
+        const result = await tx.$queryRawUnsafe(query, ...params);
+        const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+      });
+    } else {
+      const result = await this.prisma.$queryRawUnsafe(query, ...params);
+      const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+    }
+  }
+
   private readonly logger = new Logger(SupportSchemaService.name);
 
-  constructor(private readonly databaseService: DatabaseService) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   async onModuleInit(): Promise<void> {
-    await this.databaseService.runSchemaBootstrap(`
+    await this.prisma.runSchemaBootstrap(`
       CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
       CREATE OR REPLACE FUNCTION set_updated_at()
@@ -660,7 +678,7 @@ export class SupportSchemaService implements OnModuleInit {
     for (const [index, category] of SUPPORT_CATEGORIES.entries()) {
       const code = category.toUpperCase().replace(/[^A-Z0-9]+/g, '_').replace(/^_|_$/g, '');
 
-      await this.databaseService.runSchemaBootstrap(format(
+      await this.prisma.runSchemaBootstrap(format(
         `
           SET LOCAL app.role = 'system';
           SET LOCAL app.tenant_id = 'global';
@@ -723,7 +741,7 @@ export class SupportSchemaService implements OnModuleInit {
     for (const article of articles) {
       const tagsSql = article.tags.map((tag) => format('%L', tag)).join(', ');
 
-      await this.databaseService.runSchemaBootstrap(format(
+      await this.prisma.runSchemaBootstrap(format(
         `
           SET LOCAL app.role = 'system';
           SET LOCAL app.tenant_id = 'global';
@@ -765,7 +783,7 @@ export class SupportSchemaService implements OnModuleInit {
     ] as const;
 
     for (const [slug, name, status, uptime, latency] of components) {
-      await this.databaseService.runSchemaBootstrap(format(
+      await this.prisma.runSchemaBootstrap(format(
         `
           SET LOCAL app.role = 'system';
           SET LOCAL app.tenant_id = 'global';

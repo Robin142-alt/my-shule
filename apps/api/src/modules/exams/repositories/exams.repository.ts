@@ -1,13 +1,22 @@
 import { ConflictException, Injectable } from '@nestjs/common';
 
-import { DatabaseService } from '../../../database/database.service';
+import { PrismaService } from '../../../database/prisma.service';
 
 @Injectable()
 export class ExamsRepository {
-  constructor(private readonly databaseService: DatabaseService) {}
+  constructor(private readonly prisma: PrismaService) {}
+
+  private async executeSql<T = any>(query: string, params: any[] = []): Promise<{ rows: T[], rowCount: number }> {
+    const tenantId = params[0] as string;
+    return this.prisma.executeWithTenant(tenantId, null, async (tx: any) => {
+      const result = await tx.$queryRawUnsafe(query, ...params);
+      const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+    });
+  }
 
   async createSeries(input: Record<string, unknown>) {
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
         INSERT INTO exam_series (
           tenant_id,
@@ -33,8 +42,29 @@ export class ExamsRepository {
     return result.rows[0];
   }
 
+  async getDashboard(tenantId: string) {
+    const [
+      savedConfigurations,
+      examDrafts,
+      marksEntrySessions,
+      deanReviewBatches
+    ] = await Promise.all([
+      this.executeSql(`SELECT * FROM exam_series WHERE tenant_id = $1 ORDER BY created_at DESC LIMIT 5`, [tenantId]),
+      this.executeSql(`SELECT * FROM exam_series WHERE tenant_id = $1 AND status = 'draft' ORDER BY created_at DESC LIMIT 5`, [tenantId]),
+      this.executeSql(`SELECT * FROM exam_mark_entry_windows WHERE tenant_id = $1 ORDER BY created_at DESC LIMIT 5`, [tenantId]),
+      this.executeSql(`SELECT * FROM report_card_generation_batches WHERE tenant_id = $1 ORDER BY created_at DESC LIMIT 5`, [tenantId]),
+    ]);
+
+    return {
+      savedConfigurations: savedConfigurations.rows,
+      examDrafts: examDrafts.rows,
+      marksEntrySessions: marksEntrySessions.rows,
+      deanReviewBatches: deanReviewBatches.rows
+    };
+  }
+
   async createAssessment(input: Record<string, unknown>) {
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
         INSERT INTO exam_assessments (
           tenant_id,
@@ -69,7 +99,7 @@ export class ExamsRepository {
     class_section_id: string;
     subject_id: string;
   }) {
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
         SELECT *
         FROM teacher_subject_assignments
@@ -94,7 +124,7 @@ export class ExamsRepository {
   }
 
   async findSeriesState(input: { tenant_id: string; exam_series_id: string }) {
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
         SELECT id, status, locked_at::text, published_at::text
         FROM exam_series
@@ -109,7 +139,7 @@ export class ExamsRepository {
   }
 
   async upsertMark(input: Record<string, unknown>) {
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
         INSERT INTO exam_marks (
           tenant_id,
@@ -167,7 +197,7 @@ export class ExamsRepository {
   }
 
   async findExistingMark(input: { tenant_id: string; mark_id: string }) {
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
         SELECT *
         FROM exam_marks
@@ -183,7 +213,7 @@ export class ExamsRepository {
   }
 
   async correctLockedMark(input: Record<string, unknown>) {
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
         UPDATE exam_marks
         SET score = $3::numeric,
@@ -207,7 +237,7 @@ export class ExamsRepository {
   }
 
   async createMarkVersion(input: Record<string, unknown>) {
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
         INSERT INTO exam_mark_versions (
           tenant_id,
@@ -244,7 +274,7 @@ export class ExamsRepository {
   async findPublishedReportCardsForMark(
     input: { tenant_id: string; mark_id: string },
   ): Promise<Array<{ id: string; status?: string }>> {
-    const result = await this.databaseService.query<{ id: string; status?: string }>(
+    const result = await this.executeSql<{ id: string; status?: string }>(
       `
         SELECT DISTINCT
           card.id::text,
@@ -265,7 +295,7 @@ export class ExamsRepository {
   }
 
   async markReportCardsRegenerationRequired(input: Record<string, unknown>) {
-    await this.databaseService.query(
+    await this.executeSql(
       `
         UPDATE student_report_cards
         SET
@@ -290,7 +320,7 @@ export class ExamsRepository {
   }
 
   async createReportCardSnapshot(input: Record<string, unknown>) {
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
         INSERT INTO student_report_cards (
           tenant_id,
@@ -335,7 +365,7 @@ export class ExamsRepository {
   }
 
   async createGeneratedReportCardSnapshot(input: Record<string, unknown>) {
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
         INSERT INTO student_report_cards (
           tenant_id,
@@ -374,7 +404,7 @@ export class ExamsRepository {
   }
 
   async recordReportCardArtifact(input: Record<string, unknown>) {
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
         INSERT INTO report_card_artifacts (
           tenant_id,
@@ -407,7 +437,7 @@ export class ExamsRepository {
   }
 
   async createReportCardGenerationBatch(input: Record<string, unknown>) {
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
         INSERT INTO report_card_generation_batches (
           tenant_id,
@@ -439,7 +469,7 @@ export class ExamsRepository {
   }
 
   async updateReportCardGenerationBatch(input: Record<string, unknown>) {
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
         UPDATE report_card_generation_batches
         SET
@@ -477,7 +507,7 @@ export class ExamsRepository {
   }
 
   async getReportCardGenerationBatch(input: { tenant_id: string; batch_id: string }) {
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
         SELECT
           id::text,
@@ -509,7 +539,7 @@ export class ExamsRepository {
     const limit = requestedLimit > 0 ? Math.min(requestedLimit, 200) : 200;
     const offset = Math.max(requestedOffset, 0);
 
-    const result = await this.databaseService.query<{ id: string }>(
+    const result = await this.executeSql<{ id: string }>(
       `
         SELECT id::text
         FROM students
@@ -530,7 +560,7 @@ export class ExamsRepository {
     tenant_id: string;
     verification_code: string;
   }) {
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
         SELECT
           card.id::text AS report_card_id,
@@ -571,7 +601,7 @@ export class ExamsRepository {
     exam_series_id: string;
     student_id: string;
   }): Promise<Record<string, unknown>> {
-    const seriesResult = await this.databaseService.query(
+    const seriesResult = await this.executeSql(
       `
         SELECT
           series.id::text,
@@ -591,7 +621,7 @@ export class ExamsRepository {
       `,
       [input.tenant_id, input.exam_series_id],
     );
-    const studentResult = await this.databaseService.query(
+    const studentResult = await this.executeSql(
       `
         SELECT
           student.id::text,
@@ -609,7 +639,7 @@ export class ExamsRepository {
       `,
       [input.tenant_id, input.student_id],
     );
-    const subjectsResult = await this.databaseService.query(
+    const subjectsResult = await this.executeSql(
       `
         SELECT
           mark.subject_id::text,
@@ -656,7 +686,7 @@ export class ExamsRepository {
     const limit = requestedLimit > 0 ? Math.min(requestedLimit, 50) : 25;
     const offset = Math.max(requestedOffset, 0);
 
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
         SELECT
           card.id::text,
@@ -689,7 +719,7 @@ export class ExamsRepository {
     report_card_id: string;
     guardian_user_id: string;
   }) {
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
         SELECT card.*
         FROM student_report_cards card
@@ -713,7 +743,7 @@ export class ExamsRepository {
   }
 
   async findAssessmentScope(input: { tenant_id: string; assessment_id: string }) {
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
         SELECT
           assessment.id::text,
@@ -746,7 +776,7 @@ export class ExamsRepository {
     exam_series_id: string;
     score: number;
   }) {
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
         WITH configured AS (
           SELECT
@@ -805,7 +835,7 @@ export class ExamsRepository {
   }) {
     const limit = this.normalizeLimit(input.limit);
     const offset = this.normalizeOffset(input.offset);
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
         SELECT
           window.id::text,
@@ -867,7 +897,7 @@ export class ExamsRepository {
     mark_sheet_id: string;
     actor_user_id: string;
   }) {
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
         UPDATE exam_mark_entry_windows
         SET status = 'closed',
@@ -896,7 +926,7 @@ export class ExamsRepository {
   }
 
   async appendMarkAuditLog(input: Record<string, unknown>) {
-    await this.databaseService.query(
+    await this.executeSql(
       `
         INSERT INTO exam_mark_audit_logs (
           tenant_id,
@@ -930,7 +960,7 @@ export class ExamsRepository {
   }
 
   async appendReportCardAuditLog(input: Record<string, unknown>) {
-    await this.databaseService.query(
+    await this.executeSql(
       `
         INSERT INTO student_report_card_audit_logs (
           tenant_id,
@@ -1012,7 +1042,7 @@ export class ExamsRepository {
     query += ` ORDER BY m.updated_at DESC LIMIT $${paramIndex}::integer OFFSET $${paramIndex + 1}::integer `;
     params.push(limit, offset);
     
-    const result = await this.databaseService.query(query, params);
+    const result = await this.executeSql(query, params);
     return result.rows;
   }
 
@@ -1023,7 +1053,7 @@ export class ExamsRepository {
     actor_user_id: string;
   }) {
     const status = input.action === 'approve' ? 'reviewed' : 'draft';
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
         UPDATE exam_marks
         SET status = $3,
@@ -1044,7 +1074,7 @@ export class ExamsRepository {
     mark_ids: string[];
     actor_user_id: string;
   }) {
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
         UPDATE exam_marks
         SET status = 'locked',
@@ -1066,7 +1096,7 @@ export class ExamsRepository {
     exam_series_id: string;
     actor_user_id: string;
   }) {
-    await this.databaseService.query(
+    await this.executeSql(
       `
         UPDATE exam_series
         SET status = 'published',
@@ -1076,7 +1106,7 @@ export class ExamsRepository {
       `,
       [input.tenant_id, input.exam_series_id]
     );
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
         UPDATE exam_marks
         SET status = 'published',
@@ -1092,7 +1122,7 @@ export class ExamsRepository {
   }
 
   async createTimetableSlot(input: Record<string, unknown>) {
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
         INSERT INTO exam_timetable_slots (
           tenant_id,
@@ -1120,7 +1150,7 @@ export class ExamsRepository {
   }
 
   async assignInvigilator(input: Record<string, unknown>) {
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
         INSERT INTO exam_invigilators (
           tenant_id,
@@ -1142,7 +1172,7 @@ export class ExamsRepository {
   }
 
   async markAttendance(input: Record<string, unknown>) {
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
         INSERT INTO exam_attendance_records (
           tenant_id,
@@ -1168,7 +1198,7 @@ export class ExamsRepository {
   }
 
   async reportStudentCase(input: Record<string, unknown>) {
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
         INSERT INTO exam_student_cases (
           tenant_id,
@@ -1205,7 +1235,7 @@ export class ExamsRepository {
     }
     
     query += ` ORDER BY date ASC, start_time ASC`;
-    const result = await this.databaseService.query(query, params);
+    const result = await this.executeSql(query, params);
     return result.rows;
   }
 
@@ -1220,7 +1250,7 @@ export class ExamsRepository {
       paramCount++;
     }
     
-    const result = await this.databaseService.query(query, params);
+    const result = await this.executeSql(query, params);
     return result.rows;
   }
 
@@ -1235,7 +1265,7 @@ export class ExamsRepository {
       paramCount++;
     }
     
-    const result = await this.databaseService.query(query, params);
+    const result = await this.executeSql(query, params);
     return result.rows;
   }
 
@@ -1251,7 +1281,7 @@ export class ExamsRepository {
     }
     
     query += ` ORDER BY created_at DESC`;
-    const result = await this.databaseService.query(query, params);
+    const result = await this.executeSql(query, params);
     return result.rows;
   }
 
@@ -1267,7 +1297,7 @@ export class ExamsRepository {
     }
     
     query += ` ORDER BY starts_on DESC`;
-    const result = await this.databaseService.query(query, params);
+    const result = await this.executeSql(query, params);
     return result.rows;
   }
 
@@ -1283,7 +1313,7 @@ export class ExamsRepository {
     }
     
     query += ` ORDER BY name ASC`;
-    const result = await this.databaseService.query(query, params);
+    const result = await this.executeSql(query, params);
     return result.rows;
   }
 
@@ -1299,7 +1329,7 @@ export class ExamsRepository {
     }
     
     query += ` ORDER BY name ASC`;
-    const result = await this.databaseService.query(query, params);
+    const result = await this.executeSql(query, params);
     return result.rows;
   }
 
@@ -1315,7 +1345,7 @@ export class ExamsRepository {
     }
     
     query += ` ORDER BY created_at DESC LIMIT 100`;
-    const result = await this.databaseService.query(query, params);
+    const result = await this.executeSql(query, params);
     return result.rows;
   }
 
@@ -1331,7 +1361,7 @@ export class ExamsRepository {
     }
     
     query += ` ORDER BY created_at DESC`;
-    const result = await this.databaseService.query(query, params);
+    const result = await this.executeSql(query, params);
     return result.rows;
   }
 
@@ -1347,7 +1377,7 @@ export class ExamsRepository {
     }
     
     query += ` ORDER BY component_name ASC`;
-    const result = await this.databaseService.query(query, params);
+    const result = await this.executeSql(query, params);
     return result.rows;
   }
 
@@ -1363,7 +1393,7 @@ export class ExamsRepository {
     }
     
     query += ` ORDER BY opens_at ASC`;
-    const result = await this.databaseService.query(query, params);
+    const result = await this.executeSql(query, params);
     return result.rows;
   }
 
@@ -1385,7 +1415,7 @@ export class ExamsRepository {
     }
     
     query += ` ORDER BY updated_at DESC LIMIT 1000`;
-    const result = await this.databaseService.query(query, params);
+    const result = await this.executeSql(query, params);
     return result.rows;
   }
 
@@ -1401,7 +1431,7 @@ export class ExamsRepository {
     }
     
     query += ` ORDER BY created_at DESC LIMIT 500`;
-    const result = await this.databaseService.query(query, params);
+    const result = await this.executeSql(query, params);
     return result.rows;
   }
 
@@ -1417,7 +1447,7 @@ export class ExamsRepository {
     }
     
     query += ` ORDER BY created_at DESC LIMIT 100`;
-    const result = await this.databaseService.query(query, params);
+    const result = await this.executeSql(query, params);
     return result.rows;
   }
 
@@ -1439,7 +1469,7 @@ export class ExamsRepository {
     }
     
     query += ` ORDER BY created_at DESC LIMIT 500`;
-    const result = await this.databaseService.query(query, params);
+    const result = await this.executeSql(query, params);
     return result.rows;
   }
 
@@ -1451,7 +1481,7 @@ export class ExamsRepository {
         (SELECT COUNT(*) FROM student_report_cards WHERE tenant_id = $1 AND status = 'published') AS published_reports,
         (SELECT COUNT(*) FROM exam_mark_versions WHERE tenant_id = $1 AND approval_state = 'pending') AS pending_moderations
     `;
-    const result = await this.databaseService.query(query, [tenantId]);
+    const result = await this.executeSql(query, [tenantId]);
     return result.rows[0];
   }
 

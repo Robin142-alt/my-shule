@@ -22,13 +22,14 @@ export function OverviewWorkspace() {
     );
   }
 
+  const safeData = data as any;
   return (
     <Panel title="Overview" description="This is the Class Teacher’s command center. It shows the class condition today." icon={Home}>
       <div className="grid gap-4 md:grid-cols-4">
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 font-bold text-[#071D49]">Total Learners: {data.totalLearners}</div>
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 font-bold text-[#071D49]">Present Today: {data.presentToday}</div>
-        <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 font-bold text-rose-700">Absent Today: {data.absentToday}</div>
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 font-bold text-[#071D49]">Fee Arrears: {data.feeArrears}</div>
+        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 font-bold text-[#071D49]">Total Learners: {safeData.totalLearners}</div>
+        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 font-bold text-[#071D49]">Present Today: {safeData.presentToday}</div>
+        <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 font-bold text-rose-700">Absent Today: {safeData.absentToday}</div>
+        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 font-bold text-[#071D49]">Fee Arrears: {safeData.feeArrears}</div>
       </div>
       <div className="mt-6">
         <h3 className="mb-3 text-sm font-black uppercase text-[#64748B]">Urgent Follow-ups</h3>
@@ -42,11 +43,11 @@ export function OverviewWorkspace() {
               </tr>
             </thead>
             <tbody className="divide-y divide-[#D8E0EC]">
-              {data.urgentFollowups.map((f: any) => (
-                <tr key={f.id}>
-                  <td className="p-3 font-medium">{f.learnerName}</td>
-                  <td className="p-3 text-rose-600">{f.issue}</td>
-                  <td className="p-3"><button className="rounded bg-[#EEF5FF] px-2 py-1 text-xs font-bold text-[#1D4ED8]">{f.actionNeeded}</button></td>
+              {((safeData.followUps as any[]) || []).map((row: any) => (
+                <tr key={row.id}>
+                  <td className="p-3 font-bold">{row.name}</td>
+                  <td className="p-3 text-rose-600">{row.issue}</td>
+                  <td className="p-3"><button className="rounded bg-[#EEF5FF] px-2 py-1 text-xs font-bold text-[#1D4ED8]">{row.actionNeeded}</button></td>
                 </tr>
               ))}
             </tbody>

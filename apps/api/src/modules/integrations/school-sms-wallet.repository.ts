@@ -1,15 +1,33 @@
 import { createHash } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
 
-import { DatabaseService } from '../../database/database.service';
+import { PrismaService } from '../../database/prisma.service';
 import type { ReservedSmsCredits, SmsWalletRecord } from './integrations.types';
 
 @Injectable()
 export class SchoolSmsWalletRepository {
-  constructor(private readonly databaseService: DatabaseService) {}
+
+  private async executeSql<T = any>(query: string, params: any[] = []): Promise<{ rows: T[], rowCount: number }> {
+    const firstParam = params[0];
+    const isUuid = typeof firstParam === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(firstParam);
+    
+    if (isUuid) {
+      return this.prisma.executeWithTenant(firstParam, null, async (tx: any) => {
+        const result = await tx.$queryRawUnsafe(query, ...params);
+        const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+      });
+    } else {
+      const result = await this.prisma.$queryRawUnsafe(query, ...params);
+      const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+    }
+  }
+
+  constructor(private readonly prisma: PrismaService) {}
 
   async getOrCreateWallet(tenantId: string): Promise<SmsWalletRecord> {
-    const result = await this.databaseService.query<SmsWalletRecord>(
+    const result = await this.executeSql<SmsWalletRecord>(
       `
         INSERT INTO school_sms_wallets (tenant_id)
         VALUES ($1)
@@ -32,7 +50,7 @@ export class SchoolSmsWalletRepository {
     reference?: string | null;
     actor_user_id?: string | null;
   }): Promise<SmsWalletRecord> {
-    const result = await this.databaseService.query<SmsWalletRecord>(
+    const result = await this.executeSql<SmsWalletRecord>(
       `
         WITH wallet AS (
           INSERT INTO school_sms_wallets (tenant_id)
@@ -95,7 +113,7 @@ export class SchoolSmsWalletRepository {
     credit_cost: number;
     sent_by_user_id?: string | null;
   }): Promise<ReservedSmsCredits> {
-    return this.databaseService.withRequestTransaction(() =>
+    return this.prisma.withRequestTransaction(() =>
       this.reserveSmsCreditsInTransaction(input),
     );
   }
@@ -145,7 +163,7 @@ export class SchoolSmsWalletRepository {
       };
     }
 
-    const updated = await this.databaseService.query<{ sms_balance: number; monthly_used: number }>(
+    const updated = await this.executeSql<{ sms_balance: number; monthly_used: number }>(
       `
         UPDATE school_sms_wallets
         SET sms_balance = sms_balance - $2,
@@ -192,7 +210,7 @@ export class SchoolSmsWalletRepository {
 
     const log = await this.insertSmsLog({ ...input, status: 'queued', failure_reason: null });
 
-    await this.databaseService.query(
+    await this.executeSql(
       `
         INSERT INTO sms_wallet_transactions (
           tenant_id,
@@ -229,7 +247,7 @@ export class SchoolSmsWalletRepository {
     provider_id?: string | null;
     provider_message_id?: string | null;
   }): Promise<void> {
-    await this.databaseService.query(
+    await this.executeSql(
       `
         UPDATE sms_logs
         SET status = 'sent',
@@ -254,7 +272,7 @@ export class SchoolSmsWalletRepository {
     tenant_id: string;
     failure_reason: string;
   }): Promise<void> {
-    await this.databaseService.query(
+    await this.executeSql(
       `
         UPDATE sms_logs
         SET status = 'failed',
@@ -278,15 +296,15 @@ export class SchoolSmsWalletRepository {
     reason: string;
     actor_user_id?: string | null;
   }): Promise<void> {
-    await this.databaseService.withRequestTransaction(async () => {
-      await this.databaseService.query(
+    await this.prisma.withRequestTransaction(async () => {
+      await this.executeSql(
         `
           SELECT pg_advisory_xact_lock(hashtextextended($1, 0))
         `,
         [`sms-refund:${input.tenant_id}:${input.log_id}`],
       );
 
-      const existingRefund = await this.databaseService.query<{ id: string }>(
+      const existingRefund = await this.executeSql<{ id: string }>(
         `
           SELECT id::text
           FROM sms_wallet_transactions
@@ -302,7 +320,7 @@ export class SchoolSmsWalletRepository {
         return;
       }
 
-      const updated = await this.databaseService.query<{ sms_balance: number; monthly_used: number }>(
+      const updated = await this.executeSql<{ sms_balance: number; monthly_used: number }>(
         `
           UPDATE school_sms_wallets
           SET sms_balance = sms_balance + $2,
@@ -315,7 +333,7 @@ export class SchoolSmsWalletRepository {
       );
       const balanceAfter = updated.rows[0]?.sms_balance ?? 0;
 
-      await this.databaseService.query(
+      await this.executeSql(
         `
           INSERT INTO sms_wallet_transactions (
             tenant_id,
@@ -341,7 +359,7 @@ export class SchoolSmsWalletRepository {
   }
 
   async listLogs(tenantId: string, limit = 50): Promise<Array<Record<string, unknown>>> {
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
         SELECT id::text, recipient_last4, message_preview, message_type, status,
                credit_cost, provider_message_id, failure_reason,
@@ -363,7 +381,7 @@ export class SchoolSmsWalletRepository {
     note?: string | null;
     requested_by_user_id?: string | null;
   }): Promise<Record<string, unknown>> {
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
         INSERT INTO sms_purchase_requests (
           tenant_id,
@@ -391,7 +409,7 @@ export class SchoolSmsWalletRepository {
 
   private async getOrCreateWalletForUpdate(tenantId: string): Promise<SmsWalletRecord> {
     await this.getOrCreateWallet(tenantId);
-    const result = await this.databaseService.query<SmsWalletRecord>(
+    const result = await this.executeSql<SmsWalletRecord>(
       `
         SELECT id::text, tenant_id, sms_balance, monthly_used, monthly_limit, sms_plan,
                low_balance_threshold, allow_negative_balance, billing_status,
@@ -419,7 +437,7 @@ export class SchoolSmsWalletRepository {
     status: string;
     failure_reason?: string | null;
   }): Promise<{ id: string }> {
-    const result = await this.databaseService.query<{ id: string }>(
+    const result = await this.executeSql<{ id: string }>(
       `
         INSERT INTO sms_logs (
           tenant_id,

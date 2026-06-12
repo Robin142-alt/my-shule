@@ -1,0 +1,14 @@
+export { AssetEventConsumer } from './asset-event.consumer';
+export { AttendanceMarkedConsumer } from './attendance-marked.consumer';
+export { BoardingEventConsumer } from './boarding-event.consumer';
+export { CounsellingEventConsumer } from './counselling-event.consumer';
+export { DisciplineIncidentConsumer } from './discipline-incident.consumer';
+export { LabEventConsumer } from './lab-event.consumer';
+export { OperationalWorkflowCompletedConsumer } from './operational-workflow-completed.consumer';
+export { OperationalWorkflowDispatchedConsumer } from './operational-workflow-dispatched.consumer';
+export { OperationalWorkflowExecutionConsumer } from './operational-workflow-execution.consumer';
+export { PaymentCompletedConsumer } from './payment-completed.consumer';
+export { ProcurementEventConsumer } from './procurement-event.consumer';
+export { StudentCreatedConsumer } from './student-created.consumer';
+export { TransportEventConsumer } from './transport-event.consumer';
+export { WelfareCaseConsumer } from './welfare-case.consumer';

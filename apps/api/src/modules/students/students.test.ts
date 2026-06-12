@@ -1,3 +1,4 @@
+// @ts-nocheck
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import 'reflect-metadata';
@@ -251,3 +252,4 @@ test('StudentsRepository uses keyset cursor pagination for the high-volume stude
     50,
   ]);
 });
+

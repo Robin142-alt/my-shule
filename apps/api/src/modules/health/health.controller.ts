@@ -6,7 +6,7 @@ import { AuthEmailService } from '../../auth/auth-email.service';
 import { Public } from '../../auth/decorators/public.decorator';
 import { SkipResponseEnvelope } from '../../common/decorators/skip-response-envelope.decorator';
 import { RequestContextService } from '../../common/request-context/request-context.service';
-import { DatabaseService } from '../../database/database.service';
+import { PrismaService } from '../../database/prisma.service';
 import { RedisService } from '../../infrastructure/redis/redis.service';
 import { CircuitBreakerService } from '../../infrastructure/resilience/circuit-breaker.service';
 import { SloMonitoringService } from '../observability/slo-monitoring.service';
@@ -17,9 +17,27 @@ import {
 
 @Controller('health')
 export class HealthController {
+
+  private async executeSql<T = any>(query: string, params: any[] = []): Promise<{ rows: T[], rowCount: number }> {
+    const firstParam = params[0];
+    const isUuid = typeof firstParam === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(firstParam);
+    
+    if (isUuid) {
+      return this.prisma.executeWithTenant(firstParam, null, async (tx: any) => {
+        const result = await tx.$queryRawUnsafe(query, ...params);
+        const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+      });
+    } else {
+      const result = await this.prisma.$queryRawUnsafe(query, ...params);
+      const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+    }
+  }
+
   constructor(
     private readonly requestContext: RequestContextService,
-    private readonly databaseService: DatabaseService,
+    private readonly prisma: PrismaService,
     private readonly redisService: RedisService,
     @Optional() private readonly circuitBreakerService?: CircuitBreakerService,
     @Optional() private readonly sloMonitoringService?: SloMonitoringService,
@@ -51,7 +69,7 @@ export class HealthController {
 
   private async buildReadiness(): Promise<any> {
     const [databaseResult, redisResult] = await Promise.allSettled([
-      this.databaseService.ping(),
+      this.prisma.ping(),
       this.redisService.ping(),
     ]);
     const database = databaseResult.status === 'fulfilled' ? databaseResult.value : 'down';
@@ -102,7 +120,7 @@ export class HealthController {
       support_notifications: supportNotificationStatus,
       object_storage: objectStorageStatus,
       malware_scanning: malwareScanStatus,
-      database_pool: this.databaseService.getPoolMetrics(),
+      database_pool: this.prisma.getPoolMetrics(),
       circuit_breakers: this.circuitBreakerService?.getAllStates() ?? {},
       slo: realtimeHealth,
       request_context: {

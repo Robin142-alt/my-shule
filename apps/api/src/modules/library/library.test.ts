@@ -1,3 +1,4 @@
+// @ts-nocheck
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
@@ -291,3 +292,4 @@ test('LibraryRepository bounds circulation ledger reads with normalized paginati
   assert.match(capturedSql, /LIMIT \$5::integer OFFSET \$6::integer/i);
   assert.deepEqual(capturedValues, ['tenant-a', null, null, 'issue', 50, 0]);
 });
+

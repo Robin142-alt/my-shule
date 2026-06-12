@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 
-import { DatabaseService } from '../../../database/database.service';
+import { PrismaService } from '../../../database/prisma.service';
 import { SyncEntity } from '../sync.types';
 
 interface SyncCursorRow {
@@ -13,7 +13,25 @@ interface SyncCursorRow {
 
 @Injectable()
 export class SyncCursorsRepository {
-  constructor(private readonly databaseService: DatabaseService) {}
+
+  private async executeSql<T = any>(query: string, params: any[] = []): Promise<{ rows: T[], rowCount: number }> {
+    const firstParam = params[0];
+    const isUuid = typeof firstParam === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(firstParam);
+    
+    if (isUuid) {
+      return this.prisma.executeWithTenant(firstParam, null, async (tx: any) => {
+        const result = await tx.$queryRawUnsafe(query, ...params);
+        const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+      });
+    } else {
+      const result = await this.prisma.$queryRawUnsafe(query, ...params);
+      const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+    }
+  }
+
+  constructor(private readonly prisma: PrismaService) {}
 
   async upsertCursor(
     tenantId: string,
@@ -21,7 +39,7 @@ export class SyncCursorsRepository {
     entity: SyncEntity,
     lastVersion: string,
   ): Promise<void> {
-    await this.databaseService.query(
+    await this.executeSql(
       `
         INSERT INTO sync_cursors (
           tenant_id,
@@ -48,7 +66,7 @@ export class SyncCursorsRepository {
       return new Map();
     }
 
-    const result = await this.databaseService.query<SyncCursorRow>(
+    const result = await this.executeSql<SyncCursorRow>(
       `
         SELECT
           tenant_id,

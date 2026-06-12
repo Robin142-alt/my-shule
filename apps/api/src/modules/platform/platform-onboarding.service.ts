@@ -16,7 +16,7 @@ import {
 } from '../../auth/auth-email.service';
 import { AuthorizationRepository } from '../../auth/repositories/authorization.repository';
 import { RequestContextService } from '../../common/request-context/request-context.service';
-import { DatabaseService } from '../../database/database.service';
+import { PrismaService } from '../../database/prisma.service';
 import {
   DEFAULT_ONBOARDING_MODULE_CODES,
 } from '../module-access/module-access.constants';
@@ -119,8 +119,26 @@ const manualBillingLabels: Record<PlatformManualBillingState, string> = {
 
 @Injectable()
 export class PlatformOnboardingService {
+
+  private async executeSql<T = any>(query: string, params: any[] = []): Promise<{ rows: T[], rowCount: number }> {
+    const firstParam = params[0];
+    const isUuid = typeof firstParam === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(firstParam);
+    
+    if (isUuid) {
+      return this.prisma.executeWithTenant(firstParam, null, async (tx: any) => {
+        const result = await tx.$queryRawUnsafe(query, ...params);
+        const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+      });
+    } else {
+      const result = await this.prisma.$queryRawUnsafe(query, ...params);
+      const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+    }
+  }
+
   constructor(
-    private readonly databaseService: DatabaseService,
+    private readonly prisma: PrismaService,
     private readonly authorizationRepository: AuthorizationRepository,
     private readonly emailService: AuthEmailService,
     private readonly configService: ConfigService,
@@ -129,7 +147,7 @@ export class PlatformOnboardingService {
   ) {}
 
   async listSchools(): Promise<PlatformSchoolResponseDto[]> {
-    const result = await this.databaseService.query<TenantRow>(
+    const result = await this.executeSql<TenantRow>(
       `
         SELECT
           tenants.tenant_id,
@@ -209,7 +227,7 @@ export class PlatformOnboardingService {
   }
 
   async getProductTenantSummary(): Promise<PlatformTenantProductSummaryDto> {
-    const result = await this.databaseService.query<PlatformTenantProductSummaryRow>(
+    const result = await this.executeSql<PlatformTenantProductSummaryRow>(
       `
         WITH tenant_product AS (
           SELECT
@@ -315,7 +333,7 @@ export class PlatformOnboardingService {
 
   async getEmailReadiness(): Promise<PlatformEmailReadinessResponseDto> {
     const configured = this.emailService.getTransactionalEmailStatus();
-    const latestInvite = await this.databaseService.query<{
+    const latestInvite = await this.executeSql<{
       status?: string | null;
       last_error_code?: string | null;
       last_error_summary?: string | null;
@@ -364,7 +382,7 @@ export class PlatformOnboardingService {
       throw new BadRequestException('School name and administrator name are required.');
     }
 
-    const transactionResult = await this.databaseService.withRequestTransaction(async () => {
+    const transactionResult = await this.prisma.withRequestTransaction(async () => {
       const tenant = await this.createTenant({
         tenantId,
         schoolName,
@@ -372,7 +390,7 @@ export class PlatformOnboardingService {
         invitedByUserId,
       });
 
-      const emailConflict = await this.databaseService.query<{ tenant_id: string }>(
+      const emailConflict = await this.executeSql<{ tenant_id: string }>(
         `
           SELECT tm.tenant_id 
           FROM tenant_memberships tm
@@ -387,7 +405,7 @@ export class PlatformOnboardingService {
         throw new BadRequestException('This email is already registered under another school. Use a different email address for this school.');
       }
   
-      const invitationConflict = await this.databaseService.query<{ tenant_id: string }>(
+      const invitationConflict = await this.executeSql<{ tenant_id: string }>(
         `
           SELECT tenant_id 
           FROM auth_action_tokens
@@ -440,7 +458,7 @@ export class PlatformOnboardingService {
     const tenantId = this.normalizeTenantId(tenantIdInput);
     const invitedByUserId = this.requestContext.getStore()?.user_id ?? null;
 
-    const transactionResult = await this.databaseService.withRequestTransaction(async () => {
+    const transactionResult = await this.prisma.withRequestTransaction(async () => {
       const context = await this.findInvitationContext(tenantId);
       const metadata = this.parseInviteMetadata(context.invite_metadata);
       const adminEmail = context.admin_email?.trim().toLowerCase();
@@ -488,7 +506,7 @@ export class PlatformOnboardingService {
     const effectiveUntil = this.parseEffectiveUntil(dto.effective_until);
     const actorUserId = this.requestContext.getStore()?.user_id ?? null;
 
-    const tenant = await this.databaseService.withRequestTransaction(async () => {
+    const tenant = await this.prisma.withRequestTransaction(async () => {
       await this.scopeTenantForLifecycleMutation(tenantId);
       const existingTenant = await this.findPlatformSchoolRow(tenantId);
       await this.upsertManualBillingState({
@@ -534,7 +552,7 @@ export class PlatformOnboardingService {
       throw new BadRequestException('Cannot delete the global tenant.');
     }
 
-    return this.databaseService.withRequestTransaction(async () => {
+    return this.prisma.withRequestTransaction(async () => {
       await this.scopeTenantForLifecycleMutation(tenantId);
       const tenant = await this.findTenantForDelete(tenantId);
       const usageSummary = await this.getTenantUsageSummary(tenantId);
@@ -568,7 +586,7 @@ export class PlatformOnboardingService {
       throw new BadRequestException('Enter a deletion reason for the audit trail.');
     }
 
-    return this.databaseService.withRequestTransaction(async () => {
+    return this.prisma.withRequestTransaction(async () => {
       await this.scopeTenantForLifecycleMutation(tenantId);
       const tenant = await this.findTenantForDelete(tenantId);
       const usageSummary = await this.getTenantUsageSummary(tenantId);
@@ -669,7 +687,7 @@ export class PlatformOnboardingService {
       throw new BadRequestException('Enter an anonymization reason for the audit trail.');
     }
 
-    return this.databaseService.withRequestTransaction(async () => {
+    return this.prisma.withRequestTransaction(async () => {
       await this.scopeTenantForLifecycleMutation(tenantId);
       const tenant = await this.findTenantForDelete(tenantId);
       const usageSummary = await this.getTenantUsageSummary(tenantId);
@@ -703,7 +721,7 @@ export class PlatformOnboardingService {
     invitedByUserId: string | null;
   }): Promise<TenantRow> {
     const onboardingProfile = this.buildBlueprintOnboardingProfile(input.dto);
-    const result = await this.databaseService.query<TenantRow>(
+    const result = await this.executeSql<TenantRow>(
       `
         INSERT INTO tenants (tenant_id, name, subdomain, status, settings, metadata)
         VALUES ($1, $2, $3, 'active', $4::jsonb, $5::jsonb)
@@ -747,7 +765,7 @@ export class PlatformOnboardingService {
       return;
     }
 
-    await this.databaseService.query(
+    await this.executeSql(
       `
         INSERT INTO tenant_domains (tenant_id, domain, domain_type, status, created_by_user_id, metadata)
         VALUES ($1, $2, 'custom', 'pending_verification', $3, $4::jsonb)
@@ -770,7 +788,7 @@ export class PlatformOnboardingService {
   }
 
   private async findInvitationContext(tenantId: string): Promise<InvitationContextRow> {
-    const result = await this.databaseService.query<InvitationContextRow>(
+    const result = await this.executeSql<InvitationContextRow>(
       `
         SELECT
           tenants.tenant_id,
@@ -804,7 +822,7 @@ export class PlatformOnboardingService {
   }
 
   private async findPlatformSchoolRow(tenantId: string): Promise<TenantRow> {
-    const result = await this.databaseService.query<TenantRow>(
+    const result = await this.executeSql<TenantRow>(
       `
         SELECT
           tenants.tenant_id,
@@ -884,7 +902,7 @@ export class PlatformOnboardingService {
   }
 
   private async findTenantForDelete(tenantId: string): Promise<TenantRow> {
-    const result = await this.databaseService.query<TenantRow>(
+    const result = await this.executeSql<TenantRow>(
       `
         SELECT tenant_id, name, subdomain, status, created_at
         FROM tenants
@@ -903,7 +921,7 @@ export class PlatformOnboardingService {
   }
 
   private async scopeTenantForLifecycleMutation(tenantId: string): Promise<void> {
-    await this.databaseService.query(
+    await this.executeSql(
       "SELECT set_config('app.tenant_id', $1, true)",
       [tenantId],
     );
@@ -912,7 +930,7 @@ export class PlatformOnboardingService {
   private async getTenantUsageSummary(
     tenantId: string,
   ): Promise<PlatformSchoolUsageSummaryDto> {
-    const result = await this.databaseService.query<{
+    const result = await this.executeSql<{
       memberships: string | number;
       students: string | number;
       invoices: string | number;
@@ -978,12 +996,12 @@ export class PlatformOnboardingService {
     ];
 
     // Serialize manual saves per tenant without depending on a production-only conflict index.
-    await this.databaseService.query(
+    await this.executeSql(
       'SELECT pg_advisory_xact_lock(hashtext($1::text), 702101)',
       [input.tenantId],
     );
 
-    const updateResult = await this.databaseService.query(
+    const updateResult = await this.executeSql(
       `
         UPDATE subscriptions
         SET
@@ -1015,7 +1033,7 @@ export class PlatformOnboardingService {
       return;
     }
 
-    await this.databaseService.query(
+    await this.executeSql(
       `
         INSERT INTO subscriptions (
           tenant_id,
@@ -1105,10 +1123,10 @@ export class PlatformOnboardingService {
 
   private async hardDeleteTenantDeep(tenantId: string): Promise<void> {
     // Enable the bypass for this transaction
-    await this.databaseService.query("SET LOCAL app.allow_tenant_deletion = 'true'");
+    await this.executeSql("SET LOCAL app.allow_tenant_deletion = 'true'");
 
     // Find users who ONLY belong to this tenant, BEFORE we delete their memberships
-    const orphanedUsersQuery = await this.databaseService.query<{ user_id: string }>(`
+    const orphanedUsersQuery = await this.executeSql<{ user_id: string }>(`
       SELECT user_id 
       FROM tenant_memberships 
       GROUP BY user_id 
@@ -1117,7 +1135,7 @@ export class PlatformOnboardingService {
     const orphanedUserIds = orphanedUsersQuery.rows.map(r => r.user_id);
 
     // Dynamically delete from all tables with a tenant_id
-    const allTablesQuery = await this.databaseService.query<{ table_name: string }>(`
+    const allTablesQuery = await this.executeSql<{ table_name: string }>(`
       SELECT table_name 
       FROM information_schema.columns 
       WHERE column_name = 'tenant_id' AND table_schema = 'public'
@@ -1132,11 +1150,11 @@ export class PlatformOnboardingService {
       maxRetries--;
       const table = tablesToProcess.shift()!;
       try {
-        await this.databaseService.query(`SAVEPOINT delete_table_${table}`);
-        await this.databaseService.query(`DELETE FROM "${table}" WHERE tenant_id = $1`, [tenantId]);
-        await this.databaseService.query(`RELEASE SAVEPOINT delete_table_${table}`);
+        await this.executeSql(`SAVEPOINT delete_table_${table}`);
+        await this.executeSql(`DELETE FROM "${table}" WHERE tenant_id = $1`, [tenantId]);
+        await this.executeSql(`RELEASE SAVEPOINT delete_table_${table}`);
       } catch (error: any) {
-        await this.databaseService.query(`ROLLBACK TO SAVEPOINT delete_table_${table}`);
+        await this.executeSql(`ROLLBACK TO SAVEPOINT delete_table_${table}`);
         if (error.code === '23503') {
           // Foreign key violation, push it back to the end of the queue
           tablesToProcess.push(table);
@@ -1153,11 +1171,11 @@ export class PlatformOnboardingService {
     // Clean up user accounts that belong ONLY to this tenant
     for (const userId of orphanedUserIds) {
       // Memberships were already deleted by topological loop, so we can safely delete the user
-      await this.databaseService.query('DELETE FROM users WHERE id = $1', [userId]);
+      await this.executeSql('DELETE FROM users WHERE id = $1', [userId]);
     }
 
     // Finally delete the tenant shell
-    await this.databaseService.query('DELETE FROM tenants WHERE tenant_id = $1', [tenantId]);
+    await this.executeSql('DELETE FROM tenants WHERE tenant_id = $1', [tenantId]);
   }
 
   private async deleteTenantShell(tenantId: string): Promise<void> {
@@ -1192,12 +1210,12 @@ export class PlatformOnboardingService {
     ];
 
     for (const statement of cleanupStatements) {
-      await this.databaseService.query(statement, [tenantId]);
+      await this.executeSql(statement, [tenantId]);
     }
   }
 
   private async deprovisionTenant(tenantId: string, reason: string): Promise<TenantRow> {
-    const result = await this.databaseService.query<TenantRow>(
+    const result = await this.executeSql<TenantRow>(
       `
         UPDATE tenants
         SET
@@ -1221,7 +1239,7 @@ export class PlatformOnboardingService {
 
   private async anonymizeTenantShell(tenantId: string, reason: string): Promise<TenantRow> {
     const anonymizedName = `Anonymized School ${tenantId}`;
-    const result = await this.databaseService.query<TenantRow>(
+    const result = await this.executeSql<TenantRow>(
       `
         UPDATE tenants
         SET
@@ -1253,7 +1271,7 @@ export class PlatformOnboardingService {
   ): Promise<void> {
     const context = this.requestContext.getStore();
 
-    await this.databaseService.query(
+    await this.executeSql(
       `
         INSERT INTO audit_logs (
           tenant_id,
@@ -1338,7 +1356,7 @@ export class PlatformOnboardingService {
     expiresAt: Date;
     payload: Record<string, unknown>;
   }): Promise<string | undefined> {
-    await this.databaseService.query(
+    await this.executeSql(
       `
         UPDATE auth_action_tokens
         SET consumed_at = NOW()
@@ -1350,7 +1368,7 @@ export class PlatformOnboardingService {
       [input.tenantId, input.adminEmail],
     );
 
-    await this.databaseService.query(
+    await this.executeSql(
       `
         INSERT INTO auth_action_tokens (
           tenant_id,
@@ -1374,7 +1392,7 @@ export class PlatformOnboardingService {
       ],
     );
 
-    const outboxResult = await this.databaseService.query<{ id: string }>(
+    const outboxResult = await this.executeSql<{ id: string }>(
       `
         INSERT INTO auth_email_outbox (
           tenant_id,
@@ -1457,7 +1475,7 @@ export class PlatformOnboardingService {
       return;
     }
 
-    await this.databaseService.query(
+    await this.executeSql(
       'SELECT app.mark_auth_email_outbox_delivery($1::uuid, $2::text, $3::text, $4::text, $5::integer)',
       [
         outboxId,
@@ -1985,7 +2003,7 @@ export class PlatformOnboardingService {
       return fallback;
     }
 
-    const result = await this.databaseService.query<{
+    const result = await this.executeSql<{
       display_name: string | null;
       email: string | null;
     }>(

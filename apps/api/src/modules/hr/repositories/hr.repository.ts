@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 
-import { DatabaseService } from '../../../database/database.service';
+import { PrismaService } from '../../../database/prisma.service';
 import type {
   ApproveLeaveRequestDto,
   ApproveStaffContractDto,
@@ -9,10 +9,28 @@ import type {
 
 @Injectable()
 export class HrRepository {
-  constructor(private readonly databaseService: DatabaseService) {}
+
+  private async executeSql<T = any>(query: string, params: any[] = []): Promise<{ rows: T[], rowCount: number }> {
+    const firstParam = params[0];
+    const isUuid = typeof firstParam === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(firstParam);
+    
+    if (isUuid) {
+      return this.prisma.executeWithTenant(firstParam, null, async (tx: any) => {
+        const result = await tx.$queryRawUnsafe(query, ...params);
+        const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+      });
+    } else {
+      const result = await this.prisma.$queryRawUnsafe(query, ...params);
+      const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+    }
+  }
+
+  constructor(private readonly prisma: PrismaService) {}
 
   async findOverlappingActiveContract(tenantId: string, input: ApproveStaffContractDto) {
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
         SELECT id::text
         FROM staff_contracts
@@ -33,7 +51,7 @@ export class HrRepository {
     tenant_id: string;
     approved_by_user_id: string | null;
   }) {
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
         INSERT INTO staff_contracts (
           tenant_id,
@@ -66,7 +84,7 @@ export class HrRepository {
   }
 
   async findLeaveBalance(tenantId: string, staffProfileId: string, leaveType: string) {
-    const result = await this.databaseService.query<{ available_days: string | number }>(
+    const result = await this.executeSql<{ available_days: string | number }>(
       `
         SELECT available_days
         FROM staff_leave_balances
@@ -85,7 +103,7 @@ export class HrRepository {
     tenant_id: string;
     approved_by_user_id: string | null;
   }) {
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
         INSERT INTO staff_leave_requests (
           tenant_id,
@@ -116,7 +134,7 @@ export class HrRepository {
   async changeStaffStatus(input: ChangeStaffStatusDto & {
     tenant_id: string;
   }) {
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
         UPDATE staff_profiles
         SET status = $3,
@@ -143,7 +161,7 @@ export class HrRepository {
     const limit = requestedLimit > 0 ? Math.min(requestedLimit, 50) : 25;
     const offset = Math.max(requestedOffset, 0);
 
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
         SELECT
           profile.id::text,
@@ -186,7 +204,7 @@ export class HrRepository {
     action: string;
     metadata?: Record<string, unknown>;
   }) {
-    await this.databaseService.query(
+    await this.executeSql(
       `
         INSERT INTO staff_audit_logs (
           tenant_id,

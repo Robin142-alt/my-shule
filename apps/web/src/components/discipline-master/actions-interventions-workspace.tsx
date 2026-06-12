@@ -2,29 +2,27 @@
 
 import { ShieldAlert, CheckSquare } from "lucide-react";
 import { Panel, StatusChip, EmptyState } from "./shared";
-
-const MOCK_ACTIONS = [
-  { id: "ACT-001", student: "Kevin Kimani", action: "Manual Work", assignedTo: "Duty Teacher", dueDate: "2026-06-12", status: "Pending Completion" },
-  { id: "ACT-002", student: "Mary Wambui", action: "Verbal Warning", assignedTo: "Class Teacher", dueDate: "2026-06-10", status: "Completed" },
-];
+import { useSchoolQuery } from "@/lib/data/school-hooks";
 
 export function ActionsInterventionsWorkspace() {
+  const { data: actions = [], isLoading } = useSchoolQuery<any[]>("/api/discipline/actions");
+
   return (
     <Panel title="Actions & Interventions" description="Track discipline actions assigned to staff and students." icon={ShieldAlert}>
       <div className="grid gap-4 md:grid-cols-4 mb-6">
         <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 cursor-pointer hover:border-[#38BDF8]">
           <span className="block text-xs font-black uppercase text-[#64748B]">Pending Actions</span>
-          <span className="mt-1 block text-2xl font-black text-[#071D49]">1</span>
+          <span className="mt-1 block text-2xl font-black text-[#071D49]">{actions.filter(a => a.status === 'Pending Completion').length}</span>
         </div>
         <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 cursor-pointer hover:border-emerald-300">
           <span className="block text-xs font-black uppercase text-emerald-700">Completed This Week</span>
-          <span className="mt-1 block text-2xl font-black text-emerald-700">5</span>
+          <span className="mt-1 block text-2xl font-black text-emerald-700">{actions.filter(a => a.status === 'Completed').length}</span>
         </div>
       </div>
 
       <div>
         <h3 className="text-lg font-black text-[#071D49] mb-4">Assigned Disciplinary Actions</h3>
-        {MOCK_ACTIONS.length > 0 ? (
+        {actions.length > 0 ? (
           <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
             <table className="w-full text-left text-sm text-[#071D49]">
               <thead className="bg-[#F8FAFC] text-xs font-black uppercase text-[#64748B]">
@@ -39,7 +37,7 @@ export function ActionsInterventionsWorkspace() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#D8E0EC]">
-                {MOCK_ACTIONS.map((row) => (
+                {actions.map((row) => (
                   <tr key={row.id} className="hover:bg-[#F8FAFC]">
                     <td className="px-4 py-3 font-semibold">{row.id}</td>
                     <td className="px-4 py-3 font-bold">{row.student}</td>
@@ -61,7 +59,7 @@ export function ActionsInterventionsWorkspace() {
           </div>
         ) : (
           <EmptyState 
-            message="No active interventions." 
+            message={isLoading ? "Loading actions..." : "No active interventions."} 
             icon={CheckSquare} 
           />
         )}

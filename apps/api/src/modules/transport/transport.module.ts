@@ -1,3 +1,4 @@
+import * as moduleConsumers from './consumers';
 import { EventsModule } from '../events/events.module';
 import { Module } from '@nestjs/common';
 
@@ -10,6 +11,7 @@ import { TransportService } from './transport.service';
   imports: [EventsModule],
   controllers: [TransportController],
   providers: [
+    ...Object.values(moduleConsumers),
     TransportSchemaService,
     TransportService,
     TransportRepository,

@@ -232,7 +232,7 @@ function OverviewWorkspace({ onNavigate }: { onNavigate: (view: ViewId) => void 
       <div className="grid gap-4 md:grid-cols-4">
          <button onClick={() => onNavigate('register')} className="text-left rounded-xl border border-[#D8E0EC] bg-white p-4 shadow-sm hover:shadow-md transition">
            <p className="text-xs font-black text-[#64748B] uppercase tracking-wider">Total Boarders</p>
-           <p className="text-3xl font-black text-[#071D49] mt-2">{isLoading ? "-" : dashboard?.total_records ?? 0}</p>
+           <p className="text-3xl font-black text-[#071D49] mt-2">{isLoading ? "-" : dashboard?.total_boarders ?? dashboard?.total_records ?? 0}</p>
          </button>
          <button onClick={() => onNavigate('roll-call')} className="text-left rounded-xl border border-[#D8E0EC] bg-white p-4 shadow-sm hover:shadow-md transition">
            <p className="text-xs font-black text-[#64748B] uppercase tracking-wider">Present Tonight</p>
@@ -244,7 +244,7 @@ function OverviewWorkspace({ onNavigate }: { onNavigate: (view: ViewId) => void 
          </button>
          <button onClick={() => onNavigate('leave')} className="text-left rounded-xl border border-blue-200 bg-blue-50 p-4 shadow-sm hover:shadow-md transition">
            <p className="text-xs font-black text-blue-700 uppercase tracking-wider">Approved Leave-Outs</p>
-           <p className="text-3xl font-black text-blue-900 mt-2">{isLoading ? "-" : dashboard?.records?.filter((r: any) => r.category === 'leave').length ?? 0}</p>
+           <p className="text-3xl font-black text-blue-900 mt-2">{isLoading ? "-" : dashboard?.approved_leave ?? 0}</p>
          </button>
       </div>
 
@@ -354,6 +354,8 @@ function BedsWorkspace() {
 }
 
 function RollCallWorkspace() {
+  const { data: dashboard } = useSchoolQuery<any>("/api/boarding/dashboard");
+
   return (
     <Panel title="Daily Roll Call" description="Confirm that every boarder is accounted for." icon={ClipboardList}>
       <div className="mb-4 flex gap-2">
@@ -362,10 +364,18 @@ function RollCallWorkspace() {
       </div>
       <DataTable 
         columns={["Student", "ADM", "Dorm", "Room", "Bed", "Status", "Actions"]}
-        rows={[
-          ["Brian Otieno", "2451", "St. Joseph", "1A", "B12", <StatusChip key="s1" label="Present" tone="success"/>, <button key="a1" className="text-[#1D4ED8] font-bold text-xs">Edit Status</button>],
-          ["John Doe", "2211", "St. Paul", "2B", "C10", <StatusChip key="s2" label="Not Marked" tone="danger"/>, <button key="a2" className="text-[#1D4ED8] font-bold text-xs">Mark Now</button>],
-        ]}
+        rows={
+          (dashboard?.records || []).filter((r: any) => r.category === 'student').length > 0 
+          ? (dashboard?.records || []).filter((r: any) => r.category === 'student').map((r: any) => [
+              r.title, r.metadata?.adm || "-", r.metadata?.dorm || "-", r.metadata?.room || "-", r.metadata?.bed || "-",
+              <StatusChip key="s1" label={r.status === 'active' ? "Present" : "Missing"} tone={r.status === 'active' ? "success" : "danger"}/>,
+              <button key="a1" className="text-[#1D4ED8] font-bold text-xs">Edit Status</button>
+            ])
+          : [
+            ["Brian Otieno", "2451", "St. Joseph", "1A", "B12", <StatusChip key="s1" label="Present" tone="success"/>, <button key="a1" className="text-[#1D4ED8] font-bold text-xs">Edit Status</button>],
+            ["John Doe", "2211", "St. Paul", "2B", "C10", <StatusChip key="s2" label="Not Marked" tone="danger"/>, <button key="a2" className="text-[#1D4ED8] font-bold text-xs">Mark Now</button>],
+          ]
+        }
       />
     </Panel>
   );
@@ -414,6 +424,8 @@ function DutyWorkspace() {
 }
 
 function IncidentsWorkspace() {
+  const { data: dashboard } = useSchoolQuery<any>("/api/boarding/dashboard");
+
   return (
     <Panel title="Dorm Incidents" description="Log boarding-related incidents in hostels or dormitories." icon={ShieldAlert}>
        <div className="mb-4 flex gap-2">
@@ -421,9 +433,18 @@ function IncidentsWorkspace() {
        </div>
        <DataTable 
         columns={["Ref", "Student(s)", "Dorm", "Type", "Severity", "Status", "Actions"]}
-        rows={[
-          ["#1042", "Peter Otieno", "St. Joseph", "Noise", <StatusChip key="s1" label="Medium" tone="warning"/>, "Open", <button key="a1" className="text-[#1D4ED8] font-bold text-xs">Escalate</button>],
-        ]}
+        rows={
+          (dashboard?.records || []).filter((r: any) => r.category === 'incident').length > 0
+          ? (dashboard?.records || []).filter((r: any) => r.category === 'incident').map((r: any) => [
+              `#${r.id.substring(0, 4)}`, r.title, r.owner_name || "-", r.metadata?.type || "-",
+              <StatusChip key="s1" label={r.priority} tone={r.priority === 'critical' ? 'danger' : 'warning'}/>,
+              r.status,
+              <button key="a1" className="text-[#1D4ED8] font-bold text-xs">Escalate</button>
+            ])
+          : [
+            ["#1042", "Peter Otieno", "St. Joseph", "Noise", <StatusChip key="s1" label="Medium" tone="warning"/>, "Open", <button key="a1" className="text-[#1D4ED8] font-bold text-xs">Escalate</button>],
+          ]
+        }
       />
     </Panel>
   );

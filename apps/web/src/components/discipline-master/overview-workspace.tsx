@@ -3,16 +3,15 @@
 import { Home, FileText, AlertTriangle, Users, ClipboardList } from "lucide-react";
 import { Panel, StatusChip, EmptyState } from "./shared";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
-
-const MOCK_URGENT_CASES = [
-  { id: "DM-2026-0001", student: "Brian Otieno", class: "Form 2 Blue", category: "Bullying", severity: "High", reportedBy: "Tr. Wanjiku", date: "2026-06-11 08:30", status: "Under Review" },
-  { id: "DM-2026-0002", student: "Sarah Njoroge", class: "Form 3 Red", category: "Substance Abuse", severity: "Critical", reportedBy: "Security", date: "2026-06-10 19:15", status: "New" },
-];
+import { useAllDisciplineCases } from "@/hooks/useDiscipline";
 
 export function OverviewWorkspace() {
-  const { data: dashboard, isLoading } = useSchoolQuery<any>("/api/discipline/dashboard");
-  const cases = Array.isArray(dashboard?.urgentCases) ? dashboard.urgentCases : MOCK_URGENT_CASES;
+  const { data: dashboard, isLoading: isDashboardLoading } = useSchoolQuery<any>("/api/discipline/dashboard");
+  const { data: disciplineCases, isLoading: isCasesLoading } = useAllDisciplineCases();
+
+  const cases = Array.isArray(disciplineCases) ? disciplineCases.slice(0, 5) : [];
   const kpis = Array.isArray(dashboard?.kpis) ? dashboard.kpis : [];
+  const isLoading = isDashboardLoading || isCasesLoading;
 
   return (
     <Panel title="Overview" description="Daily command center for discipline operations." icon={Home} actions={
@@ -61,7 +60,7 @@ export function OverviewWorkspace() {
 
       <div>
         <h3 className="text-lg font-black text-[#071D49] mb-4">Urgent Discipline Queue</h3>
-        {MOCK_URGENT_CASES.length > 0 ? (
+        {cases.length > 0 ? (
           <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
             <table className="w-full text-left text-sm text-[#071D49]">
               <thead className="bg-[#F8FAFC] text-xs font-black uppercase text-[#64748B]">

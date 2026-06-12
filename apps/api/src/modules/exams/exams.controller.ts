@@ -25,6 +25,12 @@ import { ExamsService } from './exams.service';
 export class ExamsController {
   constructor(private readonly examsService: ExamsService) {}
 
+  @Get('dashboard')
+  @Permissions('exams:read')
+  getDashboard() {
+    return this.examsService.getDashboard();
+  }
+
   @Post('series')
   @Permissions('exams:write')
   createSeries(@Body() dto: CreateExamSeriesDto) {
@@ -64,7 +70,12 @@ export class ExamsController {
   @Post('configuration')
   @Permissions('exams:write')
   configureExam(@Body() dto: any) {
-    return { success: true, message: 'Configuration saved' };
+    return this.examsService.createSeries({
+      academic_term_id: '00000000-0000-0000-0000-000000000000', // Mock UUID for now
+      name: dto.examName,
+      starts_on: new Date().toISOString().split('T')[0],
+      ends_on: new Date().toISOString().split('T')[0],
+    });
   }
 
   @Post('draft')

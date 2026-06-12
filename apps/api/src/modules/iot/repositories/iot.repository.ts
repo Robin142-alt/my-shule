@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 
-import { DatabaseService } from '../../../database/database.service';
+import { PrismaService } from '../../../database/prisma.service';
 
 export interface IotDashboardSummary {
   registered_devices: number;
@@ -15,11 +15,29 @@ export interface IotDashboardSummary {
 
 @Injectable()
 export class IotRepository {
-  constructor(private readonly databaseService: DatabaseService) {}
+
+  private async executeSql<T = any>(query: string, params: any[] = []): Promise<{ rows: T[], rowCount: number }> {
+    const firstParam = params[0];
+    const isUuid = typeof firstParam === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(firstParam);
+    
+    if (isUuid) {
+      return this.prisma.executeWithTenant(firstParam, null, async (tx: any) => {
+        const result = await tx.$queryRawUnsafe(query, ...params);
+        const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+      });
+    } else {
+      const result = await this.prisma.$queryRawUnsafe(query, ...params);
+      const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+    }
+  }
+
+  constructor(private readonly prisma: PrismaService) {}
 
   async getDashboard(tenantId: string) {
     const [summary, devices, readings, commands, alerts] = await Promise.all([
-      this.databaseService.query<IotDashboardSummary>(
+      this.executeSql<IotDashboardSummary>(
         `
           SELECT
             (SELECT COUNT(*)::int FROM iot_devices WHERE tenant_id = $1) AS registered_devices,
@@ -33,7 +51,7 @@ export class IotRepository {
         `,
         [tenantId],
       ),
-      this.databaseService.query(
+      this.executeSql(
         `
           SELECT
             id::text,
@@ -54,7 +72,7 @@ export class IotRepository {
         `,
         [tenantId],
       ),
-      this.databaseService.query(
+      this.executeSql(
         `
           SELECT
             reading.id::text,
@@ -74,7 +92,7 @@ export class IotRepository {
         `,
         [tenantId],
       ),
-      this.databaseService.query(
+      this.executeSql(
         `
           SELECT
             command.id::text,
@@ -93,7 +111,7 @@ export class IotRepository {
         `,
         [tenantId],
       ),
-      this.databaseService.query(
+      this.executeSql(
         `
           SELECT
             alert.id::text,
@@ -137,7 +155,7 @@ export class IotRepository {
   }
 
   async registerDevice(input: Record<string, unknown>) {
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
         INSERT INTO iot_devices (
           tenant_id, name, device_type, location_name, external_device_id,
@@ -162,8 +180,8 @@ export class IotRepository {
   }
 
   async recordTelemetry(input: Record<string, unknown>) {
-    return this.databaseService.withRequestTransaction(async () => {
-      const result = await this.databaseService.query(
+    return this.prisma.withRequestTransaction(async () => {
+      const result = await this.executeSql(
         `
           INSERT INTO iot_telemetry_readings (
             tenant_id, device_id, metric_name, metric_value, unit, severity,
@@ -185,7 +203,7 @@ export class IotRepository {
         ],
       );
 
-      await this.databaseService.query(
+      await this.executeSql(
         `
           UPDATE iot_devices
           SET status = 'online',
@@ -199,7 +217,7 @@ export class IotRepository {
       );
 
       if (input.severity === 'warning' || input.severity === 'critical') {
-        await this.databaseService.query(
+        await this.executeSql(
           `
             INSERT INTO iot_alerts (
               tenant_id, device_id, title, message, severity, metadata, created_by_user_id
@@ -223,7 +241,7 @@ export class IotRepository {
   }
 
   async dispatchCommand(input: Record<string, unknown>) {
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
         INSERT INTO iot_device_commands (
           tenant_id, device_id, command_type, payload, priority, status, requested_by_user_id
@@ -245,7 +263,7 @@ export class IotRepository {
   }
 
   async issueDeviceCredential(input: Record<string, unknown>) {
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
         INSERT INTO iot_device_credentials (
           tenant_id, device_id, key_id, label, credential_hash, expires_at, created_by_user_id
@@ -268,7 +286,7 @@ export class IotRepository {
   }
 
   async findGatewayCredential(input: Record<string, unknown>) {
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
         SELECT
           credential.id::text,
@@ -295,7 +313,7 @@ export class IotRepository {
   }
 
   async findGatewayIngestion(input: Record<string, unknown>) {
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
         SELECT id::text, status, reading_count
         FROM iot_gateway_ingestions
@@ -313,8 +331,8 @@ export class IotRepository {
   async recordGatewayTelemetry(input: Record<string, unknown>) {
     const readings = Array.isArray(input.readings) ? input.readings as Array<Record<string, unknown>> : [];
 
-    return this.databaseService.withRequestTransaction(async () => {
-      const ingestion = await this.databaseService.query(
+    return this.prisma.withRequestTransaction(async () => {
+      const ingestion = await this.executeSql(
         `
           INSERT INTO iot_gateway_ingestions (
             tenant_id, device_id, credential_id, idempotency_key, payload_sha256,
@@ -335,7 +353,7 @@ export class IotRepository {
       );
 
       for (const reading of readings) {
-        const telemetry = await this.databaseService.query(
+        const telemetry = await this.executeSql(
           `
             INSERT INTO iot_telemetry_readings (
               tenant_id, device_id, metric_name, metric_value, unit, severity,
@@ -357,7 +375,7 @@ export class IotRepository {
         );
 
         if (reading.severity === 'warning' || reading.severity === 'critical') {
-          await this.databaseService.query(
+          await this.executeSql(
             `
               INSERT INTO iot_alerts (
                 tenant_id, device_id, title, message, severity, metadata, created_by_user_id
@@ -380,7 +398,7 @@ export class IotRepository {
         }
       }
 
-      await this.databaseService.query(
+      await this.executeSql(
         `
           UPDATE iot_devices
           SET status = 'online',
@@ -411,7 +429,7 @@ export class IotRepository {
         [input.tenant_id, input.device_id],
       );
 
-      await this.databaseService.query(
+      await this.executeSql(
         `
           UPDATE iot_device_credentials
           SET last_used_at = NOW(),
@@ -429,8 +447,8 @@ export class IotRepository {
   async pollGatewayCommands(input: Record<string, unknown>) {
     const limit = Math.min(20, Math.max(1, Number(input.limit ?? 10)));
 
-    return this.databaseService.withRequestTransaction(async () => {
-      const result = await this.databaseService.query(
+    return this.prisma.withRequestTransaction(async () => {
+      const result = await this.executeSql(
         `
           WITH pending AS (
             SELECT id
@@ -474,8 +492,8 @@ export class IotRepository {
   }
 
   async acknowledgeGatewayCommand(input: Record<string, unknown>) {
-    return this.databaseService.withRequestTransaction(async () => {
-      const result = await this.databaseService.query(
+    return this.prisma.withRequestTransaction(async () => {
+      const result = await this.executeSql(
         `
           UPDATE iot_device_commands
           SET status = $4,
@@ -512,7 +530,7 @@ export class IotRepository {
   }
 
   async resolveAlert(input: Record<string, unknown>) {
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
         UPDATE iot_alerts
         SET status = 'resolved',
@@ -530,7 +548,7 @@ export class IotRepository {
   }
 
   async appendAuditLog(input: Record<string, unknown>) {
-    await this.databaseService.query(
+    await this.executeSql(
       `
         INSERT INTO iot_audit_logs (
           tenant_id, actor_user_id, action, resource_type, resource_id, metadata
@@ -553,7 +571,7 @@ export class IotRepository {
       return;
     }
 
-    await this.databaseService.query(
+    await this.executeSql(
       `
         UPDATE iot_device_credentials
         SET last_used_at = NOW(),

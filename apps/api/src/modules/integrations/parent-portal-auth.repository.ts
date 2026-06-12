@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 
-import { DatabaseService } from '../../database/database.service';
+import { PrismaService } from '../../database/prisma.service';
 import type {
   ParentAuthSubject,
   ParentOtpChallengeRecord,
@@ -8,13 +8,31 @@ import type {
 
 @Injectable()
 export class ParentPortalAuthRepository {
-  constructor(private readonly databaseService: DatabaseService) {}
+
+  private async executeSql<T = any>(query: string, params: any[] = []): Promise<{ rows: T[], rowCount: number }> {
+    const firstParam = params[0];
+    const isUuid = typeof firstParam === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(firstParam);
+    
+    if (isUuid) {
+      return this.prisma.executeWithTenant(firstParam, null, async (tx: any) => {
+        const result = await tx.$queryRawUnsafe(query, ...params);
+        const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+      });
+    } else {
+      const result = await this.prisma.$queryRawUnsafe(query, ...params);
+      const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+    }
+  }
+
+  constructor(private readonly prisma: PrismaService) {}
 
   async findParentAuthSubject(input: {
     identifier: string;
     phone_hash: string | null;
   }): Promise<ParentAuthSubject | null> {
-    const result = await this.databaseService.query<ParentAuthSubject>(
+    const result = await this.executeSql<ParentAuthSubject>(
       `
         SELECT user_id::text, tenant_id, role_id::text, role_code, email,
                display_name, phone_number_hash, phone_number_last4
@@ -35,7 +53,7 @@ export class ParentPortalAuthRepository {
     otp_hash: string;
     expires_at: string;
   }): Promise<ParentOtpChallengeRecord> {
-    const result = await this.databaseService.query<ParentOtpChallengeRecord>(
+    const result = await this.executeSql<ParentOtpChallengeRecord>(
       `
         INSERT INTO parent_otp_challenges (
           tenant_id,
@@ -65,7 +83,7 @@ export class ParentPortalAuthRepository {
   }
 
   async findChallengeForVerify(challengeId: string): Promise<ParentOtpChallengeRecord | null> {
-    const result = await this.databaseService.query<ParentOtpChallengeRecord>(
+    const result = await this.executeSql<ParentOtpChallengeRecord>(
       `
         SELECT id::text, tenant_id, user_id::text, email, phone_hash, phone_last4,
                otp_hash, expires_at, consumed_at, attempts
@@ -78,7 +96,7 @@ export class ParentPortalAuthRepository {
   }
 
   async consumeChallenge(tenantId: string, challengeId: string): Promise<boolean> {
-    const result = await this.databaseService.query<{ id: string }>(
+    const result = await this.executeSql<{ id: string }>(
       `
         UPDATE parent_otp_challenges
         SET consumed_at = NOW()
@@ -95,7 +113,7 @@ export class ParentPortalAuthRepository {
   }
 
   async incrementAttempts(tenantId: string, challengeId: string): Promise<void> {
-    await this.databaseService.query(
+    await this.executeSql(
       `
         UPDATE parent_otp_challenges
         SET attempts = attempts + 1

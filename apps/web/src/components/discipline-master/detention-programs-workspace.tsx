@@ -2,12 +2,10 @@
 
 import { Calendar, Users } from "lucide-react";
 import { Panel, StatusChip, EmptyState } from "./shared";
-
-const MOCK_PROGRAMS = [
-  { id: "PRG-001", date: "2026-06-12", title: "Friday Detention", assignedTeacher: "Tr. Njoroge", studentsCount: 4, status: "Scheduled" },
-];
+import { useSchoolQuery } from "@/lib/data/school-hooks";
 
 export function DetentionProgramsWorkspace() {
+  const { data: programs = [], isLoading } = useSchoolQuery<any[]>("/api/discipline/programs");
   return (
     <Panel title="Detention / Corrective Programs" description="Manage group detentions and corrective manual work sessions." icon={Calendar}>
       <div className="flex justify-between items-center mb-6">
@@ -18,7 +16,7 @@ export function DetentionProgramsWorkspace() {
       </div>
 
       <div className="mb-8">
-        {MOCK_PROGRAMS.length > 0 ? (
+        {programs.length > 0 ? (
           <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
             <table className="w-full text-left text-sm text-[#071D49]">
               <thead className="bg-[#F8FAFC] text-xs font-black uppercase text-[#64748B]">
@@ -33,7 +31,7 @@ export function DetentionProgramsWorkspace() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#D8E0EC]">
-                {MOCK_PROGRAMS.map((row) => (
+                {programs.map((row) => (
                   <tr key={row.id} className="hover:bg-[#F8FAFC]">
                     <td className="px-4 py-3 font-semibold">{row.id}</td>
                     <td className="px-4 py-3">{row.date}</td>
@@ -53,7 +51,7 @@ export function DetentionProgramsWorkspace() {
           </div>
         ) : (
           <EmptyState 
-            message="No upcoming detention or corrective programs." 
+            message={isLoading ? "Loading programs..." : "No upcoming detention or corrective programs."} 
             icon={Calendar} 
           />
         )}

@@ -1,3 +1,4 @@
+import * as moduleConsumers from './consumers';
 import { Module } from '@nestjs/common';
 import { EventsModule } from '../events/events.module';
 
@@ -10,6 +11,7 @@ import { InventoryRepository } from './repositories/inventory.repository';
   imports: [EventsModule],
   controllers: [InventoryController],
   providers: [
+    ...Object.values(moduleConsumers),
     InventorySchemaService,
     InventoryService,
     InventoryRepository,

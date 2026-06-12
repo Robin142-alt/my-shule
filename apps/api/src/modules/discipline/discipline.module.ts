@@ -1,3 +1,4 @@
+import * as moduleConsumers from './consumers';
 import { EventsModule } from '../events/events.module';
 import { Module } from '@nestjs/common';
 
@@ -17,6 +18,7 @@ import { DisciplineAttachmentStorageService } from './storage/discipline-attachm
   imports: [EventsModule],
   controllers: [DisciplineController, CounsellingController],
   providers: [
+    ...Object.values(moduleConsumers),
     DisciplineSchemaService,
     DisciplineRepository,
     CounsellingRepository,

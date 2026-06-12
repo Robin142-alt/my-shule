@@ -3826,3 +3826,162 @@ ALTER TABLE office_documents ENABLE ROW LEVEL SECURITY;
 ALTER TABLE office_documents FORCE ROW LEVEL SECURITY;
 CREATE POLICY office_documents_tenant_policy ON office_documents FOR ALL USING (tenant_id = app.current_tenant_id()) WITH CHECK (tenant_id = app.current_tenant_id());
 CREATE INDEX IF NOT EXISTS idx_office_documents_tenant_id ON office_documents(tenant_id);
+-- Phase 2: Missing Domain Schemas for Academics, Transport, Procurement
+-- Injected to support the backend consumers
+
+CREATE TABLE IF NOT EXISTS academics_lesson_plans (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  teacher_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  subject_id UUID NOT NULL,
+  class_id UUID NOT NULL,
+  week_number INT NOT NULL,
+  term_id UUID NOT NULL,
+  topic VARCHAR(255) NOT NULL,
+  objectives TEXT,
+  activities TEXT,
+  resources TEXT,
+  status VARCHAR(50) DEFAULT 'DRAFT',
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS academics_lesson_logs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  plan_id UUID REFERENCES academics_lesson_plans(id) ON DELETE SET NULL,
+  teacher_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  class_id UUID NOT NULL,
+  log_date DATE NOT NULL,
+  covered_topics TEXT NOT NULL,
+  student_understanding_notes TEXT,
+  challenges TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS academics_exam_marks (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  exam_id UUID NOT NULL,
+  student_id UUID NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+  subject_id UUID NOT NULL,
+  marks_obtained DECIMAL(5,2) NOT NULL,
+  total_marks DECIMAL(5,2) NOT NULL,
+  grade VARCHAR(10),
+  remarks TEXT,
+  entered_by UUID REFERENCES users(id) ON DELETE SET NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS transport_vehicles (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  registration_number VARCHAR(50) NOT NULL,
+  capacity INT NOT NULL,
+  vehicle_type VARCHAR(50),
+  status VARCHAR(50) DEFAULT 'ACTIVE',
+  driver_id UUID REFERENCES users(id) ON DELETE SET NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS transport_routes (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  route_name VARCHAR(100) NOT NULL,
+  vehicle_id UUID REFERENCES transport_vehicles(id) ON DELETE SET NULL,
+  start_point VARCHAR(255) NOT NULL,
+  end_point VARCHAR(255) NOT NULL,
+  distance_km DECIMAL(10,2),
+  fare_amount DECIMAL(15,2),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS procurement_orders (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  order_number VARCHAR(50) NOT NULL,
+  supplier_id UUID NOT NULL,
+  requested_by UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  total_amount DECIMAL(15,2) NOT NULL,
+  status VARCHAR(50) DEFAULT 'PENDING',
+  delivery_date DATE,
+  notes TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+-- Phase 3: Missing Domain Schemas for Boarding, Library, Clinic, Inventory
+
+CREATE TABLE IF NOT EXISTS boarding_hostels (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  hostel_name VARCHAR(100) NOT NULL,
+  capacity INT NOT NULL,
+  gender_allowed VARCHAR(20) NOT NULL,
+  warden_id UUID REFERENCES users(id) ON DELETE SET NULL,
+  status VARCHAR(50) DEFAULT 'ACTIVE',
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS boarding_beds (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  hostel_id UUID NOT NULL REFERENCES boarding_hostels(id) ON DELETE CASCADE,
+  room_number VARCHAR(50) NOT NULL,
+  bed_number VARCHAR(50) NOT NULL,
+  assigned_student_id UUID REFERENCES students(id) ON DELETE SET NULL,
+  status VARCHAR(50) DEFAULT 'AVAILABLE',
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS library_books (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  accession_number VARCHAR(100) NOT NULL UNIQUE,
+  isbn VARCHAR(50),
+  title VARCHAR(255) NOT NULL,
+  author VARCHAR(255) NOT NULL,
+  publisher VARCHAR(255),
+  category VARCHAR(100),
+  total_copies INT NOT NULL DEFAULT 1,
+  available_copies INT NOT NULL DEFAULT 1,
+  shelf_location VARCHAR(100),
+  status VARCHAR(50) DEFAULT 'ACTIVE',
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS clinic_medicine (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  medicine_name VARCHAR(255) NOT NULL,
+  batch_number VARCHAR(100),
+  expiry_date DATE NOT NULL,
+  quantity_in_stock INT NOT NULL DEFAULT 0,
+  reorder_level INT NOT NULL DEFAULT 10,
+  supplier_id UUID,
+  status VARCHAR(50) DEFAULT 'ACTIVE',
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS inventory_items (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  item_code VARCHAR(100) NOT NULL UNIQUE,
+  item_name VARCHAR(255) NOT NULL,
+  category VARCHAR(100),
+  unit_of_measure VARCHAR(50) NOT NULL,
+  quantity_in_stock DECIMAL(10,2) NOT NULL DEFAULT 0,
+  reorder_level DECIMAL(10,2) NOT NULL DEFAULT 0,
+  location VARCHAR(100),
+  status VARCHAR(50) DEFAULT 'ACTIVE',
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+

@@ -1,14 +1,31 @@
 import { Injectable, Optional, InternalServerErrorException } from '@nestjs/common';
 import { SchoolOperationalEventsService } from '../events/school-operational-events.service';
-import { DatabaseService } from '../../database/database.service';
+import { PrismaService } from '../../database/prisma.service';
 import { RequestContextService } from '../../common/request-context/request-context.service';
 import { VisitorsService } from '../visitors/visitors.service';
 import { CreateSecurityIncidentDto, CreatePanicAlertDto, CreateVisitorDto } from './security-operations.dto';
 
 @Injectable()
 export class SecurityOperationsService {
-  constructor(
-    private readonly db: DatabaseService,
+
+  private async executeSql<T = any>(query: string, params: any[] = []): Promise<{ rows: T[], rowCount: number }> {
+    const firstParam = params[0];
+    const isUuid = typeof firstParam === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(firstParam);
+    
+    if (isUuid) {
+      return this.prisma.executeWithTenant(firstParam, null, async (tx: any) => {
+        const result = await tx.$queryRawUnsafe(query, ...params);
+        const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+      });
+    } else {
+      const result = await this.prisma.$queryRawUnsafe(query, ...params);
+      const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+    }
+  }
+
+  constructor(private readonly prisma: PrismaService, private readonly db: PrismaService,
     private readonly requestContext: RequestContextService,
     private readonly visitorsService: VisitorsService,
     @Optional() private readonly schoolEvents?: SchoolOperationalEventsService,

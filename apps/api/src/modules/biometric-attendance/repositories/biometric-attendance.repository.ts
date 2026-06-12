@@ -1,10 +1,28 @@
 import { Injectable } from '@nestjs/common';
 
-import { DatabaseService } from '../../../database/database.service';
+import { PrismaService } from '../../../database/prisma.service';
 
 @Injectable()
 export class BiometricAttendanceRepository {
-  constructor(private readonly databaseService: DatabaseService) {}
+
+  private async executeSql<T = any>(query: string, params: any[] = []): Promise<{ rows: T[], rowCount: number }> {
+    const firstParam = params[0];
+    const isUuid = typeof firstParam === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(firstParam);
+    
+    if (isUuid) {
+      return this.prisma.executeWithTenant(firstParam, null, async (tx: any) => {
+        const result = await tx.$queryRawUnsafe(query, ...params);
+        const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+      });
+    } else {
+      const result = await this.prisma.$queryRawUnsafe(query, ...params);
+      const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+    }
+  }
+
+  constructor(private readonly prisma: PrismaService) {}
 
   registerDevice(input: Record<string, unknown>) {
     return this.insertReturning(
@@ -39,7 +57,7 @@ export class BiometricAttendanceRepository {
   }
 
   async registerEvent(input: Record<string, unknown>) {
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
         INSERT INTO biometric_events (
           tenant_id, device_id, biometric_hash, event_hash, occurred_at,
@@ -67,7 +85,7 @@ export class BiometricAttendanceRepository {
   }
 
   async findIdentityByHash(input: { tenant_id: string; biometric_hash: string }) {
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
         SELECT teacher_user_id::text
         FROM biometric_identities
@@ -83,7 +101,7 @@ export class BiometricAttendanceRepository {
   }
 
   async getAttendanceRule(tenantId: string) {
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
         INSERT INTO attendance_rules (tenant_id)
         VALUES ($1)
@@ -139,7 +157,7 @@ export class BiometricAttendanceRepository {
   }
 
   async markEventProcessed(input: { tenant_id: string; event_id: string; status: string }) {
-    await this.databaseService.query(
+    await this.executeSql(
       `
         UPDATE biometric_events
         SET processing_status = $3, updated_at = NOW()
@@ -158,7 +176,7 @@ export class BiometricAttendanceRepository {
   }) {
     const limit = this.normalizeLimit(input.limit);
     const offset = this.normalizeOffset(input.offset);
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
         SELECT
           id::text,
@@ -192,7 +210,7 @@ export class BiometricAttendanceRepository {
   async listLiveFeed(input: { tenant_id: string; limit?: number; offset?: number }) {
     const limit = this.normalizeLimit(input.limit);
     const offset = this.normalizeOffset(input.offset);
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
         SELECT
           log.id::text,
@@ -226,7 +244,7 @@ export class BiometricAttendanceRepository {
   }
 
   async getMonthlyReport(input: { tenant_id: string; month: string }) {
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
         WITH latest_daily_status AS (
           SELECT DISTINCT ON (teacher_user_id, attendance_date)
@@ -254,7 +272,7 @@ export class BiometricAttendanceRepository {
     attendance_date: string;
     absence_cutoff_time?: string | null;
   }) {
-    const result = await this.databaseService.query<{
+    const result = await this.executeSql<{
       absent_marked: string;
       half_day_marked: string;
     }>(
@@ -384,7 +402,7 @@ export class BiometricAttendanceRepository {
   }
 
   async appendAuditLog(input: Record<string, unknown>) {
-    await this.databaseService.query(
+    await this.executeSql(
       `
         INSERT INTO audit_logs (
           tenant_id, actor_user_id, request_id, action, resource_type, resource_id, metadata
@@ -403,7 +421,7 @@ export class BiometricAttendanceRepository {
   }
 
   private async insertReturning(sql: string, values: unknown[]) {
-    const result = await this.databaseService.query(sql, values);
+    const result = await this.executeSql(sql, values);
 
     return result.rows[0];
   }

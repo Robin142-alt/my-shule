@@ -9,7 +9,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 
 import { RequestContextService } from '../../../common/request-context/request-context.service';
-import { DatabaseService } from '../../../database/database.service';
+import { PrismaService } from '../../../database/prisma.service';
 import { TenantFinanceConfigService } from '../../tenant-finance/tenant-finance-config.service';
 import {
   GenerateMpesaReconciliationReportInput,
@@ -130,10 +130,28 @@ const MAX_RANGE_DAYS = 31;
 
 @Injectable()
 export class MpesaReconciliationService {
+
+  private async executeSql<T = any>(query: string, params: any[] = []): Promise<{ rows: T[], rowCount: number }> {
+    const firstParam = params[0];
+    const isUuid = typeof firstParam === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(firstParam);
+    
+    if (isUuid) {
+      return this.prisma.executeWithTenant(firstParam, null, async (tx: any) => {
+        const result = await tx.$queryRawUnsafe(query, ...params);
+        const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+      });
+    } else {
+      const result = await this.prisma.$queryRawUnsafe(query, ...params);
+      const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+    }
+  }
+
   constructor(
     private readonly configService: ConfigService,
     private readonly requestContext: RequestContextService,
-    private readonly databaseService: DatabaseService,
+    private readonly prisma: PrismaService,
     @Optional() private readonly tenantFinanceConfigService?: TenantFinanceConfigService,
   ) {}
 
@@ -503,7 +521,7 @@ export class MpesaReconciliationService {
       : null;
     const limit = this.normalizeReviewLimit(input.limit);
     const offset = this.normalizeReviewOffset(input.offset);
-    const result = await this.databaseService.query<Record<string, unknown>>(
+    const result = await this.executeSql<Record<string, unknown>>(
       `
         SELECT
           id::text,
@@ -586,7 +604,7 @@ export class MpesaReconciliationService {
       throw new BadRequestException('Finance approval subject_id is required');
     }
 
-    const result = await this.databaseService.query<Record<string, unknown>>(
+    const result = await this.executeSql<Record<string, unknown>>(
       `
         INSERT INTO finance_approval_requests (
           tenant_id,
@@ -681,7 +699,7 @@ export class MpesaReconciliationService {
     windowEnd: Date,
     paymentChannelId: string | null,
   ): Promise<SuccessfulMpesaRow[]> {
-    const result = await this.databaseService.query<SuccessfulMpesaRow>(
+    const result = await this.executeSql<SuccessfulMpesaRow>(
       `
         SELECT
           mt.id AS mpesa_transaction_id,
@@ -725,7 +743,7 @@ export class MpesaReconciliationService {
     cutoff: Date,
     paymentChannelId: string | null,
   ): Promise<MissingCallbackRow[]> {
-    const result = await this.databaseService.query<MissingCallbackRow>(
+    const result = await this.executeSql<MissingCallbackRow>(
       `
         SELECT
           pi.id AS payment_intent_id,
@@ -766,7 +784,7 @@ export class MpesaReconciliationService {
     windowEnd: Date,
     paymentChannelId: string | null,
   ): Promise<DuplicateReceiptRow[]> {
-    const result = await this.databaseService.query<DuplicateReceiptRow>(
+    const result = await this.executeSql<DuplicateReceiptRow>(
       `
         SELECT
           mt.mpesa_receipt_number,
@@ -802,7 +820,7 @@ export class MpesaReconciliationService {
     mpesaLedgerAccountCodes: string[],
     paymentChannelId: string | null,
   ): Promise<UnmatchedLedgerRow[]> {
-    const result = await this.databaseService.query<UnmatchedLedgerRow>(
+    const result = await this.executeSql<UnmatchedLedgerRow>(
       `
         WITH mpesa_accounts AS (
           SELECT id, code
@@ -873,7 +891,7 @@ export class MpesaReconciliationService {
     cutoff: Date,
     paymentChannelId: string | null,
   ): Promise<C2bReviewRow[]> {
-    const result = await this.databaseService.query<C2bReviewRow>(
+    const result = await this.executeSql<C2bReviewRow>(
       `
         SELECT
           c2b.id AS c2b_payment_id,
@@ -921,7 +939,7 @@ export class MpesaReconciliationService {
   }
 
   private async loadActiveMpesaPaymentChannels(): Promise<ActiveMpesaPaymentChannelRow[]> {
-    const result = await this.databaseService.query<ActiveMpesaPaymentChannelRow>(
+    const result = await this.executeSql<ActiveMpesaPaymentChannelRow>(
       `
         SELECT
           tpc.tenant_id,
@@ -943,7 +961,7 @@ export class MpesaReconciliationService {
 
   private async persistReconciliationBatch(report: MpesaReconciliationReport): Promise<string> {
     const store = this.requestContext.getStore();
-    const batchResult = await this.databaseService.query<ReconciliationBatchRow>(
+    const batchResult = await this.executeSql<ReconciliationBatchRow>(
       `
         INSERT INTO mpesa_reconciliation_batches (
           tenant_id,
@@ -991,7 +1009,7 @@ export class MpesaReconciliationService {
     }
 
     for (const discrepancy of report.discrepancies) {
-      await this.databaseService.query(
+      await this.executeSql(
         `
           INSERT INTO mpesa_reconciliation_discrepancies (
             tenant_id,
@@ -1054,7 +1072,7 @@ export class MpesaReconciliationService {
   }
 
   private async loadFinanceApprovalRequest(tenantId: string, requestId: string) {
-    const result = await this.databaseService.query<Record<string, unknown>>(
+    const result = await this.executeSql<Record<string, unknown>>(
       `
         SELECT
           id::text,
@@ -1096,7 +1114,7 @@ export class MpesaReconciliationService {
     requestId: string,
     actorUserId: string,
   ) {
-    const result = await this.databaseService.query<Record<string, unknown>>(
+    const result = await this.executeSql<Record<string, unknown>>(
       `
         UPDATE finance_approval_requests
         SET
@@ -1142,7 +1160,7 @@ export class MpesaReconciliationService {
     requestId: string,
     actorUserId: string,
   ) {
-    const result = await this.databaseService.query<Record<string, unknown>>(
+    const result = await this.executeSql<Record<string, unknown>>(
       `
         UPDATE finance_approval_requests
         SET
@@ -1198,7 +1216,7 @@ export class MpesaReconciliationService {
       return;
     }
 
-    await this.databaseService.query(
+    await this.executeSql(
       `
         UPDATE mpesa_reconciliation_discrepancies
         SET

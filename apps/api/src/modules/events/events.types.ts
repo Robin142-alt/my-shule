@@ -17,7 +17,9 @@ export type SupportedDomainEventName =
   | 'asset.request.submitted'
   | 'attendance.register.marked'
   | 'discipline.incident.reported'
-  | 'welfare.case.referred';
+  | 'welfare.case.referred'
+  | 'system.repair.triggered'
+  | 'system.fallback.activated';
 export type OutboxEventStatus =
   | 'pending'
   | 'processing'
@@ -266,6 +268,16 @@ export interface WelfareCaseReferredPayload {
   reason: string;
 }
 
+export interface SystemRepairTriggeredPayload {
+  action: string;
+  error: string;
+}
+
+export interface SystemFallbackActivatedPayload {
+  action: string;
+  error: string;
+}
+
 export interface DomainEventPayloadMap {
   'student.created': StudentCreatedPayload;
   'student.academic_enrollment.created': StudentAcademicEnrollmentCreatedPayload;
@@ -286,6 +298,8 @@ export interface DomainEventPayloadMap {
   'attendance.register.marked': AttendanceRegisterMarkedPayload;
   'discipline.incident.reported': DisciplineIncidentReportedPayload;
   'welfare.case.referred': WelfareCaseReferredPayload;
+  'system.repair.triggered': SystemRepairTriggeredPayload;
+  'system.fallback.activated': SystemFallbackActivatedPayload;
 }
 
 export interface DomainEvent<

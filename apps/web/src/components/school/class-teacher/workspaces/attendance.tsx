@@ -10,7 +10,7 @@ export function AttendanceWorkspace() {
   const [localData, setLocalData] = useState<any[]>([]);
 
   useEffect(() => {
-    if (data) setLocalData(data);
+    if (data) setLocalData(Array.isArray(data) ? data : (data as any).records || []);
   }, [data]);
 
   if (isLoading) {

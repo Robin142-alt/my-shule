@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 
-import { DatabaseService } from '../../../database/database.service';
+import { PrismaService } from '../../../database/prisma.service';
 import { PiiEncryptionService } from '../../security/pii-encryption.service';
 import { SubscriptionEntity } from '../entities/subscription.entity';
 
@@ -90,13 +90,31 @@ interface RestoreRenewedSubscriptionInput {
 
 @Injectable()
 export class SubscriptionsRepository {
+
+  private async executeSql<T = any>(query: string, params: any[] = []): Promise<{ rows: T[], rowCount: number }> {
+    const firstParam = params[0];
+    const isUuid = typeof firstParam === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(firstParam);
+    
+    if (isUuid) {
+      return this.prisma.executeWithTenant(firstParam, null, async (tx: any) => {
+        const result = await tx.$queryRawUnsafe(query, ...params);
+        const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+      });
+    } else {
+      const result = await this.prisma.$queryRawUnsafe(query, ...params);
+      const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+    }
+  }
+
   constructor(
-    private readonly databaseService: DatabaseService,
+    private readonly prisma: PrismaService,
     private readonly piiEncryptionService: PiiEncryptionService,
   ) {}
 
   async acquireTenantMutationLock(tenantId: string): Promise<void> {
-    await this.databaseService.query(
+    await this.executeSql(
       `
         SELECT pg_advisory_xact_lock(hashtextextended($1::text, 0))
       `,
@@ -105,7 +123,7 @@ export class SubscriptionsRepository {
   }
 
   async expireCurrentSubscriptions(tenantId: string): Promise<void> {
-    await this.databaseService.query(
+    await this.executeSql(
       `
         UPDATE subscriptions
         SET
@@ -124,7 +142,7 @@ export class SubscriptionsRepository {
   }
 
   async createSubscription(input: CreateSubscriptionInput): Promise<SubscriptionEntity> {
-    const result = await this.databaseService.query<SubscriptionRow>(
+    const result = await this.executeSql<SubscriptionRow>(
       `
         INSERT INTO subscriptions (
           tenant_id,
@@ -195,7 +213,7 @@ export class SubscriptionsRepository {
   }
 
   async findCurrentByTenant(tenantId: string): Promise<SubscriptionEntity | null> {
-    const result = await this.databaseService.query<SubscriptionRow>(
+    const result = await this.executeSql<SubscriptionRow>(
       `
         SELECT
           ${subscriptionSelectColumns}
@@ -220,7 +238,7 @@ export class SubscriptionsRepository {
   }
 
   async lockCurrentByTenant(tenantId: string): Promise<SubscriptionEntity | null> {
-    const result = await this.databaseService.query<SubscriptionRow>(
+    const result = await this.executeSql<SubscriptionRow>(
       `
         SELECT
           ${subscriptionSelectColumns}
@@ -246,7 +264,7 @@ export class SubscriptionsRepository {
   }
 
   async findById(tenantId: string, subscriptionId: string): Promise<SubscriptionEntity | null> {
-    const result = await this.databaseService.query<SubscriptionRow>(
+    const result = await this.executeSql<SubscriptionRow>(
       `
         SELECT
           ${subscriptionSelectColumns}
@@ -262,7 +280,7 @@ export class SubscriptionsRepository {
   }
 
   async markPastDue(tenantId: string, subscriptionId: string): Promise<void> {
-    await this.databaseService.query(
+    await this.executeSql(
       `
         UPDATE subscriptions
         SET
@@ -280,7 +298,7 @@ export class SubscriptionsRepository {
     subscriptionId: string,
     nextPeriodEnd?: string | null,
   ): Promise<void> {
-    await this.databaseService.query(
+    await this.executeSql(
       `
         UPDATE subscriptions
         SET
@@ -299,7 +317,7 @@ export class SubscriptionsRepository {
     subscriptionId: string,
     input: ApplyLifecycleWindowInput,
   ): Promise<SubscriptionEntity> {
-    const result = await this.databaseService.query<SubscriptionRow>(
+    const result = await this.executeSql<SubscriptionRow>(
       `
         UPDATE subscriptions
         SET
@@ -333,7 +351,7 @@ export class SubscriptionsRepository {
     subscriptionId: string,
     input: RestoreRenewedSubscriptionInput,
   ): Promise<SubscriptionEntity> {
-    const result = await this.databaseService.query<SubscriptionRow>(
+    const result = await this.executeSql<SubscriptionRow>(
       `
         UPDATE subscriptions
         SET
@@ -366,7 +384,7 @@ export class SubscriptionsRepository {
   }
 
   async markInvoicePaid(tenantId: string, subscriptionId: string): Promise<void> {
-    await this.databaseService.query(
+    await this.executeSql(
       `
         UPDATE subscriptions
         SET

@@ -1,88 +1,36 @@
 import { Injectable } from '@nestjs/common';
-import format from 'pg-format';
-
-import { DatabaseService } from '../../../database/database.service';
+import { PrismaService } from '../../../database/prisma.service';
 import { LedgerEntryEntity } from '../entities/ledger-entry.entity';
-import { AccountBalanceSnapshot, ValidatedLedgerEntry } from '../finance.types';
-
-interface LedgerEntryRow {
-  id: string;
-  tenant_id: string;
-  transaction_id: string;
-  account_id: string;
-  line_number: number;
-  direction: LedgerEntryEntity['direction'];
-  amount_minor: string;
-  currency_code: string;
-  description: string | null;
-  metadata: Record<string, unknown> | null;
-  created_at: Date;
-  updated_at: Date;
-}
-
-interface BalanceRow {
-  account_id: string;
-  account_code: string;
-  currency_code: string;
-  normal_balance: AccountBalanceSnapshot['normal_balance'];
-  debit_total_minor: string;
-  credit_total_minor: string;
-}
+import { AccountBalanceSnapshot, ValidatedLedgerEntry, EntryDirection } from '../finance.types';
 
 @Injectable()
 export class LedgerEntriesRepository {
-  constructor(private readonly databaseService: DatabaseService) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   async insertEntries(
     tenantId: string,
     transactionId: string,
     entries: ValidatedLedgerEntry[],
   ): Promise<LedgerEntryEntity[]> {
-    const values = entries.map((entry) => [
-      tenantId,
-      transactionId,
-      entry.account_id,
-      entry.line_number,
-      entry.direction,
-      entry.amount_minor,
-      entry.currency_code,
-      entry.description ?? null,
-      JSON.stringify(entry.metadata ?? {}),
-    ]);
+    return this.prisma.executeWithTenant(tenantId, null, async (tx) => {
+      const createdEntries = await Promise.all(entries.map(entry => 
+        tx.ledgerEntry.create({
+          data: {
+            schoolId: tenantId,
+            transactionId: transactionId,
+            accountId: entry.account_id,
+            lineNumber: entry.line_number,
+            direction: entry.direction === 'debit' ? 'DEBIT' : 'CREDIT',
+            amountMinor: entry.amount_minor,
+            currencyCode: entry.currency_code,
+            description: entry.description ?? null,
+            metadata: (entry.metadata ?? {}) as any,
+          }
+        })
+      ));
 
-    const query = format(
-      `
-        INSERT INTO ledger_entries (
-          tenant_id,
-          transaction_id,
-          account_id,
-          line_number,
-          direction,
-          amount_minor,
-          currency_code,
-          description,
-          metadata
-        )
-        VALUES %L
-        RETURNING
-          id,
-          tenant_id,
-          transaction_id,
-          account_id,
-          line_number,
-          direction,
-          amount_minor::text,
-          currency_code,
-          description,
-          metadata,
-          created_at,
-          updated_at
-      `,
-      values,
-    );
-
-    const result = await this.databaseService.query<LedgerEntryRow>(query);
-    return result.rows.map((row) => this.mapLedgerEntry(row));
+      return createdEntries.map(row => this.mapLedgerEntry(row));
+    });
   }
 
   async calculateBalances(tenantId: string, accountIds: string[]): Promise<Map<string, AccountBalanceSnapshot>> {
@@ -92,82 +40,74 @@ export class LedgerEntriesRepository {
       return new Map();
     }
 
-    const result = await this.databaseService.query<BalanceRow>(
-      `
+    return this.prisma.executeWithTenant(tenantId, null, async (tx) => {
+      const result = await tx.$queryRaw<any[]>`
         SELECT
           a.id AS account_id,
           a.code AS account_code,
           a.currency_code,
           a.normal_balance,
           COALESCE(
-            SUM(CASE WHEN le.direction = 'debit' THEN le.amount_minor ELSE 0 END),
+            SUM(CASE WHEN le.direction = 'DEBIT' THEN le.amount_minor::numeric ELSE 0 END),
             0
           )::text AS debit_total_minor,
           COALESCE(
-            SUM(CASE WHEN le.direction = 'credit' THEN le.amount_minor ELSE 0 END),
+            SUM(CASE WHEN le.direction = 'CREDIT' THEN le.amount_minor::numeric ELSE 0 END),
             0
           )::text AS credit_total_minor
         FROM accounts a
         LEFT JOIN ledger_entries le
           ON le.tenant_id = a.tenant_id
          AND le.account_id = a.id
-        WHERE a.tenant_id = $1
-          AND a.id = ANY($2::uuid[])
+        WHERE a.tenant_id = ${tenantId}::uuid
+          AND a.id = ANY(${uniqueAccountIds}::uuid[])
         GROUP BY a.id, a.code, a.currency_code, a.normal_balance
-      `,
-      [tenantId, uniqueAccountIds],
-    );
+      `;
 
-    return new Map(
-      result.rows.map((row) => [
-        row.account_id,
-        {
-          account_id: row.account_id,
-          account_code: row.account_code,
-          currency_code: row.currency_code,
-          normal_balance: row.normal_balance,
-          debit_total_minor: row.debit_total_minor,
-          credit_total_minor: row.credit_total_minor,
-          balance_minor: '0',
-        },
-      ]),
-    );
+      return new Map(
+        result.map((row) => [
+          row.account_id,
+          {
+            account_id: row.account_id,
+            account_code: row.account_code,
+            currency_code: row.currency_code,
+            normal_balance: row.normal_balance?.toLowerCase() as EntryDirection,
+            debit_total_minor: row.debit_total_minor,
+            credit_total_minor: row.credit_total_minor,
+            balance_minor: '0',
+          },
+        ]),
+      );
+    });
   }
 
   async findByTransactionId(
     tenantId: string,
     transactionId: string,
   ): Promise<LedgerEntryEntity[]> {
-    const result = await this.databaseService.query<LedgerEntryRow>(
-      `
-        SELECT
-          id,
-          tenant_id,
-          transaction_id,
-          account_id,
-          line_number,
-          direction,
-          amount_minor::text,
-          currency_code,
-          description,
-          metadata,
-          created_at,
-          updated_at
-        FROM ledger_entries
-        WHERE tenant_id = $1
-          AND transaction_id = $2::uuid
-        ORDER BY line_number ASC
-      `,
-      [tenantId, transactionId],
-    );
-
-    return result.rows.map((row) => this.mapLedgerEntry(row));
+    return this.prisma.executeWithTenant(tenantId, null, async (tx) => {
+      const entries = await tx.ledgerEntry.findMany({
+        where: { schoolId: tenantId, transactionId },
+        orderBy: { lineNumber: 'asc' },
+      });
+      return entries.map(row => this.mapLedgerEntry(row));
+    });
   }
 
-  private mapLedgerEntry(row: LedgerEntryRow): LedgerEntryEntity {
+  private mapLedgerEntry(row: any): LedgerEntryEntity {
     return Object.assign(new LedgerEntryEntity(), {
-      ...row,
-      metadata: row.metadata ?? {},
+      id: row.id,
+      tenant_id: row.schoolId,
+      transaction_id: row.transactionId,
+      account_id: row.accountId,
+      line_number: row.lineNumber,
+      direction: row.direction?.toLowerCase() as EntryDirection,
+      amount_minor: row.amountMinor,
+      currency_code: row.currencyCode,
+      description: row.description,
+      metadata: (row.metadata && typeof row.metadata === 'object') ? row.metadata : {},
+      created_at: row.createdAt,
+      updated_at: row.updatedAt,
     });
   }
 }

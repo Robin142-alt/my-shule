@@ -1,3 +1,4 @@
+import * as moduleConsumers from './consumers';
 import { Global, Module } from '@nestjs/common';
 import { EventsModule } from '../events/events.module';
 
@@ -17,6 +18,7 @@ import { VisitorsModule } from '../visitors/visitors.module';
   imports: [RedisModule, ObservabilityModule, VisitorsModule, EventsModule],
   controllers: [SecurityOperationsController],
   providers: [
+    ...Object.values(moduleConsumers),
     PiiEncryptionService,
     RateLimitService,
     FraudDetectionService,

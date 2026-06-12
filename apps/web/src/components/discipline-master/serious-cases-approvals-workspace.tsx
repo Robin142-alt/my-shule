@@ -2,12 +2,10 @@
 
 import { AlertTriangle, CheckSquare } from "lucide-react";
 import { Panel, StatusChip, EmptyState } from "./shared";
-
-const MOCK_APPROVALS = [
-  { id: "APP-001", student: "Sarah Njoroge", requestedAction: "Suspension", approver: "Principal", requestedOn: "2026-06-11", status: "Pending" },
-];
+import { useSchoolQuery } from "@/lib/data/school-hooks";
 
 export function SeriousCasesApprovalsWorkspace() {
+  const { data: approvals = [], isLoading } = useSchoolQuery<any[]>("/api/discipline/approvals");
   return (
     <Panel title="Serious Cases & Approvals" description="Track cases escalated to the Deputy or Principal for final decision." icon={AlertTriangle}>
       <div className="grid gap-4 md:grid-cols-3 mb-6">
@@ -26,7 +24,7 @@ export function SeriousCasesApprovalsWorkspace() {
       </div>
 
       <div className="mb-8">
-        {MOCK_APPROVALS.length > 0 ? (
+        {approvals.length > 0 ? (
           <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
             <table className="w-full text-left text-sm text-[#071D49]">
               <thead className="bg-[#F8FAFC] text-xs font-black uppercase text-[#64748B]">
@@ -41,7 +39,7 @@ export function SeriousCasesApprovalsWorkspace() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#D8E0EC]">
-                {MOCK_APPROVALS.map((row) => (
+                {approvals.map((row) => (
                   <tr key={row.id} className="hover:bg-[#F8FAFC]">
                     <td className="px-4 py-3 font-semibold">{row.id}</td>
                     <td className="px-4 py-3 font-bold">{row.student}</td>
@@ -61,7 +59,7 @@ export function SeriousCasesApprovalsWorkspace() {
           </div>
         ) : (
           <EmptyState 
-            message="No cases pending approval." 
+            message={isLoading ? "Loading approvals..." : "No cases pending approval."} 
             icon={CheckSquare} 
           />
         )}

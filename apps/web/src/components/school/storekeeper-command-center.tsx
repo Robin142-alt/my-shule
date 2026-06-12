@@ -1277,7 +1277,7 @@ function ActivityFeed({ data, isLoading, theme }: { data: any, isLoading: boolea
 }
 
 function RequisitionPanel({ theme }: { theme: StorekeeperTheme }) {
-  const { data: fetchedRequisitions } = useSchoolQuery<typeof initialRequisitions>("/api/inventory/requisitions");
+  const { data: fetchedRequisitions } = useSchoolQuery<typeof initialRequisitions>("/api/inventory/requests");
   const activeRequisitions = Array.isArray(fetchedRequisitions) ? fetchedRequisitions : [];
   const queryClient = useQueryClient();
   const surface = getSurfaceClasses(theme);
@@ -1474,7 +1474,7 @@ function SupplierPerformance({ theme }: { theme: StorekeeperTheme }) {
 }
 
 function WastePanel({ theme }: { theme: StorekeeperTheme }) {
-  const { data: fetchedWaste } = useSchoolQuery<typeof initialWaste>("/api/inventory/waste");
+  const { data: fetchedWaste } = useSchoolQuery<typeof initialWaste>("/api/inventory/incidents");
   const activeWaste = Array.isArray(fetchedWaste) ? fetchedWaste : [];
   const surface = getSurfaceClasses(theme);
   return (
@@ -1498,7 +1498,7 @@ function WastePanel({ theme }: { theme: StorekeeperTheme }) {
 }
 
 function AuditPanel({ theme }: { theme: StorekeeperTheme }) {
-  const { data: fetchedAuditTrail } = useSchoolQuery<typeof initialAuditTrail>("/api/inventory/audit");
+  const { data: fetchedAuditTrail } = useSchoolQuery<typeof initialAuditTrail>("/api/inventory/stock-movements");
   const activeAuditTrail = Array.isArray(fetchedAuditTrail) ? fetchedAuditTrail : [];
   const surface = getSurfaceClasses(theme);
   return (

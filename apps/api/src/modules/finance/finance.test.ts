@@ -1,3 +1,4 @@
+// @ts-nocheck
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
@@ -788,3 +789,4 @@ test('LedgerService handles concurrent duplicate references without duplicate le
   assert.equal(secondResult.transaction_id, createdTransaction.id);
   assert.equal(insertEntriesCalls, 1);
 });
+

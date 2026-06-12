@@ -85,6 +85,41 @@ export class ExamsService {
     @Optional() private readonly schoolEvents?: SchoolOperationalEventsService,
   ) {}
 
+  async getDashboard() {
+    const tenantId = this.requireTenantId();
+    const data = await this.repository.getDashboard(tenantId);
+    return {
+      savedConfigurations: data.savedConfigurations.map((r: any) => ({
+        id: r.id,
+        title: r.name,
+        status: r.status,
+        reviewer: 'Dean of Academics',
+        savedAt: r.created_at
+      })),
+      examDrafts: data.examDrafts.map((r: any) => ({
+        id: r.id,
+        title: r.name,
+        detail: `Created ${r.created_at}`,
+        status: r.status,
+        createdAt: r.created_at
+      })),
+      marksEntrySessions: data.marksEntrySessions.map((r: any) => ({
+        id: r.id,
+        title: 'Marks Entry Session',
+        detail: `Opened at ${r.opens_at}`,
+        status: r.status,
+        createdAt: r.created_at
+      })),
+      deanReviewBatches: data.deanReviewBatches.map((r: any) => ({
+        id: r.id,
+        title: 'Report Card Batch',
+        detail: `Sent to Dean`,
+        status: r.status,
+        createdAt: r.created_at
+      }))
+    };
+  }
+
   createSeries(dto: CreateExamSeriesDto) {
     return this.repository.createSeries({
       tenant_id: this.requireTenantId(),

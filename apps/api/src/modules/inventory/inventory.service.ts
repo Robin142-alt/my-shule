@@ -12,7 +12,7 @@ import {
   type ReportCsvValue,
 } from '../../common/reports/report-csv-artifact';
 import { RequestContextService } from '../../common/request-context/request-context.service';
-import { DatabaseService } from '../../database/database.service';
+import { PrismaService } from '../../database/prisma.service';
 import { AdjustStockDto, CreateInventoryItemDto, UpdateInventoryItemDto } from './dto/create-inventory-item.dto';
 import {
   CreateInventoryCategoryDto,
@@ -175,9 +175,27 @@ const INVENTORY_REPORT_EXPORTS = new Map<string, InventoryReportExportDefinition
 
 @Injectable()
 export class InventoryService {
+
+  private async executeSql<T = any>(query: string, params: any[] = []): Promise<{ rows: T[], rowCount: number }> {
+    const firstParam = params[0];
+    const isUuid = typeof firstParam === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(firstParam);
+    
+    if (isUuid) {
+      return this.prisma.executeWithTenant(firstParam, null, async (tx: any) => {
+        const result = await tx.$queryRawUnsafe(query, ...params);
+        const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+      });
+    } else {
+      const result = await this.prisma.$queryRawUnsafe(query, ...params);
+      const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+    }
+  }
+
   constructor(
     private readonly requestContext: RequestContextService,
-    private readonly databaseService: DatabaseService,
+    private readonly prisma: PrismaService,
     private readonly inventoryRepository: InventoryRepository,
     @Optional() private readonly schoolEvents?: SchoolOperationalEventsService,
   ) {}
@@ -196,7 +214,7 @@ export class InventoryService {
   }
 
   async createItem(dto: CreateInventoryItemDto) {
-    return this.databaseService.withRequestTransaction(async () => {
+    return this.prisma.withRequestTransaction(async () => {
       try {
         const tenantId = this.requireTenantId();
         const storageLocation = this.nullableText(dto.storage_location);
@@ -246,7 +264,7 @@ export class InventoryService {
   }
 
   async updateItem(itemId: string, dto: UpdateInventoryItemDto) {
-    return this.databaseService.withRequestTransaction(async () => {
+    return this.prisma.withRequestTransaction(async () => {
       try {
         const tenantId = this.requireTenantId();
         const storageLocation = this.optionalNullableText(dto.storage_location);
@@ -279,7 +297,7 @@ export class InventoryService {
   }
 
   async adjustItemStock(itemId: string, dto: AdjustStockDto) {
-    return this.databaseService.withRequestTransaction(async () => {
+    return this.prisma.withRequestTransaction(async () => {
       const tenantId = this.requireTenantId();
       const item = await this.inventoryRepository.findItemById(tenantId, itemId);
 
@@ -395,7 +413,7 @@ export class InventoryService {
   }
 
   async issueDepartmentStock(dto: CreateStockIssueDto) {
-    return this.databaseService.withRequestTransaction(async () => {
+    return this.prisma.withRequestTransaction(async () => {
       const tenantId = this.requireTenantId();
       const submissionId = dto.submission_id?.trim() || null;
       const existingResponse = await this.getIdempotentStockTransaction(tenantId, submissionId);
@@ -478,7 +496,7 @@ export class InventoryService {
   }
 
   async receiveSupplierStock(dto: CreateStockReceiptDto) {
-    return this.databaseService.withRequestTransaction(async () => {
+    return this.prisma.withRequestTransaction(async () => {
       const tenantId = this.requireTenantId();
       const submissionId = dto.submission_id?.trim() || null;
       const existingResponse = await this.getIdempotentStockTransaction(tenantId, submissionId);
@@ -623,7 +641,7 @@ export class InventoryService {
   }
 
   async createPurchaseOrder(dto: CreatePurchaseOrderDto) {
-    return this.databaseService.withRequestTransaction(async () => {
+    return this.prisma.withRequestTransaction(async () => {
       return this.inventoryRepository.createPurchaseOrder({
         tenant_id: this.requireTenantId(),
         po_number: this.buildNumber('PO'),
@@ -665,7 +683,7 @@ export class InventoryService {
     purchaseOrderId: string,
     dto: { notes?: string },
   ) {
-      return this.databaseService.withRequestTransaction(async () => {
+      return this.prisma.withRequestTransaction(async () => {
       const tenantId = this.requireTenantId();
       const purchaseOrder = await this.inventoryRepository.findPurchaseOrderByIdForUpdate(tenantId, purchaseOrderId);
 
@@ -745,7 +763,7 @@ export class InventoryService {
 
   async createRequisition(dto: CreateInventoryRequestDto) {
     const tenantId = this.requireTenantId();
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
         INSERT INTO inventory_requisitions (
           tenant_id,
@@ -882,7 +900,7 @@ export class InventoryService {
   }
 
   private async approveRequest(requestId: string, dto: UpdateWorkflowStatusDto) {
-    return this.databaseService.withRequestTransaction(async () => {
+    return this.prisma.withRequestTransaction(async () => {
       const tenantId = this.requireTenantId();
       const request = await this.inventoryRepository.findRequestByIdForUpdate(tenantId, requestId);
 
@@ -941,7 +959,7 @@ export class InventoryService {
   }
 
   private async fulfillRequest(requestId: string, dto: UpdateWorkflowStatusDto) {
-    return this.databaseService.withRequestTransaction(async () => {
+    return this.prisma.withRequestTransaction(async () => {
       const tenantId = this.requireTenantId();
       const request = await this.inventoryRepository.findRequestByIdForUpdate(tenantId, requestId);
 
@@ -981,7 +999,7 @@ export class InventoryService {
   }
 
   private async partiallyFulfillRequest(requestId: string, dto: UpdateWorkflowStatusDto) {
-    return this.databaseService.withRequestTransaction(async () => {
+    return this.prisma.withRequestTransaction(async () => {
       const tenantId = this.requireTenantId();
       const request = await this.inventoryRepository.findRequestByIdForUpdate(tenantId, requestId);
 
@@ -1075,7 +1093,7 @@ export class InventoryService {
   }
 
   private async completeTransfer(transferId: string, dto: UpdateWorkflowStatusDto) {
-    return this.databaseService.withRequestTransaction(async () => {
+    return this.prisma.withRequestTransaction(async () => {
       const tenantId = this.requireTenantId();
       const transfer = await this.inventoryRepository.findTransferById(tenantId, transferId);
 
@@ -1146,7 +1164,7 @@ export class InventoryService {
   }
 
   private async cancelTransfer(transferId: string, dto: UpdateWorkflowStatusDto) {
-    return this.databaseService.withRequestTransaction(async () => {
+    return this.prisma.withRequestTransaction(async () => {
       const tenantId = this.requireTenantId();
       const transfer = await this.inventoryRepository.findTransferById(tenantId, transferId);
 
@@ -1226,7 +1244,7 @@ export class InventoryService {
   }
 
   async createIncident(dto: CreateIncidentDto) {
-    return this.databaseService.withRequestTransaction(async () => {
+    return this.prisma.withRequestTransaction(async () => {
       const tenantId = this.requireTenantId();
       const item = await this.inventoryRepository.findItemById(tenantId, dto.item_id);
 
@@ -1274,7 +1292,7 @@ export class InventoryService {
   }
 
   async postStockCount(dto: PostStockCountDto) {
-    return this.databaseService.withRequestTransaction(async () => {
+    return this.prisma.withRequestTransaction(async () => {
       const tenantId = this.requireTenantId();
       const locationCode = this.optionalNullableText(dto.location_code) ?? null;
       const snapshotNumber = this.buildNumber('CNT');

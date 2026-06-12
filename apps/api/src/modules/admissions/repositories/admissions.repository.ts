@@ -1,10 +1,10 @@
 import { Injectable } from '@nestjs/common';
 
-import { DatabaseService } from '../../../database/database.service';
+import { PrismaService } from '../../../database/prisma.service';
 
 export interface AdmissionApplicationRecord {
   id: string;
-  tenant_id: string;
+  school_id: string;
   application_number: string;
   full_name: string;
   date_of_birth: string;
@@ -35,7 +35,15 @@ export interface AdmissionApplicationRecord {
 
 @Injectable()
 export class AdmissionsRepository {
-  constructor(private readonly databaseService: DatabaseService) {}
+  constructor(private readonly prisma: PrismaService) {}
+
+  private async executeSql<T = any>(tenantId: string, sql: string, params: any[]): Promise<T[]> {
+    return this.prisma.executeWithTenant<any>(tenantId, null, async (tx: any) => {
+      const rows = await tx.$queryRawUnsafe(sql, ...params);
+      return Array.isArray(rows) ? rows : [rows];
+    });
+  }
+
 
   async buildSummary(tenantId: string) {
     const [newApplications, approvedStudents, pendingReview, totalRegistered, recentApplications, pendingApprovals, missingDocuments] = await Promise.all([
@@ -43,29 +51,24 @@ export class AdmissionsRepository {
       this.countByStatus(tenantId, ['approved']),
       this.countByStatus(tenantId, ['pending']),
       this.countByStatus(tenantId, ['registered']),
-      this.databaseService.query(
-        `
-          SELECT application_number, full_name, class_applying, status, parent_phone, created_at
+      this.executeSql(tenantId, `
+          SELECT application_number, (first_name || ' ' || last_name) AS full_name, applying_for_class_id AS class_applying, application_status AS status, guardian_phone AS parent_phone, created_at
           FROM admission_applications
-          WHERE tenant_id = $1
+          WHERE school_id = $1
           ORDER BY created_at DESC
           LIMIT 6
-        `,
-        [tenantId],
+        `, [tenantId],
       ),
-      this.databaseService.query(
-        `
-          SELECT application_number, full_name, status
+      this.executeSql(tenantId, `
+          SELECT application_number, (first_name || ' ' || last_name) AS full_name, application_status AS status
           FROM admission_applications
-          WHERE tenant_id = $1
+          WHERE school_id = $1
             AND status IN ('pending', 'interview')
           ORDER BY created_at DESC
           LIMIT 6
-        `,
-        [tenantId],
+        `, [tenantId],
       ),
-      this.databaseService.query(
-        `
+      this.executeSql(tenantId, `
           SELECT
             application.id::text AS application_id,
             application.application_number,
@@ -73,15 +76,14 @@ export class AdmissionsRepository {
             COUNT(document.id)::int AS uploaded_documents
           FROM admission_applications application
           LEFT JOIN admission_documents document
-            ON document.tenant_id = application.tenant_id
+            ON document.school_id = application.tenant_id
            AND document.application_id = application.id
-          WHERE application.tenant_id = $1
+          WHERE application.school_id = $1
           GROUP BY application.id
           HAVING COUNT(document.id) < 3
           ORDER BY application.created_at DESC
           LIMIT 6
-        `,
-        [tenantId],
+        `, [tenantId],
       ),
     ]);
 
@@ -90,31 +92,29 @@ export class AdmissionsRepository {
       approved_students: approvedStudents,
       pending_review: pendingReview,
       total_registered: totalRegistered,
-      recent_applications: recentApplications.rows,
-      pending_approvals: pendingApprovals.rows,
-      missing_documents: missingDocuments.rows,
+      recent_applications: recentApplications,
+      pending_approvals: pendingApprovals,
+      missing_documents: missingDocuments,
     };
   }
 
   private async countByStatus(tenantId: string, statuses: string[]) {
-    const result = await this.databaseService.query<{ total: string }>(
-      `
+    const result = await this.executeSql(tenantId, `
         SELECT COUNT(*)::text AS total
         FROM admission_applications
-        WHERE tenant_id = $1
+        WHERE school_id = $1
           AND status = ANY($2::text[])
-      `,
-      [tenantId, statuses],
+      `, [tenantId, statuses],
     );
 
-    return Number(result.rows[0]?.total ?? '0');
+    return Number(result[0]?.total ?? '0');
   }
 
   async listApplications(
     tenantId: string,
     options: { search?: string; status?: string; limit: number; offset?: number },
   ): Promise<AdmissionApplicationRecord[]> {
-    const conditions = ['tenant_id = $1'];
+    const conditions = ['school_id = $1'];
     const values: unknown[] = [tenantId];
     let parameterIndex = 2;
     const search = this.normalizeSearch(options.search);
@@ -139,13 +139,12 @@ export class AdmissionsRepository {
     const offsetParameterIndex = parameterIndex;
     values.push(this.normalizeOffset(options.offset));
 
-    const result = await this.databaseService.query<AdmissionApplicationRecord>(
-      `
+    const result = await this.executeSql(values[0] as string, `
         SELECT
           id,
-          tenant_id,
+          school_id,
           application_number,
-          full_name,
+          (first_name || ' ' || last_name) AS full_name,
           date_of_birth::text,
           gender,
           birth_certificate_number,
@@ -153,16 +152,16 @@ export class AdmissionsRepository {
           previous_school,
           kcpe_results,
           cbc_level,
-          class_applying,
-          parent_name,
-          parent_phone,
-          parent_email,
-          parent_occupation,
-          relationship,
+          applying_for_class_id AS class_applying,
+          guardian_name AS parent_name,
+          guardian_phone AS parent_phone,
+          guardian_email AS parent_email,
+          guardian_occupation AS parent_occupation,
+          guardian_relationship AS relationship,
           allergies,
           conditions,
           emergency_contact,
-          status,
+          application_status AS status,
           interview_date::text,
           review_notes,
           approved_at::text,
@@ -174,20 +173,19 @@ export class AdmissionsRepository {
         ORDER BY created_at DESC
         LIMIT $${limitParameterIndex}::integer
         OFFSET $${offsetParameterIndex}::integer
-      `,
-      values,
+      `, values,
     );
 
-    return result.rows;
+    return result;
   }
 
   async createApplication(input: Omit<AdmissionApplicationRecord, 'id' | 'created_at' | 'updated_at' | 'approved_at' | 'admitted_student_id'>) {
-    const result = await this.databaseService.query<AdmissionApplicationRecord>(
-      `
+    const result = await this.executeSql(input.school_id, `
         INSERT INTO admission_applications (
-          tenant_id,
+          school_id,
           application_number,
-          full_name,
+          first_name,
+          last_name,
           date_of_birth,
           gender,
           birth_certificate_number,
@@ -196,28 +194,28 @@ export class AdmissionsRepository {
           kcpe_results,
           cbc_level,
           nemis_upi,
-          class_applying,
-          parent_name,
-          parent_phone,
-          parent_email,
-          parent_occupation,
-          relationship,
+          applying_for_class_id,
+          guardian_name,
+          guardian_phone,
+          guardian_email,
+          guardian_occupation,
+          guardian_relationship,
           allergies,
           conditions,
           emergency_contact,
-          status,
+          application_status,
           interview_date,
           review_notes
         )
         VALUES (
-          $1, $2, $3, $4::date, $5, $6, $7, $8, $9, $10,
-          $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22::date, $23
+          $1, $2, $3, $4, $5::date, $6, $7, $8, $9, $10, $11,
+          $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23::date, $24
         )
         RETURNING
           id,
-          tenant_id,
+          school_id,
           application_number,
-          full_name,
+          (first_name || ' ' || last_name) AS full_name,
           date_of_birth::text,
           gender,
           birth_certificate_number,
@@ -226,25 +224,24 @@ export class AdmissionsRepository {
           kcpe_results,
           cbc_level,
           nemis_upi,
-          class_applying,
-          parent_name,
-          parent_phone,
-          parent_email,
-          parent_occupation,
-          relationship,
+          applying_for_class_id AS class_applying,
+          guardian_name AS parent_name,
+          guardian_phone AS parent_phone,
+          guardian_email AS parent_email,
+          guardian_occupation AS parent_occupation,
+          guardian_relationship AS relationship,
           allergies,
           conditions,
           emergency_contact,
-          status,
+          application_status AS status,
           interview_date::text,
           review_notes,
           approved_at::text,
           admitted_student_id,
           created_at::text,
           updated_at::text
-      `,
-      [
-        input.tenant_id,
+      `, [
+        input.school_id,
         input.application_number,
         input.full_name,
         input.date_of_birth,
@@ -270,17 +267,16 @@ export class AdmissionsRepository {
       ]
     );
 
-    return result.rows[0];
+    return result[0];
   }
 
   async findApplicationById(tenantId: string, applicationId: string): Promise<AdmissionApplicationRecord | null> {
-    const result = await this.databaseService.query<AdmissionApplicationRecord>(
-      `
+    const result = await this.executeSql(tenantId, `
         SELECT
           id,
-          tenant_id,
+          school_id,
           application_number,
-          full_name,
+          (first_name || ' ' || last_name) AS full_name,
           date_of_birth::text,
           gender,
           birth_certificate_number,
@@ -288,16 +284,16 @@ export class AdmissionsRepository {
           previous_school,
           kcpe_results,
           cbc_level,
-          class_applying,
-          parent_name,
-          parent_phone,
-          parent_email,
-          parent_occupation,
-          relationship,
+          applying_for_class_id AS class_applying,
+          guardian_name AS parent_name,
+          guardian_phone AS parent_phone,
+          guardian_email AS parent_email,
+          guardian_occupation AS parent_occupation,
+          guardian_relationship AS relationship,
           allergies,
           conditions,
           emergency_contact,
-          status,
+          application_status AS status,
           interview_date::text,
           review_notes,
           approved_at::text,
@@ -305,27 +301,25 @@ export class AdmissionsRepository {
           created_at,
           updated_at
         FROM admission_applications
-        WHERE tenant_id = $1
+        WHERE school_id = $1
           AND id = $2::uuid
         LIMIT 1
-      `,
-      [tenantId, applicationId],
+      `, [tenantId, applicationId],
     );
 
-    return result.rows[0] ?? null;
+    return result[0] ?? null;
   }
 
   async findApplicationByIdForUpdate(
     tenantId: string,
     applicationId: string,
   ): Promise<AdmissionApplicationRecord | null> {
-    const result = await this.databaseService.query<AdmissionApplicationRecord>(
-      `
+    const result = await this.executeSql(tenantId, `
         SELECT
           id,
-          tenant_id,
+          school_id,
           application_number,
-          full_name,
+          (first_name || ' ' || last_name) AS full_name,
           date_of_birth::text,
           gender,
           birth_certificate_number,
@@ -333,16 +327,16 @@ export class AdmissionsRepository {
           previous_school,
           kcpe_results,
           cbc_level,
-          class_applying,
-          parent_name,
-          parent_phone,
-          parent_email,
-          parent_occupation,
-          relationship,
+          applying_for_class_id AS class_applying,
+          guardian_name AS parent_name,
+          guardian_phone AS parent_phone,
+          guardian_email AS parent_email,
+          guardian_occupation AS parent_occupation,
+          guardian_relationship AS relationship,
           allergies,
           conditions,
           emergency_contact,
-          status,
+          application_status AS status,
           interview_date::text,
           review_notes,
           approved_at::text,
@@ -350,15 +344,14 @@ export class AdmissionsRepository {
           created_at,
           updated_at
         FROM admission_applications
-        WHERE tenant_id = $1
+        WHERE school_id = $1
           AND id = $2::uuid
         LIMIT 1
         FOR UPDATE
-      `,
-      [tenantId, applicationId],
+      `, [tenantId, applicationId],
     );
 
-    return result.rows[0] ?? null;
+    return result[0] ?? null;
   }
 
   async updateApplication(
@@ -371,7 +364,7 @@ export class AdmissionsRepository {
     let parameterIndex = 3;
 
     if (input.status !== undefined) {
-      assignments.push(`status = $${parameterIndex}`);
+      assignments.push(`application_status = $${parameterIndex}`);
       values.push(input.status);
       parameterIndex += 1;
       if (input.status === 'approved') {
@@ -403,17 +396,16 @@ export class AdmissionsRepository {
 
     assignments.push('updated_at = NOW()');
 
-    const result = await this.databaseService.query<AdmissionApplicationRecord>(
-      `
+    const result = await this.executeSql(values[0] as string, `
         UPDATE admission_applications
         SET ${assignments.join(', ')}
-        WHERE tenant_id = $1
+        WHERE school_id = $1
           AND id = $2::uuid
         RETURNING
           id,
-          tenant_id,
+          school_id,
           application_number,
-          full_name,
+          (first_name || ' ' || last_name) AS full_name,
           date_of_birth::text,
           gender,
           birth_certificate_number,
@@ -421,48 +413,45 @@ export class AdmissionsRepository {
           previous_school,
           kcpe_results,
           cbc_level,
-          class_applying,
-          parent_name,
-          parent_phone,
-          parent_email,
-          parent_occupation,
-          relationship,
+          applying_for_class_id AS class_applying,
+          guardian_name AS parent_name,
+          guardian_phone AS parent_phone,
+          guardian_email AS parent_email,
+          guardian_occupation AS parent_occupation,
+          guardian_relationship AS relationship,
           allergies,
           conditions,
           emergency_contact,
-          status,
+          application_status AS status,
           interview_date::text,
           review_notes,
           approved_at::text,
           admitted_student_id::text,
           created_at,
           updated_at
-      `,
-      values,
+      `, values,
     );
 
-    return result.rows[0] ?? null;
+    return result[0] ?? null;
   }
 
   async markApplicationRegistered(tenantId: string, applicationId: string, studentId: string) {
-    const result = await this.databaseService.query(
-      `
+    const result = await this.executeSql(tenantId, `
         UPDATE admission_applications
-        SET status = 'registered',
+        SET application_status = 'registered',
             admitted_student_id = $3::uuid,
             updated_at = NOW()
-        WHERE tenant_id = $1
+        WHERE school_id = $1
           AND id = $2::uuid
-        RETURNING id, status
-      `,
-      [tenantId, applicationId, studentId],
+        RETURNING id, application_status AS status
+      `, [tenantId, applicationId, studentId],
     );
 
-    return result.rows[0] ?? null;
+    return result[0] ?? null;
   }
 
   async saveDocumentRecord(input: {
-    tenant_id: string;
+    school_id: string;
     application_id?: string | null;
     student_id?: string | null;
     document_type: string;
@@ -473,10 +462,9 @@ export class AdmissionsRepository {
     verification_status: string;
     uploaded_by_user_id?: string | null;
   }) {
-    const result = await this.databaseService.query(
-      `
+    const result = await this.executeSql(input.school_id, `
         INSERT INTO admission_documents (
-          tenant_id,
+          school_id,
           application_id,
           student_id,
           document_type,
@@ -496,9 +484,8 @@ export class AdmissionsRepository {
           original_file_name,
           verification_status,
           created_at
-      `,
-      [
-        input.tenant_id,
+      `, [
+        input.school_id,
         input.application_id ?? null,
         input.student_id ?? null,
         input.document_type,
@@ -511,7 +498,7 @@ export class AdmissionsRepository {
       ],
     );
 
-    return result.rows[0];
+    return result[0];
   }
 
   async attachApplicationDocumentsToStudent(
@@ -519,27 +506,25 @@ export class AdmissionsRepository {
     applicationId: string,
     studentId: string,
   ) {
-    const result = await this.databaseService.query(
-      `
+    const result = await this.executeSql(tenantId, `
         UPDATE admission_documents
         SET student_id = $3::uuid,
             updated_at = NOW()
-        WHERE tenant_id = $1
+        WHERE school_id = $1
           AND application_id = $2::uuid
           AND student_id IS NULL
         RETURNING id
-      `,
-      [tenantId, applicationId, studentId],
+      `, [tenantId, applicationId, studentId],
     );
 
-    return result.rows;
+    return result;
   }
 
   async listDocuments(
     tenantId: string,
     options: { search?: string; status?: string; limit?: number; offset?: number } = {},
   ) {
-    const conditions = ['document.tenant_id = $1'];
+    const conditions = ['document.school_id = $1'];
     const values: unknown[] = [tenantId];
     let parameterIndex = 2;
     const search = this.normalizeSearch(options.search);
@@ -564,8 +549,7 @@ export class AdmissionsRepository {
     const offsetParameterIndex = parameterIndex;
     values.push(this.normalizeOffset(options.offset));
 
-    const result = await this.databaseService.query(
-      `
+    const result = await this.executeSql(values[0] as string, `
         SELECT
           document.id,
           document.application_id::text,
@@ -580,20 +564,19 @@ export class AdmissionsRepository {
           CONCAT(student.first_name, ' ', student.last_name) AS student_name
         FROM admission_documents document
         LEFT JOIN admission_applications application
-          ON application.tenant_id = document.tenant_id
+          ON application.school_id = document.tenant_id
          AND application.id = document.application_id
         LEFT JOIN students student
-          ON student.tenant_id = document.tenant_id
+          ON student.school_id = document.tenant_id
          AND student.id = document.student_id
         WHERE ${conditions.join(' AND ')}
         ORDER BY document.created_at DESC
         LIMIT $${limitParameterIndex}::integer
         OFFSET $${offsetParameterIndex}::integer
-      `,
-      values,
+      `, values,
     );
 
-    return result.rows;
+    return result;
   }
 
   async updateDocumentVerificationStatus(
@@ -601,12 +584,11 @@ export class AdmissionsRepository {
     documentId: string,
     verificationStatus: string,
   ) {
-    const result = await this.databaseService.query(
-      `
+    const result = await this.executeSql(tenantId, `
         UPDATE admission_documents
         SET verification_status = $3,
             updated_at = NOW()
-        WHERE tenant_id = $1
+        WHERE school_id = $1
           AND id = $2::uuid
         RETURNING
           id,
@@ -616,15 +598,14 @@ export class AdmissionsRepository {
           original_file_name,
           verification_status,
           created_at
-      `,
-      [tenantId, documentId, verificationStatus],
+      `, [tenantId, documentId, verificationStatus],
     );
 
-    return result.rows[0] ?? null;
+    return result[0] ?? null;
   }
 
   async createAllocation(input: {
-    tenant_id: string;
+    school_id: string;
     student_id: string;
     class_name: string;
     stream_name: string;
@@ -633,22 +614,19 @@ export class AdmissionsRepository {
     effective_from: string;
     notes?: string | null;
   }) {
-    await this.databaseService.query(
-      `
+    await this.executeSql(input.school_id, `
         UPDATE student_allocations
         SET is_current = FALSE,
             updated_at = NOW()
-        WHERE tenant_id = $1
+        WHERE school_id = $1
           AND student_id = $2::uuid
           AND is_current = TRUE
-      `,
-      [input.tenant_id, input.student_id],
+      `, [input.school_id, input.student_id],
     );
 
-    const result = await this.databaseService.query(
-      `
+    const result = await this.executeSql(input.school_id, `
         INSERT INTO student_allocations (
-          tenant_id,
+          school_id,
           student_id,
           class_name,
           stream_name,
@@ -660,9 +638,8 @@ export class AdmissionsRepository {
         )
         VALUES ($1, $2::uuid, $3, $4, $5, $6, $7::date, TRUE, $8)
         RETURNING id, class_name, stream_name, dormitory_name, transport_route
-      `,
-      [
-        input.tenant_id,
+      `, [
+        input.school_id,
         input.student_id,
         input.class_name,
         input.stream_name,
@@ -673,28 +650,26 @@ export class AdmissionsRepository {
       ],
     );
 
-    return result.rows[0];
+    return result[0];
   }
 
   async findCurrentAllocationByStudentId(tenantId: string, studentId: string) {
-    const result = await this.databaseService.query(
-      `
+    const result = await this.executeSql(tenantId, `
         SELECT id, class_name, stream_name, dormitory_name, transport_route, effective_from
         FROM student_allocations
-        WHERE tenant_id = $1
+        WHERE school_id = $1
           AND student_id = $2::uuid
           AND is_current = TRUE
         ORDER BY effective_from DESC
         LIMIT 1
-      `,
-      [tenantId, studentId],
+      `, [tenantId, studentId],
     );
 
-    return result.rows[0] ?? null;
+    return result[0] ?? null;
   }
 
   async upsertStudentGuardianLink(input: {
-    tenant_id: string;
+    school_id: string;
     student_id: string;
     invitation_id?: string | null;
     display_name: string;
@@ -702,8 +677,7 @@ export class AdmissionsRepository {
     phone: string;
     relationship: string;
   }) {
-    const result = await this.databaseService.query(
-      `
+    const result = await this.executeSql(input.school_id, `
         WITH updated AS (
           UPDATE student_guardians
           SET
@@ -714,7 +688,7 @@ export class AdmissionsRepository {
             is_primary = TRUE,
             status = CASE WHEN user_id IS NULL THEN 'invited' ELSE 'active' END,
             updated_at = NOW()
-          WHERE tenant_id = $1
+          WHERE school_id = $1
             AND student_id = $2::uuid
             AND lower(email) = lower($5)
           RETURNING
@@ -725,24 +699,24 @@ export class AdmissionsRepository {
             display_name,
             lower(email) AS email,
             phone,
-            relationship,
+            guardian_relationship AS relationship,
             is_primary,
-            status,
+            application_status AS status,
             accepted_at,
             created_at,
             updated_at
         ),
         inserted AS (
           INSERT INTO student_guardians (
-            tenant_id,
+            school_id,
             student_id,
             invitation_id,
             display_name,
             email,
             phone,
-            relationship,
+            guardian_relationship AS relationship,
             is_primary,
-            status
+            application_status AS status
           )
           SELECT $1, $2::uuid, $3::uuid, $4, lower($5), $6, $7, TRUE, 'invited'
           WHERE NOT EXISTS (SELECT 1 FROM updated)
@@ -754,9 +728,9 @@ export class AdmissionsRepository {
             display_name,
             lower(email) AS email,
             phone,
-            relationship,
+            guardian_relationship AS relationship,
             is_primary,
-            status,
+            application_status AS status,
             accepted_at,
             created_at,
             updated_at
@@ -765,9 +739,8 @@ export class AdmissionsRepository {
         UNION ALL
         SELECT * FROM inserted
         LIMIT 1
-      `,
-      [
-        input.tenant_id,
+      `, [
+        input.school_id,
         input.student_id,
         input.invitation_id ?? null,
         input.display_name,
@@ -777,7 +750,7 @@ export class AdmissionsRepository {
       ],
     );
 
-    return result.rows[0] ?? null;
+    return result[0] ?? null;
   }
 
   async findAcademicClassSectionForUpdate(
@@ -785,18 +758,17 @@ export class AdmissionsRepository {
     className: string,
     streamName: string,
   ) {
-    const result = await this.databaseService.query(
-      `
+    const result = await this.executeSql(tenantId, `
         WITH selected_section AS (
           SELECT
             id,
-            tenant_id,
+            school_id,
             class_name,
             stream_name,
             academic_year,
             capacity
           FROM academic_class_sections
-          WHERE tenant_id = $1
+          WHERE school_id = $1
             AND lower(class_name) = lower($2)
             AND lower(stream_name) = lower($3)
             AND is_active = TRUE
@@ -813,20 +785,19 @@ export class AdmissionsRepository {
           (
             SELECT COUNT(*)::int
             FROM student_academic_enrollments enrollment
-            WHERE enrollment.tenant_id = selected_section.tenant_id
+            WHERE enrollment.school_id = selected_section.tenant_id
               AND enrollment.class_section_id = selected_section.id
               AND enrollment.status = 'active'
           ) AS current_enrollments
         FROM selected_section
-      `,
-      [tenantId, className, streamName],
+      `, [tenantId, className, streamName],
     );
 
-    return result.rows[0] ?? null;
+    return result[0] ?? null;
   }
 
   async createStudentAcademicEnrollment(input: {
-    tenant_id: string;
+    school_id: string;
     student_id: string;
     application_id: string;
     class_section_id?: string | null;
@@ -834,17 +805,16 @@ export class AdmissionsRepository {
     stream_name: string;
     academic_year: string;
   }) {
-    const result = await this.databaseService.query(
-      `
+    const result = await this.executeSql(input.school_id, `
         INSERT INTO student_academic_enrollments (
-          tenant_id,
+          school_id,
           student_id,
           application_id,
           class_section_id,
           class_name,
           stream_name,
           academic_year,
-          status
+          application_status AS status
         )
         VALUES ($1, $2::uuid, $3::uuid, $4::uuid, $5, $6, $7, 'active')
         ON CONFLICT (tenant_id, student_id, academic_year)
@@ -863,13 +833,12 @@ export class AdmissionsRepository {
           class_name,
           stream_name,
           academic_year,
-          status,
+          application_status AS status,
           enrolled_at,
           created_at,
           updated_at
-      `,
-      [
-        input.tenant_id,
+      `, [
+        input.school_id,
         input.student_id,
         input.application_id,
         input.class_section_id ?? null,
@@ -879,12 +848,11 @@ export class AdmissionsRepository {
       ],
     );
 
-    return result.rows[0] ?? null;
+    return result[0] ?? null;
   }
 
   async findActiveAcademicEnrollmentForUpdate(tenantId: string, studentId: string) {
-    const result = await this.databaseService.query(
-      `
+    const result = await this.executeSql(tenantId, `
         SELECT
           id,
           student_id::text,
@@ -893,22 +861,21 @@ export class AdmissionsRepository {
           class_name,
           stream_name,
           academic_year,
-          status,
+          application_status AS status,
           enrolled_at,
           created_at,
           updated_at
         FROM student_academic_enrollments
-        WHERE tenant_id = $1
+        WHERE school_id = $1
           AND student_id = $2::uuid
           AND status = 'active'
         ORDER BY enrolled_at DESC, created_at DESC
         LIMIT 1
         FOR UPDATE
-      `,
-      [tenantId, studentId],
+      `, [tenantId, studentId],
     );
 
-    return result.rows[0] ?? null;
+    return result[0] ?? null;
   }
 
   async completeStudentAcademicEnrollment(
@@ -916,12 +883,11 @@ export class AdmissionsRepository {
     enrollmentId: string,
     status: 'completed' | 'withdrawn',
   ) {
-    const result = await this.databaseService.query(
-      `
+    const result = await this.executeSql(tenantId, `
         UPDATE student_academic_enrollments
-        SET status = $3,
+        SET application_status = $3,
             updated_at = NOW()
-        WHERE tenant_id = $1
+        WHERE school_id = $1
           AND id = $2::uuid
           AND status = 'active'
         RETURNING
@@ -932,19 +898,18 @@ export class AdmissionsRepository {
           class_name,
           stream_name,
           academic_year,
-          status,
+          application_status AS status,
           enrolled_at,
           created_at,
           updated_at
-      `,
-      [tenantId, enrollmentId, status],
+      `, [tenantId, enrollmentId, status],
     );
 
-    return result.rows[0] ?? null;
+    return result[0] ?? null;
   }
 
   async createStudentAcademicLifecycleEvent(input: {
-    tenant_id: string;
+    school_id: string;
     student_id: string;
     source_enrollment_id: string;
     target_enrollment_id?: string | null;
@@ -960,10 +925,9 @@ export class AdmissionsRepository {
     notes?: string | null;
     created_by_user_id?: string | null;
   }) {
-    const result = await this.databaseService.query(
-      `
+    const result = await this.executeSql(input.school_id, `
         INSERT INTO student_academic_lifecycle_events (
-          tenant_id,
+          school_id,
           student_id,
           source_enrollment_id,
           target_enrollment_id,
@@ -1013,9 +977,8 @@ export class AdmissionsRepository {
           notes,
           created_by_user_id::text,
           created_at
-      `,
-      [
-        input.tenant_id,
+      `, [
+        input.school_id,
         input.student_id,
         input.source_enrollment_id,
         input.target_enrollment_id ?? null,
@@ -1033,26 +996,25 @@ export class AdmissionsRepository {
       ],
     );
 
-    return result.rows[0] ?? null;
+    return result[0] ?? null;
   }
 
   async enrollStudentSubjectsAndTimetable(input: {
-    tenant_id: string;
+    school_id: string;
     student_id: string;
     academic_enrollment_id: string;
     class_section_id: string;
   }) {
-    const result = await this.databaseService.query(
-      `
+    const result = await this.executeSql(input.school_id, `
         WITH subject_rows AS (
           INSERT INTO student_subject_enrollments (
-            tenant_id,
+            school_id,
             student_id,
             academic_enrollment_id,
             subject_offering_id,
             subject_code,
             subject_name,
-            status
+            application_status AS status
           )
           SELECT
             offering.tenant_id,
@@ -1063,7 +1025,7 @@ export class AdmissionsRepository {
             offering.subject_name,
             'active'
           FROM academic_subject_offerings offering
-          WHERE offering.tenant_id = $1
+          WHERE offering.school_id = $1
             AND offering.class_section_id = $4::uuid
             AND offering.is_active = TRUE
           ON CONFLICT (tenant_id, student_id, subject_offering_id)
@@ -1078,14 +1040,14 @@ export class AdmissionsRepository {
             subject_offering_id::text,
             subject_code,
             subject_name,
-            status,
+            application_status AS status,
             enrolled_at,
             created_at,
             updated_at
         ),
         timetable_rows AS (
           INSERT INTO student_timetable_enrollments (
-            tenant_id,
+            school_id,
             student_id,
             academic_enrollment_id,
             timetable_slot_id,
@@ -1094,7 +1056,7 @@ export class AdmissionsRepository {
             ends_at,
             subject_name,
             room_name,
-            status
+            application_status AS status
           )
           SELECT
             slot.tenant_id,
@@ -1109,9 +1071,9 @@ export class AdmissionsRepository {
             'active'
           FROM academic_timetable_slots slot
           LEFT JOIN academic_subject_offerings offering
-            ON offering.tenant_id = slot.tenant_id
+            ON offering.school_id = slot.tenant_id
            AND offering.id = slot.subject_offering_id
-          WHERE slot.tenant_id = $1
+          WHERE slot.school_id = $1
             AND slot.class_section_id = $4::uuid
             AND slot.is_active = TRUE
           ON CONFLICT (tenant_id, student_id, timetable_slot_id)
@@ -1132,16 +1094,15 @@ export class AdmissionsRepository {
             ends_at,
             subject_name,
             room_name,
-            status,
+            application_status AS status,
             created_at,
             updated_at
         )
         SELECT
           COALESCE((SELECT json_agg(row_to_json(subject_rows.*)) FROM subject_rows), '[]'::json) AS subject_enrollments,
           COALESCE((SELECT json_agg(row_to_json(timetable_rows.*)) FROM timetable_rows), '[]'::json) AS timetable_enrollments
-      `,
-      [
-        input.tenant_id,
+      `, [
+        input.school_id,
         input.student_id,
         input.academic_enrollment_id,
         input.class_section_id,
@@ -1149,14 +1110,13 @@ export class AdmissionsRepository {
     );
 
     return {
-      subject_enrollments: result.rows[0]?.subject_enrollments ?? [],
-      timetable_enrollments: result.rows[0]?.timetable_enrollments ?? [],
+      subject_enrollments: result[0]?.subject_enrollments ?? [],
+      timetable_enrollments: result[0]?.timetable_enrollments ?? [],
     };
   }
 
   async findActiveFeeStructureForClass(tenantId: string, className: string) {
-    const result = await this.databaseService.query(
-      `
+    const result = await this.executeSql(tenantId, `
         SELECT
           id,
           class_name,
@@ -1167,20 +1127,19 @@ export class AdmissionsRepository {
           amount_minor::text,
           due_days_after_registration
         FROM student_fee_structures
-        WHERE tenant_id = $1
+        WHERE school_id = $1
           AND lower(class_name) = lower($2)
           AND is_active = TRUE
         ORDER BY academic_year DESC, term_name DESC, created_at DESC
         LIMIT 1
-      `,
-      [tenantId, className],
+      `, [tenantId, className],
     );
 
-    return result.rows[0] ?? null;
+    return result[0] ?? null;
   }
 
   async createStudentFeeAssignmentInvoice(input: {
-    tenant_id: string;
+    school_id: string;
     student_id: string;
     application_id: string;
     fee_structure_id: string;
@@ -1190,15 +1149,14 @@ export class AdmissionsRepository {
     amount_minor: string;
     due_date: string;
   }) {
-    const result = await this.databaseService.query(
-      `
+    const result = await this.executeSql(input.school_id, `
         WITH assignment AS (
           INSERT INTO student_fee_assignments (
-            tenant_id,
+            school_id,
             student_id,
             application_id,
             fee_structure_id,
-            status,
+            application_status AS status,
             amount_minor,
             currency_code
           )
@@ -1218,7 +1176,7 @@ export class AdmissionsRepository {
             student_id::text,
             application_id::text,
             fee_structure_id::text,
-            status,
+            application_status AS status,
             amount_minor::text,
             currency_code,
             assigned_at,
@@ -1227,11 +1185,11 @@ export class AdmissionsRepository {
         ),
         invoice AS (
           INSERT INTO student_fee_invoices (
-            tenant_id,
+            school_id,
             assignment_id,
             student_id,
             invoice_number,
-            status,
+            application_status AS status,
             description,
             currency_code,
             amount_due_minor,
@@ -1264,7 +1222,7 @@ export class AdmissionsRepository {
             assignment_id::text,
             student_id::text,
             invoice_number,
-            status,
+            application_status AS status,
             description,
             currency_code,
             amount_due_minor::text,
@@ -1279,9 +1237,8 @@ export class AdmissionsRepository {
           row_to_json(invoice.*) AS invoice
         FROM assignment, invoice
         LIMIT 1
-      `,
-      [
-        input.tenant_id,
+      `, [
+        input.school_id,
         input.student_id,
         input.application_id,
         input.fee_structure_id,
@@ -1293,14 +1250,14 @@ export class AdmissionsRepository {
       ],
     );
 
-    return result.rows[0] ?? null;
+    return result[0] ?? null;
   }
 
   async listAllocations(
     tenantId: string,
     options: { search?: string; limit?: number; offset?: number } = {},
   ) {
-    const conditions = ['allocation.tenant_id = $1', 'allocation.is_current = TRUE'];
+    const conditions = ['allocation.school_id = $1', 'allocation.is_current = TRUE'];
     const values: unknown[] = [tenantId];
     let parameterIndex = 2;
     const search = this.normalizeSearch(options.search);
@@ -1319,8 +1276,7 @@ export class AdmissionsRepository {
     const offsetParameterIndex = parameterIndex;
     values.push(this.normalizeOffset(options.offset));
 
-    const result = await this.databaseService.query(
-      `
+    const result = await this.executeSql(values[0] as string, `
         SELECT
           allocation.id,
           student.id AS student_id,
@@ -1334,24 +1290,23 @@ export class AdmissionsRepository {
           allocation.effective_from
         FROM student_allocations allocation
         JOIN students student
-          ON student.tenant_id = allocation.tenant_id
+          ON student.school_id = allocation.tenant_id
          AND student.id = allocation.student_id
         WHERE ${conditions.join(' AND ')}
         ORDER BY allocation.effective_from DESC
         LIMIT $${limitParameterIndex}::integer
         OFFSET $${offsetParameterIndex}::integer
-      `,
-      values,
+      `, values,
     );
 
-    return result.rows;
+    return result;
   }
 
   async listStudentDirectory(
     tenantId: string,
     options: { search?: string; limit: number; offset?: number },
   ) {
-    const conditions = ['student.tenant_id = $1'];
+    const conditions = ['student.school_id = $1'];
     const values: unknown[] = [tenantId];
     let parameterIndex = 2;
     const search = this.normalizeSearch(options.search);
@@ -1374,8 +1329,7 @@ export class AdmissionsRepository {
     const offsetParameterIndex = parameterIndex;
     values.push(this.normalizeOffset(options.offset));
 
-    const result = await this.databaseService.query(
-      `
+    const result = await this.executeSql(values[0] as string, `
         SELECT
           student.id,
           student.admission_number,
@@ -1390,18 +1344,17 @@ export class AdmissionsRepository {
           allocation.transport_route
         FROM students student
         LEFT JOIN student_allocations allocation
-          ON allocation.tenant_id = student.tenant_id
+          ON allocation.school_id = student.tenant_id
          AND allocation.student_id = student.id
          AND allocation.is_current = TRUE
         WHERE ${conditions.join(' AND ')}
         ORDER BY student.created_at DESC
         LIMIT $${limitParameterIndex}::integer
         OFFSET $${offsetParameterIndex}::integer
-      `,
-      values,
+      `, values,
     );
 
-    return result.rows;
+    return result;
   }
 
   async getStudentProfile(tenantId: string, studentId: string) {
@@ -1417,8 +1370,7 @@ export class AdmissionsRepository {
       feeAssignmentResult,
       feeInvoiceResult,
     ] = await Promise.all([
-      this.databaseService.query(
-        `
+      this.executeSql(tenantId, `
           SELECT
             id,
             admission_number,
@@ -1430,71 +1382,61 @@ export class AdmissionsRepository {
             primary_guardian_phone,
             metadata
           FROM students
-          WHERE tenant_id = $1
+          WHERE school_id = $1
             AND id = $2::uuid
           LIMIT 1
-        `,
-        [tenantId, studentId],
+        `, [tenantId, studentId],
       ),
-      this.databaseService.query(
-        `
+      this.executeSql(tenantId, `
           SELECT id, document_type, original_file_name, verification_status, created_at
           FROM admission_documents
-          WHERE tenant_id = $1
+          WHERE school_id = $1
             AND student_id = $2::uuid
           ORDER BY created_at DESC
-        `,
-        [tenantId, studentId],
+        `, [tenantId, studentId],
       ),
-      this.databaseService.query(
-        `
+      this.executeSql(tenantId, `
           SELECT class_name, stream_name, dormitory_name, transport_route, effective_from
           FROM student_allocations
-          WHERE tenant_id = $1
+          WHERE school_id = $1
             AND student_id = $2::uuid
             AND is_current = TRUE
           ORDER BY effective_from DESC
           LIMIT 1
-        `,
-        [tenantId, studentId],
+        `, [tenantId, studentId],
       ),
-      this.databaseService.query(
-        `
+      this.executeSql(tenantId, `
           SELECT
             id,
             class_name,
             stream_name,
             academic_year,
-            status,
+            application_status AS status,
             enrolled_at,
             updated_at
           FROM student_academic_enrollments
-          WHERE tenant_id = $1
+          WHERE school_id = $1
             AND student_id = $2::uuid
             AND status = 'active'
           ORDER BY enrolled_at DESC, created_at DESC
           LIMIT 1
-        `,
-        [tenantId, studentId],
+        `, [tenantId, studentId],
       ),
-      this.databaseService.query(
-        `
+      this.executeSql(tenantId, `
           SELECT
             id,
             subject_code,
             subject_name,
-            status,
+            application_status AS status,
             enrolled_at
           FROM student_subject_enrollments
-          WHERE tenant_id = $1
+          WHERE school_id = $1
             AND student_id = $2::uuid
             AND status = 'active'
           ORDER BY subject_name ASC
-        `,
-        [tenantId, studentId],
+        `, [tenantId, studentId],
       ),
-      this.databaseService.query(
-        `
+      this.executeSql(tenantId, `
           SELECT
             id,
             day_of_week,
@@ -1502,9 +1444,9 @@ export class AdmissionsRepository {
             ends_at,
             subject_name,
             room_name,
-            status
+            application_status AS status
           FROM student_timetable_enrollments
-          WHERE tenant_id = $1
+          WHERE school_id = $1
             AND student_id = $2::uuid
             AND status = 'active'
           ORDER BY
@@ -1519,11 +1461,9 @@ export class AdmissionsRepository {
               ELSE 8
             END,
             starts_at ASC
-        `,
-        [tenantId, studentId],
+        `, [tenantId, studentId],
       ),
-      this.databaseService.query(
-        `
+      this.executeSql(tenantId, `
           SELECT
             id,
             event_type,
@@ -1536,42 +1476,38 @@ export class AdmissionsRepository {
             reason,
             created_at
           FROM student_academic_lifecycle_events
-          WHERE tenant_id = $1
+          WHERE school_id = $1
             AND student_id = $2::uuid
           ORDER BY created_at DESC
           LIMIT 10
-        `,
-        [tenantId, studentId],
+        `, [tenantId, studentId],
       ),
-      this.databaseService.query(
-        `
+      this.executeSql(tenantId, `
           SELECT
             id,
             display_name,
             email,
             phone,
-            relationship,
-            status,
+            guardian_relationship AS relationship,
+            application_status AS status,
             user_id::text,
             invitation_id::text,
             accepted_at,
             created_at,
             updated_at
           FROM student_guardians
-          WHERE tenant_id = $1
+          WHERE school_id = $1
             AND student_id = $2::uuid
           ORDER BY
-            CASE status
+            CASE application_status AS status
               WHEN 'active' THEN 1
               WHEN 'invited' THEN 2
               ELSE 3
             END,
             created_at DESC
-        `,
-        [tenantId, studentId],
+        `, [tenantId, studentId],
       ),
-      this.databaseService.query(
-        `
+      this.executeSql(tenantId, `
           SELECT
             assignment.id,
             assignment.status,
@@ -1584,18 +1520,16 @@ export class AdmissionsRepository {
             structure.academic_year
           FROM student_fee_assignments assignment
           LEFT JOIN student_fee_structures structure
-            ON structure.tenant_id = assignment.tenant_id
+            ON structure.school_id = assignment.tenant_id
            AND structure.id = assignment.fee_structure_id
-          WHERE assignment.tenant_id = $1
+          WHERE assignment.school_id = $1
             AND assignment.student_id = $2::uuid
             AND assignment.status <> 'voided'
           ORDER BY assignment.assigned_at DESC, assignment.created_at DESC
           LIMIT 1
-        `,
-        [tenantId, studentId],
+        `, [tenantId, studentId],
       ),
-      this.databaseService.query(
-        `
+      this.executeSql(tenantId, `
           SELECT
             invoice.id,
             invoice.assignment_id::text,
@@ -1609,31 +1543,30 @@ export class AdmissionsRepository {
             invoice.due_date::text,
             invoice.created_at
           FROM student_fee_invoices invoice
-          WHERE invoice.tenant_id = $1
+          WHERE invoice.school_id = $1
             AND invoice.student_id = $2::uuid
             AND invoice.status <> 'voided'
           ORDER BY invoice.due_date DESC, invoice.created_at DESC
           LIMIT 1
-        `,
-        [tenantId, studentId],
+        `, [tenantId, studentId],
       ),
     ]);
 
-    if (!studentResult.rows[0]) {
+    if (!studentResult[0]) {
       return null;
     }
 
     return {
-      student: studentResult.rows[0],
-      allocation: allocationResult.rows[0] ?? null,
-      documents: documentsResult.rows,
-      academic_enrollment: academicEnrollmentResult.rows[0] ?? null,
-      subject_enrollments: subjectEnrollmentsResult.rows,
-      timetable_enrollments: timetableEnrollmentsResult.rows,
-      lifecycle_events: lifecycleEventsResult.rows,
-      guardian_links: guardianLinksResult.rows,
-      fee_assignment: feeAssignmentResult.rows[0] ?? null,
-      fee_invoice: feeInvoiceResult.rows[0] ?? null,
+      student: studentResult[0],
+      allocation: allocationResult[0] ?? null,
+      documents: documentsResult,
+      academic_enrollment: academicEnrollmentResult[0] ?? null,
+      subject_enrollments: subjectEnrollmentsResult,
+      timetable_enrollments: timetableEnrollmentsResult,
+      lifecycle_events: lifecycleEventsResult,
+      guardian_links: guardianLinksResult,
+      fee_assignment: feeAssignmentResult[0] ?? null,
+      fee_invoice: feeInvoiceResult[0] ?? null,
     };
   }
 
@@ -1662,25 +1595,24 @@ export class AdmissionsRepository {
     const offsetParameterIndex = parameterIndex;
     values.push(this.normalizeOffset(options.offset));
 
-    const result = await this.databaseService.query(
-      `
+    const result = await this.executeSql(values[0] as string, `
         SELECT
-          COALESCE(primary_guardian_name, parent_name) AS parent_name,
-          COALESCE(primary_guardian_phone, parent_phone) AS parent_phone,
-          parent_email,
-          parent_occupation,
-          relationship
+          COALESCE(primary_guardian_name, parent_name) AS guardian_name AS parent_name,
+          COALESCE(primary_guardian_phone, parent_phone) AS guardian_phone AS parent_phone,
+          guardian_email AS parent_email,
+          guardian_occupation AS parent_occupation,
+          guardian_relationship AS relationship
         FROM (
           SELECT
             student.primary_guardian_name,
             student.primary_guardian_phone,
-            NULL::text AS parent_name,
-            NULL::text AS parent_phone,
-            NULL::text AS parent_email,
-            NULL::text AS parent_occupation,
-            NULL::text AS relationship
+            NULL::text AS guardian_name AS parent_name,
+            NULL::text AS guardian_phone AS parent_phone,
+            NULL::text AS guardian_email AS parent_email,
+            NULL::text AS guardian_occupation AS parent_occupation,
+            NULL::text AS guardian_relationship AS relationship
           FROM students student
-          WHERE student.tenant_id = $1
+          WHERE student.school_id = $1
 
           UNION ALL
 
@@ -1693,22 +1625,21 @@ export class AdmissionsRepository {
             application.parent_occupation,
             application.relationship
           FROM admission_applications application
-          WHERE application.tenant_id = $1
+          WHERE application.school_id = $1
         ) parents
         WHERE COALESCE(primary_guardian_name, parent_name) IS NOT NULL
           ${searchCondition}
         ORDER BY COALESCE(primary_guardian_name, parent_name) ASC
         LIMIT $${limitParameterIndex}::integer
         OFFSET $${offsetParameterIndex}::integer
-      `,
-      values,
+      `, values,
     );
 
-    return result.rows;
+    return result;
   }
 
   async createTransferRecord(input: {
-    tenant_id: string;
+    school_id: string;
     student_id?: string | null;
     application_id?: string | null;
     transfer_type: string;
@@ -1718,24 +1649,22 @@ export class AdmissionsRepository {
     status: string;
     notes?: string | null;
   }) {
-    const result = await this.databaseService.query(
-      `
+    const result = await this.executeSql(input.school_id, `
         INSERT INTO student_transfer_records (
-          tenant_id,
+          school_id,
           student_id,
           application_id,
           transfer_type,
           school_name,
           reason,
           requested_on,
-          status,
+          application_status AS status,
           notes
         )
         VALUES ($1, $2::uuid, $3::uuid, $4, $5, $6, $7::date, $8, $9)
-        RETURNING id, transfer_type, school_name, status
-      `,
-      [
-        input.tenant_id,
+        RETURNING id, transfer_type, school_name, application_status AS status
+      `, [
+        input.school_id,
         input.student_id ?? null,
         input.application_id ?? null,
         input.transfer_type,
@@ -1747,14 +1676,14 @@ export class AdmissionsRepository {
       ],
     );
 
-    return result.rows[0];
+    return result[0];
   }
 
   async listTransfers(
     tenantId: string,
     options: { search?: string; status?: string; limit?: number; offset?: number } = {},
   ) {
-    const conditions = ['tenant_id = $1'];
+    const conditions = ['school_id = $1'];
     const values: unknown[] = [tenantId];
     let parameterIndex = 2;
     const search = this.normalizeSearch(options.search);
@@ -1779,60 +1708,52 @@ export class AdmissionsRepository {
     const offsetParameterIndex = parameterIndex;
     values.push(this.normalizeOffset(options.offset));
 
-    const result = await this.databaseService.query(
-      `
-        SELECT id, student_id, application_id, transfer_type, school_name, reason, requested_on, status, notes
+    const result = await this.executeSql(values[0] as string, `
+        SELECT id, student_id, application_id, transfer_type, school_name, reason, requested_on, application_status AS status, notes
         FROM student_transfer_records
         WHERE ${conditions.join(' AND ')}
         ORDER BY requested_on DESC, created_at DESC
         LIMIT $${limitParameterIndex}::integer
         OFFSET $${offsetParameterIndex}::integer
-      `,
-      values,
+      `, values,
     );
 
-    return result.rows;
+    return result;
   }
 
   async buildReports(tenantId: string) {
     const [statusBreakdown, allocationBreakdown, documentVerification] = await Promise.all([
-      this.databaseService.query(
-        `
-          SELECT status, COUNT(*)::int AS total
+      this.executeSql(tenantId, `
+          SELECT application_status AS status, COUNT(*)::int AS total
           FROM admission_applications
-          WHERE tenant_id = $1
-          GROUP BY status
+          WHERE school_id = $1
+          GROUP BY application_status AS status
           ORDER BY total DESC, status ASC
-        `,
-        [tenantId],
+        `, [tenantId],
       ),
-      this.databaseService.query(
-        `
+      this.executeSql(tenantId, `
           SELECT class_name, COUNT(*)::int AS total
           FROM student_allocations
-          WHERE tenant_id = $1
+          WHERE school_id = $1
             AND is_current = TRUE
           GROUP BY class_name
           ORDER BY total DESC, class_name ASC
-        `,
-        [tenantId],
+        `, [tenantId],
       ),
-      this.databaseService.query(
-        `
+      this.executeSql(tenantId, `
           SELECT verification_status, COUNT(*)::int AS total
           FROM admission_documents
-          WHERE tenant_id = $1
+          WHERE school_id = $1
           GROUP BY verification_status
           ORDER BY total DESC, verification_status ASC
-        `,
-        [tenantId],
+        `, [tenantId],
       ),
     ]);
 
     return {
-      application_status_breakdown: statusBreakdown.rows,
-      class_allocation_breakdown: allocationBreakdown.rows,
-      document_verification_breakdown: documentVerification.rows,
+      application_status_breakdown: statusBreakdown,
+      class_allocation_breakdown: allocationBreakdown,
+      document_verification_breakdown: documentVerification,
     };
   }
 

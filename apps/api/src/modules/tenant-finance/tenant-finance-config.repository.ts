@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { createHash } from 'node:crypto';
 
-import { DatabaseService } from '../../database/database.service';
+import { PrismaService } from '../../database/prisma.service';
 import { PiiEncryptionService } from '../security/pii-encryption.service';
 import {
   TenantBankAccountRecord,
@@ -64,15 +64,33 @@ interface TenantPaymentChannelRow {
 
 @Injectable()
 export class TenantFinanceConfigRepository {
+
+  private async executeSql<T = any>(query: string, params: any[] = []): Promise<{ rows: T[], rowCount: number }> {
+    const firstParam = params[0];
+    const isUuid = typeof firstParam === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(firstParam);
+    
+    if (isUuid) {
+      return this.prisma.executeWithTenant(firstParam, null, async (tx: any) => {
+        const result = await tx.$queryRawUnsafe(query, ...params);
+        const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+      });
+    } else {
+      const result = await this.prisma.$queryRawUnsafe(query, ...params);
+      const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+    }
+  }
+
   constructor(
-    private readonly databaseService: DatabaseService,
+    private readonly prisma: PrismaService,
     private readonly piiEncryptionService: PiiEncryptionService,
   ) {}
 
   async findActiveMpesaConfigForTenant(
     tenantId: string,
   ): Promise<TenantMpesaConfigRecord | null> {
-    const result = await this.databaseService.query<TenantMpesaConfigRow>(
+    const result = await this.executeSql<TenantMpesaConfigRow>(
       `
         SELECT
           id,
@@ -109,7 +127,7 @@ export class TenantFinanceConfigRepository {
     tenantId: string,
     shortcode: string,
   ): Promise<TenantMpesaConfigRecord | null> {
-    const result = await this.databaseService.query<TenantMpesaConfigRow>(
+    const result = await this.executeSql<TenantMpesaConfigRow>(
       `
         SELECT
           id,
@@ -151,7 +169,7 @@ export class TenantFinanceConfigRepository {
     tenantId: string,
     mpesaConfigId: string,
   ): Promise<TenantMpesaConfigRecord | null> {
-    const result = await this.databaseService.query<TenantMpesaConfigRow>(
+    const result = await this.executeSql<TenantMpesaConfigRow>(
       `
         SELECT
           id,
@@ -186,7 +204,7 @@ export class TenantFinanceConfigRepository {
   async findActiveMpesaConfigByShortcode(
     shortcode: string,
   ): Promise<TenantMpesaConfigRecord | null> {
-    const result = await this.databaseService.query<TenantMpesaConfigRow>(
+    const result = await this.executeSql<TenantMpesaConfigRow>(
       `
         SELECT
           id,
@@ -226,7 +244,7 @@ export class TenantFinanceConfigRepository {
   async findFinancialAccountsForTenant(
     tenantId: string,
   ): Promise<TenantFinancialAccountsRecord | null> {
-    const result = await this.databaseService.query<TenantFinancialAccountsRecord>(
+    const result = await this.executeSql<TenantFinancialAccountsRecord>(
       `
         SELECT
           tenant_id,
@@ -249,7 +267,7 @@ export class TenantFinanceConfigRepository {
     tenantId: string,
     mpesaConfigId: string,
   ): Promise<TenantPaymentChannelRecord | null> {
-    const result = await this.databaseService.query<{
+    const result = await this.executeSql<{
       id: string;
       tenant_id: string;
       channel_type: TenantPaymentChannelType;
@@ -290,7 +308,7 @@ export class TenantFinanceConfigRepository {
     checkoutRequestId: string,
     merchantRequestId: string,
   ): Promise<string | null> {
-    const result = await this.databaseService.query<{ tenant_id: string }>(
+    const result = await this.executeSql<{ tenant_id: string }>(
       `
         SELECT tenant_id
         FROM payment_intents
@@ -311,7 +329,7 @@ export class TenantFinanceConfigRepository {
     fee_control_account_code: string;
     currency_code: string;
   }): Promise<TenantFinancialAccountsRecord> {
-    const result = await this.databaseService.query<TenantFinancialAccountsRecord>(
+    const result = await this.executeSql<TenantFinancialAccountsRecord>(
       `
         INSERT INTO tenant_financial_accounts (
           tenant_id,
@@ -357,7 +375,7 @@ export class TenantFinanceConfigRepository {
     callback_url: string;
     status: TenantFinanceStatus;
   }): Promise<TenantMpesaConfigRecord> {
-    const result = await this.databaseService.query<TenantMpesaConfigRow>(
+    const result = await this.executeSql<TenantMpesaConfigRow>(
       `
         INSERT INTO tenant_mpesa_configs (
           tenant_id,
@@ -448,7 +466,7 @@ export class TenantFinanceConfigRepository {
     old_values: Record<string, unknown>;
     new_values: Record<string, unknown>;
   }): Promise<void> {
-    await this.databaseService.query(
+    await this.executeSql(
       `
         INSERT INTO mpesa_config_audit_logs (
           tenant_id,
@@ -481,7 +499,7 @@ export class TenantFinanceConfigRepository {
     callback_secret_hash: string | null;
     initiator_name: string | null;
   }): Promise<TenantMpesaConfigRecord> {
-    const result = await this.databaseService.query<TenantMpesaConfigRow>(
+    const result = await this.executeSql<TenantMpesaConfigRow>(
       `
         UPDATE tenant_mpesa_configs
         SET
@@ -553,7 +571,7 @@ export class TenantFinanceConfigRepository {
     name: string;
     status: TenantPaymentChannelStatus;
   }): Promise<TenantPaymentChannelRecord> {
-    const result = await this.databaseService.query<TenantPaymentChannelRow>(
+    const result = await this.executeSql<TenantPaymentChannelRow>(
       `
         INSERT INTO tenant_payment_channels (
           tenant_id,
@@ -597,7 +615,7 @@ export class TenantFinanceConfigRepository {
     currency: string;
     status: TenantFinanceStatus;
   }): Promise<TenantBankAccountRecord> {
-    const result = await this.databaseService.query<TenantBankAccountRow>(
+    const result = await this.executeSql<TenantBankAccountRow>(
       `
         INSERT INTO tenant_bank_accounts (
           tenant_id,
@@ -654,7 +672,7 @@ export class TenantFinanceConfigRepository {
     channel_id: string;
     status: TenantPaymentChannelStatus;
   }): Promise<void> {
-    await this.databaseService.query(
+    await this.executeSql(
       `
         UPDATE tenant_payment_channels
         SET
@@ -730,7 +748,7 @@ export class TenantFinanceConfigRepository {
   }
 
   private async listMpesaConfigs(tenantId: string): Promise<TenantMpesaConfigRecord[]> {
-    const result = await this.databaseService.query<TenantMpesaConfigRow>(
+    const result = await this.executeSql<TenantMpesaConfigRow>(
       `
         SELECT
           id,
@@ -762,7 +780,7 @@ export class TenantFinanceConfigRepository {
   }
 
   private async listBankAccounts(tenantId: string): Promise<TenantBankAccountRecord[]> {
-    const result = await this.databaseService.query<TenantBankAccountRow>(
+    const result = await this.executeSql<TenantBankAccountRow>(
       `
         SELECT
           id,
@@ -786,7 +804,7 @@ export class TenantFinanceConfigRepository {
   }
 
   private async listPaymentChannels(tenantId: string): Promise<TenantFinanceSummary['payment_channels']> {
-    const result = await this.databaseService.query<TenantPaymentChannelRow>(
+    const result = await this.executeSql<TenantPaymentChannelRow>(
       `
         SELECT
           id,
@@ -810,7 +828,7 @@ export class TenantFinanceConfigRepository {
   }
 
   private async loadDashboard(tenantId: string): Promise<TenantFinanceSummary['dashboard']> {
-    const result = await this.databaseService.query<{
+    const result = await this.executeSql<{
       todays_collections_minor: string;
       pending_reconciliations: string;
       failed_callbacks: string;

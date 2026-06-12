@@ -9,7 +9,7 @@ import { randomUUID } from 'node:crypto';
 
 import { AUTH_ANONYMOUS_USER_ID } from '../../auth/auth.constants';
 import { RequestContextService } from '../../common/request-context/request-context.service';
-import { DatabaseService } from '../../database/database.service';
+import { PrismaService } from '../../database/prisma.service';
 import { AccountsRepository } from '../finance/repositories/accounts.repository';
 import { TransactionService } from '../finance/transaction.service';
 import { CreateManualFeePaymentDto } from './dto/create-manual-fee-payment.dto';
@@ -37,9 +37,27 @@ const DEFAULT_ASSET_ACCOUNT_BY_METHOD: Record<ManualFeePaymentMethod, string> = 
 
 @Injectable()
 export class ManualFeePaymentService {
+
+  private async executeSql<T = any>(query: string, params: any[] = []): Promise<{ rows: T[], rowCount: number }> {
+    const firstParam = params[0];
+    const isUuid = typeof firstParam === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(firstParam);
+    
+    if (isUuid) {
+      return this.prisma.executeWithTenant(firstParam, null, async (tx: any) => {
+        const result = await tx.$queryRawUnsafe(query, ...params);
+        const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+      });
+    } else {
+      const result = await this.prisma.$queryRawUnsafe(query, ...params);
+      const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+    }
+  }
+
   constructor(
     private readonly requestContext: RequestContextService,
-    private readonly databaseService: DatabaseService,
+    private readonly prisma: PrismaService,
     private readonly manualFeePaymentsRepository: ManualFeePaymentsRepository,
     private readonly invoicesRepository: InvoicesRepository,
     private readonly accountsRepository: AccountsRepository,
@@ -51,7 +69,7 @@ export class ManualFeePaymentService {
   ): Promise<ManualFeePaymentResponseDto> {
     const tenantId = this.requireTenantId();
     const requestContext = this.requestContext.requireStore();
-    const payment = await this.databaseService.withRequestTransaction(async () => {
+    const payment = await this.prisma.withRequestTransaction(async () => {
       this.assertHasAllocationTarget(dto.student_id ?? null, dto.invoice_id ?? null);
       this.assertMethodRequirements(dto);
 
@@ -129,7 +147,7 @@ export class ManualFeePaymentService {
     paymentId: string,
     dto: UpdateManualFeePaymentStatusDto,
   ): Promise<ManualFeePaymentResponseDto> {
-    const payment = await this.databaseService.withRequestTransaction(async () => {
+    const payment = await this.prisma.withRequestTransaction(async () => {
       const tenantId = this.requireTenantId();
       const lockedPayment = await this.requireLockedPayment(tenantId, paymentId);
 
@@ -160,7 +178,7 @@ export class ManualFeePaymentService {
     paymentId: string,
     dto: UpdateManualFeePaymentStatusDto,
   ): Promise<ManualFeePaymentResponseDto> {
-    const payment = await this.databaseService.withRequestTransaction(async () => {
+    const payment = await this.prisma.withRequestTransaction(async () => {
       const tenantId = this.requireTenantId();
       const lockedPayment = await this.requireLockedPayment(tenantId, paymentId);
 
@@ -174,7 +192,7 @@ export class ManualFeePaymentService {
     paymentId: string,
     dto: UpdateManualFeePaymentStatusDto,
   ): Promise<ManualFeePaymentResponseDto> {
-    const payment = await this.databaseService.withRequestTransaction(async () => {
+    const payment = await this.prisma.withRequestTransaction(async () => {
       const tenantId = this.requireTenantId();
       const lockedPayment = await this.requireLockedPayment(tenantId, paymentId);
 
@@ -204,7 +222,7 @@ export class ManualFeePaymentService {
     paymentId: string,
     dto: UpdateManualFeePaymentStatusDto,
   ): Promise<ManualFeePaymentResponseDto> {
-    const payment = await this.databaseService.withRequestTransaction(async () => {
+    const payment = await this.prisma.withRequestTransaction(async () => {
       const tenantId = this.requireTenantId();
       const lockedPayment = await this.requireLockedPayment(tenantId, paymentId);
 

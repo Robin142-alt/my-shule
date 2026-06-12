@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 
-import { DatabaseService } from '../../../database/database.service';
+import { PrismaService } from '../../../database/prisma.service';
 import {
   ManualFeePaymentAllocationEntity,
   ManualFeePaymentAllocationType,
@@ -87,10 +87,28 @@ export interface StudentUnappliedCreditSummary {
 
 @Injectable()
 export class ManualFeePaymentsRepository {
-  constructor(private readonly databaseService: DatabaseService) {}
+
+  private async executeSql<T = any>(query: string, params: any[] = []): Promise<{ rows: T[], rowCount: number }> {
+    const firstParam = params[0];
+    const isUuid = typeof firstParam === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(firstParam);
+    
+    if (isUuid) {
+      return this.prisma.executeWithTenant(firstParam, null, async (tx: any) => {
+        const result = await tx.$queryRawUnsafe(query, ...params);
+        const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+      });
+    } else {
+      const result = await this.prisma.$queryRawUnsafe(query, ...params);
+      const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+    }
+  }
+
+  constructor(private readonly prisma: PrismaService) {}
 
   async create(input: CreateManualFeePaymentInput): Promise<ManualFeePaymentEntity> {
-    const result = await this.databaseService.query<ManualFeePaymentRow>(
+    const result = await this.executeSql<ManualFeePaymentRow>(
       `
         INSERT INTO manual_fee_payments (
           tenant_id,
@@ -209,7 +227,7 @@ export class ManualFeePaymentsRepository {
           values.push(normalizeManualFeePaymentListLimit(input.limit), normalizeManualFeePaymentListOffset(input.offset));
           return 'LIMIT $3::integer OFFSET $4::integer';
         })();
-    const result = await this.databaseService.query<ManualFeePaymentRow>(
+    const result = await this.executeSql<ManualFeePaymentRow>(
       `
         SELECT
           id,
@@ -257,7 +275,7 @@ export class ManualFeePaymentsRepository {
     tenantId: string,
     options: { limit?: number; offset?: number } = {},
   ): Promise<StudentUnappliedCreditSummary[]> {
-    const result = await this.databaseService.query<StudentUnappliedCreditSummary>(
+    const result = await this.executeSql<StudentUnappliedCreditSummary>(
       `
         SELECT
           tenant_id,
@@ -293,7 +311,7 @@ export class ManualFeePaymentsRepository {
     studentId: string;
     invoiceIds: string[];
   }): Promise<ManualFeePaymentEntity[]> {
-    const result = await this.databaseService.query<ManualFeePaymentRow>(
+    const result = await this.executeSql<ManualFeePaymentRow>(
       `
         SELECT
           id,
@@ -345,7 +363,7 @@ export class ManualFeePaymentsRepository {
     to: Date;
     method: ManualFeePaymentMethod | null;
   }): Promise<ManualFeePaymentEntity[]> {
-    const result = await this.databaseService.query<ManualFeePaymentRow>(
+    const result = await this.executeSql<ManualFeePaymentRow>(
       `
         WITH scoped_payments AS (
           SELECT
@@ -442,7 +460,7 @@ export class ManualFeePaymentsRepository {
     tenantId: string,
     paymentId: string,
   ): Promise<ManualFeePaymentEntity | null> {
-    const result = await this.databaseService.query<ManualFeePaymentRow>(
+    const result = await this.executeSql<ManualFeePaymentRow>(
       `
         SELECT
           id,
@@ -489,7 +507,7 @@ export class ManualFeePaymentsRepository {
     tenantId: string,
     paymentId: string,
   ): Promise<ManualFeePaymentEntity | null> {
-    const result = await this.databaseService.query<ManualFeePaymentRow>(
+    const result = await this.executeSql<ManualFeePaymentRow>(
       `
         SELECT
           id,
@@ -564,7 +582,7 @@ export class ManualFeePaymentsRepository {
       metadata?: Record<string, unknown>;
     },
   ): Promise<ManualFeePaymentEntity> {
-    const result = await this.databaseService.query<ManualFeePaymentRow>(
+    const result = await this.executeSql<ManualFeePaymentRow>(
       `
         UPDATE manual_fee_payments
         SET
@@ -651,7 +669,7 @@ export class ManualFeePaymentsRepository {
       metadata?: Record<string, unknown>;
     },
   ): Promise<ManualFeePaymentEntity> {
-    const result = await this.databaseService.query<ManualFeePaymentRow>(
+    const result = await this.executeSql<ManualFeePaymentRow>(
       `
         UPDATE manual_fee_payments
         SET
@@ -716,7 +734,7 @@ export class ManualFeePaymentsRepository {
     amount_minor: string;
     metadata?: Record<string, unknown>;
   }): Promise<{ id: string }> {
-    const result = await this.databaseService.query<{ id: string }>(
+    const result = await this.executeSql<{ id: string }>(
       `
         INSERT INTO manual_fee_payment_allocations (
           tenant_id,
@@ -750,7 +768,7 @@ export class ManualFeePaymentsRepository {
     tenantId: string,
     paymentId: string,
   ): Promise<ManualFeePaymentAllocationEntity[]> {
-    const result = await this.databaseService.query<ManualFeePaymentAllocationRow>(
+    const result = await this.executeSql<ManualFeePaymentAllocationRow>(
       `
         SELECT
           id,
@@ -786,7 +804,7 @@ export class ManualFeePaymentsRepository {
     notes: string | null;
     metadata?: Record<string, unknown>;
   }): Promise<ManualFeePaymentEntity> {
-    const result = await this.databaseService.query<ManualFeePaymentRow>(
+    const result = await this.executeSql<ManualFeePaymentRow>(
       `
         UPDATE manual_fee_payments
         SET

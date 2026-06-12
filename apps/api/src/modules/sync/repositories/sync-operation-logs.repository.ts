@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import { Injectable } from '@nestjs/common';
 
-import { DatabaseService } from '../../../database/database.service';
+import { PrismaService } from '../../../database/prisma.service';
 import { SyncEntity, SyncOperationLog } from '../sync.types';
 
 interface SyncOperationLogRow {
@@ -26,13 +26,31 @@ interface CreateSyncOperationLogInput<TEntity extends SyncEntity = SyncEntity> {
 
 @Injectable()
 export class SyncOperationLogsRepository {
-  constructor(private readonly databaseService: DatabaseService) {}
+
+  private async executeSql<T = any>(query: string, params: any[] = []): Promise<{ rows: T[], rowCount: number }> {
+    const firstParam = params[0];
+    const isUuid = typeof firstParam === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(firstParam);
+    
+    if (isUuid) {
+      return this.prisma.executeWithTenant(firstParam, null, async (tx: any) => {
+        const result = await tx.$queryRawUnsafe(query, ...params);
+        const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+      });
+    } else {
+      const result = await this.prisma.$queryRawUnsafe(query, ...params);
+      const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+    }
+  }
+
+  constructor(private readonly prisma: PrismaService) {}
 
   async findByOpId(
     tenantId: string,
     opId: string,
   ): Promise<SyncOperationLog | null> {
-    const result = await this.databaseService.query<SyncOperationLogRow>(
+    const result = await this.executeSql<SyncOperationLogRow>(
       `
         SELECT
           op_id,
@@ -57,7 +75,7 @@ export class SyncOperationLogsRepository {
   async createOperation<TEntity extends SyncEntity>(
     input: CreateSyncOperationLogInput<TEntity>,
   ): Promise<SyncOperationLog<TEntity>> {
-    const result = await this.databaseService.query<SyncOperationLogRow>(
+    const result = await this.executeSql<SyncOperationLogRow>(
       `
         INSERT INTO sync_operation_logs (
           op_id,
@@ -96,7 +114,7 @@ export class SyncOperationLogsRepository {
     limit: number,
   ): Promise<SyncOperationLog[]> {
     const boundedLimit = this.normalizeLimit(limit);
-    const result = await this.databaseService.query<SyncOperationLogRow>(
+    const result = await this.executeSql<SyncOperationLogRow>(
       `
         SELECT
           op_id,
@@ -139,7 +157,7 @@ export class SyncOperationLogsRepository {
       boundedLimit * Math.max(entities.length, 1) * 4,
       boundedLimit + 1,
     );
-    const result = await this.databaseService.query<SyncOperationLogRow>(
+    const result = await this.executeSql<SyncOperationLogRow>(
       `
         SELECT
           op_id,
@@ -176,7 +194,7 @@ export class SyncOperationLogsRepository {
       return new Map();
     }
 
-    const result = await this.databaseService.query<{ entity: SyncEntity; version: string }>(
+    const result = await this.executeSql<{ entity: SyncEntity; version: string }>(
       `
         SELECT entity, MAX(version)::text AS version
         FROM sync_operation_logs

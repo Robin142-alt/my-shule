@@ -5,6 +5,7 @@ import { Pool, PoolConfig } from 'pg';
 import { DATABASE_POOL } from './database.constants';
 import { DatabaseSecurityService } from './database-security.service';
 import { DatabaseService } from './database.service';
+import { PrismaService } from './prisma.service';
 
 export function buildDatabasePoolOptions(configService: ConfigService): PoolConfig {
   const connectionString = configService.get<string>('database.url');
@@ -63,7 +64,8 @@ export function buildDatabasePoolOptions(configService: ConfigService): PoolConf
     },
     DatabaseSecurityService,
     DatabaseService,
+    PrismaService,
   ],
-  exports: [DatabaseService, DatabaseSecurityService, DATABASE_POOL],
+  exports: [DatabaseService, DatabaseSecurityService, DATABASE_POOL, PrismaService],
 })
 export class DatabaseModule {}

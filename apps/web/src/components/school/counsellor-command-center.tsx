@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 
 import { getCurrentSchoolId, publishSchoolOperationalEvent } from "@/lib/school/school-operational-store";
+import { useSchoolQuery } from "@/lib/data/school-hooks";
 import { ApprovalInbox } from "@/components/shared/approval-inbox";
 import { NotificationBell } from "@/components/shared/notification-bell";
 import { TaskQueue } from "@/components/shared/task-queue";
@@ -125,6 +126,10 @@ export function CounsellorCommandCenter({ routeMode }: { routeMode: RouteMode })
   const [schoolId, setSchoolId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
+
+  const { data: dashboardData, isLoading: isLoadingDashboard } = useSchoolQuery<any>("/api/counselling/dashboard");
+  const { data: referralsData, isLoading: isLoadingReferrals } = useSchoolQuery<any>("/api/counselling/referrals");
+  const { data: sessionsData, isLoading: isLoadingSessions } = useSchoolQuery<any>("/api/counselling/sessions");
 
   useEffect(() => {
     if (routeMode === "hosted") setSchoolId(getCurrentSchoolId());
@@ -228,14 +233,14 @@ export function CounsellorCommandCenter({ routeMode }: { routeMode: RouteMode })
             <div className="space-y-6">
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                 {[
-                  { label: "Active Cases", value: "34", tone: "info" },
-                  { label: "New Referrals", value: "5", tone: "warning" },
-                  { label: "Follow-ups Due", value: "12", tone: "danger" },
-                  { label: "Appointments Today", value: "8", tone: "success" }
+                  { label: "Active Cases", value: dashboardData?.active_referrals || 0, tone: "info" },
+                  { label: "New Referrals", value: dashboardData?.upcoming_sessions || 0, tone: "warning" },
+                  { label: "Follow-ups Due", value: dashboardData?.followups_due || 0, tone: "danger" },
+                  { label: "High Risk Students", value: dashboardData?.high_risk_students || 0, tone: "success" }
                 ].map((stat, i) => (
                   <div key={i} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                     <p className="text-xs font-black uppercase text-slate-500">{stat.label}</p>
-                    <p className="mt-2 text-3xl font-black text-slate-900">{stat.value}</p>
+                    <p className="mt-2 text-3xl font-black text-slate-900">{isLoadingDashboard ? "..." : stat.value}</p>
                   </div>
                 ))}
               </div>
@@ -243,20 +248,24 @@ export function CounsellorCommandCenter({ routeMode }: { routeMode: RouteMode })
               <div className="grid gap-6 lg:grid-cols-2">
                 <Panel title="Today's Appointments" icon={CalendarClock}>
                   <DataTable
-                    columns={["Time", "Student", "Type", "Status", "Actions"]}
-                    rows={[
-                      ["09:00 AM", "Brian Otieno (Form 2)", "Individual", <StatusChip key="1" label="Confirmed" tone="info" />, <button key="b1" onClick={() => handleAction("Start Session")} className="text-blue-600 font-bold text-xs">Start Session</button>],
-                      ["11:30 AM", "Mary Wanjiku (Form 4)", "Follow-up", <StatusChip key="2" label="Pending" tone="warning" />, <button key="b2" onClick={() => handleAction("Mark Attended")} className="text-blue-600 font-bold text-xs">Mark Attended</button>]
-                    ]}
+                    columns={["Student", "Time", "Location", "Status"]}
+                    rows={isLoadingSessions ? [] : (sessionsData || []).slice(0, 5).map((s: any) => [
+                      s.student_name || s.student_id?.substring(0, 8),
+                      new Date(s.scheduled_for).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                      s.location || "Office",
+                      <StatusChip key={s.id} label={s.status} tone={s.status === 'scheduled' ? 'info' : 'success'} />
+                    ])}
                   />
                 </Panel>
                 <Panel title="New Referral Queue" icon={Inbox}>
                   <DataTable
-                    columns={["Date", "Student", "Source", "Priority", "Actions"]}
-                    rows={[
-                      ["Today", "John Doe (Form 1)", "Teacher", <StatusChip key="1" label="High" tone="danger" />, <button key="b1" onClick={() => handleAction("Accept Case")} className="text-blue-600 font-bold text-xs">Accept Case</button>],
-                      ["Yesterday", "Amina Njoroge (Form 3)", "Discipline", <StatusChip key="2" label="Medium" tone="warning" />, <button key="b2" onClick={() => handleAction("Review")} className="text-blue-600 font-bold text-xs">Review</button>]
-                    ]}
+                    columns={["Date", "Reason", "Priority", "Status"]}
+                    rows={isLoadingReferrals ? [] : (referralsData || []).filter((r: any) => r.status === 'pending').slice(0, 5).map((r: any) => [
+                      new Date(r.created_at).toLocaleDateString(),
+                      r.reason?.substring(0, 30) + "...",
+                      <StatusChip key={`p-${r.id}`} label={r.risk_level} tone={r.risk_level === 'high' ? 'danger' : 'warning'} />,
+                      <StatusChip key={`s-${r.id}`} label={r.status} tone="info" />
+                    ])}
                   />
                 </Panel>
               </div>
@@ -266,10 +275,19 @@ export function CounsellorCommandCenter({ routeMode }: { routeMode: RouteMode })
           {activeView === "referrals" && (
             <Panel title="Referral Inbox" description="Manage incoming referrals from teachers, discipline masters, and boarding." actions={<button onClick={() => handleAction("Bulk Accept")} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-bold text-white">Bulk Accept</button>}>
               <DataTable
-                columns={["ID", "Date", "Student", "Referred By", "Reason", "Priority", "Status", "Actions"]}
-                rows={[
-                  ["REF-102", "12 Oct", "John Doe", "Mr. Omondi (Teacher)", "Academic decline", <StatusChip key="p1" label="Medium" tone="warning" />, <StatusChip key="s1" label="New" tone="info" />, <div key="a1" className="flex gap-2"><button onClick={() => handleAction("Accept Case")} className="text-blue-600 font-bold text-xs">Accept</button><button onClick={() => handleAction("Request Info")} className="text-slate-500 font-bold text-xs">More Info</button></div>]
-                ]}
+                columns={["ID", "Date", "Student", "Reason", "Priority", "Status", "Actions"]}
+                rows={isLoadingReferrals ? [] : (referralsData || []).map((r: any) => [
+                  r.id.substring(0, 8),
+                  new Date(r.created_at).toLocaleDateString(),
+                  r.student_name || r.student_id?.substring(0, 8),
+                  r.reason,
+                  <StatusChip key={`p-${r.id}`} label={r.risk_level} tone={r.risk_level === 'high' ? 'danger' : r.risk_level === 'medium' ? 'warning' : 'neutral'} />,
+                  <StatusChip key={`s-${r.id}`} label={r.status} tone={r.status === 'pending' ? 'info' : 'success'} />,
+                  <div key={`a-${r.id}`} className="flex gap-2">
+                    <button onClick={() => handleAction("Accept Case")} className="text-blue-600 font-bold text-xs">Accept</button>
+                    <button onClick={() => handleAction("Request Info")} className="text-slate-500 font-bold text-xs">More Info</button>
+                  </div>
+                ])}
               />
             </Panel>
           )}
@@ -288,10 +306,18 @@ export function CounsellorCommandCenter({ routeMode }: { routeMode: RouteMode })
           {activeView === "appointments" && (
             <Panel title="Appointments" description="Manage your counselling calendar." actions={<button onClick={() => handleAction("Schedule Appointment")} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-bold text-white">Schedule Appointment</button>}>
               <DataTable
-                columns={["Date", "Time", "Student", "Type", "Status", "Actions"]}
-                rows={[
-                  ["12 Oct", "09:00 AM", "Brian Otieno", "Individual", <StatusChip key="s1" label="Scheduled" tone="info" />, <div key="a1" className="flex gap-2"><button onClick={() => handleAction("Mark Attended")} className="text-blue-600 font-bold text-xs">Attended</button><button onClick={() => handleAction("Reschedule")} className="text-slate-500 font-bold text-xs">Reschedule</button></div>]
-                ]}
+                columns={["Date", "Time", "Student", "Location", "Status", "Actions"]}
+                rows={isLoadingSessions ? [] : (sessionsData || []).map((s: any) => [
+                  new Date(s.scheduled_for).toLocaleDateString(),
+                  new Date(s.scheduled_for).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                  s.student_name || s.student_id?.substring(0, 8),
+                  s.location || "Office",
+                  <StatusChip key={`s-${s.id}`} label={s.status} tone={s.status === 'scheduled' ? 'info' : 'success'} />,
+                  <div key={`a-${s.id}`} className="flex gap-2">
+                    <button onClick={() => handleAction("Mark Attended")} className="text-blue-600 font-bold text-xs">Attended</button>
+                    <button onClick={() => handleAction("Reschedule")} className="text-slate-500 font-bold text-xs">Reschedule</button>
+                  </div>
+                ])}
               />
             </Panel>
           )}

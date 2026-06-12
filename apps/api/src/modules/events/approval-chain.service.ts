@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { DatabaseService } from '../../database/database.service';
+import { PrismaService } from '../../database/prisma.service';
 import { EventPublisherService } from './event-publisher.service';
 
 export interface ApprovalChainHierarchy {
@@ -8,6 +8,24 @@ export interface ApprovalChainHierarchy {
 
 @Injectable()
 export class ApprovalChainService {
+
+  private async executeSql<T = any>(query: string, params: any[] = []): Promise<{ rows: T[], rowCount: number }> {
+    const firstParam = params[0];
+    const isUuid = typeof firstParam === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(firstParam);
+    
+    if (isUuid) {
+      return this.prisma.executeWithTenant(firstParam, null, async (tx: any) => {
+        const result = await tx.$queryRawUnsafe(query, ...params);
+        const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+      });
+    } else {
+      const result = await this.prisma.$queryRawUnsafe(query, ...params);
+      const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+    }
+  }
+
   // Role Hierarchy Mapping: Role -> Approver Role
   private readonly roleHierarchy: ApprovalChainHierarchy = {
     TEACHER: 'HOD',
@@ -26,7 +44,7 @@ export class ApprovalChainService {
   };
 
   constructor(
-    private readonly databaseService: DatabaseService,
+    private readonly prisma: PrismaService,
     private readonly eventPublisher: EventPublisherService,
   ) {}
 
@@ -45,7 +63,7 @@ export class ApprovalChainService {
   }): Promise<void> {
     const { tenant_id, approval_id, approver_user_id, approver_role, decision, decision_note } = params;
 
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
       UPDATE approval_requests
       SET status = $1,
@@ -100,7 +118,7 @@ export class ApprovalChainService {
     });
 
     // Also update notification
-    await this.databaseService.query(
+    await this.executeSql(
       `
       UPDATE notifications
       SET status = 'read',

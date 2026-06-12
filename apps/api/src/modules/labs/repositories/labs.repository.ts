@@ -1,10 +1,28 @@
 import { Injectable } from '@nestjs/common';
 
-import { DatabaseService } from '../../../database/database.service';
+import { PrismaService } from '../../../database/prisma.service';
 
 @Injectable()
 export class LabsRepository {
-  constructor(private readonly databaseService: DatabaseService) {}
+
+  private async executeSql<T = any>(query: string, params: any[] = []): Promise<{ rows: T[], rowCount: number }> {
+    const firstParam = params[0];
+    const isUuid = typeof firstParam === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(firstParam);
+    
+    if (isUuid) {
+      return this.prisma.executeWithTenant(firstParam, null, async (tx: any) => {
+        const result = await tx.$queryRawUnsafe(query, ...params);
+        const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+      });
+    } else {
+      const result = await this.prisma.$queryRawUnsafe(query, ...params);
+      const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+    }
+  }
+
+  constructor(private readonly prisma: PrismaService) {}
 
   createDepartment(input: Record<string, unknown>) {
     return this.insertReturning(
@@ -62,7 +80,7 @@ export class LabsRepository {
     const rows = [];
 
     for (const attendance of input.attendance) {
-      const result = await this.databaseService.query(
+      const result = await this.executeSql(
         `
           INSERT INTO lab_attendance (
             tenant_id, session_id, student_id, status, recorded_by
@@ -139,8 +157,8 @@ export class LabsRepository {
   }
 
   async issueEquipmentToSession(input: Record<string, unknown>) {
-    return this.databaseService.withRequestTransaction(async () => {
-      await this.databaseService.query(
+    return this.prisma.withRequestTransaction(async () => {
+      await this.executeSql(
         `
           UPDATE lab_equipment
           SET quantity_available = quantity_available - $3,
@@ -194,7 +212,7 @@ export class LabsRepository {
   }
 
   async findChemicalForIssue(input: { tenant_id: string; chemical_id: string }) {
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
         SELECT id::text, status, expiry_date::text, quantity_available::text
         FROM chemical_items
@@ -209,8 +227,8 @@ export class LabsRepository {
   }
 
   async issueChemicalToSession(input: Record<string, unknown>) {
-    return this.databaseService.withRequestTransaction(async () => {
-      await this.databaseService.query(
+    return this.prisma.withRequestTransaction(async () => {
+      await this.executeSql(
         `
           UPDATE chemical_items
           SET quantity_available = quantity_available - $3::numeric,
@@ -271,7 +289,7 @@ export class LabsRepository {
   }
 
   async getLabSessionForCompletion(input: { tenant_id: string; session_id: string }) {
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
         SELECT id::text, class_section_id::text, is_mandatory
         FROM lab_sessions
@@ -286,7 +304,7 @@ export class LabsRepository {
   }
 
   async countMissingMandatoryAttendance(input: { tenant_id: string; session_id: string }) {
-    const result = await this.databaseService.query<{ total: string }>(
+    const result = await this.executeSql<{ total: string }>(
       `
         SELECT COUNT(*)::text AS total
         FROM student_class_assignments sca
@@ -313,7 +331,7 @@ export class LabsRepository {
     session_id: string;
     recorded_by: string;
   }) {
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
         INSERT INTO lab_attendance (
           tenant_id, session_id, student_id, status, recorded_by
@@ -351,7 +369,7 @@ export class LabsRepository {
     session_id: string;
     actor_user_id: string | null;
   }) {
-    const result = await this.databaseService.query<{
+    const result = await this.executeSql<{
       behavior_events: string;
       participation_metrics: string;
     }>(
@@ -498,7 +516,7 @@ export class LabsRepository {
   }
 
   async flagMandatoryAttendanceDisciplineGaps(input: { lookback_days: number }) {
-    const result = await this.databaseService.query<{
+    const result = await this.executeSql<{
       auto_absent: string;
       behavior_events: string;
       participation_metrics: string;
@@ -668,7 +686,7 @@ export class LabsRepository {
   }
 
   async refreshChemicalExpiryStatuses(input: { near_expiry_days: number }) {
-    const result = await this.databaseService.query<{
+    const result = await this.executeSql<{
       expired: string;
       near_expiry: string;
     }>(
@@ -704,7 +722,7 @@ export class LabsRepository {
   }
 
   async flagOverdueEquipmentUsage(input: { overdue_hours: number }) {
-    const result = await this.databaseService.query<{ unreconciled: string }>(
+    const result = await this.executeSql<{ unreconciled: string }>(
       `
         WITH overdue_usage AS (
           SELECT
@@ -755,7 +773,7 @@ export class LabsRepository {
   }
 
   async appendAuditLog(input: Record<string, unknown>) {
-    await this.databaseService.query(
+    await this.executeSql(
       `
         INSERT INTO academic_audit_logs (
           tenant_id, entity_type, entity_id, action, actor_user_id, metadata
@@ -774,7 +792,7 @@ export class LabsRepository {
   }
 
   private async insertReturning(sql: string, values: unknown[]) {
-    const result = await this.databaseService.query(sql, values);
+    const result = await this.executeSql(sql, values);
 
     return result.rows[0];
   }

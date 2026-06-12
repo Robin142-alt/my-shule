@@ -128,19 +128,21 @@ export class SyncIndicatorDto {
 }
 
 export class DashboardSummaryDto {
-  tenant!: TenantOptionDto;
+  widgets!: any[];
+  tenantId!: string;
   role!: string;
-  pageTitle!: string;
-  pageDescription!: string;
-  alerts!: AlertItemDto[];
-  kpis!: KpiCardDto[];
-  students!: StudentsWidgetDataDto;
-  finance!: FinanceWidgetDataDto;
-  academics!: AcademicsWidgetDataDto;
-  contextSections!: ContextSectionDto[];
-  activityFeed!: ActivityItemDto[];
-  quickActions!: QuickActionItemDto[];
-  notifications!: NotificationItemDto[];
-  capabilities!: CapabilityItemDto[];
-  sync!: SyncIndicatorDto;
+}
+
+export interface ActionButtonDto {
+  id: string;
+  label: string;
+  action: string;
+  state: 'ACTIVE' | 'DEGRADED' | 'FAILED' | 'LOCKED';
+}
+
+export class DashboardLayoutDto {
+  tenantId!: string;
+  role!: string;
+  widgets!: any[];
+  buttons!: ActionButtonDto[];
 }

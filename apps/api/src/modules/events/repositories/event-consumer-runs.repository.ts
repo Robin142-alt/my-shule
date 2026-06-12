@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 
-import { DatabaseService } from '../../../database/database.service';
+import { PrismaService } from '../../../database/prisma.service';
 import { EventConsumerRunRecord, EventConsumerRunStatus } from '../events.types';
 
 interface EventConsumerRunRow {
@@ -19,7 +19,24 @@ interface EventConsumerRunRow {
 
 @Injectable()
 export class EventConsumerRunsRepository {
-  constructor(private readonly databaseService: DatabaseService) {}
+  constructor(private readonly prisma: PrismaService) {}
+
+  private async executeSql<T = any>(query: string, params: any[] = []): Promise<{ rows: T[], rowCount: number }> {
+    const firstParam = params[0];
+    const isUuid = typeof firstParam === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(firstParam);
+    
+    if (isUuid) {
+      return this.prisma.executeWithTenant(firstParam, null, async (tx: any) => {
+        const result = await tx.$queryRawUnsafe(query, ...params);
+        const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+      });
+    } else {
+      const result = await this.prisma.$queryRawUnsafe(query, ...params);
+      const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+    }
+  }
 
   async acquireRun(
     tenantId: string,
@@ -27,7 +44,7 @@ export class EventConsumerRunsRepository {
     eventKey: string,
     consumerName: string,
   ): Promise<EventConsumerRunRecord> {
-    await this.databaseService.query(
+    await this.executeSql(
       `
         INSERT INTO event_consumer_runs (
           tenant_id,
@@ -44,7 +61,7 @@ export class EventConsumerRunsRepository {
       [tenantId, outboxEventId, eventKey, consumerName],
     );
 
-    const result = await this.databaseService.query<EventConsumerRunRow>(
+    const result = await this.executeSql<EventConsumerRunRow>(
       `
         SELECT
           id,
@@ -72,7 +89,7 @@ export class EventConsumerRunsRepository {
   }
 
   async markAttempt(tenantId: string, runId: string): Promise<void> {
-    await this.databaseService.query(
+    await this.executeSql(
       `
         UPDATE event_consumer_runs
         SET
@@ -88,7 +105,7 @@ export class EventConsumerRunsRepository {
   }
 
   async markCompleted(tenantId: string, runId: string): Promise<void> {
-    await this.databaseService.query(
+    await this.executeSql(
       `
         UPDATE event_consumer_runs
         SET
@@ -104,7 +121,7 @@ export class EventConsumerRunsRepository {
   }
 
   async markFailed(tenantId: string, runId: string, errorMessage: string): Promise<void> {
-    await this.databaseService.query(
+    await this.executeSql(
       `
         UPDATE event_consumer_runs
         SET

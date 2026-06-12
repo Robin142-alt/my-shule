@@ -2,15 +2,11 @@
 
 import { List, Search, Filter } from "lucide-react";
 import { Panel, StatusChip } from "./shared";
-
-const MOCK_INCIDENTS = [
-  { id: "DM-2026-0001", date: "2026-06-11", student: "Brian Otieno", class: "Form 2 Blue", category: "Bullying", status: "Under Review" },
-  { id: "DM-2026-0002", date: "2026-06-10", student: "Sarah Njoroge", class: "Form 3 Red", category: "Substance Abuse", status: "New" },
-  { id: "DM-2026-0003", date: "2026-06-08", student: "Kevin Kimani", class: "Form 1 Green", category: "Noise Making", status: "Action Taken" },
-  { id: "DM-2026-0004", date: "2026-06-05", student: "Mary Wambui", class: "Form 4 Yellow", category: "Truancy", status: "Closed" },
-];
+import { useAllDisciplineCases } from "@/hooks/useDiscipline";
 
 export function IncidentRegisterWorkspace() {
+  const { data: incidents = [], isLoading } = useAllDisciplineCases();
+
   return (
     <Panel title="Incident Register" description="Full database of all logged discipline incidents." icon={List}>
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -46,20 +42,24 @@ export function IncidentRegisterWorkspace() {
             </tr>
           </thead>
           <tbody className="divide-y divide-[#D8E0EC]">
-            {MOCK_INCIDENTS.map((row) => (
+            {isLoading ? (
+              <tr><td colSpan={7} className="px-4 py-8 text-center text-sm font-bold text-slate-500">Loading incidents...</td></tr>
+            ) : incidents.length === 0 ? (
+              <tr><td colSpan={7} className="px-4 py-8 text-center text-sm font-bold text-slate-500">No incidents found.</td></tr>
+            ) : incidents.map((row: any) => (
               <tr key={row.id} className="hover:bg-[#F8FAFC]">
-                <td className="px-4 py-3 font-semibold text-[#1D4ED8] hover:underline cursor-pointer">{row.id}</td>
-                <td className="px-4 py-3 text-xs">{row.date}</td>
-                <td className="px-4 py-3 font-bold">{row.student}</td>
-                <td className="px-4 py-3 text-[#64748B]">{row.class}</td>
-                <td className="px-4 py-3">{row.category}</td>
+                <td className="px-4 py-3 font-semibold text-[#1D4ED8] hover:underline cursor-pointer">{row.incident_number || row.id.substring(0,8)}</td>
+                <td className="px-4 py-3 text-xs">{new Date(row.created_at || row.date).toLocaleDateString()}</td>
+                <td className="px-4 py-3 font-bold">{row.student_id ? row.student_id.substring(0,8) : row.student}</td>
+                <td className="px-4 py-3 text-[#64748B]">{row.class || "-"}</td>
+                <td className="px-4 py-3">{row.category_id || row.category || "-"}</td>
                 <td className="px-4 py-3">
                   <StatusChip 
                     label={row.status} 
                     tone={
-                      row.status === 'Closed' ? 'success' :
-                      row.status === 'New' ? 'info' :
-                      row.status === 'Action Taken' ? 'neutral' : 'warning'
+                      row.status === 'closed' ? 'success' :
+                      row.status === 'new' ? 'info' :
+                      row.status === 'action_taken' ? 'neutral' : 'warning'
                     } 
                   />
                 </td>

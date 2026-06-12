@@ -2,12 +2,10 @@
 
 import { FileSearch, Paperclip, MessageSquare } from "lucide-react";
 import { Panel, StatusChip, EmptyState } from "./shared";
-
-const MOCK_INVESTIGATIONS = [
-  { id: "INV-001", caseId: "DM-2026-0001", student: "Brian Otieno", investigator: "Discipline Master", dueDate: "2026-06-12", status: "In Progress" },
-];
+import { useSchoolQuery } from "@/lib/data/school-hooks";
 
 export function InvestigationsWorkspace() {
+  const { data: investigations = [], isLoading } = useSchoolQuery<any[]>("/api/discipline/investigations");
   return (
     <Panel title="Investigations" description="Record statements, collect evidence, and track investigation progress." icon={FileSearch}>
       <div className="flex justify-between items-center mb-6">
@@ -18,7 +16,7 @@ export function InvestigationsWorkspace() {
       </div>
 
       <div className="mb-8">
-        {MOCK_INVESTIGATIONS.length > 0 ? (
+        {investigations.length > 0 ? (
           <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
             <table className="w-full text-left text-sm text-[#071D49]">
               <thead className="bg-[#F8FAFC] text-xs font-black uppercase text-[#64748B]">
@@ -33,7 +31,7 @@ export function InvestigationsWorkspace() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#D8E0EC]">
-                {MOCK_INVESTIGATIONS.map((row) => (
+                {investigations.map((row) => (
                   <tr key={row.id} className="hover:bg-[#F8FAFC]">
                     <td className="px-4 py-3 font-semibold">{row.id}</td>
                     <td className="px-4 py-3 text-[#1D4ED8] hover:underline cursor-pointer">{row.caseId}</td>
@@ -56,7 +54,7 @@ export function InvestigationsWorkspace() {
           </div>
         ) : (
           <EmptyState 
-            message="No active investigations." 
+            message={isLoading ? "Loading investigations..." : "No active investigations."} 
             icon={FileSearch} 
           />
         )}

@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 
-import { DatabaseService } from '../../../database/database.service';
+import { PrismaService } from '../../../database/prisma.service';
 import {
   FeeStructureEntity,
   FeeStructureLineItem,
@@ -58,10 +58,28 @@ export interface FeeStructureBillableStudentRow {
 
 @Injectable()
 export class FeeStructuresRepository {
-  constructor(private readonly databaseService: DatabaseService) {}
+
+  private async executeSql<T = any>(query: string, params: any[] = []): Promise<{ rows: T[], rowCount: number }> {
+    const firstParam = params[0];
+    const isUuid = typeof firstParam === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(firstParam);
+    
+    if (isUuid) {
+      return this.prisma.executeWithTenant(firstParam, null, async (tx: any) => {
+        const result = await tx.$queryRawUnsafe(query, ...params);
+        const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+      });
+    } else {
+      const result = await this.prisma.$queryRawUnsafe(query, ...params);
+      const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+    }
+  }
+
+  constructor(private readonly prisma: PrismaService) {}
 
   async create(input: CreateFeeStructureInput): Promise<FeeStructureEntity> {
-    const result = await this.databaseService.query<FeeStructureRow>(
+    const result = await this.executeSql<FeeStructureRow>(
       `
         INSERT INTO fee_structures (
           tenant_id,
@@ -132,7 +150,7 @@ export class FeeStructuresRepository {
   }
 
   async list(tenantId: string): Promise<FeeStructureEntity[]> {
-    const result = await this.databaseService.query<FeeStructureRow>(
+    const result = await this.executeSql<FeeStructureRow>(
       `
         SELECT
           id,
@@ -165,7 +183,7 @@ export class FeeStructuresRepository {
     tenantId: string,
     feeStructureId: string,
   ): Promise<FeeStructureEntity | null> {
-    const result = await this.databaseService.query<FeeStructureRow>(
+    const result = await this.executeSql<FeeStructureRow>(
       `
         SELECT
           id,
@@ -199,7 +217,7 @@ export class FeeStructuresRepository {
     tenantId: string,
     feeStructureId: string,
   ): Promise<FeeStructureEntity | null> {
-    const result = await this.databaseService.query<FeeStructureRow>(
+    const result = await this.executeSql<FeeStructureRow>(
       `
         UPDATE fee_structures
         SET
@@ -244,7 +262,7 @@ export class FeeStructuresRepository {
       values.push(scope.class_name);
     }
 
-    const result = await this.databaseService.query<FeeStructureBillableStudentRow>(
+    const result = await this.executeSql<FeeStructureBillableStudentRow>(
       `
         SELECT
           student.id::text AS student_id,

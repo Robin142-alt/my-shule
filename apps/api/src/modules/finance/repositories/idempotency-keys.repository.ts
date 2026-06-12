@@ -1,6 +1,6 @@
 import { ConflictException, Injectable } from '@nestjs/common';
 
-import { DatabaseService } from '../../../database/database.service';
+import { PrismaService } from '../../../database/prisma.service';
 import { IdempotencyKeyRecord, IdempotencyRequestLock, PostedFinancialTransaction } from '../finance.types';
 
 interface IdempotencyKeyRow {
@@ -24,10 +24,28 @@ interface IdempotencyKeyRow {
 
 @Injectable()
 export class IdempotencyKeysRepository {
-  constructor(private readonly databaseService: DatabaseService) {}
+
+  private async executeSql<T = any>(query: string, params: any[] = []): Promise<{ rows: T[], rowCount: number }> {
+    const firstParam = params[0];
+    const isUuid = typeof firstParam === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(firstParam);
+    
+    if (isUuid) {
+      return this.prisma.executeWithTenant(firstParam, null, async (tx: any) => {
+        const result = await tx.$queryRawUnsafe(query, ...params);
+        const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+      });
+    } else {
+      const result = await this.prisma.$queryRawUnsafe(query, ...params);
+      const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+    }
+  }
+
+  constructor(private readonly prisma: PrismaService) {}
 
   async lockRequest(input: IdempotencyRequestLock): Promise<IdempotencyKeyRecord> {
-    await this.databaseService.query(
+    await this.executeSql(
       `
         INSERT INTO idempotency_keys (
           tenant_id,
@@ -75,7 +93,7 @@ export class IdempotencyKeysRepository {
       return record;
     }
 
-    const result = await this.databaseService.query<IdempotencyKeyRow>(
+    const result = await this.executeSql<IdempotencyKeyRow>(
       `
         UPDATE idempotency_keys
         SET
@@ -127,7 +145,7 @@ export class IdempotencyKeysRepository {
     responseStatusCode: number,
     responseBody: PostedFinancialTransaction,
   ): Promise<void> {
-    await this.databaseService.query(
+    await this.executeSql(
       `
         UPDATE idempotency_keys
         SET
@@ -148,7 +166,7 @@ export class IdempotencyKeysRepository {
     scope: string,
     idempotencyKey: string,
   ): Promise<IdempotencyKeyRecord | null> {
-    const result = await this.databaseService.query<IdempotencyKeyRow>(
+    const result = await this.executeSql<IdempotencyKeyRow>(
       `
         SELECT
           id,
@@ -184,7 +202,7 @@ export class IdempotencyKeysRepository {
     recordId: string,
     input: IdempotencyRequestLock,
   ): Promise<IdempotencyKeyRecord> {
-    const result = await this.databaseService.query<IdempotencyKeyRow>(
+    const result = await this.executeSql<IdempotencyKeyRow>(
       `
         UPDATE idempotency_keys
         SET

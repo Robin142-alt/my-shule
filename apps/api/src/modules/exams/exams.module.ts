@@ -1,3 +1,4 @@
+import * as moduleConsumers from './consumers';
 import { Module } from '@nestjs/common';
 
 import { ExamsController } from './exams.controller';
@@ -10,6 +11,7 @@ import { ReportCardTemplateService } from './services/report-card-template.servi
 @Module({
   controllers: [ExamsController],
   providers: [
+    ...Object.values(moduleConsumers),
     ExamsSchemaService,
     ExamsService,
     ExamsRepository,

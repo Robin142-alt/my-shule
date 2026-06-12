@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 
-import { DatabaseService } from '../../../database/database.service';
+import { PrismaService } from '../../../database/prisma.service';
 import { PiiEncryptionService } from '../../security/pii-encryption.service';
 import { PaymentIntentEntity } from '../entities/payment-intent.entity';
 
@@ -65,13 +65,31 @@ interface CreatePaymentIntentInput {
 
 @Injectable()
 export class PaymentIntentsRepository {
+
+  private async executeSql<T = any>(query: string, params: any[] = []): Promise<{ rows: T[], rowCount: number }> {
+    const firstParam = params[0];
+    const isUuid = typeof firstParam === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(firstParam);
+    
+    if (isUuid) {
+      return this.prisma.executeWithTenant(firstParam, null, async (tx: any) => {
+        const result = await tx.$queryRawUnsafe(query, ...params);
+        const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+      });
+    } else {
+      const result = await this.prisma.$queryRawUnsafe(query, ...params);
+      const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+    }
+  }
+
   constructor(
-    private readonly databaseService: DatabaseService,
+    private readonly prisma: PrismaService,
     private readonly piiEncryptionService: PiiEncryptionService,
   ) {}
 
   async createPending(input: CreatePaymentIntentInput): Promise<PaymentIntentEntity> {
-    const result = await this.databaseService.query<PaymentIntentRow>(
+    const result = await this.executeSql<PaymentIntentRow>(
       `
         INSERT INTO payment_intents (
           tenant_id,
@@ -194,7 +212,7 @@ export class PaymentIntentsRepository {
     },
     expiresAfterSeconds: number,
   ): Promise<PaymentIntentEntity> {
-    const result = await this.databaseService.query<PaymentIntentRow>(
+    const result = await this.executeSql<PaymentIntentRow>(
       `
         UPDATE payment_intents
         SET
@@ -265,7 +283,7 @@ export class PaymentIntentsRepository {
     checkoutRequestId: string,
     merchantRequestId: string,
   ): Promise<PaymentIntentEntity | null> {
-    const result = await this.databaseService.query<PaymentIntentRow>(
+    const result = await this.executeSql<PaymentIntentRow>(
       `
         SELECT
           id,
@@ -319,7 +337,7 @@ export class PaymentIntentsRepository {
   }
 
   async markCallbackReceived(tenantId: string, paymentIntentId: string): Promise<void> {
-    await this.databaseService.query(
+    await this.executeSql(
       `
         UPDATE payment_intents
         SET
@@ -337,7 +355,7 @@ export class PaymentIntentsRepository {
   }
 
   async markProcessing(tenantId: string, paymentIntentId: string): Promise<void> {
-    await this.databaseService.query(
+    await this.executeSql(
       `
         UPDATE payment_intents
         SET
@@ -358,7 +376,7 @@ export class PaymentIntentsRepository {
     paymentIntentId: string,
     ledgerTransactionId: string,
   ): Promise<void> {
-    await this.databaseService.query(
+    await this.executeSql(
       `
         UPDATE payment_intents
         SET
@@ -374,7 +392,7 @@ export class PaymentIntentsRepository {
   }
 
   async markFailed(tenantId: string, paymentIntentId: string, reason: string): Promise<void> {
-    await this.databaseService.query(
+    await this.executeSql(
       `
         UPDATE payment_intents
         SET
@@ -396,7 +414,7 @@ export class PaymentIntentsRepository {
       failure_reason: string;
     },
   ): Promise<PaymentIntentEntity[]> {
-    const result = await this.databaseService.query<PaymentIntentRow>(
+    const result = await this.executeSql<PaymentIntentRow>(
       `
         WITH stale_payment_intents AS (
           SELECT pi.id
@@ -470,7 +488,7 @@ export class PaymentIntentsRepository {
     tenantId: string,
     checkoutRequestId: string,
   ): Promise<PaymentIntentEntity | null> {
-    const result = await this.databaseService.query<PaymentIntentRow>(
+    const result = await this.executeSql<PaymentIntentRow>(
       `
         SELECT
           id,

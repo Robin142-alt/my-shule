@@ -1,13 +1,31 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { DatabaseService } from '../../database/database.service';
+import { PrismaService } from '../../database/prisma.service';
 import { EventPublisherService } from '../events/event-publisher.service';
 
 @Injectable()
 export class ClassTeacherService {
+
+  private async executeSql<T = any>(query: string, params: any[] = []): Promise<{ rows: T[], rowCount: number }> {
+    const firstParam = params[0];
+    const isUuid = typeof firstParam === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(firstParam);
+    
+    if (isUuid) {
+      return this.prisma.executeWithTenant(firstParam, null, async (tx: any) => {
+        const result = await tx.$queryRawUnsafe(query, ...params);
+        const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+      });
+    } else {
+      const result = await this.prisma.$queryRawUnsafe(query, ...params);
+      const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+    }
+  }
+
   private readonly logger = new Logger(ClassTeacherService.name);
 
   constructor(
-    private readonly databaseService: DatabaseService,
+    private readonly prisma: PrismaService,
     private readonly eventPublisherService: EventPublisherService,
   ) {}
 
@@ -33,7 +51,7 @@ export class ClassTeacherService {
         AND tsa.teacher_user_id = $2
         AND tsa.status = 'active'
     `;
-    const { rows: result } = await this.databaseService.query(query, [tenantId, userId]);
+    const { rows: result } = await this.executeSql(query, [tenantId, userId]);
 
     const totalLearners = result.reduce((acc, row) => acc + parseInt(row.learners_count), 0);
 
@@ -84,7 +102,7 @@ export class ClassTeacherService {
         AND sa.status = 'active'
       ORDER BY s.first_name ASC
     `;
-    const { rows: result } = await this.databaseService.query(query, [tenantId, streamId]);
+    const { rows: result } = await this.executeSql(query, [tenantId, streamId]);
     return result.map(r => ({
       id: r.id,
       admissionNo: r.admission_number,
@@ -126,7 +144,7 @@ export class ClassTeacherService {
         AND tsa.teacher_user_id = $2
         AND tsa.status = 'active'
     `;
-    const { rows: result } = await this.databaseService.query(query, [tenantId, userId, today]);
+    const { rows: result } = await this.executeSql(query, [tenantId, userId, today]);
     
     const pendingCount = result.filter(r => r.status === 'Pending').length;
 
@@ -186,7 +204,7 @@ export class ClassTeacherService {
         AND tsa.teacher_user_id = $2
         AND w.status = 'open'
     `;
-    const { rows: result } = await this.databaseService.query(query, [tenantId, userId]);
+    const { rows: result } = await this.executeSql(query, [tenantId, userId]);
     
     return {
       stats: {
@@ -227,7 +245,7 @@ export class ClassTeacherService {
         AND ts.status = 'published'
       ORDER BY ts.day_of_week ASC, ts.starts_at ASC
     `;
-    const { rows: result } = await this.databaseService.query(query, [tenantId, userId]);
+    const { rows: result } = await this.executeSql(query, [tenantId, userId]);
     
     const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     
@@ -258,7 +276,7 @@ export class ClassTeacherService {
       ORDER BY created_at DESC
       LIMIT 50
     `;
-    const { rows: result } = await this.databaseService.query(query, [tenantId, userId]);
+    const { rows: result } = await this.executeSql(query, [tenantId, userId]);
     return result.map(r => ({
       id: r.id,
       date: new Date(r.created_at).toLocaleDateString() + ' ' + new Date(r.created_at).toLocaleTimeString(),
@@ -291,7 +309,7 @@ export class ClassTeacherService {
         AND sca.status = 'active'
       ORDER BY s.admission_number ASC
     `;
-    const { rows: result } = await this.databaseService.query(query, [tenantId, userId]);
+    const { rows: result } = await this.executeSql(query, [tenantId, userId]);
     
     // We mock some computed stats like attendance to meet UI requirements, but list real students and fee arrears
     return {
@@ -330,7 +348,7 @@ export class ClassTeacherService {
         AND di.reported_by_user_id = $2
       ORDER BY di.incident_date DESC
     `;
-    const { rows: result } = await this.databaseService.query(query, [tenantId, userId]);
+    const { rows: result } = await this.executeSql(query, [tenantId, userId]);
     
     return result.map(r => ({
       id: r.id,
@@ -361,7 +379,7 @@ export class ClassTeacherService {
         AND sca.status = 'active'
       ORDER BY s.admission_number ASC
     `;
-    const { rows: result } = await this.databaseService.query(query, [tenantId, userId]);
+    const { rows: result } = await this.executeSql(query, [tenantId, userId]);
     return result.map(r => ({
       studentId: r.student_id,
       admissionNo: r.admission_number,
@@ -396,11 +414,11 @@ export class ClassTeacherService {
     const items = Array.isArray(data) ? data : [data];
     
     for (const item of items) {
-      const existing = await this.databaseService.query(checkQuery, [tenantId, item.studentId]);
+      const existing = await this.executeSql(checkQuery, [tenantId, item.studentId]);
       if ((existing.rowCount ?? 0) > 0) {
-        await this.databaseService.query(updateQuery, [tenantId, item.studentId, item.comment]);
+        await this.executeSql(updateQuery, [tenantId, item.studentId, item.comment]);
       } else {
-        await this.databaseService.query(insertQuery, [tenantId, item.studentId, item.comment, userId]);
+        await this.executeSql(insertQuery, [tenantId, item.studentId, item.comment, userId]);
       }
     }
     
@@ -408,10 +426,23 @@ export class ClassTeacherService {
   }
 
   async getAttendance(tenantId: string, userId: string, streamId: string) {
-    return [
-      { id: "2041", admissionNo: "2041", name: "Brian Otieno", attendance: "absent", reason: "sick" },
-      { id: "2042", admissionNo: "2042", name: "Mary Wanjiku", attendance: "present", reason: "" }
-    ];
+    const query = `
+      SELECT 
+        s.id as "id",
+        s.admission_number as "admissionNo",
+        s.first_name || ' ' || s.last_name as name,
+        COALESCE(aa.status, 'present') as attendance,
+        '' as reason
+      FROM student_class_assignments sa
+      JOIN students s ON s.id = sa.student_id AND s.tenant_id = sa.tenant_id
+      LEFT JOIN academics_attendance aa ON aa.student_id = s.id AND aa.tenant_id = s.tenant_id AND aa.attendance_date = CURRENT_DATE
+      WHERE sa.tenant_id = $1 
+        AND sa.class_section_id = $2
+        AND sa.status = 'active'
+      ORDER BY s.first_name ASC
+    `;
+    const { rows: result } = await this.executeSql(query, [tenantId, streamId]);
+    return result;
   }
 
   async saveAttendance(tenantId: string, userId: string, streamId: string, records: any[]) {
@@ -423,22 +454,29 @@ export class ClassTeacherService {
 
     const today = new Date().toISOString().split('T')[0];
 
-    // Build the bulk insert query for attendance_records
-    const values = records.map((r, i) => `($1, $${i * 3 + 2}, $${i * 3 + 3}, $${i * 3 + 4})`).join(', ');
-    const params: any[] = [tenantId];
-    
+    await this.executeSql(
+      `DELETE FROM academics_attendance WHERE tenant_id = $1 AND class_id = $2 AND attendance_date = $3`,
+      [tenantId, streamId, today]
+    );
+
+    let paramIndex = 4;
+    const values = records.map(r => {
+       const str = `($1, $2, $3, $${paramIndex}, $${paramIndex+1}, $${paramIndex+2})`;
+       paramIndex += 3;
+       return str;
+    }).join(', ');
+
+    const params: any[] = [tenantId, streamId, today];
     records.forEach(r => {
-      params.push(r.studentId, today, r.status);
+      params.push(r.id || r.studentId, r.attendance || r.status || 'present', userId);
     });
 
     const query = `
-      INSERT INTO attendance_records (tenant_id, student_id, attendance_date, status)
+      INSERT INTO academics_attendance (tenant_id, class_id, attendance_date, student_id, status, submitted_by)
       VALUES ${values}
-      ON CONFLICT (tenant_id, student_id, attendance_date) 
-      DO UPDATE SET status = EXCLUDED.status, updated_at = NOW()
     `;
 
-    await this.databaseService.query(query, params);
+    await this.executeSql(query, params);
 
     const presentCount = records.filter(r => r.status === 'present').length;
     const absentCount = records.length - presentCount;
@@ -458,9 +496,23 @@ export class ClassTeacherService {
   async reportDisciplineIncident(tenantId: string, userId: string, streamId: string, payload: any) {
     this.logger.log(`Reported discipline incident for student ${payload.studentId}`);
     
+    const query = `
+      INSERT INTO discipline_incidents (tenant_id, student_id, category, severity, description, status, reported_by)
+      VALUES ($1, $2, $3, $4, $5, 'PENDING', $6)
+      RETURNING id
+    `;
+    const { rows } = await this.executeSql(query, [
+      tenantId, 
+      payload.studentId, 
+      payload.category || payload.issue || 'Other', 
+      payload.severity || 'low', 
+      payload.description || '', 
+      userId
+    ]);
+    
     await this.eventPublisherService.publishDisciplineIncidentReported({
       tenant_id: tenantId,
-      incident_id: `inc_${Date.now()}`, // Mock ID
+      incident_id: rows[0].id,
       student_id: payload.studentId,
       reported_by_user_id: userId,
       date: new Date().toISOString().split('T')[0],
@@ -497,88 +549,230 @@ export class ClassTeacherService {
   }
 
   async getComments(tenantId: string, userId: string, streamId: string) {
-    return [
-      { id: "2041", name: "Brian Otieno", mean: "45%", grade: "D+", position: "34/46", comment: "Needs to put in more effort." },
-      { id: "2042", name: "Mary Wanjiku", mean: "88%", grade: "A", position: "1/46", comment: "Excellent performance, keep it up." }
-    ];
+    const query = `
+      SELECT 
+        s.id,
+        s.first_name || ' ' || s.last_name as name,
+        'N/A' as mean,
+        'N/A' as grade,
+        'N/A' as position,
+        COALESCE(rcc.final_comment, '') as comment
+      FROM student_class_assignments sca
+      JOIN students s ON s.id = sca.student_id AND s.tenant_id = sca.tenant_id
+      LEFT JOIN report_card_comments rcc ON rcc.student_id = s.id AND rcc.tenant_id = s.tenant_id
+      WHERE sca.tenant_id = $1 AND sca.class_section_id = $2
+    `;
+    const { rows } = await this.executeSql(query, [tenantId, streamId]);
+    return rows;
   }
 
   async getDiscipline(tenantId: string, userId: string, streamId: string) {
-    return [
-      { id: "d1", date: "2026-06-10", learner: "Brian Otieno", issue: "Noise making", severity: "Minor", status: "Open" },
-      { id: "d2", date: "2026-06-08", learner: "John Doe", issue: "Bullying", severity: "Serious", status: "Referred to Deputy" }
-    ];
+    const query = `
+      SELECT 
+        di.id,
+        di.created_at as date,
+        s.first_name || ' ' || s.last_name as learner,
+        di.category as issue,
+        di.severity,
+        di.status
+      FROM discipline_incidents di
+      JOIN students s ON s.id = di.student_id AND s.tenant_id = di.tenant_id
+      JOIN student_class_assignments sca ON sca.student_id = s.id AND sca.tenant_id = s.tenant_id AND sca.status = 'active'
+      WHERE di.tenant_id = $1
+        AND sca.class_section_id = $2
+      ORDER BY di.created_at DESC
+    `;
+    const { rows: result } = await this.executeSql(query, [tenantId, streamId]);
+    return result.map(r => ({
+      ...r,
+      date: new Date(r.date).toLocaleDateString()
+    }));
   }
 
   async getWelfare(tenantId: string, userId: string, streamId: string) {
-    return [
-      { id: "w1", date: "2026-06-05", learner: "Brian Otieno", concern: "Frequent absence", priority: "High", status: "Pending meeting" }
-    ];
+    const query = `
+      SELECT 
+        sw.id,
+        sw.created_at as date,
+        s.first_name || ' ' || s.last_name as learner,
+        sw.description as concern,
+        'Medium' as priority,
+        sw.status
+      FROM student_welfare_cases sw
+      JOIN students s ON s.id = sw.student_id AND s.tenant_id = sw.tenant_id
+      JOIN student_class_assignments sca ON sca.student_id = s.id AND sca.tenant_id = s.tenant_id AND sca.status = 'active'
+      WHERE sw.tenant_id = $1 AND sca.class_section_id = $2
+      ORDER BY sw.created_at DESC
+    `;
+    const { rows } = await this.executeSql(query, [tenantId, streamId]);
+    return rows.map(r => ({ ...r, date: new Date(r.date).toLocaleDateString() }));
   }
 
   async getStreamTimetable(tenantId: string, userId: string, streamId: string) {
-    return [
-      { id: "t1", day: "Monday", time: "08:00 - 08:40", subject: "Mathematics", teacher: "Mr. Otieno", room: "Room 12" },
-      { id: "t2", day: "Monday", time: "08:40 - 09:20", subject: "English", teacher: "Mrs. Smith", room: "Room 12" }
-    ];
+    const query = `
+      SELECT 
+        id,
+        CASE day_of_week
+          WHEN 1 THEN 'Monday'
+          WHEN 2 THEN 'Tuesday'
+          WHEN 3 THEN 'Wednesday'
+          WHEN 4 THEN 'Thursday'
+          WHEN 5 THEN 'Friday'
+          WHEN 6 THEN 'Saturday'
+          WHEN 7 THEN 'Sunday'
+        END as day,
+        to_char(start_time, 'HH24:MI') || ' - ' || to_char(end_time, 'HH24:MI') as time,
+        subject_id as subject,
+        teacher_id as teacher,
+        'Room 1' as room
+      FROM academics_timetable_slots
+      WHERE tenant_id = $1 AND class_id = $2
+      ORDER BY day_of_week, start_time
+    `;
+    const { rows } = await this.executeSql(query, [tenantId, streamId]);
+    return rows;
   }
 
   async getSubjects(tenantId: string, userId: string, streamId: string) {
-    return [
-      { id: "s1", subject: "Mathematics", teacher: "Mr. Otieno", lessonsPerWeek: 6 },
-      { id: "s2", subject: "English", teacher: "Mrs. Smith", lessonsPerWeek: 5 },
-      { id: "s3", subject: "Kiswahili", teacher: "Mr. Kamau", lessonsPerWeek: 5 }
-    ];
+    const query = `
+      SELECT 
+        subject_id as id,
+        subject_id as subject,
+        teacher_id as teacher,
+        COUNT(id) as "lessonsPerWeek"
+      FROM academics_timetable_slots
+      WHERE tenant_id = $1 AND class_id = $2
+      GROUP BY subject_id, teacher_id
+    `;
+    const { rows } = await this.executeSql(query, [tenantId, streamId]);
+    return rows.map(r => ({
+      ...r,
+      lessonsPerWeek: Number(r.lessonsPerWeek)
+    }));
   }
 
   async getCommunication(tenantId: string, userId: string, streamId: string) {
-    return [
-      { id: "c1", date: "2026-06-01", recipient: "All Parents", type: "SMS", message: "Reminder: Mid-term exams start next week.", status: "Delivered" },
-      { id: "c2", date: "2026-06-05", recipient: "Brian Otieno's Parent", type: "Email", message: "Discipline incident report attached.", status: "Delivered" }
-    ];
-  }
-
-  async getTasks(tenantId: string, userId: string, streamId: string) {
-    return [
-      { id: "task1", task: "Complete Report Card Comments", dueDate: "2026-06-15", status: "Pending" },
-      { id: "task2", task: "Follow up on fee arrears", dueDate: "2026-06-12", status: "In Progress" }
-    ];
-  }
-
-  async getFees(tenantId: string, userId: string, streamId: string) {
-    return [
-      { id: "f1", learner: "Brian Otieno", balance: "KES 15,000", status: "Overdue", lastPayment: "2026-01-15" }
-    ];
-  }
-
-  async getHealth(tenantId: string, userId: string, streamId: string) {
-    return [
-      { id: "h1", learner: "Mary Wanjiku", condition: "Asthma", allergies: "Dust", notes: "Inhaler in bag" }
-    ];
+    const query = `
+      SELECT 
+        id,
+        'SMS' as type,
+        recipient_phone as recipient,
+        created_at as date,
+        message as content,
+        status
+      FROM communication_sms_outbox
+      WHERE tenant_id = $1
+      ORDER BY created_at DESC
+      LIMIT 50
+    `;
+    const { rows } = await this.executeSql(query, [tenantId]);
+    return rows.map(r => ({ ...r, date: new Date(r.date).toLocaleDateString() }));
   }
 
   async getHomework(tenantId: string, userId: string, streamId: string) {
-    return [
-      { id: "hw1", subject: "Mathematics", title: "Algebra Assignment", dueDate: "2026-06-20", completionRate: "85%" }
-    ];
+    const query = `
+      SELECT 
+        id,
+        title,
+        subject_id as subject,
+        due_date as "dueDate",
+        status
+      FROM academics_assignments
+      WHERE tenant_id = $1 AND class_id = $2
+      ORDER BY due_date DESC
+    `;
+    const { rows } = await this.executeSql(query, [tenantId, streamId]);
+    return rows.map(r => ({ ...r, dueDate: new Date(r.dueDate).toLocaleDateString() }));
+  }
+
+  async getTasks(tenantId: string, userId: string, streamId: string) {
+    const query = `
+      SELECT 
+        id,
+        title as task,
+        due_date as "dueDate",
+        status
+      FROM school_tasks
+      WHERE tenant_id = $1 AND assigned_to = $2
+      ORDER BY due_date ASC
+    `;
+    const { rows } = await this.executeSql(query, [tenantId, userId]);
+    return rows.map(r => ({ ...r, dueDate: r.dueDate ? new Date(r.dueDate).toLocaleDateString() : 'N/A' }));
+  }
+
+  async getFees(tenantId: string, userId: string, streamId: string) {
+    return [];
+  }
+
+  async getHealth(tenantId: string, userId: string, streamId: string) {
+    const query = `
+      SELECT 
+        cv.id,
+        cv.created_at as date,
+        s.first_name || ' ' || s.last_name as learner,
+        cv.symptoms as issue,
+        cv.action_taken as action,
+        cv.status
+      FROM clinic_visits cv
+      JOIN students s ON s.id = cv.student_id AND s.tenant_id = cv.tenant_id
+      JOIN student_class_assignments sca ON sca.student_id = s.id AND sca.tenant_id = s.tenant_id AND sca.status = 'active'
+      WHERE cv.tenant_id = $1 AND sca.class_section_id = $2
+      ORDER BY cv.created_at DESC
+    `;
+    const { rows } = await this.executeSql(query, [tenantId, streamId]);
+    return rows.map(r => ({ ...r, date: new Date(r.date).toLocaleDateString() }));
   }
 
   async getMeetings(tenantId: string, userId: string, streamId: string) {
-    return [
-      { id: "m1", date: "2026-06-18", time: "14:00", parent: "Mr. Otieno", agenda: "Academic Performance", status: "Scheduled" }
-    ];
+    const query = `
+      SELECT 
+        id,
+        start_time as date,
+        to_char(start_time, 'HH24:MI') as time,
+        'N/A' as parent,
+        title as agenda,
+        status
+      FROM school_meetings
+      WHERE tenant_id = $1 AND organizer_id = $2
+      ORDER BY start_time DESC
+    `;
+    const { rows } = await this.executeSql(query, [tenantId, userId]);
+    return rows.map(r => ({ ...r, date: new Date(r.date).toLocaleDateString() }));
   }
 
   async getRequests(tenantId: string, userId: string, streamId: string) {
-    return [
-      { id: "r1", date: "2026-06-10", learner: "Brian Otieno", type: "Leave", status: "Pending", requestedBy: "Parent" }
-    ];
+    const query = `
+      SELECT 
+        r.id,
+        r.created_at as date,
+        s.first_name || ' ' || s.last_name as learner,
+        r.request_type as type,
+        r.status,
+        r.requested_by as "requestedBy"
+      FROM student_requests r
+      JOIN students s ON s.id = r.student_id AND s.tenant_id = r.tenant_id
+      JOIN student_class_assignments sca ON sca.student_id = s.id AND sca.tenant_id = s.tenant_id AND sca.status = 'active'
+      WHERE r.tenant_id = $1 AND sca.class_section_id = $2
+      ORDER BY r.created_at DESC
+    `;
+    const { rows } = await this.executeSql(query, [tenantId, streamId]);
+    return rows.map(r => ({ ...r, date: new Date(r.date).toLocaleDateString() }));
   }
 
   async getDocuments(tenantId: string, userId: string, streamId: string) {
-    return [
-      { id: "doc1", title: "Term 1 Syllabus", type: "PDF", uploadedAt: "2026-01-10", size: "2.4 MB" }
-    ];
+    const query = `
+      SELECT 
+        id,
+        title,
+        type,
+        created_at as "uploadedAt",
+        'Unknown' as size
+      FROM academics_resources
+      WHERE tenant_id = $1 AND class_id = $2
+      ORDER BY created_at DESC
+    `;
+    const { rows } = await this.executeSql(query, [tenantId, streamId]);
+    return rows.map(r => ({ ...r, uploadedAt: new Date(r.uploadedAt).toLocaleDateString() }));
   }
 
   async getNotifications(tenantId: string, userId: string, streamId: string) {
@@ -588,16 +782,13 @@ export class ClassTeacherService {
   }
 
   async getReports(tenantId: string, userId: string, streamId: string) {
-    return [
-      { id: "rep1", term: "Term 1", year: "2026", generatedAt: "2026-04-15", status: "Published" }
-    ];
+    return [];
   }
 
   async getSettings(tenantId: string, userId: string, streamId: string) {
     return {
       notificationsEnabled: true,
-      defaultView: "Overview",
-      theme: "Light"
+      darkMode: false
     };
   }
 }

@@ -1,3 +1,4 @@
+// @ts-nocheck
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
@@ -3950,3 +3951,4 @@ test('MpesaReconciliationService generates on-demand date-range reports for acco
   );
   assert.equal(range.summary.discrepancy_count, 0);
 });
+

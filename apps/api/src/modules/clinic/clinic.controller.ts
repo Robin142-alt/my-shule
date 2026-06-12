@@ -37,6 +37,12 @@ export class ClinicController {
     return this.clinicService.receiveMedicineStock(medicineId, dto);
   }
 
+  @Get('visits')
+  @Permissions('clinic:read')
+  listVisits() {
+    return this.clinicService.listVisits();
+  }
+
   @Post('visits')
   @Permissions('clinic:write')
   recordVisit(@Body() dto: RecordClinicVisitDto) {

@@ -1,6 +1,6 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 
-import { DatabaseService } from '../../database/database.service';
+import { PrismaService } from '../../database/prisma.service';
 import {
   MODULE_REGISTRY_SEED,
   ModuleRegistrySeedItem,
@@ -8,12 +8,30 @@ import {
 
 @Injectable()
 export class ModuleAccessSchemaService implements OnModuleInit {
+
+  private async executeSql<T = any>(query: string, params: any[] = []): Promise<{ rows: T[], rowCount: number }> {
+    const firstParam = params[0];
+    const isUuid = typeof firstParam === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(firstParam);
+    
+    if (isUuid) {
+      return this.prisma.executeWithTenant(firstParam, null, async (tx: any) => {
+        const result = await tx.$queryRawUnsafe(query, ...params);
+        const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+      });
+    } else {
+      const result = await this.prisma.$queryRawUnsafe(query, ...params);
+      const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+    }
+  }
+
   private readonly logger = new Logger(ModuleAccessSchemaService.name);
 
-  constructor(private readonly databaseService: DatabaseService) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   async onModuleInit(): Promise<void> {
-    await this.databaseService.runSchemaBootstrap(`
+    await this.prisma.runSchemaBootstrap(`
       CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
       CREATE TABLE IF NOT EXISTS module_registry (
@@ -165,7 +183,7 @@ export class ModuleAccessSchemaService implements OnModuleInit {
     `);
 
     for (const moduleDefinition of MODULE_REGISTRY_SEED as readonly ModuleRegistrySeedItem[]) {
-      await this.databaseService.query(
+      await this.executeSql(
         `
           INSERT INTO module_registry (
             code, name, description, feature_flags, status,

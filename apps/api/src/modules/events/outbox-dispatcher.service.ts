@@ -7,7 +7,7 @@ import {
   AUTH_SYSTEM_ROLE,
 } from '../../auth/auth.constants';
 import { RequestContextService } from '../../common/request-context/request-context.service';
-import { DatabaseService } from '../../database/database.service';
+import { PrismaService } from '../../database/prisma.service';
 import { SloMetricsService } from '../observability/slo-metrics.service';
 import { StructuredLoggerService } from '../observability/structured-logger.service';
 import { QueueService } from '../../queue/queue.service';
@@ -24,7 +24,7 @@ export class OutboxDispatcherService implements OnModuleInit, OnModuleDestroy {
   constructor(
     private readonly configService: ConfigService,
     private readonly requestContext: RequestContextService,
-    private readonly databaseService: DatabaseService,
+    private readonly prisma: PrismaService,
     private readonly queueService: QueueService,
     private readonly outboxEventsRepository: OutboxEventsRepository,
     @Optional() private readonly structuredLogger?: StructuredLoggerService,
@@ -80,7 +80,7 @@ export class OutboxDispatcherService implements OnModuleInit, OnModuleDestroy {
           started_at: new Date().toISOString(),
         },
         async () =>
-          this.databaseService.withRequestTransaction(async () =>
+          this.prisma.withRequestTransaction(async () =>
             this.outboxEventsRepository.lockPendingBatch(
               Number(this.configService.get<number>('events.dispatcherBatchSize') ?? 100),
               Number(this.configService.get<number>('events.staleProcessingAfterMs') ?? 30000),
@@ -213,7 +213,7 @@ export class OutboxDispatcherService implements OnModuleInit, OnModuleDestroy {
               error instanceof Error ? error.stack : undefined,
             );
 
-            await this.databaseService.withRequestTransaction(async () => {
+            await this.prisma.withRequestTransaction(async () => {
               await this.outboxEventsRepository.markFailed(
                 event.tenant_id,
                 event.id,

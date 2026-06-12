@@ -1,3 +1,4 @@
+import * as moduleConsumers from './consumers';
 import { Module } from '@nestjs/common';
 
 import { OperationalWorkflowCompletedConsumer } from './consumers/operational-workflow-completed.consumer';
@@ -47,6 +48,7 @@ import { WorkflowRepository } from './repositories/workflow.repository';
     AuditTrailController,
   ],
   providers: [
+    ...Object.values(moduleConsumers),
     EventsSchemaService,
     EventPublisherService,
     DashboardRealtimeService,

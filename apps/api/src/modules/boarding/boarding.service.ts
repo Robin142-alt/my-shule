@@ -56,4 +56,31 @@ export class BoardingService extends SimpleOperationsService {
 
     return record;
   }
+
+  override async getDashboard() {
+    const baseDashboard = await super.getDashboard();
+    const tenantId = this.requestCtx.getStore()?.tenant_id;
+
+    if (!tenantId) {
+      return baseDashboard;
+    }
+
+    try {
+      const db = (this as any).repository.databaseService;
+      const [studentsRes, incidentsRes, leaveRes] = await Promise.all([
+        db.query(`SELECT COUNT(*)::int as count FROM boarding_students WHERE tenant_id = $1 AND status = 'active'`, [tenantId]),
+        db.query(`SELECT COUNT(*)::int as count FROM boarding_incidents WHERE tenant_id = $1 AND status = 'open'`, [tenantId]),
+        db.query(`SELECT COUNT(*)::int as count FROM boarding_houses WHERE tenant_id = $1 AND category = 'leave'`, [tenantId]),
+      ]);
+
+      return {
+        ...baseDashboard,
+        total_boarders: studentsRes.rows[0]?.count || 0,
+        open_incidents: incidentsRes.rows[0]?.count || 0,
+        approved_leave: leaveRes.rows[0]?.count || 0,
+      };
+    } catch (e) {
+      return baseDashboard;
+    }
+  }
 }

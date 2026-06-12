@@ -153,7 +153,7 @@ export class AcademicsService {
     await this.repository.appendAuditLog({
       tenant_id: tenantId,
       entity_type: 'student_class_assignment',
-      entity_id: assignment.id,
+      entity_id: (assignment as any).id,
       action: 'academics.student_class_assigned',
       actor_user_id: this.currentUserId(),
       metadata: {

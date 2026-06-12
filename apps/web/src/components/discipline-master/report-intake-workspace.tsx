@@ -2,13 +2,11 @@
 
 import { FileText, Inbox, CheckCircle, XCircle } from "lucide-react";
 import { Panel, StatusChip, EmptyState } from "./shared";
-
-const MOCK_REPORTS = [
-  { id: "REP-001", reportedBy: "Tr. Wanjiku", role: "Class Teacher", student: "Brian Otieno", class: "Form 2 Blue", type: "Bullying", preview: "Pushed another student...", date: "2026-06-11", status: "New" },
-  { id: "REP-002", reportedBy: "Mr. Kamau", role: "Boarding Master", student: "Sarah Njoroge", class: "Form 3 Red", type: "Late Night Noise", preview: "Found shouting after lights out.", date: "2026-06-10", status: "Needs Info" },
-];
+import { useSchoolQuery } from "@/lib/data/school-hooks";
 
 export function ReportIntakeWorkspace() {
+  const { data: reports = [], isLoading } = useSchoolQuery<any[]>("/api/discipline/reports");
+
   return (
     <Panel title="Report Intake" description="Review discipline reports submitted by other staff." icon={Inbox}>
       <div className="grid gap-4 md:grid-cols-5 mb-8">
@@ -35,7 +33,7 @@ export function ReportIntakeWorkspace() {
       </div>
 
       <div>
-        {MOCK_REPORTS.length > 0 ? (
+        {reports.length > 0 ? (
           <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
             <table className="w-full text-left text-sm text-[#071D49]">
               <thead className="bg-[#F8FAFC] text-xs font-black uppercase text-[#64748B]">
@@ -50,7 +48,7 @@ export function ReportIntakeWorkspace() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#D8E0EC]">
-                {MOCK_REPORTS.map((row) => (
+                {reports.map((row) => (
                   <tr key={row.id} className="hover:bg-[#F8FAFC]">
                     <td className="px-4 py-3 font-semibold">{row.id}</td>
                     <td className="px-4 py-3">

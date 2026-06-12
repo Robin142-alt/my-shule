@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 
-import { DatabaseService } from '../../../database/database.service';
+import { PrismaService } from '../../../database/prisma.service';
 import {
   MpesaC2bPaymentEntity,
   MpesaC2bPaymentStatus,
@@ -61,13 +61,31 @@ export interface CreateMpesaC2bPaymentInput {
 
 @Injectable()
 export class MpesaC2bPaymentsRepository {
-  constructor(private readonly databaseService: DatabaseService) {}
+
+  private async executeSql<T = any>(query: string, params: any[] = []): Promise<{ rows: T[], rowCount: number }> {
+    const firstParam = params[0];
+    const isUuid = typeof firstParam === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(firstParam);
+    
+    if (isUuid) {
+      return this.prisma.executeWithTenant(firstParam, null, async (tx: any) => {
+        const result = await tx.$queryRawUnsafe(query, ...params);
+        const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+      });
+    } else {
+      const result = await this.prisma.$queryRawUnsafe(query, ...params);
+      const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+    }
+  }
+
+  constructor(private readonly prisma: PrismaService) {}
 
   async findByTenantAndTransId(
     tenantId: string,
     transId: string,
   ): Promise<MpesaC2bPaymentEntity | null> {
-    const result = await this.databaseService.query<MpesaC2bPaymentRow>(
+    const result = await this.executeSql<MpesaC2bPaymentRow>(
       `
         SELECT
           id,
@@ -117,7 +135,7 @@ export class MpesaC2bPaymentsRepository {
   }): Promise<MpesaC2bPaymentEntity[]> {
     const safeLimit = Math.min(Math.max(Math.floor(input.limit ?? 25), 1), 50);
     const safeOffset = Math.max(Math.floor(input.offset ?? 0), 0);
-    const result = await this.databaseService.query<MpesaC2bPaymentRow>(
+    const result = await this.executeSql<MpesaC2bPaymentRow>(
       `
         SELECT
           id,
@@ -164,7 +182,7 @@ export class MpesaC2bPaymentsRepository {
     tenantId: string,
     paymentId: string,
   ): Promise<MpesaC2bPaymentEntity | null> {
-    const result = await this.databaseService.query<MpesaC2bPaymentRow>(
+    const result = await this.executeSql<MpesaC2bPaymentRow>(
       `
         SELECT
           id,
@@ -211,7 +229,7 @@ export class MpesaC2bPaymentsRepository {
     payment: MpesaC2bPaymentEntity;
     inserted: boolean;
   }> {
-    const result = await this.databaseService.query<MpesaC2bPaymentRow>(
+    const result = await this.executeSql<MpesaC2bPaymentRow>(
       `
         INSERT INTO mpesa_c2b_payments (
           tenant_id,
@@ -337,7 +355,7 @@ export class MpesaC2bPaymentsRepository {
     ledger_transaction_id: string | null;
     metadata?: Record<string, unknown>;
   }): Promise<MpesaC2bPaymentEntity> {
-    const result = await this.databaseService.query<MpesaC2bPaymentRow>(
+    const result = await this.executeSql<MpesaC2bPaymentRow>(
       `
         UPDATE mpesa_c2b_payments
         SET
@@ -401,7 +419,7 @@ export class MpesaC2bPaymentsRepository {
     reason: string;
     metadata?: Record<string, unknown>;
   }): Promise<MpesaC2bPaymentEntity> {
-    const result = await this.databaseService.query<MpesaC2bPaymentRow>(
+    const result = await this.executeSql<MpesaC2bPaymentRow>(
       `
         UPDATE mpesa_c2b_payments
         SET
@@ -454,7 +472,7 @@ export class MpesaC2bPaymentsRepository {
     provider_amount_minor?: string | null;
     metadata?: Record<string, unknown>;
   }): Promise<MpesaC2bPaymentEntity> {
-    const result = await this.databaseService.query<MpesaC2bPaymentRow>(
+    const result = await this.executeSql<MpesaC2bPaymentRow>(
       `
         UPDATE mpesa_c2b_payments
         SET
@@ -546,7 +564,7 @@ export class MpesaC2bPaymentsRepository {
     provider_result_desc?: string | null;
     metadata?: Record<string, unknown>;
   }): Promise<MpesaC2bPaymentEntity> {
-    const result = await this.databaseService.query<MpesaC2bPaymentRow>(
+    const result = await this.executeSql<MpesaC2bPaymentRow>(
       `
         UPDATE mpesa_c2b_payments
         SET
@@ -612,7 +630,7 @@ export class MpesaC2bPaymentsRepository {
     reason: string;
     metadata?: Record<string, unknown>;
   }): Promise<MpesaC2bPaymentEntity> {
-    const result = await this.databaseService.query<MpesaC2bPaymentRow>(
+    const result = await this.executeSql<MpesaC2bPaymentRow>(
       `
         UPDATE mpesa_c2b_payments
         SET
@@ -663,7 +681,7 @@ export class MpesaC2bPaymentsRepository {
     reason: string;
     metadata?: Record<string, unknown>;
   }): Promise<MpesaC2bPaymentEntity> {
-    const result = await this.databaseService.query<MpesaC2bPaymentRow>(
+    const result = await this.executeSql<MpesaC2bPaymentRow>(
       `
         UPDATE mpesa_c2b_payments
         SET

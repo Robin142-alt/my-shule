@@ -40,6 +40,7 @@ import { ApprovalInbox } from "@/components/shared/approval-inbox";
 import { NotificationBell } from "@/components/shared/notification-bell";
 import { TaskQueue } from "@/components/shared/task-queue";
 import { WorkflowToast } from "@/components/shared/workflow-toast";
+import { useSchoolQuery } from "@/lib/data/school-hooks";
 
 type RegistrarRouteMode = "hosted" | "public";
 type Tone = "secure" | "info" | "success" | "warning" | "danger" | "cyan";
@@ -658,9 +659,11 @@ function AdmissionsFunnel() {
 }
 
 function ApplicationManagement({
+  applicantsData,
   onApplicantFilter,
   onApplicationPreview,
 }: {
+  applicantsData: ApplicantRow[];
   onApplicantFilter: (filter: ApplicantFilter) => void;
   onApplicationPreview: (applicant: ApplicantRow) => void;
 }) {
@@ -694,7 +697,7 @@ function ApplicationManagement({
             </tr>
           </thead>
           <tbody>
-            {applicants.map((applicant) => (
+            {applicantsData.map((applicant) => (
               <tr key={applicant.name} className="border-t border-white/10">
                 <td className="px-4 py-4 font-black">{applicant.name}</td>
                 <td className="px-4 py-4 text-white/68">{applicant.admissionNumber}</td>
@@ -916,6 +919,7 @@ function MobileActions() {
 }
 
 export function RegistrarCommandCenter({ routeMode }: { routeMode: RegistrarRouteMode }) {
+  const { data, isLoading } = useSchoolQuery<any>('/dashboard/registrar/dashboard');
   const [searchTerm, setSearchTerm] = useState("");
   const [notice, setNotice] = useState("Admissions desk ready for inquiries, applications, documents, interviews, and onboarding.");
   const [quickActionsOpen, setQuickActionsOpen] = useState(false);
@@ -1234,12 +1238,18 @@ export function RegistrarCommandCenter({ routeMode }: { routeMode: RegistrarRout
           ) : null}
           <Hero />
           <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5" aria-label="Registrar KPI summary">
-            {kpis.map((item, index) => (
+            {(data?.kpis ? [
+              { label: "Total Applications", value: String(data.kpis.totalApplications), helper: "Total active applications", trend: "live", tone: "cyan" as Tone, icon: ClipboardList, points: [740, 820, 910, 980, 1080, 1170, data.kpis.totalApplications] },
+              { label: "Pending Verifications", value: String(data.kpis.pendingVerifications), helper: "Applicants pending verification", trend: "urgent", tone: "warning" as Tone, icon: Fingerprint, points: [91, 108, 116, 121, 129, 133, data.kpis.pendingVerifications] },
+              { label: "Available Seats", value: "118", helper: "Form 1 capacity almost full", trend: "watch", tone: "danger" as Tone, icon: GraduationCap, points: [260, 228, 202, 177, 149, 132, 118] },
+              { label: "Interviews Scheduled", value: String(data.kpis.interviewsScheduled), helper: "Panels assigned for this week", trend: "+23%", tone: "success" as Tone, icon: CalendarClock, points: [29, 35, 42, 51, 64, 72, data.kpis.interviewsScheduled] },
+              { label: "Active Students", value: String(data.kpis.activeStudents), helper: "Fully enrolled students", trend: "+5%", tone: "success" as Tone, icon: UserCheck, points: [600, 620, 650, 680, 700, 720, data.kpis.activeStudents] },
+            ] : kpis).map((item, index) => (
               <KpiCard key={item.label} item={item} index={index} />
             ))}
           </section>
           <AdmissionsFunnel />
-          <ApplicationManagement onApplicantFilter={openApplicantFilter} onApplicationPreview={openApplicationPreview} />
+          <ApplicationManagement applicantsData={data?.applicants || applicants} onApplicantFilter={openApplicantFilter} onApplicationPreview={openApplicationPreview} />
           <DocumentCenter />
           <ClassAllocation />
           <InterviewAndTransfers />

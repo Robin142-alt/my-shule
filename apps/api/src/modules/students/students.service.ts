@@ -1,3 +1,4 @@
+import { AgpExecutionService } from '../../common/platform-governance/agp-execution.service';
 import {
   BadRequestException,
   ConflictException,
@@ -11,7 +12,7 @@ import {
 import { AUTH_ANONYMOUS_USER_ID } from '../../auth/auth.constants';
 import { InvalidCursorError, normalizeCursorLimit } from '../../common/pagination/cursor-pagination';
 import { RequestContextService } from '../../common/request-context/request-context.service';
-import { DatabaseService } from '../../database/database.service';
+import { PrismaService } from '../../database/prisma.service';
 import { BillingAccessService } from '../billing/billing-access.service';
 import { SubscriptionsRepository } from '../billing/repositories/subscriptions.repository';
 import { UsageMeterService } from '../billing/usage-meter.service';
@@ -25,65 +26,92 @@ import { StudentsRepository } from './repositories/students.repository';
 
 @Injectable()
 export class StudentsService {
+
+  private async executeSql<T = any>(query: string, params: any[] = []): Promise<{ rows: T[], rowCount: number }> {
+    const firstParam = params[0];
+    const isUuid = typeof firstParam === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(firstParam);
+    
+    if (isUuid) {
+      return this.prisma.executeWithTenant(firstParam, null, async (tx: any) => {
+        const result = await tx.$queryRawUnsafe(query, ...params);
+        const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+      });
+    } else {
+      const result = await this.prisma.$queryRawUnsafe(query, ...params);
+      const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+    }
+  }
+
   constructor(
     private readonly requestContext: RequestContextService,
-    private readonly databaseService: DatabaseService,
+    private readonly prisma: PrismaService,
     private readonly studentsRepository: StudentsRepository,
     private readonly billingAccessService: BillingAccessService,
     private readonly subscriptionsRepository: SubscriptionsRepository,
     private readonly studentEventsService: StudentEventsService,
+    private readonly agp: AgpExecutionService,
     private readonly usageMeterService: UsageMeterService,
   ) {}
 
   async createStudent(dto: CreateStudentDto): Promise<StudentResponseDto> {
-    return this.databaseService.withRequestTransaction(async () => {
-      const requestContext = this.requestContext.requireStore();
-      const tenantId = this.requireTenantId();
-      await this.assertActiveStudentLimit(tenantId, dto.status ?? 'active');
+    return this.agp.execute({
+      actionName: 'CREATE_STUDENT',
+      requiredCapability: 'students:write',
+      aggregateType: 'STUDENT',
+      aggregateId: dto.admission_number, // We don't have the UUID until it's created, but admission_number is a good proxy.
+      handler: async () => {
+        return this.prisma.withRequestTransaction(async () => {
+          const requestContext = this.requestContext.requireStore();
+          const tenantId = this.requireTenantId();
+          await this.assertActiveStudentLimit(tenantId, dto.status ?? 'active');
 
-      try {
-        const student = await this.studentsRepository.createStudent({
-          tenant_id: tenantId,
-          admission_number: dto.admission_number.trim(),
-          first_name: dto.first_name.trim(),
-          last_name: dto.last_name.trim(),
-          middle_name: dto.middle_name?.trim() || null,
-          status: dto.status ?? 'active',
-          date_of_birth: dto.date_of_birth ?? null,
-          gender: dto.gender ?? null,
-          primary_guardian_name: dto.primary_guardian_name?.trim() || null,
-          primary_guardian_phone: dto.primary_guardian_phone?.trim() || null,
-          metadata: dto.metadata ?? {},
-          created_by_user_id:
-            requestContext.user_id && requestContext.user_id !== AUTH_ANONYMOUS_USER_ID
-              ? requestContext.user_id
-              : null,
-        });
+          try {
+            const student = await this.studentsRepository.createStudent({
+              tenant_id: tenantId,
+              admission_number: dto.admission_number.trim(),
+              first_name: dto.first_name.trim(),
+              last_name: dto.last_name.trim(),
+              middle_name: dto.middle_name?.trim() || null,
+              status: dto.status ?? 'active',
+              date_of_birth: dto.date_of_birth ?? null,
+              gender: dto.gender ?? null,
+              primary_guardian_name: dto.primary_guardian_name?.trim() || null,
+              primary_guardian_phone: dto.primary_guardian_phone?.trim() || null,
+              metadata: dto.metadata ?? {},
+              created_by_user_id:
+                requestContext.user_id && requestContext.user_id !== '00000000-0000-0000-0000-000000000000'
+                  ? requestContext.user_id
+                  : null,
+            });
 
-        await this.studentEventsService.publishStudentCreated({
-          tenant_id: tenantId,
-          student_id: student.id,
-          created_at: student.created_at.toISOString(),
-          created_by_user_id: student.created_by_user_id,
-          admission_number: student.admission_number,
-          first_name: student.first_name,
-          last_name: student.last_name,
-          metadata: student.metadata,
-        });
-        await this.usageMeterService.recordUsage({
-          feature_key: 'students.created',
-          quantity: '1',
-          idempotency_key: `student:create:${student.id}`,
-          metadata: {
-            student_id: student.id,
-            admission_number: student.admission_number,
-          },
-        });
+            await this.studentEventsService.publishStudentCreated({
+              tenant_id: tenantId,
+              student_id: student.id,
+              created_at: student.created_at.toISOString(),
+              created_by_user_id: student.created_by_user_id,
+              admission_number: student.admission_number,
+              first_name: student.first_name,
+              last_name: student.last_name,
+              metadata: student.metadata,
+            });
+            await this.usageMeterService.recordUsage({
+              feature_key: 'students.created',
+              quantity: '1',
+              idempotency_key: `student:create:${student.id}`,
+              metadata: {
+                student_id: student.id,
+                admission_number: student.admission_number,
+              },
+            });
 
-        return this.mapStudent(student);
-      } catch (error) {
-        this.rethrowUniqueConstraint(error, 'student admission number already exists in this tenant');
-        throw error;
+            return this.mapStudent(student);
+          } catch (error: any) {
+            this.rethrowUniqueConstraint(error, 'student admission number already exists in this tenant');
+            throw error;
+          }
+        });
       }
     });
   }
@@ -120,7 +148,7 @@ export class StudentsService {
   }
 
   async updateStudent(studentId: string, dto: UpdateStudentDto): Promise<StudentResponseDto> {
-    return this.databaseService.withRequestTransaction(async () => {
+    return this.prisma.withRequestTransaction(async () => {
       const tenantId = this.requireTenantId();
       const existingStudent = await this.studentsRepository.findById(tenantId, studentId);
 
@@ -277,11 +305,11 @@ export class StudentsService {
       boysRes,
       girlsRes,
     ] = await Promise.all([
-      this.databaseService.query('SELECT COUNT(*) as count FROM students WHERE tenant_id = $1', [tenantId]),
-      this.databaseService.query('SELECT COUNT(*) as count FROM students WHERE tenant_id = $1 AND status = \'active\'', [tenantId]),
-      this.databaseService.query('SELECT COUNT(*) as count FROM students WHERE tenant_id = $1 AND created_at >= date_trunc(\'month\', CURRENT_DATE)', [tenantId]),
-      this.databaseService.query('SELECT COUNT(*) as count FROM students WHERE tenant_id = $1 AND gender ILIKE \'male\'', [tenantId]),
-      this.databaseService.query('SELECT COUNT(*) as count FROM students WHERE tenant_id = $1 AND gender ILIKE \'female\'', [tenantId]),
+      this.executeSql('SELECT COUNT(*) as count FROM students WHERE tenant_id = $1', [tenantId]),
+      this.executeSql('SELECT COUNT(*) as count FROM students WHERE tenant_id = $1 AND status = \'active\'', [tenantId]),
+      this.executeSql('SELECT COUNT(*) as count FROM students WHERE tenant_id = $1 AND created_at >= date_trunc(\'month\', CURRENT_DATE)', [tenantId]),
+      this.executeSql('SELECT COUNT(*) as count FROM students WHERE tenant_id = $1 AND gender ILIKE \'male\'', [tenantId]),
+      this.executeSql('SELECT COUNT(*) as count FROM students WHERE tenant_id = $1 AND gender ILIKE \'female\'', [tenantId]),
     ]);
 
     const totalStudents = Number(totalRes.rows[0]?.count || 0);

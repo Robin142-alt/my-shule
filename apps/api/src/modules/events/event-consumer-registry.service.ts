@@ -41,7 +41,7 @@ export class EventConsumerRegistryService {
     return this.consumersByEventName.get(eventName) ?? [];
   }
 
-  private register(consumer: EventConsumerDescriptor): void {
+  public register(consumer: EventConsumerDescriptor): void {
     const existingConsumers = this.consumersByEventName.get(consumer.event_name) ?? [];
     this.consumersByEventName.set(consumer.event_name, [...existingConsumers, consumer]);
   }

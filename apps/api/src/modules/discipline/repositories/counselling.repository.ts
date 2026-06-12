@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 
-import { DatabaseService } from '../../../database/database.service';
+import { PrismaService } from '../../../database/prisma.service';
 import type {
   CreateCounsellingNoteDto,
   CreateCounsellingReferralDto,
@@ -17,17 +17,17 @@ import type { EncryptedCounsellingNotePayload } from '../counselling-note-encryp
 
 @Injectable()
 export class CounsellingRepository {
-  constructor(private readonly databaseService: DatabaseService) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   async getCounsellingDashboard(tenantId: string) {
-    const result = await this.databaseService.query<{
+    const result = await this.executeSql<{
       active_referrals: string;
       upcoming_sessions: string;
       improvement_cases: string;
       repeat_referrals: string;
       high_risk_students: string;
       followups_due: string;
-    }>(
+    }>(tenantId,
       `
         SELECT
           (
@@ -95,7 +95,7 @@ export class CounsellingRepository {
     school_id: string;
     referred_by_user_id: string;
   }) {
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(input.tenant_id, 
       `
         INSERT INTO counselling_referrals (
           tenant_id,
@@ -135,7 +135,7 @@ export class CounsellingRepository {
   }) {
     const limit = this.normalizeLimit(input.query.limit);
     const offset = this.normalizeOffset(input.query.offset);
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(input.tenant_id, 
       `
         SELECT
           id,
@@ -183,7 +183,7 @@ export class CounsellingRepository {
     counsellor_user_id: string;
     response_note?: string | null;
   }) {
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(input.tenant_id, 
       `
         UPDATE counselling_referrals
         SET status = $3,
@@ -211,7 +211,7 @@ export class CounsellingRepository {
     school_id: string;
     counsellor_user_id: string;
   }): Promise<CounsellingSessionEntity> {
-    const result = await this.databaseService.query<CounsellingSessionEntity>(
+    const result = await this.executeSql<CounsellingSessionEntity>(input.tenant_id, 
       `
         INSERT INTO counselling_sessions (
           tenant_id,
@@ -249,7 +249,7 @@ export class CounsellingRepository {
   }): Promise<CounsellingSessionEntity[]> {
     const limit = this.normalizeLimit(input.query.limit);
     const offset = this.normalizeOffset(input.query.offset);
-    const result = await this.databaseService.query<CounsellingSessionEntity>(
+    const result = await this.executeSql<CounsellingSessionEntity>(input.tenant_id, 
       `
         SELECT
           id,
@@ -295,7 +295,7 @@ export class CounsellingRepository {
     tenantId: string,
     sessionId: string,
   ): Promise<CounsellingSessionEntity | null> {
-    const result = await this.databaseService.query<CounsellingSessionEntity>(
+    const result = await this.executeSql<CounsellingSessionEntity>(tenantId, 
       `
         SELECT
           id,
@@ -327,7 +327,7 @@ export class CounsellingRepository {
     tenant_id: string;
     session_id: string;
   }): Promise<CounsellingSessionEntity | null> {
-    const result = await this.databaseService.query<CounsellingSessionEntity>(
+    const result = await this.executeSql<CounsellingSessionEntity>(input.tenant_id, 
       `
         UPDATE counselling_sessions
         SET scheduled_for = COALESCE($3::timestamptz, scheduled_for),
@@ -361,7 +361,7 @@ export class CounsellingRepository {
     counsellor_user_id: string;
     encrypted: EncryptedCounsellingNotePayload;
   }): Promise<CounsellingNoteEntity> {
-    const result = await this.databaseService.query<CounsellingNoteEntity>(
+    const result = await this.executeSql<CounsellingNoteEntity>(input.tenant_id, 
       `
         INSERT INTO counselling_notes (
           tenant_id,
@@ -401,7 +401,7 @@ export class CounsellingRepository {
     tenant_id: string;
     session_id: string;
   }): Promise<CounsellingNoteEntity[]> {
-    const result = await this.databaseService.query<CounsellingNoteEntity>(
+    const result = await this.executeSql<CounsellingNoteEntity>(input.tenant_id, 
       `
         SELECT
           id,
@@ -434,7 +434,7 @@ export class CounsellingRepository {
     school_id: string;
     counsellor_user_id: string;
   }) {
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(input.tenant_id, 
       `
         INSERT INTO behavior_improvement_plans (
           tenant_id,
@@ -467,7 +467,7 @@ export class CounsellingRepository {
     const plan = result.rows[0];
 
     for (const step of input.steps ?? []) {
-      await this.databaseService.query(
+      await this.executeSql(input.tenant_id, 
         `
           INSERT INTO behavior_improvement_plan_steps (
             tenant_id,
@@ -503,5 +503,12 @@ export class CounsellingRepository {
     }
 
     return candidate;
+  }
+
+  private async executeSql<T = any>(tenantId: string, query: string, params: any[] = []): Promise<{ rows: T[], rowCount: number }> {
+    return this.prisma.executeWithTenant<any>(tenantId, null, async (tx: any) => {
+      const rows = await tx.$queryRawUnsafe(query, ...params);
+      return { rows: Array.isArray(rows) ? rows : [rows] };
+    });
   }
 }

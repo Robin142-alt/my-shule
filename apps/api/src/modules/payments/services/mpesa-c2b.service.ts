@@ -9,7 +9,7 @@ import {
 
 import { AUTH_ANONYMOUS_USER_ID } from '../../../auth/auth.constants';
 import { RequestContextService } from '../../../common/request-context/request-context.service';
-import { DatabaseService } from '../../../database/database.service';
+import { PrismaService } from '../../../database/prisma.service';
 import { ManualFeePaymentService } from '../../billing/manual-fee-payment.service';
 import {
   InvoicesRepository,
@@ -49,9 +49,27 @@ const C2B_REJECTED_RESPONSE: MpesaC2bGatewayResponse = {
 
 @Injectable()
 export class MpesaC2bService {
+
+  private async executeSql<T = any>(query: string, params: any[] = []): Promise<{ rows: T[], rowCount: number }> {
+    const firstParam = params[0];
+    const isUuid = typeof firstParam === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(firstParam);
+    
+    if (isUuid) {
+      return this.prisma.executeWithTenant(firstParam, null, async (tx: any) => {
+        const result = await tx.$queryRawUnsafe(query, ...params);
+        const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+      });
+    } else {
+      const result = await this.prisma.$queryRawUnsafe(query, ...params);
+      const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+    }
+  }
+
   constructor(
     private readonly requestContext: RequestContextService,
-    private readonly databaseService: DatabaseService,
+    private readonly prisma: PrismaService,
     private readonly tenantFinanceConfigService: TenantFinanceConfigService,
     private readonly mpesaC2bPaymentsRepository: MpesaC2bPaymentsRepository,
     private readonly invoicesRepository: InvoicesRepository,
@@ -115,7 +133,7 @@ export class MpesaC2bService {
     const tenantId = mpesaConfig.tenant_id;
 
     return this.runInTenantContext(tenantId, parsed.trans_id, () =>
-      this.databaseService.withRequestTransaction(async () => {
+      this.prisma.withRequestTransaction(async () => {
         const existingPayment =
           await this.mpesaC2bPaymentsRepository.findByTenantAndTransId(
             tenantId,
@@ -272,7 +290,7 @@ export class MpesaC2bService {
   ): Promise<MpesaC2bPaymentEntity> {
     const tenantId = this.requireTenantId();
 
-    return this.databaseService.withRequestTransaction(async () => {
+    return this.prisma.withRequestTransaction(async () => {
       const payment = await this.mpesaC2bPaymentsRepository.lockById(tenantId, paymentId);
 
       if (!payment) {
@@ -445,7 +463,7 @@ export class MpesaC2bService {
     tenantId: string,
     reference: string,
   ): Promise<{ id: string } | null> {
-    const result = await this.databaseService.query<{ id: string }>(
+    const result = await this.executeSql<{ id: string }>(
       `
         SELECT id
         FROM students

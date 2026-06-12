@@ -2,13 +2,10 @@
 
 import { MessageSquare, Phone, Send } from "lucide-react";
 import { Panel, StatusChip, EmptyState } from "./shared";
-
-const MOCK_MESSAGES = [
-  { id: "MSG-001", caseId: "DM-2026-0001", student: "Brian Otieno", type: "SMS", date: "2026-06-11", status: "Sent" },
-  { id: "MSG-002", caseId: "DM-2026-0005", student: "John Doe", type: "Email", date: "2026-06-11", status: "Pending" },
-];
+import { useSchoolQuery } from "@/lib/data/school-hooks";
 
 export function ParentCommunicationWorkspace() {
+  const { data: messages = [], isLoading } = useSchoolQuery<any[]>("/api/discipline/messages");
   return (
     <Panel title="Parent Communication" description="Notify parents about discipline issues and track acknowledgements." icon={MessageSquare}>
       <div className="grid gap-4 md:grid-cols-4 mb-6">
@@ -38,7 +35,7 @@ export function ParentCommunicationWorkspace() {
       </div>
 
       <div>
-        {MOCK_MESSAGES.length > 0 ? (
+        {messages.length > 0 ? (
           <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
             <table className="w-full text-left text-sm text-[#071D49]">
               <thead className="bg-[#F8FAFC] text-xs font-black uppercase text-[#64748B]">
@@ -53,7 +50,7 @@ export function ParentCommunicationWorkspace() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#D8E0EC]">
-                {MOCK_MESSAGES.map((row) => (
+                {messages.map((row) => (
                   <tr key={row.id} className="hover:bg-[#F8FAFC]">
                     <td className="px-4 py-3 font-semibold">{row.id}</td>
                     <td className="px-4 py-3 text-[#1D4ED8] hover:underline cursor-pointer">{row.caseId}</td>
@@ -75,7 +72,7 @@ export function ParentCommunicationWorkspace() {
           </div>
         ) : (
           <EmptyState 
-            message="No parent communication records found." 
+            message={isLoading ? "Loading messages..." : "No parent communication records found."} 
             icon={MessageSquare} 
           />
         )}

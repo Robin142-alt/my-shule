@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 
-import { DatabaseService } from '../../../database/database.service';
+import { PrismaService } from '../../../database/prisma.service';
 
 export interface MaterializeSchoolOperationNotificationInput {
   tenantId: string;
@@ -29,7 +29,24 @@ export interface SchoolOperationNotificationView {
 
 @Injectable()
 export class SchoolOperationNotificationsRepository {
-  constructor(private readonly databaseService: DatabaseService) {}
+  constructor(private readonly prisma: PrismaService) {}
+
+  private async executeSql<T = any>(query: string, params: any[] = []): Promise<{ rows: T[], rowCount: number }> {
+    const firstParam = params[0];
+    const isUuid = typeof firstParam === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(firstParam);
+    
+    if (isUuid) {
+      return this.prisma.executeWithTenant(firstParam, null, async (tx: any) => {
+        const result = await tx.$queryRawUnsafe(query, ...params);
+        const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+      });
+    } else {
+      const result = await this.prisma.$queryRawUnsafe(query, ...params);
+      const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+    }
+  }
 
   async upsertFromSchoolOperation(input: MaterializeSchoolOperationNotificationInput): Promise<void> {
     const title = this.textOrDefault(input.notification.title, 'School update');
@@ -38,7 +55,7 @@ export class SchoolOperationNotificationsRepository {
     const notificationId = this.textOrDefault(input.notification.id, input.operationId);
     const notificationKey = `school-operation:${input.operationId}:${notificationId}`;
 
-    await this.databaseService.query(
+    await this.executeSql(
       `
         INSERT INTO notifications (
           tenant_id,
@@ -81,7 +98,7 @@ export class SchoolOperationNotificationsRepository {
     role: string | null,
     options: { limit?: number } = {},
   ): Promise<SchoolOperationNotificationView[]> {
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
         SELECT
           id,
@@ -128,7 +145,7 @@ export class SchoolOperationNotificationsRepository {
     role: string | null,
     notificationId: string,
   ): Promise<SchoolOperationNotificationView | null> {
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
         UPDATE notifications
         SET

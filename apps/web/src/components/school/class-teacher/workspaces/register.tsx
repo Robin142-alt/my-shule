@@ -36,7 +36,7 @@ export function ClassRegisterWorkspace({ onSelectLearner }: { onSelectLearner?: 
             </tr>
           </thead>
           <tbody className="divide-y divide-[#D8E0EC]">
-            {data.map((learner: any) => (
+            {(Array.isArray(data) ? data : []).map((learner: any) => (
               <tr key={learner.id}>
                 <td className="p-3">{learner.admissionNo}</td>
                 <td className="p-3 font-bold">{learner.name}</td>

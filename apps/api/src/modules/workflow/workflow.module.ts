@@ -1,3 +1,4 @@
+import { ActivityWidgetProvider } from './widgets/activity-widget.provider';
 import { Module } from '@nestjs/common';
 import { DatabaseModule } from '../../database/database.module';
 import { ObservabilityModule } from '../observability/observability.module';
@@ -27,6 +28,7 @@ import { DashboardController } from './controllers/dashboard.controller';
     DashboardController
   ],
   providers: [
+    ActivityWidgetProvider,
     WorkflowService,
     NotificationService,
     ApprovalService,

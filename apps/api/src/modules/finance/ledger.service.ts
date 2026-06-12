@@ -11,7 +11,7 @@ import { createHash } from 'node:crypto';
 
 import { AUTH_ANONYMOUS_USER_ID } from '../../auth/auth.constants';
 import { RequestContextService } from '../../common/request-context/request-context.service';
-import { DatabaseService } from '../../database/database.service';
+import { PrismaService } from '../../database/prisma.service';
 import { AuditLogService } from '../observability/audit-log.service';
 import { SyncOperationLogService } from '../sync/sync-operation-log.service';
 import { AccountEntity } from './entities/account.entity';
@@ -37,10 +37,27 @@ import { TransactionsRepository } from './repositories/transactions.repository';
 
 @Injectable()
 export class LedgerService {
-  constructor(
-    @Optional() private readonly configService?: ConfigService,
+
+  private async executeSql<T = any>(query: string, params: any[] = []): Promise<{ rows: T[], rowCount: number }> {
+    const firstParam = params[0];
+    const isUuid = typeof firstParam === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(firstParam);
+    
+    if (isUuid) {
+      return this.prisma.executeWithTenant(firstParam, null, async (tx: any) => {
+        const result = await tx.$queryRawUnsafe(query, ...params);
+        const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+      });
+    } else {
+      const result = await this.prisma.$queryRawUnsafe(query, ...params);
+      const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+    }
+  }
+
+  constructor(private readonly prisma: PrismaService, @Optional() private readonly configService?: ConfigService,
     @Optional() private readonly requestContext?: RequestContextService,
-    @Optional() private readonly databaseService?: DatabaseService,
+    @Optional() private readonly databaseService?: PrismaService,
     @Optional() private readonly accountsRepository?: AccountsRepository,
     @Optional() private readonly transactionsRepository?: TransactionsRepository,
     @Optional() private readonly ledgerEntriesRepository?: LedgerEntriesRepository,
@@ -69,8 +86,8 @@ export class LedgerService {
     input: PostFinancialTransactionInput,
   ): Promise<PostedFinancialTransaction> {
     const databaseService = this.requireRuntimeDependency(
-      this.databaseService,
-      'DatabaseService',
+      this.prisma,
+      'PrismaService',
     );
 
     return databaseService.withRequestTransaction(async () => {

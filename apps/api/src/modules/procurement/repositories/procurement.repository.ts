@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 
-import { DatabaseService } from '../../../database/database.service';
+import { PrismaService } from '../../../database/prisma.service';
 
 export interface ProcurementDashboardSummary {
   open_requests: number;
@@ -13,11 +13,29 @@ export interface ProcurementDashboardSummary {
 
 @Injectable()
 export class ProcurementRepository {
-  constructor(private readonly databaseService: DatabaseService) {}
+
+  private async executeSql<T = any>(query: string, params: any[] = []): Promise<{ rows: T[], rowCount: number }> {
+    const firstParam = params[0];
+    const isUuid = typeof firstParam === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(firstParam);
+    
+    if (isUuid) {
+      return this.prisma.executeWithTenant(firstParam, null, async (tx: any) => {
+        const result = await tx.$queryRawUnsafe(query, ...params);
+        const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+      });
+    } else {
+      const result = await this.prisma.$queryRawUnsafe(query, ...params);
+      const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+    }
+  }
+
+  constructor(private readonly prisma: PrismaService) {}
 
   async getDashboard(tenantId: string) {
     const [summary, requests, suppliers, orders, invoices] = await Promise.all([
-      this.databaseService.query<ProcurementDashboardSummary>(
+      this.executeSql<ProcurementDashboardSummary>(
         `
           SELECT
             (SELECT COUNT(*)::int FROM procurement_requests WHERE tenant_id = $1 AND status IN ('draft', 'submitted', 'returned')) AS open_requests,
@@ -29,7 +47,7 @@ export class ProcurementRepository {
         `,
         [tenantId],
       ),
-      this.databaseService.query(
+      this.executeSql(
         `
           SELECT
             request.id::text,
@@ -49,7 +67,7 @@ export class ProcurementRepository {
         `,
         [tenantId],
       ),
-      this.databaseService.query(
+      this.executeSql(
         `
           SELECT id::text, name, category, status, contact_name, phone, email
           FROM procurement_suppliers
@@ -59,7 +77,7 @@ export class ProcurementRepository {
         `,
         [tenantId],
       ),
-      this.databaseService.query(
+      this.executeSql(
         `
           SELECT
             po.id::text,
@@ -78,7 +96,7 @@ export class ProcurementRepository {
         `,
         [tenantId],
       ),
-      this.databaseService.query(
+      this.executeSql(
         `
           SELECT
             invoice.id::text,
@@ -119,7 +137,7 @@ export class ProcurementRepository {
   }
 
   async createSupplier(input: Record<string, unknown>) {
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
         INSERT INTO procurement_suppliers (
           tenant_id, name, category, contact_name, phone, email, kra_pin, created_by_user_id
@@ -143,8 +161,8 @@ export class ProcurementRepository {
   }
 
   async createRequest(input: Record<string, unknown>) {
-    return this.databaseService.withRequestTransaction(async () => {
-      const result = await this.databaseService.query(
+    return this.prisma.withRequestTransaction(async () => {
+      const result = await this.executeSql(
         `
           INSERT INTO procurement_requests (
             tenant_id, title, department, budget_code, justification, needed_by,
@@ -166,7 +184,7 @@ export class ProcurementRepository {
       const request = result.rows[0];
 
       for (const item of (input.items ?? []) as Array<Record<string, unknown>>) {
-        await this.databaseService.query(
+        await this.executeSql(
           `
             INSERT INTO procurement_request_items (
               tenant_id, request_id, item_name, quantity, estimated_unit_cost_minor, budget_code
@@ -189,8 +207,8 @@ export class ProcurementRepository {
   }
 
   async recordApproval(input: Record<string, unknown>) {
-    return this.databaseService.withRequestTransaction(async () => {
-      const result = await this.databaseService.query(
+    return this.prisma.withRequestTransaction(async () => {
+      const result = await this.executeSql(
         `
           INSERT INTO procurement_approvals (
             tenant_id, request_id, decision, reason, approver_user_id
@@ -207,7 +225,7 @@ export class ProcurementRepository {
         ],
       );
 
-      await this.databaseService.query(
+      await this.executeSql(
         `
           UPDATE procurement_requests
           SET status = $3,
@@ -231,10 +249,10 @@ export class ProcurementRepository {
   }
 
   async createPurchaseOrder(input: Record<string, unknown>) {
-    return this.databaseService.withRequestTransaction(async () => {
+    return this.prisma.withRequestTransaction(async () => {
       const totalAmount = ((input.items ?? []) as Array<Record<string, unknown>>)
         .reduce((sum, item) => sum + Number(item.quantity) * Number(item.unit_cost_minor), 0);
-      const result = await this.databaseService.query(
+      const result = await this.executeSql(
         `
           INSERT INTO purchase_orders (
             tenant_id, po_number, supplier_id, request_id, expected_delivery_date,
@@ -266,7 +284,7 @@ export class ProcurementRepository {
       const order = result.rows[0];
 
       for (const item of (input.items ?? []) as Array<Record<string, unknown>>) {
-        await this.databaseService.query(
+        await this.executeSql(
           `
             INSERT INTO purchase_order_items (
               tenant_id, purchase_order_id, item_name, quantity, unit_cost_minor
@@ -284,7 +302,7 @@ export class ProcurementRepository {
       }
 
       if (input.request_id) {
-        await this.databaseService.query(
+        await this.executeSql(
           `
             INSERT INTO procurement_budget_links (
               tenant_id, request_id, purchase_order_id, budget_code, committed_amount_minor
@@ -303,7 +321,7 @@ export class ProcurementRepository {
   }
 
   async attachInvoice(input: Record<string, unknown>) {
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
         INSERT INTO supplier_invoices (
           tenant_id, purchase_order_id, invoice_number, amount_minor,
@@ -328,7 +346,7 @@ export class ProcurementRepository {
   }
 
   async appendAuditLog(input: Record<string, unknown>) {
-    await this.databaseService.query(
+    await this.executeSql(
       `
         INSERT INTO procurement_audit_logs (
           tenant_id, actor_user_id, action, resource_type, resource_id, metadata

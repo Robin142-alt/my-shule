@@ -61,4 +61,10 @@ export class LibraryController {
   listCirculation(@Query() query: Record<string, string | undefined>) {
     return this.libraryService.listCirculation(query);
   }
+
+  @Get('catalog')
+  @Permissions('library:read')
+  listCatalogItems() {
+    return this.libraryService.listCatalogItems();
+  }
 }

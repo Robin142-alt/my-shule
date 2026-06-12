@@ -1,6 +1,6 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 
-import { DatabaseService } from '../../database/database.service';
+import { PrismaService } from '../../database/prisma.service';
 import { buildSimpleOperationsSchema } from '../implementation100/simple-operations';
 
 const LMS_TABLES = [
@@ -14,12 +14,30 @@ const LMS_TABLES = [
 
 @Injectable()
 export class LmsSchemaService implements OnModuleInit {
+
+  private async executeSql<T = any>(query: string, params: any[] = []): Promise<{ rows: T[], rowCount: number }> {
+    const firstParam = params[0];
+    const isUuid = typeof firstParam === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(firstParam);
+    
+    if (isUuid) {
+      return this.prisma.executeWithTenant(firstParam, null, async (tx: any) => {
+        const result = await tx.$queryRawUnsafe(query, ...params);
+        const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+      });
+    } else {
+      const result = await this.prisma.$queryRawUnsafe(query, ...params);
+      const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+    }
+  }
+
   private readonly logger = new Logger(LmsSchemaService.name);
 
-  constructor(private readonly databaseService: DatabaseService) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   async onModuleInit(): Promise<void> {
-    await this.databaseService.runSchemaBootstrap(buildSimpleOperationsSchema({
+    await this.prisma.runSchemaBootstrap(buildSimpleOperationsSchema({
       tables: LMS_TABLES,
       mainTable: 'lms_courses',
       auditTable: 'lms_audit_logs',

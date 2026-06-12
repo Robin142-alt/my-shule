@@ -1,0 +1,18 @@
+import { Injectable } from '@nestjs/common';
+import { DomainEvent, EventConsumerDescriptor } from '../../events/events.types';
+
+@Injectable()
+export class SubmitConsumer implements EventConsumerDescriptor<'workflow.action.completed'> {
+  readonly name = 'submit.execution';
+  readonly event_name = 'workflow.action.completed' as const;
+
+  async handle(event: DomainEvent<'workflow.action.completed'>): Promise<void> {
+    // Only process events that match our action workflow binding
+    if (event.payload.workflow_id !== 'submit' && event.payload.action_id !== 'submit') {
+      return;
+    }
+
+    // TODO: Implement domain logic for submit
+    console.log('[SubmitConsumer] Executing action:', event.payload);
+  }
+}

@@ -1,14 +1,32 @@
 import { Injectable } from '@nestjs/common';
 
-import { DatabaseService } from '../../database/database.service';
+import { PrismaService } from '../../database/prisma.service';
 import type { DarajaIntegrationRecord } from './integrations.types';
 
 @Injectable()
 export class DarajaIntegrationRepository {
-  constructor(private readonly databaseService: DatabaseService) {}
+
+  private async executeSql<T = any>(query: string, params: any[] = []): Promise<{ rows: T[], rowCount: number }> {
+    const firstParam = params[0];
+    const isUuid = typeof firstParam === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(firstParam);
+    
+    if (isUuid) {
+      return this.prisma.executeWithTenant(firstParam, null, async (tx: any) => {
+        const result = await tx.$queryRawUnsafe(query, ...params);
+        const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+      });
+    } else {
+      const result = await this.prisma.$queryRawUnsafe(query, ...params);
+      const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+    }
+  }
+
+  constructor(private readonly prisma: PrismaService) {}
 
   async getDarajaIntegration(tenantId: string, environment?: string): Promise<DarajaIntegrationRecord | null> {
-    const result = await this.databaseService.query<DarajaIntegrationRecord>(
+    const result = await this.executeSql<DarajaIntegrationRecord>(
       `
         SELECT id::text, tenant_id, integration_type, paybill_number, till_number, shortcode,
                consumer_key_ciphertext, consumer_secret_ciphertext, passkey_ciphertext,
@@ -28,7 +46,7 @@ export class DarajaIntegrationRepository {
   }
 
   async getDarajaIntegrationById(integrationId: string): Promise<DarajaIntegrationRecord | null> {
-    const result = await this.databaseService.query<DarajaIntegrationRecord>(
+    const result = await this.executeSql<DarajaIntegrationRecord>(
       `
         SELECT id::text, tenant_id, integration_type, paybill_number, till_number, shortcode,
                consumer_key_ciphertext, consumer_secret_ciphertext, passkey_ciphertext,
@@ -55,7 +73,7 @@ export class DarajaIntegrationRepository {
     is_active: boolean;
     actor_user_id?: string | null;
   }): Promise<DarajaIntegrationRecord> {
-    const result = await this.databaseService.query<DarajaIntegrationRecord>(
+    const result = await this.executeSql<DarajaIntegrationRecord>(
       `
         INSERT INTO school_integrations (
           tenant_id,
@@ -114,7 +132,7 @@ export class DarajaIntegrationRepository {
     is_active: boolean;
     actor_user_id?: string | null;
   }): Promise<DarajaIntegrationRecord> {
-    const result = await this.databaseService.query<DarajaIntegrationRecord>(
+    const result = await this.executeSql<DarajaIntegrationRecord>(
       `
         UPDATE school_integrations
         SET is_active = $3,
@@ -139,7 +157,7 @@ export class DarajaIntegrationRepository {
     integration_id: string;
     status: string;
   }): Promise<void> {
-    await this.databaseService.query(
+    await this.executeSql(
       `
         UPDATE school_integrations
         SET last_test_status = $3,
@@ -162,7 +180,7 @@ export class DarajaIntegrationRepository {
     request_id?: string | null;
     created_by_user_id?: string | null;
   }): Promise<void> {
-    await this.databaseService.query(
+    await this.executeSql(
       `
         INSERT INTO integration_logs (
           tenant_id,

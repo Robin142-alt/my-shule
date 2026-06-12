@@ -22,6 +22,7 @@ export function SettingsWorkspace() {
     );
   }
 
+  const safeData = data as any;
   return (
     <Panel title="Settings" description="Manage your preferences and workspace settings." icon={Settings}>
       <div className="space-y-6">
@@ -30,11 +31,11 @@ export function SettingsWorkspace() {
           <div className="space-y-4">
             <label className="flex items-center justify-between">
               <span className="text-sm font-semibold text-[#071D49]">Enable Notifications</span>
-              <input type="checkbox" checked={data.notificationsEnabled} readOnly className="h-4 w-4 rounded text-[#1D4ED8]" />
+              <input type="checkbox" checked={safeData.notificationsEnabled} readOnly className="h-4 w-4 rounded text-[#1D4ED8]" />
             </label>
             <label className="flex items-center justify-between">
               <span className="text-sm font-semibold text-[#071D49]">Default View</span>
-              <select className="rounded-md border border-[#D8E0EC] px-3 py-1 text-sm text-[#071D49]" value={data.defaultView} disabled>
+              <select className="rounded-md border border-[#D8E0EC] px-3 py-1 text-sm text-[#071D49]" value={safeData.defaultView} disabled>
                 <option>Overview</option>
                 <option>My Class Register</option>
                 <option>Timetable</option>

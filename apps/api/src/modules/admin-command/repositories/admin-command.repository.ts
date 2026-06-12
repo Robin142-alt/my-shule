@@ -1,14 +1,32 @@
 import { Injectable } from '@nestjs/common';
 
-import { DatabaseService } from '../../../database/database.service';
+import { PrismaService } from '../../../database/prisma.service';
 import type { PrincipalExecutiveDashboard } from '../principal-insights.types';
 
 @Injectable()
 export class AdminCommandRepository {
-  constructor(private readonly databaseService: DatabaseService) {}
+
+  private async executeSql<T = any>(query: string, params: any[] = []): Promise<{ rows: T[], rowCount: number }> {
+    const firstParam = params[0];
+    const isUuid = typeof firstParam === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(firstParam);
+    
+    if (isUuid) {
+      return this.prisma.executeWithTenant(firstParam, null, async (tx: any) => {
+        const result = await tx.$queryRawUnsafe(query, ...params);
+        const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+      });
+    } else {
+      const result = await this.prisma.$queryRawUnsafe(query, ...params);
+      const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+    }
+  }
+
+  constructor(private readonly prisma: PrismaService) {}
 
   async getPrincipalDashboard(tenantId: string) {
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
         SELECT
           0::numeric AS attendance_compliance_rate,
@@ -444,7 +462,7 @@ export class AdminCommandRepository {
   }
 
   async getDeputyDashboard(tenantId: string) {
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
         SELECT
           COUNT(*) FILTER (WHERE status = 'reported')::int AS reported_incidents,
@@ -465,7 +483,7 @@ export class AdminCommandRepository {
   }
 
   async getSecretaryDashboard(tenantId: string) {
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
         SELECT
           (SELECT COUNT(*)::int FROM announcements WHERE tenant_id = $1) AS announcements,
@@ -482,7 +500,7 @@ export class AdminCommandRepository {
   }
 
   async getFinanceOverview(tenantId: string) {
-    const summaryResult = await this.databaseService.query(
+    const summaryResult = await this.executeSql(
       `
         SELECT
           total_collections_minor,
@@ -493,7 +511,7 @@ export class AdminCommandRepository {
       [tenantId],
     ).catch(() => ({ rows: [] }));
 
-    const waiversResult = await this.databaseService.query(
+    const waiversResult = await this.executeSql(
       `
         SELECT
           waiver_number AS id,
@@ -533,7 +551,7 @@ export class AdminCommandRepository {
   }
 
   async getStudentsOverview(tenantId: string) {
-    const summaryResult = await this.databaseService.query(
+    const summaryResult = await this.executeSql(
       `
         SELECT
           COUNT(*) FILTER (WHERE status = 'active')::int AS total_students,
@@ -545,7 +563,7 @@ export class AdminCommandRepository {
       [tenantId],
     ).catch(() => ({ rows: [] }));
 
-    const recentAdmissionsResult = await this.databaseService.query(
+    const recentAdmissionsResult = await this.executeSql(
       `
         SELECT
           admission_number AS id,
@@ -582,7 +600,7 @@ export class AdminCommandRepository {
   }
 
   async getDisciplineOverview(tenantId: string) {
-    const summaryResult = await this.databaseService.query(
+    const summaryResult = await this.executeSql(
       `
         SELECT
           COUNT(*) FILTER (WHERE status IN ('reported', 'reviewed', 'escalated'))::int AS open_cases,
@@ -594,7 +612,7 @@ export class AdminCommandRepository {
       [tenantId],
     ).catch(() => ({ rows: [] }));
 
-    const recentIncidentsResult = await this.databaseService.query(
+    const recentIncidentsResult = await this.executeSql(
       `
         SELECT
           id,
@@ -630,7 +648,7 @@ export class AdminCommandRepository {
   }
 
   async getAttendanceOverview(tenantId: string) {
-    const summaryResult = await this.databaseService.query(
+    const summaryResult = await this.executeSql(
       `
         SELECT
           COUNT(*) FILTER (WHERE status = 'Present')::int AS present_today,
@@ -665,7 +683,7 @@ export class AdminCommandRepository {
   }
 
   async getAcademicsOverview(tenantId: string) {
-    const summaryResult = await this.databaseService.query(
+    const summaryResult = await this.executeSql(
       `
         SELECT
           COUNT(*)::int AS active_assignments,
@@ -699,7 +717,7 @@ export class AdminCommandRepository {
   }
 
   async getExamsOverview(tenantId: string) {
-    const summaryResult = await this.databaseService.query(
+    const summaryResult = await this.executeSql(
       `
         SELECT
           COUNT(*)::int AS pending_reviews,
@@ -728,7 +746,7 @@ export class AdminCommandRepository {
   }
 
   async getCommunicationOverview(tenantId: string) {
-    const summaryResult = await this.databaseService.query(
+    const summaryResult = await this.executeSql(
       `
         SELECT
           COUNT(*)::int AS total_sent,
@@ -762,11 +780,11 @@ export class AdminCommandRepository {
   }
 
   async getClassesOverview(tenantId: string) {
-    const classesQuery = await this.databaseService.query(
+    const classesQuery = await this.executeSql(
       `SELECT count(*)::int as count FROM class_sections WHERE tenant_id = $1`,
       [tenantId]
     ).catch(() => ({ rows: [{ count: 0 }] }));
-    const streamsQuery = await this.databaseService.query(
+    const streamsQuery = await this.executeSql(
       `SELECT count(*)::int as count FROM class_streams WHERE tenant_id = $1`,
       [tenantId]
     ).catch(() => ({ rows: [{ count: 0 }] }));
@@ -774,7 +792,7 @@ export class AdminCommandRepository {
     const totalClasses = classesQuery.rows[0]?.count || 0;
     const totalStreams = streamsQuery.rows[0]?.count || 0;
 
-    const distributionQuery = await this.databaseService.query(
+    const distributionQuery = await this.executeSql(
       `SELECT grade_level as label, count(sca.student_id)::int as value 
        FROM class_sections cs
        LEFT JOIN student_class_assignments sca ON cs.id = sca.class_section_id
@@ -795,7 +813,7 @@ export class AdminCommandRepository {
   }
 
   async getSubjectsOverview(tenantId: string) {
-    const subjectsQuery = await this.databaseService.query(
+    const subjectsQuery = await this.executeSql(
       `SELECT count(*)::int as count FROM subjects WHERE tenant_id = $1`,
       [tenantId]
     ).catch(() => ({ rows: [{ count: 0 }] }));
@@ -814,7 +832,7 @@ export class AdminCommandRepository {
   }
 
   async getStaffOverview(tenantId: string) {
-    const summaryResult = await this.databaseService.query(
+    const summaryResult = await this.executeSql(
       `
         SELECT
           COUNT(*)::int AS total_staff,
@@ -844,29 +862,39 @@ export class AdminCommandRepository {
   }
 
   async getPrincipalOverview(tenantId: string) {
-    const studentCountResult = await this.databaseService.query(
+    const studentCountResult = await this.executeSql(
       `SELECT COUNT(*)::int AS count FROM students WHERE tenant_id = $1 AND status = 'active'`,
       [tenantId]
     ).catch(() => ({ rows: [] }));
     const totalStudents = studentCountResult.rows[0]?.count || 0;
 
-    const staffCountResult = await this.databaseService.query(
+    const staffCountResult = await this.executeSql(
       `SELECT COUNT(*)::int AS count FROM tenant_memberships WHERE tenant_id = $1 AND status = 'active'`,
       [tenantId]
     ).catch(() => ({ rows: [] }));
     const totalStaff = staffCountResult.rows[0]?.count || 0;
 
-    const activeIssuesResult = await this.databaseService.query(
+    const activeIssuesResult = await this.executeSql(
       `SELECT COUNT(*)::int AS count FROM admin_incidents WHERE tenant_id = $1 AND status IN ('reported', 'escalated')`,
       [tenantId]
     ).catch(() => ({ rows: [] }));
     const activeIssues = activeIssuesResult.rows[0]?.count || 0;
 
-    const pendingApprovalsResult = await this.databaseService.query(
+    const pendingApprovalsResult = await this.executeSql(
       `SELECT COUNT(*)::int AS count FROM report_readiness_reviews WHERE tenant_id = $1`,
       [tenantId]
     ).catch(() => ({ rows: [] }));
     const pendingApprovals = pendingApprovalsResult.rows[0]?.count || 0;
+
+    const recentActivityResult = await this.executeSql(
+      `SELECT action as label, created_at as time FROM audit_logs WHERE tenant_id = $1 ORDER BY created_at DESC LIMIT 5`,
+      [tenantId]
+    ).catch(() => ({ rows: [] }));
+    
+    const recentActivity = recentActivityResult.rows.map((r: any) => ({
+      label: r.label || 'System Action',
+      time: new Date(r.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    }));
 
     return {
       status: "active",
@@ -874,16 +902,14 @@ export class AdminCommandRepository {
       totalStaff,
       activeIssues,
       pendingApprovals,
-      recentActivity: [
-        { label: "Fee payment received from John Doe", time: "10 mins ago" },
-        { label: "New admission inquiry recorded", time: "1 hr ago" },
-        { label: "Report card approval pending", time: "2 hrs ago" }
+      recentActivity: recentActivity.length > 0 ? recentActivity : [
+        { label: "Welcome to the Principal Dashboard", time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }
       ]
     };
   }
 
   async getSchoolProfile(tenantId: string) {
-    const tenantResult = await this.databaseService.query(
+    const tenantResult = await this.executeSql(
       `SELECT name, subdomain, region, logo_url FROM tenants WHERE tenant_id = $1`,
       [tenantId]
     ).catch(() => ({ rows: [] }));
@@ -907,7 +933,7 @@ export class AdminCommandRepository {
   }
 
   async updateSchoolLogoUrl(tenantId: string, logoUrl: string) {
-    await this.databaseService.query(
+    await this.executeSql(
       `UPDATE tenants SET logo_url = $1, updated_at = NOW() WHERE tenant_id = $2`,
       [logoUrl, tenantId]
     );
@@ -943,27 +969,27 @@ export class AdminCommandRepository {
   }
 
   async getSetupChecklist(tenantId: string) {
-    const profileComplete = await this.databaseService.query(
+    const profileComplete = await this.executeSql(
       `SELECT count(*)::int as count FROM tenants WHERE id = $1 AND (name != 'New School' OR subdomain != 'new-school')`,
       [tenantId]
     ).catch(() => ({ rows: [{ count: 1 }] }));
     
-    const staffComplete = await this.databaseService.query(
+    const staffComplete = await this.executeSql(
       `SELECT count(*)::int as count FROM tenant_memberships WHERE tenant_id = $1 AND role IN ('principal', 'deputy_principal', 'school_admin')`,
       [tenantId]
     ).catch(() => ({ rows: [{ count: 0 }] }));
 
-    const termsComplete = await this.databaseService.query(
+    const termsComplete = await this.executeSql(
       `SELECT count(*)::int as count FROM academic_terms WHERE tenant_id = $1`,
       [tenantId]
     ).catch(() => ({ rows: [{ count: 0 }] }));
 
-    const subjectsComplete = await this.databaseService.query(
+    const subjectsComplete = await this.executeSql(
       `SELECT count(*)::int as count FROM subjects WHERE tenant_id = $1`,
       [tenantId]
     ).catch(() => ({ rows: [{ count: 0 }] }));
 
-    const studentsComplete = await this.databaseService.query(
+    const studentsComplete = await this.executeSql(
       `SELECT count(*)::int as count FROM students WHERE tenant_id = $1 AND status = 'active'`,
       [tenantId]
     ).catch(() => ({ rows: [{ count: 0 }] }));
@@ -991,7 +1017,7 @@ export class AdminCommandRepository {
   }
 
   async getAcademicSetupOverview(tenantId: string) {
-    const termsQuery = await this.databaseService.query(
+    const termsQuery = await this.executeSql(
       `SELECT name, ends_on FROM academic_terms WHERE tenant_id = $1 AND ends_on > NOW() ORDER BY starts_on ASC LIMIT 1`,
       [tenantId]
     ).catch(() => ({ rows: [] }));
@@ -1003,17 +1029,17 @@ export class AdminCommandRepository {
       weeksRemaining = Math.max(0, Math.floor(ms / (1000 * 60 * 60 * 24 * 7)));
     }
 
-    const gradings = await this.databaseService.query(
+    const gradings = await this.executeSql(
       `SELECT count(*)::int as count FROM academics_assignments WHERE tenant_id = $1`, // dummy check, grading_systems might not exist
       [tenantId]
     ).catch(() => ({ rows: [{ count: 0 }] }));
 
-    const subjects = await this.databaseService.query(
+    const subjects = await this.executeSql(
       `SELECT count(*)::int as count FROM subjects WHERE tenant_id = $1`,
       [tenantId]
     ).catch(() => ({ rows: [{ count: 0 }] }));
 
-    const teachers = await this.databaseService.query(
+    const teachers = await this.executeSql(
       `SELECT count(DISTINCT teacher_user_id)::int as count FROM teacher_subject_assignments WHERE tenant_id = $1`,
       [tenantId]
     ).catch(() => ({ rows: [{ count: 0 }] }));
@@ -1069,7 +1095,7 @@ export class AdminCommandRepository {
     filter_hash: string;
   }): Promise<PrincipalExecutiveDashboard | null> {
     try {
-      const result = await this.databaseService.query(
+      const result = await this.executeSql(
         `
           SELECT payload
           FROM principal_dashboard_snapshots
@@ -1102,7 +1128,7 @@ export class AdminCommandRepository {
     payload: PrincipalExecutiveDashboard;
     ttl_seconds: number;
   }): Promise<void> {
-    await this.databaseService.query(
+    await this.executeSql(
       `
         INSERT INTO principal_dashboard_snapshots (
           tenant_id,
@@ -1205,7 +1231,7 @@ export class AdminCommandRepository {
   }
 
   async appendAuditLog(input: Record<string, unknown>) {
-    await this.databaseService.query(
+    await this.executeSql(
       `
         INSERT INTO audit_logs (
           tenant_id, actor_user_id, request_id, action, resource_type, resource_id, metadata
@@ -1224,7 +1250,7 @@ export class AdminCommandRepository {
   }
 
   private async insertReturning(sql: string, values: unknown[]) {
-    const result = await this.databaseService.query(sql, values);
+    const result = await this.executeSql(sql, values);
 
     return result.rows[0];
   }
@@ -1243,7 +1269,7 @@ export class AdminCommandRepository {
     mapper: (row: Record<string, unknown> | undefined) => T,
   ): Promise<T> {
     try {
-      const result = await this.databaseService.query(sql, values);
+      const result = await this.executeSql(sql, values);
 
       return mapper(result.rows[0] as Record<string, unknown> | undefined);
     } catch (error) {

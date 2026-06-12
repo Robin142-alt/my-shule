@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { createHash } from 'node:crypto';
 
-import { DatabaseService } from '../../../database/database.service';
+import { PrismaService } from '../../../database/prisma.service';
 import { PiiEncryptionService } from '../../security/pii-encryption.service';
 
 const PHONE_KEYS = new Set(['msisdn', 'phonenumber', 'phone_number']);
@@ -22,8 +22,26 @@ export interface StoredMpesaPayload {
 
 @Injectable()
 export class MpesaPayloadVaultService {
+
+  private async executeSql<T = any>(query: string, params: any[] = []): Promise<{ rows: T[], rowCount: number }> {
+    const firstParam = params[0];
+    const isUuid = typeof firstParam === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(firstParam);
+    
+    if (isUuid) {
+      return this.prisma.executeWithTenant(firstParam, null, async (tx: any) => {
+        const result = await tx.$queryRawUnsafe(query, ...params);
+        const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+      });
+    } else {
+      const result = await this.prisma.$queryRawUnsafe(query, ...params);
+      const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+    }
+  }
+
   constructor(
-    private readonly databaseService: DatabaseService,
+    private readonly prisma: PrismaService,
     private readonly piiEncryptionService: PiiEncryptionService,
   ) {}
 
@@ -52,7 +70,7 @@ export class MpesaPayloadVaultService {
     );
     const redactedPayload = redactMpesaOperationalPayload(input.payload);
 
-    await this.databaseService.query(
+    await this.executeSql(
       `
         INSERT INTO mpesa_payload_vault (
           tenant_id,
@@ -118,7 +136,7 @@ export class MpesaPayloadVaultService {
 
     const accessExpiresAt = this.requireSupportAccessExpiry(input.access_expires_at, input.now);
 
-    const result = await this.databaseService.query<{
+    const result = await this.executeSql<{
       raw_payload_encrypted_ref: string;
       encrypted_payload: string;
       payload_sha256: string;
@@ -138,7 +156,7 @@ export class MpesaPayloadVaultService {
       throw new NotFoundException('M-PESA payload vault record was not found');
     }
 
-    await this.databaseService.query(
+    await this.executeSql(
       `
         INSERT INTO mpesa_payload_support_access_logs (
           tenant_id,
@@ -196,7 +214,7 @@ export class MpesaPayloadVaultService {
 
     const accessExpiresAt = this.requireSupportAccessExpiry(input.access_expires_at, input.now);
 
-    const result = await this.databaseService.query<{
+    const result = await this.executeSql<{
       raw_payload_encrypted_ref: string;
       payload_sha256: string;
       redacted_payload: Record<string, unknown> | string;
@@ -216,7 +234,7 @@ export class MpesaPayloadVaultService {
       throw new NotFoundException('M-PESA payload vault record was not found');
     }
 
-    await this.databaseService.query(
+    await this.executeSql(
       `
         INSERT INTO mpesa_payload_support_access_logs (
           tenant_id,
@@ -252,7 +270,7 @@ export class MpesaPayloadVaultService {
     tenant_id: string;
     raw_payload_encrypted_ref: string;
   }): Promise<Record<string, unknown>> {
-    const result = await this.databaseService.query<{
+    const result = await this.executeSql<{
       raw_payload_encrypted_ref: string;
       encrypted_payload: string;
     }>(

@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 
-import { DatabaseService } from '../../../database/database.service';
+import { PrismaService } from '../../../database/prisma.service';
 import type { SupportPriority, SupportStatus } from '../dto/support.dto';
 import { SUPPORT_CATEGORIES } from '../dto/support.dto';
 
@@ -123,7 +123,25 @@ interface CreateTicketInput {
 
 @Injectable()
 export class SupportRepository {
-  constructor(private readonly databaseService: DatabaseService) {}
+
+  private async executeSql<T = any>(query: string, params: any[] = []): Promise<{ rows: T[], rowCount: number }> {
+    const firstParam = params[0];
+    const isUuid = typeof firstParam === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(firstParam);
+    
+    if (isUuid) {
+      return this.prisma.executeWithTenant(firstParam, null, async (tx: any) => {
+        const result = await tx.$queryRawUnsafe(query, ...params);
+        const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+      });
+    } else {
+      const result = await this.prisma.$queryRawUnsafe(query, ...params);
+      const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+    }
+  }
+
+  constructor(private readonly prisma: PrismaService) {}
 
   async ensureDefaultCategories(tenantId: string): Promise<void> {
     for (const [index, name] of SUPPORT_CATEGORIES.entries()) {
@@ -131,7 +149,7 @@ export class SupportRepository {
       const responseSlaMinutes = name === 'MPESA' || name === 'Login Issues' ? 30 : 240;
       const resolutionSlaMinutes = name === 'MPESA' || name === 'Performance' ? 480 : 2880;
 
-      await this.databaseService.query(
+      await this.executeSql(
         `
           INSERT INTO support_categories (
             tenant_id,
@@ -167,7 +185,7 @@ export class SupportRepository {
   }
 
   async listCategories(tenantId: string): Promise<SupportCategoryRecord[]> {
-    const result = await this.databaseService.query<SupportCategoryRecord>(
+    const result = await this.executeSql<SupportCategoryRecord>(
       `
         SELECT
           id,
@@ -194,7 +212,7 @@ export class SupportRepository {
     tenantId: string,
     categoryName: string,
   ): Promise<SupportCategoryRecord | null> {
-    const result = await this.databaseService.query<SupportCategoryRecord>(
+    const result = await this.executeSql<SupportCategoryRecord>(
       `
         SELECT
           id,
@@ -220,7 +238,7 @@ export class SupportRepository {
   }
 
   async generateTicketNumber(): Promise<string> {
-    const result = await this.databaseService.query<{ value: string }>(
+    const result = await this.executeSql<{ value: string }>(
       `SELECT nextval('support_ticket_number_seq')::text AS value`,
     );
     const year = new Date().getUTCFullYear();
@@ -230,7 +248,7 @@ export class SupportRepository {
   }
 
   async createTicket(input: CreateTicketInput): Promise<SupportTicketRecord> {
-    const result = await this.databaseService.query<SupportTicketRecord>(
+    const result = await this.executeSql<SupportTicketRecord>(
       `
         INSERT INTO support_tickets (
           tenant_id,
@@ -376,7 +394,7 @@ export class SupportRepository {
 
     values.push(options.limit, options.offset);
     const whereSql = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
-    const result = await this.databaseService.query<SupportTicketRecord>(
+    const result = await this.executeSql<SupportTicketRecord>(
       `
         SELECT
           ticket.id,
@@ -457,7 +475,7 @@ export class SupportRepository {
       parameterIndex += 1;
     }
 
-    const result = await this.databaseService.query<SupportTicketRecord>(
+    const result = await this.executeSql<SupportTicketRecord>(
       `
         SELECT
           ticket.id,
@@ -506,7 +524,7 @@ export class SupportRepository {
     author_type: 'school' | 'support' | 'system';
     body: string;
   }): Promise<SupportMessageRecord> {
-    const result = await this.databaseService.query<SupportMessageRecord>(
+    const result = await this.executeSql<SupportMessageRecord>(
       `
         INSERT INTO support_messages (
           tenant_id,
@@ -537,7 +555,7 @@ export class SupportRepository {
       ],
     );
 
-    await this.databaseService.query(
+    await this.executeSql(
       `
         UPDATE support_tickets
         SET
@@ -554,7 +572,7 @@ export class SupportRepository {
   }
 
   async listMessages(tenantId: string, ticketId: string): Promise<SupportMessageRecord[]> {
-    const result = await this.databaseService.query<SupportMessageRecord>(
+    const result = await this.executeSql<SupportMessageRecord>(
       `
         SELECT
           id,
@@ -583,7 +601,7 @@ export class SupportRepository {
     author_user_id: string | null;
     note: string;
   }): Promise<SupportInternalNoteRecord> {
-    const result = await this.databaseService.query<SupportInternalNoteRecord>(
+    const result = await this.executeSql<SupportInternalNoteRecord>(
       `
         INSERT INTO support_internal_notes (
           tenant_id,
@@ -608,7 +626,7 @@ export class SupportRepository {
   }
 
   async listInternalNotes(tenantId: string, ticketId: string): Promise<SupportInternalNoteRecord[]> {
-    const result = await this.databaseService.query<SupportInternalNoteRecord>(
+    const result = await this.executeSql<SupportInternalNoteRecord>(
       `
         SELECT
           id,
@@ -638,7 +656,7 @@ export class SupportRepository {
     action: string;
     metadata: Record<string, unknown>;
   }): Promise<void> {
-    await this.databaseService.query(
+    await this.executeSql(
       `
         INSERT INTO support_status_logs (
           tenant_id,
@@ -664,7 +682,7 @@ export class SupportRepository {
   }
 
   async listStatusLogs(tenantId: string, ticketId: string) {
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
         SELECT
           id,
@@ -692,7 +710,7 @@ export class SupportRepository {
     status: SupportStatus,
     actorUserId: string | null = null,
   ): Promise<SupportTicketRecord | null> {
-    const result = await this.databaseService.query<SupportTicketRecord>(
+    const result = await this.executeSql<SupportTicketRecord>(
       `
         UPDATE support_tickets
         SET
@@ -743,7 +761,7 @@ export class SupportRepository {
   }
 
   async markFirstResponseIfNeeded(ticketId: string, respondedAt: string): Promise<void> {
-    await this.databaseService.query(
+    await this.executeSql(
       `
         UPDATE support_tickets
         SET first_responded_at = COALESCE(first_responded_at, $2::timestamptz),
@@ -755,7 +773,7 @@ export class SupportRepository {
   }
 
   async assignTicket(ticketId: string, assignedAgentId: string, actorUserId: string | null) {
-    const result = await this.databaseService.query<SupportTicketRecord>(
+    const result = await this.executeSql<SupportTicketRecord>(
       `
         UPDATE support_tickets
         SET assigned_agent_id = $2::uuid,
@@ -794,7 +812,7 @@ export class SupportRepository {
   }
 
   async mergeTicket(ticketId: string, targetTicketId: string, actorUserId: string | null) {
-    const result = await this.databaseService.query<SupportTicketRecord>(
+    const result = await this.executeSql<SupportTicketRecord>(
       `
         UPDATE support_tickets
         SET merged_into_ticket_id = $2::uuid,
@@ -846,7 +864,7 @@ export class SupportRepository {
     size_bytes: number;
     attachment_type: 'ticket' | 'message' | 'internal_note';
   }) {
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
         INSERT INTO support_attachments (
           tenant_id,
@@ -898,7 +916,7 @@ export class SupportRepository {
     ticketId: string,
     options: { includeInternal?: boolean } = {},
   ) {
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
         SELECT
           id,
@@ -930,7 +948,7 @@ export class SupportRepository {
     ticket_id: string;
     message_id: string;
   }): Promise<boolean> {
-    const result = await this.databaseService.query<{ exists: boolean }>(
+    const result = await this.executeSql<{ exists: boolean }>(
       `
         SELECT EXISTS (
           SELECT 1
@@ -951,7 +969,7 @@ export class SupportRepository {
     ticket_id: string;
     internal_note_id: string;
   }): Promise<boolean> {
-    const result = await this.databaseService.query<{ exists: boolean }>(
+    const result = await this.executeSql<{ exists: boolean }>(
       `
         SELECT EXISTS (
           SELECT 1
@@ -980,7 +998,7 @@ export class SupportRepository {
     const notifications: SupportNotificationRecord[] = [];
 
     for (const input of inputs) {
-      const result = await this.databaseService.query<SupportNotificationRecord>(
+      const result = await this.executeSql<SupportNotificationRecord>(
         `
           INSERT INTO support_notifications (
             tenant_id,
@@ -1037,7 +1055,7 @@ export class SupportRepository {
       deliveredAt?: string | null;
     } = {},
   ): Promise<void> {
-    await this.databaseService.query(
+    await this.executeSql(
       `
         UPDATE support_notifications
         SET delivery_status = $2,
@@ -1070,7 +1088,7 @@ export class SupportRepository {
     const safeLimit = Math.min(Math.max(Math.floor(limit), 1), 500);
     const safeLeaseMs = Math.min(Math.max(Math.floor(leaseMs), 30000), 900000);
     const safeChannels = channels.filter((channel) => channel === 'email' || channel === 'sms');
-    const result = await this.databaseService.query<SupportNotificationRecord>(
+    const result = await this.executeSql<SupportNotificationRecord>(
       `
         WITH due AS (
           SELECT
@@ -1129,7 +1147,7 @@ export class SupportRepository {
   }
 
   async findUserEmailForNotification(userId: string): Promise<string | null> {
-    const result = await this.databaseService.query<{ email: string }>(
+    const result = await this.executeSql<{ email: string }>(
       `
         SELECT email
         FROM users
@@ -1161,7 +1179,7 @@ export class SupportRepository {
 
     values.push(options.limit);
     const whereSql = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
         SELECT
           id,
@@ -1193,7 +1211,7 @@ export class SupportRepository {
 
   async listNotificationDeadLetters(options: { limit: number }): Promise<SupportNotificationRecord[]> {
     const safeLimit = Math.min(Math.max(Math.floor(options.limit), 1), 100);
-    const result = await this.databaseService.query<SupportNotificationRecord>(
+    const result = await this.executeSql<SupportNotificationRecord>(
       `
         SELECT
           notification.id,
@@ -1232,7 +1250,7 @@ export class SupportRepository {
 
   async listSlaBreachCandidates(options: { limit: number }): Promise<SupportSlaBreachCandidateRecord[]> {
     const safeLimit = Math.min(Math.max(Math.floor(options.limit), 1), 500);
-    const result = await this.databaseService.query<SupportSlaBreachCandidateRecord>(
+    const result = await this.executeSql<SupportSlaBreachCandidateRecord>(
       `
         WITH candidates AS (
           SELECT
@@ -1385,7 +1403,7 @@ export class SupportRepository {
     }
 
     values.push(safeLimit, safeOffset);
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
         SELECT
           id,
@@ -1416,7 +1434,7 @@ export class SupportRepository {
     ipHash?: string | null;
     since: string;
   }): Promise<number> {
-    const result = await this.databaseService.query<{ total: string }>(
+    const result = await this.executeSql<{ total: string }>(
       `
         SELECT COUNT(*)::text AS total
         FROM support_status_subscriptions
@@ -1442,7 +1460,7 @@ export class SupportRepository {
     locale?: string | null;
     client_ip_hash?: string | null;
   }): Promise<SupportStatusSubscriberRecord> {
-    const result = await this.databaseService.query<SupportStatusSubscriberRecord>(
+    const result = await this.executeSql<SupportStatusSubscriberRecord>(
       `
         INSERT INTO support_status_subscriptions (
           tenant_id,
@@ -1492,7 +1510,7 @@ export class SupportRepository {
     token_hash: string;
     expires_at: string;
   }): Promise<{ id: string }> {
-    const result = await this.databaseService.query<{ id: string }>(
+    const result = await this.executeSql<{ id: string }>(
       `
         INSERT INTO support_status_unsubscribe_tokens (
           tenant_id,
@@ -1516,7 +1534,7 @@ export class SupportRepository {
   }
 
   async unsubscribeStatusSubscriber(contactHash: string): Promise<void> {
-    await this.databaseService.query(
+    await this.executeSql(
       `
         UPDATE support_status_subscriptions
         SET status = 'unsubscribed',
@@ -1530,7 +1548,7 @@ export class SupportRepository {
   }
 
   async revokeStatusUnsubscribeToken(tokenHash: string): Promise<void> {
-    await this.databaseService.query(
+    await this.executeSql(
       `
         UPDATE support_status_unsubscribe_tokens
         SET used_at = NOW(),
@@ -1542,7 +1560,7 @@ export class SupportRepository {
   }
 
   async listActiveStatusSubscribers(): Promise<SupportStatusSubscriberRecord[]> {
-    const result = await this.databaseService.query<SupportStatusSubscriberRecord>(
+    const result = await this.executeSql<SupportStatusSubscriberRecord>(
       `
         SELECT
           id,
@@ -1571,7 +1589,7 @@ export class SupportRepository {
     status: 'queued' | 'sent' | 'failed';
     payload: Record<string, unknown>;
   }): Promise<{ id: string }> {
-    const result = await this.databaseService.query<{ id: string }>(
+    const result = await this.executeSql<{ id: string }>(
       `
         INSERT INTO support_status_notification_attempts (
           tenant_id,
@@ -1611,7 +1629,7 @@ export class SupportRepository {
     status: 'degraded' | 'partial_outage' | 'major_outage';
     reason: string;
   }): Promise<void> {
-    await this.databaseService.query(
+    await this.executeSql(
       `
         UPDATE support_system_components
         SET status = $2,
@@ -1631,7 +1649,7 @@ export class SupportRepository {
 
   async getSystemStatus() {
     const [components, incidents] = await Promise.all([
-      this.databaseService.query(
+      this.executeSql(
         `
           SELECT
             id,
@@ -1647,7 +1665,7 @@ export class SupportRepository {
           ORDER BY name ASC
         `,
       ),
-      this.databaseService.query(
+      this.executeSql(
         `
           SELECT
             incident.id,
@@ -1689,7 +1707,7 @@ export class SupportRepository {
       notificationDeliveryState,
       activeIncidents,
     ] = await Promise.all([
-      this.databaseService.query(
+      this.executeSql(
         `
           SELECT status, COUNT(*)::int AS total
           FROM support_tickets
@@ -1697,7 +1715,7 @@ export class SupportRepository {
           ORDER BY total DESC
         `,
       ),
-      this.databaseService.query(
+      this.executeSql(
         `
           SELECT priority, COUNT(*)::int AS total
           FROM support_tickets
@@ -1705,7 +1723,7 @@ export class SupportRepository {
           ORDER BY total DESC
         `,
       ),
-      this.databaseService.query(
+      this.executeSql(
         `
           SELECT COUNT(*)::int AS total
           FROM support_tickets
@@ -1716,7 +1734,7 @@ export class SupportRepository {
             )
         `,
       ),
-      this.databaseService.query(
+      this.executeSql(
         `
           SELECT category, module_affected, COUNT(*)::int AS total
           FROM support_tickets
@@ -1726,7 +1744,7 @@ export class SupportRepository {
           LIMIT 8
         `,
       ),
-      this.databaseService.query(
+      this.executeSql(
         `
           SELECT date_trunc('day', created_at)::date::text AS day, COUNT(*)::int AS total
           FROM support_tickets
@@ -1735,7 +1753,7 @@ export class SupportRepository {
           ORDER BY day ASC
         `,
       ),
-      this.databaseService.query(
+      this.executeSql(
         `
           SELECT
             COALESCE(
@@ -1752,7 +1770,7 @@ export class SupportRepository {
             AND created_at >= NOW() - INTERVAL '30 days'
         `,
       ),
-      this.databaseService.query(
+      this.executeSql(
         `
           SELECT
             COUNT(*)::int AS total,
@@ -1768,7 +1786,7 @@ export class SupportRepository {
           WHERE created_at >= NOW() - INTERVAL '30 days'
         `,
       ),
-      this.databaseService.query(
+      this.executeSql(
         `
           SELECT channel, delivery_status, COUNT(*)::int AS total
           FROM support_notifications
@@ -1777,7 +1795,7 @@ export class SupportRepository {
           ORDER BY channel ASC, delivery_status ASC
         `,
       ),
-      this.databaseService.query(
+      this.executeSql(
         `
           SELECT COUNT(*)::int AS total
           FROM support_incidents

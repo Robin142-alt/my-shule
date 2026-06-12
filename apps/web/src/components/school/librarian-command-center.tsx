@@ -431,6 +431,8 @@ function ReturnBooksWorkspace() {
 }
 
 function BookCatalogueWorkspace() {
+  const { data: catalog = [], isLoading } = useSchoolQuery<any>("/api/library/catalog");
+
   return (
     <Panel title="Book Catalogue" description="View, search, filter, edit, and manage all library books and copies." icon={Library} actions={
       <button className="flex items-center gap-2 rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white">
@@ -461,18 +463,18 @@ function BookCatalogueWorkspace() {
             </tr>
           </thead>
           <tbody className="divide-y divide-[#D8E0EC]">
-            {[
-              { title: "Blossoms of the Savannah", author: "H.R. Ole Kulet", isbn: "978-9966-06-6", subject: "Literature", total: 45, available: 12 },
-              { title: "Secondary Math Form 2", author: "KICD", isbn: "978-9966-22-1", subject: "Mathematics", total: 120, available: 105 },
-              { title: "A Doll's House", author: "Henrik Ibsen", isbn: "978-0140-44-1", subject: "Literature", total: 50, available: 2 },
-            ].map((b, i) => (
+            {isLoading ? (
+              <tr><td colSpan={7} className="px-4 py-8 text-center text-[#64748B]">Loading...</td></tr>
+            ) : catalog.length === 0 ? (
+              <tr><td colSpan={7} className="px-4 py-8 text-center text-[#64748B]">No books found in catalogue.</td></tr>
+            ) : catalog.map((b: any, i: number) => (
               <tr key={i} className="hover:bg-[#F8FAFC]">
                 <td className="px-4 py-3 font-semibold text-[#071D49]">{b.title}</td>
-                <td className="px-4 py-3 text-[#64748B]">{b.author}</td>
-                <td className="px-4 py-3 text-[#64748B]">{b.isbn}</td>
-                <td className="px-4 py-3 text-[#64748B]">{b.subject}</td>
-                <td className="px-4 py-3 font-medium">{b.total}</td>
-                <td className="px-4 py-3 font-medium text-emerald-600">{b.available}</td>
+                <td className="px-4 py-3 text-[#64748B]">{b.author || "-"}</td>
+                <td className="px-4 py-3 text-[#64748B]">{b.isbn || "-"}</td>
+                <td className="px-4 py-3 text-[#64748B]">{b.subject || "-"}</td>
+                <td className="px-4 py-3 font-medium">{b.total || 0}</td>
+                <td className="px-4 py-3 font-medium text-emerald-600">{b.available || 0}</td>
                 <td className="px-4 py-3 text-right">
                   <button className="p-1 text-[#64748B] hover:bg-[#D8E0EC] rounded"><MoreHorizontal className="w-4 h-4" /></button>
                 </td>
@@ -784,8 +786,7 @@ export function LibrarianCommandCenter() {
           {activeView === "reports" && <ReportsDownloadsWorkspace />}
           {activeView === "notices" && <NoticesCommunicationWorkspace />}
           {/* Dynamically render the rest with SimpleWorkspace */}
-          {!["overview", "issue", "return", "catalogue", "add_books", "loans", "lost_damaged", "fines", "borrowers", "class_textbooks", "stocktake", "settings", "reservations", "departments", "visits", "requests", "reports", "notices"].includes(activeView) && (
-
+          {!["overview", "issue", "return", "catalogue", "reservations", "departments", "visits", "requests", "reports", "notices"].includes(activeView) && (
             <SimpleWorkspace 
               title={navItems.find(i => i.id === activeView)?.label || ""} 
               description="" 

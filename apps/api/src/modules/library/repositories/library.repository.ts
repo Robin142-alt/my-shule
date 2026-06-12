@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 
-import { DatabaseService } from '../../../database/database.service';
+import { PrismaService } from '../../../database/prisma.service';
 import type {
   IssueLibraryCopyDto,
   ReserveLibraryCopyDto,
@@ -9,10 +9,28 @@ import type {
 
 @Injectable()
 export class LibraryRepository {
-  constructor(private readonly databaseService: DatabaseService) {}
+
+  private async executeSql<T = any>(query: string, params: any[] = []): Promise<{ rows: T[], rowCount: number }> {
+    const firstParam = params[0];
+    const isUuid = typeof firstParam === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(firstParam);
+    
+    if (isUuid) {
+      return this.prisma.executeWithTenant(firstParam, null, async (tx: any) => {
+        const result = await tx.$queryRawUnsafe(query, ...params);
+        const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+      });
+    } else {
+      const result = await this.prisma.$queryRawUnsafe(query, ...params);
+      const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+    }
+  }
+
+  constructor(private readonly prisma: PrismaService) {}
 
   async findCopyForUpdate(tenantId: string, copyId: string) {
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
         SELECT
           id::text,
@@ -37,7 +55,7 @@ export class LibraryRepository {
   }
 
   async findCopyByScanCodeForUpdate(tenantId: string, scanCode: string) {
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
         SELECT
           id::text,
@@ -68,7 +86,7 @@ export class LibraryRepository {
   }
 
   async findBorrowerByScanCode(tenantId: string, scanCode: string) {
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
         SELECT
           id::text,
@@ -97,7 +115,7 @@ export class LibraryRepository {
     tenant_id: string;
     issued_by_user_id: string | null;
   }) {
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
         UPDATE library_copies
         SET status = 'issued',
@@ -116,7 +134,7 @@ export class LibraryRepository {
   async createReservation(input: ReserveLibraryCopyDto & {
     tenant_id: string;
   }) {
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
         WITH next_position AS (
           SELECT COALESCE(MAX(queue_position), 0) + 1 AS queue_position
@@ -142,7 +160,7 @@ export class LibraryRepository {
   }
 
   async findLoanForReturn(tenantId: string, loanId: string) {
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
         SELECT
           id::text,
@@ -166,7 +184,7 @@ export class LibraryRepository {
   }
 
   async findActiveLoanByCopyId(tenantId: string, copyId: string) {
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
         SELECT
           issue.id::text,
@@ -204,7 +222,7 @@ export class LibraryRepository {
     copy_id?: string | null;
   }) {
     if (input.copy_id) {
-      await this.databaseService.query(
+      await this.executeSql(
         `
           UPDATE library_copies
           SET status = 'available',
@@ -226,7 +244,7 @@ export class LibraryRepository {
     reason: string;
     amount_minor: number;
   }) {
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
         INSERT INTO library_fines (
           tenant_id,
@@ -258,7 +276,7 @@ export class LibraryRepository {
     limit?: number;
     offset?: number;
   }) {
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
         SELECT
           ledger.id::text,
@@ -308,7 +326,7 @@ export class LibraryRepository {
     action: string;
     metadata?: Record<string, unknown>;
   }) {
-    await this.databaseService.query(
+    await this.executeSql(
       `
         INSERT INTO library_circulation_ledger (
           tenant_id,
@@ -331,11 +349,11 @@ export class LibraryRepository {
 
   async buildSummary(tenantId: string) {
     const [catalogResult, copiesResult, loansResult, circulationResult, finesResult] = await Promise.all([
-      this.databaseService.query(
+      this.executeSql(
         `SELECT COUNT(*) as count FROM library_catalog_items WHERE tenant_id = $1`,
         [tenantId]
       ),
-      this.databaseService.query(
+      this.executeSql(
         `SELECT 
            COUNT(*) as total_copies,
            SUM(CASE WHEN status = 'available' THEN 1 ELSE 0 END) as available_copies,
@@ -343,11 +361,11 @@ export class LibraryRepository {
          FROM library_copies WHERE tenant_id = $1`,
         [tenantId]
       ),
-      this.databaseService.query(
+      this.executeSql(
         `SELECT COUNT(*) as count FROM library_loans WHERE tenant_id = $1 AND status = 'active'`,
         [tenantId]
       ),
-      this.databaseService.query(
+      this.executeSql(
         `SELECT 
            COUNT(*) as count,
            SUM(CASE WHEN metadata->>'due_on' < CURRENT_DATE::text THEN 1 ELSE 0 END) as overdue_count
@@ -360,14 +378,14 @@ export class LibraryRepository {
            )`,
         [tenantId]
       ),
-      this.databaseService.query(
+      this.executeSql(
         `SELECT SUM(amount_minor) as total_fines FROM library_fines WHERE tenant_id = $1`,
         [tenantId]
       )
     ]);
 
     // Gather recent activities
-    const activitiesResult = await this.databaseService.query(
+    const activitiesResult = await this.executeSql(
       `SELECT
           l.id,
           l.action,

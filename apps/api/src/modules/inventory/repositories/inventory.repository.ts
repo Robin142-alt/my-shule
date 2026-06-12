@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 
-import { DatabaseService } from '../../../database/database.service';
+import { PrismaService } from '../../../database/prisma.service';
 
 export interface InventoryItemRecord {
   id: string;
@@ -210,7 +210,25 @@ const INVENTORY_LIST_MAX_LIMIT = 100;
 
 @Injectable()
 export class InventoryRepository {
-  constructor(private readonly databaseService: DatabaseService) {}
+
+  private async executeSql<T = any>(query: string, params: any[] = []): Promise<{ rows: T[], rowCount: number }> {
+    const firstParam = params[0];
+    const isUuid = typeof firstParam === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(firstParam);
+    
+    if (isUuid) {
+      return this.prisma.executeWithTenant(firstParam, null, async (tx: any) => {
+        const result = await tx.$queryRawUnsafe(query, ...params);
+        const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+      });
+    } else {
+      const result = await this.prisma.$queryRawUnsafe(query, ...params);
+      const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+    }
+  }
+
+  constructor(private readonly prisma: PrismaService) {}
 
   private normalizeListOptions(options: InventoryListOptions = {}) {
     const requestedLimit = Number.isFinite(options.limit)
@@ -231,7 +249,7 @@ export class InventoryRepository {
   async buildSummary(tenantId: string) {
     const [valuationResult, lowStockResult, requestsResult, purchasesResult, movementResult, purchaseActivityResult, alertsResult, approvalsResult, categoryBreakdownResult] =
       await Promise.all([
-        this.databaseService.query<{ total_value: string }>(
+        this.executeSql<{ total_value: string }>(
           `
             SELECT COALESCE(SUM(quantity_on_hand * unit_price), 0)::text AS total_value
             FROM inventory_items
@@ -240,7 +258,7 @@ export class InventoryRepository {
           `,
           [tenantId],
         ),
-        this.databaseService.query<{ total: string }>(
+        this.executeSql<{ total: string }>(
           `
             SELECT COUNT(*)::text AS total
             FROM inventory_items
@@ -250,7 +268,7 @@ export class InventoryRepository {
           `,
           [tenantId],
         ),
-        this.databaseService.query<{ total: string }>(
+        this.executeSql<{ total: string }>(
           `
             SELECT COUNT(*)::text AS total
             FROM inventory_requests
@@ -259,7 +277,7 @@ export class InventoryRepository {
           `,
           [tenantId],
         ),
-        this.databaseService.query<{ total: string }>(
+        this.executeSql<{ total: string }>(
           `
             SELECT COUNT(*)::text AS total
             FROM inventory_purchase_orders
@@ -268,7 +286,7 @@ export class InventoryRepository {
           `,
           [tenantId],
         ),
-        this.databaseService.query(
+        this.executeSql(
           `
             SELECT
               movement.id,
@@ -292,7 +310,7 @@ export class InventoryRepository {
           `,
           [tenantId],
         ),
-        this.databaseService.query(
+        this.executeSql(
           `
             SELECT
               po.id,
@@ -311,7 +329,7 @@ export class InventoryRepository {
           `,
           [tenantId],
         ),
-        this.databaseService.query(
+        this.executeSql(
           `
             SELECT item_name, sku, quantity_on_hand, reorder_level
             FROM inventory_items
@@ -323,7 +341,7 @@ export class InventoryRepository {
           `,
           [tenantId],
         ),
-        this.databaseService.query(
+        this.executeSql(
           `
             SELECT request_number, department, status, priority
             FROM inventory_requests
@@ -334,7 +352,7 @@ export class InventoryRepository {
           `,
           [tenantId],
         ),
-        this.databaseService.query(
+        this.executeSql(
           `
             SELECT
               COALESCE(category.name, 'Uncategorized') AS category_name,
@@ -395,7 +413,7 @@ export class InventoryRepository {
     values.push(options.limit);
     values.push(options.offset);
 
-    const result = await this.databaseService.query<InventoryRow>(
+    const result = await this.executeSql<InventoryRow>(
       `
         SELECT
           item.id,
@@ -448,7 +466,7 @@ export class InventoryRepository {
     notes: string | null;
     status: string;
   }): Promise<InventoryItemRecord> {
-    const result = await this.databaseService.query<InventoryRow>(
+    const result = await this.executeSql<InventoryRow>(
       `
         INSERT INTO inventory_items (
           tenant_id,
@@ -547,7 +565,7 @@ export class InventoryRepository {
 
     assignments.push('updated_at = NOW()');
 
-    const result = await this.databaseService.query<InventoryRow>(
+    const result = await this.executeSql<InventoryRow>(
       `
         UPDATE inventory_items
         SET ${assignments.join(', ')}
@@ -578,7 +596,7 @@ export class InventoryRepository {
   }
 
   async findItemById(tenantId: string, itemId: string): Promise<InventoryItemRecord | null> {
-    const result = await this.databaseService.query<InventoryRow>(
+    const result = await this.executeSql<InventoryRow>(
       `
         SELECT
           id,
@@ -613,7 +631,7 @@ export class InventoryRepository {
     itemId: string,
     nextQuantity: number,
   ): Promise<InventoryItemRecord | null> {
-    const result = await this.databaseService.query<InventoryRow>(
+    const result = await this.executeSql<InventoryRow>(
       `
         UPDATE inventory_items
         SET quantity_on_hand = $3,
@@ -649,7 +667,7 @@ export class InventoryRepository {
     itemId: string,
     countedQuantity: number,
   ): Promise<InventoryStockMutationRecord | null> {
-    const result = await this.databaseService.query<InventoryRow & {
+    const result = await this.executeSql<InventoryRow & {
       before_quantity: number;
       after_quantity: number;
     }>(
@@ -732,7 +750,7 @@ export class InventoryRepository {
     itemId: string,
     variance: number,
   ): Promise<InventoryStockMutationRecord | null> {
-    const result = await this.databaseService.query<InventoryRow & {
+    const result = await this.executeSql<InventoryRow & {
       before_quantity: number;
       after_quantity: number;
     }>(
@@ -816,7 +834,7 @@ export class InventoryRepository {
     itemId: string,
     quantity: number,
   ): Promise<InventoryStockMutationRecord | null> {
-    const result = await this.databaseService.query<InventoryRow & {
+    const result = await this.executeSql<InventoryRow & {
       before_quantity: number;
       after_quantity: number;
     }>(
@@ -900,7 +918,7 @@ export class InventoryRepository {
     itemId: string,
     quantity: number,
   ): Promise<InventoryStockMutationRecord | null> {
-    const result = await this.databaseService.query<InventoryRow & {
+    const result = await this.executeSql<InventoryRow & {
       before_quantity: number;
       after_quantity: number;
     }>(
@@ -985,7 +1003,7 @@ export class InventoryRepository {
     unitCost: number,
     supplierId: string | null,
   ): Promise<InventoryStockMutationRecord | null> {
-    const result = await this.databaseService.query<InventoryRow & {
+    const result = await this.executeSql<InventoryRow & {
       before_quantity: number;
       after_quantity: number;
     }>(
@@ -1072,7 +1090,7 @@ export class InventoryRepository {
     toLocation: string,
     quantity: number,
   ): Promise<InventoryLocationTransferRecord | null> {
-    const result = await this.databaseService.query<InventoryLocationTransferRecord>(
+    const result = await this.executeSql<InventoryLocationTransferRecord>(
       `
         WITH source_balance AS (
           SELECT
@@ -1159,7 +1177,7 @@ export class InventoryRepository {
     locationCode: string,
     quantity: number,
   ): Promise<void> {
-    await this.databaseService.query(
+    await this.executeSql(
       `
         INSERT INTO inventory_item_balances (
           tenant_id,
@@ -1183,7 +1201,7 @@ export class InventoryRepository {
     locationCode: string,
     countedQuantity: number,
   ): Promise<InventoryLocationBalanceMutationRecord> {
-    const result = await this.databaseService.query<{
+    const result = await this.executeSql<{
       before_quantity: number;
       after_quantity: number;
     }>(
@@ -1227,7 +1245,7 @@ export class InventoryRepository {
   }
 
   async applyStockReceipt(tenantId: string, itemId: string, quantity: number): Promise<void> {
-    await this.databaseService.query(
+    await this.executeSql(
       `
         UPDATE inventory_items
         SET quantity_on_hand = quantity_on_hand + $3,
@@ -1246,7 +1264,7 @@ export class InventoryRepository {
     unitCost: number,
     supplierId: string | null,
   ): Promise<void> {
-    await this.databaseService.query(
+    await this.executeSql(
       `
         UPDATE inventory_items
         SET quantity_on_hand = quantity_on_hand + $3,
@@ -1264,7 +1282,7 @@ export class InventoryRepository {
     tenantId: string,
     submissionId: string,
   ): Promise<InventoryStockMovementRecord[]> {
-    const result = await this.databaseService.query<InventoryStockMovementRecord>(
+    const result = await this.executeSql<InventoryStockMovementRecord>(
       `
         SELECT
           movement.id,
@@ -1302,7 +1320,7 @@ export class InventoryRepository {
   }
 
   async recordStockMovement(input: InventoryStockMovementRecord) {
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
         INSERT INTO inventory_stock_movements (
           tenant_id,
@@ -1349,7 +1367,7 @@ export class InventoryRepository {
   }
 
   async listCategories(tenantId: string) {
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
         SELECT
           id,
@@ -1377,7 +1395,7 @@ export class InventoryRepository {
     storage_zones: string | null;
     description: string | null;
   }) {
-    const result = await this.databaseService.query<InventoryCategoryRecord>(
+    const result = await this.executeSql<InventoryCategoryRecord>(
       `
         INSERT INTO inventory_categories (
           tenant_id,
@@ -1444,7 +1462,7 @@ export class InventoryRepository {
 
     assignments.push('updated_at = NOW()');
 
-    const result = await this.databaseService.query<InventoryCategoryRecord>(
+    const result = await this.executeSql<InventoryCategoryRecord>(
       `
         UPDATE inventory_categories
         SET ${assignments.join(', ')}
@@ -1466,7 +1484,7 @@ export class InventoryRepository {
   }
 
   async listLocations(tenantId: string) {
-    const result = await this.databaseService.query<InventoryLocationRecord>(
+    const result = await this.executeSql<InventoryLocationRecord>(
       `
         SELECT
           id,
@@ -1492,7 +1510,7 @@ export class InventoryRepository {
     name: string;
     status: string;
   }) {
-    const result = await this.databaseService.query<InventoryLocationRecord>(
+    const result = await this.executeSql<InventoryLocationRecord>(
       `
         INSERT INTO inventory_locations (
           tenant_id,
@@ -1551,7 +1569,7 @@ export class InventoryRepository {
 
     assignments.push('updated_at = NOW()');
 
-    const result = await this.databaseService.query<InventoryLocationRecord>(
+    const result = await this.executeSql<InventoryLocationRecord>(
       `
         UPDATE inventory_locations
         SET ${assignments.join(', ')}
@@ -1577,7 +1595,7 @@ export class InventoryRepository {
     location: string,
   ): Promise<InventoryLocationRecord | null> {
     const normalizedLocation = location.trim();
-    const result = await this.databaseService.query<InventoryLocationRecord>(
+    const result = await this.executeSql<InventoryLocationRecord>(
       `
         SELECT
           id,
@@ -1604,7 +1622,7 @@ export class InventoryRepository {
 
   async listStockMovements(tenantId: string, options: InventoryListOptions = {}) {
     const pagination = this.normalizeListOptions(options);
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
         SELECT
           movement.id,
@@ -1641,7 +1659,7 @@ export class InventoryRepository {
   }
 
   async listSuppliers(tenantId: string) {
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
         SELECT
           id,
@@ -1671,7 +1689,7 @@ export class InventoryRepository {
     county: string | null;
     status: string;
   }) {
-    const result = await this.databaseService.query<InventorySupplierRecord>(
+    const result = await this.executeSql<InventorySupplierRecord>(
       `
         INSERT INTO inventory_suppliers (
           tenant_id,
@@ -1747,7 +1765,7 @@ export class InventoryRepository {
 
     assignments.push('updated_at = NOW()');
 
-    const result = await this.databaseService.query<InventorySupplierRecord>(
+    const result = await this.executeSql<InventorySupplierRecord>(
       `
         UPDATE inventory_suppliers
         SET ${assignments.join(', ')}
@@ -1781,7 +1799,7 @@ export class InventoryRepository {
     notes: string | null;
     created_by_user_id: string | null;
   }) {
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
         INSERT INTO inventory_purchase_orders (
           tenant_id,
@@ -1817,7 +1835,7 @@ export class InventoryRepository {
 
   async listPurchaseOrders(tenantId: string, options: InventoryListOptions = {}) {
     const pagination = this.normalizeListOptions(options);
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
         SELECT
           po.id,
@@ -1855,7 +1873,7 @@ export class InventoryRepository {
     tenantId: string,
     purchaseOrderId: string,
   ): Promise<InventoryPurchaseOrderRecord | null> {
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
         SELECT
           po.id,
@@ -1888,7 +1906,7 @@ export class InventoryRepository {
     tenantId: string,
     purchaseOrderId: string,
   ): Promise<InventoryPurchaseOrderRecord | null> {
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
         SELECT
           po.id,
@@ -1924,7 +1942,7 @@ export class InventoryRepository {
     status: string,
     notes?: string | null,
   ) {
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
         UPDATE inventory_purchase_orders
         SET status = $3,
@@ -1952,7 +1970,7 @@ export class InventoryRepository {
     lines: Array<Record<string, unknown>>;
     notes: string | null;
   }) {
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
         INSERT INTO inventory_requests (
           tenant_id,
@@ -1986,7 +2004,7 @@ export class InventoryRepository {
 
   async listRequests(tenantId: string, options: InventoryListOptions = {}) {
     const pagination = this.normalizeListOptions(options);
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
         SELECT
           id,
@@ -2016,7 +2034,7 @@ export class InventoryRepository {
     tenantId: string,
     requestId: string,
   ): Promise<InventoryRequestRecord | null> {
-    const result = await this.databaseService.query<InventoryRequestRecord>(
+    const result = await this.executeSql<InventoryRequestRecord>(
       `
         SELECT
           id,
@@ -2047,7 +2065,7 @@ export class InventoryRepository {
     quantity: number,
     actorUserId: string | null,
   ): Promise<InventoryReservationRecord | null> {
-    const result = await this.databaseService.query<InventoryReservationRecord>(
+    const result = await this.executeSql<InventoryReservationRecord>(
       `
         WITH locked_item AS (
           SELECT
@@ -2133,7 +2151,7 @@ export class InventoryRepository {
     tenantId: string,
     requestId: string,
   ): Promise<InventoryReservedRequestLineRecord[]> {
-    const result = await this.databaseService.query<InventoryReservedRequestLineRecord>(
+    const result = await this.executeSql<InventoryReservedRequestLineRecord>(
       `
         SELECT
           reservation.id AS reservation_id,
@@ -2162,7 +2180,7 @@ export class InventoryRepository {
   }
 
   async markRequestReservationsFulfilled(tenantId: string, requestId: string): Promise<void> {
-    await this.databaseService.query(
+    await this.executeSql(
       `
         UPDATE inventory_reservations
         SET status = 'fulfilled',
@@ -2183,7 +2201,7 @@ export class InventoryRepository {
     requestedQuantity: number,
     reservedQuantity: number,
   ): Promise<InventoryRequestBackorderRecord | null> {
-    const result = await this.databaseService.query<InventoryRequestBackorderRecord>(
+    const result = await this.executeSql<InventoryRequestBackorderRecord>(
       `
         INSERT INTO inventory_request_backorders (
           tenant_id,
@@ -2230,7 +2248,7 @@ export class InventoryRepository {
     tenantId: string,
     itemId: string,
   ): Promise<InventoryRequestBackorderRecord[]> {
-    const result = await this.databaseService.query<InventoryRequestBackorderRecord>(
+    const result = await this.executeSql<InventoryRequestBackorderRecord>(
       `
         SELECT
           id,
@@ -2256,7 +2274,7 @@ export class InventoryRepository {
   }
 
   async markRequestBackorderResolved(tenantId: string, backorderId: string): Promise<void> {
-    await this.databaseService.query(
+    await this.executeSql(
       `
         UPDATE inventory_request_backorders
         SET status = 'resolved',
@@ -2271,7 +2289,7 @@ export class InventoryRepository {
   }
 
   async countOpenBackordersForRequest(tenantId: string, requestId: string): Promise<number> {
-    const result = await this.databaseService.query<{ open_backorders: string }>(
+    const result = await this.executeSql<{ open_backorders: string }>(
       `
         SELECT COUNT(*)::text AS open_backorders
         FROM inventory_request_backorders
@@ -2292,7 +2310,7 @@ export class InventoryRepository {
     notes?: string | null,
     approvedByUserId?: string | null,
   ) {
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
         UPDATE inventory_requests
         SET status = $3,
@@ -2323,7 +2341,7 @@ export class InventoryRepository {
     lines: Array<Record<string, unknown>>;
     notes: string | null;
   }) {
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
         INSERT INTO inventory_transfers (
           tenant_id,
@@ -2355,7 +2373,7 @@ export class InventoryRepository {
 
   async listTransfers(tenantId: string, options: InventoryListOptions = {}) {
     const pagination = this.normalizeListOptions(options);
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
         SELECT id, transfer_number, from_location, to_location, status, requested_by, lines, notes, created_at::text
         FROM inventory_transfers
@@ -2374,7 +2392,7 @@ export class InventoryRepository {
     tenantId: string,
     transferId: string,
   ): Promise<InventoryTransferRecord | null> {
-    const result = await this.databaseService.query<InventoryTransferRecord>(
+    const result = await this.executeSql<InventoryTransferRecord>(
       `
         SELECT id, transfer_number, from_location, to_location, status, requested_by, lines, notes
         FROM inventory_transfers
@@ -2399,7 +2417,7 @@ export class InventoryRepository {
     status: string,
     notes?: string | null,
   ) {
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
         UPDATE inventory_transfers
         SET status = $3,
@@ -2427,7 +2445,7 @@ export class InventoryRepository {
     status: string;
     notes: string | null;
   }) {
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
         INSERT INTO inventory_incidents (
           tenant_id,
@@ -2463,7 +2481,7 @@ export class InventoryRepository {
 
   async listIncidents(tenantId: string, options: InventoryListOptions = {}) {
     const pagination = this.normalizeListOptions(options);
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
         SELECT
           incident.id,
@@ -2503,7 +2521,7 @@ export class InventoryRepository {
     variance_count: number;
     notes: string | null;
   }) {
-    const result = await this.databaseService.query<InventoryStockCountSnapshotRecord>(
+    const result = await this.executeSql<InventoryStockCountSnapshotRecord>(
       `
         INSERT INTO inventory_stock_count_snapshots (
           tenant_id,
@@ -2547,7 +2565,7 @@ export class InventoryRepository {
 
   async buildReports(tenantId: string) {
     const [valuation, lowStock, movement, supplierPurchases, stockReconciliation] = await Promise.all([
-      this.databaseService.query(
+      this.executeSql(
         `
           SELECT item_name, sku, quantity_on_hand, unit_price, (quantity_on_hand * unit_price)::text AS total_value
           FROM inventory_items
@@ -2557,7 +2575,7 @@ export class InventoryRepository {
         `,
         [tenantId],
       ),
-      this.databaseService.query(
+      this.executeSql(
         `
           SELECT item_name, sku, quantity_on_hand, reorder_level
           FROM inventory_items
@@ -2568,7 +2586,7 @@ export class InventoryRepository {
         `,
         [tenantId],
       ),
-      this.databaseService.query(
+      this.executeSql(
         `
           SELECT movement_type, COUNT(*)::int AS movement_count
           FROM inventory_stock_movements
@@ -2578,7 +2596,7 @@ export class InventoryRepository {
         `,
         [tenantId],
       ),
-      this.databaseService.query(
+      this.executeSql(
         `
           SELECT
             supplier.supplier_name,
@@ -2594,7 +2612,7 @@ export class InventoryRepository {
         `,
         [tenantId],
       ),
-      this.databaseService.query(
+      this.executeSql(
         `
           SELECT
             item.id AS item_id,

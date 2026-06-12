@@ -1,3 +1,4 @@
+import { AcademicsWidgetProvider } from './widgets/academics-widget.provider';
 import { Module, forwardRef } from '@nestjs/common';
 
 import { AcademicsController } from './academics.controller';
@@ -9,7 +10,8 @@ import { ExamsModule } from '../exams/exams.module';
 @Module({
   imports: [forwardRef(() => ExamsModule)],
   controllers: [AcademicsController],
-  providers: [AcademicsSchemaService, AcademicsService, AcademicsRepository],
+  providers: [
+    AcademicsWidgetProvider,AcademicsSchemaService, AcademicsService, AcademicsRepository],
   exports: [AcademicsService, AcademicsRepository],
 })
 export class AcademicsModule {}

@@ -1,7 +1,7 @@
 import { Injectable, Optional, UnauthorizedException } from '@nestjs/common';
 import { performance } from 'node:perf_hooks';
 
-import { DatabaseService } from '../../database/database.service';
+import { PrismaService } from '../../database/prisma.service';
 import { RequestContextService } from '../../common/request-context/request-context.service';
 import { SloMetricsService } from '../observability/slo-metrics.service';
 import { DeviceRegistrationResponseDto } from './dto/device-registration-response.dto';
@@ -25,9 +25,27 @@ import { SchoolOperationalEventsService } from '../events/school-operational-eve
 
 @Injectable()
 export class SyncService {
+
+  private async executeSql<T = any>(query: string, params: any[] = []): Promise<{ rows: T[], rowCount: number }> {
+    const firstParam = params[0];
+    const isUuid = typeof firstParam === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(firstParam);
+    
+    if (isUuid) {
+      return this.prisma.executeWithTenant(firstParam, null, async (tx: any) => {
+        const result = await tx.$queryRawUnsafe(query, ...params);
+        const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+      });
+    } else {
+      const result = await this.prisma.$queryRawUnsafe(query, ...params);
+      const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+    }
+  }
+
   constructor(
     private readonly requestContext: RequestContextService,
-    private readonly databaseService: DatabaseService,
+    private readonly prisma: PrismaService,
     private readonly syncDevicesRepository: SyncDevicesRepository,
     private readonly syncCursorsRepository: SyncCursorsRepository,
     private readonly syncOperationLogsRepository: SyncOperationLogsRepository,
@@ -42,7 +60,7 @@ export class SyncService {
     const startedAt = performance.now();
 
     try {
-      const result = await this.databaseService.withRequestTransaction(async () => {
+      const result = await this.prisma.withRequestTransaction(async () => {
         const device = await this.syncDevicesRepository.upsertDevice({
           tenant_id: this.requireTenantId(),
           device_id: dto.device_id.trim(),
@@ -70,7 +88,7 @@ export class SyncService {
     const startedAt = performance.now();
 
     try {
-      const result = await this.databaseService.withRequestTransaction(async () => {
+      const result = await this.prisma.withRequestTransaction(async () => {
         const tenantId = this.requireTenantId();
         const device = await this.syncDevicesRepository.upsertDevice({
           tenant_id: tenantId,
@@ -190,7 +208,7 @@ export class SyncService {
     const startedAt = performance.now();
 
     try {
-      const result = await this.databaseService.withRequestTransaction(async () => {
+      const result = await this.prisma.withRequestTransaction(async () => {
         const tenantId = this.requireTenantId();
         await this.syncDevicesRepository.upsertDevice({
           tenant_id: tenantId,

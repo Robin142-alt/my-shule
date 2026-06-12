@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
-import { DatabaseService } from '../../database/database.service';
+import { PrismaService } from '../../database/prisma.service';
 import { RedisService } from '../../infrastructure/redis/redis.service';
 import { EVENTS_QUEUE_NAME } from '../events/events.constants';
 import { MPESA_QUEUE_NAME } from '../payments/payments.constants';
@@ -64,7 +64,7 @@ export class SloMonitoringService implements OnModuleInit, OnModuleDestroy {
 
   constructor(
     private readonly configService: ConfigService,
-    private readonly databaseService: DatabaseService,
+    private readonly prisma: PrismaService,
     private readonly redisService: RedisService,
     private readonly queueService: QueueService,
     private readonly metrics: SloMetricsService,
@@ -187,7 +187,7 @@ export class SloMonitoringService implements OnModuleInit, OnModuleDestroy {
           [
             'database',
             {
-              ...this.databaseService.getPoolMetrics(),
+              ...this.prisma.getPoolMetrics(),
             },
           ] as const,
         ],
@@ -435,7 +435,7 @@ export class SloMonitoringService implements OnModuleInit, OnModuleDestroy {
 
   private async loadInfrastructureStatus(): Promise<SloInfrastructureStatus> {
     const [postgres, redis] = await Promise.allSettled([
-      this.databaseService.ping(),
+      this.prisma.ping(),
       this.redisService.ping(),
     ]);
 
@@ -449,7 +449,7 @@ export class SloMonitoringService implements OnModuleInit, OnModuleDestroy {
 
   private async loadMpesaLiveSnapshot(): Promise<MpesaLiveSnapshot> {
     try {
-      const result = await this.databaseService.query<{
+      const result = await this.prisma.query<{
         overdue_intents_count: string;
         oldest_overdue_age_ms: string | null;
       }>(

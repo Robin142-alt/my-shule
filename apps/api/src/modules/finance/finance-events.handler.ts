@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { DatabaseService } from '../../database/database.service';
+import { PrismaService } from '../../database/prisma.service';
 import { EventConsumerDescriptor, DomainEvent } from '../events/events.types';
 
 @Injectable()
@@ -8,7 +8,7 @@ export class FinancePaymentCompletedConsumer implements EventConsumerDescriptor<
   readonly event_name = 'payment.completed';
   private readonly logger = new Logger(FinancePaymentCompletedConsumer.name);
 
-  constructor(private readonly db: DatabaseService) {}
+  constructor(private readonly db: PrismaService) {}
 
   async handle(event: DomainEvent<'payment.completed'>): Promise<void> {
     const { tenant_id, payload } = event;

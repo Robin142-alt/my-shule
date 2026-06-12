@@ -25,7 +25,7 @@ export function NotificationsWorkspace() {
   return (
     <Panel title="Notifications" description="Alerts and messages regarding your class." icon={Bell}>
       <div className="flex flex-col gap-3">
-        {data.map((notif: any) => (
+        {(Array.isArray(data) ? data : []).map((notif: any) => (
           <div key={notif.id} className={`rounded-xl border p-4 ${notif.isRead ? 'border-[#D8E0EC] bg-white' : 'border-[#1D4ED8] bg-[#EEF5FF]'}`}>
             <div className="flex items-center justify-between">
               <p className="font-bold text-[#071D49]">{notif.message}</p>

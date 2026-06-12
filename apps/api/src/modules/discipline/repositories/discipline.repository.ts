@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 
-import { DatabaseService } from '../../../database/database.service';
+import { PrismaService } from '../../../database/prisma.service';
 import type {
   CreateDisciplineActionDto,
   CreateDisciplineCommentDto,
@@ -41,10 +41,10 @@ export interface CreateIncidentInput {
 
 @Injectable()
 export class DisciplineRepository {
-  constructor(private readonly databaseService: DatabaseService) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   async findTenantSchoolId(tenantId: string): Promise<string | null> {
-    const result = await this.databaseService.query<{ id: string }>(
+    const result = await this.executeSql<{ id: string }>(tenantId, 
       `
         SELECT id::text
         FROM tenants
@@ -57,8 +57,8 @@ export class DisciplineRepository {
     return result.rows[0]?.id ?? null;
   }
 
-  async generateIncidentNumber(): Promise<string> {
-    const result = await this.databaseService.query<{ value: string }>(
+  async generateIncidentNumber(tenantId: string): Promise<string> {
+    const result = await this.executeSql<{ value: string }>(tenantId, 
       `SELECT nextval('discipline_incident_number_seq')::text AS value`,
     );
     const year = new Date().getUTCFullYear();
@@ -94,7 +94,7 @@ export class DisciplineRepository {
     ];
 
     for (const category of defaults) {
-      await this.databaseService.query(
+      await this.executeSql(input.tenant_id, 
         `
           INSERT INTO offense_categories (
             tenant_id,
@@ -138,7 +138,7 @@ export class DisciplineRepository {
   }
 
   async listOffenseCategories(tenantId: string): Promise<OffenseCategoryEntity[]> {
-    const result = await this.databaseService.query<OffenseCategoryEntity>(
+    const result = await this.executeSql<OffenseCategoryEntity>(tenantId, 
       `
         SELECT
           id::text,
@@ -172,7 +172,7 @@ export class DisciplineRepository {
     tenantId: string,
     offenseCategoryId: string,
   ): Promise<OffenseCategoryEntity | null> {
-    const result = await this.databaseService.query<OffenseCategoryEntity>(
+    const result = await this.executeSql<OffenseCategoryEntity>(tenantId, 
       `
         SELECT
           id::text,
@@ -211,7 +211,7 @@ export class DisciplineRepository {
     default_severity: string;
     default_points: number;
   }): Promise<OffenseCategoryEntity> {
-    const result = await this.databaseService.query<OffenseCategoryEntity>(
+    const result = await this.executeSql<OffenseCategoryEntity>(input.tenant_id, 
       `
         INSERT INTO offense_categories (
           tenant_id,
@@ -275,7 +275,7 @@ export class DisciplineRepository {
   }
 
   async createIncident(input: CreateIncidentInput): Promise<DisciplineIncidentEntity> {
-    const result = await this.databaseService.query<DisciplineIncidentEntity>(
+    const result = await this.executeSql<DisciplineIncidentEntity>(input.tenant_id, 
       `
         INSERT INTO discipline_incidents (
           tenant_id,
@@ -394,7 +394,7 @@ export class DisciplineRepository {
     const queryText = search && search.length >= 2 ? search : null;
     const limit = this.normalizeLimit(input.query.limit);
     const offset = this.normalizeOffset(input.query.offset);
-    const result = await this.databaseService.query<DisciplineIncidentEntity>(
+    const result = await this.executeSql<DisciplineIncidentEntity>(input.tenant_id, 
       `
         SELECT
           id::text,
@@ -482,7 +482,7 @@ export class DisciplineRepository {
   }): Promise<DisciplineIncidentEntity[]> {
     const limit = this.normalizeLimit(input.limit);
     const offset = this.normalizeOffset(input.offset);
-    const result = await this.databaseService.query<DisciplineIncidentEntity>(
+    const result = await this.executeSql<DisciplineIncidentEntity>(input.tenant_id, 
       `
         SELECT
           di.id::text,
@@ -541,7 +541,7 @@ export class DisciplineRepository {
     tenantId: string,
     incidentId: string,
   ): Promise<DisciplineIncidentEntity | null> {
-    const result = await this.databaseService.query<DisciplineIncidentEntity>(
+    const result = await this.executeSql<DisciplineIncidentEntity>(tenantId, 
       `
         SELECT
           id::text,
@@ -595,7 +595,7 @@ export class DisciplineRepository {
     recommendations?: string | null;
     metadata?: Record<string, unknown>;
   }): Promise<DisciplineIncidentEntity | null> {
-    const result = await this.databaseService.query<DisciplineIncidentEntity>(
+    const result = await this.executeSql<DisciplineIncidentEntity>(input.tenant_id, 
       `
         UPDATE discipline_incidents
         SET
@@ -661,7 +661,7 @@ export class DisciplineRepository {
     incident_id: string;
     status: DisciplineStatus;
   }): Promise<DisciplineIncidentEntity | null> {
-    const result = await this.databaseService.query<DisciplineIncidentEntity>(
+    const result = await this.executeSql<DisciplineIncidentEntity>(input.tenant_id, 
       `
         UPDATE discipline_incidents
         SET status = $3,
@@ -710,7 +710,7 @@ export class DisciplineRepository {
     incident_id: string;
     assigned_staff_id: string;
   }): Promise<DisciplineIncidentEntity | null> {
-    const result = await this.databaseService.query<DisciplineIncidentEntity>(
+    const result = await this.executeSql<DisciplineIncidentEntity>(input.tenant_id, 
       `
         UPDATE discipline_incidents
         SET assigned_staff_id = $3::uuid,
@@ -762,7 +762,7 @@ export class DisciplineRepository {
     created_by_user_id: string | null;
     requires_approval: boolean;
   }): Promise<DisciplineActionEntity> {
-    const result = await this.databaseService.query<DisciplineActionEntity>(
+    const result = await this.executeSql<DisciplineActionEntity>(input.tenant_id, 
       `
         INSERT INTO discipline_actions (
           tenant_id,
@@ -819,7 +819,7 @@ export class DisciplineRepository {
   }
 
   async listActions(tenantId: string, incidentId: string): Promise<DisciplineActionEntity[]> {
-    const result = await this.databaseService.query<DisciplineActionEntity>(
+    const result = await this.executeSql<DisciplineActionEntity>(tenantId, 
       `
         SELECT
           id::text,
@@ -854,7 +854,7 @@ export class DisciplineRepository {
     action_id: string;
     completion_notes: string | null;
   }): Promise<DisciplineActionEntity | null> {
-    const result = await this.databaseService.query<DisciplineActionEntity>(
+    const result = await this.executeSql<DisciplineActionEntity>(input.tenant_id, 
       `
         UPDATE discipline_actions
         SET status = 'completed',
@@ -892,7 +892,7 @@ export class DisciplineRepository {
     action_id: string;
     approved_by_user_id: string;
   }): Promise<DisciplineActionEntity | null> {
-    const result = await this.databaseService.query<DisciplineActionEntity>(
+    const result = await this.executeSql<DisciplineActionEntity>(input.tenant_id, 
       `
         UPDATE discipline_actions
         SET status = 'approved',
@@ -951,7 +951,7 @@ export class DisciplineRepository {
     incident_id: string;
     author_user_id: string | null;
   }) {
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(input.tenant_id, 
       `
         INSERT INTO discipline_comments (
           tenant_id,
@@ -991,7 +991,7 @@ export class DisciplineRepository {
     visibility: 'internal' | 'parent_visible';
     scan_status?: string;
   }) {
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(input.tenant_id, 
       `
         INSERT INTO discipline_attachments (
           tenant_id,
@@ -1034,7 +1034,7 @@ export class DisciplineRepository {
     incident_id: string;
     include_internal: boolean;
   }) {
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(input.tenant_id, 
       `
         SELECT id::text, tenant_id, incident_id::text, author_user_id::text, visibility, body, created_at::text
         FROM discipline_comments
@@ -1063,7 +1063,7 @@ export class DisciplineRepository {
     awarded_by_user_id: string | null;
     metadata?: Record<string, unknown>;
   }) {
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(input.tenant_id, 
       `
         INSERT INTO behavior_points (
           tenant_id,
@@ -1107,11 +1107,11 @@ export class DisciplineRepository {
     academic_term_id?: string;
     academic_year_id?: string;
   }) {
-    const result = await this.databaseService.query<{
+    const result = await this.executeSql<{
       total_points: string;
       incident_count: string;
       commendation_count: string;
-    }>(
+    }>(input.tenant_id,
       `
         SELECT
           COALESCE(SUM(points_delta), 0)::text AS total_points,
@@ -1152,7 +1152,7 @@ export class DisciplineRepository {
     body: string;
     metadata?: Record<string, unknown>;
   }) {
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(input.tenant_id, 
       `
         INSERT INTO discipline_notifications (
           tenant_id,
@@ -1194,11 +1194,11 @@ export class DisciplineRepository {
       byStatus,
       repeatStudents,
     ] = await Promise.all([
-      this.databaseService.query<{
+      this.executeSql<{
         open_cases: string;
         severe_incidents: string;
         pending_approvals: string;
-      }>(
+      }>(tenantId,
         `
           SELECT
             COUNT(*) FILTER (WHERE status NOT IN ('resolved', 'closed'))::text AS open_cases,
@@ -1215,7 +1215,7 @@ export class DisciplineRepository {
         `,
         [tenantId],
       ),
-      this.databaseService.query<{ offense: string; count: string }>(
+      this.executeSql<{ offense: string; count: string }>(tenantId, 
         `
           SELECT oc.name AS offense, COUNT(*)::text AS count
           FROM discipline_incidents di
@@ -1230,7 +1230,7 @@ export class DisciplineRepository {
         `,
         [tenantId],
       ),
-      this.databaseService.query<{ severity: string; count: string }>(
+      this.executeSql<{ severity: string; count: string }>(tenantId, 
         `
           SELECT severity, COUNT(*)::text AS count
           FROM discipline_incidents
@@ -1241,7 +1241,7 @@ export class DisciplineRepository {
         `,
         [tenantId],
       ),
-      this.databaseService.query<{ status: string; count: string }>(
+      this.executeSql<{ status: string; count: string }>(tenantId, 
         `
           SELECT status, COUNT(*)::text AS count
           FROM discipline_incidents
@@ -1252,7 +1252,7 @@ export class DisciplineRepository {
         `,
         [tenantId],
       ),
-      this.databaseService.query<{ repeat_offender_alerts: string }>(
+      this.executeSql<{ repeat_offender_alerts: string }>(tenantId, 
         `
           SELECT COUNT(*)::text AS repeat_offender_alerts
           FROM (
@@ -1296,7 +1296,7 @@ export class DisciplineRepository {
     parent_user_id: string;
     student_id: string;
   }): Promise<boolean> {
-    const result = await this.databaseService.query<{ exists: boolean }>(
+    const result = await this.executeSql<{ exists: boolean }>(input.tenant_id, 
       `
         SELECT EXISTS (
           SELECT 1
@@ -1324,7 +1324,7 @@ export class DisciplineRepository {
     user_agent?: string | null;
     metadata?: Record<string, unknown>;
   }) {
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(input.tenant_id, 
       `
         INSERT INTO parent_acknowledgements (
           tenant_id,
@@ -1360,7 +1360,7 @@ export class DisciplineRepository {
       ],
     );
 
-    await this.databaseService.query(
+    await this.executeSql(input.tenant_id, 
       `
         UPDATE discipline_incidents
         SET parent_notification_status = 'acknowledged',
@@ -1386,7 +1386,7 @@ export class DisciplineRepository {
     user_agent?: string | null;
     metadata?: Record<string, unknown>;
   }) {
-    await this.databaseService.query(
+    await this.executeSql(input.tenant_id, 
       `
         INSERT INTO discipline_audit_logs (
           tenant_id,
@@ -1415,5 +1415,12 @@ export class DisciplineRepository {
         JSON.stringify(input.metadata ?? {}),
       ],
     );
+  }
+
+  private async executeSql<T = any>(tenantId: string, query: string, params: any[] = []): Promise<{ rows: T[], rowCount: number }> {
+    return this.prisma.executeWithTenant<any>(tenantId, null, async (tx: any) => {
+      const rows = await tx.$queryRawUnsafe(query, ...params);
+      return { rows: Array.isArray(rows) ? rows : [rows] };
+    });
   }
 }

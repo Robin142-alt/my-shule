@@ -14,7 +14,7 @@ import { performance } from 'node:perf_hooks';
 
 import { Public } from '../../../auth/decorators/public.decorator';
 import { RequestContextService } from '../../../common/request-context/request-context.service';
-import { DatabaseService } from '../../../database/database.service';
+import { PrismaService } from '../../../database/prisma.service';
 import { SloMetricsService } from '../../observability/slo-metrics.service';
 import { StructuredLoggerService } from '../../observability/structured-logger.service';
 import { TenantFinanceConfigService } from '../../tenant-finance/tenant-finance-config.service';
@@ -43,8 +43,25 @@ import { MpesaSignatureService } from '../services/mpesa-signature.service';
 @Public()
 @Controller(['payments/mpesa', 'mpesa'])
 export class MpesaCallbackController {
-  constructor(
-    private readonly requestContext: RequestContextService,
+
+  private async executeSql<T = any>(query: string, params: any[] = []): Promise<{ rows: T[], rowCount: number }> {
+    const firstParam = params[0];
+    const isUuid = typeof firstParam === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(firstParam);
+    
+    if (isUuid) {
+      return this.prisma.executeWithTenant(firstParam, null, async (tx: any) => {
+        const result = await tx.$queryRawUnsafe(query, ...params);
+        const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+      });
+    } else {
+      const result = await this.prisma.$queryRawUnsafe(query, ...params);
+      const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+    }
+  }
+
+  constructor(private readonly prisma: PrismaService, private readonly requestContext: RequestContextService,
     private readonly callbackLogsRepository: CallbackLogsRepository,
     private readonly mpesaService: MpesaService,
     private readonly mpesaSignatureService: MpesaSignatureService,
@@ -53,7 +70,7 @@ export class MpesaCallbackController {
     @Optional() private readonly structuredLogger?: StructuredLoggerService,
     @Optional() private readonly sloMetrics?: SloMetricsService,
     @Optional() private readonly tenantFinanceConfigService?: TenantFinanceConfigService,
-    @Optional() private readonly databaseService?: DatabaseService,
+    @Optional() private readonly databaseService?: PrismaService,
     @Optional() private readonly darajaIntegrationService?: DarajaIntegrationService,
     @Optional() private readonly mpesaPayloadVaultService?: MpesaPayloadVaultService,
     @Optional() private readonly mpesaCallbackTrustService?: MpesaCallbackTrustService,
@@ -141,7 +158,7 @@ export class MpesaCallbackController {
 
     if (requestContext.tenant_id !== tenantId) {
       this.requestContext.setTenantId(tenantId);
-      await this.databaseService?.synchronizeRequestSession(this.requestContext.requireStore());
+      await this.prisma?.synchronizeRequestSession(this.requestContext.requireStore());
     }
 
     const callbackLog = await this.callbackLogsRepository.createLog({

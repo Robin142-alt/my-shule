@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 
-import { DatabaseService } from '../../database/database.service';
+import { PrismaService } from '../../database/prisma.service';
 import type { PlatformSmsProviderRecord } from './integrations.types';
 
 interface PlatformSmsProviderRow {
@@ -21,10 +21,28 @@ interface PlatformSmsProviderRow {
 
 @Injectable()
 export class PlatformSmsRepository {
-  constructor(private readonly databaseService: DatabaseService) {}
+
+  private async executeSql<T = any>(query: string, params: any[] = []): Promise<{ rows: T[], rowCount: number }> {
+    const firstParam = params[0];
+    const isUuid = typeof firstParam === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(firstParam);
+    
+    if (isUuid) {
+      return this.prisma.executeWithTenant(firstParam, null, async (tx: any) => {
+        const result = await tx.$queryRawUnsafe(query, ...params);
+        const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+      });
+    } else {
+      const result = await this.prisma.$queryRawUnsafe(query, ...params);
+      const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+    }
+  }
+
+  constructor(private readonly prisma: PrismaService) {}
 
   async listProviders(): Promise<PlatformSmsProviderRecord[]> {
-    const result = await this.databaseService.query<PlatformSmsProviderRow>(
+    const result = await this.executeSql<PlatformSmsProviderRow>(
       `
         SELECT id::text, provider_name, provider_code, api_key_ciphertext, username_ciphertext,
                sender_id, base_url, is_active, is_default, last_test_status,
@@ -52,7 +70,7 @@ export class PlatformSmsRepository {
       await this.clearDefaultProvider();
     }
 
-    const result = await this.databaseService.query<PlatformSmsProviderRow>(
+    const result = await this.executeSql<PlatformSmsProviderRow>(
       `
         INSERT INTO platform_sms_providers (
           provider_name,
@@ -108,7 +126,7 @@ export class PlatformSmsRepository {
     is_active?: boolean;
     actor_user_id?: string | null;
   }): Promise<PlatformSmsProviderRecord> {
-    const result = await this.databaseService.query<PlatformSmsProviderRow>(
+    const result = await this.executeSql<PlatformSmsProviderRow>(
       `
         UPDATE platform_sms_providers
         SET provider_name = COALESCE($2, provider_name),
@@ -143,7 +161,7 @@ export class PlatformSmsRepository {
 
   async setDefaultProvider(providerId: string, actorUserId?: string | null): Promise<PlatformSmsProviderRecord> {
     await this.clearDefaultProvider();
-    const result = await this.databaseService.query<PlatformSmsProviderRow>(
+    const result = await this.executeSql<PlatformSmsProviderRow>(
       `
         UPDATE platform_sms_providers
         SET is_default = TRUE,
@@ -162,7 +180,7 @@ export class PlatformSmsRepository {
   }
 
   async findDefaultProvider(): Promise<PlatformSmsProviderRecord | null> {
-    const result = await this.databaseService.query<PlatformSmsProviderRow>(
+    const result = await this.executeSql<PlatformSmsProviderRow>(
       `
         SELECT id::text, provider_name, provider_code, api_key_ciphertext, username_ciphertext,
                sender_id, base_url, is_active, is_default, last_test_status,
@@ -178,7 +196,7 @@ export class PlatformSmsRepository {
   }
 
   async markProviderTest(providerId: string, status: string): Promise<void> {
-    await this.databaseService.query(
+    await this.executeSql(
       `
         UPDATE platform_sms_providers
         SET last_test_status = $2,
@@ -198,7 +216,7 @@ export class PlatformSmsRepository {
     request_id?: string | null;
     created_by_user_id?: string | null;
   }): Promise<void> {
-    await this.databaseService.query(
+    await this.executeSql(
       `
         INSERT INTO integration_logs (
           tenant_id,
@@ -223,7 +241,7 @@ export class PlatformSmsRepository {
   }
 
   private async clearDefaultProvider(): Promise<void> {
-    await this.databaseService.query(
+    await this.executeSql(
       `
         UPDATE platform_sms_providers
         SET is_default = FALSE,

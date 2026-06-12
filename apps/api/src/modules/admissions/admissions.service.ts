@@ -23,7 +23,7 @@ import {
 import { RequestContextService } from '../../common/request-context/request-context.service';
 import { UploadMalwareScanService } from '../../common/uploads/upload-malware-scan.service';
 import { validateUploadedFile } from '../../common/uploads/upload-policy';
-import { DatabaseService } from '../../database/database.service';
+import { PrismaService } from '../../database/prisma.service';
 import { EventPublisherService } from '../events/event-publisher.service';
 import { SchoolOperationalEventsService } from '../events/school-operational-events.service';
 import { CreateApplicationDto, UpdateApplicationDto } from './dto/create-application.dto';
@@ -178,9 +178,27 @@ const ADMISSIONS_REPORT_EXPORTS = new Map<string, AdmissionsReportExportDefiniti
 
 @Injectable()
 export class AdmissionsService {
+
+  private async executeSql<T = any>(query: string, params: any[] = []): Promise<{ rows: T[], rowCount: number }> {
+    const firstParam = params[0];
+    const isUuid = typeof firstParam === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(firstParam);
+    
+    if (isUuid) {
+      return this.prisma.executeWithTenant(firstParam, null, async (tx: any) => {
+        const result = await tx.$queryRawUnsafe(query, ...params);
+        const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+      });
+    } else {
+      const result = await this.prisma.$queryRawUnsafe(query, ...params);
+      const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+    }
+  }
+
   constructor(
     private readonly requestContext: RequestContextService,
-    private readonly databaseService: DatabaseService,
+    private readonly prisma: PrismaService,
     private readonly admissionsRepository: AdmissionsRepository,
     private readonly documentStorage: AdmissionDocumentStorageService,
     private readonly studentsService: StudentsService,
@@ -207,7 +225,7 @@ export class AdmissionsService {
 
   async createApplication(dto: CreateApplicationDto) {
     return this.admissionsRepository.createApplication({
-      tenant_id: this.requireTenantId(),
+      school_id: this.requireTenantId(),
       application_number: this.buildNumber('APP'),
       full_name: dto.full_name.trim(),
       date_of_birth: dto.date_of_birth,
@@ -263,7 +281,7 @@ export class AdmissionsService {
 
     const scannedFile = await this.scanUploadedDocument(file);
 
-    return this.databaseService.withRequestTransaction(async () => {
+    return this.prisma.withRequestTransaction(async () => {
       const tenantId = this.requireTenantId();
       const application = await this.admissionsRepository.findApplicationById(tenantId, applicationId);
 
@@ -278,7 +296,7 @@ export class AdmissionsService {
       });
 
       return this.admissionsRepository.saveDocumentRecord({
-        tenant_id: tenantId,
+        school_id: tenantId,
         application_id: applicationId,
         student_id: null,
         document_type: dto.document_type.trim(),
@@ -308,7 +326,7 @@ export class AdmissionsService {
   }
 
   async registerApprovedApplication(applicationId: string, dto: RegisterApplicationDto) {
-    return this.databaseService.withRequestTransaction(async () => {
+    return this.prisma.withRequestTransaction(async () => {
       const tenantId = this.requireTenantId();
       const application = await this.admissionsRepository.findApplicationByIdForUpdate(
         tenantId,
@@ -395,7 +413,7 @@ export class AdmissionsService {
         student.id,
       );
       const allocation = await this.admissionsRepository.createAllocation({
-        tenant_id: tenantId,
+        school_id: tenantId,
         student_id: student.id,
         class_name: className,
         stream_name: streamName,
@@ -504,7 +522,7 @@ export class AdmissionsService {
   }
 
   async createManualAdmission(dto: CreateManualAdmissionDto) {
-    return this.databaseService.withRequestTransaction(async () => {
+    return this.prisma.withRequestTransaction(async () => {
       // 1. Create the application
       const application = await this.createApplication(dto);
 
@@ -546,7 +564,7 @@ export class AdmissionsService {
     studentId: string,
     dto: AdvanceAcademicLifecycleDto,
   ) {
-    return this.databaseService.withRequestTransaction(async () => {
+    return this.prisma.withRequestTransaction(async () => {
       const tenantId = this.requireTenantId();
       const action = this.parseAcademicLifecycleAction(dto.action);
       const activeEnrollment = await this.requireActiveAcademicEnrollment(tenantId, studentId);
@@ -641,7 +659,7 @@ export class AdmissionsService {
 
   async assignAllocation(studentId: string, dto: CreateAllocationDto) {
     return this.admissionsRepository.createAllocation({
-      tenant_id: this.requireTenantId(),
+      school_id: this.requireTenantId(),
       student_id: studentId,
       class_name: dto.class_name.trim(),
       stream_name: dto.stream_name.trim(),
@@ -665,7 +683,7 @@ export class AdmissionsService {
 
   async createTransfer(dto: CreateTransferRecordDto) {
     return this.admissionsRepository.createTransferRecord({
-      tenant_id: this.requireTenantId(),
+      school_id: this.requireTenantId(),
       student_id: dto.student_id?.trim() || null,
       application_id: dto.application_id?.trim() || null,
       transfer_type: dto.transfer_type.trim(),
@@ -794,7 +812,7 @@ export class AdmissionsService {
     }
 
     return this.admissionsRepository.upsertStudentGuardianLink({
-      tenant_id: tenantId,
+      school_id: tenantId,
       student_id: studentId,
       invitation_id: parentInvitation.id,
       display_name: application.parent_name.trim(),
@@ -825,7 +843,7 @@ export class AdmissionsService {
       .slice(0, 10);
 
     return this.admissionsRepository.createStudentFeeAssignmentInvoice({
-      tenant_id: tenantId,
+      school_id: tenantId,
       student_id: studentId,
       application_id: application.id,
       fee_structure_id: feeStructure.id,
@@ -937,7 +955,7 @@ export class AdmissionsService {
       targetClassSection,
     );
     const allocation = await this.admissionsRepository.createAllocation({
-      tenant_id: tenantId,
+      school_id: tenantId,
       student_id: studentId,
       class_name: className,
       stream_name: streamName,
@@ -1071,7 +1089,7 @@ export class AdmissionsService {
     notes?: string | null;
   }) {
     return this.admissionsRepository.createStudentAcademicLifecycleEvent({
-      tenant_id: input.tenantId,
+      school_id: input.tenantId,
       student_id: input.studentId,
       source_enrollment_id: input.sourceEnrollment.id,
       target_enrollment_id: input.targetEnrollment?.id ?? null,
@@ -1102,7 +1120,7 @@ export class AdmissionsService {
     classSection: { id?: string | null; academic_year?: string | null } | null,
   ) {
     return this.admissionsRepository.createStudentAcademicEnrollment({
-      tenant_id: tenantId,
+      school_id: tenantId,
       student_id: studentId,
       application_id: applicationId,
       class_section_id: classSection?.id ?? null,
@@ -1126,7 +1144,7 @@ export class AdmissionsService {
     }
 
     return this.admissionsRepository.enrollStudentSubjectsAndTimetable({
-      tenant_id: tenantId,
+      school_id: tenantId,
       student_id: studentId,
       academic_enrollment_id: academicEnrollment.id,
       class_section_id: classSection.id,

@@ -1,12 +1,14 @@
 import { Body, Controller, Post } from '@nestjs/common';
 
 import { Permissions } from '../../auth/decorators/permissions.decorator';
-import { DatabaseService } from '../../database/database.service';
+import { PrismaService } from '../../database/prisma.service';
 import { RequestContextService } from '../../common/request-context/request-context.service';
 import { RequiresModule } from '../module-access/module-access.decorator';
 import { CommunicationSmsService } from './communication-sms.service';
 
 export class SendSmsDto {
+
+
   recipientPhone!: string;
   message!: string;
 }
@@ -14,8 +16,7 @@ export class SendSmsDto {
 @Controller('communication')
 @RequiresModule('communication_sms')
 export class CommunicationController {
-  constructor(
-    private readonly db: DatabaseService,
+  constructor(private readonly prisma: PrismaService, private readonly db: PrismaService,
     private readonly requestContext: RequestContextService,
     private readonly smsService: CommunicationSmsService,
   ) {}

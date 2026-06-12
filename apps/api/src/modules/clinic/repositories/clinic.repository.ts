@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 
-import { DatabaseService } from '../../../database/database.service';
+import { PrismaService } from '../../../database/prisma.service';
 
 export type ClinicBatchForDispensing = {
   id: string;
@@ -25,10 +25,28 @@ export type ClinicLowStockBatch = {
 
 @Injectable()
 export class ClinicRepository {
-  constructor(private readonly databaseService: DatabaseService) {}
+
+  private async executeSql<T = any>(query: string, params: any[] = []): Promise<{ rows: T[], rowCount: number }> {
+    const firstParam = params[0];
+    const isUuid = typeof firstParam === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(firstParam);
+    
+    if (isUuid) {
+      return this.prisma.executeWithTenant(firstParam, null, async (tx: any) => {
+        const result = await tx.$queryRawUnsafe(query, ...params);
+        const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+      });
+    } else {
+      const result = await this.prisma.$queryRawUnsafe(query, ...params);
+      const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+    }
+  }
+
+  constructor(private readonly prisma: PrismaService) {}
 
   async createMedicine(input: Record<string, unknown>) {
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
         INSERT INTO clinic_medicines (
           tenant_id, medicine_name, generic_name, brand_name, category, supplier,
@@ -106,7 +124,7 @@ export class ClinicRepository {
     }
 
     values.push(safeLimit, safeOffset);
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
         SELECT
           medicine.id::text,
@@ -161,8 +179,8 @@ export class ClinicRepository {
   }
 
   async receiveMedicineStock(input: Record<string, unknown>) {
-    return this.databaseService.withRequestTransaction(async () => {
-      const result = await this.databaseService.query(
+    return this.prisma.withRequestTransaction(async () => {
+      const result = await this.executeSql(
         `
           INSERT INTO clinic_medicine_batches (
             tenant_id, medicine_id, batch_number, supplier_invoice_reference,
@@ -230,7 +248,7 @@ export class ClinicRepository {
   }
 
   async createVisit(input: Record<string, unknown>) {
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
         INSERT INTO clinic_visits (
           tenant_id, student_id, clinic_location_id, visit_date, symptoms_summary,
@@ -261,7 +279,7 @@ export class ClinicRepository {
     tenantId: string,
     batchId: string,
   ): Promise<ClinicBatchForDispensing | null> {
-    const result = await this.databaseService.query<ClinicBatchForDispensing>(
+    const result = await this.executeSql<ClinicBatchForDispensing>(
       `
         SELECT
           batch.id::text,
@@ -286,8 +304,8 @@ export class ClinicRepository {
   }
 
   async dispenseMedicine(input: Record<string, unknown>) {
-    return this.databaseService.withRequestTransaction(async () => {
-      const locked = await this.databaseService.query<ClinicBatchForDispensing>(
+    return this.prisma.withRequestTransaction(async () => {
+      const locked = await this.executeSql<ClinicBatchForDispensing>(
         `
           SELECT id::text, medicine_id::text, status, expiry_date::text, quantity_available
           FROM clinic_medicine_batches
@@ -310,7 +328,7 @@ export class ClinicRepository {
         throw new Error('Insufficient medicine stock');
       }
 
-      await this.databaseService.query(
+      await this.executeSql(
         `
           UPDATE clinic_medicine_batches
           SET quantity_available = quantity_available - $3,
@@ -321,7 +339,7 @@ export class ClinicRepository {
         [input.tenant_id, input.batch_id, quantityDispensed],
       );
 
-      const result = await this.databaseService.query(
+      const result = await this.executeSql(
         `
           INSERT INTO clinic_medicine_dispenses (
             tenant_id, visit_id, medicine_id, batch_id, quantity_dispensed,
@@ -361,7 +379,7 @@ export class ClinicRepository {
   }
 
   async getPrincipalAnalytics(tenantId: string) {
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
         SELECT
           (SELECT COUNT(*)::int FROM clinic_medicines WHERE tenant_id = $1 AND is_active = TRUE) AS total_medicines,
@@ -419,7 +437,7 @@ export class ClinicRepository {
   }
 
   async listLowStockBatches(tenantId: string): Promise<ClinicLowStockBatch[]> {
-    const result = await this.databaseService.query<ClinicLowStockBatch>(
+    const result = await this.executeSql<ClinicLowStockBatch>(
       `
         SELECT
           batch.id::text AS batch_id,
@@ -446,7 +464,7 @@ export class ClinicRepository {
   }
 
   async createProcurementRecommendation(input: Record<string, unknown>) {
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
         INSERT INTO clinic_procurement_recommendations (
           tenant_id, module_code, medicine_id, batch_id, item_name, batch_number,
@@ -497,7 +515,7 @@ export class ClinicRepository {
     guardianUserId: string,
     studentId: string,
   ): Promise<boolean> {
-    const result = await this.databaseService.query<{ exists: boolean }>(
+    const result = await this.executeSql<{ exists: boolean }>(
       `
         SELECT EXISTS (
           SELECT 1
@@ -515,7 +533,7 @@ export class ClinicRepository {
   }
 
   async listParentMedicalHistory(tenantId: string, studentId: string) {
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
         SELECT
           visit.id::text,
@@ -557,7 +575,7 @@ export class ClinicRepository {
   }
 
   async markExpiryStatuses(tenantId: string) {
-    await this.databaseService.query(
+    await this.executeSql(
       `
         UPDATE clinic_medicine_batches
         SET status = CASE
@@ -574,7 +592,7 @@ export class ClinicRepository {
   }
 
   async createExpiryAlerts(tenantId: string) {
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
         INSERT INTO clinic_alerts (
           tenant_id, alert_type, severity, medicine_id, batch_id, title, message,
@@ -614,7 +632,7 @@ export class ClinicRepository {
   }
 
   async createLowStockAlerts(tenantId: string) {
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
         INSERT INTO clinic_alerts (
           tenant_id, alert_type, severity, medicine_id, batch_id, title, message,
@@ -654,7 +672,7 @@ export class ClinicRepository {
   }
 
   async appendAuditLog(input: Record<string, unknown>) {
-    await this.databaseService.query(
+    await this.executeSql(
       `
         INSERT INTO clinic_audit_logs (
           tenant_id, actor_user_id, action, resource_type, resource_id, metadata
@@ -673,7 +691,7 @@ export class ClinicRepository {
   }
 
   private async insertStockMovement(input: Record<string, unknown>) {
-    await this.databaseService.query(
+    await this.executeSql(
       `
         INSERT INTO clinic_stock_movements (
           tenant_id, medicine_id, batch_id, visit_id, movement_type, quantity,

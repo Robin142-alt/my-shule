@@ -79,7 +79,7 @@ export function WelfareWorkspace() {
             </tr>
           </thead>
           <tbody className="divide-y divide-[#D8E0EC]">
-            {data.map((row: any) => (
+            {(Array.isArray(data) ? data : []).map((row: any) => (
               <tr key={row.id}>
                 <td className="p-3">{row.date}</td>
                 <td className="p-3 font-bold">{row.learner}</td>

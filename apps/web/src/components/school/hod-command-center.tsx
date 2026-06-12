@@ -171,6 +171,159 @@ function SimpleWorkspace({
   );
 }
 
+function MyTeachingWorkspace() {
+  const liveSession = useLiveTenantSession("school");
+  const { data: assignments, isLoading: assignmentsLoading } = useSchoolQuery<any[]>("/api/academics/my-assignments", { enabled: !!liveSession.session });
+  const { data: logs, isLoading: logsLoading } = useSchoolQuery<any[]>("/api/academics/my-lesson-logs", { enabled: !!liveSession.session });
+
+  return (
+    <Panel title="My Teaching" description="My classes, timetable, attendance, and marks." icon={BookOpen}>
+      <div className="grid gap-6 md:grid-cols-2">
+        <div>
+          <h3 className="mb-3 text-sm font-bold text-[#071D49] uppercase tracking-wider">My Classes & Subjects</h3>
+          {assignmentsLoading ? (
+            <p className="text-sm text-slate-500">Loading assignments...</p>
+          ) : !assignments?.length ? (
+            <p className="text-sm text-slate-500">No active teaching assignments found.</p>
+          ) : (
+            <div className="space-y-3">
+              {assignments.map((a: any, i) => (
+                <div key={i} className="flex items-center justify-between rounded-lg border border-[#D8E0EC] bg-[#F8FAFC] p-3">
+                  <div>
+                    <span className="block font-bold text-[#071D49]">{a.subject?.name || 'Subject'}</span>
+                    <span className="block text-xs text-[#64748B]">{a.class_section?.name || 'Class'}</span>
+                  </div>
+                  <button className="rounded bg-white px-3 py-1.5 text-xs font-bold text-[#071D49] border border-[#D8E0EC] hover:bg-gray-50">
+                    View Roster
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        <div>
+          <h3 className="mb-3 text-sm font-bold text-[#071D49] uppercase tracking-wider">Recent Lesson Logs</h3>
+          {logsLoading ? (
+            <p className="text-sm text-slate-500">Loading logs...</p>
+          ) : !logs?.length ? (
+            <p className="text-sm text-slate-500">No recent lesson logs.</p>
+          ) : (
+            <div className="space-y-3">
+              {logs.slice(0, 3).map((log: any, i) => (
+                <div key={i} className="rounded-lg border border-[#D8E0EC] bg-white p-3">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <span className="block font-bold text-[#071D49]">{log.topic}</span>
+                      <span className="block text-xs text-[#64748B]">{new Date(log.created_at).toLocaleDateString()}</span>
+                    </div>
+                    <StatusChip label="Logged" tone="success" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </Panel>
+  );
+}
+
+function DepartmentTeachersWorkspace() {
+  const liveSession = useLiveTenantSession("school");
+  const { data: staff, isLoading } = useSchoolQuery<any>("/api/hr/staff?department=academics", { enabled: !!liveSession.session });
+  
+  const teachers = staff?.items || staff || [];
+
+  return (
+    <Panel title="Department Teachers" description="Manage and supervise teachers in the department." icon={Users} actions={
+      <button className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white">Add Teacher to Dept</button>
+    }>
+      {isLoading ? (
+        <p className="text-sm text-slate-500">Loading teachers...</p>
+      ) : !teachers.length ? (
+        <div className="rounded-lg border border-dashed border-[#D8E0EC] p-8 text-center text-slate-500">
+          No teachers assigned to this department.
+        </div>
+      ) : (
+        <div className="overflow-hidden rounded-xl border border-[#D8E0EC]">
+          <table className="w-full text-left text-sm">
+            <thead className="bg-[#F8FAFC] text-xs uppercase text-[#64748B]">
+              <tr>
+                <th className="px-4 py-3 font-black">Teacher Name</th>
+                <th className="px-4 py-3 font-black">Role / Title</th>
+                <th className="px-4 py-3 font-black">Status</th>
+                <th className="px-4 py-3 text-right font-black">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[#D8E0EC]">
+              {teachers.map((t: any, i: number) => (
+                <tr key={i} className="hover:bg-slate-50">
+                  <td className="px-4 py-3 font-semibold text-[#071D49]">
+                    {t.first_name} {t.last_name}
+                  </td>
+                  <td className="px-4 py-3 text-[#64748B]">{t.job_title || 'Subject Teacher'}</td>
+                  <td className="px-4 py-3">
+                    <StatusChip label={t.status || 'Active'} tone={t.status === 'on_leave' ? 'warning' : 'success'} />
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    <button className="text-[#1D4ED8] hover:underline text-xs font-bold">View Load</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </Panel>
+  );
+}
+
+function SubjectAllocationWorkspace() {
+  const liveSession = useLiveTenantSession("school");
+  const { data: assignments, isLoading } = useSchoolQuery<any[]>("/api/academics/teacher-assignments", { enabled: !!liveSession.session });
+
+  return (
+    <Panel title="Subject Allocation" description="Assign department subjects to teachers and classes." icon={LayoutGrid} actions={
+      <button className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white">New Assignment</button>
+    }>
+      {isLoading ? (
+        <p className="text-sm text-slate-500">Loading assignments...</p>
+      ) : !assignments?.length ? (
+        <div className="rounded-lg border border-dashed border-[#D8E0EC] p-8 text-center text-slate-500">
+          No subject allocations found. Click "New Assignment" to allocate subjects.
+        </div>
+      ) : (
+        <div className="overflow-hidden rounded-xl border border-[#D8E0EC]">
+          <table className="w-full text-left text-sm">
+            <thead className="bg-[#F8FAFC] text-xs uppercase text-[#64748B]">
+              <tr>
+                <th className="px-4 py-3 font-black">Teacher</th>
+                <th className="px-4 py-3 font-black">Subject</th>
+                <th className="px-4 py-3 font-black">Class / Section</th>
+                <th className="px-4 py-3 text-right font-black">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[#D8E0EC]">
+              {assignments.map((a: any, i) => (
+                <tr key={i} className="hover:bg-slate-50">
+                  <td className="px-4 py-3 font-semibold text-[#071D49]">
+                    {a.teacher?.first_name} {a.teacher?.last_name}
+                  </td>
+                  <td className="px-4 py-3 text-[#64748B]">{a.subject?.name}</td>
+                  <td className="px-4 py-3 text-[#64748B]">{a.class_section?.name}</td>
+                  <td className="px-4 py-3 text-right">
+                    <button className="text-rose-600 hover:underline text-xs font-bold">Revoke</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </Panel>
+  );
+}
+
 function OverviewWorkspace() {
   const liveSession = useLiveTenantSession("school");
   const { data: summary, isLoading } = useSchoolQuery<any>("/api/academics/summary", { enabled: !!liveSession.session });
@@ -233,9 +386,9 @@ export function HodCommandCenter({ routeMode = "hosted" }: { routeMode?: HodRout
           )}
 
           {activeView === "overview" && <OverviewWorkspace />}
-          {activeView === "my-teaching" && <SimpleWorkspace title="My Teaching" description="My classes, timetable, attendance, and marks." icon={BookOpen} />}
-          {activeView === "department-teachers" && <SimpleWorkspace title="Department Teachers" description="Manage and supervise teachers in the department." icon={Users} />}
-          {activeView === "subject-allocation" && <SimpleWorkspace title="Subject Allocation" description="Assign department subjects to teachers and classes." icon={LayoutGrid} />}
+          {activeView === "my-teaching" && <MyTeachingWorkspace />}
+          {activeView === "department-teachers" && <DepartmentTeachersWorkspace />}
+          {activeView === "subject-allocation" && <SubjectAllocationWorkspace />}
           {activeView === "schemes-of-work" && <SimpleWorkspace title="Schemes of Work" description="Track scheme of work submissions and approvals." icon={FileText} />}
           {activeView === "lesson-plans" && <SimpleWorkspace title="Lesson Plans" description="Review weekly/daily lesson plans from department teachers." icon={FileCheck} />}
           {activeView === "lesson-delivery" && <SimpleWorkspace title="Lesson Delivery" description="Track lesson delivery and make-up classes." icon={CheckCircle} />}

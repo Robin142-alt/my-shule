@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 
-import { DatabaseService } from '../../../database/database.service';
+import { PrismaService } from '../../../database/prisma.service';
 import { PiiEncryptionService } from '../../security/pii-encryption.service';
 import { CallbackLogEntity } from '../entities/callback-log.entity';
 import { CallbackLogStatus } from '../payments.types';
@@ -56,13 +56,31 @@ interface CreateCallbackLogInput {
 
 @Injectable()
 export class CallbackLogsRepository {
+
+  private async executeSql<T = any>(query: string, params: any[] = []): Promise<{ rows: T[], rowCount: number }> {
+    const firstParam = params[0];
+    const isUuid = typeof firstParam === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(firstParam);
+    
+    if (isUuid) {
+      return this.prisma.executeWithTenant(firstParam, null, async (tx: any) => {
+        const result = await tx.$queryRawUnsafe(query, ...params);
+        const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+      });
+    } else {
+      const result = await this.prisma.$queryRawUnsafe(query, ...params);
+      const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+    }
+  }
+
   constructor(
-    private readonly databaseService: DatabaseService,
+    private readonly prisma: PrismaService,
     private readonly piiEncryptionService: PiiEncryptionService,
   ) {}
 
   async createLog(input: CreateCallbackLogInput): Promise<CallbackLogEntity> {
-    const result = await this.databaseService.query<CallbackLogRow>(
+    const result = await this.executeSql<CallbackLogRow>(
       `
         INSERT INTO callback_logs (
           tenant_id,
@@ -158,7 +176,7 @@ export class CallbackLogsRepository {
   }
 
   async findById(tenantId: string, callbackLogId: string): Promise<CallbackLogEntity | null> {
-    const result = await this.databaseService.query<CallbackLogRow>(
+    const result = await this.executeSql<CallbackLogRow>(
       `
         SELECT
           id,
@@ -203,7 +221,7 @@ export class CallbackLogsRepository {
     tenantId: string,
     checkoutRequestId: string,
   ): Promise<CallbackLogEntity | null> {
-    const result = await this.databaseService.query<CallbackLogRow>(
+    const result = await this.executeSql<CallbackLogRow>(
       `
         SELECT
           id,
@@ -270,7 +288,7 @@ export class CallbackLogsRepository {
     tenantId: string,
     checkoutRequestId: string,
   ): Promise<void> {
-    await this.databaseService.query(
+    await this.executeSql(
       `
         UPDATE callback_logs
         SET
@@ -298,7 +316,7 @@ export class CallbackLogsRepository {
     checkoutRequestId: string,
     reason: string,
   ): Promise<void> {
-    await this.databaseService.query(
+    await this.executeSql(
       `
         UPDATE callback_logs
         SET
@@ -336,7 +354,7 @@ export class CallbackLogsRepository {
       result_desc?: string | null;
     } = {},
   ): Promise<void> {
-    await this.databaseService.query(
+    await this.executeSql(
       `
         UPDATE callback_logs
         SET
@@ -360,7 +378,7 @@ export class CallbackLogsRepository {
       result_desc?: string | null;
     } = {},
   ): Promise<void> {
-    await this.databaseService.query(
+    await this.executeSql(
       `
         UPDATE callback_logs
         SET
@@ -396,7 +414,7 @@ export class CallbackLogsRepository {
       parameterIndex += 1;
     }
 
-    await this.databaseService.query(
+    await this.executeSql(
       `
         UPDATE callback_logs
         SET ${assignments.join(', ')}

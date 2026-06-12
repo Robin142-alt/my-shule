@@ -1,3 +1,5 @@
+import { AgpModule } from './common/platform-governance/agp.module';
+import { WidgetRegistryModule } from './common/widget-registry/widget-registry.module';
 import { MiddlewareConsumer, Module, NestModule, RequestMethod } from '@nestjs/common';
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
@@ -70,6 +72,8 @@ import { SecretaryModule } from './modules/secretary/secretary.module';
 
 @Module({
   imports: [
+    AgpModule,
+    WidgetRegistryModule,
     ConfigModule.forRoot({
       isGlobal: true,
       expandVariables: true,

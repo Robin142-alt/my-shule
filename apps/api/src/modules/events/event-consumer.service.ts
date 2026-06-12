@@ -6,7 +6,7 @@ import {
   AUTH_SYSTEM_ROLE,
 } from '../../auth/auth.constants';
 import { RequestContextService } from '../../common/request-context/request-context.service';
-import { DatabaseService } from '../../database/database.service';
+import { PrismaService } from '../../database/prisma.service';
 import { EventConsumerRegistryService } from './event-consumer-registry.service';
 import { DomainEvent, DispatchOutboxEventJobPayload } from './events.types';
 import { EventConsumerRunsRepository } from './repositories/event-consumer-runs.repository';
@@ -14,12 +14,30 @@ import { OutboxEventsRepository } from './repositories/outbox-events.repository'
 
 @Injectable()
 export class EventConsumerService {
+
+  private async executeSql<T = any>(query: string, params: any[] = []): Promise<{ rows: T[], rowCount: number }> {
+    const firstParam = params[0];
+    const isUuid = typeof firstParam === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(firstParam);
+    
+    if (isUuid) {
+      return this.prisma.executeWithTenant(firstParam, null, async (tx: any) => {
+        const result = await tx.$queryRawUnsafe(query, ...params);
+        const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+      });
+    } else {
+      const result = await this.prisma.$queryRawUnsafe(query, ...params);
+      const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+    }
+  }
+
   private readonly logger = new Logger(EventConsumerService.name);
 
   constructor(
     private readonly configService: ConfigService,
     private readonly requestContext: RequestContextService,
-    private readonly databaseService: DatabaseService,
+    private readonly prisma: PrismaService,
     private readonly outboxEventsRepository: OutboxEventsRepository,
     private readonly eventConsumerRunsRepository: EventConsumerRunsRepository,
     private readonly eventConsumerRegistry: EventConsumerRegistryService,
@@ -45,7 +63,7 @@ export class EventConsumerService {
       },
       async () => {
         try {
-          await this.databaseService.withRequestTransaction(async () => {
+          await this.prisma.withRequestTransaction(async () => {
             const event = await this.getRequiredEvent(jobPayload.tenant_id, jobPayload.outbox_event_id);
 
             if (event.status === 'published') {
@@ -128,7 +146,7 @@ export class EventConsumerService {
         started_at: new Date().toISOString(),
       },
       async () => {
-        await this.databaseService.withRequestTransaction(async () => {
+        await this.prisma.withRequestTransaction(async () => {
           await this.outboxEventsRepository.markFailed(
             tenantId,
             outboxEventId,

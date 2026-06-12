@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 
-import { DatabaseService } from '../../database/database.service';
+import { PrismaService } from '../../database/prisma.service';
 import {
   MODULE_REGISTRY_SEED,
   ModuleCode,
@@ -37,11 +37,29 @@ type ModuleRegistryRow = {
 
 @Injectable()
 export class ModuleAccessRepository {
-  constructor(private readonly databaseService: DatabaseService) {}
+
+  private async executeSql<T = any>(query: string, params: any[] = []): Promise<{ rows: T[], rowCount: number }> {
+    const firstParam = params[0];
+    const isUuid = typeof firstParam === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(firstParam);
+    
+    if (isUuid) {
+      return this.prisma.executeWithTenant(firstParam, null, async (tx: any) => {
+        const result = await tx.$queryRawUnsafe(query, ...params);
+        const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+      });
+    } else {
+      const result = await this.prisma.$queryRawUnsafe(query, ...params);
+      const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+    }
+  }
+
+  constructor(private readonly prisma: PrismaService) {}
 
   async seedRegistry(): Promise<void> {
     for (const moduleDefinition of MODULE_REGISTRY_SEED as readonly ModuleRegistrySeedItem[]) {
-      await this.databaseService.query(
+      await this.executeSql(
         `
           INSERT INTO module_registry (
             code, name, description, feature_flags, status,
@@ -81,7 +99,7 @@ export class ModuleAccessRepository {
   }
 
   async listRegistry(): Promise<ModuleRegistryResponseDto[]> {
-    const result = await this.databaseService.query<ModuleRegistryRow>(
+    const result = await this.executeSql<ModuleRegistryRow>(
       `
         SELECT id::text, code, name, description, feature_flags, status,
                base_price_cents, per_student_price_cents, billing_metadata,
@@ -107,7 +125,7 @@ export class ModuleAccessRepository {
     route_segment: string | null;
     permission_scopes: string[];
   }): Promise<ModuleRegistryResponseDto> {
-    const result = await this.databaseService.query<ModuleRegistryRow>(
+    const result = await this.executeSql<ModuleRegistryRow>(
       `
         INSERT INTO module_registry (
           code, name, description, feature_flags, status,
@@ -152,7 +170,7 @@ export class ModuleAccessRepository {
 
   async listSchoolModules(tenantId: string): Promise<SchoolModuleAccessResponseDto[]> {
     return this.withTenantScope(tenantId, async () => {
-      const result = await this.databaseService.query<ModuleRegistryRow>(
+      const result = await this.executeSql<ModuleRegistryRow>(
         `
           SELECT
             mr.id::text,
@@ -191,7 +209,7 @@ export class ModuleAccessRepository {
 
   async listEnabledModuleCodes(tenantId: string): Promise<string[]> {
     return this.withTenantScope(tenantId, async () => {
-      const result = await this.databaseService.query<{ code: string }>(
+      const result = await this.executeSql<{ code: string }>(
         `
           SELECT mr.code
           FROM school_module_access sma
@@ -229,7 +247,7 @@ export class ModuleAccessRepository {
       await this.seedRegistry();
       await this.assertKnownActiveModules(input.moduleCodes);
 
-      await this.databaseService.query(
+      await this.executeSql(
         `
           UPDATE school_module_access sma
           SET enabled = false,
@@ -245,7 +263,7 @@ export class ModuleAccessRepository {
         [input.tenantId, input.updatedBy, input.moduleCodes],
       );
 
-      await this.databaseService.query(
+      await this.executeSql(
         `
           INSERT INTO school_module_access (
             tenant_id,
@@ -320,7 +338,7 @@ export class ModuleAccessRepository {
     return this.withTenantScope(input.tenantId, async () => {
       await this.assertKnownActiveModules([input.moduleCode]);
 
-      await this.databaseService.query(
+      await this.executeSql(
         `
           INSERT INTO school_module_access (
             tenant_id,
@@ -394,7 +412,7 @@ export class ModuleAccessRepository {
   }
 
   async listModulePackages(): Promise<Record<string, unknown>[]> {
-    const result = await this.databaseService.query<{
+    const result = await this.executeSql<{
       id: string;
       code: string;
       name: string;
@@ -441,8 +459,8 @@ export class ModuleAccessRepository {
   }): Promise<Record<string, unknown>> {
     await this.assertKnownActiveModules(input.module_codes);
 
-    return this.databaseService.withRequestTransaction(async () => {
-      const packageResult = await this.databaseService.query(
+    return this.prisma.withRequestTransaction(async () => {
+      const packageResult = await this.executeSql(
         `
           INSERT INTO module_packages (code, name, description, pricing_model, billing_metadata)
           VALUES ($1, $2, $3, $4, $5::jsonb)
@@ -465,13 +483,13 @@ export class ModuleAccessRepository {
       );
       const packageRow = packageResult.rows[0] as Record<string, unknown>;
 
-      await this.databaseService.query(
+      await this.executeSql(
         'DELETE FROM module_package_items WHERE package_id = $1::uuid',
         [packageRow.id],
       );
 
       for (const moduleCode of input.module_codes) {
-        await this.databaseService.query(
+        await this.executeSql(
           `
             INSERT INTO module_package_items (package_id, module_code)
             VALUES ($1::uuid, $2)
@@ -493,8 +511,8 @@ export class ModuleAccessRepository {
     name: string;
     actor_user_id: string;
   }): Promise<Record<string, unknown>> {
-    return this.databaseService.withRequestTransaction(async () => {
-      const source = await this.databaseService.query<{
+    return this.prisma.withRequestTransaction(async () => {
+      const source = await this.executeSql<{
         pricing_model: string;
         billing_metadata: Record<string, unknown> | string;
       }>(
@@ -513,7 +531,7 @@ export class ModuleAccessRepository {
         throw new Error('Source module package was not found');
       }
 
-      const modules = await this.databaseService.query<{ module_code: string }>(
+      const modules = await this.executeSql<{ module_code: string }>(
         `
           SELECT module_code
           FROM module_package_items
@@ -542,7 +560,7 @@ export class ModuleAccessRepository {
     metadata?: Record<string, unknown>;
   }): Promise<void> {
     await this.withTenantScope(input.tenant_id, async () => {
-      await this.databaseService.query(
+      await this.executeSql(
         `
           INSERT INTO module_usage_events (
             tenant_id, module_code, event_name, actor_user_id, metadata
@@ -564,8 +582,8 @@ export class ModuleAccessRepository {
     tenantId: string,
     callback: () => Promise<T>,
   ): Promise<T> {
-    return this.databaseService.withRequestTransaction(async () => {
-      await this.databaseService.query("SELECT set_config('app.tenant_id', $1, true)", [
+    return this.prisma.withRequestTransaction(async () => {
+      await this.executeSql("SELECT set_config('app.tenant_id', $1, true)", [
         tenantId,
       ]);
 
@@ -574,7 +592,7 @@ export class ModuleAccessRepository {
   }
 
   private async assertKnownActiveModules(moduleCodes: string[]): Promise<void> {
-    const result = await this.databaseService.query<{ code: string }>(
+    const result = await this.executeSql<{ code: string }>(
       `
         SELECT code
         FROM module_registry
@@ -597,7 +615,7 @@ export class ModuleAccessRepository {
     action: string;
     metadata: Record<string, unknown>;
   }): Promise<void> {
-    await this.databaseService.query(
+    await this.executeSql(
       `
         INSERT INTO audit_logs (
           tenant_id,

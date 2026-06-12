@@ -1,19 +1,19 @@
 import { Injectable } from '@nestjs/common';
 
-import { DatabaseService } from '../../../database/database.service';
+import { PrismaService } from '../../../database/prisma.service';
 import { SimpleOperationsRepository } from '../../implementation100/simple-operations';
 
 @Injectable()
 export class LmsRepository extends SimpleOperationsRepository {
-  constructor(databaseService: DatabaseService) {
-    super(databaseService, {
+  constructor(prisma: PrismaService) {
+    super(prisma, {
       mainTable: 'lms_courses',
       auditTable: 'lms_audit_logs',
     });
   }
 
   async findAssignment(tenantId: string, assignmentId: string) {
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
         SELECT
           id::text,
@@ -44,7 +44,7 @@ export class LmsRepository extends SimpleOperationsRepository {
     submitted_by_user_id: string | null;
     metadata: Record<string, unknown>;
   }) {
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
         INSERT INTO lms_submissions (
           tenant_id,

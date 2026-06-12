@@ -1,12 +1,12 @@
 import { Injectable } from '@nestjs/common';
 
-import { DatabaseService } from '../../../database/database.service';
+import { PrismaService } from '../../../database/prisma.service';
 import { SimpleOperationsRepository } from '../../implementation100/simple-operations';
 
 @Injectable()
 export class HostelRepository extends SimpleOperationsRepository {
-  constructor(databaseService: DatabaseService) {
-    super(databaseService, {
+  constructor(prisma: PrismaService) {
+    super(prisma, {
       mainTable: 'hostels',
       auditTable: 'hostel_audit_logs',
     });

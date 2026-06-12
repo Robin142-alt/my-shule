@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 
-import { DatabaseService } from '../../../database/database.service';
+import { PrismaService } from '../../../database/prisma.service';
 
 export interface TransportDashboardSummary {
   active_routes: number;
@@ -13,11 +13,29 @@ export interface TransportDashboardSummary {
 
 @Injectable()
 export class TransportRepository {
-  constructor(private readonly databaseService: DatabaseService) {}
+
+  private async executeSql<T = any>(query: string, params: any[] = []): Promise<{ rows: T[], rowCount: number }> {
+    const firstParam = params[0];
+    const isUuid = typeof firstParam === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(firstParam);
+    
+    if (isUuid) {
+      return this.prisma.executeWithTenant(firstParam, null, async (tx: any) => {
+        const result = await tx.$queryRawUnsafe(query, ...params);
+        const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+      });
+    } else {
+      const result = await this.prisma.$queryRawUnsafe(query, ...params);
+      const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+    }
+  }
+
+  constructor(private readonly prisma: PrismaService) {}
 
   async getDashboard(tenantId: string) {
     const [summary, routes, vehicles, manifests, trips, alerts] = await Promise.all([
-      this.databaseService.query<TransportDashboardSummary>(
+      this.executeSql<TransportDashboardSummary>(
         `
           SELECT
             (SELECT COUNT(*)::int FROM transport_routes WHERE tenant_id = $1 AND status = 'active') AS active_routes,
@@ -29,7 +47,7 @@ export class TransportRepository {
         `,
         [tenantId],
       ),
-      this.databaseService.query(
+      this.executeSql(
         `
           SELECT
             route.id::text,
@@ -59,7 +77,7 @@ export class TransportRepository {
         `,
         [tenantId],
       ),
-      this.databaseService.query(
+      this.executeSql(
         `
           SELECT
             id::text,
@@ -81,7 +99,7 @@ export class TransportRepository {
         `,
         [tenantId],
       ),
-      this.databaseService.query(
+      this.executeSql(
         `
           SELECT
             manifest.id::text,
@@ -105,7 +123,7 @@ export class TransportRepository {
         `,
         [tenantId],
       ),
-      this.databaseService.query(
+      this.executeSql(
         `
           SELECT
             trip.id::text,
@@ -132,7 +150,7 @@ export class TransportRepository {
         `,
         [tenantId],
       ),
-      this.databaseService.query(
+      this.executeSql(
         `
           SELECT
             id::text,
@@ -171,8 +189,8 @@ export class TransportRepository {
   }
 
   async createRoute(input: Record<string, unknown>) {
-    return this.databaseService.withRequestTransaction(async () => {
-      const result = await this.databaseService.query(
+    return this.prisma.withRequestTransaction(async () => {
+      const result = await this.executeSql(
         `
           INSERT INTO transport_routes (
             tenant_id, name, code, direction, zone, fare_amount_minor, created_by_user_id
@@ -193,7 +211,7 @@ export class TransportRepository {
       const route = result.rows[0];
 
       for (const stop of (input.stops ?? []) as Array<Record<string, unknown>>) {
-        await this.databaseService.query(
+        await this.executeSql(
           `
             INSERT INTO transport_route_stops (
               tenant_id, route_id, name, stop_sequence, planned_time,
@@ -219,7 +237,7 @@ export class TransportRepository {
   }
 
   async createVehicle(input: Record<string, unknown>) {
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
         INSERT INTO transport_vehicles (
           tenant_id, registration_number, capacity, ownership_type, make, model,
@@ -245,7 +263,7 @@ export class TransportRepository {
   }
 
   async createDriver(input: Record<string, unknown>) {
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
         INSERT INTO transport_drivers (
           tenant_id, staff_id, name, phone, license_number, license_expiry_date,
@@ -269,8 +287,8 @@ export class TransportRepository {
   }
 
   async createManifest(input: Record<string, unknown>) {
-    return this.databaseService.withRequestTransaction(async () => {
-      const result = await this.databaseService.query(
+    return this.prisma.withRequestTransaction(async () => {
+      const result = await this.executeSql(
         `
           INSERT INTO transport_manifests (
             tenant_id, route_id, academic_term_id, effective_from, effective_to,
@@ -291,7 +309,7 @@ export class TransportRepository {
       const manifest = result.rows[0];
 
       for (const studentId of (input.student_ids ?? []) as string[]) {
-        await this.databaseService.query(
+        await this.executeSql(
           `
             INSERT INTO transport_manifest_students (
               tenant_id, manifest_id, student_id, boarding_status
@@ -309,7 +327,7 @@ export class TransportRepository {
   }
 
   async startTrip(input: Record<string, unknown>) {
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
         INSERT INTO transport_trips (
           tenant_id, route_id, vehicle_id, driver_id, manifest_id, trip_date,
@@ -340,7 +358,7 @@ export class TransportRepository {
   }
 
   async recordTripEvent(input: Record<string, unknown>) {
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
         INSERT INTO transport_trip_events (
           tenant_id, trip_id, event_type, student_id, stop_id, notes,
@@ -367,7 +385,7 @@ export class TransportRepository {
   }
 
   async recordVehicleService(input: Record<string, unknown>) {
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
         INSERT INTO vehicle_service_logs (
           tenant_id, vehicle_id, service_date, odometer_reading, next_service_date,
@@ -390,7 +408,7 @@ export class TransportRepository {
     );
 
     if (input.next_service_date) {
-      await this.databaseService.query(
+      await this.executeSql(
         `
           UPDATE transport_vehicles
           SET service_due_date = $3::date,
@@ -406,7 +424,7 @@ export class TransportRepository {
   }
 
   async resolveAlert(input: Record<string, unknown>) {
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
         UPDATE transport_alerts
         SET status = 'resolved',
@@ -424,7 +442,7 @@ export class TransportRepository {
   }
 
   async appendAuditLog(input: Record<string, unknown>) {
-    await this.databaseService.query(
+    await this.executeSql(
       `
         INSERT INTO transport_audit_logs (
           tenant_id, actor_user_id, action, resource_type, resource_id, metadata

@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { Injectable, Optional, UnauthorizedException } from '@nestjs/common';
 
 import { RequestContextService } from '../../common/request-context/request-context.service';
-import { DatabaseService } from '../../database/database.service';
+import { PrismaService } from '../../database/prisma.service';
 import {
   AttendanceRecordEntity,
   AttendanceRecordsRepository,
@@ -26,9 +26,27 @@ interface ListStudentAttendanceInput {
 
 @Injectable()
 export class AttendanceService {
+
+  private async executeSql<T = any>(query: string, params: any[] = []): Promise<{ rows: T[], rowCount: number }> {
+    const firstParam = params[0];
+    const isUuid = typeof firstParam === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(firstParam);
+    
+    if (isUuid) {
+      return this.prisma.executeWithTenant(firstParam, null, async (tx: any) => {
+        const result = await tx.$queryRawUnsafe(query, ...params);
+        const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+      });
+    } else {
+      const result = await this.prisma.$queryRawUnsafe(query, ...params);
+      const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+    }
+  }
+
   constructor(
     private readonly requestContext: RequestContextService,
-    private readonly databaseService: DatabaseService,
+    private readonly prisma: PrismaService,
     private readonly attendanceRecordsRepository: AttendanceRecordsRepository,
     @Optional() private readonly syncOperationLogService?: SyncOperationLogService,
   ) {}
@@ -38,7 +56,7 @@ export class AttendanceService {
     attendanceDate: string,
     input: UpsertStudentAttendanceInput,
   ): Promise<AttendanceRecordEntity> {
-    return this.databaseService.withRequestTransaction(async () => {
+    return this.prisma.withRequestTransaction(async () => {
       const tenantId = this.requireTenantId();
       const lastModifiedAt = new Date(input.last_modified_at ?? new Date().toISOString());
 

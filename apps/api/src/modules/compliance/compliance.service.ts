@@ -10,7 +10,7 @@ import { ConfigService } from '@nestjs/config';
 import { AUTH_ANONYMOUS_USER_ID } from '../../auth/auth.constants';
 import { SessionService } from '../../auth/session.service';
 import { RequestContextService } from '../../common/request-context/request-context.service';
-import { DatabaseService } from '../../database/database.service';
+import { PrismaService } from '../../database/prisma.service';
 import { AuditLogService } from '../observability/audit-log.service';
 import { BreachResponseReportExportDto } from './dto/breach-response-report.dto';
 import { ConsentRecordResponseDto } from './dto/consent-record-response.dto';
@@ -92,9 +92,27 @@ const REDACTED_VALUE = '[redacted]';
 
 @Injectable()
 export class ComplianceService {
+
+  private async executeSql<T = any>(query: string, params: any[] = []): Promise<{ rows: T[], rowCount: number }> {
+    const firstParam = params[0];
+    const isUuid = typeof firstParam === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(firstParam);
+    
+    if (isUuid) {
+      return this.prisma.executeWithTenant(firstParam, null, async (tx: any) => {
+        const result = await tx.$queryRawUnsafe(query, ...params);
+        const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+      });
+    } else {
+      const result = await this.prisma.$queryRawUnsafe(query, ...params);
+      const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+    }
+  }
+
   constructor(
     private readonly requestContext: RequestContextService,
-    private readonly databaseService: DatabaseService,
+    private readonly prisma: PrismaService,
     private readonly sessionService: SessionService,
     @Optional() private readonly auditLogService?: AuditLogService,
     @Optional() private readonly configService?: ConfigService,
@@ -125,8 +143,8 @@ export class ComplianceService {
     const { tenantId, userId } = this.requireAuthenticatedContext();
     await this.loadCurrentMembership(userId, tenantId);
 
-    const consent = await this.databaseService.withRequestTransaction(async () => {
-      const result = await this.databaseService.query<ConsentRecordRow>(
+    const consent = await this.prisma.withRequestTransaction(async () => {
+      const result = await this.executeSql<ConsentRecordRow>(
         `
           INSERT INTO consent_records (
             tenant_id,
@@ -170,8 +188,8 @@ export class ComplianceService {
     const subjectUserId = dto.subject_user_id?.trim() || userId;
     const dueAt = new Date(Date.now() + this.resolveDataSubjectRequestDueDays() * MILLISECONDS_PER_DAY);
 
-    const request = await this.databaseService.withRequestTransaction(async () => {
-      const result = await this.databaseService.query<DataSubjectRequestRow>(
+    const request = await this.prisma.withRequestTransaction(async () => {
+      const result = await this.executeSql<DataSubjectRequestRow>(
         `
           INSERT INTO data_subject_requests (
             tenant_id,
@@ -312,7 +330,7 @@ export class ComplianceService {
 
   async exportBreachResponseReport(reportId: string): Promise<BreachResponseReportExportDto> {
     const { tenantId } = this.requireAuthenticatedContext();
-    const result = await this.databaseService.query<BreachResponseReportRow>(
+    const result = await this.executeSql<BreachResponseReportRow>(
       `
         SELECT
           id,
@@ -363,9 +381,9 @@ export class ComplianceService {
     const { tenantId, userId } = this.requireAuthenticatedContext();
     const deletedAt = new Date().toISOString();
 
-    await this.databaseService.withRequestTransaction(async () => {
+    await this.prisma.withRequestTransaction(async () => {
       await this.loadCurrentMembership(userId, tenantId);
-      const deletionResult = await this.databaseService.query<{ id: string }>(
+      const deletionResult = await this.executeSql<{ id: string }>(
         `
           DELETE FROM users
           WHERE id = $1::uuid
@@ -408,7 +426,7 @@ export class ComplianceService {
   }
 
   private async loadUser(userId: string): Promise<UserExportRow> {
-    const result = await this.databaseService.query<UserExportRow>(
+    const result = await this.executeSql<UserExportRow>(
       `
         SELECT
           id,
@@ -435,7 +453,7 @@ export class ComplianceService {
     userId: string,
     tenantId: string,
   ): Promise<MembershipExportRow> {
-    const result = await this.databaseService.query<MembershipExportRow>(
+    const result = await this.executeSql<MembershipExportRow>(
       `
         SELECT
           tm.tenant_id,
@@ -467,7 +485,7 @@ export class ComplianceService {
     tenantId: string,
     userId: string,
   ): Promise<ConsentRecordRow[]> {
-    const result = await this.databaseService.query<ConsentRecordRow>(
+    const result = await this.executeSql<ConsentRecordRow>(
       `
         SELECT
           id,
@@ -534,7 +552,7 @@ export class ComplianceService {
     responsePatch: Record<string, unknown>;
     completeNow?: boolean;
   }): Promise<DataSubjectRequestRow> {
-    const result = await this.databaseService.query<DataSubjectRequestRow>(
+    const result = await this.executeSql<DataSubjectRequestRow>(
       `
         UPDATE data_subject_requests
         SET
@@ -573,7 +591,7 @@ export class ComplianceService {
   }
 
   private async anonymizeDataSubject(tenantId: string, requestId: string): Promise<void> {
-    const result = await this.databaseService.query<{ id: string }>(
+    const result = await this.executeSql<{ id: string }>(
       `
         UPDATE users
         SET

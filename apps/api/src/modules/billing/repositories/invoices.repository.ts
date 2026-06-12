@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 
-import { DatabaseService } from '../../../database/database.service';
+import { PrismaService } from '../../../database/prisma.service';
 import { PiiEncryptionService } from '../../security/pii-encryption.service';
 import { InvoiceEntity } from '../entities/invoice.entity';
 
@@ -65,13 +65,31 @@ export interface StudentInvoiceBalanceSummary {
 
 @Injectable()
 export class InvoicesRepository {
+
+  private async executeSql<T = any>(query: string, params: any[] = []): Promise<{ rows: T[], rowCount: number }> {
+    const firstParam = params[0];
+    const isUuid = typeof firstParam === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(firstParam);
+    
+    if (isUuid) {
+      return this.prisma.executeWithTenant(firstParam, null, async (tx: any) => {
+        const result = await tx.$queryRawUnsafe(query, ...params);
+        const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+      });
+    } else {
+      const result = await this.prisma.$queryRawUnsafe(query, ...params);
+      const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+    }
+  }
+
   constructor(
-    private readonly databaseService: DatabaseService,
+    private readonly prisma: PrismaService,
     private readonly piiEncryptionService: PiiEncryptionService,
   ) {}
 
   async createInvoice(input: CreateInvoiceInput): Promise<InvoiceEntity> {
-    const result = await this.databaseService.query<InvoiceRow>(
+    const result = await this.executeSql<InvoiceRow>(
       `
         INSERT INTO invoices (
           tenant_id,
@@ -162,7 +180,7 @@ export class InvoicesRepository {
           values.push(normalizeListLimit(options.limit), normalizeListOffset(options.offset));
           return 'LIMIT $3::integer OFFSET $4::integer';
         })();
-    const result = await this.databaseService.query<InvoiceRow>(
+    const result = await this.executeSql<InvoiceRow>(
       `
         SELECT
           id,
@@ -201,7 +219,7 @@ export class InvoicesRepository {
     tenantId: string,
     options: { limit?: number; offset?: number } = {},
   ): Promise<StudentInvoiceBalanceSummary[]> {
-    const result = await this.databaseService.query<StudentInvoiceBalanceSummary>(
+    const result = await this.executeSql<StudentInvoiceBalanceSummary>(
       `
         SELECT
           tenant_id,
@@ -235,7 +253,7 @@ export class InvoicesRepository {
     tenantId: string,
     studentId: string,
   ): Promise<InvoiceEntity[]> {
-    const result = await this.databaseService.query<InvoiceRow>(
+    const result = await this.executeSql<InvoiceRow>(
       `
         SELECT
           id,
@@ -270,7 +288,7 @@ export class InvoicesRepository {
   }
 
   async findById(tenantId: string, invoiceId: string): Promise<InvoiceEntity | null> {
-    const result = await this.databaseService.query<InvoiceRow>(
+    const result = await this.executeSql<InvoiceRow>(
       `
         SELECT
           id,
@@ -305,7 +323,7 @@ export class InvoicesRepository {
   }
 
   async lockById(tenantId: string, invoiceId: string): Promise<InvoiceEntity | null> {
-    const result = await this.databaseService.query<InvoiceRow>(
+    const result = await this.executeSql<InvoiceRow>(
       `
         SELECT
           id,
@@ -344,7 +362,7 @@ export class InvoicesRepository {
     tenantId: string,
     paymentIntentId: string,
   ): Promise<InvoiceEntity | null> {
-    const result = await this.databaseService.query<InvoiceRow>(
+    const result = await this.executeSql<InvoiceRow>(
       `
         SELECT
           id,
@@ -382,7 +400,7 @@ export class InvoicesRepository {
     tenantId: string,
     paymentIntentId: string,
   ): Promise<InvoiceEntity | null> {
-    const result = await this.databaseService.query<InvoiceRow>(
+    const result = await this.executeSql<InvoiceRow>(
       `
         SELECT
           id,
@@ -422,7 +440,7 @@ export class InvoicesRepository {
     subscriptionId: string,
     renewalWindow: string,
   ): Promise<InvoiceEntity | null> {
-    const result = await this.databaseService.query<InvoiceRow>(
+    const result = await this.executeSql<InvoiceRow>(
       `
         SELECT
           id,
@@ -465,7 +483,7 @@ export class InvoicesRepository {
     paymentIntentId: string,
     billingPhoneNumber: string | null,
   ): Promise<InvoiceEntity> {
-    const result = await this.databaseService.query<InvoiceRow>(
+    const result = await this.executeSql<InvoiceRow>(
       `
         UPDATE invoices
         SET
@@ -516,7 +534,7 @@ export class InvoicesRepository {
     invoiceId: string,
     amountPaidMinor: string,
   ): Promise<InvoiceEntity> {
-    const result = await this.databaseService.query<InvoiceRow>(
+    const result = await this.executeSql<InvoiceRow>(
       `
         UPDATE invoices
         SET
@@ -558,7 +576,7 @@ export class InvoicesRepository {
     tenantId: string,
     idempotencyKey: string,
   ): Promise<{ id: string } | null> {
-    const result = await this.databaseService.query<{ id: string }>(
+    const result = await this.executeSql<{ id: string }>(
       `
         SELECT id
         FROM student_fee_payment_allocations
@@ -577,7 +595,7 @@ export class InvoicesRepository {
     studentId: string;
     explicitInvoiceId?: string | null;
   }): Promise<StudentFeeInvoiceForAllocation[]> {
-    const result = await this.databaseService.query<StudentFeeInvoiceForAllocation>(
+    const result = await this.executeSql<StudentFeeInvoiceForAllocation>(
       `
         SELECT
           id,
@@ -608,7 +626,7 @@ export class InvoicesRepository {
     tenantId: string,
     invoiceId: string,
   ): Promise<StudentFeeInvoiceForAllocation | null> {
-    const result = await this.databaseService.query<StudentFeeInvoiceForAllocation>(
+    const result = await this.executeSql<StudentFeeInvoiceForAllocation>(
       `
         SELECT
           id,
@@ -643,7 +661,7 @@ export class InvoicesRepository {
     reference: string,
   ): Promise<StudentFeeInvoiceForAllocation | null> {
     const trimmedReference = reference.trim();
-    const result = await this.databaseService.query<StudentFeeInvoiceForAllocation>(
+    const result = await this.executeSql<StudentFeeInvoiceForAllocation>(
       `
         SELECT
           id,
@@ -690,7 +708,7 @@ export class InvoicesRepository {
     nextAmountPaidMinor: string;
     nextStatus: 'pending_payment' | 'paid';
   }): Promise<InvoiceEntity> {
-    const result = await this.databaseService.query<InvoiceRow>(
+    const result = await this.executeSql<InvoiceRow>(
       `
         UPDATE invoices
         SET
@@ -742,7 +760,7 @@ export class InvoicesRepository {
     nextAmountPaidMinor: string;
     nextStatus: 'pending_payment' | 'paid';
   }): Promise<InvoiceEntity> {
-    const result = await this.databaseService.query<InvoiceRow>(
+    const result = await this.executeSql<InvoiceRow>(
       `
         UPDATE invoices
         SET
@@ -795,7 +813,7 @@ export class InvoicesRepository {
     amountMinor: string;
     nextStatus: 'open' | 'pending_payment';
   }): Promise<InvoiceEntity> {
-    const result = await this.databaseService.query<InvoiceRow>(
+    const result = await this.executeSql<InvoiceRow>(
       `
         UPDATE invoices
         SET
@@ -850,7 +868,7 @@ export class InvoicesRepository {
     idempotencyKey: string;
     metadata?: Record<string, unknown>;
   }): Promise<{ id: string }> {
-    const result = await this.databaseService.query<{ id: string }>(
+    const result = await this.executeSql<{ id: string }>(
       `
         INSERT INTO student_fee_payment_allocations (
           tenant_id,
@@ -894,7 +912,7 @@ export class InvoicesRepository {
     idempotencyKey: string;
     metadata?: Record<string, unknown>;
   }): Promise<{ id: string }> {
-    const result = await this.databaseService.query<{ id: string }>(
+    const result = await this.executeSql<{ id: string }>(
       `
         INSERT INTO student_fee_credits (
           tenant_id,

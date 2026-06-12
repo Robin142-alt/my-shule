@@ -2,13 +2,10 @@
 
 import { Download, FileText } from "lucide-react";
 import { Panel, EmptyState } from "./shared";
-
-const MOCK_REPORTS = [
-  { id: "REP-001", name: "Weekly Discipline Summary (Term 2, Week 4)", type: "PDF", date: "2026-06-11" },
-  { id: "REP-002", name: "Student Suspension List (Term 2)", type: "Excel", date: "2026-06-01" },
-];
+import { useSchoolQuery } from "@/lib/data/school-hooks";
 
 export function ReportsDownloadsWorkspace() {
+  const { data: reports = [], isLoading } = useSchoolQuery<any[]>("/api/discipline/reports-downloads");
   return (
     <Panel title="Reports & Downloads" description="Generate and download analytical discipline reports." icon={Download}>
       <div className="flex justify-between items-center mb-6">
@@ -19,7 +16,7 @@ export function ReportsDownloadsWorkspace() {
       </div>
 
       <div className="mb-8">
-        {MOCK_REPORTS.length > 0 ? (
+        {reports.length > 0 ? (
           <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
             <table className="w-full text-left text-sm text-[#071D49]">
               <thead className="bg-[#F8FAFC] text-xs font-black uppercase text-[#64748B]">
@@ -31,7 +28,7 @@ export function ReportsDownloadsWorkspace() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#D8E0EC]">
-                {MOCK_REPORTS.map((row) => (
+                {reports.map((row) => (
                   <tr key={row.id} className="hover:bg-[#F8FAFC]">
                     <td className="px-4 py-3 font-bold">{row.name}</td>
                     <td className="px-4 py-3">{row.type}</td>
@@ -46,7 +43,7 @@ export function ReportsDownloadsWorkspace() {
           </div>
         ) : (
           <EmptyState 
-            message="No reports generated yet." 
+            message={isLoading ? "Loading reports..." : "No reports generated yet."} 
             icon={FileText} 
           />
         )}

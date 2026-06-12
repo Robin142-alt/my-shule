@@ -1,152 +1,86 @@
 import { Injectable } from '@nestjs/common';
-
-import { DatabaseService } from '../../../database/database.service';
+import { PrismaService } from '../../../database/prisma.service';
 import { AccountEntity } from '../entities/account.entity';
-
-interface AccountRow {
-  id: string;
-  tenant_id: string;
-  code: string;
-  name: string;
-  category: AccountEntity['category'];
-  normal_balance: AccountEntity['normal_balance'];
-  currency_code: string;
-  allow_manual_entries: boolean;
-  is_active: boolean;
-  metadata: Record<string, unknown> | null;
-  created_at: Date;
-  updated_at: Date;
-}
+import { AccountCategory, EntryDirection } from '../finance.types';
 
 @Injectable()
 export class AccountsRepository {
-  constructor(private readonly databaseService: DatabaseService) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   async findById(tenantId: string, accountId: string): Promise<AccountEntity | null> {
-    const result = await this.databaseService.query<AccountRow>(
-      `
-        SELECT
-          id,
-          tenant_id,
-          code,
-          name,
-          category,
-          normal_balance,
-          currency_code,
-          allow_manual_entries,
-          is_active,
-          metadata,
-          created_at,
-          updated_at
-        FROM accounts
-        WHERE tenant_id = $1
-          AND id = $2
-        LIMIT 1
-      `,
-      [tenantId, accountId],
-    );
-
-    return result.rows[0] ? this.mapAccount(result.rows[0]) : null;
+    return this.prisma.executeWithTenant(tenantId, null, async (tx) => {
+      const account = await tx.ledgerAccount.findUnique({
+        where: { id: accountId, schoolId: tenantId },
+      });
+      return account ? this.mapAccount(account) : null;
+    });
   }
 
   async findByCode(tenantId: string, accountCode: string): Promise<AccountEntity | null> {
-    const result = await this.databaseService.query<AccountRow>(
-      `
-        SELECT
-          id,
-          tenant_id,
-          code,
-          name,
-          category,
-          normal_balance,
-          currency_code,
-          allow_manual_entries,
-          is_active,
-          metadata,
-          created_at,
-          updated_at
-        FROM accounts
-        WHERE tenant_id = $1
-          AND code = $2
-        LIMIT 1
-      `,
-      [tenantId, accountCode],
-    );
-
-    return result.rows[0] ? this.mapAccount(result.rows[0]) : null;
+    return this.prisma.executeWithTenant(tenantId, null, async (tx) => {
+      const account = await tx.ledgerAccount.findFirst({
+        where: { schoolId: tenantId, code: accountCode },
+      });
+      return account ? this.mapAccount(account) : null;
+    });
   }
 
   async findByIds(tenantId: string, accountIds: string[]): Promise<AccountEntity[]> {
     const uniqueAccountIds = Array.from(new Set(accountIds));
+    if (uniqueAccountIds.length === 0) return [];
 
-    if (uniqueAccountIds.length === 0) {
-      return [];
-    }
-
-    const result = await this.databaseService.query<AccountRow>(
-      `
-        SELECT
-          id,
-          tenant_id,
-          code,
-          name,
-          category,
-          normal_balance,
-          currency_code,
-          allow_manual_entries,
-          is_active,
-          metadata,
-          created_at,
-          updated_at
-        FROM accounts
-        WHERE tenant_id = $1
-          AND id = ANY($2::uuid[])
-        ORDER BY id ASC
-      `,
-      [tenantId, uniqueAccountIds],
-    );
-
-    return result.rows.map((row) => this.mapAccount(row));
+    return this.prisma.executeWithTenant(tenantId, null, async (tx) => {
+      const accounts = await tx.ledgerAccount.findMany({
+        where: { schoolId: tenantId, id: { in: uniqueAccountIds } },
+        orderBy: { id: 'asc' },
+      });
+      return accounts.map((row) => this.mapAccount(row));
+    });
   }
 
   async lockAccountsByIds(tenantId: string, accountIds: string[]): Promise<AccountEntity[]> {
     const uniqueAccountIds = Array.from(new Set(accountIds));
+    if (uniqueAccountIds.length === 0) return [];
 
-    if (uniqueAccountIds.length === 0) {
-      return [];
-    }
-
-    const result = await this.databaseService.query<AccountRow>(
-      `
-        SELECT
-          id,
-          tenant_id,
-          code,
-          name,
-          category,
-          normal_balance,
-          currency_code,
-          allow_manual_entries,
-          is_active,
-          metadata,
-          created_at,
-          updated_at
+    return this.prisma.executeWithTenant(tenantId, null, async (tx) => {
+      // Prisma has no native FOR UPDATE on findMany, so we use $queryRaw
+      const accounts = await tx.$queryRaw<any[]>`
+        SELECT *
         FROM accounts
-        WHERE tenant_id = $1
-          AND id = ANY($2::uuid[])
+        WHERE tenant_id = ${tenantId}::uuid
+          AND id = ANY(${uniqueAccountIds}::uuid[])
         ORDER BY id ASC
         FOR UPDATE
-      `,
-      [tenantId, uniqueAccountIds],
-    );
-
-    return result.rows.map((row) => this.mapAccount(row));
+      `;
+      return accounts.map((row) => this.mapRawAccount(row));
+    });
   }
 
-  private mapAccount(row: AccountRow): AccountEntity {
+  private mapAccount(row: any): AccountEntity {
     return Object.assign(new AccountEntity(), {
-      ...row,
-      metadata: row.metadata ?? {},
+      id: row.id,
+      code: row.code,
+      name: row.name,
+      category: row.category?.toLowerCase() as AccountCategory,
+      normal_balance: row.normalBalance?.toLowerCase() as EntryDirection,
+      currency_code: row.currencyCode,
+      allow_manual_entries: row.allowManualEntries,
+      is_active: row.isActive,
+      metadata: (row.metadata && typeof row.metadata === 'object') ? row.metadata : {},
+    });
+  }
+
+  private mapRawAccount(row: any): AccountEntity {
+    return Object.assign(new AccountEntity(), {
+      id: row.id,
+      code: row.code,
+      name: row.name,
+      category: row.category?.toLowerCase() as AccountCategory,
+      normal_balance: row.normal_balance?.toLowerCase() as EntryDirection,
+      currency_code: row.currency_code,
+      allow_manual_entries: row.allow_manual_entries,
+      is_active: row.is_active,
+      metadata: (row.metadata && typeof row.metadata === 'object') ? row.metadata : {},
     });
   }
 }

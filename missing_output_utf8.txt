@@ -1,0 +1,74 @@
+﻿
+Workspace [platform overview] Missing Items:
+  Columns: school activity table, actions
+
+Workspace [schools] Missing Items:
+  Columns: actions
+
+Workspace [school onboarding] Missing Items:
+  Columns: onboarding checklist table
+
+Workspace [principal invites] Missing Items:
+  Columns: actions
+
+Workspace [tenant health] Missing Items:
+  Columns: tenant health table
+
+Workspace [users & roles] Missing Items:
+  Columns: actions
+
+Workspace [academic setup] Missing Items:
+  Buttons: term dates affect attendance, exams, finance, reports, portals, timetables.
+  Columns: actions
+
+Workspace [classes & streams] Missing Items:
+  Buttons: add class/grade/form, add stream, assign class teacher, promote learners, merge stream, archive class
+  Columns: curriculum, students, capacity, status, actions
+
+Workspace [subjects & departments] Missing Items:
+  Columns: subjects table, departments table, teacher-subject allocation table
+
+Workspace [staff & roles] Missing Items:
+  Buttons: invite staff, assign role, change role, disable staff, resend invite, reset password, export staff list
+  Columns: staff name, email, phone, last login, invite status, actions
+
+Workspace [students] Missing Items:
+  Buttons: promote students, transfer student, deactivate student, download student list
+
+Workspace [attendance] Missing Items:
+  Buttons: view class attendance, notify parents, escalate to deputy, print daily attendance, export attendance
+
+Workspace [academics] Missing Items:
+  Buttons: view coverage, request department report, send academic notice, export academic summary
+
+Workspace [exams & report cards] Missing Items:
+  Columns: exam cycle table
+
+Workspace [discipline] Missing Items:
+  Columns: actions
+
+Workspace [communication] Missing Items:
+  Buttons: send announcement, send sms, send email, create notice, schedule message, preview message, download delivery report
+
+Workspace [approvals] Missing Items:
+  Buttons: approve selected, reject selected, return for correction, view details, download approval log
+
+Workspace [settings] Missing Items:
+  Buttons: save settings, reset section, preview changes, export settings, view audit log, print daily operations brief, send staff notice, open duty roster, review discipline, add daily note, assign task, escalate to principal, mark resolved, print daily log, view unmarked classes, remind teacher, notify parents, escalate repeat absence, export attendance, create duty roster, assign duty, swap duty, print roster, notify staff, open case, assign discipline master, refer to counsellor, notify parent, recommend suspension, print case summary, view student profile, assign follow-up, notify parent, escalate to principal, export welfare report, approve, reject, return, add comment, add academic year, add term, add class, add stream, add subject, add department, import setup data, add student, import students, edit student, link parent, assign class, promote, transfer, deactivate, add parent, link to student, verify contact, send portal invite, merge duplicate, export parent list, add staff record, update staff details, assign department, assign role scope, export staff register, download template, upload file, validate, preview import, confirm import, download error file, fix record, merge duplicate, export issues, mark reviewed, request hod report, view coverage, create intervention, export academic brief, add coverage record, review coverage, flag behind schedule, notify hod, export coverage, review lesson plan, approve, return for correction, comment, download plan, view log, mark reviewed, flag missing, send reminder, export logs, view department, request report, compare terms, export department analysis, create intervention, assign teacher, add learners, track progress, notify parents, close intervention, create exam, add assessment, set grading, assign subjects, lock setup, duplicate previous exam, add paper, assign room, assign invigilator, open marks entry, close marks entry, assign teacher, send reminder, export mark sheet, import marks, review marks, approve subject marks, return to teacher, flag outliers, add moderation note, export moderation report, generate report cards, preview template, add class teacher comment, add principal comment, regenerate, download batch pdf, submit to principal, publish to parent portal, unpublish with approval, send parent notification, download publishing log, generate analysis, export excel, download pdf, print, view teacher, assign subject, request reassignment, send department notice, assign teacher, remove assignment, export allocation, review coverage, flag delay, add hod note, send reminder, export coverage, review marks, approve, return to teacher, add comment, submit to exams manager, mark attendance, enter marks, add lesson log, create assignment, mark all present, save attendance, submit attendance, notify parent, add late note, print attendance sheet, open class, view learners, add topic, download class list, create lesson plan, save draft, submit to hod, edit, download plan, add lesson log, save, attach evidence, submit, export logs, create assignment, attach file, assign to class, mark submitted, grade assignment, send reminder, download submissions, enter marks, save draft, validate marks, submit to hod, import marks, download mark sheet, add note, flag concern, refer to class teacher, refer to counsellor, notify parent, new request, submit request, cancel request, track status, download class list, contact parents, add class note, print class register, call parent, send sms, mark follow-up done, escalate to deputy, export absentee list, add comment, save draft, submit comments, bulk apply template, download missing comments, record payment, generate invoices, reconcile m-pesa, print daily collection, create fee structure, add fee item, assign to class, duplicate previous term, lock fee structure, export fee structure, generate invoice, bulk generate, send invoice, print invoice, download pdf, record manual payment, search student, allocate payment, reverse payment with approval, print receipt, print receipt, download receipt, send to parent, reissue receipt, export receipts, import statement, auto match, manual match, mark unmatched, retry webhook, export reconciliation, send reminder, print statement, export arrears, create payment plan, escalate to principal, create waiver request, submit to principal, approve if permitted, reject, print waiver form, add parent/visitor, assign to office, mark served, escalate, print queue slip, register visitor, check out, print visitor pass, mark frequent visitor, export visitor log, create appointment, reschedule, cancel, send reminder, print appointment list, generate letter, preview, print, download pdf, send to parent, add application, upload documents, review, shortlist, reject, export applicants, admit student, generate admission number, assign class, create student profile, send admission letter, creates student record., links parent., sends to finance for invoice generation., sends to class teacher register., create incident, attach evidence, notify class teacher, notify parent, escalate, print incident form, add warning, recommend suspension, assign detention, refer to counsellor, submit to principal, accept referral, schedule session, return referral, escalate welfare concern, add session note, schedule follow-up, mark complete, notify class teacher if allowed, add visit, start consultation, mark treated, refer home, notify parent, print visit slip, add medicine, update stock, mark expired, set reorder level, export medicine stock, dispense medicine, print dispensing record, notify parent, export log, add book, scan barcode, import books, edit book, mark lost, mark damaged, export catalogue, search student, scan book, issue book, print issue slip, scan book, return book, return all, mark damaged, mark lost, calculate fine, print return slip, send parent sms, send student reminder, print overdue list, export overdue report, add item, edit item, import items, set reorder level, export item list, receive stock, attach delivery note, save batch, print goods received note, issue stock, approve issue if allowed, print issue voucher, notify requester, approve request, reject request, issue item, forward to procurement, add comment, start stocktake, count item, mark missing, mark damaged, resolve discrepancy, export stocktake, create request, review request, submit for approval, convert to lpo, reject, add supplier, edit supplier, view history, export suppliers, generate lpo, send to supplier, mark delivered, download lpo pdf, add hostel, add room, add bed, assign student, move student, print bed list, mark present, mark absent, mark late, notify parent, export attendance, create leave request, approve exit, reject, print gate pass, notify parent, register visitor, quick entry, check out, print pass, mark frequent visitor, verify pass, approve gate exit if permitted, deny exit, notify deputy, print exit log, add route, add stop, assign vehicle, assign driver, export routes, add vehicle, update insurance, update service date, mark under maintenance, export vehicle list, add student to route, remove student, change stop, notify parent, download bus list, add apparatus, add chemical, update stock, mark damaged, mark missing, export inventory, issue apparatus, return apparatus, mark broken, print issue slip, add chemical, update quantity, mark expired, print chemical register, add asset, import assets, assign asset, mark in use, mark damaged, mark missing, print asset tag, export register, log fault, assign repair, mark resolved, add cost, download maintenance report, loan asset, return asset, print loan form, notify custodian, view fees, download statement, view report card, send message, switch child, view statement, download statement, download receipt, pay via m-pesa, send payment query, view results, download report card, acknowledge report, view teacher comments, acknowledge notice, request meeting, download notice, acknowledge, contact school, download visit note where allowed, download assignment, submit assignment if enabled, view published report
+  Columns: task, assigned role, priority, due time, actions, class, stream, assigned teacher, present, absent, late, submitted time, date, staff, duty, location, actions, student, class, incident, severity, assigned officer, actions, parent, phone, email, linked students, portal status, actions, staff, role, department, subject/class scope, actions, subject, class, teacher, expected topic, covered topic, coverage %, actions, teacher, subject, class, week, submitted date, actions, teacher, class, subject, date, topic taught, attendance link, view timetable, recommend reassignment, export workload, teacher, subjects, classes, lessons/week, department, department, hod, subjects, mean score, coverage, pending issues, actions, exam, classes, subjects, marks status, report status, actions, print timetable, export timetable, subject, class, teacher, submitted, missing, invalid, actions, subject, class, teacher, mean, highest, lowest, outliers, actions, class, reports generated, approved, published, parent views, actions, teacher, subjects, classes, lessons/week, coverage %, lesson logs, subject, class, stream, teacher, actions, day/week timetable, class, subject, room, time, print timetable, download pdf, report conflict, student, admission no., status: present, absent, late, excused, note, parent notified?, actions, subject, class, stream, learners, coverage, assignments, marks status, assignment, class, due date, submitted, missing, actions, student, admission no., score, grade, comment, validation status, student, class, note type, visibility, created date, actions, student, admission no., parent contact, attendance %, fees status, academic status, discipline status, actions, student, days absent, last attendance, parent contacted?, follow-up status, actions, student, academic summary, attendance, comment, actions, class, term, total fees, items, actions, invoice no., student, class, amount, balance, actions, date, student, amount, method, reference, recorded by, actions, m-pesa code, phone, amount, student matched, match confidence, actions, student, class, parent, balance, days overdue, last payment, actions, queue no., name, purpose, waiting time, assigned office, actions, name, phone/id optional, purpose, person to see, time in, time out, actions, applicant, class, parent, interview date, actions, case no., student, incident, severity, parent notified, actions, student, referred by, reason category, priority, actions, student, class, symptoms, time in, parent notified, actions, medicine, batch no., quantity, expiry date, reorder level, actions, accession no., title, author, category, copies, available, actions, request no., item, quantity, department, estimated cost, actions, hostel, room, bed, student, actions, student, dorm, time, note, actions, student, class, reason, approved by, time out, expected return, route, stops, vehicle, driver, students, actions, item, category, quantity, condition, location, actions, asset code, name, category, serial no., location, custodian, actions, invoice, amount, paid, balance, due date, actions, today timetable, assignments due, library books, notices, fee balance summary if allowed, view timetable, view assignments, view messages, download materials, timetable, learning materials
+
+Workspace [overview] Missing Items:
+  Buttons: new enquiry, new application, schedule interviews, export pipeline, refresh
+  RowActions: open, move stage, call parent, send sms, add note
+
+Workspace [communication] Missing Items:
+  Buttons: new message, use template, bulk sms, retry failed, export logs
+  Columns: recipient, student, channel, template, sent by, sent at
+  RowActions: view message, retry, copy message, open applicant, mark follow-up needed
+
+Workspace [reports & downloads] Missing Items:
+  Buttons: generate report, download pdf, download excel, print, send to principal, schedule report, save filter
+  RowActions: open applicant, export visible rows, print current page, share internally
+
+Matched Workspaces: 45
+Total Missing: 884

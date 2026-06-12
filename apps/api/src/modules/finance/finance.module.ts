@@ -1,3 +1,5 @@
+import { FinanceWidgetProvider } from './widgets/finance-widget.provider';
+import * as moduleConsumers from './consumers';
 import { Module } from '@nestjs/common';
 
 import { AuthModule } from '../../auth/auth.module';
@@ -19,6 +21,8 @@ import { EventsModule } from '../events/events.module';
   imports: [AuthModule, SyncModule, ObservabilityModule, EventsModule],
   controllers: [FinanceController],
   providers: [
+    FinanceWidgetProvider,
+    ...Object.values(moduleConsumers),
     FinanceSchemaService,
     LedgerService,
     TransactionService,

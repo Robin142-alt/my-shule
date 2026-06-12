@@ -417,6 +417,8 @@ function VisitorRegisterWorkspace() {
 }
 
 function ExpectedVisitorsWorkspace() {
+  const { data: appointments, isLoading } = useSchoolQuery<any>("/api/visitors/appointments");
+
   return (
     <Panel title="Expected Visitors" description="Visitors scheduled by Admin or Secretary." icon={Calendar} actions={
       <button className="rounded-lg border border-[#D8E0EC] px-4 py-2 text-sm font-bold text-[#071D49]">Add Expected Visitor</button>
@@ -433,15 +435,23 @@ function ExpectedVisitorsWorkspace() {
             </tr>
           </thead>
           <tbody className="divide-y divide-[#D8E0EC]">
-            <tr className="hover:bg-[#F8FAFC]">
-              <td className="px-4 py-3 text-[#64748B]">10:00 AM</td>
-              <td className="px-4 py-3 font-semibold text-[#071D49]">Alice Mwangi</td>
-              <td className="px-4 py-3 text-[#64748B]">Principal</td>
-              <td className="px-4 py-3"><StatusChip label="Pending" tone="neutral" /></td>
-              <td className="px-4 py-3 text-right">
-                <button className="text-emerald-600 hover:underline font-semibold text-xs mr-3">Check In Now</button>
-              </td>
-            </tr>
+            {isLoading ? (
+              <tr><td colSpan={5} className="px-4 py-8 text-center text-[#64748B]">Loading expected visitors...</td></tr>
+            ) : !appointments?.length ? (
+              <tr><td colSpan={5} className="px-4 py-8 text-center text-[#64748B]">No expected visitors.</td></tr>
+            ) : appointments.map((appt: any) => (
+              <tr key={appt.id} className="hover:bg-[#F8FAFC]">
+                <td className="px-4 py-3 text-[#64748B]">{new Date(appt.appointment_time).toLocaleString()}</td>
+                <td className="px-4 py-3 font-semibold text-[#071D49]">{appt.visitor_name || "Unknown"}</td>
+                <td className="px-4 py-3 text-[#64748B]">{appt.host_user_id || "-"}</td>
+                <td className="px-4 py-3"><StatusChip label={appt.status} tone={appt.status === "pending" ? "neutral" : "success"} /></td>
+                <td className="px-4 py-3 text-right">
+                  {appt.status === "pending" && (
+                    <button className="text-emerald-600 hover:underline font-semibold text-xs mr-3">Check In Now</button>
+                  )}
+                </td>
+              </tr>
+            ))}
           </tbody>
         </table>
       </div>
@@ -450,6 +460,8 @@ function ExpectedVisitorsWorkspace() {
 }
 
 function GatePassesWorkspace() {
+  const { data: exits, isLoading } = useSchoolQuery<any>("/api/visitors/student-exits");
+
   return (
     <Panel title="Student Gate Passes" description="Verify approved student gate passes." icon={Ticket} actions={
       <button className="rounded-lg border border-[#D8E0EC] px-4 py-2 text-sm font-bold text-[#071D49]">Export List</button>
@@ -459,23 +471,31 @@ function GatePassesWorkspace() {
           <thead className="bg-[#F8FAFC] text-[#071D49]">
             <tr>
               <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Student</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Class</th>
+              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Exit Time</th>
               <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Reason</th>
               <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Status</th>
               <th className="px-4 py-3 font-bold border-b border-[#D8E0EC] text-right">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-[#D8E0EC]">
-            <tr className="hover:bg-[#F8FAFC]">
-              <td className="px-4 py-3 font-semibold text-[#071D49]">John Doe</td>
-              <td className="px-4 py-3 text-[#64748B]">Form 2</td>
-              <td className="px-4 py-3 text-[#64748B]">Medical</td>
-              <td className="px-4 py-3"><StatusChip label="Approved" tone="success" /></td>
-              <td className="px-4 py-3 text-right">
-                <button className="text-blue-600 hover:underline font-semibold text-xs mr-3">Verify Pass</button>
-                <button className="text-emerald-600 hover:underline font-semibold text-xs">Record Exit</button>
-              </td>
-            </tr>
+            {isLoading ? (
+              <tr><td colSpan={5} className="px-4 py-8 text-center text-[#64748B]">Loading passes...</td></tr>
+            ) : !exits?.length ? (
+              <tr><td colSpan={5} className="px-4 py-8 text-center text-[#64748B]">No gate passes.</td></tr>
+            ) : exits.map((exit: any) => (
+              <tr key={exit.id} className="hover:bg-[#F8FAFC]">
+                <td className="px-4 py-3 font-semibold text-[#071D49]">{exit.student_id?.substring(0,8) || "Unknown"}</td>
+                <td className="px-4 py-3 text-[#64748B]">{new Date(exit.exit_time).toLocaleString()}</td>
+                <td className="px-4 py-3 text-[#64748B]">{exit.reason || "-"}</td>
+                <td className="px-4 py-3"><StatusChip label={exit.status} tone={exit.status === 'out' ? 'warning' : 'success'} /></td>
+                <td className="px-4 py-3 text-right">
+                  <button className="text-blue-600 hover:underline font-semibold text-xs mr-3">Verify Pass</button>
+                  {exit.status === 'out' && (
+                    <button className="text-emerald-600 hover:underline font-semibold text-xs">Record Return</button>
+                  )}
+                </td>
+              </tr>
+            ))}
           </tbody>
         </table>
       </div>

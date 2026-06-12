@@ -1,3 +1,4 @@
+import { StudentsWidgetProvider } from './widgets/students-widget.provider';
 import { Module } from '@nestjs/common';
 
 import { BillingModule } from '../billing/billing.module';
@@ -13,6 +14,7 @@ import { StudentsRepository } from './repositories/students.repository';
   imports: [EventsModule, BillingModule, SyncModule],
   controllers: [StudentsController],
   providers: [
+    StudentsWidgetProvider,
     StudentsSchemaService,
     StudentsService,
     AttendanceService,

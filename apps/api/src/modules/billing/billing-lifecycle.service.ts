@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 
-import { DatabaseService } from '../../database/database.service';
+import { PrismaService } from '../../database/prisma.service';
 import { StructuredLoggerService } from '../observability/structured-logger.service';
 import {
   BILLING_BILLING_ONLY_ACCESS_MODE,
@@ -25,8 +25,26 @@ import { SubscriptionsRepository } from './repositories/subscriptions.repository
 
 @Injectable()
 export class BillingLifecycleService {
+
+  private async executeSql<T = any>(query: string, params: any[] = []): Promise<{ rows: T[], rowCount: number }> {
+    const firstParam = params[0];
+    const isUuid = typeof firstParam === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(firstParam);
+    
+    if (isUuid) {
+      return this.prisma.executeWithTenant(firstParam, null, async (tx: any) => {
+        const result = await tx.$queryRawUnsafe(query, ...params);
+        const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+      });
+    } else {
+      const result = await this.prisma.$queryRawUnsafe(query, ...params);
+      const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+    }
+  }
+
   constructor(
-    private readonly databaseService: DatabaseService,
+    private readonly prisma: PrismaService,
     private readonly subscriptionsRepository: SubscriptionsRepository,
     private readonly billingNotificationService: BillingNotificationService,
     private readonly structuredLogger: StructuredLoggerService,
@@ -36,7 +54,7 @@ export class BillingLifecycleService {
     subscription: SubscriptionEntity | null;
     overview: SubscriptionLifecycleOverview | null;
   }> {
-    return this.databaseService.withRequestTransaction(async () => {
+    return this.prisma.withRequestTransaction(async () => {
       await this.subscriptionsRepository.acquireTenantMutationLock(tenantId);
       const currentSubscription = await this.subscriptionsRepository.lockCurrentByTenant(tenantId);
 

@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 
-import { DatabaseService } from '../../../database/database.service';
+import { PrismaService } from '../../../database/prisma.service';
 import { UsageRecordEntity } from '../entities/usage-record.entity';
 import { UsageSummary } from '../billing.types';
 
@@ -35,14 +35,32 @@ interface CreateUsageRecordInput {
 
 @Injectable()
 export class UsageRecordsRepository {
-  constructor(private readonly databaseService: DatabaseService) {}
+
+  private async executeSql<T = any>(query: string, params: any[] = []): Promise<{ rows: T[], rowCount: number }> {
+    const firstParam = params[0];
+    const isUuid = typeof firstParam === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(firstParam);
+    
+    if (isUuid) {
+      return this.prisma.executeWithTenant(firstParam, null, async (tx: any) => {
+        const result = await tx.$queryRawUnsafe(query, ...params);
+        const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+      });
+    } else {
+      const result = await this.prisma.$queryRawUnsafe(query, ...params);
+      const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+    }
+  }
+
+  constructor(private readonly prisma: PrismaService) {}
 
   async findByIdempotencyKey(
     tenantId: string,
     subscriptionId: string,
     idempotencyKey: string,
   ): Promise<UsageRecordEntity | null> {
-    const result = await this.databaseService.query<UsageRecordRow>(
+    const result = await this.executeSql<UsageRecordRow>(
       `
         SELECT
           id,
@@ -71,7 +89,7 @@ export class UsageRecordsRepository {
   }
 
   async createUsageRecord(input: CreateUsageRecordInput): Promise<UsageRecordEntity> {
-    const insertResult = await this.databaseService.query<UsageRecordRow>(
+    const insertResult = await this.executeSql<UsageRecordRow>(
       `
         INSERT INTO usage_records (
           tenant_id,
@@ -132,7 +150,7 @@ export class UsageRecordsRepository {
       return this.mapRow(insertResult.rows[0]);
     }
 
-    const existingResult = await this.databaseService.query<UsageRecordRow>(
+    const existingResult = await this.executeSql<UsageRecordRow>(
       `
         SELECT
           id,
@@ -166,7 +184,7 @@ export class UsageRecordsRepository {
     periodStart: string,
     periodEnd: string,
   ): Promise<UsageSummary[]> {
-    const result = await this.databaseService.query<{
+    const result = await this.executeSql<{
       feature_key: string;
       total_quantity: string;
     }>(
@@ -195,7 +213,7 @@ export class UsageRecordsRepository {
     periodEnd: string,
     featureKey?: string,
   ): Promise<string> {
-    const result = await this.databaseService.query<{ total_quantity: string }>(
+    const result = await this.executeSql<{ total_quantity: string }>(
       `
         SELECT
           COALESCE(SUM(quantity), 0)::text AS total_quantity

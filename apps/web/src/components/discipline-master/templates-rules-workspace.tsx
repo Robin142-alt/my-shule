@@ -2,13 +2,10 @@
 
 import { FileCog, Settings2 } from "lucide-react";
 import { Panel, EmptyState } from "./shared";
-
-const MOCK_TEMPLATES = [
-  { id: "TPL-001", name: "Official Warning Letter", type: "Letter", lastUpdated: "2026-05-10" },
-  { id: "TPL-002", name: "Suspension Notice", type: "Notice", lastUpdated: "2026-05-11" },
-];
+import { useSchoolQuery } from "@/lib/data/school-hooks";
 
 export function TemplatesRulesWorkspace() {
+  const { data: templates = [], isLoading } = useSchoolQuery<any[]>("/api/discipline/templates");
   return (
     <Panel title="Templates & Rules" description="Manage document templates and configure school rules." icon={FileCog}>
       <div className="flex justify-between items-center mb-6">
@@ -19,7 +16,7 @@ export function TemplatesRulesWorkspace() {
       </div>
 
       <div className="mb-8">
-        {MOCK_TEMPLATES.length > 0 ? (
+        {templates.length > 0 ? (
           <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
             <table className="w-full text-left text-sm text-[#071D49]">
               <thead className="bg-[#F8FAFC] text-xs font-black uppercase text-[#64748B]">
@@ -31,7 +28,7 @@ export function TemplatesRulesWorkspace() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#D8E0EC]">
-                {MOCK_TEMPLATES.map((row) => (
+                {templates.map((row) => (
                   <tr key={row.id} className="hover:bg-[#F8FAFC]">
                     <td className="px-4 py-3 font-bold">{row.name}</td>
                     <td className="px-4 py-3">{row.type}</td>
@@ -46,7 +43,7 @@ export function TemplatesRulesWorkspace() {
           </div>
         ) : (
           <EmptyState 
-            message="No templates configured." 
+            message={isLoading ? "Loading templates..." : "No templates configured."} 
             icon={Settings2} 
           />
         )}

@@ -1377,13 +1377,15 @@ export function ExamsManagerCommandCenter({
   const [activeView, setActiveView] = useState<ExamsManagerView>("overview");
   const [searchTerm, setSearchTerm] = useState("");
   const [notice, setNotice] = useState("Exams desk ready for exam setup, marks entry, validation, and draft report cards.");
-  const [savedConfigurations, setSavedConfigurations] = useState<SavedExamConfiguration[]>([]);
-  const [examDrafts, setExamDrafts] = useState<ExamOperationalRecord[]>([]);
-  const [alignmentChecks, setAlignmentChecks] = useState<ExamOperationalRecord[]>([]);
-  const [marksEntrySessions, setMarksEntrySessions] = useState<ExamOperationalRecord[]>([]);
-  const [deanReviewBatches, setDeanReviewBatches] = useState<ExamOperationalRecord[]>([]);
   const [selectedLifecycleIds, setSelectedLifecycleIds] = useState<Partial<Record<ExamsManagerView, string[]>>>({});
   const [lifecycleResults, setLifecycleResults] = useState<ExamOperationalRecord[]>([]);
+
+  const { data: dashboard } = useSchoolQuery<any>("/api/exams/dashboard");
+  const savedConfigurations = dashboard?.savedConfigurations || [];
+  const examDrafts = dashboard?.examDrafts || [];
+  const marksEntrySessions = dashboard?.marksEntrySessions || [];
+  const deanReviewBatches = dashboard?.deanReviewBatches || [];
+  const alignmentChecks: any[] = [];
   const capabilities = useMemo(() => {
     return new Map(
       widgets.map((widget) => [
@@ -1446,7 +1448,6 @@ export function ExamsManagerCommandCenter({
       {
         onSuccess: () => {
           queryClient.invalidateQueries();
-          setSavedConfigurations((current) => [configuration, ...current].slice(0, 4));
           setNotice("Exam configuration saved for Dean review.");
         },
         onError: (err) => {
@@ -1505,7 +1506,6 @@ export function ExamsManagerCommandCenter({
             ],
           });
 
-          setExamDrafts((current) => [draft, ...current].slice(0, 4));
           setNotice("Exam draft created and shared with academic reviewers.");
         },
         onError: (err) => {
@@ -1562,7 +1562,6 @@ export function ExamsManagerCommandCenter({
             ],
           });
 
-          setAlignmentChecks((current) => [check, ...current].slice(0, 3));
           setNotice("Term alignment check saved with timetable warnings for review.");
         },
         onError: (err) => {
@@ -1620,7 +1619,6 @@ export function ExamsManagerCommandCenter({
             ],
           });
 
-          setMarksEntrySessions((current) => [session, ...current].slice(0, 4));
           setNotice(`${session.title} opened for Mathematics Form 4 North with 12 pending learners; teacher and Dean notifications created.`);
         },
         onError: (err) => {
@@ -1679,7 +1677,6 @@ export function ExamsManagerCommandCenter({
             ],
           });
 
-          setDeanReviewBatches((current) => [batch, ...current].slice(0, 4));
           setNotice("Draft report card batch sent to Dean review and leadership notified.");
         },
         onError: (err) => {

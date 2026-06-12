@@ -1,7 +1,7 @@
 import { Body, Controller, Get, Post, Query, Patch, Delete, Param } from '@nestjs/common';
 
 import { Permissions } from '../../auth/decorators/permissions.decorator';
-import { DatabaseService } from '../../database/database.service';
+import { PrismaService } from '../../database/prisma.service';
 import { RequestContextService } from '../../common/request-context/request-context.service';
 import { RequiresModule } from '../module-access/module-access.decorator';
 import { FinanceTasksService } from './finance-tasks.service';
@@ -9,6 +9,8 @@ import { FinanceWidgetDataDto } from '../dashboard/dashboard.dto';
 import { EventPublisherService } from '../events/event-publisher.service';
 
 export class CreatePaymentDto {
+
+
   id!: string;
   student!: string;
   admissionNo!: string;
@@ -35,7 +37,8 @@ import { SchoolOperationalEventsService } from '../events/school-operational-eve
 @RequiresModule('finance')
 export class FinanceController {
   constructor(
-    private readonly db: DatabaseService,
+    private readonly db: PrismaService,
+    private readonly prisma: PrismaService,
     private readonly requestContext: RequestContextService,
     private readonly tasksService: FinanceTasksService,
     private readonly eventPublisher: EventPublisherService,
@@ -197,26 +200,40 @@ export class FinanceController {
       throw new Error('Tenant context required');
     }
 
-    const [
-      collectionsRes,
-      invoicesRes,
-      mpesaRes
-    ] = await Promise.all([
-      this.db.query('SELECT COALESCE(SUM(amount_minor), 0) as total FROM manual_fee_payments WHERE tenant_id = $1 AND DATE(created_at) = CURRENT_DATE', [tenantId]),
-      this.db.query('SELECT COALESCE(SUM(balance_minor), 0) as total FROM student_invoices WHERE tenant_id = $1 AND status != \'paid\'', [tenantId]).catch(() => ({ rows: [{ total: 0 }] })),
-      this.db.query('SELECT COALESCE(SUM(amount_minor), 0) as total FROM receipts WHERE tenant_id = $1 AND payment_method = \'mpesa\'', [tenantId]).catch(() => ({ rows: [{ total: 0 }] })),
-    ]);
+    const [collectionsTotal, outstandingTotal, mpesaTotal] = await this.prisma.executeWithTenant(tenantId, null, async (tx) => {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
 
-    const collectionsMinor = parseInt(collectionsRes.rows[0]?.total || '0');
-    const outstandingMinor = parseInt(invoicesRes.rows[0]?.total || '0');
-    const mpesaMinor = parseInt(mpesaRes.rows[0]?.total || '0');
+      const [collectionsRes, invoicesRes, mpesaRes] = await Promise.all([
+        tx.payment.aggregate({
+          _sum: { amount: true },
+          where: { schoolId: tenantId, paymentDate: { gte: today, lt: tomorrow } }
+        }),
+        tx.invoice.aggregate({
+          _sum: { balance: true },
+          where: { schoolId: tenantId, status: { not: 'PAID' } }
+        }),
+        tx.payment.aggregate({
+          _sum: { amount: true },
+          where: { schoolId: tenantId, paymentMethod: 'MPESA' }
+        })
+      ]);
 
-    const mpesaPercentage = collectionsMinor > 0 ? Math.round((mpesaMinor / collectionsMinor) * 100) : 0;
-    const bankPercentage = collectionsMinor > 0 ? 100 - mpesaPercentage : 0;
+      return [
+        collectionsRes._sum.amount || 0,
+        invoicesRes._sum.balance || 0,
+        mpesaRes._sum.amount || 0
+      ];
+    });
+
+    const mpesaPercentage = collectionsTotal > 0 ? Math.round((mpesaTotal / collectionsTotal) * 100) : 0;
+    const bankPercentage = collectionsTotal > 0 ? 100 - mpesaPercentage : 0;
 
     return {
-      collectionsToday: `KES ${(collectionsMinor / 100).toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
-      outstandingInvoices: `KES ${(outstandingMinor / 100).toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
+      collectionsToday: `KES ${collectionsTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
+      outstandingInvoices: `KES ${outstandingTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
       failedPayments: '0',
       trendLabel: 'Live collections data',
       collectionMix: [
@@ -278,7 +295,7 @@ export class FinanceController {
   async getInvoices() {
     const tenantId = this.requestContext.requireStore().tenant_id;
     const result = await this.db.query(
-      `SELECT * FROM invoices WHERE tenant_id = $1 ORDER BY created_at DESC LIMIT 50`,
+      `SELECT * FROM student_invoices WHERE tenant_id = $1 ORDER BY created_at DESC LIMIT 50`,
       [tenantId]
     );
     return result.rows;
@@ -308,21 +325,22 @@ export class FinanceController {
   @Permissions('finance:read')
   async getExpenses() {
     const tenantId = this.requestContext.requireStore().tenant_id;
-    // Mocking expenses since we don't have a dedicated expenses table in the provided schema snippets
-    // Usually this would come from an expenses or ledger table
-    return [
-      { id: '1', date: new Date().toISOString(), category: 'Stationery', description: 'Chalks and dusters', amount_minor: '250000', status: 'Approved' }
-    ];
+    const result = await this.db.query(
+      `SELECT id, created_at as date, category, description, amount_minor, status FROM school_expenses WHERE tenant_id = $1 ORDER BY created_at DESC LIMIT 50`,
+      [tenantId]
+    );
+    return result.rows;
   }
 
   @Get('bank-entries')
   @Permissions('finance:read')
   async getBankEntries() {
     const tenantId = this.requestContext.requireStore().tenant_id;
-    // Mocking bank entries
-    return [
-      { id: '1', date: new Date().toISOString(), reference: 'DEP-002', description: 'Daily Cash Deposit', type: 'Credit', amount_minor: '1400000' }
-    ];
+    const result = await this.db.query(
+      `SELECT id, created_at as date, reference, description, type, amount_minor FROM bank_entries WHERE tenant_id = $1 ORDER BY created_at DESC LIMIT 50`,
+      [tenantId]
+    );
+    return result.rows;
   }
 
   @Delete('fee-categories/:id')

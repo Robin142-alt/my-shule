@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 
-import { DatabaseService } from '../../../database/database.service';
+import { PrismaService } from '../../../database/prisma.service';
 import {
   ClaimedOutboxEvent,
   DomainEvent,
@@ -47,12 +47,29 @@ const UUID_PATTERN =
 
 @Injectable()
 export class OutboxEventsRepository {
-  constructor(private readonly databaseService: DatabaseService) {}
+  constructor(private readonly prisma: PrismaService) {}
+
+  private async executeSql<T = any>(query: string, params: any[] = []): Promise<{ rows: T[], rowCount: number }> {
+    const firstParam = params[0];
+    const isUuid = typeof firstParam === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(firstParam);
+    
+    if (isUuid) {
+      return this.prisma.executeWithTenant(firstParam, null, async (tx: any) => {
+        const result = await tx.$queryRawUnsafe(query, ...params);
+        const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+      });
+    } else {
+      const result = await this.prisma.$queryRawUnsafe(query, ...params);
+      const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+    }
+  }
 
   async createEvent<TName extends DomainEvent['event_name']>(
     input: PublishDomainEventInput<TName>,
   ): Promise<DomainEvent<TName>> {
-    const result = await this.databaseService.query<OutboxEventRow>(
+    const result = await this.executeSql<OutboxEventRow>(
       `
         INSERT INTO outbox_events (
           tenant_id,
@@ -105,7 +122,7 @@ export class OutboxEventsRepository {
     batchSize: number,
     staleProcessingAfterMs: number,
   ): Promise<ClaimedOutboxEvent[]> {
-    const result = await this.databaseService.query<ClaimedOutboxEventRow>(
+    const result = await this.executeSql<ClaimedOutboxEventRow>(
       `
         SELECT
           id,
@@ -134,7 +151,7 @@ export class OutboxEventsRepository {
   }
 
   async findById(tenantId: string, outboxEventId: string, forUpdate = false): Promise<DomainEvent | null> {
-    const result = await this.databaseService.query<OutboxEventRow>(
+    const result = await this.executeSql<OutboxEventRow>(
       `
         SELECT
           id,
@@ -170,7 +187,7 @@ export class OutboxEventsRepository {
   ): Promise<DomainEvent[]> {
     const limit = this.normalizeDashboardStreamLimit(options.limit);
     const cursor = this.parseDashboardStreamCursor(options.since);
-    const result = await this.databaseService.query<OutboxEventRow>(
+    const result = await this.executeSql<OutboxEventRow>(
       `
         SELECT
           id,
@@ -206,7 +223,7 @@ export class OutboxEventsRepository {
   }
 
   async markPublished(tenantId: string, outboxEventId: string): Promise<void> {
-    await this.databaseService.query(
+    await this.executeSql(
       `
         UPDATE outbox_events
         SET
@@ -228,7 +245,7 @@ export class OutboxEventsRepository {
     retryDelayMs: number,
     maxAttempts: number,
   ): Promise<void> {
-    await this.databaseService.query(
+    await this.executeSql(
       `
         UPDATE outbox_events
         SET

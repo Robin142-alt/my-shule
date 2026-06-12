@@ -1,27 +1,9 @@
 import { Injectable } from '@nestjs/common';
-
+import { Prisma, StudentStatus, BoardingStatus } from '@prisma/client';
 import { decodeCreatedAtIdCursor } from '../../../common/pagination/cursor-pagination';
-import { DatabaseService } from '../../../database/database.service';
+import { PrismaService } from '../../../database/prisma.service';
 import { PiiEncryptionService } from '../../security/pii-encryption.service';
 import { StudentEntity } from '../entities/student.entity';
-
-interface StudentRow {
-  id: string;
-  tenant_id: string;
-  admission_number: string;
-  first_name: string;
-  last_name: string;
-  middle_name: string | null;
-  status: StudentEntity['status'];
-  date_of_birth: string | null;
-  gender: StudentEntity['gender'];
-  primary_guardian_name: string | null;
-  primary_guardian_phone: string | null;
-  metadata: Record<string, unknown> | null;
-  created_by_user_id: string | null;
-  created_at: Date;
-  updated_at: Date;
-}
 
 interface CreateStudentInput {
   tenant_id: string;
@@ -45,98 +27,53 @@ type UpdateStudentInput = Partial<Omit<CreateStudentInput, 'tenant_id' | 'create
 @Injectable()
 export class StudentsRepository {
   constructor(
-    private readonly databaseService: DatabaseService,
+    private readonly prisma: PrismaService,
     private readonly piiEncryptionService: PiiEncryptionService,
   ) {}
 
   async createStudent(input: CreateStudentInput): Promise<StudentEntity> {
-    const result = await this.databaseService.query<StudentRow>(
-      `
-        INSERT INTO students (
-          tenant_id,
-          admission_number,
-          first_name,
-          last_name,
-          middle_name,
-          status,
-          date_of_birth,
-          gender,
-          primary_guardian_name,
-          primary_guardian_phone,
-          metadata,
-          created_by_user_id
-        )
-        VALUES ($1, $2, $3, $4, $5, $6, $7::date, $8, $9, $10, $11::jsonb, $12::uuid)
-        RETURNING
-          id,
-          tenant_id,
-          admission_number,
-          first_name,
-          last_name,
-          middle_name,
-          status,
-          date_of_birth::text,
-          gender,
-          primary_guardian_name,
-          primary_guardian_phone,
-          metadata,
-          created_by_user_id,
-          created_at,
-          updated_at
-      `,
-      [
-        input.tenant_id,
-        input.admission_number,
-        input.first_name,
-        input.last_name,
-        input.middle_name,
-        input.status,
-        input.date_of_birth,
-        input.gender,
-        this.piiEncryptionService.encryptNullable(
-          input.primary_guardian_name,
-          this.guardianNameAad(input.tenant_id),
-        ),
-        this.piiEncryptionService.encryptNullable(
-          input.primary_guardian_phone,
-          this.guardianPhoneAad(input.tenant_id),
-        ),
-        JSON.stringify(input.metadata ?? {}),
-        input.created_by_user_id,
-      ],
-    );
+    return this.prisma.executeWithTenant(input.tenant_id, input.created_by_user_id, async (tx) => {
+      const student = await tx.student.create({
+        data: {
+          schoolId: input.tenant_id,
+          admissionNumber: input.admission_number,
+          firstName: input.first_name,
+          lastName: input.last_name,
+          middleName: input.middle_name,
+          studentStatus: (input.status?.toUpperCase() ?? 'ACTIVE') as StudentStatus,
+          dateOfBirth: input.date_of_birth ? new Date(input.date_of_birth) : new Date(),
+          gender: input.gender ?? 'undisclosed',
+          primaryGuardianName: this.piiEncryptionService.encryptNullable(
+            input.primary_guardian_name,
+            this.guardianNameAad(input.tenant_id),
+          ),
+          primaryGuardianPhone: this.piiEncryptionService.encryptNullable(
+            input.primary_guardian_phone,
+            this.guardianPhoneAad(input.tenant_id),
+          ),
+          metadata: (input.metadata ?? {}) as Prisma.InputJsonValue,
+          createdByUserId: input.created_by_user_id,
+          nationality: 'Kenyan', // Defaulting as schema requires it
+          boardingStatus: BoardingStatus.DAY_SCHOLAR, // Defaulting as schema requires it
+          admissionDate: new Date(), // Defaulting as schema requires it
+        },
+      });
 
-    return this.mapRow(result.rows[0]);
+      return this.mapRow(student);
+    });
   }
 
   async findById(tenantId: string, studentId: string): Promise<StudentEntity | null> {
-    const result = await this.databaseService.query<StudentRow>(
-      `
-        SELECT
-          id,
-          tenant_id,
-          admission_number,
-          first_name,
-          last_name,
-          middle_name,
-          status,
-          date_of_birth::text,
-          gender,
-          primary_guardian_name,
-          primary_guardian_phone,
-          metadata,
-          created_by_user_id,
-          created_at,
-          updated_at
-        FROM students
-        WHERE tenant_id = $1
-          AND id = $2::uuid
-        LIMIT 1
-      `,
-      [tenantId, studentId],
-    );
+    return this.prisma.executeWithTenant(tenantId, null, async (tx) => {
+      const student = await tx.student.findUnique({
+        where: {
+          id: studentId,
+          schoolId: tenantId, // Enforce Tenant Isolation manually alongside RLS
+        },
+      });
 
-    return result.rows[0] ? this.mapRow(result.rows[0]) : null;
+      return student ? this.mapRow(student) : null;
+    });
   }
 
   async listStudents(
@@ -148,79 +85,57 @@ export class StudentsRepository {
       cursor?: string;
     },
   ): Promise<StudentEntity[]> {
-    const conditions = ['tenant_id = $1'];
-    const values: unknown[] = [tenantId];
-    let parameterIndex = values.length + 1;
+    return this.prisma.executeWithTenant(tenantId, null, async (tx) => {
+      const where: Prisma.StudentWhereInput = {
+        schoolId: tenantId,
+      };
 
-    if (options.status) {
-      conditions.push(`status = $${parameterIndex}`);
-      values.push(options.status);
-      parameterIndex += 1;
-    }
+      if (options.status) {
+        where.studentStatus = options.status.toUpperCase() as StudentStatus;
+      }
 
-    if (options.search) {
-      conditions.push(
-        `(
-          admission_number ILIKE $${parameterIndex}
-          OR first_name ILIKE $${parameterIndex}
-          OR last_name ILIKE $${parameterIndex}
-          OR COALESCE(middle_name, '') ILIKE $${parameterIndex}
-        )`,
-      );
-      values.push(`%${options.search}%`);
-      parameterIndex += 1;
-    }
+      if (options.search) {
+        where.OR = [
+          { admissionNumber: { contains: options.search, mode: 'insensitive' } },
+          { firstName: { contains: options.search, mode: 'insensitive' } },
+          { lastName: { contains: options.search, mode: 'insensitive' } },
+          { middleName: { contains: options.search, mode: 'insensitive' } },
+        ];
+      }
 
-    if (options.cursor) {
-      const cursor = decodeCreatedAtIdCursor(options.cursor);
-      conditions.push(`(created_at, id) < ($${parameterIndex}::timestamptz, $${parameterIndex + 1}::uuid)`);
-      values.push(cursor.created_at, cursor.id);
-      parameterIndex += 2;
-    }
+      let cursorQuery: Prisma.StudentWhereUniqueInput | undefined;
+      if (options.cursor) {
+        const cursor = decodeCreatedAtIdCursor(options.cursor);
+        cursorQuery = { id: cursor.id };
+      }
 
-    values.push(options.limit);
-    const query = `
-      SELECT
-        id,
-        tenant_id,
-        admission_number,
-        first_name,
-        last_name,
-        middle_name,
-        status,
-        date_of_birth::text,
-        gender,
-        primary_guardian_name,
-        primary_guardian_phone,
-        metadata,
-        created_by_user_id,
-        created_at,
-        updated_at
-      FROM students
-      WHERE ${conditions.join('\n        AND ')}
-      ORDER BY created_at DESC, id DESC
-      LIMIT $${parameterIndex}
-    `;
-    const result = await this.databaseService.query<StudentRow>(query, values);
+      const students = await tx.student.findMany({
+        where,
+        take: options.limit,
+        skip: options.cursor ? 1 : undefined,
+        cursor: cursorQuery,
+        orderBy: [
+          { createdAt: 'desc' },
+          { id: 'desc' },
+        ],
+      });
 
-    return result.rows.map((row) => this.mapRow(row));
+      return students.map((s) => this.mapRow(s));
+    });
   }
 
   async countStudentsByStatus(
     tenantId: string,
     status: StudentEntity['status'],
   ): Promise<number> {
-    const result = await this.databaseService.query<{ total: string }>(
-      `
-        SELECT COUNT(*)::text AS total
-        FROM students
-        WHERE tenant_id = $1
-          AND status = $2
-      `,
-      [tenantId, status],
-    );
-
-    return Number(result.rows[0]?.total ?? '0');
+    return this.prisma.executeWithTenant(tenantId, null, async (tx) => {
+      return tx.student.count({
+        where: {
+          schoolId: tenantId,
+          studentStatus: status.toUpperCase() as StudentStatus,
+        },
+      });
+    });
   }
 
   async updateStudent(
@@ -228,113 +143,73 @@ export class StudentsRepository {
     studentId: string,
     input: UpdateStudentInput,
   ): Promise<StudentEntity | null> {
-    const assignments: string[] = [];
-    const values: unknown[] = [tenantId, studentId];
-    let parameterIndex = values.length + 1;
+    return this.prisma.executeWithTenant(tenantId, null, async (tx) => {
+      const data: Prisma.StudentUpdateInput = {};
 
-    const setField = (column: string, value: unknown, cast?: string): void => {
-      assignments.push(`${column} = $${parameterIndex}${cast ? `::${cast}` : ''}`);
-      values.push(value);
-      parameterIndex += 1;
-    };
+      if (input.admission_number !== undefined) data.admissionNumber = input.admission_number;
+      if (input.first_name !== undefined) data.firstName = input.first_name;
+      if (input.last_name !== undefined) data.lastName = input.last_name;
+      if (input.middle_name !== undefined) data.middleName = input.middle_name;
+      if (input.status !== undefined) data.studentStatus = input.status.toUpperCase() as StudentStatus;
+      if (input.date_of_birth !== undefined) data.dateOfBirth = input.date_of_birth ? new Date(input.date_of_birth) : undefined;
+      if (input.gender !== undefined) data.gender = input.gender ?? 'undisclosed';
 
-    if (input.admission_number !== undefined) {
-      setField('admission_number', input.admission_number);
-    }
-
-    if (input.first_name !== undefined) {
-      setField('first_name', input.first_name);
-    }
-
-    if (input.last_name !== undefined) {
-      setField('last_name', input.last_name);
-    }
-
-    if (input.middle_name !== undefined) {
-      setField('middle_name', input.middle_name);
-    }
-
-    if (input.status !== undefined) {
-      setField('status', input.status);
-    }
-
-    if (input.date_of_birth !== undefined) {
-      setField('date_of_birth', input.date_of_birth, 'date');
-    }
-
-    if (input.gender !== undefined) {
-      setField('gender', input.gender);
-    }
-
-    if (input.primary_guardian_name !== undefined) {
-      setField(
-        'primary_guardian_name',
-        this.piiEncryptionService.encryptNullable(
+      if (input.primary_guardian_name !== undefined) {
+        data.primaryGuardianName = this.piiEncryptionService.encryptNullable(
           input.primary_guardian_name,
           this.guardianNameAad(tenantId),
-        ),
-      );
-    }
+        );
+      }
 
-    if (input.primary_guardian_phone !== undefined) {
-      setField(
-        'primary_guardian_phone',
-        this.piiEncryptionService.encryptNullable(
+      if (input.primary_guardian_phone !== undefined) {
+        data.primaryGuardianPhone = this.piiEncryptionService.encryptNullable(
           input.primary_guardian_phone,
           this.guardianPhoneAad(tenantId),
-        ),
-      );
-    }
+        );
+      }
 
-    if (input.metadata !== undefined) {
-      setField('metadata', JSON.stringify(input.metadata ?? {}), 'jsonb');
-    }
+      if (input.metadata !== undefined) {
+        data.metadata = (input.metadata ?? Prisma.DbNull) as Prisma.InputJsonValue;
+      }
 
-    if (assignments.length === 0) {
-      return this.findById(tenantId, studentId);
-    }
+      if (Object.keys(data).length === 0) {
+        return this.findById(tenantId, studentId);
+      }
 
-    assignments.push('updated_at = NOW()');
-    const query = `
-      UPDATE students
-      SET
-        ${assignments.join(',\n        ')}
-      WHERE tenant_id = $1
-        AND id = $2::uuid
-      RETURNING
-        id,
-        tenant_id,
-        admission_number,
-        first_name,
-        last_name,
-        middle_name,
-        status,
-        date_of_birth::text,
-        gender,
-        primary_guardian_name,
-        primary_guardian_phone,
-        metadata,
-        created_by_user_id,
-        created_at,
-        updated_at
-    `;
-    const result = await this.databaseService.query<StudentRow>(query, values);
+      const student = await tx.student.update({
+        where: {
+          id: studentId,
+        },
+        data,
+      });
 
-    return result.rows[0] ? this.mapRow(result.rows[0]) : null;
+      return this.mapRow(student);
+    });
   }
 
-  private mapRow(row: StudentRow): StudentEntity {
+  private mapRow(row: any): StudentEntity {
     return Object.assign(new StudentEntity(), {
-      ...row,
+      id: row.id,
+      tenant_id: row.schoolId,
+      admission_number: row.admissionNumber,
+      first_name: row.firstName,
+      last_name: row.lastName,
+      middle_name: row.middleName,
+      status: (row.studentStatus || '').toLowerCase(),
+      date_of_birth: row.dateOfBirth ? row.dateOfBirth.toISOString().split('T')[0] : null,
+      gender: row.gender,
       primary_guardian_name: this.piiEncryptionService.decryptNullable(
-        row.primary_guardian_name,
-        this.guardianNameAad(row.tenant_id),
+        row.primaryGuardianName,
+        this.guardianNameAad(row.schoolId),
       ),
       primary_guardian_phone: this.piiEncryptionService.decryptNullable(
-        row.primary_guardian_phone,
-        this.guardianPhoneAad(row.tenant_id),
+        row.primaryGuardianPhone,
+        this.guardianPhoneAad(row.schoolId),
       ),
-      metadata: row.metadata ?? {},
+      metadata: (row.metadata && typeof row.metadata === 'object') ? row.metadata : {},
+      created_by_user_id: row.createdByUserId,
+      created_at: row.createdAt,
+      updated_at: row.updatedAt,
     });
   }
 

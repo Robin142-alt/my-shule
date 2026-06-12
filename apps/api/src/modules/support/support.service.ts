@@ -11,7 +11,7 @@ import { ConfigService } from '@nestjs/config';
 import { RequestContextService } from '../../common/request-context/request-context.service';
 import { UploadMalwareScanService } from '../../common/uploads/upload-malware-scan.service';
 import { validateUploadedFile } from '../../common/uploads/upload-policy';
-import { DatabaseService } from '../../database/database.service';
+import { PrismaService } from '../../database/prisma.service';
 import {
   AssignTicketDto,
   CreateInternalNoteDto,
@@ -47,9 +47,27 @@ const SUPPORT_OPERATOR_ROLES = new Set([
 
 @Injectable()
 export class SupportService {
+
+  private async executeSql<T = any>(query: string, params: any[] = []): Promise<{ rows: T[], rowCount: number }> {
+    const firstParam = params[0];
+    const isUuid = typeof firstParam === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(firstParam);
+    
+    if (isUuid) {
+      return this.prisma.executeWithTenant(firstParam, null, async (tx: any) => {
+        const result = await tx.$queryRawUnsafe(query, ...params);
+        const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+      });
+    } else {
+      const result = await this.prisma.$queryRawUnsafe(query, ...params);
+      const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+    }
+  }
+
   constructor(
     private readonly requestContext: RequestContextService,
-    private readonly databaseService: DatabaseService,
+    private readonly prisma: PrismaService,
     private readonly supportRepository: SupportRepository,
     private readonly attachmentStorage: SupportAttachmentStorageService,
     @Optional() private readonly notificationDelivery?: SupportNotificationDeliveryService,
@@ -65,7 +83,7 @@ export class SupportService {
   }
 
   async createTicket(dto: CreateSupportTicketDto) {
-    return this.databaseService.withRequestTransaction(async () => {
+    return this.prisma.withRequestTransaction(async () => {
       const tenantId = this.requireTenantId();
       const actorUserId = this.getActorUserId();
       const subject = this.requireText(dto.subject, 'Ticket subject');
@@ -170,7 +188,7 @@ export class SupportService {
   }
 
   async replyToTicket(ticketId: string, dto: CreateSupportMessageDto) {
-    return this.databaseService.withRequestTransaction(async () => {
+    return this.prisma.withRequestTransaction(async () => {
       const ticket = await this.requireTicket(ticketId);
       const actorUserId = this.getActorUserId();
       const supportOperator = this.isSupportOperator();
@@ -233,7 +251,7 @@ export class SupportService {
   async addInternalNote(ticketId: string, dto: CreateInternalNoteDto) {
     this.requireSupportOperator();
 
-    return this.databaseService.withRequestTransaction(async () => {
+    return this.prisma.withRequestTransaction(async () => {
       const ticket = await this.requireTicket(ticketId);
       const note = await this.supportRepository.createInternalNote({
         tenant_id: ticket.tenant_id,
@@ -261,7 +279,7 @@ export class SupportService {
   async updateTicketStatus(ticketId: string, dto: UpdateTicketStatusDto) {
     this.requireSupportOperator();
 
-    return this.databaseService.withRequestTransaction(async () => {
+    return this.prisma.withRequestTransaction(async () => {
       const ticket = await this.requireTicket(ticketId);
       const updated = await this.supportRepository.updateTicketStatus(
         ticket.id,
@@ -293,7 +311,7 @@ export class SupportService {
   async assignTicket(ticketId: string, dto: AssignTicketDto) {
     this.requireSupportOperator();
 
-    return this.databaseService.withRequestTransaction(async () => {
+    return this.prisma.withRequestTransaction(async () => {
       const ticket = await this.requireTicket(ticketId);
       const updated = await this.supportRepository.assignTicket(
         ticket.id,
@@ -334,7 +352,7 @@ export class SupportService {
   async mergeTickets(ticketId: string, dto: MergeTicketsDto) {
     this.requireSupportOperator();
 
-    return this.databaseService.withRequestTransaction(async () => {
+    return this.prisma.withRequestTransaction(async () => {
       const ticket = await this.requireTicket(ticketId);
       const targetTicket = await this.requireTicket(dto.target_ticket_id);
 
@@ -381,7 +399,7 @@ export class SupportService {
 
     const scannedFile = await this.scanUploadedAttachment(file);
 
-    return this.databaseService.withRequestTransaction(async () => {
+    return this.prisma.withRequestTransaction(async () => {
       const ticket = await this.requireTicket(ticketId);
       await this.assertAttachmentTargetIsAllowed(ticket, dto);
       const persisted = await this.attachmentStorage.save({

@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 
-import { DatabaseService } from '../../../database/database.service';
+import { PrismaService } from '../../../database/prisma.service';
 import { AttendanceSyncPayload } from '../sync.types';
 
 export interface AttendanceRecordEntity {
@@ -39,14 +39,32 @@ export interface UpsertAttendanceRecordInput {
 
 @Injectable()
 export class AttendanceRecordsRepository {
-  constructor(private readonly databaseService: DatabaseService) {}
+
+  private async executeSql<T = any>(query: string, params: any[] = []): Promise<{ rows: T[], rowCount: number }> {
+    const firstParam = params[0];
+    const isUuid = typeof firstParam === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(firstParam);
+    
+    if (isUuid) {
+      return this.prisma.executeWithTenant(firstParam, null, async (tx: any) => {
+        const result = await tx.$queryRawUnsafe(query, ...params);
+        const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+      });
+    } else {
+      const result = await this.prisma.$queryRawUnsafe(query, ...params);
+      const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+    }
+  }
+
+  constructor(private readonly prisma: PrismaService) {}
 
   async findByStudentDate(
     tenantId: string,
     studentId: string,
     attendanceDate: string,
   ): Promise<AttendanceRecordEntity | null> {
-    const result = await this.databaseService.query<AttendanceRecordRow>(
+    const result = await this.executeSql<AttendanceRecordRow>(
       `
         SELECT
           id,
@@ -75,7 +93,7 @@ export class AttendanceRecordsRepository {
   }
 
   async upsert(input: UpsertAttendanceRecordInput): Promise<AttendanceRecordEntity> {
-    const result = await this.databaseService.query<AttendanceRecordRow>(
+    const result = await this.executeSql<AttendanceRecordRow>(
       `
         INSERT INTO attendance_records (
           id,
@@ -157,7 +175,7 @@ export class AttendanceRecordsRepository {
   ): Promise<AttendanceRecordEntity[]> {
     const limit = this.normalizeLimit(options.limit);
     const offset = this.normalizeOffset(options.offset);
-    const result = await this.databaseService.query<AttendanceRecordRow>(
+    const result = await this.executeSql<AttendanceRecordRow>(
       `
         SELECT
           id,

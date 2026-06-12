@@ -8,7 +8,7 @@ import {
 } from '@nestjs/common';
 
 import { RequestContextService } from '../../common/request-context/request-context.service';
-import { DatabaseService } from '../../database/database.service';
+import { PrismaService } from '../../database/prisma.service';
 import { UploadMalwareScanService } from '../../common/uploads/upload-malware-scan.service';
 import { validateUploadedFile } from '../../common/uploads/upload-policy';
 import {
@@ -48,9 +48,27 @@ const HIGH_AUTHORITY_ROLES = new Set([
 
 @Injectable()
 export class DisciplineService {
+
+  private async executeSql<T = any>(query: string, params: any[] = []): Promise<{ rows: T[], rowCount: number }> {
+    const firstParam = params[0];
+    const isUuid = typeof firstParam === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(firstParam);
+    
+    if (isUuid) {
+      return this.prisma.executeWithTenant(firstParam, null, async (tx: any) => {
+        const result = await tx.$queryRawUnsafe(query, ...params);
+        const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+      });
+    } else {
+      const result = await this.prisma.$queryRawUnsafe(query, ...params);
+      const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+    }
+  }
+
   constructor(
     private readonly requestContext: RequestContextService,
-    private readonly databaseService: DatabaseService,
+    private readonly prisma: PrismaService,
     private readonly disciplineRepository: DisciplineRepository,
     @Optional() private readonly notificationService?: DisciplineNotificationService,
     @Optional() private readonly documentService?: DisciplineDocumentService,
@@ -58,6 +76,30 @@ export class DisciplineService {
     @Optional() private readonly uploadMalwareScan?: UploadMalwareScanService,
     @Optional() private readonly schoolEvents?: SchoolOperationalEventsService,
   ) {}
+
+  async getDashboard() {
+    this.assertPermission('discipline:read');
+    const tenantId = this.requireTenantId();
+    
+    const result = await this.executeSql(
+      `SELECT 
+         COUNT(*) FILTER (WHERE status IN ('new', 'under_review')) as open_cases,
+         COUNT(*) FILTER (WHERE DATE(created_at) = CURRENT_DATE) as new_today
+       FROM discipline_incidents
+       WHERE tenant_id = $1`,
+      [tenantId]
+    );
+
+    return {
+      kpis: [
+        { value: Number(result.rows[0]?.open_cases || 0) },
+        { value: Number(result.rows[0]?.new_today || 0) },
+        { value: 5 }, // Mock for 'Pending Parent Contact'
+        { value: 2 }  // Mock for 'Pending Approval'
+      ],
+      urgentCases: [] // For now, keep mock data in the frontend by returning empty or rely on frontend fallback
+    };
+  }
 
   async listOffenseCategories() {
     const tenantId = this.requireTenantId();
@@ -105,12 +147,12 @@ export class DisciplineService {
   }
 
   async createIncident(dto: CreateDisciplineIncidentDto) {
-    return this.databaseService.withRequestTransaction(async () => {
+    return this.prisma.withRequestTransaction(async () => {
       const tenantId = this.requireTenantId();
       const actorUserId = this.actorUserId();
       const schoolId = await this.resolveSchoolId(dto.school_id);
       const category = await this.requireOffenseCategory(tenantId, dto.offense_category_id);
-      const incidentNumber = await this.disciplineRepository.generateIncidentNumber();
+      const incidentNumber = await this.disciplineRepository.generateIncidentNumber(tenantId);
       const behaviorDelta = Number(category.default_points ?? 0);
       const incident = await this.disciplineRepository.createIncident({
         tenant_id: tenantId,
@@ -219,7 +261,7 @@ export class DisciplineService {
   }
 
   async updateIncident(incidentId: string, dto: UpdateDisciplineIncidentDto) {
-    return this.databaseService.withRequestTransaction(async () => {
+    return this.prisma.withRequestTransaction(async () => {
       this.assertDisciplineWrite();
       const incident = await this.requireIncident(incidentId);
       const updated = await this.disciplineRepository.updateIncident({
@@ -251,7 +293,7 @@ export class DisciplineService {
   }
 
   async updateStatus(incidentId: string, dto: UpdateDisciplineStatusDto) {
-    return this.databaseService.withRequestTransaction(async () => {
+    return this.prisma.withRequestTransaction(async () => {
       this.assertPermission('discipline:manage');
       const incident = await this.requireIncident(incidentId);
       const next = await this.disciplineRepository.updateIncidentStatus({
@@ -304,7 +346,7 @@ export class DisciplineService {
   }
 
   async assignIncident(incidentId: string, dto: AssignDisciplineIncidentDto) {
-    return this.databaseService.withRequestTransaction(async () => {
+    return this.prisma.withRequestTransaction(async () => {
       this.assertPermission('discipline:manage');
       const incident = await this.requireIncident(incidentId);
       const next = await this.disciplineRepository.assignIncident({
@@ -338,7 +380,7 @@ export class DisciplineService {
   }
 
   async createAction(incidentId: string, dto: CreateDisciplineActionDto) {
-    return this.databaseService.withRequestTransaction(async () => {
+    return this.prisma.withRequestTransaction(async () => {
       this.assertPermission('discipline:manage');
       const incident = await this.requireIncident(incidentId);
       const requiresApproval = dto.action_type === 'suspension' || dto.action_type === 'expulsion';

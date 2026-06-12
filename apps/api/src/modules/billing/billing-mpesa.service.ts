@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 
 import { RequestContextService } from '../../common/request-context/request-context.service';
-import { DatabaseService } from '../../database/database.service';
+import { PrismaService } from '../../database/prisma.service';
 import { BillingAccessService } from './billing-access.service';
 import { BILLING_MPESA_FEATURE } from './billing.constants';
 import { CreateBillingPaymentIntentDto } from './dto/create-billing-payment-intent.dto';
@@ -16,9 +16,27 @@ import { MpesaService } from '../payments/services/mpesa.service';
 
 @Injectable()
 export class BillingMpesaService {
+
+  private async executeSql<T = any>(query: string, params: any[] = []): Promise<{ rows: T[], rowCount: number }> {
+    const firstParam = params[0];
+    const isUuid = typeof firstParam === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(firstParam);
+    
+    if (isUuid) {
+      return this.prisma.executeWithTenant(firstParam, null, async (tx: any) => {
+        const result = await tx.$queryRawUnsafe(query, ...params);
+        const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+      });
+    } else {
+      const result = await this.prisma.$queryRawUnsafe(query, ...params);
+      const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+    }
+  }
+
   constructor(
     private readonly requestContext: RequestContextService,
-    private readonly databaseService: DatabaseService,
+    private readonly prisma: PrismaService,
     private readonly billingAccessService: BillingAccessService,
     private readonly invoicesRepository: InvoicesRepository,
     private readonly mpesaService: MpesaService,
@@ -28,7 +46,7 @@ export class BillingMpesaService {
     invoiceId: string,
     dto: CreateBillingPaymentIntentDto,
   ): Promise<InvoiceResponseDto> {
-    return this.databaseService.withRequestTransaction(async () => {
+    return this.prisma.withRequestTransaction(async () => {
       const tenantId = this.requireTenantId();
       const access = this.requestContext.requireStore().billing
         ?? (await this.billingAccessService.resolveForTenant(tenantId));

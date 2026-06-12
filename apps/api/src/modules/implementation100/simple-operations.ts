@@ -5,7 +5,7 @@ import {
 } from '@nestjs/common';
 
 import { RequestContextService } from '../../common/request-context/request-context.service';
-import { DatabaseService } from '../../database/database.service';
+import { PrismaService } from '../../database/prisma.service';
 
 export interface SimpleOperationsRecordDto {
   title: string;
@@ -44,11 +44,29 @@ export interface SimpleOperationsServiceConfig {
 }
 
 export class SimpleOperationsRepository {
+
+  protected async executeSql<T = any>(sql: string, params: any[] = []): Promise<{ rows: T[], rowCount: number }> {
+    const firstParam = params[0];
+    const isUuid = typeof firstParam === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(firstParam);
+    
+    if (isUuid) {
+      return this.prisma.executeWithTenant(firstParam, null, async (tx: any) => {
+        const result = await tx.$queryRawUnsafe(sql, ...params);
+        const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+      });
+    } else {
+      const result = await this.prisma.$queryRawUnsafe(sql, ...params);
+      const arr = Array.isArray(result) ? result : [result];
+        return { rows: arr, rowCount: arr.length };
+    }
+  }
+
   private readonly mainTableSql: string;
   private readonly auditTableSql: string;
 
   constructor(
-    protected readonly databaseService: DatabaseService,
+    protected readonly prisma: PrismaService,
     private readonly config: SimpleOperationsRepositoryConfig,
   ) {
     this.mainTableSql = quoteIdentifier(config.mainTable);
@@ -57,7 +75,7 @@ export class SimpleOperationsRepository {
 
   async getDashboard(tenantId: string) {
     const [summary, records, activity] = await Promise.all([
-      this.databaseService.query<SimpleOperationsDashboardSummary>(
+      this.executeSql<SimpleOperationsDashboardSummary>(
         `
           SELECT
             COUNT(*)::int AS total_records,
@@ -69,7 +87,7 @@ export class SimpleOperationsRepository {
         `,
         [tenantId],
       ),
-      this.databaseService.query(
+      this.executeSql(
         `
           SELECT
             id::text,
@@ -89,7 +107,7 @@ export class SimpleOperationsRepository {
         `,
         [tenantId],
       ),
-      this.databaseService.query(
+      this.executeSql(
         `
           SELECT
             id::text,
@@ -120,7 +138,7 @@ export class SimpleOperationsRepository {
   }
 
   async createRecord(input: Record<string, unknown>) {
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
         INSERT INTO ${this.mainTableSql} (
           tenant_id, title, category, owner_name, status, priority, due_date,
@@ -162,7 +180,7 @@ export class SimpleOperationsRepository {
   }
 
   async updateStatus(input: Record<string, unknown>) {
-    const result = await this.databaseService.query(
+    const result = await this.executeSql(
       `
         UPDATE ${this.mainTableSql}
         SET status = $3,
@@ -193,7 +211,7 @@ export class SimpleOperationsRepository {
   }
 
   async appendAuditLog(input: Record<string, unknown>) {
-    await this.databaseService.query(
+    await this.executeSql(
       `
         INSERT INTO ${this.auditTableSql} (
           tenant_id, actor_user_id, action, resource_type, resource_id, metadata
