@@ -65,6 +65,70 @@ class FakePool {
   }
 }
 
+class OrderedBootstrapClient {
+  released = false;
+
+  constructor(
+    private readonly label: string,
+    private readonly log: string[],
+  ) {}
+
+  async query<T extends QueryResultRow = QueryResultRow>(
+    text: string,
+    values?: unknown[],
+  ): Promise<QueryResult<T>> {
+    const normalizedText = text.startsWith('SELECT pg_advisory_xact_lock')
+      ? 'LOCK'
+      : text;
+
+    this.log.push(`${this.label}:${normalizedText}`);
+
+    if (text === 'SCHEMA ONE') {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+
+    return {
+      command: 'SELECT',
+      rowCount: 1,
+      oid: 0,
+      fields: [],
+      rows: [{ ok: true, values }] as unknown as T[],
+    };
+  }
+
+  release(): void {
+    this.released = true;
+    this.log.push(`${this.label}:release`);
+  }
+}
+
+class OrderedBootstrapPool {
+  readonly queryLog: string[] = [];
+  connectCalls = 0;
+
+  async connect(): Promise<PoolClient> {
+    this.connectCalls += 1;
+    return new OrderedBootstrapClient(
+      `client-${this.connectCalls}`,
+      this.queryLog,
+    ) as unknown as PoolClient;
+  }
+
+  async query<T extends QueryResultRow = QueryResultRow>(): Promise<QueryResult<T>> {
+    return {
+      command: 'SELECT',
+      rowCount: 1,
+      oid: 0,
+      fields: [],
+      rows: [{ ok: true }] as unknown as T[],
+    };
+  }
+
+  async end(): Promise<void> {
+    return Promise.resolve();
+  }
+}
+
 test('buildDatabasePoolOptions enables PostgreSQL SSL from explicit production flag', () => {
   const options = buildDatabasePoolOptions({
     get: (key: string) => {
@@ -193,6 +257,39 @@ test('DatabaseService.query bypasses request transactions for safe public read-o
 
   assert.equal(pool.connectCalls, 0);
   assert.deepEqual(pool.queryCalls, [{ text: 'SELECT 1', values: [] }]);
+});
+
+test('DatabaseService.runSchemaBootstrap serializes concurrent schema bootstraps inside one process', async () => {
+  const requestContext = new RequestContextService();
+  const pool = new OrderedBootstrapPool();
+  const service = new DatabaseService(
+    pool as never,
+    requestContext,
+    {
+      getRuntimeRoleName: () => 'my_shule_runtime',
+    } as never,
+    {
+      get: () => undefined,
+    } as never,
+  );
+
+  await Promise.all([
+    service.runSchemaBootstrap('SCHEMA ONE'),
+    service.runSchemaBootstrap('SCHEMA TWO'),
+  ]);
+
+  assert.deepEqual(pool.queryLog, [
+    'client-1:BEGIN',
+    'client-1:LOCK',
+    'client-1:SCHEMA ONE',
+    'client-1:COMMIT',
+    'client-1:release',
+    'client-2:BEGIN',
+    'client-2:LOCK',
+    'client-2:SCHEMA TWO',
+    'client-2:COMMIT',
+    'client-2:release',
+  ]);
 });
 
 test('DatabaseService.query uses the raw pool when no request context exists', async () => {

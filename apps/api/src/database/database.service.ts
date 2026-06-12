@@ -24,6 +24,7 @@ import { DatabaseSecurityService } from './database-security.service';
 export class DatabaseService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(DatabaseService.name);
   private static readonly SCHEMA_BOOTSTRAP_LOCK_KEY = 'my_shule_schema_bootstrap';
+  private static schemaBootstrapQueue: Promise<void> = Promise.resolve();
   private structuredLoggerRef: StructuredLoggerService | null | undefined;
   private sloMetricsRef: SloMetricsService | null | undefined;
 
@@ -124,6 +125,16 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
   }
 
   async runSchemaBootstrap(sql: string): Promise<void> {
+    const queuedBootstrap = DatabaseService.schemaBootstrapQueue
+      .catch(() => undefined)
+      .then(() => this.runSchemaBootstrapTransaction(sql));
+
+    DatabaseService.schemaBootstrapQueue = queuedBootstrap.catch(() => undefined);
+
+    return queuedBootstrap;
+  }
+
+  private async runSchemaBootstrapTransaction(sql: string): Promise<void> {
     const client = await this.acquireClient();
 
     try {
