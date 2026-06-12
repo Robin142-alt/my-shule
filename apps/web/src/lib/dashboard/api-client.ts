@@ -178,6 +178,11 @@ function buildTenantOrigin(tenantId: string, domain: string) {
 }
 
 export function getDashboardApiBaseUrl(tenantId?: string) {
+  // In the browser, always route through the Next.js proxy to attach HTTP-only cookies
+  if (typeof window !== "undefined") {
+    return "/api";
+  }
+
   const configuredBaseUrl = normalizeConfiguredUrl(process.env.NEXT_PUBLIC_API_BASE_URL);
   const configuredBaseDomain = normalizeConfiguredUrl(process.env.NEXT_PUBLIC_API_BASE_DOMAIN)?.replace(/^\.+/, "") ?? null;
 
