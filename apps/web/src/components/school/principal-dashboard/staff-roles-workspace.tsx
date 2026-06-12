@@ -7,6 +7,7 @@ import { useSchoolQuery } from "@/lib/data/school-hooks";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
 import { requestDashboardApi } from "@/lib/dashboard/api-client";
+import { UserManagementPanel } from "@/components/school/user-management-panel";
 
 type PrincipalStaffData = {
   status: "active" | "degraded" | "setup_required";
@@ -177,26 +178,13 @@ export function PrincipalStaffRolesWorkspace() {
           </div>
         </Card>
 
-        <Card className="border border-white/10 bg-white/5 p-6 flex flex-col h-full">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-bold text-white">Recent Onboarding</h2>
-            <button className="text-xs bg-white/10 text-white px-3 py-1.5 rounded hover:bg-white/20 transition-colors flex items-center gap-1">
-              <UserPlus className="h-3 w-3" />
-              Invite Staff
-            </button>
-          </div>
-          
-          {(!data.recentOnboarding || data.recentOnboarding.length === 0) ? (
-            <div className="flex flex-col items-center justify-center flex-1 py-8 text-center bg-white/5 rounded-lg border border-white/5">
-              <Users className="h-10 w-10 text-white/20 mb-3" />
-              <p className="text-white/60">No recent staff additions</p>
-            </div>
-          ) : (
-            <div className="space-y-3 flex-1 overflow-y-auto pr-2">
-              {/* Onboarding list will go here */}
-            </div>
-          )}
-        </Card>
+      </div>
+
+      <div className="mt-6">
+        <h2 className="text-xl font-bold text-white mb-4">Invite & Manage Staff</h2>
+        <div className="rounded-[var(--radius-xl)] bg-white p-1">
+          <UserManagementPanel />
+        </div>
       </div>
 
       <div className="grid gap-6 md:grid-cols-2 mt-6">

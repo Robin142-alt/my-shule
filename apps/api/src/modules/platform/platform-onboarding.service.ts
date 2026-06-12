@@ -1400,6 +1400,14 @@ export class PlatformOnboardingService {
   }
 
   private async deliverInvitation(input: InvitationAction): Promise<InvitationDeliveryResult> {
+    if (input.tenantId.includes('demo')) {
+      return {
+        status: 'blocked',
+        message: 'Demo environments do not send real email invitations.',
+        canResendInvite: false,
+      };
+    }
+
     try {
       this.emailService.assertTransactionalEmailConfigured(
         'Transactional email is not configured for school invitations.',

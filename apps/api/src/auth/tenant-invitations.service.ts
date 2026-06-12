@@ -89,6 +89,10 @@ export class TenantInvitationsService {
     const context = this.requestContext.requireStore();
     const tenantId = this.requireTenantId();
 
+    if (tenantId.includes('demo')) {
+      throw new BadRequestException('Demo environments cannot send real email invitations.');
+    }
+
     const roleCode = this.normalizeRoleCode(dto.role_code);
     const email = dto.email.trim().toLowerCase();
     const displayName = dto.display_name.trim();

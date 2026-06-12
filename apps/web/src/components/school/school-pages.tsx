@@ -22,6 +22,7 @@ import { VisitorManagementModuleScreen } from "@/components/modules/visitors/vis
 import { ErpShell } from "@/components/school/erp-shell";
 import { DeanAcademicsCommandCenter } from "@/components/school/dean-academics-command-center";
 import { DeputyPrincipalCommandCenter } from "@/components/school/deputy-principal-command-center";
+import { PrincipalCommandCenter } from "@/components/school/principal-command-center";
 import { BoardingMasterCommandCenter } from "@/components/school/boarding-master-command-center";
 import { LaboratoryTechnicianCommandCenter } from "@/components/school/laboratory-technician-command-center";
 import { AccountantCommandCenter } from "@/components/school/accountant-command-center";
@@ -5343,6 +5344,10 @@ function SchoolPagesShell({
     !studentId && shouldRenderRoleOperationalWorkspace(role, section);
 
   if (renderRoleOperationalWorkspace) {
+    if (role === "principal") {
+      return <PrincipalCommandCenter routeMode={routeMode} />;
+    }
+
     if (role === "student") {
       return <StudentCommandCenter routeMode={routeMode} />;
     }

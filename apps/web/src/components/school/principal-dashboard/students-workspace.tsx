@@ -3,6 +3,8 @@
 import { Card } from "@/components/ui/card";
 import { AlertCircle, Users, UserPlus } from "lucide-react";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
+import { useDashboardEventBus } from "@/lib/dashboard-communication/dashboard-communication-provider";
+import { useState } from "react";
 
 type PrincipalStudentsData = {
   status: "active" | "degraded" | "setup_required";
@@ -15,6 +17,8 @@ type PrincipalStudentsData = {
 
 export function PrincipalStudentsWorkspace() {
   const { data, isLoading, error } = useSchoolQuery<PrincipalStudentsData>('/admin-command/principal/students');
+  const eventBus = useDashboardEventBus();
+  const [isAdmitting, setIsAdmitting] = useState(false);
 
   if (isLoading) {
     return (
@@ -38,8 +42,42 @@ export function PrincipalStudentsWorkspace() {
     );
   }
 
+  const handleTestAdmit = () => {
+    setIsAdmitting(true);
+    
+    // Simulate API delay
+    setTimeout(() => {
+      // 1. Emit to the Event Bus (This will update the Overview Workspace instantly)
+      eventBus.emit({
+        id: crypto.randomUUID(),
+        type: "STUDENT_ADMITTED",
+        tenantId: "tenant-1",
+        sourceModule: "admissions",
+        entityId: crypto.randomUUID(),
+        occurredAt: new Date().toISOString(),
+        payload: { studentName: "Test Student", class: "Form 1" }
+      });
+      
+      setIsAdmitting(false);
+    }, 500);
+  };
+
   return (
     <div className="space-y-6">
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-xl font-bold text-white flex items-center gap-2">
+          <Users className="h-5 w-5 text-cyan-400" />
+          Students Directory
+        </h2>
+        <button 
+          onClick={handleTestAdmit}
+          disabled={isAdmitting}
+          className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-bold rounded shadow transition disabled:opacity-50"
+        >
+          {isAdmitting ? "Admitting..." : "Test Admit Student (Triggers Event)"}
+        </button>
+      </div>
+
       <div className="grid gap-4 md:grid-cols-4">
         <Card className="border border-white/10 bg-white/5 p-5">
           <div className="text-sm font-semibold text-white/70">Status</div>

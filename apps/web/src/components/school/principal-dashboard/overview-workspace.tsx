@@ -3,6 +3,8 @@
 import { Card } from "@/components/ui/card";
 import { AlertCircle, Activity, Users, FileText } from "lucide-react";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
+import { useDashboardEventBus } from "@/lib/dashboard-communication/dashboard-communication-provider";
+import { useEffect } from "react";
 
 type PrincipalOverviewData = {
   status: "active" | "degraded" | "setup_required";
@@ -14,7 +16,31 @@ type PrincipalOverviewData = {
 };
 
 export function PrincipalOverviewWorkspace() {
-  const { data, isLoading, error } = useSchoolQuery<PrincipalOverviewData>('/admin-command/principal/overview');
+  const { data, isLoading, error, mutate } = useSchoolQuery<PrincipalOverviewData>('/admin-command/principal/overview');
+  const eventBus = useDashboardEventBus();
+
+  useEffect(() => {
+    // Subscribe to the global Event Bus
+    const unsubscribe = eventBus.subscribe("STUDENT_ADMITTED", (event) => {
+      // When a student is admitted somewhere else in the app, instantly update the metric
+      mutate((currentData) => {
+        if (!currentData) return currentData;
+        return {
+          ...currentData,
+          totalStudents: currentData.totalStudents + 1,
+          recentActivity: [
+            {
+              label: "New Student Admitted",
+              time: "Just now"
+            },
+            ...currentData.recentActivity
+          ]
+        };
+      }, { revalidate: false }); // Update local cache instantly without a round-trip
+    });
+
+    return () => unsubscribe();
+  }, [eventBus, mutate]);
 
   if (isLoading) {
     return (
