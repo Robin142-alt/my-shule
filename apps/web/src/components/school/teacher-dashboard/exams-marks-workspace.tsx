@@ -6,16 +6,16 @@ import { TeacherAction, TeacherView } from "./types";
 import { Modal } from "@/components/ui/modal";
 import { useLiveTenantSession } from "@/hooks/use-live-tenant-session";
 import { fetchPendingMarksLive, fetchClassRegisterLive, type PendingMarksWindow } from "@/lib/modules/teacher-live";
-import { withSession } from "@/lib/dashboard/api";
+
 
 function MarksEntryModal({ windowTask, onClose }: { windowTask: PendingMarksWindow; onClose: () => void }) {
-  const liveSession = useLiveTenantSession();
+  const liveSession = useLiveTenantSession("school");
   const queryClient = useQueryClient();
   const [submitting, setSubmitting] = useState(false);
   const [scores, setScores] = useState<Record<string, string>>({});
   
   const { data: students, isLoading } = useQuery({
-    queryKey: ["class-register", liveSession.session?.tenant_id, windowTask.classSectionId],
+    queryKey: ["class-register", liveSession.session?.tenantId, windowTask.classSectionId],
     queryFn: () => fetchClassRegisterLive(liveSession.session!, windowTask.classSectionId),
     enabled: !!liveSession.session && !!windowTask.classSectionId,
   });
@@ -45,7 +45,7 @@ function MarksEntryModal({ windowTask, onClose }: { windowTask: PendingMarksWind
   };
 
   return (
-    <Modal title={`Enter Marks: ${windowTask.className} - ${windowTask.subjectName}`} isOpen={true} onClose={onClose} size="xl">
+    <Modal title={`Enter Marks: ${windowTask.className} - ${windowTask.subjectName}`} open={true} onClose={onClose} size="xl">
       <div className="p-6">
         <div className="mb-6">
           <h3 className="text-lg font-black text-[#071D49]">{windowTask.examName}</h3>
@@ -105,11 +105,11 @@ export function ExamsMarksWorkspace({
 }: {
   onStartAction: (action: TeacherAction, view: TeacherView, message: string) => void;
 }) {
-  const liveSession = useLiveTenantSession();
+  const liveSession = useLiveTenantSession("school");
   const [activeWindow, setActiveWindow] = useState<PendingMarksWindow | null>(null);
   
   const { data, isLoading, isError } = useQuery({
-    queryKey: ["pending-marks", liveSession.session?.tenant_id, liveSession.session?.user.id],
+    queryKey: ["pending-marks", liveSession.session?.tenantId, liveSession.session?.user.user_id],
     queryFn: () => fetchPendingMarksLive(liveSession.session!),
     enabled: !!liveSession.session,
   });

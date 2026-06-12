@@ -58,8 +58,3 @@ export function usePortalFeeHistory(studentId?: string) {
   );
 }
 
-// TODO: Missing Backend Gaps Documentation
-// The following backend routes need to be verified or created in NestJS:
-// - GET /api/portals/parent/children (Returns linked learners scoped strictly to active parent session)
-// - GET /api/portals/reports (Returns published reports. If accessed by student, scope to student. If parent, scope to linked children)
-// - GET /api/portals/fees/history (Returns confirmed fee payments for the authenticated user)

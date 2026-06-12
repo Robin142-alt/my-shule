@@ -200,12 +200,12 @@ function OverviewWorkspace({ onNavigate }: { onNavigate: (v: ViewId) => void }) 
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#D8E0EC]">
-                  {dashboard?.records?.slice(0, 5).map((r: { id: string, created_at: string, title: string, category: string }) => (
+                  {dashboard?.records?.slice(0, 5).map((r: { id: string, created_at: string, visitor_name: string, purpose: string }) => (
                     <tr key={r.id}>
                       <td className="py-3 text-[#64748B]">{new Date(r.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</td>
-                      <td className="py-3 font-medium text-[#071D49]">{r.title}</td>
+                      <td className="py-3 font-medium text-[#071D49]">{r.visitor_name}</td>
                       <td className="py-3 text-[#64748B]">Visitor</td>
-                      <td className="py-3 text-[#64748B]">{r.category || "-"}</td>
+                      <td className="py-3 text-[#64748B]">{r.purpose || "-"}</td>
                       <td className="py-3"><StatusChip label="Inside" tone="warning" /></td>
                       <td className="py-3 text-right">
                         <button className="text-blue-600 hover:underline font-semibold text-xs">Check Out</button>
@@ -270,30 +270,29 @@ function ShiftWorkspace() {
 }
 
 function CheckInWorkspace() {
-  const mutation = useSchoolMutation("/api/visitors/records");
+  const mutation = useSchoolMutation("/api/visitors/logs");
   const { data: dashboard, refetch } = useSchoolQuery<any>("/api/visitors/dashboard");
-  const [formData, setFormData] = useState({ title: "", phone: "", category: "", owner_name: "" });
+  const [formData, setFormData] = useState({ visitor_name: "", phone_number: "", purpose: "", host_user_id: "" });
 
   const handleCheckIn = async () => {
-    if (!formData.title) return;
+    if (!formData.visitor_name) return;
     await mutation.mutateAsync({
-      title: formData.title,
-      category: formData.category,
-      owner_name: formData.owner_name,
-      metadata: { phone: formData.phone },
-      status: "checked_in"
+      visitor_name: formData.visitor_name,
+      purpose: formData.purpose,
+      host_user_id: formData.host_user_id,
+      phone_number: formData.phone_number,
+      status: "active"
     });
-    setFormData({ title: "", phone: "", category: "", owner_name: "" });
+    setFormData({ visitor_name: "", phone_number: "", purpose: "", host_user_id: "" });
     refetch();
   };
 
   const handleCheckOut = async (recordId: string) => {
     // We would need a separate mutation for patch, but we can reuse the same hook pattern if it supports method overriding.
     // For now we'll do a basic fetch or if useSchoolMutation handles PATCH automatically depending on the data
-    await fetch(`/api/visitors/records/${recordId}/status`, {
+    await fetch(`/api/visitors/logs/${recordId}/checkout`, {
       method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status: "checked_out" })
+      headers: { "Content-Type": "application/json" }
     });
     refetch();
   };
@@ -310,10 +309,10 @@ function CheckInWorkspace() {
           <div className="rounded-xl border border-[#D8E0EC] p-4 bg-[#F8FAFC]">
             <h3 className="font-bold text-[#071D49] mb-3">Visitor Details</h3>
             <div className="grid gap-4 sm:grid-cols-2">
-              <input type="text" placeholder="Full Name" value={formData.title} onChange={e => setFormData(f => ({ ...f, title: e.target.value }))} className="rounded-lg border border-[#D8E0EC] p-2 text-sm" />
-              <input type="text" placeholder="Phone Number" value={formData.phone} onChange={e => setFormData(f => ({ ...f, phone: e.target.value }))} className="rounded-lg border border-[#D8E0EC] p-2 text-sm" />
-              <input type="text" placeholder="Purpose of Visit" value={formData.category} onChange={e => setFormData(f => ({ ...f, category: e.target.value }))} className="rounded-lg border border-[#D8E0EC] p-2 text-sm sm:col-span-2" />
-              <input type="text" placeholder="Person/Office to see" value={formData.owner_name} onChange={e => setFormData(f => ({ ...f, owner_name: e.target.value }))} className="rounded-lg border border-[#D8E0EC] p-2 text-sm sm:col-span-2" />
+              <input type="text" placeholder="Full Name" value={formData.visitor_name} onChange={e => setFormData(f => ({ ...f, visitor_name: e.target.value }))} className="rounded-lg border border-[#D8E0EC] p-2 text-sm" />
+              <input type="text" placeholder="Phone Number" value={formData.phone_number} onChange={e => setFormData(f => ({ ...f, phone_number: e.target.value }))} className="rounded-lg border border-[#D8E0EC] p-2 text-sm" />
+              <input type="text" placeholder="Purpose of Visit" value={formData.purpose} onChange={e => setFormData(f => ({ ...f, purpose: e.target.value }))} className="rounded-lg border border-[#D8E0EC] p-2 text-sm sm:col-span-2" />
+              <input type="text" placeholder="Person/Office to see" value={formData.host_user_id} onChange={e => setFormData(f => ({ ...f, host_user_id: e.target.value }))} className="rounded-lg border border-[#D8E0EC] p-2 text-sm sm:col-span-2" />
               <div className="flex gap-2 sm:col-span-2 pt-2">
                 <button onClick={handleCheckIn} disabled={mutation.isPending} className="flex-1 rounded-lg bg-[#071D49] py-2 text-sm font-black text-white">
                   {mutation.isPending ? "Saving..." : "Check In & Print Pass"}
@@ -335,12 +334,12 @@ function CheckInWorkspace() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#D8E0EC]">
-                {dashboard?.records?.slice(0, 5).map((r: { id: string, created_at: string, title: string, status: string }) => (
+                {dashboard?.records?.slice(0, 5).map((r: { id: string, created_at: string, visitor_name: string, status: string }) => (
                   <tr key={r.id} className="hover:bg-[#F8FAFC]">
                     <td className="px-4 py-3 text-[#64748B]">{new Date(r.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</td>
-                    <td className="px-4 py-3 font-semibold text-[#071D49]">{r.title}</td>
+                    <td className="px-4 py-3 font-semibold text-[#071D49]">{r.visitor_name}</td>
                     <td className="px-4 py-3 text-right">
-                      {r.status === "checked_in" ? (
+                      {r.status === "active" ? (
                         <button onClick={() => handleCheckOut(r.id)} className="text-blue-600 hover:underline font-semibold text-xs">Check Out</button>
                       ) : (
                         <span className="text-[#64748B] text-xs">Checked Out</span>
@@ -385,17 +384,17 @@ function VisitorRegisterWorkspace() {
             </tr>
           </thead>
           <tbody className="divide-y divide-[#D8E0EC]">
-            {dashboard?.records?.map((r: { id: string, created_at: string, title: string, category: string, owner_name: string, status: string }) => (
+            {dashboard?.records?.map((r: { id: string, created_at: string, visitor_name: string, purpose: string, host_user_id: string, status: string }) => (
               <tr key={r.id} className="hover:bg-[#F8FAFC]">
                 <td className="px-4 py-3 text-[#64748B]">{new Date(r.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</td>
-                <td className="px-4 py-3 font-semibold text-[#071D49]">{r.title}</td>
-                <td className="px-4 py-3 text-[#64748B]">{r.category || "-"}</td>
-                <td className="px-4 py-3 text-[#64748B]">{r.owner_name || "-"}</td>
+                <td className="px-4 py-3 font-semibold text-[#071D49]">{r.visitor_name}</td>
+                <td className="px-4 py-3 text-[#64748B]">{r.purpose || "-"}</td>
+                <td className="px-4 py-3 text-[#64748B]">{r.host_user_id || "-"}</td>
                 <td className="px-4 py-3">
-                  <StatusChip label={r.status === "checked_in" ? "Inside" : "Checked Out"} tone={r.status === "checked_in" ? "warning" : "success"} />
+                  <StatusChip label={r.status === "active" ? "Inside" : "Checked Out"} tone={r.status === "active" ? "warning" : "success"} />
                 </td>
                 <td className="px-4 py-3 text-right">
-                  {r.status === "checked_in" ? (
+                  {r.status === "active" ? (
                     <button className="text-blue-600 hover:underline font-semibold text-xs mr-3">Check Out</button>
                   ) : (
                     <span className="text-xs text-[#64748B] mr-3">Done</span>

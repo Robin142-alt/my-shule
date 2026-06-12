@@ -30,6 +30,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
+import { useSchoolQuery, useSchoolMutation } from "@/lib/data/school-hooks";
 import { getCurrentSchoolId, publishSchoolOperationalEvent } from "@/lib/school/school-operational-store";
 import { ApprovalInbox } from "@/components/shared/approval-inbox";
 import { NotificationBell } from "@/components/shared/notification-bell";
@@ -224,45 +225,49 @@ function EmptyState({ message, actionText, onAction }: { message: string, action
 // Workspaces Implementations
 
 function OverviewWorkspace({ onNavigate }: { onNavigate: (view: ViewId) => void }) {
+  const { data: dashboard, isLoading } = useSchoolQuery<any>("/api/boarding/dashboard");
+
   return (
     <div className="space-y-6">
       <div className="grid gap-4 md:grid-cols-4">
          <button onClick={() => onNavigate('register')} className="text-left rounded-xl border border-[#D8E0EC] bg-white p-4 shadow-sm hover:shadow-md transition">
            <p className="text-xs font-black text-[#64748B] uppercase tracking-wider">Total Boarders</p>
-           <p className="text-3xl font-black text-[#071D49] mt-2">1,240</p>
+           <p className="text-3xl font-black text-[#071D49] mt-2">{isLoading ? "-" : dashboard?.total_records ?? 0}</p>
          </button>
          <button onClick={() => onNavigate('roll-call')} className="text-left rounded-xl border border-[#D8E0EC] bg-white p-4 shadow-sm hover:shadow-md transition">
            <p className="text-xs font-black text-[#64748B] uppercase tracking-wider">Present Tonight</p>
-           <p className="text-3xl font-black text-[#071D49] mt-2">1,190</p>
+           <p className="text-3xl font-black text-[#071D49] mt-2">{isLoading ? "-" : dashboard?.open_records ?? 0}</p>
          </button>
          <button onClick={() => onNavigate('roll-call')} className="text-left rounded-xl border border-rose-200 bg-rose-50 p-4 shadow-sm hover:shadow-md transition">
            <p className="text-xs font-black text-rose-700 uppercase tracking-wider">Missing Roll Call</p>
-           <p className="text-3xl font-black text-rose-900 mt-2">3</p>
+           <p className="text-3xl font-black text-rose-900 mt-2">{isLoading ? "-" : dashboard?.action_due ?? 0}</p>
          </button>
          <button onClick={() => onNavigate('leave')} className="text-left rounded-xl border border-blue-200 bg-blue-50 p-4 shadow-sm hover:shadow-md transition">
            <p className="text-xs font-black text-blue-700 uppercase tracking-wider">Approved Leave-Outs</p>
-           <p className="text-3xl font-black text-blue-900 mt-2">45</p>
+           <p className="text-3xl font-black text-blue-900 mt-2">{isLoading ? "-" : dashboard?.records?.filter((r: any) => r.category === 'leave').length ?? 0}</p>
          </button>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Panel title="Tonight's Roll Call" icon={ClipboardList}>
           <DataTable 
-            columns={["Student", "ADM", "Dorm", "Room", "Bed", "Status", "Action"]}
-            rows={[
-              ["Brian Otieno", "2451", "St. Joseph", "1A", "B12", <StatusChip key="s1" label="Not Marked" tone="danger"/>, <button key="a1" className="text-[#1D4ED8] font-bold text-xs" onClick={() => onNavigate('roll-call')}>Mark Now</button>],
-              ["John Doe", "2211", "St. Paul", "2B", "C10", <StatusChip key="s2" label="On Leave" tone="info"/>, <button key="a2" className="text-[#1D4ED8] font-bold text-xs">View</button>],
-            ]}
+            columns={["Student", "Status", "Action"]}
+            rows={(dashboard?.records || []).slice(0, 5).map((r: any) => [
+              r.title,
+              <StatusChip key="s1" label={r.status} tone={r.status === 'active' ? 'success' : 'warning'}/>,
+              <button key="a1" className="text-[#1D4ED8] font-bold text-xs" onClick={() => onNavigate('roll-call')}>View</button>
+            ])}
           />
         </Panel>
 
         <Panel title="Urgent Follow-ups" icon={AlertTriangle}>
           <DataTable 
-            columns={["Concern", "Student", "Details", "Action"]}
-            rows={[
-              ["Missing from Roll Call", "Brian Otieno", "St. Joseph 1A", <button key="a1" className="text-[#1D4ED8] font-bold text-xs">Escalate</button>],
-              ["Unresolved Repair", "St. Paul Dorm", "Broken Window", <button key="a2" className="text-[#1D4ED8] font-bold text-xs">View</button>],
-            ]}
+            columns={["Concern", "Student", "Action"]}
+            rows={(dashboard?.activity || []).slice(0, 5).map((a: any) => [
+              a.action,
+              a.actor_role,
+              <button key="a1" className="text-[#1D4ED8] font-bold text-xs">View</button>
+            ])}
           />
         </Panel>
       </div>
@@ -270,10 +275,9 @@ function OverviewWorkspace({ onNavigate }: { onNavigate: (view: ViewId) => void 
       <Panel title="Dorm Status" icon={Building}>
         <DataTable 
           columns={["Dormitory", "Capacity", "Occupied", "Available", "Roll Call %", "Action"]}
-          rows={[
-            ["St. Joseph", "400", "390", "10", "98%", <button key="a1" className="text-[#1D4ED8] font-bold text-xs" onClick={() => onNavigate('dorms')}>Open Dorm</button>],
-            ["St. Paul", "450", "445", "5", "100%", <button key="a2" className="text-[#1D4ED8] font-bold text-xs" onClick={() => onNavigate('dorms')}>Open Dorm</button>],
-          ]}
+          rows={(dashboard?.records || []).filter((r: any) => r.category === 'dorm').slice(0, 5).map((r: any) => [
+            r.title, r.metric_count || "0", r.metric_count || "0", "0", "100%", <button key="a1" className="text-[#1D4ED8] font-bold text-xs" onClick={() => onNavigate('dorms')}>Open Dorm</button>
+          ])}
         />
       </Panel>
     </div>
@@ -281,6 +285,8 @@ function OverviewWorkspace({ onNavigate }: { onNavigate: (view: ViewId) => void 
 }
 
 function RegisterWorkspace() {
+  const { data: dashboard, isLoading } = useSchoolQuery<any>("/api/boarding/dashboard");
+
   return (
     <Panel 
       title="Boarder Register" 
@@ -294,48 +300,52 @@ function RegisterWorkspace() {
       }
     >
       <DataTable 
-        columns={["Student", "ADM", "Class", "Dorm", "Room", "Bed", "Status", "Actions"]}
-        rows={[
-          ["Brian Otieno", "2451", "Form 2", "St. Joseph", "1A", "B12", <StatusChip key="s1" label="Active" tone="success"/>, <button key="a1" className="text-[#1D4ED8] font-bold text-xs">View Profile</button>],
-        ]}
+        columns={["Student", "Category", "Status", "Actions"]}
+        rows={(dashboard?.records || []).map((r: any) => [
+          r.title, r.category || "Boarder", <StatusChip key="s1" label={r.status} tone={r.status === 'active' ? 'success' : 'neutral'}/>, <button key="a1" className="text-[#1D4ED8] font-bold text-xs">View Profile</button>
+        ])}
       />
     </Panel>
   );
 }
 
 function DormsWorkspace() {
+  const { data: dashboard, isLoading } = useSchoolQuery<any>("/api/boarding/dashboard");
+
   return (
     <Panel title="Dormitories & Rooms" description="Manage physical boarding structure and capacity." icon={Building}>
       <DataTable 
-        columns={["Dormitory", "Type", "Capacity", "Occupied", "Available", "Warden", "Status", "Actions"]}
-        rows={[
-          ["St. Joseph", "Boys Dormitory", "400", "390", "10", "Mr. Kamau", <StatusChip key="s1" label="Active" tone="success"/>, <button key="a1" className="text-[#1D4ED8] font-bold text-xs">View Rooms</button>],
-        ]}
+        columns={["Dormitory", "Type", "Capacity", "Status", "Actions"]}
+        rows={(dashboard?.records || []).filter((r: any) => r.category === 'dorm').map((r: any) => [
+          r.title, "Dormitory", r.metric_count || "0", <StatusChip key="s1" label={r.status} tone={r.status === 'active' ? 'success' : 'neutral'}/>, <button key="a1" className="text-[#1D4ED8] font-bold text-xs">View Rooms</button>
+        ])}
       />
     </Panel>
   );
 }
 
 function BedsWorkspace() {
+  const { data: dashboard, isLoading } = useSchoolQuery<any>("/api/boarding/dashboard");
+
   return (
     <Panel title="Bed Allocation" description="Assign, change, transfer, and release beds." icon={BedDouble}>
       <div className="grid grid-cols-2 gap-4">
         <div>
            <h3 className="text-sm font-black uppercase text-[#071D49] mb-4">Students Needing Beds</h3>
            <DataTable 
-             columns={["Student", "ADM", "Preference", "Action"]}
-             rows={[
-               ["John Mark", "2600", "Boys Dorm", <button key="a1" className="text-[#1D4ED8] font-bold text-xs">Allocate</button>],
-             ]}
+             columns={["Student", "Status", "Action"]}
+             rows={(dashboard?.records || []).filter((r: any) => r.status !== 'active').map((r: any) => [
+               r.title, r.status, <button key="a1" className="text-[#1D4ED8] font-bold text-xs">Allocate</button>
+             ])}
            />
         </div>
         <div>
            <h3 className="text-sm font-black uppercase text-[#071D49] mb-4">Available Beds</h3>
            <DataTable 
              columns={["Dorm", "Room", "Bed No.", "Action"]}
-             rows={[
-               ["St. Joseph", "1A", "B13", <button key="a1" className="text-[#1D4ED8] font-bold text-xs">Assign Bed</button>],
-             ]}
+             rows={(dashboard?.records || []).filter((r: any) => r.category === 'bed').map((r: any) => [
+               r.owner_name || "-", "-", r.title, <button key="a1" className="text-[#1D4ED8] font-bold text-xs">Assign Bed</button>
+             ])}
            />
         </div>
       </div>

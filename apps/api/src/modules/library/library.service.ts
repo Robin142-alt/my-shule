@@ -194,6 +194,35 @@ export class LibraryService {
         amountMinor: fineAmount,
         reason: 'overdue',
       });
+
+      await this.schoolEvents?.recordSchoolOperation({
+        event: {
+          id: fine.id,
+          type: 'library.overdue_fine_created',
+          module: 'library',
+          actorRole: this.requestContext.requireStore().role || 'staff',
+          title: 'Library Overdue Fine',
+          body: `Overdue fine of ${fineAmount} charged to ${loan.borrower_id}`,
+          entityId: loan.borrower_id,
+          severity: 'warning',
+          payload: { fineAmount, borrowerId: loan.borrower_id },
+        },
+        notifications: [
+          {
+            id: `lib-overdue-${fine.id}`,
+            schoolId: tenantId,
+            title: 'Overdue Book Returned',
+            body: `An overdue book was returned with a fine of ${fineAmount}`,
+            audienceRoles: ['parent', 'student'],
+            priority: 'normal',
+            sourceModule: 'library',
+            relatedModule: 'finance',
+            relatedRecordId: fine.id,
+            read: false,
+            createdAt: new Date().toISOString(),
+          }
+        ]
+      });
     }
 
     await this.libraryRepository.appendLedger({
@@ -251,6 +280,35 @@ export class LibraryService {
         fineId: fine.id,
         amountMinor: fineAmount,
         reason: 'overdue',
+      });
+
+      await this.schoolEvents?.recordSchoolOperation({
+        event: {
+          id: fine.id,
+          type: 'library.overdue_fine_created',
+          module: 'library',
+          actorRole: this.requestContext.requireStore().role || 'staff',
+          title: 'Library Overdue Fine',
+          body: `Overdue fine of ${fineAmount} charged to ${loan.borrower_id}`,
+          entityId: loan.borrower_id,
+          severity: 'warning',
+          payload: { fineAmount, borrowerId: loan.borrower_id },
+        },
+        notifications: [
+          {
+            id: `lib-overdue-${fine.id}`,
+            schoolId: tenantId,
+            title: 'Overdue Book Returned',
+            body: `An overdue book was returned with a fine of ${fineAmount}`,
+            audienceRoles: ['parent', 'student'],
+            priority: 'normal',
+            sourceModule: 'library',
+            relatedModule: 'finance',
+            relatedRecordId: fine.id,
+            read: false,
+            createdAt: new Date().toISOString(),
+          }
+        ]
       });
     }
 

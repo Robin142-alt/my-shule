@@ -132,11 +132,11 @@ describe("production module readiness", () => {
       expect(isProductionReadyHref(`/school/principal/${moduleId}`)).toBe(true);
     }
 
-    expect(getSchoolWorkspace("teacher").navItems.map((item) => item.id)).toContain("exams");
-    expect(getSchoolWorkspace("principal").navItems.map((item) => item.id)).toContain("executive-analytics");
+    expect(getSchoolWorkspace("teacher").navItems.map((item) => item.id)).toContain("marks-entry");
+    expect(getSchoolWorkspace("principal").navItems.map((item) => item.id)).toContain("overview");
     expect(getSchoolWorkspace("principal").navItems.map((item) => item.id)).toContain("approvals");
-    expect(getSchoolWorkspace("teacher").navItems.map((item) => item.id)).toContain("labs");
-    expect(getSchoolWorkspace("librarian").navItems.map((item) => item.id)).toContain("library");
+    expect(getSchoolWorkspace("teacher").navItems.map((item) => item.id)).toContain("resource-requests");
+    expect(getSchoolWorkspace("librarian").navItems.map((item) => item.id)).toContain("books");
   });
 
   it("does not generate dashboard KPI links into inactive workflows", () => {
@@ -152,26 +152,30 @@ describe("production module readiness", () => {
     }
   });
 
-  it("keeps principal navigation executive-only", () => {
+  it("keeps principal navigation structured per the new blueprint", () => {
     const principalNavIds = getSchoolWorkspace("principal").navItems.map((item) => item.id);
 
     expect(principalNavIds).toEqual(
       expect.arrayContaining([
-        "dashboard",
-        "executive-analytics",
-        "alerts-risks",
+        "overview",
+        "setup-checklist",
+        "school-profile",
+        "academic-setup",
+        "classes-streams",
+        "subjects-departments",
+        "staff-roles",
+        "students",
+        "attendance-monitoring",
+        "academics",
+        "exams-report-cards",
+        "finance-overview",
+        "discipline",
+        "communication",
         "approvals",
-        "users-staff",
         "reports",
-        "ai-insights",
-        "audit-logs",
         "settings",
       ]),
     );
-    expect(principalNavIds).not.toContain("students");
-    expect(principalNavIds).not.toContain("finance");
-    expect(principalNavIds).not.toContain("transport");
-    expect(principalNavIds).not.toContain("procurement");
   });
 
   it("keeps legacy dashboard home shortcuts on live role workspace routes", () => {

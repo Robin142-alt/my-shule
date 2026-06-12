@@ -29,6 +29,8 @@ export class CreateFinanceTaskDto {
   assignedTo?: string;
 }
 
+import { SchoolOperationalEventsService } from '../events/school-operational-events.service';
+
 @Controller('finance')
 @RequiresModule('finance')
 export class FinanceController {
@@ -37,6 +39,7 @@ export class FinanceController {
     private readonly requestContext: RequestContextService,
     private readonly tasksService: FinanceTasksService,
     private readonly eventPublisher: EventPublisherService,
+    private readonly schoolEvents: SchoolOperationalEventsService,
   ) {}
 
   @Post('payment')
@@ -197,13 +200,19 @@ export class FinanceController {
     const [
       collectionsRes,
       invoicesRes,
+      mpesaRes
     ] = await Promise.all([
-      this.db.query('SELECT SUM(amount_minor) as total FROM manual_fee_payments WHERE tenant_id = $1 AND DATE(created_at) = CURRENT_DATE', [tenantId]),
-      this.db.query('SELECT SUM(balance_minor) as total FROM invoices WHERE tenant_id = $1 AND status != \'paid\'', [tenantId]).catch(() => ({ rows: [{ total: 0 }] })), // Fallback if table doesn't exist
+      this.db.query('SELECT COALESCE(SUM(amount_minor), 0) as total FROM manual_fee_payments WHERE tenant_id = $1 AND DATE(created_at) = CURRENT_DATE', [tenantId]),
+      this.db.query('SELECT COALESCE(SUM(balance_minor), 0) as total FROM student_invoices WHERE tenant_id = $1 AND status != \'paid\'', [tenantId]).catch(() => ({ rows: [{ total: 0 }] })),
+      this.db.query('SELECT COALESCE(SUM(amount_minor), 0) as total FROM receipts WHERE tenant_id = $1 AND payment_method = \'mpesa\'', [tenantId]).catch(() => ({ rows: [{ total: 0 }] })),
     ]);
 
-    const collectionsMinor = collectionsRes.rows[0]?.total || 0;
-    const outstandingMinor = invoicesRes.rows[0]?.total || 0;
+    const collectionsMinor = parseInt(collectionsRes.rows[0]?.total || '0');
+    const outstandingMinor = parseInt(invoicesRes.rows[0]?.total || '0');
+    const mpesaMinor = parseInt(mpesaRes.rows[0]?.total || '0');
+
+    const mpesaPercentage = collectionsMinor > 0 ? Math.round((mpesaMinor / collectionsMinor) * 100) : 0;
+    const bankPercentage = collectionsMinor > 0 ? 100 - mpesaPercentage : 0;
 
     return {
       collectionsToday: `KES ${(collectionsMinor / 100).toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
@@ -211,8 +220,8 @@ export class FinanceController {
       failedPayments: '0',
       trendLabel: 'Live collections data',
       collectionMix: [
-        { label: 'M-PESA', value: 85 },
-        { label: 'Bank', value: 15 },
+        { label: 'M-PESA', value: mpesaPercentage },
+        { label: 'Bank', value: bankPercentage },
       ],
     };
   }
@@ -324,6 +333,135 @@ export class FinanceController {
       `UPDATE finance_fee_categories SET is_active = false, updated_at = NOW() WHERE tenant_id = $1 AND id = $2::uuid RETURNING *`,
       [tenantId, id]
     );
+    return result.rows[0];
+  }
+
+  @Post('fee-structures')
+  @Permissions('finance:write')
+  async createFeeStructure(@Body() dto: any) {
+    const tenantId = this.requestContext.requireStore().tenant_id;
+    const userId = this.requestContext.requireStore().user_id;
+    const result = await this.db.query(
+      `INSERT INTO fee_structures (tenant_id, name, academic_year, term, grade_level, currency_code, due_days, total_amount_minor, line_items, created_by_user_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10) RETURNING *`,
+      [tenantId, dto.name, dto.academic_year, dto.term, dto.grade_level, dto.currency_code || 'KES', dto.due_days || 14, dto.total_amount_minor, JSON.stringify(dto.line_items || []), userId]
+    );
+    return result.rows[0];
+  }
+
+  @Post('invoices/generate')
+  @Permissions('finance:write')
+  async generateInvoices(@Body() dto: any) {
+    const tenantId = this.requestContext.requireStore().tenant_id;
+    const { fee_structure_id, term, academic_year } = dto;
+    
+    const fsRes = await this.db.query(`SELECT * FROM fee_structures WHERE id = $1 AND tenant_id = $2`, [fee_structure_id, tenantId]);
+    if (fsRes.rowCount === 0) throw new Error('Fee structure not found');
+    const fs = fsRes.rows[0];
+
+    const studentsRes = await this.db.query(
+      `SELECT s.id FROM students s 
+       WHERE s.tenant_id = $1 AND s.metadata->>'grade_level' = $2 AND s.status = 'active'`,
+      [tenantId, fs.grade_level]
+    );
+
+    const invoices = [];
+    for (const student of studentsRes.rows) {
+      const invRes = await this.db.query(
+        `INSERT INTO student_invoices (tenant_id, student_id, invoice_number, fee_structure_id, term, academic_year, amount_minor, balance_minor)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+        [tenantId, student.id, `INV-${Date.now()}-${Math.floor(Math.random() * 1000)}`, fs.id, term || fs.term, academic_year || fs.academic_year, fs.total_amount_minor, fs.total_amount_minor]
+      );
+      invoices.push(invRes.rows[0]);
+    }
+    return { generated: invoices.length, invoices };
+  }
+
+  @Get('receipts/:id')
+  @Permissions('finance:read')
+  async getReceipt(@Param('id') id: string) {
+    const tenantId = this.requestContext.requireStore().tenant_id;
+    const result = await this.db.query(
+      `SELECT r.*, s.first_name, s.last_name, s.admission_number 
+       FROM receipts r 
+       JOIN students s ON r.student_id = s.id 
+       WHERE r.id = $1 AND r.tenant_id = $2`,
+      [id, tenantId]
+    );
+    if (result.rowCount === 0) throw new Error('Receipt not found');
+    return result.rows[0];
+  }
+
+  @Post('waivers')
+  @Permissions('finance:write')
+  async requestWaiver(@Body() dto: any) {
+    const tenantId = this.requestContext.requireStore().tenant_id;
+    const result = await this.db.query(
+      `INSERT INTO tenant_pending_waivers (tenant_id, waiver_number, student_id, student_name, class_name, amount_minor, reason, status)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending') RETURNING *`,
+      [tenantId, `WV-${Date.now()}`, dto.student_id, dto.student_name || 'N/A', dto.class_name || 'N/A', dto.amount_minor, dto.reason]
+    );
+    const waiver = result.rows[0];
+
+    await this.schoolEvents.recordSchoolOperation({
+      event: {
+        id: waiver.id,
+        type: 'finance.waiver_requested',
+        module: 'finance',
+        actorRole: this.requestContext.requireStore().role || 'accountant',
+        title: 'Fee Waiver Requested',
+        body: `Waiver requested for student ${dto.student_id}`,
+        entityId: waiver.id,
+        severity: 'info',
+        payload: { waiver_number: waiver.waiver_number, amount: dto.amount_minor },
+      },
+      notifications: [
+        {
+          id: `waiver-request-${waiver.id}`,
+          schoolId: tenantId,
+          title: 'Fee Waiver Approval Required',
+          body: `A fee waiver of ${dto.amount_minor} is pending approval for ${dto.student_name || dto.student_id}.`,
+          audienceRoles: ['principal'],
+          priority: 'high',
+          sourceModule: 'finance',
+          relatedModule: 'finance',
+          relatedRecordId: waiver.id,
+          read: false,
+          createdAt: new Date().toISOString(),
+        }
+      ]
+    });
+
+    return waiver;
+  }
+
+  @Post('waivers/:id/approve')
+  @Permissions('finance:write')
+  async approveWaiver(@Param('id') id: string, @Body() dto: { approved: boolean }) {
+    const tenantId = this.requestContext.requireStore().tenant_id;
+    const result = await this.db.query(
+      `UPDATE tenant_pending_waivers SET status = $1 WHERE id = $2 AND tenant_id = $3 RETURNING *`,
+      [dto.approved ? 'approved' : 'rejected', id, tenantId]
+    );
+    
+    // If approved, update student balance
+    if (dto.approved && (result.rowCount ?? 0) > 0) {
+      const waiver = result.rows[0];
+      // Reduce balance in oldest open invoice
+      const invRes = await this.db.query(
+        `SELECT id, balance_minor FROM student_invoices WHERE student_id = $1 AND tenant_id = $2 AND status = 'open' ORDER BY created_at ASC LIMIT 1`,
+        [waiver.student_id, tenantId]
+      );
+      if ((invRes.rowCount ?? 0) > 0) {
+        const inv = invRes.rows[0];
+        const newBalance = Math.max(0, Number(inv.balance_minor) - Number(waiver.amount_minor));
+        await this.db.query(
+          `UPDATE student_invoices SET balance_minor = $1, status = CASE WHEN $1 <= 0 THEN 'paid' ELSE 'open' END WHERE id = $2`,
+          [newBalance, inv.id]
+        );
+      }
+    }
+    
     return result.rows[0];
   }
 }

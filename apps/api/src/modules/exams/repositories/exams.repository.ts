@@ -720,19 +720,19 @@ export class ExamsRepository {
           assessment.exam_series_id::text,
           series.academic_term_id::text,
           assessment.subject_id::text,
-          COALESCE(window.class_section_id::text, '') AS class_section_id,
+          COALESCE(entry_window.class_section_id::text, '') AS class_section_id,
           assessment.max_score::text
         FROM exam_assessments assessment
         JOIN exam_series series
           ON series.tenant_id = assessment.tenant_id
          AND series.id = assessment.exam_series_id
-        LEFT JOIN exam_mark_entry_windows window
-          ON window.tenant_id = assessment.tenant_id
-         AND window.exam_series_id = assessment.exam_series_id
-         AND window.subject_id = assessment.subject_id
+        LEFT JOIN exam_mark_entry_windows entry_window
+          ON entry_window.tenant_id = assessment.tenant_id
+         AND entry_window.exam_series_id = assessment.exam_series_id
+         AND entry_window.subject_id = assessment.subject_id
         WHERE assessment.tenant_id = $1
           AND assessment.id = $2::uuid
-        ORDER BY window.created_at DESC NULLS LAST
+        ORDER BY entry_window.created_at DESC NULLS LAST
         LIMIT 1
       `,
       [input.tenant_id, input.assessment_id],

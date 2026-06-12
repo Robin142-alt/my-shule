@@ -1131,7 +1131,7 @@ function HeroAlert({ alert, featured, theme }: { alert: (typeof heroAlerts)[numb
   );
 }
 
-function KpiCard({ item, theme }: { item: (typeof kpis)[number]; theme: StorekeeperTheme }) {
+function KpiCard({ item, theme }: { item: ReturnType<typeof kpis>[number]; theme: StorekeeperTheme }) {
   const surface = getSurfaceClasses(theme);
   const toneClass = toneStyles[item.tone];
 
@@ -1278,7 +1278,7 @@ function ActivityFeed({ data, isLoading, theme }: { data: any, isLoading: boolea
 
 function RequisitionPanel({ theme }: { theme: StorekeeperTheme }) {
   const { data: fetchedRequisitions } = useSchoolQuery<typeof initialRequisitions>("/api/inventory/requisitions");
-  const activeRequisitions = fetchedRequisitions ?? initialRequisitions;
+  const activeRequisitions = Array.isArray(fetchedRequisitions) ? fetchedRequisitions : [];
   const queryClient = useQueryClient();
   const surface = getSurfaceClasses(theme);
   const [decisionByRequisitionId, setDecisionByRequisitionId] = useState<Record<string, string>>({});
@@ -1424,7 +1424,7 @@ function Heatmap({ theme }: { theme: StorekeeperTheme }) {
 
 function SupplierPerformance({ theme }: { theme: StorekeeperTheme }) {
   const { data: fetchedSuppliers } = useSchoolQuery<typeof initialSuppliers>("/api/inventory/suppliers");
-  const activeSuppliers = fetchedSuppliers ?? initialSuppliers;
+  const activeSuppliers = Array.isArray(fetchedSuppliers) ? fetchedSuppliers : [];
   const surface = getSurfaceClasses(theme);
   return (
     <section id="suppliers" className={cn("rounded-3xl border p-5 md:p-6", surface.card)}>
@@ -1475,7 +1475,7 @@ function SupplierPerformance({ theme }: { theme: StorekeeperTheme }) {
 
 function WastePanel({ theme }: { theme: StorekeeperTheme }) {
   const { data: fetchedWaste } = useSchoolQuery<typeof initialWaste>("/api/inventory/waste");
-  const activeWaste = fetchedWaste ?? initialWaste;
+  const activeWaste = Array.isArray(fetchedWaste) ? fetchedWaste : [];
   const surface = getSurfaceClasses(theme);
   return (
     <section id="waste" className={cn("rounded-3xl border p-5 md:p-6", surface.card)}>
@@ -1499,7 +1499,7 @@ function WastePanel({ theme }: { theme: StorekeeperTheme }) {
 
 function AuditPanel({ theme }: { theme: StorekeeperTheme }) {
   const { data: fetchedAuditTrail } = useSchoolQuery<typeof initialAuditTrail>("/api/inventory/audit");
-  const activeAuditTrail = fetchedAuditTrail ?? initialAuditTrail;
+  const activeAuditTrail = Array.isArray(fetchedAuditTrail) ? fetchedAuditTrail : [];
   const surface = getSurfaceClasses(theme);
   return (
     <section id="audit" className={cn("rounded-3xl border p-5 md:p-6", surface.card)}>
@@ -1545,7 +1545,7 @@ function AuditPanel({ theme }: { theme: StorekeeperTheme }) {
 
 function AiInsights({ theme }: { theme: StorekeeperTheme }) {
   const { data: fetchedAiInsights } = useSchoolQuery<typeof initialAiInsights>("/api/inventory/insights");
-  const activeAiInsights = fetchedAiInsights ?? initialAiInsights;
+  const activeAiInsights = Array.isArray(fetchedAiInsights) ? fetchedAiInsights : [];
   const surface = getSurfaceClasses(theme);
   return (
     <section id="ai-insights" className={cn("rounded-3xl border p-5 md:p-6", surface.card)}>
@@ -1754,7 +1754,7 @@ export function StorekeeperCommandCenter({
               action={<StatusChip icon={Radar} label="Live anomaly scan" tone="accent" />}
             />
             <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-              {heroAlerts(summaryData, isLoadingSummary).map((alert, index) => (
+              {heroAlerts.map((alert, index) => (
                 <HeroAlert key={alert.id} alert={alert} featured={index === 0} theme={theme} />
               ))}
             </div>

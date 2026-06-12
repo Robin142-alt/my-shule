@@ -33,7 +33,7 @@ export class ClassTeacherService {
         AND tsa.teacher_user_id = $2
         AND tsa.status = 'active'
     `;
-    const result = await this.databaseService.query(query, [tenantId, userId]);
+    const { rows: result } = await this.databaseService.query(query, [tenantId, userId]);
 
     const totalLearners = result.reduce((acc, row) => acc + parseInt(row.learners_count), 0);
 
@@ -84,7 +84,7 @@ export class ClassTeacherService {
         AND sa.status = 'active'
       ORDER BY s.first_name ASC
     `;
-    const result = await this.databaseService.query(query, [tenantId, streamId]);
+    const { rows: result } = await this.databaseService.query(query, [tenantId, streamId]);
     return result.map(r => ({
       id: r.id,
       admissionNo: r.admission_number,
@@ -126,7 +126,7 @@ export class ClassTeacherService {
         AND tsa.teacher_user_id = $2
         AND tsa.status = 'active'
     `;
-    const result = await this.databaseService.query(query, [tenantId, userId, today]);
+    const { rows: result } = await this.databaseService.query(query, [tenantId, userId, today]);
     
     const pendingCount = result.filter(r => r.status === 'Pending').length;
 
@@ -186,7 +186,7 @@ export class ClassTeacherService {
         AND tsa.teacher_user_id = $2
         AND w.status = 'open'
     `;
-    const result = await this.databaseService.query(query, [tenantId, userId]);
+    const { rows: result } = await this.databaseService.query(query, [tenantId, userId]);
     
     return {
       stats: {
@@ -227,7 +227,7 @@ export class ClassTeacherService {
         AND ts.status = 'published'
       ORDER BY ts.day_of_week ASC, ts.starts_at ASC
     `;
-    const result = await this.databaseService.query(query, [tenantId, userId]);
+    const { rows: result } = await this.databaseService.query(query, [tenantId, userId]);
     
     const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     
@@ -258,7 +258,7 @@ export class ClassTeacherService {
       ORDER BY created_at DESC
       LIMIT 50
     `;
-    const result = await this.databaseService.query(query, [tenantId, userId]);
+    const { rows: result } = await this.databaseService.query(query, [tenantId, userId]);
     return result.map(r => ({
       id: r.id,
       date: new Date(r.created_at).toLocaleDateString() + ' ' + new Date(r.created_at).toLocaleTimeString(),
@@ -291,7 +291,7 @@ export class ClassTeacherService {
         AND sca.status = 'active'
       ORDER BY s.admission_number ASC
     `;
-    const result = await this.databaseService.query(query, [tenantId, userId]);
+    const { rows: result } = await this.databaseService.query(query, [tenantId, userId]);
     
     // We mock some computed stats like attendance to meet UI requirements, but list real students and fee arrears
     return {
@@ -305,7 +305,7 @@ export class ClassTeacherService {
         name: r.name,
         className: r.class_name,
         attendancePercent: "95%",
-        feeStatus: parseInt(r.fee_balance_minor) > 0 ? \`Arrears (KES \${parseInt(r.fee_balance_minor) / 100})\` : "Cleared",
+        feeStatus: parseInt(r.fee_balance_minor) > 0 ? `Arrears (KES ${parseInt(r.fee_balance_minor) / 100})` : "Cleared",
         academic: "B+",
         discipline: "Good"
       }))
@@ -330,7 +330,7 @@ export class ClassTeacherService {
         AND di.reported_by_user_id = $2
       ORDER BY di.incident_date DESC
     `;
-    const result = await this.databaseService.query(query, [tenantId, userId]);
+    const { rows: result } = await this.databaseService.query(query, [tenantId, userId]);
     
     return result.map(r => ({
       id: r.id,
@@ -361,7 +361,7 @@ export class ClassTeacherService {
         AND sca.status = 'active'
       ORDER BY s.admission_number ASC
     `;
-    const result = await this.databaseService.query(query, [tenantId, userId]);
+    const { rows: result } = await this.databaseService.query(query, [tenantId, userId]);
     return result.map(r => ({
       studentId: r.student_id,
       admissionNo: r.admission_number,
@@ -397,7 +397,7 @@ export class ClassTeacherService {
     
     for (const item of items) {
       const existing = await this.databaseService.query(checkQuery, [tenantId, item.studentId]);
-      if (existing.length > 0) {
+      if ((existing.rowCount ?? 0) > 0) {
         await this.databaseService.query(updateQuery, [tenantId, item.studentId, item.comment]);
       } else {
         await this.databaseService.query(insertQuery, [tenantId, item.studentId, item.comment, userId]);
@@ -516,7 +516,7 @@ export class ClassTeacherService {
     ];
   }
 
-  async getTimetable(tenantId: string, userId: string, streamId: string) {
+  async getStreamTimetable(tenantId: string, userId: string, streamId: string) {
     return [
       { id: "t1", day: "Monday", time: "08:00 - 08:40", subject: "Mathematics", teacher: "Mr. Otieno", room: "Room 12" },
       { id: "t2", day: "Monday", time: "08:40 - 09:20", subject: "English", teacher: "Mrs. Smith", room: "Room 12" }

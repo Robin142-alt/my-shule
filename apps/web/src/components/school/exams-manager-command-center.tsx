@@ -20,7 +20,8 @@ import {
 import type { WidgetState } from "@/lib/capability-engine/school-capability-engine";
 import { getCurrentSchoolId, publishSchoolOperationalEvent } from "@/lib/school/school-operational-store";
 import { useQueryClient } from "@tanstack/react-query";
-import { useSchoolMutation } from "@/lib/data/school-hooks";
+import { useLiveTenantSession } from "@/hooks/use-live-tenant-session";
+import { useSchoolQuery, useSchoolMutation } from "@/lib/data/school-hooks";
 import { downloadCsvFile, openPrintDocument } from "@/lib/dashboard/export";
 import { ApprovalInbox } from "@/components/shared/approval-inbox";
 import { NotificationBell } from "@/components/shared/notification-bell";

@@ -55,7 +55,7 @@ const schoolNavMap: Record<SchoolExperienceRole | PortalViewer, ExperienceNavIte
     { id: "subjects-departments", label: "Subjects & Departments", href: toSchoolPath("subjects-departments"), icon: BookOpenCheck },
     { id: "staff-roles", label: "Staff & Roles", href: toSchoolPath("staff-roles"), icon: Users },
     { id: "students", label: "Students", href: toSchoolPath("students"), icon: Users },
-    { id: "attendance", label: "Attendance", href: toSchoolPath("attendance"), icon: CalendarDays },
+    { id: "attendance-monitoring", label: "Attendance", href: toSchoolPath("attendance-monitoring"), icon: CalendarDays },
     { id: "academics", label: "Academics", href: toSchoolPath("academics"), icon: GraduationCap },
     { id: "exams-report-cards", label: "Exams & Report Cards", href: toSchoolPath("exams-report-cards"), icon: FileSpreadsheet },
     { id: "finance-overview", label: "Finance Overview", href: toSchoolPath("finance-overview"), icon: CircleDollarSign },
@@ -130,7 +130,7 @@ const schoolNavMap: Record<SchoolExperienceRole | PortalViewer, ExperienceNavIte
   "teacher": [
     { id: "overview", label: "Overview", href: toSchoolPath("overview"), icon: LayoutGrid },
     { id: "my-timetable", label: "My Timetable", href: toSchoolPath("my-timetable"), icon: CalendarDays },
-    { id: "attendance", label: "Attendance", href: toSchoolPath("attendance"), icon: CalendarDays },
+    { id: "teacher-attendance", label: "Attendance", href: toSchoolPath("teacher-attendance"), icon: CalendarDays },
     { id: "subjects-classes", label: "Subjects & Classes", href: toSchoolPath("subjects-classes"), icon: BookOpenCheck },
     { id: "lesson-plans", label: "Lesson Plans", href: toSchoolPath("lesson-plans"), icon: FileSpreadsheet },
     { id: "lesson-logs", label: "Lesson Logs", href: toSchoolPath("lesson-logs"), icon: ClipboardList },

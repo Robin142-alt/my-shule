@@ -453,15 +453,38 @@ export class AdmissionsService {
           },
           notifications: [
             {
-              audienceRoles: ['finance', 'principal'],
+              id: `admission-finance-${student.id}`,
+              schoolId: tenantId,
+              audienceRoles: ['accountant', 'finance', 'principal'],
               title: 'Fee Collection Required',
               body: `Registration fees for newly admitted student ${application.full_name} (${dto.admission_number}) require collection.`,
-              requiresAction: true,
-              type: 'fee_collection',
-              severity: 'warning',
-              actionUrl: `/finance/fee-collection?studentId=${student.id}`,
+              sourceModule: 'admissions',
+              relatedModule: 'finance',
+              relatedRecordId: student.id,
+              priority: 'high',
+              read: false,
+              createdAt: new Date().toISOString(),
             },
+            {
+              id: `admission-teacher-${student.id}`,
+              schoolId: tenantId,
+              audienceRoles: ['class-teacher', 'teacher'],
+              title: 'New Student Admitted',
+              body: `${application.full_name} has been admitted to your class ${dto.class_name}.`,
+              sourceModule: 'admissions',
+              relatedModule: 'academics',
+              relatedRecordId: student.id,
+              priority: 'normal',
+              read: false,
+              createdAt: new Date().toISOString(),
+            }
           ],
+          sms: [
+            {
+              phone: application.parent_phone,
+              message: `Dear parent, ${application.full_name} has been successfully admitted to ${dto.class_name}. Admission Number: ${dto.admission_number}.`,
+            }
+          ]
         }).catch(() => undefined);
       }
 

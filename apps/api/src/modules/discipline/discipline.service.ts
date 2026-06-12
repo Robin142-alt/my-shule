@@ -30,6 +30,7 @@ import {
   OffenseCategoryEntity,
 } from './entities/discipline.entity';
 import { DisciplineRepository } from './repositories/discipline.repository';
+import { SchoolOperationalEventsService } from '../events/school-operational-events.service';
 import { DisciplineNotificationService } from './discipline-notification.service';
 import { DisciplineDocumentService } from './discipline-document.service';
 import {
@@ -55,6 +56,7 @@ export class DisciplineService {
     @Optional() private readonly documentService?: DisciplineDocumentService,
     @Optional() private readonly attachmentStorage?: DisciplineAttachmentStorageService,
     @Optional() private readonly uploadMalwareScan?: UploadMalwareScanService,
+    @Optional() private readonly schoolEvents?: SchoolOperationalEventsService,
   ) {}
 
   async listOffenseCategories() {
@@ -265,6 +267,37 @@ export class DisciplineService {
         entityId: incident.id,
         metadata: { from_status: incident.status, to_status: dto.status, reason: dto.reason ?? null },
       });
+
+      if (dto.status === 'escalated') {
+        await this.schoolEvents?.recordSchoolOperation({
+          event: {
+            id: incident.id,
+            type: 'discipline.incident_escalated',
+            module: 'discipline',
+            actorRole: this.requestContext.requireStore().role || 'staff',
+            title: 'Discipline Incident Escalated',
+            body: `Incident ${incident.id} for student ${incident.student_id} has been escalated`,
+            entityId: incident.id,
+            severity: 'high',
+            payload: { student_id: incident.student_id },
+          },
+          notifications: [
+            {
+              id: `discipline-escalate-${incident.id}`,
+              schoolId: incident.school_id,
+              title: 'Discipline Incident Escalated',
+              body: `Incident ${incident.id} for student ${incident.student_id} has been escalated`,
+              audienceRoles: ['deputy-principal', 'principal'],
+              priority: 'urgent',
+              sourceModule: 'discipline',
+              relatedModule: 'discipline',
+              relatedRecordId: incident.id,
+              read: false,
+              createdAt: new Date().toISOString(),
+            }
+          ]
+        });
+      }
 
       return next;
     });

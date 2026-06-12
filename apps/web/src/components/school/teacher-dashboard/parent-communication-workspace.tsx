@@ -10,10 +10,10 @@ export function ParentCommunicationWorkspace({
 }: {
   onStartAction: (action: TeacherAction, view: TeacherView, message: string) => void;
 }) {
-  const liveSession = useLiveTenantSession();
+  const liveSession = useLiveTenantSession("school");
   
   const { data, isLoading, isError } = useQuery({
-    queryKey: ["sent-messages", liveSession.session?.tenant_id, liveSession.session?.user.id],
+    queryKey: ["sent-messages", liveSession.session?.tenantId, liveSession.session?.user.user_id],
     queryFn: () => fetchSentMessagesLive(liveSession.session!),
     enabled: !!liveSession.session,
   });

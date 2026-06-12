@@ -2,6 +2,7 @@
 
 import { Home, FileText, AlertTriangle, Users, ClipboardList } from "lucide-react";
 import { Panel, StatusChip, EmptyState } from "./shared";
+import { useSchoolQuery } from "@/lib/data/school-hooks";
 
 const MOCK_URGENT_CASES = [
   { id: "DM-2026-0001", student: "Brian Otieno", class: "Form 2 Blue", category: "Bullying", severity: "High", reportedBy: "Tr. Wanjiku", date: "2026-06-11 08:30", status: "Under Review" },
@@ -9,6 +10,10 @@ const MOCK_URGENT_CASES = [
 ];
 
 export function OverviewWorkspace() {
+  const { data: dashboard, isLoading } = useSchoolQuery<any>("/api/discipline/dashboard");
+  const cases = Array.isArray(dashboard?.urgentCases) ? dashboard.urgentCases : MOCK_URGENT_CASES;
+  const kpis = Array.isArray(dashboard?.kpis) ? dashboard.kpis : [];
+
   return (
     <Panel title="Overview" description="Daily command center for discipline operations." icon={Home} actions={
       <div className="flex gap-2">
@@ -19,19 +24,19 @@ export function OverviewWorkspace() {
       <div className="grid gap-4 md:grid-cols-4 mb-6">
         <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 cursor-pointer hover:border-[#38BDF8]">
           <span className="block text-xs font-black uppercase text-[#64748B]">Open Cases</span>
-          <span className="mt-1 block text-2xl font-black text-[#071D49]">14</span>
+          <span className="mt-1 block text-2xl font-black text-[#071D49]">{isLoading ? "..." : (kpis[0]?.value || "14")}</span>
         </div>
         <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 cursor-pointer hover:border-[#38BDF8]">
           <span className="block text-xs font-black uppercase text-[#64748B]">New Reports Today</span>
-          <span className="mt-1 block text-2xl font-black text-[#071D49]">3</span>
+          <span className="mt-1 block text-2xl font-black text-[#071D49]">{isLoading ? "..." : (kpis[1]?.value || "3")}</span>
         </div>
         <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 cursor-pointer hover:border-rose-300">
           <span className="block text-xs font-black uppercase text-rose-700">Pending Parent Contact</span>
-          <span className="mt-1 block text-2xl font-black text-rose-700">5</span>
+          <span className="mt-1 block text-2xl font-black text-rose-700">{isLoading ? "..." : (kpis[2]?.value || "5")}</span>
         </div>
         <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 cursor-pointer hover:border-amber-300">
           <span className="block text-xs font-black uppercase text-amber-700">Pending Approval</span>
-          <span className="mt-1 block text-2xl font-black text-amber-700">2</span>
+          <span className="mt-1 block text-2xl font-black text-amber-700">{isLoading ? "..." : (kpis[3]?.value || "2")}</span>
         </div>
       </div>
 
@@ -70,7 +75,15 @@ export function OverviewWorkspace() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#D8E0EC]">
-                {MOCK_URGENT_CASES.map((row) => (
+                {isLoading ? (
+                  <tr>
+                    <td colSpan={6} className="px-4 py-3 text-center text-sm text-[#64748B]">Loading cases...</td>
+                  </tr>
+                ) : cases.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="px-4 py-3 text-center text-sm text-[#64748B]">No active cases today.</td>
+                  </tr>
+                ) : cases.map((row: any) => (
                   <tr key={row.id} className="hover:bg-[#F8FAFC]">
                     <td className="px-4 py-3 font-semibold">{row.id}</td>
                     <td className="px-4 py-3">
@@ -92,12 +105,13 @@ export function OverviewWorkspace() {
               </tbody>
             </table>
           </div>
-        ) : (
+        ) : null}
+        {cases.length === 0 && !isLoading ? (
           <EmptyState 
             message="No active discipline cases today. New teacher reports, student incidents, or parent follow-ups will appear here." 
             icon={ClipboardList} 
           />
-        )}
+        ) : null}
       </div>
     </Panel>
   );

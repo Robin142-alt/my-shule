@@ -19,6 +19,8 @@ import { CounsellingNoteEncryptionService } from './counselling-note-encryption.
 import { DisciplineRepository } from './repositories/discipline.repository';
 import { CounsellingRepository } from './repositories/counselling.repository';
 import type { CounsellingNoteEntity } from './entities/discipline.entity';
+import { EventPublisherService } from '../events/event-publisher.service';
+import { randomUUID } from 'node:crypto';
 
 @Injectable()
 export class CounsellingService {
@@ -28,6 +30,7 @@ export class CounsellingService {
     private readonly disciplineRepository: DisciplineRepository,
     private readonly counsellingRepository: CounsellingRepository,
     private readonly noteEncryption: CounsellingNoteEncryptionService,
+    private readonly eventPublisher: EventPublisherService,
   ) {}
 
   async getDashboard() {
@@ -75,6 +78,27 @@ export class CounsellingService {
         ip_address: this.requestContext.requireStore().client_ip,
         user_agent: this.requestContext.requireStore().user_agent,
         metadata: { incident_id: dto.incident_id ?? null, risk_level: dto.risk_level ?? 'medium' },
+      });
+
+      await this.eventPublisher.publish({
+        tenant_id: tenantId,
+        event_key: `counselling.referral.submitted:${referral.id}`,
+        event_name: 'counselling.referral.submitted',
+        aggregate_type: 'counselling_referral',
+        aggregate_id: referral.id,
+        payload: {
+          tenant_id: tenantId,
+          referral_id: referral.id,
+          student_id: dto.student_id,
+          reason: dto.reason,
+          priority: dto.risk_level ?? 'medium',
+          referred_by_user_id: this.actorUserId(),
+          referred_at: new Date().toISOString(),
+          status: 'pending',
+        },
+        headers: {
+          source: 'web.dashboard',
+        },
       });
 
       return referral;

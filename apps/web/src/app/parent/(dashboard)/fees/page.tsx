@@ -125,6 +125,10 @@ export default function ParentFeesPage() {
     selectedChildId ? "/api/parent/fees/" + selectedChildId : null
   );
 
+  const { data: receiptsData, isLoading: receiptsLoading } = useSchoolQuery<any>(
+    selectedChildId ? "/api/parent/receipts/" + selectedChildId : null
+  );
+
   const payload = moduleResult?.data || [];
   const columns = moduleResult?.columns || [];
 
@@ -140,6 +144,15 @@ export default function ParentFeesPage() {
   };
 
   const rows = payload.map((record: any) => mapRow(record));
+
+  const receiptsPayload = receiptsData || [];
+  const receiptColumns = ['Receipt Number', 'Amount', 'Method', 'Date'];
+  
+  const mapReceiptRow = (record: any) => {
+    return [record.receiptNumber, record.amount, record.method.toUpperCase(), record.date];
+  };
+
+  const receiptRows = receiptsPayload.map((record: any) => mapReceiptRow(record));
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
@@ -164,8 +177,8 @@ export default function ParentFeesPage() {
       )}
 
       <Panel 
-        title="Fees" 
-        description={moduleResult?.studentName ? "Viewing records for " + moduleResult.studentName : "Parent workspace"}
+        title="Invoices & Balances" 
+        description={moduleResult?.studentName ? "Viewing fee records for " + moduleResult.studentName : "Fee invoices"}
       >
         {isLoading ? (
           <div className="flex justify-center py-16 text-[#64748B]">Loading...</div>
@@ -175,7 +188,24 @@ export default function ParentFeesPage() {
           <div className="flex flex-col items-center justify-center py-16 text-center">
             <AlertTriangle className="h-12 w-12 text-[#64748B]/30 mb-4" />
             <p className="text-lg font-semibold text-[#071D49]">No Data Found</p>
-            <p className="mt-2 text-sm text-[#64748B]">There are no fees records available yet.</p>
+            <p className="mt-2 text-sm text-[#64748B]">There are no fee records available yet.</p>
+          </div>
+        )}
+      </Panel>
+
+      <Panel 
+        title="Payment Receipts" 
+        description="History of payments made"
+      >
+        {receiptsLoading ? (
+          <div className="flex justify-center py-16 text-[#64748B]">Loading...</div>
+        ) : receiptRows.length > 0 ? (
+          <DataTable columns={receiptColumns} rows={receiptRows} />
+        ) : (
+          <div className="flex flex-col items-center justify-center py-16 text-center">
+            <AlertTriangle className="h-12 w-12 text-[#64748B]/30 mb-4" />
+            <p className="text-lg font-semibold text-[#071D49]">No Receipts Found</p>
+            <p className="mt-2 text-sm text-[#64748B]">There are no payment receipts available yet.</p>
           </div>
         )}
       </Panel>

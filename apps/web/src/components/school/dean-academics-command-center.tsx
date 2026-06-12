@@ -23,6 +23,7 @@ import { WorkflowToast } from "@/components/shared/workflow-toast";
 
 import type { WidgetState } from "@/lib/capability-engine/school-capability-engine";
 import { getCurrentSchoolId, publishSchoolOperationalEvent } from "@/lib/school/school-operational-store";
+import { useLiveTenantSession } from "@/hooks/use-live-tenant-session";
 import { useSchoolQuery, useSchoolMutation } from "@/lib/data/school-hooks";
 
 type DeanRouteMode = "hosted" | "public";
@@ -434,7 +435,8 @@ function DecisionFlow() {
 
 function PendingReviews({ capability, onAction }: { capability: DeanWidgetCapability; onAction: (label: string) => void }) {
   const widget = widgets.find((item) => item.id === "pending")!;
-  const { data: schoolMarks, isLoading } = useSchoolQuery('/api/exams/marks/school');
+  const liveSession = useLiveTenantSession("school");
+  const { data: schoolMarks, isLoading } = useSchoolQuery('/api/exams/marks/school', { enabled: !!liveSession.session });
   const lockMutation = useSchoolMutation('/api/exams/marks/lock');
 
   const pendingMarks = Array.isArray(schoolMarks) ? schoolMarks.filter((m: any) => m.status === 'reviewed') : [];

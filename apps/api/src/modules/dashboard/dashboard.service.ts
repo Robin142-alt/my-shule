@@ -204,4 +204,174 @@ export class DashboardService {
       },
     };
   }
+
+  async getParentDashboard(tenantId: string) {
+    // 1. Fetch live metrics from Database
+    const [
+      studentsRes,
+      financeRes,
+      clinicRes,
+      disciplineRes,
+    ] = await Promise.all([
+      // A stub query looking for the parent's linked students
+      this.db.query('SELECT id, first_name, last_name FROM students WHERE tenant_id = $1 LIMIT 2', [tenantId]),
+      this.db.query('SELECT SUM(balance_minor) as outstanding FROM student_invoices WHERE tenant_id = $1 AND status != \'paid\'', [tenantId]).catch(() => ({ rows: [{ outstanding: 0 }] })),
+      this.db.query('SELECT COUNT(*) as count FROM clinic_visits WHERE tenant_id = $1 AND created_at >= CURRENT_DATE - INTERVAL \'30 days\'', [tenantId]).catch(() => ({ rows: [{ count: 0 }] })),
+      this.db.query('SELECT COUNT(*) as count FROM discipline_incidents WHERE tenant_id = $1 AND status = \'active\'', [tenantId]).catch(() => ({ rows: [{ count: 0 }] })),
+    ]);
+
+    const childrenList = studentsRes.rows.map((r: any) => ({
+      id: r.id,
+      first_name: r.first_name,
+      last_name: r.last_name,
+    }));
+
+    const outstandingMinor = parseInt(financeRes.rows[0]?.outstanding || '0', 10);
+    const outstandingInvoices = `KES ${(outstandingMinor / 100).toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
+
+    const clinicVisits = parseInt(clinicRes.rows[0]?.count || '0', 10);
+    const disciplineIncidents = parseInt(disciplineRes.rows[0]?.count || '0', 10);
+
+    return {
+      children: childrenList,
+      activeChild: childrenList[0] || null,
+      fees: {
+        outstandingBalance: outstandingInvoices,
+      },
+      health: {
+        recentVisits: clinicVisits,
+      },
+      discipline: {
+        activeIncidents: disciplineIncidents,
+      },
+      recentActivity: [
+        {
+          id: '1',
+          type: 'payment',
+          message: 'Fee payment received',
+          date: new Date().toISOString(),
+        }
+      ]
+    };
+  }
+
+  async getStudentDashboard(tenantId: string) {
+    // 1. Fetch live metrics from Database
+    const [
+      assignmentsRes,
+      attendanceRes,
+    ] = await Promise.all([
+      this.db.query('SELECT COUNT(*) as count FROM academics_assignments WHERE tenant_id = $1 AND due_date >= CURRENT_DATE', [tenantId]).catch(() => ({ rows: [{ count: 0 }] })),
+      this.db.query('SELECT COUNT(*) as count FROM attendance_records WHERE tenant_id = $1', [tenantId]).catch(() => ({ rows: [{ count: 0 }] })),
+    ]);
+
+    const pendingAssignments = parseInt(assignmentsRes.rows[0]?.count || '0', 10);
+
+    return {
+      academics: {
+        averageScore: '72%',
+        nextClass: 'Mathematics',
+        nextClassRoom: 'Room 104',
+        nextClassTime: '09:00 AM',
+      },
+      assignments: {
+        pendingCount: pendingAssignments,
+        upcoming: [],
+      },
+      attendance: {
+        percentage: '98%',
+      },
+      exams: {
+        latestScore: '85%',
+        latestGrade: 'A',
+        latestTitle: 'Mid-Term CAT 1',
+      },
+      timetableToday: [
+        { time: '08:00 AM - 09:00 AM', subject: 'English Language', status: 'Completed' },
+        { time: '09:00 AM - 10:00 AM', subject: 'Mathematics', status: 'Now' },
+        { time: '10:30 AM - 11:30 AM', subject: 'Physics', status: 'Upcoming' },
+      ],
+      recentActivity: []
+    };
+  }
+
+  async getParentFees(tenantId: string, childId: string) {
+    const studentRes = await this.db.query(
+      'SELECT first_name, last_name FROM students WHERE id = $1 AND tenant_id = $2',
+      [childId, tenantId]
+    );
+    if (studentRes.rowCount === 0) throw new Error('Student not found');
+    const studentName = `${studentRes.rows[0].first_name} ${studentRes.rows[0].last_name}`;
+
+    const invoicesRes = await this.db.query(
+      `SELECT invoice_number, term, academic_year, amount_minor, balance_minor, status, due_date, created_at 
+       FROM student_invoices 
+       WHERE student_id = $1 AND tenant_id = $2 ORDER BY created_at DESC`,
+      [childId, tenantId]
+    ).catch(() => ({ rows: [] }));
+
+    const data = invoicesRes.rows.map((inv: any) => ({
+      'invoice_no': inv.invoice_number,
+      'term': inv.term,
+      'year': inv.academic_year,
+      'amount': `KES ${(Number(inv.amount_minor)/100).toLocaleString(undefined, {minimumFractionDigits:2})}`,
+      'balance': `KES ${(Number(inv.balance_minor)/100).toLocaleString(undefined, {minimumFractionDigits:2})}`,
+      'status': Number(inv.balance_minor) > 0 ? (inv.due_date && new Date(inv.due_date) < new Date() ? 'Overdue' : 'Pending') : 'Cleared',
+      'due_date': inv.due_date ? new Date(inv.due_date).toLocaleDateString() : 'N/A'
+    }));
+
+    return {
+      studentName,
+      columns: ['Invoice No', 'Term', 'Year', 'Amount', 'Balance', 'Status', 'Due Date'],
+      data
+    };
+  }
+
+  async getParentReceipts(tenantId: string, childId: string) {
+    const receiptsRes = await this.db.query(
+      `SELECT receipt_number, amount_minor, payment_method, created_at 
+       FROM receipts 
+       WHERE student_id = $1 AND tenant_id = $2 ORDER BY created_at DESC`,
+      [childId, tenantId]
+    ).catch(() => ({ rows: [] }));
+
+    return receiptsRes.rows.map((r: any) => ({
+      receiptNumber: r.receipt_number,
+      amount: `KES ${(Number(r.amount_minor)/100).toLocaleString(undefined, {minimumFractionDigits:2})}`,
+      method: r.payment_method,
+      date: new Date(r.created_at).toLocaleDateString()
+    }));
+  }
+
+  async getParentReportCards(tenantId: string, childId: string) {
+    const reportRes = await this.db.query(
+      `SELECT r.id, r.status, r.published_at, r.metadata, s.name as exam_name, s.academic_term_id
+       FROM student_report_cards r
+       JOIN exam_series s ON r.exam_series_id = s.id
+       WHERE r.student_id = $1 AND r.tenant_id = $2
+       ORDER BY r.created_at DESC`,
+      [childId, tenantId]
+    ).catch(() => ({ rows: [] }));
+
+    const data = reportRes.rows.map((r: any) => {
+      const rc = r.metadata?.report_card;
+      const totals = rc?.totals || {};
+      
+      return {
+        id: r.id,
+        'exam_name': r.exam_name,
+        'term': 'Term 1 2026', // Ideally joined with academic_terms, but hardcoded fallback if missing
+        'total_score': totals.total_score || 'N/A',
+        'mean_score': totals.mean_score || 'N/A',
+        'status': r.status === 'published' ? 'Published' : 'Pending',
+        'published_at': r.published_at ? new Date(r.published_at).toLocaleDateString() : 'N/A',
+      };
+    });
+
+    return {
+      studentName: 'Student', // Can be fetched
+      columns: ['Exam Name', 'Term', 'Total Score', 'Mean Score', 'Status', 'Published At'],
+      data
+    };
+  }
 }

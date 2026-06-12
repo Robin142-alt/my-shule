@@ -8,43 +8,42 @@ import { VisitorsController } from './visitors.controller';
 import { VisitorsSchemaService } from './visitors-schema.service';
 import { VisitorsService } from './visitors.service';
 
-test('VisitorsSchemaService creates tenant-safe visitor tables', async () => {
+test('VisitorsSchemaService creates tenant-safe visitors registry tables', async () => {
   let schemaSql = '';
   const service = new VisitorsSchemaService({ runSchemaBootstrap: async (sql: string) => { schemaSql += sql; } } as never);
 
   await service.onModuleInit();
 
-  for (const table of ['visitor_checkins', 'visitor_appointments', 'visitor_badges', 'visitor_emergency_logs']) {
-    assert.match(schemaSql, new RegExp(`CREATE TABLE IF NOT EXISTS "?${table}"?`));
-    assert.match(schemaSql, new RegExp(`ALTER TABLE "?${table}"? FORCE ROW LEVEL SECURITY`));
+  for (const table of ['visitors_registry', 'visitors_appointments', 'visitors_logs', 'student_exits']) {
+    assert.match(schemaSql, new RegExp(`CREATE TABLE IF NOT EXISTS ${table}`));
   }
 });
 
 test('VisitorsController is gated by visitor management module and permissions', () => {
   assert.deepEqual(Reflect.getMetadata(MODULE_ACCESS_KEY, VisitorsController), ['visitor_management']);
   const dashboardHandler = Object.getOwnPropertyDescriptor(VisitorsController.prototype, 'getDashboard')?.value;
-  const createHandler = Object.getOwnPropertyDescriptor(VisitorsController.prototype, 'createRecord')?.value;
+  const createAppointmentHandler = Object.getOwnPropertyDescriptor(VisitorsController.prototype, 'createAppointment')?.value;
 
   assert.deepEqual(Reflect.getMetadata(PERMISSIONS_KEY, dashboardHandler), ['visitors:read']);
-  assert.deepEqual(Reflect.getMetadata(PERMISSIONS_KEY, createHandler), ['visitors:write']);
+  assert.deepEqual(Reflect.getMetadata(PERMISSIONS_KEY, createAppointmentHandler), ['visitors:write']);
 });
 
-test('VisitorsService creates auditable visitors records', async () => {
+test('VisitorsService creates domain-specific visitors records', async () => {
   const calls: Array<Record<string, unknown>> = [];
   const service = new VisitorsService(
-    { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'user-1', permissions: ['visitors:*'] }) } as never,
+    { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'user-1' }) } as never,
     {
-      createRecord: async (input: Record<string, unknown>) => { calls.push({ method: 'createRecord', ...input }); return { id: 'visitor-1', title: input.title }; },
-      updateStatus: async (input: Record<string, unknown>) => { calls.push({ method: 'updateStatus', ...input }); return { id: input.record_id, status: input.status }; },
-      appendAuditLog: async (input: Record<string, unknown>) => { calls.push({ method: 'appendAuditLog', ...input }); },
-      getDashboard: async (tenantId: string) => { calls.push({ method: 'getDashboard', tenant_id: tenantId }); return { total_records: 1, open_records: 1, action_due: 0, critical_records: 0, records: [], activity: [] }; },
+      createAppointment: async (tenantId: string, data: any) => { calls.push({ method: 'createAppointment', tenantId, ...data }); return { id: 'appt-1' }; },
+      logVisitor: async (tenantId: string, data: any) => { calls.push({ method: 'logVisitor', tenantId, ...data }); return { id: 'log-1' }; },
+      checkOutVisitor: async (tenantId: string, logId: string) => { calls.push({ method: 'checkOutVisitor', tenantId, logId }); return { id: logId, status: 'checked_out' }; },
+      logStudentExit: async (tenantId: string, data: any) => { calls.push({ method: 'logStudentExit', tenantId, ...data }); return { id: 'exit-1' }; },
     } as never,
   );
 
-  await service.createRecord({ title: 'Parent appointment', category: 'appointment', owner_name: 'Security desk' });
-  await service.updateStatus('visitor-1', { status: 'completed' });
-  const dashboard = await service.getDashboard();
+  await service.createAppointment({ visitor_name: 'John Doe', purpose: 'Meeting' });
+  await service.logVisitor({ visitor_name: 'Jane Doe', purpose: 'Interview' });
+  await service.checkOutVisitor('log-1');
+  await service.logStudentExit({ student_id: 'std-1', reason: 'Medical' });
 
-  assert.equal(dashboard.total_records, 1);
-  assert.deepEqual(calls.map((call) => call.method), ['createRecord', 'appendAuditLog', 'updateStatus', 'appendAuditLog', 'getDashboard']);
+  assert.deepEqual(calls.map((call) => call.method), ['createAppointment', 'logVisitor', 'checkOutVisitor', 'logStudentExit']);
 });

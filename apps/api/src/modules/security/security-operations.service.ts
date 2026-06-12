@@ -48,7 +48,7 @@ export class SecurityOperationsService {
 
   async createVisitorRecord(dto: CreateVisitorDto) {
     // Proxy to visitor service
-    const record = await this.visitorsService.createRecord(dto as any);
+    const record = await this.visitorsService.logVisitor(dto);
     await this.schoolEvents?.recordSchoolOperation({
       event: {
         id: record.id,
@@ -56,10 +56,10 @@ export class SecurityOperationsService {
         module: 'security',
         actorRole: this.requestContext.getStore()?.role || 'staff',
         title: 'Visitor Record Created',
-        body: `A visitor record was created for ${dto.title}`,
+        body: `A visitor record was created for ${dto.visitor_name}`,
         entityId: record.id,
         severity: 'info',
-        payload: { visitor_name: dto.title },
+        payload: { visitor_name: dto.visitor_name },
       },
     });
     return record;

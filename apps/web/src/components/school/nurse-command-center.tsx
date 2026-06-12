@@ -209,7 +209,7 @@ function useClinicData(endpoint: string, fallbackData: any[] = []) {
 
 // Workspaces
 function OverviewWorkspace({ onNavigate }: { onNavigate: (view: ViewId) => void }) {
-  const { data: summaryData, isLoading: loadingSummary } = useSchoolQuery("/api/clinic/summary");
+  const { data: summaryData, isLoading: loadingSummary } = useSchoolQuery<any>("/api/clinic/summary");
   const { data: queue = [], isLoading: loadingQueue } = useClinicData('queue');
   const { data: inventory = [], isLoading: loadingInventory } = useClinicData('medicines');
   
@@ -243,11 +243,8 @@ function OverviewWorkspace({ onNavigate }: { onNavigate: (view: ViewId) => void 
         <Panel title="Today's Sick Bay Queue" icon={List} actions={<button className="text-sm font-bold text-[#1D4ED8]" onClick={() => onNavigate('queue')}>View Queue</button>}>
           <DataTable 
             columns={["Time", "Student", "Reason", "Status", "Action"]}
-            rows={loadingQueue ? [["Loading...", "", "", "", ""]] : (queue.length > 0 ? queue.slice(0,5).map((q: any) => [
-              q.time || "08:15 AM", q.student_name || "Aisha Wanjiku", q.complaint || "Fever", <StatusChip key={q.id || Math.random()} label={q.status || "Waiting"} tone="warning"/>, <button key={`a-${q.id}`} className="text-[#1D4ED8] font-bold text-xs" onClick={() => onNavigate('new-visit')}>Attend</button>
-            ]) : [
-              ["08:15 AM", "Aisha Wanjiku", "Fever", <StatusChip key="s1" label="Waiting" tone="warning"/>, <button key="a1" className="text-[#1D4ED8] font-bold text-xs" onClick={() => onNavigate('new-visit')}>Attend</button>],
-              ["08:40 AM", "Brian Otieno", "Injury", <StatusChip key="s2" label="Observation" tone="info"/>, <button key="a2" className="text-[#1D4ED8] font-bold text-xs">Record Vitals</button>],
+            rows={loadingQueue ? [["Loading...", "", "", "", ""]] : queue.slice(0,5).map((q: any) => [
+              q.created_at || "Just now", q.student_id || q.student_name || "Unknown", q.reason || q.complaint || "None", <StatusChip key={q.id || Math.random()} label={q.status || "Waiting"} tone="warning"/>, <button key={`a-${q.id}`} className="text-[#1D4ED8] font-bold text-xs" onClick={() => onNavigate('new-visit')}>Attend</button>
             ])}
           />
         </Panel>
@@ -255,11 +252,8 @@ function OverviewWorkspace({ onNavigate }: { onNavigate: (view: ViewId) => void 
         <Panel title="Medicine Alerts" icon={AlertTriangle} actions={<button className="text-sm font-bold text-[#1D4ED8]" onClick={() => onNavigate('inventory')}>View Inventory</button>}>
           <DataTable 
             columns={["Medicine", "Stock", "Reorder Level", "Status", "Action"]}
-            rows={loadingInventory ? [["Loading...", "", "", "", ""]] : (inventory.length > 0 ? inventory.slice(0,5).map((i: any) => [
-              i.medicine_name || "Paracetamol", i.quantity || "50", i.reorder_level || "100", <StatusChip key={i.id || Math.random()} label="Low Stock" tone="danger"/>, <button key={`b-${i.id}`} className="text-[#1D4ED8] font-bold text-xs" onClick={() => onNavigate('stock-requests')}>Request Restock</button>
-            ]) : [
-              ["Paracetamol", "50", "100", <StatusChip key="s1" label="Low Stock" tone="danger"/>, <button key="a1" className="text-[#1D4ED8] font-bold text-xs" onClick={() => onNavigate('stock-requests')}>Request Restock</button>],
-              ["Cough Syrup", "10", "20", <StatusChip key="s2" label="Expiring Soon" tone="warning"/>, <button key="a2" className="text-[#1D4ED8] font-bold text-xs">Check Item</button>],
+            rows={loadingInventory ? [["Loading...", "", "", "", ""]] : inventory.slice(0,5).map((i: any) => [
+              i.medicine_name, i.quantity_available || "0", i.reorder_level || "0", <StatusChip key={i.id || Math.random()} label={i.status || "Ok"} tone={i.status === "Low Stock" ? "danger" : "info"}/>, <button key={`b-${i.id}`} className="text-[#1D4ED8] font-bold text-xs" onClick={() => onNavigate('stock-requests')}>Request Restock</button>
             ])}
           />
         </Panel>
@@ -271,11 +265,8 @@ function OverviewWorkspace({ onNavigate }: { onNavigate: (view: ViewId) => void 
 function QueueWorkspace({ onNavigate }: { onNavigate: (view: ViewId) => void }) {
   const { data: queue = [], isLoading } = useClinicData('queue');
 
-  const rows = isLoading ? [["Loading...", "", "", "", "", "", ""]] : (queue.length > 0 ? queue.map((q: any) => [
-    q.time || "08:15 AM", q.student_name || "Aisha Wanjiku", q.class_name || "Form 2 Blue", q.complaint || "Headache", q.priority || "Normal", <StatusChip key={q.id || Math.random()} label={q.status || "Waiting"} tone={q.priority === 'Urgent' ? "danger" : "warning"}/>, <button key={`a-${q.id}`} className="text-[#1D4ED8] font-bold text-xs" onClick={() => onNavigate('new-visit')}>Attend Now</button>
-  ]) : [
-    ["08:15 AM", "Aisha Wanjiku", "Form 2 Blue", "Headache", "Normal", <StatusChip key="s1" label="Waiting" tone="warning"/>, <button key="a1" className="text-[#1D4ED8] font-bold text-xs" onClick={() => onNavigate('new-visit')}>Attend Now</button>],
-    ["08:40 AM", "Brian Otieno", "Form 1 Red", "Stomach pain", "Urgent", <StatusChip key="s2" label="Attending" tone="info"/>, <button key="a2" className="text-[#1D4ED8] font-bold text-xs">Dispense</button>],
+  const rows = isLoading ? [["Loading...", "", "", "", "", "", ""]] : queue.map((q: any) => [
+    q.created_at || "Just now", q.student_id || q.student_name || "Unknown", q.class_name || "-", q.reason || q.complaint || "Unknown", q.priority || "Normal", <StatusChip key={q.id || Math.random()} label={q.status || "Waiting"} tone={q.priority === 'Urgent' ? "danger" : "warning"}/>, <button key={`a-${q.id}`} className="text-[#1D4ED8] font-bold text-xs" onClick={() => onNavigate('new-visit')}>Attend Now</button>
   ]);
 
   return (
@@ -349,10 +340,8 @@ function NewVisitWorkspace() {
 function RecordsWorkspace() {
   const { data: records = [], isLoading } = useClinicData('visits');
   
-  const rows = isLoading ? [["Loading...", "", "", "", "", "", ""]] : (records.length > 0 ? records.map((r: any) => [
-    r.date || "Yesterday", r.student_name || "John Doe", r.class_name || "Form 3 Green", r.complaint || "Cough", r.care_given || "Medicine", r.outcome || "Returned", <button key={`a-${r.id}`} className="text-[#1D4ED8] font-bold text-xs">View Details</button>
-  ]) : [
-    ["Yesterday", "John Doe", "Form 3 Green", "Cough/Flu", "Medicine Given", "Returned to Class", <button key="a1" className="text-[#1D4ED8] font-bold text-xs">View Details</button>],
+  const rows = isLoading ? [["Loading...", "", "", "", "", "", ""]] : records.map((r: any) => [
+    r.created_at || "Unknown", r.student_id || r.student_name || "Unknown", r.class_name || "-", r.reason || r.complaint || "Unknown", r.care_given || "-", r.outcome || "-", <button key={`a-${r.id}`} className="text-[#1D4ED8] font-bold text-xs">View Details</button>
   ]);
 
   return (
@@ -370,10 +359,7 @@ function ProfilesWorkspace() {
     <Panel title="Student Health Profiles" description="Long-term health flags, allergies, and emergency contacts." icon={Users}>
       <DataTable 
         columns={["Student", "Class", "Health Flags", "Last Visit", "Status", "Actions"]}
-        rows={[
-          ["Aisha Wanjiku", "Form 2 Blue", <span key="f1" className="text-rose-600 font-bold text-xs bg-rose-50 px-2 py-1 rounded">Allergy: Penicillin</span>, "Today", <StatusChip key="s1" label="Complete" tone="success"/>, <button key="a1" className="text-[#1D4ED8] font-bold text-xs">Open Profile</button>],
-          ["Brian Otieno", "Form 1 Red", <span key="f2" className="text-amber-600 font-bold text-xs bg-amber-50 px-2 py-1 rounded">Asthma</span>, "2 days ago", <StatusChip key="s2" label="Complete" tone="success"/>, <button key="a2" className="text-[#1D4ED8] font-bold text-xs">Open Profile</button>],
-        ]}
+        rows={[]}
       />
     </Panel>
   );
@@ -382,11 +368,8 @@ function ProfilesWorkspace() {
 function InventoryWorkspace() {
   const { data: inventory = [], isLoading } = useClinicData('medicines');
 
-  const rows = isLoading ? [["Loading...", "", "", "", "", "", ""]] : (inventory.length > 0 ? inventory.map((i: any) => [
-    i.medicine_name || "Medicine", i.category || "Pain relief", i.quantity || "50", i.reorder_level || "20", i.expiry || "2027-05-12", <StatusChip key={i.id || Math.random()} label={i.status || "Active"} tone={i.status === 'Low Stock' ? "danger" : "success"}/>, <button key={`a-${i.id}`} className="text-[#1D4ED8] font-bold text-xs">Adjust Stock</button>
-  ]) : [
-    ["Paracetamol (Panadol)", "Pain relief", "50 pkts", "100 pkts", "2027-05-12", <StatusChip key="s1" label="Low Stock" tone="danger"/>, <button key="a1" className="text-[#1D4ED8] font-bold text-xs">Adjust Stock</button>],
-    ["Cough Syrup", "Medicine", "10 bottles", "20 bottles", "2026-07-01", <StatusChip key="s2" label="Expiring Soon" tone="warning"/>, <button key="a2" className="text-[#1D4ED8] font-bold text-xs">Request Restock</button>],
+  const rows = isLoading ? [["Loading...", "", "", "", "", "", ""]] : inventory.map((i: any) => [
+    i.medicine_name, i.category || "-", i.quantity_available || "0", i.reorder_level || "0", i.expiry || "-", <StatusChip key={i.id || Math.random()} label={i.status || "Active"} tone={i.status === 'Low Stock' ? "danger" : "success"}/>, <button key={`a-${i.id}`} className="text-[#1D4ED8] font-bold text-xs">Adjust Stock</button>
   ]);
 
   return (
@@ -429,10 +412,8 @@ function DispenseWorkspace() {
 function EmergenciesWorkspace() {
   const { data: emergencies = [], isLoading } = useClinicData('emergencies');
 
-  const rows = isLoading ? [["Loading...", "", "", "", "", "", ""]] : (emergencies.length > 0 ? emergencies.map((e: any) => [
-    e.time || "10:20 AM", e.student_name || "Peter Kamau", e.type || "Collapse", e.location || "Field", <StatusChip key={e.id || Math.random()} label={e.severity || "Emergency"} tone="danger"/>, e.notified || "Pending", <button key={`a-${e.id}`} className="text-[#1D4ED8] font-bold text-xs">Open Case</button>
-  ]) : [
-    ["10:20 AM", "Peter Kamau", "Collapse", "Field", <StatusChip key="s1" label="Emergency" tone="danger"/>, "Pending", <button key="a1" className="text-[#1D4ED8] font-bold text-xs">Open Case</button>],
+  const rows = isLoading ? [["Loading...", "", "", "", "", "", ""]] : emergencies.map((e: any) => [
+    e.created_at || "Just now", e.student_id || e.student_name || "Unknown", e.type || "Emergency", e.location || "-", <StatusChip key={e.id || Math.random()} label={e.severity || "Emergency"} tone="danger"/>, e.notified || "Pending", <button key={`a-${e.id}`} className="text-[#1D4ED8] font-bold text-xs">Open Case</button>
   ]);
 
   return (
@@ -450,10 +431,8 @@ function EmergenciesWorkspace() {
 function ReferralsWorkspace() {
   const { data: referrals = [], isLoading } = useClinicData('referrals');
 
-  const rows = isLoading ? [["Loading...", "", "", "", "", ""]] : (referrals.length > 0 ? referrals.map((r: any) => [
-    r.date || "Today", r.student_name || "Mary Ochieng", r.reason || "Severe fever", r.destination || "Hospital", <StatusChip key={r.id || Math.random()} label={r.status || "Pending"} tone="warning"/>, <button key={`a-${r.id}`} className="text-[#1D4ED8] font-bold text-xs">Print</button>
-  ]) : [
-    ["Today", "Mary Ochieng", "Severe fever", "Aga Khan Hospital", <StatusChip key="s1" label="Pending" tone="warning"/>, <button key="a1" className="text-[#1D4ED8] font-bold text-xs">Print Referral</button>],
+  const rows = isLoading ? [["Loading...", "", "", "", "", ""]] : referrals.map((r: any) => [
+    r.created_at || "Today", r.student_id || r.student_name || "Unknown", r.reason || "Referral", r.destination || "-", <StatusChip key={r.id || Math.random()} label={r.status || "Pending"} tone="warning"/>, <button key={`a-${r.id}`} className="text-[#1D4ED8] font-bold text-xs">Print</button>
   ]);
 
   return (
@@ -471,9 +450,7 @@ function IncidentsWorkspace() {
     <Panel title="Health Incidents" description="Record non-routine health events (e.g. lab accidents)." icon={Activity}>
       <DataTable 
         columns={["Date", "Type", "Location", "Students Involved", "Severity", "Status", "Actions"]}
-        rows={[
-          ["Yesterday", "Lab Accident", "Chemistry Lab", "2", <StatusChip key="s1" label="Medium" tone="warning"/>, "Closed", <button key="a1" className="text-[#1D4ED8] font-bold text-xs">View Report</button>],
-        ]}
+        rows={[]}
       />
     </Panel>
   );
@@ -484,9 +461,7 @@ function NotificationsWorkspace() {
     <Panel title="Parent Notifications" description="Track health-related communication." icon={MessageSquare}>
       <DataTable 
         columns={["Time", "Student", "Message Type", "Channel", "Status", "Actions"]}
-        rows={[
-          ["08:25 AM", "Aisha Wanjiku", "Visit Notice", "SMS", <StatusChip key="s1" label="Sent" tone="success"/>, <button key="a1" className="text-[#1D4ED8] font-bold text-xs">View</button>],
-        ]}
+        rows={[]}
       />
     </Panel>
   );
@@ -497,9 +472,7 @@ function BoardingHealthWorkspace() {
     <Panel title="Boarding Health" description="Coordinate health status with Boarding Master." icon={Building}>
       <DataTable 
         columns={["Student", "Dormitory", "Last Visit", "Current Status", "Boarding Master Notified", "Actions"]}
-        rows={[
-          ["Brian Otieno", "St. Joseph", "Today", "Observation in Sick Bay", "Yes", <button key="a1" className="text-[#1D4ED8] font-bold text-xs">Add Note</button>],
-        ]}
+        rows={[]}
       />
     </Panel>
   );
@@ -510,9 +483,7 @@ function StockRequestsWorkspace() {
     <Panel title="Stock Requests" description="Request supplies from the storekeeper." icon={ShoppingCart}>
       <DataTable 
         columns={["Request No", "Items", "Priority", "Destination", "Status", "Actions"]}
-        rows={[
-          ["REQ-102", "Paracetamol, Bandages", "Urgent", "Store", <StatusChip key="s1" label="Approved" tone="success"/>, <button key="a1" className="text-[#1D4ED8] font-bold text-xs">Mark Received</button>],
-        ]}
+        rows={[]}
       />
     </Panel>
   );

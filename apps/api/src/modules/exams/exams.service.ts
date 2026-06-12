@@ -32,6 +32,7 @@ import {
 } from './dto/exams.dto';
 import { ExamsRepository } from './repositories/exams.repository';
 import { ReportCardGenerationService } from './services/report-card-generation.service';
+import { SchoolOperationalEventsService } from '../events/school-operational-events.service';
 
 const OFFICER_PERMISSIONS = new Set(['exams:review', 'exams:approve', '*:*']);
 const OFFICER_ROLES = new Set(['owner', 'admin', 'platform_owner', 'superadmin', 'exams_officer']);
@@ -81,6 +82,7 @@ export class ExamsService {
     private readonly repository: ExamsRepository,
     @Optional() private readonly configService?: ConfigService,
     @Optional() private readonly reportCardGenerationService?: ReportCardGenerationService,
+    @Optional() private readonly schoolEvents?: SchoolOperationalEventsService,
   ) {}
 
   createSeries(dto: CreateExamSeriesDto) {
@@ -561,6 +563,36 @@ export class ExamsService {
       exam_series_id: this.requireText(examSeriesId, 'Exam series'),
       actor_user_id: actorUserId,
     });
+
+    await this.schoolEvents?.recordSchoolOperation({
+      event: {
+        id: examSeriesId,
+        type: 'exam.series_published',
+        module: 'exams',
+        actorRole: this.requestContext.getStore()?.role || 'exam_officer',
+        title: 'Exam Results Released',
+        body: `Results for exam series ${examSeriesId} have been published.`,
+        entityId: examSeriesId,
+        severity: 'success',
+        payload: { exam_series_id: examSeriesId, published_marks_count: updatedMarks.length },
+      },
+      notifications: [
+        {
+          id: `exam-publish-${examSeriesId}`,
+          schoolId: tenantId,
+          audienceRoles: ['principal', 'deputy-principal'],
+          title: 'Exam Results Released',
+          body: `Exam results for series ${examSeriesId} have been successfully published.`,
+          sourceModule: 'exams',
+          relatedModule: 'academics',
+          relatedRecordId: examSeriesId,
+          priority: 'high',
+          read: false,
+          createdAt: new Date().toISOString(),
+        }
+      ]
+    });
+
     return { success: true, published_marks_count: updatedMarks.length };
   }
 

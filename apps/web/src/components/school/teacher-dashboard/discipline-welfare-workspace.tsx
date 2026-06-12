@@ -10,10 +10,10 @@ export function DisciplineWelfareWorkspace({
 }: {
   onStartAction: (action: TeacherAction, view: TeacherView, message: string) => void;
 }) {
-  const liveSession = useLiveTenantSession();
+  const liveSession = useLiveTenantSession("school");
   
   const { data, isLoading, isError } = useQuery({
-    queryKey: ["discipline-concerns", liveSession.session?.tenant_id, liveSession.session?.user.id],
+    queryKey: ["discipline-concerns", liveSession.session?.tenantId, liveSession.session?.user.user_id],
     queryFn: () => fetchDisciplineConcernsLive(liveSession.session!),
     enabled: !!liveSession.session,
   });

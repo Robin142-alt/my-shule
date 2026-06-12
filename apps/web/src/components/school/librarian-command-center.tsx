@@ -164,7 +164,9 @@ function Panel({
 // ----------------------------------------------------------------------
 
 function OverviewWorkspace({ onNavigate }: { onNavigate: (v: LibrarianView) => void }) {
-  const { data: summaryData, isLoading } = useSchoolQuery("/api/library/summary");
+  const { data: summaryData, isLoading } = useSchoolQuery<any>("/api/library/summary");
+  const { data: circulationResponse, isLoading: loadingCirc } = useSchoolQuery<any>("/api/library/circulation");
+  const circulation = Array.isArray(circulationResponse) ? circulationResponse : [];
 
   const totalBooks = isLoading ? "..." : (summaryData?.total_catalog_items?.toLocaleString() || "0");
   const availableBooks = isLoading ? "..." : (summaryData?.available_copies?.toLocaleString() || "0");
@@ -223,24 +225,23 @@ function OverviewWorkspace({ onNavigate }: { onNavigate: (v: LibrarianView) => v
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#D8E0EC]">
-                  <tr>
-                    <td className="py-3 font-medium text-[#071D49]">Amina Wanjiku</td>
-                    <td className="py-3 text-[#64748B]">Form 2 East</td>
-                    <td className="py-3 text-[#071D49]">Blossoms of the Savannah</td>
-                    <td className="py-3"><StatusChip label="Due Today" tone="warning" /></td>
-                    <td className="py-3 text-right">
-                      <button className="text-blue-600 hover:underline font-semibold" onClick={() => onNavigate("return")}>Receive</button>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td className="py-3 font-medium text-[#071D49]">Brian Otieno</td>
-                    <td className="py-3 text-[#64748B]">Form 3 Blue</td>
-                    <td className="py-3 text-[#071D49]">A Doll's House</td>
-                    <td className="py-3"><StatusChip label="Overdue" tone="danger" /></td>
-                    <td className="py-3 text-right">
-                      <button className="text-blue-600 hover:underline font-semibold" onClick={() => onNavigate("loans")}>Remind</button>
-                    </td>
-                  </tr>
+                  {loadingCirc ? (
+                    <tr><td colSpan={5} className="py-3 text-center text-[#64748B]">Loading...</td></tr>
+                  ) : circulation.length === 0 ? (
+                    <tr><td colSpan={5} className="py-3 text-center text-[#64748B]">No active library queue.</td></tr>
+                  ) : (
+                    circulation.slice(0, 5).map((item: any) => (
+                      <tr key={item.id}>
+                        <td className="py-3 font-medium text-[#071D49]">{item.borrower_id}</td>
+                        <td className="py-3 text-[#64748B]">-</td>
+                        <td className="py-3 text-[#071D49]">{item.copy_id}</td>
+                        <td className="py-3"><StatusChip label={item.status || "Active"} tone={item.status === "Overdue" ? "danger" : "info"} /></td>
+                        <td className="py-3 text-right">
+                          <button className="text-blue-600 hover:underline font-semibold" onClick={() => onNavigate(item.action === "issue" ? "return" : "loans")}>Action</button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>

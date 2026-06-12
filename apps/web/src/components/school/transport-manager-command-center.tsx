@@ -30,6 +30,7 @@ import { ApprovalInbox } from "@/components/shared/approval-inbox";
 import { NotificationBell } from "@/components/shared/notification-bell";
 import { TaskQueue } from "@/components/shared/task-queue";
 import { WorkflowToast } from "@/components/shared/workflow-toast";
+import { useSchoolQuery } from "@/lib/data/school-hooks";
 
 type TransportRouteMode = "hosted" | "public";
 type Tone = "success" | "info" | "warning" | "danger" | "neutral";
@@ -470,6 +471,12 @@ function DataTable({
 }
 
 function OverviewWorkspace({ onViewChange }: { onViewChange: (view: TransportView) => void }) {
+  const { data: dashboard, isLoading } = useSchoolQuery<any>("/api/transport/dashboard");
+  
+  // Use real data if available, fallback to static if not populated yet
+  const kpis = Array.isArray(dashboard?.kpis) ? dashboard.kpis : overviewKpis;
+  const routes = Array.isArray(dashboard?.activeRoutes) ? dashboard.activeRoutes : routeRows;
+
   return (
     <>
       <section className="rounded-2xl bg-[linear-gradient(135deg,#071D49_0%,#123A7A_62%,#0F172A_100%)] p-5 text-white shadow-[0_24px_70px_rgba(7,29,73,0.22)]">
@@ -488,7 +495,7 @@ function OverviewWorkspace({ onViewChange }: { onViewChange: (view: TransportVie
           </div>
         </div>
       </section>
-      <KpiGrid items={overviewKpis} />
+      <KpiGrid items={isLoading ? overviewKpis.map(k => ({...k, value: "..."})) : kpis} />
       <div className="grid gap-4 xl:grid-cols-[0.85fr_1.15fr]">
         <Panel title="Transport status panel" description="Priority-ordered operational alerts for routes, drivers, vehicles, and emergencies." icon={AlertTriangle}>
           <div className="space-y-3">
@@ -512,7 +519,11 @@ function OverviewWorkspace({ onViewChange }: { onViewChange: (view: TransportVie
         </Panel>
         <Panel title="Live route snapshot" description="Compact route control table with ETA, delay, progress, and driver visibility." icon={Route}>
           <div className="space-y-3">
-            {routeRows.map(([bus, route, driver, status, eta, progress, tone]) => (
+            {isLoading ? (
+              <div className="p-4 text-center text-[#64748B]">Loading routes...</div>
+            ) : routes.length === 0 ? (
+              <div className="p-4 text-center text-[#64748B]">No active routes today.</div>
+            ) : routes.map(([bus, route, driver, status, eta, progress, tone]: any) => (
               <div key={`${bus}-${route}`} className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-3">
                 <div className="grid gap-3 sm:grid-cols-[90px_minmax(0,1fr)_120px_90px] sm:items-center">
                   <strong className="text-[#071D49]">{bus}</strong>

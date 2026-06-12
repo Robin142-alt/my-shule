@@ -14,13 +14,13 @@ function AttendanceModal({
   task: PendingAttendanceTask;
   onClose: () => void;
 }) {
-  const liveSession = useLiveTenantSession();
+  const liveSession = useLiveTenantSession("school");
   const queryClient = useQueryClient();
   const { saveLocallyAndQueue } = useOfflineAttendanceSync(liveSession.session);
   const [submitting, setSubmitting] = useState(false);
 
   const { data: students, isLoading } = useQuery({
-    queryKey: ["class-register", liveSession.session?.tenant_id, task.classSectionId],
+    queryKey: ["class-register", liveSession.session?.tenantId, task.classSectionId],
     queryFn: () => fetchClassRegisterLive(liveSession.session!, task.classSectionId),
     enabled: !!liveSession.session,
   });
@@ -52,7 +52,7 @@ function AttendanceModal({
     
     // Optimistically update the UI to show this task as completed
     queryClient.setQueryData(
-      ["pending-attendance", liveSession.session?.tenant_id, liveSession.session?.user.id],
+      ["pending-attendance", liveSession.session?.tenantId, liveSession.session?.user.user_id],
       (oldData: any) => {
         if (!oldData) return oldData;
         return {
@@ -72,7 +72,7 @@ function AttendanceModal({
   };
 
   return (
-    <Modal title={`Mark Register: ${task.className}`} isOpen={true} onClose={onClose} size="xl">
+    <Modal title={`Mark Register: ${task.className}`} open={true} onClose={onClose} size="xl">
       <div className="p-6">
         <div className="mb-6 flex items-center justify-between">
           <div>
@@ -148,12 +148,12 @@ function AttendanceModal({
 }
 
 export function AttendanceWorkspace() {
-  const liveSession = useLiveTenantSession();
+  const liveSession = useLiveTenantSession("school");
   const { isOnline, syncing, queueCount } = useOfflineAttendanceSync(liveSession.session);
   const [activeTask, setActiveTask] = useState<PendingAttendanceTask | null>(null);
   
   const { data, isLoading, isError } = useQuery({
-    queryKey: ["pending-attendance", liveSession.session?.tenant_id, liveSession.session?.user.id],
+    queryKey: ["pending-attendance", liveSession.session?.tenantId, liveSession.session?.user.user_id],
     queryFn: () => fetchPendingAttendanceLive(liveSession.session!),
     enabled: !!liveSession.session,
   });

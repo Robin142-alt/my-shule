@@ -60,7 +60,11 @@ export class ClassTeacherController {
   getTimetable(
     @Headers('x-tenant-id') tenantId: string,
     @Headers('x-user-id') userId: string,
+    @Query('streamId') streamId?: string
   ) {
+    if (streamId) {
+      return this.classTeacherService.getStreamTimetable(tenantId, userId, streamId);
+    }
     return this.classTeacherService.getTimetable(tenantId, userId);
   }
 
@@ -190,15 +194,7 @@ export class ClassTeacherController {
     return this.classTeacherService.referWelfareCase(tenantId, userId, body.streamId, body.payload);
   }
 
-  @Get('timetable')
-  @Permissions('academics:read')
-  getTimetable(
-    @Headers('x-tenant-id') tenantId: string,
-    @Headers('x-user-id') userId: string,
-    @Query('streamId') streamId: string
-  ) {
-    return this.classTeacherService.getTimetable(tenantId, userId, streamId);
-  }
+
 
   @Get('subjects')
   @Permissions('academics:read')

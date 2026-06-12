@@ -1,7 +1,5 @@
 import { Body, Controller, Get, Param, Patch, Post } from '@nestjs/common';
-
 import { Permissions } from '../../auth/decorators/permissions.decorator';
-import { SimpleOperationsRecordDto, SimpleOperationsStatusDto } from '../implementation100/simple-operations';
 import { RequiresModule } from '../module-access/module-access.decorator';
 import { VisitorsService } from './visitors.service';
 
@@ -12,22 +10,63 @@ export class VisitorsController {
 
   @Get('dashboard')
   @Permissions('visitors:read')
-  getDashboard() {
-    return this.visitorsService.getDashboard();
+  async getDashboard() {
+    const logs = await this.visitorsService.listVisitorLogs();
+    const appointments = await this.visitorsService.listAppointments();
+    const activeLogs = logs.filter(l => l.status === 'active');
+    return {
+      active_visitors: activeLogs.length,
+      today_appointments: appointments.length,
+      open_records: activeLogs.length,
+      records: activeLogs,
+    };
   }
 
-  @Post('records')
+  @Post('appointments')
   @Permissions('visitors:write')
-  createRecord(@Body() dto: SimpleOperationsRecordDto) {
-    return this.visitorsService.createRecord(dto);
+  createAppointment(@Body() dto: any) {
+    return this.visitorsService.createAppointment(dto);
   }
 
-  @Patch('records/:recordId/status')
+  @Get('appointments')
+  @Permissions('visitors:read')
+  listAppointments() {
+    return this.visitorsService.listAppointments();
+  }
+
+  @Post('logs')
   @Permissions('visitors:write')
-  updateRecordStatus(
-    @Param('recordId') recordId: string,
-    @Body() dto: SimpleOperationsStatusDto,
-  ) {
-    return this.visitorsService.updateStatus(recordId, dto);
+  logVisitor(@Body() dto: any) {
+    return this.visitorsService.logVisitor(dto);
+  }
+
+  @Get('logs')
+  @Permissions('visitors:read')
+  listVisitorLogs() {
+    return this.visitorsService.listVisitorLogs();
+  }
+
+  @Patch('logs/:logId/checkout')
+  @Permissions('visitors:write')
+  checkOutVisitor(@Param('logId') logId: string) {
+    return this.visitorsService.checkOutVisitor(logId);
+  }
+
+  @Post('student-exits')
+  @Permissions('visitors:write')
+  logStudentExit(@Body() dto: any) {
+    return this.visitorsService.logStudentExit(dto);
+  }
+
+  @Get('student-exits')
+  @Permissions('visitors:read')
+  listStudentExits() {
+    return this.visitorsService.listStudentExits();
+  }
+
+  @Patch('student-exits/:exitId/return')
+  @Permissions('visitors:write')
+  returnStudent(@Param('exitId') exitId: string) {
+    return this.visitorsService.returnStudent(exitId);
   }
 }

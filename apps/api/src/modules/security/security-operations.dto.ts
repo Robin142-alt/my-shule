@@ -1,5 +1,4 @@
 import { IsString, IsNotEmpty } from 'class-validator';
-import { SimpleOperationsRecordDto } from '../implementation100/simple-operations';
 
 export class CreateSecurityIncidentDto {
   @IsString()
@@ -25,17 +24,16 @@ export class CreatePanicAlertDto {
   location!: string;
 }
 
-export class CreateVisitorDto implements SimpleOperationsRecordDto {
+export class CreateVisitorDto {
   @IsString()
   @IsNotEmpty()
-  title!: string;
+  visitor_name!: string;
 
-  category?: string;
-  owner_name?: string;
-  status?: string;
-  priority?: string;
-  due_date?: string;
-  metric_count?: number;
-  notes?: string;
-  metadata?: Record<string, unknown>;
+  @IsString()
+  @IsNotEmpty()
+  purpose!: string;
+
+  phone_number?: string;
+  host_user_id?: string;
+  badge_number?: string;
 }

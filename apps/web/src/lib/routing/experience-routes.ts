@@ -45,7 +45,6 @@ export const SCHOOL_SECTIONS = [
   "subjects-departments",
   "staff-roles",
   "students",
-  "attendance",
   "academics",
   "exams-report-cards",
   "finance-overview",

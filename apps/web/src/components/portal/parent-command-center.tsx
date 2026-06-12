@@ -1031,13 +1031,18 @@ export function ParentCommandCenter({ routeMode }: ParentCommandCenterProps) {
           <GlassCard className="p-5">
             <SectionHeader icon={Home} label="Parent action center" title="Fast actions for today" />
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {quickActions.map((item) => (
+                {([
+                  { id: "fees", label: "Pay with M-PESA", detail: "Open the verified fee account.", icon: CreditCard, href: "fees" as PortalSection, tone: "warning" as AlertTone },
+                  { id: "message", label: "Message Teacher", detail: "Ask a class or welfare question.", icon: MessageCircle, href: "messages" as PortalSection, tone: "info" as AlertTone },
+                  { id: "results", label: "Open Results", detail: "Review CAT and exam progress.", icon: GraduationCap, href: "academics" as PortalSection, tone: "info" as AlertTone },
+                  { id: "health", label: "Clinic Log", detail: "View nurse remarks and care notes.", icon: HeartPulse, href: "health" as PortalSection, tone: "good" as AlertTone },
+                ]).map((item) => (
                   <ActionButton
                     key={item.id}
                     item={item}
                     routeMode={routeMode}
                     onAction={setNotice}
-                    learnerName={activeLearner.name}
+                    learnerName={activeLearnerName}
                     feedCount={visibleLiveFeed.length}
                   />
                 ))}
@@ -1067,9 +1072,12 @@ export function ParentCommandCenter({ routeMode }: ParentCommandCenterProps) {
               <GlassCard className="p-5">
                 <SectionHeader icon={Clock} label="Today" title="Today's class timeline" />
                 <div className="space-y-3">
-                  {classTimeline.map((item) => (
+                  {(dashboard?.classTimeline || []).map((item: any) => (
                     <TimelineCard key={item.id} item={item} />
                   ))}
+                  {(!dashboard?.classTimeline || dashboard.classTimeline.length === 0) && (
+                    <div className="text-white/50 text-sm">No timeline events today.</div>
+                  )}
                 </div>
               </GlassCard>
 
@@ -1090,7 +1098,7 @@ export function ParentCommandCenter({ routeMode }: ParentCommandCenterProps) {
                 />
                 <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_280px]">
                   <div className="space-y-4">
-                    {subjectRows.map((row) => (
+                    {(dashboard?.academics?.subjects || []).map((row: any) => (
                       <div key={row.subject} className="rounded-[var(--radius)] border border-white/12 bg-white/[0.07] px-4 py-4">
                         <div className="flex flex-wrap items-start justify-between gap-3">
                           <div>

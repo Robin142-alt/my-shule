@@ -788,14 +788,30 @@ export class InventoryService {
         severity: 'info',
         payload: { requisition_number: requisition.requisition_number },
       },
+      notifications: [
+        {
+          id: `req-notification-${requisition.id}`,
+          schoolId: tenantId,
+          title: 'Inventory Requisition Created',
+          body: `Requisition ${requisition.requisition_number} created for ${dto.department}`,
+          audienceRoles: ['storekeeper'],
+          priority: 'normal',
+          sourceModule: 'inventory',
+          relatedModule: 'inventory',
+          relatedRecordId: requisition.id,
+          read: false,
+          createdAt: new Date().toISOString(),
+        }
+      ]
     });
 
     return requisition;
   }
 
   async createRequest(dto: CreateInventoryRequestDto) {
-    return this.inventoryRepository.createRequest({
-      tenant_id: this.requireTenantId(),
+    const tenantId = this.requireTenantId();
+    const request = await this.inventoryRepository.createRequest({
+      tenant_id: tenantId,
       request_number: this.buildNumber('REQ'),
       department: dto.department.trim(),
       requested_by: dto.requested_by.trim(),
@@ -805,6 +821,37 @@ export class InventoryService {
       lines: dto.lines.map((line) => ({ ...line })),
       notes: dto.notes?.trim() || null,
     });
+
+    await this.schoolEvents?.recordSchoolOperation({
+      event: {
+        id: request.id,
+        type: 'inventory.request_created',
+        module: 'inventory',
+        actorRole: this.requestContext.requireStore().role || 'staff',
+        title: 'Inventory Request Created',
+        body: `Request ${request.request_number} created by ${dto.requested_by}`,
+        entityId: request.id,
+        severity: 'info',
+        payload: { request_number: request.request_number },
+      },
+      notifications: [
+        {
+          id: `req-notification-${request.id}`,
+          schoolId: tenantId,
+          title: 'Inventory Request Created',
+          body: `Request ${request.request_number} created by ${dto.requested_by}`,
+          audienceRoles: ['storekeeper'],
+          priority: 'normal',
+          sourceModule: 'inventory',
+          relatedModule: 'inventory',
+          relatedRecordId: request.id,
+          read: false,
+          createdAt: new Date().toISOString(),
+        }
+      ]
+    });
+
+    return request;
   }
 
   async updateRequestStatus(requestId: string, dto: UpdateWorkflowStatusDto) {

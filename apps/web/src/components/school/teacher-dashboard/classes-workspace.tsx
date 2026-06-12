@@ -5,10 +5,10 @@ import { useLiveTenantSession } from "@/hooks/use-live-tenant-session";
 import { fetchTeacherClassesLive } from "@/lib/modules/teacher-live";
 
 export function ClassesWorkspace() {
-  const liveSession = useLiveTenantSession();
+  const liveSession = useLiveTenantSession("school");
   
   const { data, isLoading, isError } = useQuery({
-    queryKey: ["teacher-classes", liveSession.session?.tenant_id, liveSession.session?.user.id],
+    queryKey: ["teacher-classes", liveSession.session?.tenantId, liveSession.session?.user.user_id],
     queryFn: () => fetchTeacherClassesLive(liveSession.session!),
     enabled: !!liveSession.session,
   });

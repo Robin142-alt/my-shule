@@ -1752,6 +1752,22 @@ test('AdmissionsService scans uploaded documents before tenant file persistence 
 });
 
 test('AdmissionsService creates and registers a manual admission application automatically', async () => {
+  const service = new AdmissionsService(
+    { requireStore: () => ({ tenant_id: 'tenant-123', user_id: 'user-123' }), getStore: () => ({ tenant_id: 'tenant-123', user_id: 'user-123' }) } as any,
+    { withRequestTransaction: async <T>(cb: () => Promise<T>) => cb() } as any,
+    {} as any,
+    {} as any,
+    {} as any,
+  );
+  service.createApplication = async () => ({ id: 'app-999', application_number: 'MANUAL-999' } as any);
+  service.updateApplication = async () => ({} as any);
+  service.registerApprovedApplication = async () => ({
+    application_status: 'registered',
+    student: { id: 'std-999', admission_number: 'ADM-MANUAL-001', first_name: 'Manual' },
+    allocation: { class_name: 'Form 1' },
+    fee_invoice: {},
+    academic_enrollment: {}
+  } as any);
   const manualResult = await service.createManualAdmission({
     full_name: 'Manual Test Student',
     date_of_birth: '2016-01-01',

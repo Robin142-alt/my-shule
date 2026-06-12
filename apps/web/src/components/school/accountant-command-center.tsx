@@ -248,9 +248,9 @@ function OverviewWorkspace({ onNavigate }: { onNavigate: (v: ViewId) => void }) 
 }
 
 function CollectionsWorkspace() {
-  const liveSession = useLiveTenantSession();
+  const liveSession = useLiveTenantSession("school");
   const { data: collections = [], isLoading } = useQuery({
-    queryKey: ["collections", liveSession.session?.tenant_id],
+    queryKey: ["collections", liveSession.session?.tenantId],
     queryFn: () => fetchCollectionsLive(liveSession.session!),
     enabled: !!liveSession.session,
   });
@@ -326,9 +326,9 @@ function CollectionsWorkspace() {
 }
 
 function AccountsWorkspace() {
-  const liveSession = useLiveTenantSession();
+  const liveSession = useLiveTenantSession("school");
   const { data: accounts = [], isLoading } = useQuery({
-    queryKey: ["accounts-overview", liveSession.session?.tenant_id],
+    queryKey: ["accounts-overview", liveSession.session?.tenantId],
     queryFn: () => fetchAccountsOverviewLive(liveSession.session!),
     enabled: !!liveSession.session,
   });
@@ -424,9 +424,9 @@ function StructuresWorkspace() {
 }
 
 function BillingWorkspace() {
-  const liveSession = useLiveTenantSession();
+  const liveSession = useLiveTenantSession("school");
   const { data: invoices = [], isLoading } = useQuery({
-    queryKey: ["invoices", liveSession.session?.tenant_id],
+    queryKey: ["invoices", liveSession.session?.tenantId],
     queryFn: () => fetchInvoicesLive(liveSession.session!),
     enabled: !!liveSession.session,
   });
@@ -472,9 +472,9 @@ function BillingWorkspace() {
 }
 
 function PaymentsWorkspace() {
-  const liveSession = useLiveTenantSession();
+  const liveSession = useLiveTenantSession("school");
   const { data: collections = [], isLoading } = useQuery({
-    queryKey: ["collections", liveSession.session?.tenant_id],
+    queryKey: ["collections", liveSession.session?.tenantId],
     queryFn: () => fetchCollectionsLive(liveSession.session!),
     enabled: !!liveSession.session,
   });
@@ -566,9 +566,9 @@ function MpesaWorkspace() {
 }
 
 function BankWorkspace() {
-  const liveSession = useLiveTenantSession();
+  const liveSession = useLiveTenantSession("school");
   const { data: bankEntries = [], isLoading } = useQuery({
-    queryKey: ["bank-entries", liveSession.session?.tenant_id],
+    queryKey: ["bank-entries", liveSession.session?.tenantId],
     queryFn: () => fetchBankEntriesLive(liveSession.session!),
     enabled: !!liveSession.session,
   });
@@ -715,9 +715,9 @@ function RefundsWorkspace() {
 }
 
 function ExpensesWorkspace() {
-  const liveSession = useLiveTenantSession();
+  const liveSession = useLiveTenantSession("school");
   const { data: expenses = [], isLoading } = useQuery({
-    queryKey: ["expenses", liveSession.session?.tenant_id],
+    queryKey: ["expenses", liveSession.session?.tenantId],
     queryFn: () => fetchExpensesLive(liveSession.session!),
     enabled: !!liveSession.session,
   });

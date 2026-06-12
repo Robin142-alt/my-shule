@@ -16,12 +16,15 @@ import {
   StartTransportTripDto,
 } from './dto/transport.dto';
 import { TransportRepository } from './repositories/transport.repository';
+import { SchoolOperationalEventsService } from '../events/school-operational-events.service';
+import { Optional } from '@nestjs/common';
 
 @Injectable()
 export class TransportService {
   constructor(
     private readonly requestContext: RequestContextService,
     private readonly repository: TransportRepository,
+    @Optional() private readonly schoolEvents?: SchoolOperationalEventsService,
   ) {}
 
   getDashboard() {
@@ -100,6 +103,37 @@ export class TransportService {
       route_id: dto.route_id,
       learner_count: studentIds.length,
     });
+
+    for (const studentId of studentIds) {
+      await this.schoolEvents?.recordSchoolOperation({
+        event: {
+          id: `${manifest.id}-${studentId}`,
+          type: 'transport.route_assigned',
+          module: 'transport',
+          actorRole: this.requestContext.getStore()?.role || 'transport_officer',
+          title: 'Transport Route Assigned',
+          body: `Student ${studentId} assigned to transport route ${dto.route_id}.`,
+          entityId: manifest.id,
+          severity: 'info',
+          payload: { route_id: dto.route_id, student_id: studentId },
+        },
+        notifications: [
+          {
+            id: `transport-assign-${manifest.id}-${studentId}`,
+            schoolId: this.requireTenantId(),
+            audienceRoles: ['accountant', 'finance', 'parent'],
+            title: 'Transport Route Assigned',
+            body: `Student ${studentId} has been assigned to transport route ${dto.route_id}. Transport fees may apply.`,
+            sourceModule: 'transport',
+            relatedModule: 'finance',
+            relatedRecordId: manifest.id,
+            priority: 'normal',
+            read: false,
+            createdAt: new Date().toISOString(),
+          }
+        ]
+      }).catch(() => undefined);
+    }
 
     return manifest;
   }

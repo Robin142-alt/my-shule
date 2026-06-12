@@ -3,7 +3,12 @@
 import { Calendar, BookOpen, GraduationCap, Award } from "lucide-react";
 import { Card } from "@/components/ui/card";
 
+import { useSchoolQuery } from "@/lib/data/school-hooks";
+
 export function StudentCommandCenter({ routeMode }: { routeMode?: "hosted" | "public" }) {
+  const { data: response, isLoading } = useSchoolQuery<any>("/api/student/dashboard");
+  const dashboard = response?.data;
+
   return (
     <div className="min-h-screen bg-[#F3F6FA]">
       <div className="mx-auto max-w-7xl p-4 lg:p-6">
@@ -31,8 +36,12 @@ export function StudentCommandCenter({ routeMode }: { routeMode?: "hosted" | "pu
                     <Calendar className="h-5 w-5" />
                     <span className="font-bold">Next Class</span>
                   </div>
-                  <div className="text-2xl font-black text-[#071D49]">Mathematics</div>
-                  <div className="text-sm font-semibold text-gray-500">09:00 AM • Room 104</div>
+                  <div className="text-2xl font-black text-[#071D49]">
+                    {isLoading ? "..." : dashboard?.academics?.nextClass || "No Class"}
+                  </div>
+                  <div className="text-sm font-semibold text-gray-500">
+                    {isLoading ? "..." : `${dashboard?.academics?.nextClassTime || ""} • ${dashboard?.academics?.nextClassRoom || ""}`}
+                  </div>
                 </Card>
 
                 <Card className="p-6 border-l-4 border-l-orange-500">
@@ -40,8 +49,10 @@ export function StudentCommandCenter({ routeMode }: { routeMode?: "hosted" | "pu
                     <BookOpen className="h-5 w-5" />
                     <span className="font-bold">Assignments</span>
                   </div>
-                  <div className="text-2xl font-black text-[#071D49]">2 Due Today</div>
-                  <div className="text-sm font-semibold text-gray-500">Physics, History</div>
+                  <div className="text-2xl font-black text-[#071D49]">
+                    {isLoading ? "..." : `${dashboard?.assignments?.pendingCount || 0} Due`}
+                  </div>
+                  <div className="text-sm font-semibold text-gray-500">Pending tasks</div>
                 </Card>
 
                 <Card className="p-6 border-l-4 border-l-green-500">
@@ -49,7 +60,9 @@ export function StudentCommandCenter({ routeMode }: { routeMode?: "hosted" | "pu
                     <GraduationCap className="h-5 w-5" />
                     <span className="font-bold">Attendance</span>
                   </div>
-                  <div className="text-2xl font-black text-[#071D49]">98%</div>
+                  <div className="text-2xl font-black text-[#071D49]">
+                    {isLoading ? "..." : dashboard?.attendance?.percentage || "100%"}
+                  </div>
                   <div className="text-sm font-semibold text-gray-500">This Term</div>
                 </Card>
 
@@ -58,8 +71,12 @@ export function StudentCommandCenter({ routeMode }: { routeMode?: "hosted" | "pu
                     <Award className="h-5 w-5" />
                     <span className="font-bold">Latest Exam</span>
                   </div>
-                  <div className="text-2xl font-black text-[#071D49]">85% (A)</div>
-                  <div className="text-sm font-semibold text-gray-500">Mid-Term CAT 1</div>
+                  <div className="text-2xl font-black text-[#071D49]">
+                    {isLoading ? "..." : `${dashboard?.exams?.latestScore || "N/A"} (${dashboard?.exams?.latestGrade || "-"})`}
+                  </div>
+                  <div className="text-sm font-semibold text-gray-500">
+                    {isLoading ? "..." : dashboard?.exams?.latestTitle || "No recent exam"}
+                  </div>
                 </Card>
               </div>
 
@@ -67,27 +84,35 @@ export function StudentCommandCenter({ routeMode }: { routeMode?: "hosted" | "pu
                 <Card className="p-6">
                   <h2 className="text-xl font-bold text-[#071D49] mb-4">My Timetable (Today)</h2>
                   <div className="space-y-4">
-                    <div className="flex items-center justify-between p-3 rounded-lg bg-gray-50 border border-gray-100">
-                      <div>
-                        <div className="font-bold text-[#071D49]">08:00 AM - 09:00 AM</div>
-                        <div className="text-sm text-gray-600">English Language</div>
-                      </div>
-                      <span className="px-2 py-1 bg-gray-200 text-xs font-bold rounded">Completed</span>
-                    </div>
-                    <div className="flex items-center justify-between p-3 rounded-lg bg-blue-50 border border-blue-100">
-                      <div>
-                        <div className="font-bold text-blue-900">09:00 AM - 10:00 AM</div>
-                        <div className="text-sm text-blue-700">Mathematics</div>
-                      </div>
-                      <span className="px-2 py-1 bg-blue-200 text-blue-800 text-xs font-bold rounded animate-pulse">Now</span>
-                    </div>
-                    <div className="flex items-center justify-between p-3 rounded-lg border border-gray-100">
-                      <div>
-                        <div className="font-bold text-gray-600">10:30 AM - 11:30 AM</div>
-                        <div className="text-sm text-gray-500">Physics</div>
-                      </div>
-                      <span className="px-2 py-1 bg-gray-100 text-gray-500 text-xs font-bold rounded">Upcoming</span>
-                    </div>
+                    {isLoading ? (
+                      <div className="p-4 text-center text-gray-500 text-sm">Loading timetable...</div>
+                    ) : dashboard?.timetableToday?.length > 0 ? (
+                      dashboard.timetableToday.map((slot: any, idx: number) => {
+                        const isNow = slot.status === "Now";
+                        const isDone = slot.status === "Completed";
+                        return (
+                          <div key={idx} className={`flex items-center justify-between p-3 rounded-lg border ${
+                            isNow ? "bg-blue-50 border-blue-100" : isDone ? "bg-gray-50 border-gray-100" : "border-gray-100"
+                          }`}>
+                            <div>
+                              <div className={`font-bold ${isNow ? "text-blue-900" : isDone ? "text-[#071D49]" : "text-gray-600"}`}>
+                                {slot.time}
+                              </div>
+                              <div className={`text-sm ${isNow ? "text-blue-700" : isDone ? "text-gray-600" : "text-gray-500"}`}>
+                                {slot.subject}
+                              </div>
+                            </div>
+                            <span className={`px-2 py-1 text-xs font-bold rounded ${
+                              isNow ? "bg-blue-200 text-blue-800 animate-pulse" : isDone ? "bg-gray-200" : "bg-gray-100 text-gray-500"
+                            }`}>
+                              {slot.status}
+                            </span>
+                          </div>
+                        );
+                      })
+                    ) : (
+                      <div className="p-4 text-center text-gray-500 text-sm">No classes scheduled for today.</div>
+                    )}
                   </div>
                 </Card>
 

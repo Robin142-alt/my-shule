@@ -1,6 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-import { type LiveAuthSession } from "@/hooks/use-live-tenant-session";
-import { withSession } from "@/lib/dashboard/api-client";
+import { withSession, type LiveAuthSession } from "@/lib/dashboard/api-client";
 
 export interface OfflineAttendanceRecord {
   studentId: string;
@@ -123,7 +122,7 @@ export function useOfflineAttendanceSync(session: LiveAuthSession | null) {
     syncQueue,
     saveLocallyAndQueue: (streamId: string, records: OfflineAttendanceRecord[]) => {
       if (!session) return;
-      saveAttendanceOffline(session.tenant_id, streamId, records);
+      saveAttendanceOffline(session.tenantId, streamId, records);
       checkQueue();
       if (isOnline) {
         syncQueue();

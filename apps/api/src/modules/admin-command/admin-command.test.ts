@@ -210,6 +210,9 @@ test('AdminCommandService returns module-aware principal executive dashboard whe
   const service = new AdminCommandService(
     { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'principal-1' }) } as never,
     { getPrincipalDashboard: async () => ({ legacy: true }) } as never,
+    {} as never, // fileStorage
+    undefined, // objectStorage
+    undefined, // configService
     {
       buildDashboard: async (tenantId: string) => ({
         tenant_id: tenantId,
@@ -238,6 +241,9 @@ test('AdminCommandService exposes a tenant-scoped principal dashboard event stre
   const service = new AdminCommandService(
     { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'principal-1' }) } as never,
     { getPrincipalDashboard: async () => ({ legacy: true }) } as never,
+    {} as never, // fileStorage
+    undefined, // objectStorage
+    undefined, // configService
     {
       streamDashboard: (tenantId: string) => of({
         type: 'principal.dashboard',

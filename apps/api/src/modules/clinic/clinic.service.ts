@@ -108,6 +108,21 @@ export class ClinicService {
         severity: 'info',
         payload: { student_id: dto.student_id },
       },
+      notifications: [
+        {
+          id: `clinic-notification-${visit?.id}`,
+          schoolId: this.requireTenantId(),
+          title: 'Clinic Visit Recorded',
+          body: `Clinic visit recorded for student ${dto.student_id}`,
+          audienceRoles: ['parent', 'boarding-master'],
+          priority: 'normal',
+          sourceModule: 'clinic',
+          relatedModule: 'clinic',
+          relatedRecordId: visit?.id,
+          read: false,
+          createdAt: new Date().toISOString(),
+        }
+      ]
     });
 
     return visit;

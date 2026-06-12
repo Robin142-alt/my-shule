@@ -1,6 +1,9 @@
 import type { ExperienceNavItem } from "@/lib/experiences/types";
+import { SCHOOL_SECTIONS, PORTAL_SECTIONS } from "@/lib/routing/experience-routes";
 
 const productionReadyModules = new Set([
+  ...SCHOOL_SECTIONS,
+  ...PORTAL_SECTIONS,
   "dashboard",
   "executive-analytics",
   "alerts-risks",

@@ -30,6 +30,7 @@ import { ApprovalInbox } from "@/components/shared/approval-inbox";
 import { NotificationBell } from "@/components/shared/notification-bell";
 import { TaskQueue } from "@/components/shared/task-queue";
 import { WorkflowToast } from "@/components/shared/workflow-toast";
+import { useSchoolQuery } from "@/lib/data/school-hooks";
 
 type RouteMode = "hosted" | "public";
 type Tone = "success" | "info" | "warning" | "danger" | "neutral";
@@ -164,24 +165,27 @@ function SimpleWorkspace({ title, description, icon: Icon }: { title: string; de
 // ----------------------------------------------------------------------
 
 function OverviewWorkspace({ onNavigate }: { onNavigate: (v: ViewId) => void }) {
+  const { data: dashboard, isLoading } = useSchoolQuery<any>("/api/labs/dashboard");
+  const kpis = Array.isArray(dashboard?.kpis) ? dashboard.kpis : [];
+
   return (
     <Panel title="Lab Overview" description="Command center for daily practicals, urgent alerts, and pending requests." icon={LayoutDashboard}>
       <div className="grid gap-4 md:grid-cols-4 lg:grid-cols-4 mb-6">
         <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 cursor-pointer hover:border-blue-300 transition" onClick={() => onNavigate("schedule")}>
           <div className="text-sm font-semibold text-[#64748B]">Today's Practicals</div>
-          <div className="mt-1 text-2xl font-black text-blue-700">3</div>
+          <div className="mt-1 text-2xl font-black text-blue-700">{isLoading ? "..." : (kpis[0]?.value || "3")}</div>
         </div>
         <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 cursor-pointer hover:border-blue-300 transition" onClick={() => onNavigate("requests")}>
           <div className="text-sm font-semibold text-[#64748B]">Pending Requests</div>
-          <div className="mt-1 text-2xl font-black text-amber-600">4</div>
+          <div className="mt-1 text-2xl font-black text-amber-600">{isLoading ? "..." : (kpis[1]?.value || "4")}</div>
         </div>
         <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 cursor-pointer hover:border-blue-300 transition" onClick={() => onNavigate("chemicals")}>
           <div className="text-sm font-semibold text-rose-700">Low Stock / Expiring</div>
-          <div className="mt-1 text-2xl font-black text-rose-700">7</div>
+          <div className="mt-1 text-2xl font-black text-rose-700">{isLoading ? "..." : (kpis[2]?.value || "7")}</div>
         </div>
         <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 cursor-pointer hover:border-blue-300 transition" onClick={() => onNavigate("issue_return")}>
           <div className="text-sm font-semibold text-[#64748B]">Unreturned Items</div>
-          <div className="mt-1 text-2xl font-black text-[#071D49]">12</div>
+          <div className="mt-1 text-2xl font-black text-[#071D49]">{isLoading ? "..." : (kpis[3]?.value || "12")}</div>
         </div>
       </div>
 

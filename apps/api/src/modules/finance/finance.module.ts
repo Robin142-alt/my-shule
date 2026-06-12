@@ -13,9 +13,10 @@ import { AccountsRepository } from './repositories/accounts.repository';
 import { TransactionsRepository } from './repositories/transactions.repository';
 import { LedgerEntriesRepository } from './repositories/ledger-entries.repository';
 import { IdempotencyKeysRepository } from './repositories/idempotency-keys.repository';
+import { EventsModule } from '../events/events.module';
 
 @Module({
-  imports: [AuthModule, SyncModule, ObservabilityModule],
+  imports: [AuthModule, SyncModule, ObservabilityModule, EventsModule],
   controllers: [FinanceController],
   providers: [
     FinanceSchemaService,

@@ -1,5 +1,4 @@
-import { withSession } from "@/lib/dashboard/api-client";
-import { type LiveAuthSession } from "@/hooks/use-live-tenant-session";
+import { withSession, type LiveAuthSession } from "@/lib/dashboard/api-client";
 
 export interface TeacherAssignedClass {
   id: string;
@@ -173,6 +172,6 @@ export async function fetchReportCommentsLive(session: LiveAuthSession): Promise
 export async function saveReportCommentLive(session: LiveAuthSession, data: any): Promise<{ success: boolean }> {
   return withSession(session, "/class-teacher/report-comments", {
     method: "POST",
-    body: JSON.stringify(data),
+    body: data,
   });
 }

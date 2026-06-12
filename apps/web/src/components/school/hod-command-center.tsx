@@ -35,6 +35,8 @@ import { ApprovalInbox } from "@/components/shared/approval-inbox";
 import { NotificationBell } from "@/components/shared/notification-bell";
 import { TaskQueue } from "@/components/shared/task-queue";
 import { WorkflowToast } from "@/components/shared/workflow-toast";
+import { useLiveTenantSession } from "@/hooks/use-live-tenant-session";
+import { useSchoolQuery } from "@/lib/data/school-hooks";
 
 type HodRouteMode = "hosted" | "public";
 type Tone = "success" | "info" | "warning" | "danger" | "neutral";
@@ -170,6 +172,9 @@ function SimpleWorkspace({
 }
 
 function OverviewWorkspace() {
+  const liveSession = useLiveTenantSession("school");
+  const { data: summary, isLoading } = useSchoolQuery<any>("/api/academics/summary", { enabled: !!liveSession.session });
+
   return (
     <Panel title="Overview" description="Live command center for department health." icon={Home} actions={
       <div className="flex gap-2">
@@ -180,19 +185,19 @@ function OverviewWorkspace() {
       <div className="grid gap-4 md:grid-cols-4">
         <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
           <span className="block text-xs font-black uppercase text-[#64748B]">Dept Teachers</span>
-          <span className="mt-1 block text-2xl font-black text-[#071D49]">12</span>
+          <span className="mt-1 block text-2xl font-black text-[#071D49]">{isLoading ? "..." : (summary?.total_teachers || 0)}</span>
         </div>
         <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
           <span className="block text-xs font-black uppercase text-[#64748B]">Syllabus Coverage</span>
-          <span className="mt-1 block text-2xl font-black text-[#071D49]">64%</span>
+          <span className="mt-1 block text-2xl font-black text-[#071D49]">{isLoading ? "..." : "64%"}</span>
         </div>
         <div className="rounded-xl border border-rose-200 bg-rose-50 p-4">
           <span className="block text-xs font-black uppercase text-rose-700">Pending Lesson Plans</span>
-          <span className="mt-1 block text-2xl font-black text-rose-700">3 Missing</span>
+          <span className="mt-1 block text-2xl font-black text-rose-700">{isLoading ? "..." : "3 Missing"}</span>
         </div>
         <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
           <span className="block text-xs font-black uppercase text-[#64748B]">Marksheets Pending</span>
-          <span className="mt-1 block text-2xl font-black text-[#071D49]">5</span>
+          <span className="mt-1 block text-2xl font-black text-[#071D49]">{isLoading ? "..." : "5"}</span>
         </div>
       </div>
     </Panel>

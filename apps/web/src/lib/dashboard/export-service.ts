@@ -20,10 +20,7 @@ export async function triggerServerExport(endpoint: string, options: ExportOptio
     throw new Error("Export requires API base URL.");
   }
 
-  // TODO: TEMPORARY LOCAL EXPORT FALLBACK - replace with server-generated export
-  // Currently, the NestJS `/api/reports/export` might not exist. We are wiring
-  // the client architecture now.
-  
+
   const response = await fetch(`${baseUrl}${endpoint}`, {
     method: "POST",
     headers: {

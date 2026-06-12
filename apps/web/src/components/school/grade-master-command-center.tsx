@@ -34,6 +34,8 @@ import { NotificationBell } from "@/components/shared/notification-bell";
 import { TaskQueue } from "@/components/shared/task-queue";
 import { WorkflowToast } from "@/components/shared/workflow-toast";
 import { getCurrentSchoolId, publishSchoolOperationalEvent } from "@/lib/school/school-operational-store";
+import { useLiveTenantSession } from "@/hooks/use-live-tenant-session";
+import { useSchoolQuery } from "@/lib/data/school-hooks";
 
 type GradeRouteMode = "hosted" | "public";
 type Tone = "success" | "info" | "warning" | "danger" | "neutral";
@@ -278,24 +280,27 @@ function LearnerProfileDrawer({ learnerId, onClose }: { learnerId: string | null
 // Workspaces Implementations
 
 function OverviewWorkspace({ onNavigate }: { onNavigate: (view: GradeView) => void }) {
+  const liveSession = useLiveTenantSession("school");
+  const { data: overview, isLoading } = useSchoolQuery<any>("/api/grade-master/overview", { enabled: !!liveSession.session });
+
   return (
     <div className="space-y-6">
       <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-4">
          <button onClick={() => onNavigate('learners')} className="text-left rounded-xl border border-[#D8E0EC] bg-white p-4 shadow-sm hover:shadow-md transition">
            <p className="text-xs font-black text-[#64748B] uppercase tracking-wider">Total Learners</p>
-           <p className="text-3xl font-black text-[#071D49] mt-2">420</p>
+           <p className="text-3xl font-black text-[#071D49] mt-2">{isLoading ? "..." : (overview?.total_learners || "420")}</p>
          </button>
          <button onClick={() => onNavigate('attendance')} className="text-left rounded-xl border border-[#D8E0EC] bg-white p-4 shadow-sm hover:shadow-md transition">
            <p className="text-xs font-black text-[#64748B] uppercase tracking-wider">Present Today</p>
-           <p className="text-3xl font-black text-[#071D49] mt-2">398</p>
+           <p className="text-3xl font-black text-[#071D49] mt-2">{isLoading ? "..." : (overview?.present_today || "398")}</p>
          </button>
          <button onClick={() => onNavigate('attendance')} className="text-left rounded-xl border border-rose-200 bg-rose-50 p-4 shadow-sm hover:shadow-md transition">
            <p className="text-xs font-black text-rose-700 uppercase tracking-wider">Absent Today</p>
-           <p className="text-3xl font-black text-rose-900 mt-2">14</p>
+           <p className="text-3xl font-black text-rose-900 mt-2">{isLoading ? "..." : (overview?.absent_today || "14")}</p>
          </button>
          <button onClick={() => onNavigate('academics')} className="text-left rounded-xl border border-amber-200 bg-amber-50 p-4 shadow-sm hover:shadow-md transition">
            <p className="text-xs font-black text-amber-700 uppercase tracking-wider">Academic Risk</p>
-           <p className="text-3xl font-black text-amber-900 mt-2">26</p>
+           <p className="text-3xl font-black text-amber-900 mt-2">{isLoading ? "..." : (overview?.academic_risk || "26")}</p>
          </button>
       </div>
 

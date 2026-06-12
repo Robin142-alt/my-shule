@@ -611,6 +611,7 @@ test('CounsellingService dashboard is backed by counselling repository aggregate
     {} as never,
     counsellingRepository as never,
     {} as never,
+    { publish: async () => {} } as never,
   );
 
   const dashboard = await requestContext.run(
@@ -655,6 +656,7 @@ test('CounsellingService bounds counselling list pagination before repository ca
     {} as never,
     counsellingRepository as never,
     {} as never,
+    { publish: async () => {} } as never,
   );
   const context = {
     tenant_id: 'tenant-a',
@@ -843,7 +845,8 @@ test('CounsellingService only exposes parent-visible notes to linked guardians',
     { withRequestTransaction: async <T>(callback: () => Promise<T>) => callback() } as never,
     disciplineRepository as never,
     counsellingRepository as never,
-    noteEncryption,
+    noteEncryption as never,
+    { publish: async () => {} } as never,
   );
   const parentContext = {
     tenant_id: 'tenant-a',

@@ -13,9 +13,11 @@ export function IctManagerCommandCenter({ routeMode }: { routeMode?: "hosted" | 
   const { data: ticketsData } = useSchoolQuery<any>("/api/support/tickets?limit=5");
   const { data: alertsData } = useSchoolQuery<any>("/api/observability/alerts");
   const { data: healthData } = useSchoolQuery<any>("/api/observability/health");
+  const { data: assetsData } = useSchoolQuery<any>("/api/assets/dashboard");
 
   const openTickets = ticketsData?.meta?.total_items ?? 0;
   const systemAlerts = alertsData?.alerts?.length ?? healthData?.active_alert_count ?? 0;
+  const assignedDevices = assetsData?.total_records ?? 0;
   const tickets = ticketsData?.data ?? [];
 
   return (
@@ -86,7 +88,7 @@ export function IctManagerCommandCenter({ routeMode }: { routeMode?: "hosted" | 
                 </Card>
                 <Card className="p-6">
                   <div className="text-sm font-semibold text-gray-500">Assigned Devices</div>
-                  <div className="mt-2 text-3xl font-black text-[#071D49]">145</div>
+                  <div className="mt-2 text-3xl font-black text-[#071D49]">{assignedDevices}</div>
                 </Card>
                 <Card className="p-6">
                   <div className="text-sm font-semibold text-gray-500">System Alerts</div>
@@ -111,7 +113,7 @@ export function IctManagerCommandCenter({ routeMode }: { routeMode?: "hosted" | 
                           <p className="font-semibold text-[#071D49]">{ticket.subject}</p>
                           <p className="text-sm text-gray-500 mt-1">{ticket.status} • {new Date(ticket.created_at).toLocaleDateString()}</p>
                         </div>
-                        <StatusPill label={ticket.priority} tone={ticket.priority === 'urgent' ? 'danger' : 'info'} />
+                        <StatusPill label={ticket.priority} tone={ticket.priority === 'urgent' ? 'critical' : 'ok'} />
                       </div>
                     ))}
                   </div>

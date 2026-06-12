@@ -5,10 +5,10 @@ import { useLiveTenantSession } from "@/hooks/use-live-tenant-session";
 import { fetchTimetableLive } from "@/lib/modules/teacher-live";
 
 export function TimetableWorkspace() {
-  const liveSession = useLiveTenantSession();
+  const liveSession = useLiveTenantSession("school");
   
   const { data, isLoading, isError } = useQuery({
-    queryKey: ["teacher-timetable", liveSession.session?.tenant_id, liveSession.session?.user.id],
+    queryKey: ["teacher-timetable", liveSession.session?.tenantId, liveSession.session?.user.user_id],
     queryFn: () => fetchTimetableLive(liveSession.session!),
     enabled: !!liveSession.session,
   });
