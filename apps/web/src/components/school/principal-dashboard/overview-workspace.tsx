@@ -15,32 +15,40 @@ type PrincipalOverviewData = {
   recentActivity: Array<{ label: string; time: string }>;
 };
 
+import { useQueryClient } from "@tanstack/react-query";
+import { getCurrentSchoolId } from "@/lib/school/school-operational-store";
+
 export function PrincipalOverviewWorkspace() {
-  const { data, isLoading, error, mutate } = useSchoolQuery<PrincipalOverviewData>('/admin-command/principal/overview');
+  const { data, isLoading, error } = useSchoolQuery<PrincipalOverviewData>('/admin-command/principal/overview');
+  const queryClient = useQueryClient();
   const eventBus = useDashboardEventBus();
 
   useEffect(() => {
     // Subscribe to the global Event Bus
     const unsubscribe = eventBus.subscribe("STUDENT_ADMITTED", (event) => {
       // When a student is admitted somewhere else in the app, instantly update the metric
-      mutate((currentData) => {
-        if (!currentData) return currentData;
-        return {
-          ...currentData,
-          totalStudents: currentData.totalStudents + 1,
-          recentActivity: [
-            {
-              label: "New Student Admitted",
-              time: "Just now"
-            },
-            ...currentData.recentActivity
-          ]
-        };
-      }, { revalidate: false }); // Update local cache instantly without a round-trip
+      const activeTenantId = getCurrentSchoolId();
+      queryClient.setQueryData<PrincipalOverviewData>(
+        ["school", activeTenantId, '/admin-command/principal/overview'],
+        (currentData) => {
+          if (!currentData) return currentData;
+          return {
+            ...currentData,
+            totalStudents: currentData.totalStudents + 1,
+            recentActivity: [
+              {
+                label: "New Student Admitted",
+                time: "Just now"
+              },
+              ...currentData.recentActivity
+            ]
+          };
+        }
+      );
     });
 
     return () => unsubscribe();
-  }, [eventBus, mutate]);
+  }, [eventBus, queryClient]);
 
   if (isLoading) {
     return (

@@ -66,6 +66,7 @@ import { ParentPortalModule } from './parent-portal/parent-portal.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { GradeMasterModule } from './modules/grade-master/grade-master.module';
 import { ClassTeacherModule } from './modules/class-teacher/class-teacher.module';
+import { SecretaryModule } from './modules/secretary/secretary.module';
 
 @Module({
   imports: [
@@ -125,6 +126,7 @@ import { ClassTeacherModule } from './modules/class-teacher/class-teacher.module
     ParentPortalModule,
     GradeMasterModule,
     ClassTeacherModule,
+    SecretaryModule,
   ],
   providers: [
     {

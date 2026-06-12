@@ -87,7 +87,7 @@ function LearnerProfileDrawer({ learnerId, onClose }: { learnerId: string | null
   );
 }
 
-export function ClassTeacherCommandCenter() {
+export function ClassTeacherCommandCenter({ routeMode }: { routeMode?: string }) {
   const [activeView, setActiveView] = useState<TeacherView>("home");
   const [selectedLearner, setSelectedLearner] = useState<string | null>(null);
 

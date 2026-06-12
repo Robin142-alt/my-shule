@@ -88,6 +88,56 @@ export type PlatformSchoolDeleteResponse = {
   school?: PlatformSchool;
 };
 
+export type PlatformTemplate = {
+  id: string;
+  name: string;
+  type: string;
+  status: string;
+  assignedCount: number;
+};
+
+export type PlatformBroadcast = {
+  id: string;
+  subject: string;
+  target: string;
+  dateSent: string;
+  status: string;
+};
+
+export type PlatformAuditLog = {
+  id: string;
+  timestamp: string;
+  actor: string;
+  action: string;
+  target: string;
+  details: string;
+};
+
+export type PlatformBackup = {
+  id: string;
+  schoolName: string;
+  lastBackup: string;
+  size: string;
+  status: string;
+};
+
+export type PlatformReport = {
+  id: string;
+  reportName: string;
+  date: string;
+  status: string;
+  format?: string;
+};
+
+export type PlatformUser = {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  lastActive: string;
+  status: string;
+};
+
 type ApiEnvelope<T> = {
   data: T;
   meta?: Record<string, unknown>;
@@ -423,4 +473,117 @@ export async function hardDeletePlatformSchool(input: {
   } catch (e) { console.error('Failed to dispatch event', e); }
 
   return payload as PlatformSchoolDeleteResponse;
+}
+
+export async function fetchPlatformTemplates() {
+  const response = await fetch("/api/platform/templates", { method: "GET", credentials: "same-origin", cache: "no-store" });
+  const payload = await parsePlatformResponse<any[]>(response);
+  return Array.isArray(payload) ? payload : [];
+}
+
+export async function fetchPlatformBroadcasts() {
+  const response = await fetch("/api/platform/broadcasts", { method: "GET", credentials: "same-origin", cache: "no-store" });
+  const payload = await parsePlatformResponse<any[]>(response);
+  return Array.isArray(payload) ? payload : [];
+}
+
+export async function fetchPlatformAuditLogs() {
+  const response = await fetch("/api/platform/audit-logs", { method: "GET", credentials: "same-origin", cache: "no-store" });
+  const payload = await parsePlatformResponse<any[]>(response);
+  return Array.isArray(payload) ? payload : [];
+}
+
+export async function fetchPlatformBackups() {
+  const response = await fetch("/api/platform/backups", { method: "GET", credentials: "same-origin", cache: "no-store" });
+  const payload = await parsePlatformResponse<any[]>(response);
+  return Array.isArray(payload) ? payload : [];
+}
+
+export async function fetchPlatformSecurityPolicies() {
+  const response = await fetch("/api/platform/security-policies", { method: "GET", credentials: "same-origin", cache: "no-store" });
+  const payload = await parsePlatformResponse<any[]>(response);
+  return Array.isArray(payload) ? payload : [];
+}
+
+export async function fetchPlatformReports() {
+  const response = await fetch("/api/platform/reports", { method: "GET", credentials: "same-origin", cache: "no-store" });
+  const payload = await parsePlatformResponse<any[]>(response);
+  return Array.isArray(payload) ? payload : [];
+}
+
+export async function fetchPlatformUsers() {
+  const response = await fetch("/api/platform/users", { method: "GET", credentials: "same-origin", cache: "no-store" });
+  const payload = await parsePlatformResponse<any[]>(response);
+  return Array.isArray(payload) ? payload : [];
+}
+
+export async function createPlatformTemplate(input: Partial<PlatformTemplate>) {
+  const response = await fetchWithTimeout("/api/platform/templates", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-myshule-csrf": await getCsrfToken(),
+    },
+    credentials: "same-origin",
+    body: JSON.stringify(input),
+  });
+  return await parsePlatformResponse<PlatformTemplate>(response);
+}
+
+export async function createPlatformBroadcast(input: Partial<PlatformBroadcast>) {
+  const response = await fetchWithTimeout("/api/platform/broadcasts", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-myshule-csrf": await getCsrfToken(),
+    },
+    credentials: "same-origin",
+    body: JSON.stringify(input),
+  });
+  return await parsePlatformResponse<PlatformBroadcast>(response);
+}
+
+export async function createPlatformSecurityPolicy(input: any) {
+  const response = await fetchWithTimeout("/api/platform/security-policies", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-myshule-csrf": await getCsrfToken(),
+    },
+    credentials: "same-origin",
+    body: JSON.stringify(input),
+  });
+  return await parsePlatformResponse<PlatformReport>(response);
+}
+
+export async function requestPlatformReport(input: Partial<PlatformReport>) {
+  const response = await fetchWithTimeout("/api/platform/reports/request", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-myshule-csrf": await getCsrfToken(),
+    },
+    credentials: "same-origin",
+    body: JSON.stringify(input),
+  });
+  return await parsePlatformResponse<any>(response);
+}
+
+export async function updatePlatformSettings(input: any) {
+  const response = await fetchWithTimeout("/api/platform/settings", {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      "x-myshule-csrf": await getCsrfToken(),
+    },
+    credentials: "same-origin",
+    body: JSON.stringify(input),
+  });
+  return await parsePlatformResponse<any>(response);
+}
+
+export async function fetchPlatformPaymentGateways() {
+  const response = await fetch("/api/platform/gateways", { method: "GET", credentials: "same-origin", cache: "no-store" });
+  const payload = await parsePlatformResponse<any[]>(response);
+  return Array.isArray(payload) ? payload : [];
 }

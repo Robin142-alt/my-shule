@@ -37,10 +37,14 @@ import { HodCommandCenter } from "@/components/school/hod-command-center";
 import { OperationalBlueprintWorkspace } from "@/components/school/operational-blueprint-workspace";
 import { RoleOperationalCommandCenter } from "@/components/school/role-operational-command-center";
 import { TeacherCommandCenter } from "@/components/school/teacher-command-center";
-import { SecretaryCommandCenter } from "@/components/school/secretary-command-center";
+import { SecretaryCommandCenterFull } from "@/components/school/secretary-command-center-full";
 import { IctManagerCommandCenter } from "@/components/school/ict-manager-command-center";
 import { ProcurementOfficerCommandCenter } from "@/components/school/procurement-officer-command-center";
 import { StudentCommandCenter } from "@/components/school/student-command-center";
+import { ClassTeacherCommandCenter } from "@/components/school/class-teacher-command-center";
+import { RegistrarCommandCenter } from "@/components/school/registrar-command-center";
+import { StorekeeperCommandCenter } from "@/components/school/storekeeper-command-center";
+import { TransportManagerCommandCenter } from "@/components/school/transport-manager-command-center";
 import { UserManagementPanel } from "@/components/school/user-management-panel";
 import { SupportCenterWorkspace } from "@/components/support/support-center-workspace";
 import { LearnerPicker } from "@/components/common/learner-picker";
@@ -5353,7 +5357,7 @@ function SchoolPagesShell({
     }
 
     if (role === "secretary") {
-      return <SecretaryCommandCenter routeMode={routeMode} />;
+      return <SecretaryCommandCenterFull routeMode={routeMode} />;
     }
 
     if (role === "ict-manager") {
@@ -5396,38 +5400,44 @@ function SchoolPagesShell({
       return <SecurityCommandCenter routeMode={routeMode} />;
     }
 
-    if (section === "exams" && role === "grade-master") {
+    if (role === "grade-master") {
       return <GradeMasterCommandCenter routeMode={routeMode} />;
     }
 
-    if (section === "exams" && role === "hod") {
+    if (role === "hod") {
       return <HodCommandCenter routeMode={routeMode} />;
     }
 
-    if (section === "exams" && role === "dean-academics") {
+    if (role === "dean-academics") {
       return <DeanAcademicsCommandCenter routeMode={routeMode} />;
     }
 
-    if (section === "exams" && role === "deputy-principal") {
+    if (role === "deputy-principal") {
       return <DeputyPrincipalCommandCenter routeMode={routeMode} />;
     }
 
-    if (section === "my-teaching" && hasTeachingAssignments) {
-      return <TeacherCommandCenter routeMode={routeMode as any} />;
-    }
-
-    if (section === "exams" && role === "exams-manager") {
+    if (role === "exams-manager") {
       return <ExamsManagerCommandCenter routeMode={routeMode} />;
     }
 
-    if (section === "exams" && role === "principal") {
-      return (
-        <ExamsModuleScreen
-          role={role}
-          schoolName={workspace.branding.name}
-          tenantSlug={tenantSlug}
-        />
-      );
+    if (role === "teacher") {
+      return <TeacherCommandCenter routeMode={routeMode} />;
+    }
+
+    if (role === "class-teacher") {
+      return <ClassTeacherCommandCenter routeMode={routeMode} />;
+    }
+
+    if (role === "admissions") {
+      return <RegistrarCommandCenter routeMode={routeMode} />;
+    }
+
+    if (role === "storekeeper") {
+      return <StorekeeperCommandCenter routeMode={routeMode} />;
+    }
+
+    if (role === "transport-manager") {
+      return <TransportManagerCommandCenter routeMode={routeMode} />;
     }
 
     return (

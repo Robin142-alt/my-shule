@@ -6,5 +6,8 @@ export default async function DashboardRolePage({ params }: { params: { role: Da
   if (params.role === "exam-manager") {
     redirect("/dashboard/exam-manager/overview");
   }
+  if (params.role === "teacher") {
+    redirect("/school/teacher");
+  }
   return <DashboardLayout role={params.role} />;
 }

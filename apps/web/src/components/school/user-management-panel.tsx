@@ -53,7 +53,7 @@ const roleOptions = [
   { value: "parent", label: "Parent" },
   { value: "student", label: "Student" },
   { value: "storekeeper", label: "Storekeeper" },
-  { value: "boarding_master", label: "Boarding Master" },
+  { value: "boarding-master", label: "Boarding Master" },
   { value: "security_officer", label: "Security Officer" },
   { value: "transport_manager", label: "Transport Manager" },
   { value: "lab_technician", label: "Laboratory Technician" },
