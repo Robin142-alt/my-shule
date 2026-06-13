@@ -1,158 +1,141 @@
 // @ts-nocheck
 "use client";
 
-import React, { useMemo } from "react";
+import React from "react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AlertCircle, RotateCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { 
-  createWidgetRegistry, 
-  resolveRegisteredWidgets, 
-  resolveWidgetActions,
-  type ResolvedWidgetDefinition,
-  type WidgetRegistry
-} from "@/lib/widget-registry/widget-registry";
-
-// For demo purposes, we will load a static registry. In production, this might come from the API.
-const demoRegistry: WidgetRegistry = {
-  version: "2026.06",
-  widgets: [
-    {
-      widgetId: "finance.feeStatus",
-      name: "Fee Collection Status",
-      moduleSource: "finance",
-      tenantScope: "TENANT",
-      rolesAllowed: ["principal", "accountant"],
-      capabilitiesRequired: ["finance:read"],
-      lifecycleState: "ACTIVE",
-      eventSubscriptions: ["fee.paid"],
-      dataContract: { inputSchema: {}, outputSchema: {} },
-      uiSchema: { type: "widget", layout: "card", renderMode: "LIVE" },
-      states: {
-        ACTIVE: { label: "Active", visibility: "VISIBLE" },
-        EMPTY: { label: "Empty", visibility: "VISIBLE", message: "No data" },
-        LOCKED: { label: "Locked", visibility: "DISABLED", message: "Capability required" },
-        DEGRADED: { label: "Degraded", visibility: "READONLY", message: "Showing fallback data", retryable: true },
-        FAILED: { label: "Failed", visibility: "VISIBLE", message: "Retry available", retryable: true },
-        LOADING: { label: "Loading", visibility: "VISIBLE", message: "Loading latest data", retryable: false },
-      },
-      actions: [
-        {
-          actionId: "view-ledger",
-          label: "View Ledger",
-          type: "NAVIGATE",
-          capabilityRequired: "finance:read",
-          handler: { type: "EVENT_BUS", target: "finance.ledger.opened" },
-          failurePolicy: "DEGRADE",
-        }
-      ]
-    },
-    {
-      widgetId: "exams.pendingReviews",
-      name: "Pending Exam Reviews",
-      moduleSource: "exams",
-      tenantScope: "TENANT",
-      rolesAllowed: ["dean-academics", "principal", "exams-manager"],
-      capabilitiesRequired: ["exams:read"],
-      lifecycleState: "ACTIVE",
-      eventSubscriptions: ["exam.submitted"],
-      dataContract: { inputSchema: {}, outputSchema: {} },
-      uiSchema: { type: "widget", layout: "table", renderMode: "LIVE" },
-      states: {
-        ACTIVE: { label: "Active", visibility: "VISIBLE" },
-        EMPTY: { label: "Empty", visibility: "VISIBLE", message: "No exams pending" },
-        LOCKED: { label: "Locked", visibility: "DISABLED", message: "Capability required" },
-        DEGRADED: { label: "Degraded", visibility: "READONLY", message: "Showing fallback data", retryable: true },
-        FAILED: { label: "Failed", visibility: "VISIBLE", message: "Retry available", retryable: true },
-        LOADING: { label: "Loading", visibility: "VISIBLE", message: "Loading latest data", retryable: false },
-      },
-      actions: [
-        {
-          actionId: "approve-all",
-          label: "Approve All",
-          type: "APPROVE",
-          capabilityRequired: "exams:review",
-          handler: { type: "API", target: "/api/exams/approve-all" },
-          failurePolicy: "ESCALATE",
-        }
-      ]
-    }
-  ]
-};
+import { useSchoolQuery } from "@/lib/data/school-hooks";
+import type { ResolvedWidgetDefinition } from "@/lib/widget-registry/widget-registry";
 
 export interface DashboardEngineProps {
   role: string;
-  moduleEntitlements?: Record<string, boolean>;
-  rolePermissions?: string[];
-  runtimeStates?: Record<string, any>;
 }
 
-export function DashboardEngine({
-  role,
-  moduleEntitlements = { finance: true, exams: true },
-  rolePermissions = ["finance:read", "exams:read", "exams:review"],
-  runtimeStates = {}
-}: DashboardEngineProps) {
-  
-  // Resolve widgets through AGP Capability Engine
-  const resolvedWidgets = useMemo(() => {
-    return resolveRegisteredWidgets({
-      registry: createWidgetRegistry(demoRegistry),
-      moduleEntitlements,
-      rolePermissions,
-      dataAvailability: {
-        "finance.feeStatus": true,
-        "exams.pendingReviews": true,
-      },
-      runtimeStates,
-      role,
-    });
-  }, [role, moduleEntitlements, rolePermissions, runtimeStates]);
+type ActionButtonDto = {
+  id: string;
+  label: string;
+  action: string;
+  state: 'ACTIVE' | 'DEGRADED' | 'FAILED' | 'LOCKED';
+};
+
+type DashboardLayoutDto = {
+  tenantId: string;
+  role: string;
+  widgets: ResolvedWidgetDefinition[];
+  buttons: ActionButtonDto[];
+};
+
+export function DashboardEngine({ role }: DashboardEngineProps) {
+  const { data, isLoading, error } = useSchoolQuery<DashboardLayoutDto>(`/dashboard/layout?role=${role}`);
+
+  if (isLoading) {
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {[1, 2, 3].map((i) => (
+          <Card key={i} className="relative overflow-hidden">
+            <CardHeader className="pb-2">
+              <Skeleton className="h-6 w-1/2" />
+              <Skeleton className="h-4 w-1/4" />
+            </CardHeader>
+            <CardContent>
+              <Skeleton className="h-24 w-full" />
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    );
+  }
+
+  if (error || !data) {
+    return (
+      <Alert variant="destructive">
+        <AlertCircle className="h-4 w-4" />
+        <AlertTitle>Widget Registry Failed</AlertTitle>
+        <AlertDescription>
+          Failed to load dashboard layout for role: {role}
+        </AlertDescription>
+      </Alert>
+    );
+  }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-      {resolvedWidgets.map((widget) => (
-        <WidgetRenderer key={widget.widgetId} widget={widget} rolePermissions={rolePermissions} />
-      ))}
+    <div className="space-y-6">
+      {/* Quick Action Buttons governed by backend Button/Action Contract */}
+      {data.buttons && data.buttons.length > 0 && (
+        <div className="flex flex-wrap gap-3">
+          {data.buttons.map(btn => (
+            <Button
+              key={btn.id}
+              disabled={btn.state === 'LOCKED'}
+              variant={btn.state === 'ACTIVE' ? 'default' : 'secondary'}
+              className={btn.state === 'FAILED' ? 'bg-destructive text-white' : ''}
+              onClick={() => {
+                if (btn.state !== 'LOCKED') {
+                  console.log(`Action dispatched: ${btn.action}`);
+                }
+              }}
+            >
+              {btn.label}
+              {btn.state === 'LOCKED' && <AlertCircle className="w-4 h-4 ml-2 opacity-50" />}
+            </Button>
+          ))}
+        </div>
+      )}
+
+      {/* Render Dynamic Widgets from Backend Registry */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {data.widgets.map((widget) => (
+          <WidgetRenderer key={widget.widgetId} widget={widget} />
+        ))}
+        {data.widgets.length === 0 && (
+          <div className="col-span-full py-12 text-center text-white/50 bg-white/5 rounded-xl border border-white/10">
+            No widgets available for this role.
+          </div>
+        )}
+      </div>
     </div>
   );
 }
 
-function WidgetRenderer({ widget, rolePermissions }: { widget: ResolvedWidgetDefinition; rolePermissions: string[] }) {
-  if (widget.stateConfig.visibility === "DISABLED") {
+function WidgetRenderer({ widget }: { widget: ResolvedWidgetDefinition }) {
+  if (widget.stateConfig?.visibility === "DISABLED") {
     return null;
   }
 
-  const actions = resolveWidgetActions(widget, { rolePermissions });
+  // Use defensive parsing since backend dto might differ from frontend exact type
+  const state = widget.state || 'ACTIVE';
+  const stateConfig = widget.stateConfig || { visibility: 'VISIBLE' };
+  const actions = widget.actions || [];
 
   return (
-    <Card className={`relative overflow-hidden ${widget.state === 'DEGRADED' ? 'border-yellow-500' : ''}`}>
+    <Card className={`relative overflow-hidden bg-white/5 border border-white/10 text-white ${state === 'DEGRADED' ? 'border-yellow-500/50' : ''}`}>
       <CardHeader className="pb-2">
         <CardTitle className="text-lg font-semibold flex items-center justify-between">
           {widget.name}
-          {widget.state === 'DEGRADED' && <AlertCircle className="w-5 h-5 text-yellow-500" />}
-          {widget.state === 'FAILED' && <AlertCircle className="w-5 h-5 text-destructive" />}
+          {state === 'DEGRADED' && <AlertCircle className="w-5 h-5 text-yellow-500" />}
+          {state === 'FAILED' && <AlertCircle className="w-5 h-5 text-destructive" />}
         </CardTitle>
-        <CardDescription>{widget.moduleSource.toUpperCase()} MODULE</CardDescription>
+        <CardDescription className="text-white/50">{widget.moduleSource?.toUpperCase()} MODULE</CardDescription>
       </CardHeader>
       <CardContent>
-        {widget.state === "LOADING" && (
-          <div className="space-y-2">
-            <Skeleton className="h-4 w-full" />
-            <Skeleton className="h-4 w-4/5" />
+        {state === "LOADING" && (
+          <div className="space-y-2 mt-4">
+            <Skeleton className="h-4 w-full bg-white/10" />
+            <Skeleton className="h-4 w-4/5 bg-white/10" />
           </div>
         )}
         
-        {widget.state === "FAILED" && (
-          <Alert variant="destructive">
+        {state === "FAILED" && (
+          <Alert variant="destructive" className="mt-4 bg-red-500/10 border-red-500/20 text-red-400">
             <AlertCircle className="h-4 w-4" />
             <AlertTitle>Widget Failed</AlertTitle>
-            <AlertDescription className="flex items-center justify-between">
-              {widget.message}
-              {widget.stateConfig.retryable && (
-                <Button variant="outline" size="sm" className="ml-2 h-7 px-2">
+            <AlertDescription className="flex flex-col gap-2">
+              {widget.message || "Failed to load"}
+              {stateConfig.retryable && (
+                <Button variant="outline" size="sm" className="self-start mt-2 border-red-500/20 hover:bg-red-500/20">
                   <RotateCw className="w-3 h-3 mr-1" /> Retry
                 </Button>
               )}
@@ -160,33 +143,35 @@ function WidgetRenderer({ widget, rolePermissions }: { widget: ResolvedWidgetDef
           </Alert>
         )}
 
-        {widget.state === "EMPTY" && (
-          <div className="py-6 text-center text-muted-foreground bg-muted/20 rounded-md border border-dashed">
-            {widget.message}
+        {state === "EMPTY" && (
+          <div className="py-6 mt-4 text-center text-white/50 bg-white/5 rounded-md border border-white/10 border-dashed">
+            {widget.message || "No data available"}
           </div>
         )}
 
-        {(widget.state === "ACTIVE" || widget.state === "DEGRADED") && (
+        {(state === "ACTIVE" || state === "DEGRADED") && (
           <div className="py-4">
-            <p className="text-sm text-muted-foreground">{widget.state === 'DEGRADED' ? widget.message : 'Data rendering placeholder...'}</p>
+            <p className="text-sm text-white/70">{state === 'DEGRADED' ? (widget.message || 'Showing fallback data') : 'Data rendering placeholder...'}</p>
           </div>
         )}
 
         {/* Render Actions */}
-        <div className="mt-4 flex flex-wrap gap-2">
-          {actions.map((action) => (
-            <Button
-              key={action.actionId}
-              variant={action.state === "DEGRADED" ? "secondary" : "default"}
-              size="sm"
-              disabled={!action.enabled}
-              className={action.state === "FAILED" ? "bg-destructive text-destructive-foreground" : ""}
-            >
-              {action.label}
-              {action.state === "FAILED" && <AlertCircle className="w-3 h-3 ml-2" />}
-            </Button>
-          ))}
-        </div>
+        {actions.length > 0 && (
+          <div className="mt-6 flex flex-wrap gap-2 pt-4 border-t border-white/10">
+            {actions.map((action) => (
+              <Button
+                key={action.actionId}
+                variant={(action as any).state === "DEGRADED" ? "secondary" : "default"}
+                size="sm"
+                disabled={!(action as any).enabled && (action as any).state !== "FAILED"}
+                className={(action as any).state === "FAILED" ? "bg-destructive text-destructive-foreground" : ""}
+              >
+                {action.label}
+                {(action as any).state === "FAILED" && <AlertCircle className="w-3 h-3 ml-2" />}
+              </Button>
+            ))}
+          </div>
+        )}
       </CardContent>
     </Card>
   );

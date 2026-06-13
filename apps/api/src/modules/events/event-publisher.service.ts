@@ -150,6 +150,30 @@ export class EventPublisherService {
     });
   }
 
+  async publishGradingSystemCreated(
+    payload: import('./events.types').GradingSystemCreatedPayload,
+  ): Promise<DomainEvent<'grading.system.created'>> {
+    return this.publish({
+      event_key: `grading.system.created:${payload.system_id}`,
+      event_name: 'grading.system.created',
+      aggregate_type: 'grading_system',
+      aggregate_id: payload.system_id,
+      payload,
+    });
+  }
+
+  async publishReportCardPublished(
+    payload: import('./events.types').ReportCardPublishedPayload,
+  ): Promise<DomainEvent<'report.card.published'>> {
+    return this.publish({
+      event_key: `report.card.published:${payload.report_id}`,
+      event_name: 'report.card.published',
+      aggregate_type: 'report_card',
+      aggregate_id: payload.report_id,
+      payload,
+    });
+  }
+
   private requireNonEmptyText(value: string, fieldName: string): string {
     const normalizedValue = value.trim();
 

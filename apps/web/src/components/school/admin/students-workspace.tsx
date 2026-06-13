@@ -1,7 +1,226 @@
 "use client";
 
-import { DocxOperationalWorkspace } from "@/components/school/docx-operational-workspace";
+import { useState } from "react";
+import { Users, UserPlus, Archive, CheckCircle, Search, AlertCircle, MapPin } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { useSchoolQuery, useSchoolMutation } from "@/hooks/use-school-api";
 
 export function StudentsWorkspace() {
-  return <DocxOperationalWorkspace moduleId="students" />;
+  const [activeTab, setActiveTab] = useState<"directory" | "enrollment" | "archived">("directory");
+  
+  const { data: studentsList, isLoading, refetch } = useSchoolQuery<any[]>("/api/students", { enabled: activeTab === "directory" || activeTab === "archived" });
+  const enrollMutation = useSchoolMutation("/api/students/lifecycle/enroll");
+
+  const [enrollFirstName, setEnrollFirstName] = useState("");
+  const [enrollLastName, setEnrollLastName] = useState("");
+  const [enrollGender, setEnrollGender] = useState<"MALE" | "FEMALE">("MALE");
+  const [enrollDob, setEnrollDob] = useState("");
+
+  const handleEnroll = async () => {
+    if (!enrollFirstName || !enrollLastName) return;
+    try {
+      // Create student first
+      const createRes = await fetch("/api/students", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          first_name: enrollFirstName,
+          last_name: enrollLastName,
+          gender: enrollGender,
+          date_of_birth: enrollDob || undefined,
+        })
+      });
+      if (!createRes.ok) throw new Error("Failed to create student");
+      const student = await createRes.json();
+      
+      // Then enroll
+      await enrollMutation.mutateAsync({}, { urlSuffix: `/${student.id}/enroll` });
+      setEnrollFirstName("");
+      setEnrollLastName("");
+      setActiveTab("directory");
+      refetch();
+    } catch (e: any) {
+      alert(e.message || "Failed to enroll student");
+    }
+  };
+
+  const activeStudents = studentsList?.filter(s => s.status !== 'archived') || [];
+  const archivedStudents = studentsList?.filter(s => s.status === 'archived') || [];
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h2 className="text-2xl font-semibold text-slate-900 tracking-tight">Students</h2>
+          <p className="text-sm text-slate-500 mt-1">Manage student lifecycle, enrollment, and directories.</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="relative">
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input 
+              type="text" 
+              placeholder="Search students..." 
+              className="pl-9 pr-4 py-2 w-64 text-sm bg-white border border-slate-200 rounded-md focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-300 transition-shadow"
+            />
+          </div>
+          <Button onClick={() => setActiveTab("enrollment")} className="gap-2">
+            <UserPlus className="w-4 h-4" />
+            Enroll Student
+          </Button>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-2 border-b border-slate-200 pb-0">
+        <button
+          onClick={() => setActiveTab("directory")}
+          className={`px-4 py-2 text-sm font-medium border-b-2 flex items-center gap-2 ${
+            activeTab === "directory" ? "border-slate-900 text-slate-900" : "border-transparent text-slate-500 hover:text-slate-700"
+          }`}
+        >
+          <Users className="w-4 h-4" />
+          Active Directory
+        </button>
+        <button
+          onClick={() => setActiveTab("enrollment")}
+          className={`px-4 py-2 text-sm font-medium border-b-2 flex items-center gap-2 ${
+            activeTab === "enrollment" ? "border-slate-900 text-slate-900" : "border-transparent text-slate-500 hover:text-slate-700"
+          }`}
+        >
+          <UserPlus className="w-4 h-4" />
+          Enrollment
+        </button>
+        <button
+          onClick={() => setActiveTab("archived")}
+          className={`px-4 py-2 text-sm font-medium border-b-2 flex items-center gap-2 ${
+            activeTab === "archived" ? "border-slate-900 text-slate-900" : "border-transparent text-slate-500 hover:text-slate-700"
+          }`}
+        >
+          <Archive className="w-4 h-4" />
+          Archived
+        </button>
+      </div>
+
+      {activeTab === "directory" && (
+        <Card className="border border-slate-200 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm text-left">
+              <thead className="text-xs text-slate-500 uppercase bg-slate-50/50 border-b border-slate-200">
+                <tr>
+                  <th className="px-4 py-3 font-medium">Name</th>
+                  <th className="px-4 py-3 font-medium">Admission No</th>
+                  <th className="px-4 py-3 font-medium">Status</th>
+                  <th className="px-4 py-3 font-medium">Gender</th>
+                  <th className="px-4 py-3 font-medium">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {isLoading ? (
+                  <tr><td colSpan={5} className="px-4 py-8 text-center text-slate-500">Loading directory...</td></tr>
+                ) : activeStudents.length === 0 ? (
+                  <tr><td colSpan={5} className="px-4 py-8 text-center text-slate-500">No active students found.</td></tr>
+                ) : (
+                  activeStudents.map((student: any) => (
+                    <tr key={student.id} className="hover:bg-slate-50/50 transition-colors">
+                      <td className="px-4 py-3">
+                        <div className="font-medium text-slate-900">{student.first_name} {student.last_name}</div>
+                        <div className="text-xs text-slate-500">{student.email || 'No email'}</div>
+                      </td>
+                      <td className="px-4 py-3 font-mono text-xs">{student.admission_number || '-'}</td>
+                      <td className="px-4 py-3">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium capitalize ${
+                          student.status === 'active' ? 'bg-emerald-100 text-emerald-700' :
+                          student.status === 'enrolled' ? 'bg-blue-100 text-blue-700' :
+                          student.status === 'suspended' ? 'bg-orange-100 text-orange-700' :
+                          'bg-slate-100 text-slate-700'
+                        }`}>
+                          {student.status}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 capitalize">{student.gender?.toLowerCase()}</td>
+                      <td className="px-4 py-3">
+                        <Button variant="outline" size="sm" className="h-8 px-3 text-xs">Manage</Button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
+
+      {activeTab === "enrollment" && (
+        <div className="max-w-2xl mx-auto">
+          <Card className="p-6 border border-slate-200">
+            <h3 className="font-medium text-slate-900 mb-6 flex items-center gap-2">
+              <UserPlus className="w-5 h-5" />
+              Enroll New Student
+            </h3>
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-sm font-medium text-slate-700">First Name</label>
+                  <input 
+                    type="text" 
+                    value={enrollFirstName}
+                    onChange={e => setEnrollFirstName(e.target.value)}
+                    className="flex h-10 w-full rounded-md border border-slate-200 bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-slate-950"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-sm font-medium text-slate-700">Last Name</label>
+                  <input 
+                    type="text" 
+                    value={enrollLastName}
+                    onChange={e => setEnrollLastName(e.target.value)}
+                    className="flex h-10 w-full rounded-md border border-slate-200 bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-slate-950"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-sm font-medium text-slate-700">Gender</label>
+                  <select 
+                    value={enrollGender}
+                    onChange={e => setEnrollGender(e.target.value as any)}
+                    className="flex h-10 w-full rounded-md border border-slate-200 bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-slate-950"
+                  >
+                    <option value="MALE">Male</option>
+                    <option value="FEMALE">Female</option>
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-sm font-medium text-slate-700">Date of Birth</label>
+                  <input 
+                    type="date" 
+                    value={enrollDob}
+                    onChange={e => setEnrollDob(e.target.value)}
+                    className="flex h-10 w-full rounded-md border border-slate-200 bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-slate-950"
+                  />
+                </div>
+              </div>
+              <div className="pt-4 flex justify-end">
+                <Button 
+                  onClick={handleEnroll} 
+                  disabled={enrollMutation.isPending || !enrollFirstName || !enrollLastName}
+                >
+                  Create & Enroll Student
+                </Button>
+              </div>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {activeTab === "archived" && (
+        <Card className="border border-slate-200 overflow-hidden">
+          <div className="p-8 text-center text-slate-500">
+            <Archive className="w-12 h-12 mx-auto text-slate-300 mb-4" />
+            <p>Archived students will appear here.</p>
+          </div>
+        </Card>
+      )}
+    </div>
+  );
 }

@@ -4,6 +4,8 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { SimpleListCard } from "@/components/experience/activity-list-card";
+import { StudentStatusBadge } from "@/components/modules/students/lifecycle/StudentStatusBadge";
+import { StudentLifecycleActions } from "@/components/modules/students/lifecycle/StudentLifecycleActions";
 import { DisciplineWorkspace } from "@/components/discipline/discipline-workspace";
 import { MetricGrid } from "@/components/experience/metric-grid";
 import { AdmissionsModuleScreen } from "@/components/modules/admissions/admissions-module-screen";
@@ -79,6 +81,7 @@ import { startSchoolOperationalEventSyncRetryWorker } from "@/lib/school/school-
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 import { GraduationCap } from "lucide-react";
 import type { LearnerLookupItem } from "@/lib/students/student-lookup";
+import { PermissionProvider } from "@/components/providers/permission-context";
 
 type SchoolRouteMode = "hosted" | "public";
 type ManualReceiptMethod = "cash" | "cheque" | "bank_deposit" | "eft" | "mpesa_c2b";
@@ -1167,9 +1170,13 @@ function StudentProfilePage({
         title={profile.name}
         description={`${profile.admissionNumber} • ${profile.className} • Parent ${profile.parentName} (${profile.parentPhone})`}
         actions={
-          <Button variant="secondary" onClick={downloadDocuments}>
-            Download documents
-          </Button>
+          <div className="flex items-center space-x-3">
+            <StudentStatusBadge status="ACTIVE" />
+            <StudentLifecycleActions studentId={studentId} status="ACTIVE" />
+            <Button variant="secondary" onClick={downloadDocuments}>
+              Download documents
+            </Button>
+          </div>
         }
       />
       <MetricGrid
@@ -5452,6 +5459,7 @@ function SchoolPagesShell({
   }
 
   return (
+    <PermissionProvider schoolId={tenantSlug ?? undefined}>
     <ErpShell
       brand={{
         title: branding.shortName,
@@ -5621,5 +5629,6 @@ function SchoolPagesShell({
         </>
       )}
     </ErpShell>
+    </PermissionProvider>
   );
 }

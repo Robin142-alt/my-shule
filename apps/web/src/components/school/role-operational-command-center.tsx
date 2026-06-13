@@ -23,6 +23,7 @@ import {
   Zap,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { DashboardEngine } from "@/components/dashboard/dashboard-engine";
 
 import { DashboardGreeting } from "@/components/common/dashboard-greeting";
 import {
@@ -8414,7 +8415,12 @@ function GenericRoleOperationalCommandCenter({
 
           <section className="min-h-0 flex-1 overflow-y-auto px-3 py-3 md:px-5" data-testid="role-operational-workspace">
             <div className="flex min-h-full flex-col gap-4">
-            {activeWorkspaceIndex === 0 && !isSearching ? <PracticalSummaryGrid profile={roleProfile} /> : null}
+            {activeWorkspaceIndex === 0 && !isSearching ? (
+              <div className="space-y-6">
+                <DashboardEngine role={role} />
+                <PracticalSummaryGrid profile={roleProfile} />
+              </div>
+            ) : null}
             <div className="shrink-0 flex flex-wrap items-center justify-between gap-3">
               <div>
                 <p className="text-xs font-black uppercase tracking-[0.16em] text-[#40608F]">Active section</p>

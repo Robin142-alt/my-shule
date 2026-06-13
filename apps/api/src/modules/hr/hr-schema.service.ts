@@ -12,6 +12,12 @@ const HR_TABLES = [
   'staff_documents',
   'staff_document_expiry_reminders',
   'staff_audit_logs',
+  'staff_attendance',
+  'staff_payroll_bands',
+  'staff_salaries',
+  'staff_payslips',
+  'staff_performance_reviews',
+  'staff_disciplinary_records',
 ] as const;
 
 @Injectable()
@@ -20,7 +26,11 @@ export class HrSchemaService implements OnModuleInit {
   private async executeSql<T = any>(query: string, params: any[] = []): Promise<{ rows: T[], rowCount: number }> {
     const firstParam = params[0];
     const isUuid = typeof firstParam === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(firstParam);
-    
+
+    if ((this.prisma as any).query) {
+      return (this.prisma as any).query(query, params);
+    }
+
     if (isUuid) {
       return this.prisma.executeWithTenant(firstParam, null, async (tx: any) => {
         const result = await tx.$queryRawUnsafe(query, ...params);
@@ -63,11 +73,11 @@ export class HrSchemaService implements OnModuleInit {
         id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
         tenant_id text NOT NULL,
         user_id uuid,
-        staff_number text NOT NULL,
+        staff_number text,
         display_name text NOT NULL,
         department_id uuid,
         job_title_id uuid,
-        status text NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'on_leave', 'suspended', 'exited')),
+        status text NOT NULL DEFAULT 'invited' CHECK (status IN ('invited', 'pending_acceptance', 'profile_incomplete', 'pending_approval', 'active', 'on_leave', 'suspended', 'exiting', 'exited', 'archived', 'reactivated')),
         statutory_identifiers jsonb NOT NULL DEFAULT '{}'::jsonb,
         emergency_contact jsonb NOT NULL DEFAULT '{}'::jsonb,
         created_at timestamptz NOT NULL DEFAULT NOW(),
@@ -152,7 +162,87 @@ export class HrSchemaService implements OnModuleInit {
       CREATE INDEX IF NOT EXISTS ix_staff_profiles_display_name_trgm
         ON staff_profiles USING GIN (display_name gin_trgm_ops);
 
-      ALTER TABLE staff_profiles ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'active';
+      ALTER TABLE staff_profiles ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'invited';
+      ALTER TABLE staff_profiles DROP CONSTRAINT IF EXISTS staff_profiles_status_check;
+      ALTER TABLE staff_profiles ADD CONSTRAINT staff_profiles_status_check CHECK (status IN ('invited', 'pending_acceptance', 'profile_incomplete', 'pending_approval', 'active', 'on_leave', 'suspended', 'exiting', 'exited', 'archived', 'reactivated'));
+      ALTER TABLE staff_profiles ALTER COLUMN staff_number DROP NOT NULL;
+
+      CREATE TABLE IF NOT EXISTS staff_attendance (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        tenant_id text NOT NULL,
+        staff_profile_id uuid NOT NULL,
+        date date NOT NULL,
+        status text NOT NULL CHECK (status IN ('present', 'absent', 'late', 'on_leave', 'sick_leave', 'off_duty', 'field_duty')),
+        notes text,
+        created_at timestamptz NOT NULL DEFAULT NOW(),
+        updated_at timestamptz NOT NULL DEFAULT NOW(),
+        CONSTRAINT uq_staff_attendance_tenant_staff_date UNIQUE (tenant_id, staff_profile_id, date)
+      );
+
+      CREATE TABLE IF NOT EXISTS staff_payroll_bands (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        tenant_id text NOT NULL,
+        name text NOT NULL,
+        base_salary numeric(10,2) NOT NULL,
+        currency text NOT NULL DEFAULT 'KES',
+        created_at timestamptz NOT NULL DEFAULT NOW(),
+        updated_at timestamptz NOT NULL DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS staff_salaries (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        tenant_id text NOT NULL,
+        staff_profile_id uuid NOT NULL,
+        payroll_band_id uuid,
+        custom_base_salary numeric(10,2),
+        currency text NOT NULL DEFAULT 'KES',
+        effective_date date NOT NULL DEFAULT CURRENT_DATE,
+        created_at timestamptz NOT NULL DEFAULT NOW(),
+        updated_at timestamptz NOT NULL DEFAULT NOW(),
+        CONSTRAINT uq_staff_salaries_tenant_staff UNIQUE (tenant_id, staff_profile_id)
+      );
+
+      CREATE TABLE IF NOT EXISTS staff_payslips (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        tenant_id text NOT NULL,
+        staff_profile_id uuid NOT NULL,
+        month integer NOT NULL,
+        year integer NOT NULL,
+        base_amount numeric(10,2) NOT NULL,
+        deductions numeric(10,2) NOT NULL DEFAULT 0,
+        bonuses numeric(10,2) NOT NULL DEFAULT 0,
+        net_pay numeric(10,2) NOT NULL,
+        status text NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'paid', 'cancelled')),
+        created_at timestamptz NOT NULL DEFAULT NOW(),
+        updated_at timestamptz NOT NULL DEFAULT NOW(),
+        CONSTRAINT uq_staff_payslips_tenant_staff_month_year UNIQUE (tenant_id, staff_profile_id, month, year)
+      );
+
+      CREATE TABLE IF NOT EXISTS staff_performance_reviews (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        tenant_id text NOT NULL,
+        staff_profile_id uuid NOT NULL,
+        reviewer_id uuid NOT NULL,
+        review_date date NOT NULL DEFAULT CURRENT_DATE,
+        score integer NOT NULL CHECK (score >= 1 AND score <= 5),
+        comments text NOT NULL,
+        goals_for_next_period text,
+        created_at timestamptz NOT NULL DEFAULT NOW(),
+        updated_at timestamptz NOT NULL DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS staff_disciplinary_records (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        tenant_id text NOT NULL,
+        staff_profile_id uuid NOT NULL,
+        incident_date date NOT NULL,
+        severity text NOT NULL CHECK (severity IN ('low', 'medium', 'high', 'critical')),
+        description text NOT NULL,
+        action_taken text,
+        status text NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'resolved', 'appealed')),
+        created_at timestamptz NOT NULL DEFAULT NOW(),
+        updated_at timestamptz NOT NULL DEFAULT NOW()
+      );
 
       ${HR_TABLES.map((table) => `
         ALTER TABLE ${table} ENABLE ROW LEVEL SECURITY;

@@ -95,6 +95,7 @@ test('SyncService pull returns ordered finance operations', async () => {
     } as never,
     {} as AttendanceSyncConflictResolverService,
     {} as never,
+    {} as never,
   );
 
   const response = await requestContext.run(

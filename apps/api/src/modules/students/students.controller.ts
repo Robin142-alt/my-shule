@@ -68,4 +68,25 @@ export class StudentsController {
     }
     return this.studentsService.getSummary(tenantId);
   }
+
+  @Post('guardians')
+  @Permissions('students:write')
+  async createGuardian(@Body() body: any) {
+    const store = this.requestContext.requireStore();
+    return this.studentsService.createGuardian(
+      store.tenant_id, 
+      body.student_profile_id, 
+      body.display_name, 
+      body.relationship, 
+      body.email, 
+      body.phone
+    );
+  }
+
+  @Get('guardians/directory')
+  @Permissions('students:read')
+  async listGuardians() {
+    const store = this.requestContext.requireStore();
+    return this.studentsService.listGuardians(store.tenant_id);
+  }
 }

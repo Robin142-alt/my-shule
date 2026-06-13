@@ -8,6 +8,11 @@ export class SeederSchemaService {
   private async executeSql<T = any>(query: string, params: any[] = []): Promise<{ rows: T[], rowCount: number }> {
     const firstParam = params[0];
     const isUuid = typeof firstParam === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(firstParam);
+
+    if ((this.prisma as any).query) {
+      return (this.prisma as any).query(query, params);
+    }
+
     
     if (isUuid) {
       return this.prisma.executeWithTenant(firstParam, null, async (tx: any) => {

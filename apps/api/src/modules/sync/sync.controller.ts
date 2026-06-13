@@ -1,4 +1,4 @@
-import { Body, Controller, Post } from '@nestjs/common';
+import { Body, Controller, Get, Post } from '@nestjs/common';
 
 import { Permissions } from '../../auth/decorators/permissions.decorator';
 import { DeviceRegistrationResponseDto } from './dto/device-registration-response.dto';
@@ -28,8 +28,26 @@ export class SyncController {
   }
 
   @Post('pull')
-  @Permissions('finance:read')
+  @Permissions('finance:read', 'attendance:read')
   async pull(@Body() dto: SyncPullDto): Promise<SyncPullResponseDto> {
     return this.syncService.pull(dto);
+  }
+
+  @Get('status')
+  @Permissions('finance:read', 'attendance:read')
+  async status() {
+    return this.syncService.getStatus();
+  }
+
+  @Post('retry')
+  @Permissions('finance:write', 'attendance:write')
+  async retry(@Body() dto: any) {
+    return this.syncService.retry(dto);
+  }
+
+  @Post('resolve-conflict')
+  @Permissions('finance:write', 'attendance:write')
+  async resolveConflict(@Body() dto: any) {
+    return this.syncService.resolveConflict(dto);
   }
 }

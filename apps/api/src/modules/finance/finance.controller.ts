@@ -7,6 +7,7 @@ import { RequiresModule } from '../module-access/module-access.decorator';
 import { FinanceTasksService } from './finance-tasks.service';
 import { FinanceWidgetDataDto } from '../dashboard/dashboard.dto';
 import { EventPublisherService } from '../events/event-publisher.service';
+import { ApprovalsService } from '../approvals/approvals.service';
 
 export class CreatePaymentDto {
 
@@ -43,6 +44,7 @@ export class FinanceController {
     private readonly tasksService: FinanceTasksService,
     private readonly eventPublisher: EventPublisherService,
     private readonly schoolEvents: SchoolOperationalEventsService,
+    private readonly approvals: ApprovalsService,
   ) {}
 
   @Post('payment')
@@ -413,44 +415,60 @@ export class FinanceController {
   @Post('waivers')
   @Permissions('finance:write')
   async requestWaiver(@Body() dto: any) {
-    const tenantId = this.requestContext.requireStore().tenant_id;
+    const store = this.requestContext.requireStore();
+    const tenantId = store.tenant_id;
+    const userId = store.user_id;
+    const role = store.role || 'accountant';
+
+    const approvalResult = await this.approvals.enforceApprovalRule({
+      schoolId: tenantId,
+      userId,
+      userRole: role,
+      module: 'FINANCE',
+      action: 'FEE_WAIVER',
+      targetEntityType: 'STUDENT',
+      targetEntityId: dto.student_id,
+      newValue: {
+        studentName: dto.student_name,
+        className: dto.class_name,
+        amountMinor: dto.amount_minor,
+      },
+      reason: dto.reason,
+    });
+
+    if (approvalResult.mode === 'CREATE_APPROVAL_REQUEST') {
+      return { 
+        success: true, 
+        status: 'PENDING_APPROVAL', 
+        message: 'Fee waiver request submitted for approval.',
+        request: approvalResult.request 
+      };
+    }
+
+    // Direct apply logic (if approval is NONE or AUTO_APPROVE)
     const result = await this.db.query(
       `INSERT INTO tenant_pending_waivers (tenant_id, waiver_number, student_id, student_name, class_name, amount_minor, reason, status)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending') RETURNING *`,
+       VALUES ($1, $2, $3, $4, $5, $6, $7, 'approved') RETURNING *`,
       [tenantId, `WV-${Date.now()}`, dto.student_id, dto.student_name || 'N/A', dto.class_name || 'N/A', dto.amount_minor, dto.reason]
     );
     const waiver = result.rows[0];
 
-    await this.schoolEvents.recordSchoolOperation({
-      event: {
-        id: waiver.id,
-        type: 'finance.waiver_requested',
-        module: 'finance',
-        actorRole: this.requestContext.requireStore().role || 'accountant',
-        title: 'Fee Waiver Requested',
-        body: `Waiver requested for student ${dto.student_id}`,
-        entityId: waiver.id,
-        severity: 'info',
-        payload: { waiver_number: waiver.waiver_number, amount: dto.amount_minor },
-      },
-      notifications: [
-        {
-          id: `waiver-request-${waiver.id}`,
-          schoolId: tenantId,
-          title: 'Fee Waiver Approval Required',
-          body: `A fee waiver of ${dto.amount_minor} is pending approval for ${dto.student_name || dto.student_id}.`,
-          audienceRoles: ['principal'],
-          priority: 'high',
-          sourceModule: 'finance',
-          relatedModule: 'finance',
-          relatedRecordId: waiver.id,
-          read: false,
-          createdAt: new Date().toISOString(),
-        }
-      ]
-    });
+    // Execute waiver directly (e.g., updating balance immediately)
+    // For brevity, using the same balance update logic
+    const invRes = await this.db.query(
+      `SELECT id, balance_minor FROM student_invoices WHERE student_id = $1 AND tenant_id = $2 AND status = 'open' ORDER BY created_at ASC LIMIT 1`,
+      [waiver.student_id, tenantId]
+    );
+    if ((invRes.rowCount ?? 0) > 0) {
+      const inv = invRes.rows[0];
+      const newBalance = Math.max(0, Number(inv.balance_minor) - Number(waiver.amount_minor));
+      await this.db.query(
+        `UPDATE student_invoices SET balance_minor = $1, status = CASE WHEN $1 <= 0 THEN 'paid' ELSE 'open' END WHERE id = $2`,
+        [newBalance, inv.id]
+      );
+    }
 
-    return waiver;
+    return { success: true, status: 'APPROVED', message: 'Fee waiver applied.', waiver };
   }
 
   @Post('waivers/:id/approve')

@@ -220,4 +220,26 @@ export class StudentsRepository {
   private guardianPhoneAad(tenantId: string): string {
     return `students:${tenantId}:primary_guardian_phone`;
   }
+
+  async createGuardian(tenantId: string, studentId: string, displayName: string, relationship: string, email: string, phone: string) {
+    const query = `
+      INSERT INTO student_guardians (tenant_id, student_profile_id, display_name, relationship, email, phone, status, created_at, updated_at)
+      VALUES ($1, $2::uuid, $3, $4, $5, $6, 'active', NOW(), NOW())
+      RETURNING *
+    `;
+    const result = await this.client.query(query, [tenantId, studentId, displayName, relationship, email, phone]);
+    return result.rows[0];
+  }
+
+  async listGuardians(tenantId: string) {
+    const query = `
+      SELECT g.*, s.first_name as student_first_name, s.last_name as student_last_name
+      FROM student_guardians g
+      JOIN students s ON s.id = g.student_profile_id AND s.tenant_id = g.tenant_id
+      WHERE g.tenant_id = $1
+      ORDER BY g.display_name ASC
+    `;
+    const result = await this.client.query(query, [tenantId]);
+    return result.rows;
+  }
 }

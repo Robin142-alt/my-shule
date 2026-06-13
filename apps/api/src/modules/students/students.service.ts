@@ -333,4 +333,12 @@ export class StudentsService {
       ]
     };
   }
+
+  async createGuardian(tenantId: string, studentId: string, displayName: string, relationship: string, email: string, phone: string) {
+    return this.studentsRepository.createGuardian(tenantId, studentId, displayName, relationship, email, phone);
+  }
+
+  async listGuardians(tenantId: string) {
+    return this.studentsRepository.listGuardians(tenantId);
+  }
 }

@@ -53,7 +53,17 @@ export function AttendanceWorkspace() {
           {saveMutation.isPending ? "Submitting..." : "Submit Final"}
         </button>
       </div>
-      {saveMutation.isSuccess && <div className="mb-4 rounded border border-emerald-200 bg-emerald-50 p-2 text-sm text-emerald-700 font-bold">Attendance saved successfully!</div>}
+      {saveMutation.isSuccess && (
+        <div className={`mb-4 rounded border p-2 text-sm font-bold ${
+          (saveMutation.data as any)?._offline 
+            ? "border-yellow-200 bg-yellow-50 text-yellow-700" 
+            : "border-emerald-200 bg-emerald-50 text-emerald-700"
+        }`}>
+          {(saveMutation.data as any)?._offline 
+            ? "Attendance saved offline! It will sync automatically when connection returns." 
+            : "Attendance saved successfully!"}
+        </div>
+      )}
       <div className="overflow-hidden rounded-xl border border-[#D8E0EC]">
         <table className="w-full text-left text-sm text-[#071D49]">
           <thead className="bg-[#F8FAFC]">

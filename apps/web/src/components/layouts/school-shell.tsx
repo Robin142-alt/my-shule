@@ -24,18 +24,20 @@ import { useState, type ReactNode } from "react";
 import { isProductionReadyModule } from "@/lib/features/module-readiness";
 import type { OperationalSearchAction } from "@/lib/search/operational-search-registry";
 import { resolveOperationalSearch } from "@/lib/search/operational-search-resolver";
+import { usePermissions } from "@/components/providers/permission-context";
+import { NotificationBell, type BadgesResponse } from "@/components/common/notifications/notification-bell";
 
 const schoolNavItems = [
-  { id: "dashboard", label: "Dashboard", href: "", icon: LayoutDashboard },
-  { id: "students", label: "Students", href: "/students", icon: Users },
-  { id: "admissions", label: "Admissions", href: "/admissions", icon: UserPlus },
-  { id: "finance", label: "Finance", href: "/finance", icon: Wallet },
-  { id: "mpesa", label: "MPESA", href: "/mpesa", icon: Smartphone },
-  { id: "academics", label: "Academics", href: "/academics", icon: GraduationCap },
-  { id: "exams", label: "Exams", href: "/exams", icon: BookOpen },
-  { id: "reports", label: "Reports", href: "/reports", icon: BarChart3 },
-  { id: "communication", label: "Communication", href: "/communication", icon: MessageSquare },
-  { id: "settings", label: "Settings", href: "/settings", icon: Settings },
+  { id: "dashboard", label: "Dashboard", href: "", icon: LayoutDashboard, requiredPermission: "" },
+  { id: "students", label: "Students", href: "/students", icon: Users, requiredPermission: "students.profile.view" },
+  { id: "admissions", label: "Admissions", href: "/admissions", icon: UserPlus, requiredPermission: "admissions.applications.view" },
+  { id: "finance", label: "Finance", href: "/finance", icon: Wallet, requiredPermission: "finance.overview.view" },
+  { id: "mpesa", label: "MPESA", href: "/mpesa", icon: Smartphone, requiredPermission: "finance.receipts.view" },
+  { id: "academics", label: "Academics", href: "/academics", icon: GraduationCap, requiredPermission: "academics.overview.view" },
+  { id: "exams", label: "Exams", href: "/exams", icon: BookOpen, requiredPermission: "exams.results.view" },
+  { id: "reports", label: "Reports", href: "/reports", icon: BarChart3, requiredPermission: "reports.overview.view" },
+  { id: "communication", label: "Communication", href: "/communication", icon: MessageSquare, requiredPermission: "communication.messages.view" },
+  { id: "settings", label: "Settings", href: "/settings", icon: Settings, requiredPermission: "platform.settings.view" },
 ];
 
 const globalSearchRoles = new Set(["principal", "deputy-principal", "secretary", "accountant"]);
@@ -72,12 +74,34 @@ export function SchoolShell({
   const [searchTerm, setSearchTerm] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const { hasPermission } = usePermissions();
   const basePath = `/school/${role}`;
-  const visibleSchoolNavItems = schoolNavItems.filter((item) => isProductionReadyModule(item.id));
+  const visibleSchoolNavItems = schoolNavItems.filter((item) => isProductionReadyModule(item.id) && hasPermission(item.requiredPermission));
   const mainItems = visibleSchoolNavItems.filter((i) => i.id !== "settings");
   const bottomItems = visibleSchoolNavItems.filter((i) => i.id === "settings");
   const canUseGlobalSearch = globalSearchRoles.has(role);
   const normalizedSearchTerm = searchTerm.trim().toLowerCase();
+  const [badges, setBadges] = useState<BadgesResponse | null>(null);
+
+  useEffect(() => {
+    const fetchBadges = async () => {
+      try {
+        const token = localStorage.getItem("auth_token") || "";
+        const res = await fetch("/api/v1/notifications/badges", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setBadges(data);
+        }
+      } catch (e) {
+        console.error("Failed to fetch notification badges", e);
+      }
+    };
+    fetchBadges();
+    const interval = setInterval(fetchBadges, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   function toRoleHref(href: string) {
     const [rawPath, rawQuery] = href.split("?");
@@ -175,12 +199,28 @@ export function SchoolShell({
             {mainItems.map((item) => {
               const Icon = item.icon;
               const href = item.href ? `${basePath}${item.href}` : basePath;
-              const isActive = item.href === "" ? pathname === basePath : pathname.startsWith(`${basePath}${item.href}`);
+              const isActive = pathname === href || (item.href !== "" && pathname.startsWith(href));
+              const badgeCount = badges?.byModule?.[item.id] || 0;
+
               return (
-                <Link key={item.id} href={href} className={`group flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-medium transition-all duration-150 ${isActive ? "bg-emerald-50 text-emerald-700 shadow-sm shadow-emerald-100" : "text-[#5a5e6a] hover:bg-[#f3f4f6] hover:text-[#1a1d26]"}`}>
-                  <Icon className={`h-[18px] w-[18px] shrink-0 ${isActive ? "text-emerald-600" : "text-[#9ca0ab]"}`} />
-                  <span>{item.label}</span>
-                  {isActive && <div className="ml-auto h-1.5 w-1.5 rounded-full bg-emerald-500" />}
+                <Link
+                  key={item.id}
+                  href={href}
+                  className={`group flex items-center justify-between rounded-xl px-3 py-2.5 text-[13px] font-medium transition ${
+                    isActive ? "bg-emerald-50 text-emerald-700" : "text-[#5a5e6a] hover:bg-[#f3f4f6] hover:text-[#1a1d26]"
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <Icon className={`h-4 w-4 ${isActive ? "text-emerald-600" : "text-[#8b8f9a] group-hover:text-[#5a5e6a]"}`} />
+                    {item.label}
+                  </div>
+                  {badgeCount > 0 && (
+                    <span className={`flex h-5 items-center justify-center rounded-full px-2 text-[10px] font-bold ${
+                      isActive ? "bg-emerald-200 text-emerald-800" : "bg-[#e8eaed] text-[#5a5e6a] group-hover:bg-[#d1d5db]"
+                    }`}>
+                      {badgeCount > 99 ? "99+" : badgeCount}
+                    </span>
+                  )}
                 </Link>
               );
             })}
@@ -225,10 +265,29 @@ export function SchoolShell({
                 {visibleSchoolNavItems.map((item) => {
                   const Icon = item.icon;
                   const href = item.href ? `${basePath}${item.href}` : basePath;
-                  const isActive = item.href === "" ? pathname === basePath : pathname.startsWith(`${basePath}${item.href}`);
+                  const isActive = pathname === href || (item.href !== "" && pathname.startsWith(href));
+                  const badgeCount = badges?.byModule?.[item.id] || 0;
+
                   return (
-                    <Link key={item.id} href={href} onClick={() => setMobileOpen(false)} className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-medium transition ${isActive ? "bg-emerald-50 text-emerald-700" : "text-[#5a5e6a]"}`}>
-                      <Icon className="h-[18px] w-[18px] shrink-0" /><span>{item.label}</span>
+                    <Link
+                      key={item.id}
+                      href={href}
+                      onClick={() => setMobileOpen(false)}
+                      className={`group flex items-center justify-between rounded-xl px-3 py-2.5 text-sm font-medium transition ${
+                        isActive ? "bg-emerald-50 text-emerald-700" : "text-[#5a5e6a] hover:bg-[#f3f4f6] hover:text-[#1a1d26]"
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <Icon className={`h-[18px] w-[18px] ${isActive ? "text-emerald-600" : "text-[#8b8f9a] group-hover:text-[#5a5e6a]"}`} />
+                        {item.label}
+                      </div>
+                      {badgeCount > 0 && (
+                        <span className={`flex h-5 items-center justify-center rounded-full px-2 text-[10px] font-bold ${
+                          isActive ? "bg-emerald-200 text-emerald-800" : "bg-[#e8eaed] text-[#5a5e6a] group-hover:bg-[#d1d5db]"
+                        }`}>
+                          {badgeCount > 99 ? "99+" : badgeCount}
+                        </span>
+                      )}
                     </Link>
                   );
                 })}
@@ -324,44 +383,7 @@ export function SchoolShell({
                   ) : null}
                 </div>
               ) : null}
-              <div className="relative">
-                <button
-                  type="button"
-                  aria-label="Open school notifications"
-                  aria-expanded={notificationsOpen}
-                  onClick={openRoleNotifications}
-                  className="relative rounded-xl border border-[#e8eaed] p-2.5 text-[#5a5e6a] transition hover:bg-[#f3f4f6]"
-                >
-                  <Bell className="h-4 w-4" />
-                  <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-emerald-500 text-[9px] font-bold text-white">4</span>
-                </button>
-                {notificationsOpen ? (
-                  <div className="absolute right-0 top-[calc(100%+8px)] z-30 w-[320px] rounded-xl border border-[#e8eaed] bg-white p-2 shadow-xl">
-                    {[
-                      ["Attendance registers", "7 registers still need submission before 9:00 AM", `${basePath}/students`],
-                      ["Fee reminders", "42 students need balance follow-up", `${basePath}/finance`],
-                      ["Visitor log", "6 visitors are currently inside school", `${basePath}/visitors`],
-                      ["Approval queue", "5 requests need a decision today", `${basePath}/reports`],
-                    ].map(([title, detail, href]) => (
-                      <button
-                        key={title}
-                        type="button"
-                        onClick={() => {
-                          setNotificationsOpen(false);
-                          router.push(href);
-                        }}
-                        className="flex w-full items-start justify-between gap-3 rounded-lg px-3 py-2 text-left transition hover:bg-[#f3f4f6]"
-                      >
-                        <span>
-                          <span className="block text-sm font-bold text-[#1a1d26]">{title}</span>
-                          <span className="mt-0.5 block text-xs leading-5 text-[#5a5e6a]">{detail}</span>
-                        </span>
-                        <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-emerald-700">Open</span>
-                      </button>
-                    ))}
-                  </div>
-                ) : null}
-              </div>
+              <NotificationBell basePath={basePath} badges={badges} onBadgesUpdate={setBadges} />
               <button
                 type="button"
                 onClick={() => router.push(`${basePath}/settings`)}

@@ -8,6 +8,7 @@ import {
 } from "@tanstack/react-query";
 import { requestDashboardApi } from "@/lib/dashboard/api-client";
 import { getCurrentSchoolId } from "@/lib/school/school-operational-store";
+import { useOfflineMutation } from "@/lib/offline/use-offline-mutation";
 
 export class PermissionDeniedError extends Error {
   constructor(message = "Permission denied") {
@@ -59,14 +60,32 @@ export function useSchoolQuery<T>(path: string | null, options?: SchoolQueryOpti
  */
 export function useSchoolMutation<TData, TVariables>(
   path: string | ((vars: TVariables) => string),
-  method: "POST" | "PATCH" = "POST",
+  method: "POST" | "PATCH" | "DELETE" | "PUT" = "POST",
   options?: Omit<UseMutationOptions<TData, Error, TVariables>, "mutationFn"> & {
     tenantId?: string;
   }
 ) {
   const activeTenantId = options?.tenantId || getCurrentSchoolId();
 
-  return useMutation<TData, Error, TVariables>({
+  // Helper to safely extract a module name from the path for the sync queue
+  const getModuleAndAction = (resolvedPath: string) => {
+    try {
+      // Typically paths look like "/api/students/enroll" or "students/enroll"
+      const clean = resolvedPath.startsWith('/api/') ? resolvedPath.replace('/api/', '') : resolvedPath;
+      const parts = clean.split('/');
+      return {
+        module: parts[0] || 'global',
+        action: clean,
+      };
+    } catch {
+      return { module: 'global', action: 'unknown' };
+    }
+  };
+
+  return useOfflineMutation<TData, Error, TVariables>({
+    module: typeof path === "string" ? getModuleAndAction(path).module : "dynamic",
+    action: typeof path === "string" ? getModuleAndAction(path).action : "dynamic",
+    schoolId: activeTenantId || "myshule-tenant-demo",
     mutationFn: async (variables) => {
       if (!activeTenantId) {
         throw new Error("Missing active school context");

@@ -69,7 +69,8 @@ import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { GradeMasterModule } from './modules/grade-master/grade-master.module';
 import { ClassTeacherModule } from './modules/class-teacher/class-teacher.module';
 import { SecretaryModule } from './modules/secretary/secretary.module';
-
+import { ApprovalsModule } from './modules/approvals/approvals.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
 @Module({
   imports: [
     AgpModule,
@@ -92,6 +93,7 @@ import { SecretaryModule } from './modules/secretary/secretary.module';
     EventsModule,
     ObservabilityModule,
     SecurityModule,
+    ApprovalsModule,
     ModuleAccessModule,
     InventoryModule,
     AdmissionsModule,
@@ -131,6 +133,7 @@ import { SecretaryModule } from './modules/secretary/secretary.module';
     GradeMasterModule,
     ClassTeacherModule,
     SecretaryModule,
+    NotificationsModule,
   ],
   providers: [
     {

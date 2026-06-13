@@ -1,5 +1,10 @@
 export type SupportedDomainEventName =
   | 'student.created'
+  | 'student.lifecycle.enrolled'
+  | 'student.lifecycle.class_assigned'
+  | 'student.lifecycle.suspended'
+  | 'student.lifecycle.exited'
+  | 'student.lifecycle.archived'
   | 'student.academic_enrollment.created'
   | 'student.academic_lifecycle.changed'
   | 'payment.completed'
@@ -19,14 +24,50 @@ export type SupportedDomainEventName =
   | 'discipline.incident.reported'
   | 'welfare.case.referred'
   | 'system.repair.triggered'
-  | 'system.fallback.activated';
+  | 'system.fallback.activated'
+  | 'grading.system.created'
+  | 'report.card.published';
+
 export type OutboxEventStatus =
   | 'pending'
   | 'processing'
   | 'published'
   | 'failed'
   | 'discarded';
+
 export type EventConsumerRunStatus = 'processing' | 'completed' | 'failed';
+
+export interface StudentLifecycleEnrolledPayload {
+  tenant_id: string;
+  student_id: string;
+  status: string;
+}
+
+export interface StudentLifecycleClassAssignedPayload {
+  tenant_id: string;
+  student_id: string;
+  class_id: string;
+}
+
+export interface StudentLifecycleSuspendedPayload {
+  tenant_id: string;
+  student_id: string;
+  status: string;
+  reason: string;
+}
+
+export interface StudentLifecycleExitedPayload {
+  tenant_id: string;
+  student_id: string;
+  status: string;
+  reason: string;
+}
+
+export interface StudentLifecycleArchivedPayload {
+  tenant_id: string;
+  student_id: string;
+  status: string;
+}
 
 export interface StudentCreatedPayload {
   tenant_id: string;
@@ -278,8 +319,28 @@ export interface SystemFallbackActivatedPayload {
   error: string;
 }
 
+export interface GradingSystemCreatedPayload {
+  tenant_id: string;
+  system_id: string;
+  name: string;
+  created_by_user_id: string;
+}
+
+export interface ReportCardPublishedPayload {
+  tenant_id: string;
+  report_id: string;
+  student_id: string;
+  exam_id: string;
+  published_by_user_id: string;
+}
+
 export interface DomainEventPayloadMap {
   'student.created': StudentCreatedPayload;
+  'student.lifecycle.enrolled': StudentLifecycleEnrolledPayload;
+  'student.lifecycle.class_assigned': StudentLifecycleClassAssignedPayload;
+  'student.lifecycle.suspended': StudentLifecycleSuspendedPayload;
+  'student.lifecycle.exited': StudentLifecycleExitedPayload;
+  'student.lifecycle.archived': StudentLifecycleArchivedPayload;
   'student.academic_enrollment.created': StudentAcademicEnrollmentCreatedPayload;
   'student.academic_lifecycle.changed': StudentAcademicLifecycleChangedPayload;
   'payment.completed': PaymentCompletedPayload;
@@ -300,6 +361,8 @@ export interface DomainEventPayloadMap {
   'welfare.case.referred': WelfareCaseReferredPayload;
   'system.repair.triggered': SystemRepairTriggeredPayload;
   'system.fallback.activated': SystemFallbackActivatedPayload;
+  'grading.system.created': GradingSystemCreatedPayload;
+  'report.card.published': ReportCardPublishedPayload;
 }
 
 export interface DomainEvent<

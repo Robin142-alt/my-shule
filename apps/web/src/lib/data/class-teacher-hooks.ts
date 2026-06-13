@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getCurrentSchoolId } from "@/lib/school/school-operational-store";
+import { useOfflineMutation } from "@/lib/offline/use-offline-mutation";
 import { requestDashboardApi } from "@/lib/dashboard/api-client";
 
 // Wired to real backend using the standard api client
@@ -36,7 +37,12 @@ export function useClassTeacherAttendance(streamId: string) {
 
 export function useSaveAttendance() {
   const queryClient = useQueryClient();
-  return useMutation({
+  const schoolId = getCurrentSchoolId() || "myshule-tenant-demo";
+
+  return useOfflineMutation({
+    module: "attendance",
+    action: "bulk_save",
+    schoolId,
     mutationFn: (data: { streamId: string; records: any[] }) => 
       fetchApi("attendance/bulk", {
         method: "POST",
@@ -72,7 +78,12 @@ export function useClassTeacherDiscipline(streamId: string) {
 
 export function useReportDisciplineIncident() {
   const queryClient = useQueryClient();
-  return useMutation({
+  const schoolId = getCurrentSchoolId() || "myshule-tenant-demo";
+
+  return useOfflineMutation({
+    module: "discipline",
+    action: "report_incident",
+    schoolId,
     mutationFn: (data: { streamId: string; payload: any }) => 
       fetchApi("discipline/incidents", {
         method: "POST",
@@ -93,7 +104,12 @@ export function useClassTeacherWelfare(streamId: string) {
 
 export function useReferWelfareCase() {
   const queryClient = useQueryClient();
-  return useMutation({
+  const schoolId = getCurrentSchoolId() || "myshule-tenant-demo";
+
+  return useOfflineMutation({
+    module: "welfare",
+    action: "refer_case",
+    schoolId,
     mutationFn: (data: { streamId: string; payload: any }) => 
       fetchApi("welfare/cases", {
         method: "POST",

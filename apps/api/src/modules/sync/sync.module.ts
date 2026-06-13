@@ -6,6 +6,7 @@ import { SyncController } from './sync.controller';
 import { SyncOperationLogService } from './sync-operation-log.service';
 import { SyncSchemaService } from './sync-schema.service';
 import { SyncService } from './sync.service';
+import { SyncValidationService } from './sync-validation.service';
 import { AttendanceRecordsRepository } from './repositories/attendance-records.repository';
 import { SyncCursorsRepository } from './repositories/sync-cursors.repository';
 import { SyncDevicesRepository } from './repositories/sync-devices.repository';
@@ -16,6 +17,7 @@ import { SyncOperationLogsRepository } from './repositories/sync-operation-logs.
   providers: [
     SyncSchemaService,
     SyncService,
+    SyncValidationService,
     SyncOperationLogService,
     AttendanceRecordsRepository,
     SyncDevicesRepository,

@@ -46,6 +46,7 @@ export const sidebarItems: SidebarItem[] = [
   { id: "academics", label: "Academics", href: "academics", roles: ["admin", "teacher", "parent"] },
   { id: "reports", label: "Reports", href: "reports", roles: ["admin", "bursar", "teacher", "parent"] },
   { id: "communication", label: "Communication (SMS)", href: "communication", roles: ["admin", "bursar", "teacher", "parent"] },
+  { id: "approvals", label: "Approvals", href: "approvals", roles: ["admin", "bursar"] },
   { id: "settings", label: "Settings", href: "settings", roles: ["admin", "bursar"] },
   
   // Exam Manager workspaces

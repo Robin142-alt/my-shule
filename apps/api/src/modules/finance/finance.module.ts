@@ -16,13 +16,17 @@ import { TransactionsRepository } from './repositories/transactions.repository';
 import { LedgerEntriesRepository } from './repositories/ledger-entries.repository';
 import { IdempotencyKeysRepository } from './repositories/idempotency-keys.repository';
 import { EventsModule } from '../events/events.module';
+import { ApprovalsModule } from '../approvals/approvals.module';
+
+import { FinanceApprovalsHandler } from './finance-approvals.handler';
 
 @Module({
-  imports: [AuthModule, SyncModule, ObservabilityModule, EventsModule],
+  imports: [AuthModule, SyncModule, ObservabilityModule, EventsModule, ApprovalsModule],
   controllers: [FinanceController],
   providers: [
     FinanceWidgetProvider,
     ...Object.values(moduleConsumers),
+    FinanceApprovalsHandler,
     FinanceSchemaService,
     LedgerService,
     TransactionService,
