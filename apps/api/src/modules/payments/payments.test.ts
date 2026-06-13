@@ -208,7 +208,15 @@ test('MpesaPayloadVaultService stores encrypted raw payloads with redacted opera
   const queries: Array<{ sql: string; params: unknown[] }> = [];
   const service = new MpesaPayloadVaultService(
     {
-      query: async (sql: string, params: unknown[]) => {
+          executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        }
+      });
+    },
+query: async (sql: string, params: unknown[]) => {
         queries.push({ sql, params });
         return { rows: [] };
       },
@@ -256,7 +264,15 @@ test('MpesaPayloadVaultService requires support permission, ticket, reason, and 
   ).toString('base64')}`;
   const service = new MpesaPayloadVaultService(
     {
-      query: async (sql: string, params: unknown[]) => {
+          executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        }
+      });
+    },
+query: async (sql: string, params: unknown[]) => {
         if (/FROM mpesa_payload_vault/.test(sql)) {
           return {
             rows: [
@@ -348,7 +364,15 @@ test('MpesaPayloadVaultService exports only redacted payloads for support downlo
   const audits: unknown[][] = [];
   const service = new MpesaPayloadVaultService(
     {
-      query: async (sql: string, params: unknown[]) => {
+          executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        }
+      });
+    },
+query: async (sql: string, params: unknown[]) => {
         if (/FROM mpesa_payload_vault/.test(sql)) {
           return {
             rows: [
@@ -402,7 +426,15 @@ test('CallbackLogsRepository does not decrypt raw callback bodies during normal 
   let decryptCalled = false;
   const repository = new CallbackLogsRepository(
     {
-      query: async () => ({
+          executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        }
+      });
+    },
+query: async () => ({
         rows: [
           {
             id: '00000000-0000-0000-0000-000000000501',
@@ -530,7 +562,15 @@ test('MpesaC2bController verifies callback signatures before validation', async 
 
 test('MpesaCallbackChannelService builds high-entropy STK and C2B callback URLs', () => {
   const service = new MpesaCallbackChannelService(
-    { query: async () => ({ rows: [] }) } as never,
+    {     executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        }
+      });
+    },
+query: async () => ({ rows: [] }) } as never,
     {
       get: (key: string): string | undefined =>
         key === 'mpesa.callbackUrl'
@@ -563,7 +603,15 @@ test('MpesaCallbackChannelService rotates callback secrets with overlap and hash
   const queries: Array<{ sql: string; values: unknown[] }> = [];
   const service = new MpesaCallbackChannelService(
     {
-      query: async (sql: string, values: unknown[] = []) => {
+          executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        }
+      });
+    },
+query: async (sql: string, values: unknown[] = []) => {
         queries.push({ sql, values });
 
         if (/SELECT[\s\S]+FROM mpesa_callback_channels/i.test(sql)) {
@@ -785,7 +833,15 @@ test('MpesaC2bService records matched direct Paybill callbacks for verification 
     requestContext,
     {
       withRequestTransaction: async <T>(callbackFn: () => Promise<T>): Promise<T> => callbackFn(),
-      query: async (): Promise<{ rows: unknown[] }> => ({ rows: [] }),
+          executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        }
+      });
+    },
+query: async (): Promise<{ rows: unknown[] }> => ({ rows: [] }),
     } as never,
     {
       resolveMpesaConfigByShortcode: async () => ({
@@ -960,7 +1016,15 @@ test('MpesaC2bService keeps unmatched direct Paybill payments for accountant rev
     requestContext,
     {
       withRequestTransaction: async <T>(callbackFn: () => Promise<T>): Promise<T> => callbackFn(),
-      query: async (): Promise<{ rows: unknown[] }> => ({ rows: [] }),
+          executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        }
+      });
+    },
+query: async (): Promise<{ rows: unknown[] }> => ({ rows: [] }),
     } as never,
     {
       resolveMpesaConfigByShortcode: async () => ({
@@ -1050,7 +1114,15 @@ test('MpesaC2bService treats duplicate direct Paybill confirmations as idempoten
     requestContext,
     {
       withRequestTransaction: async <T>(callbackFn: () => Promise<T>): Promise<T> => callbackFn(),
-      query: async (): Promise<{ rows: unknown[] }> => ({ rows: [] }),
+          executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        }
+      });
+    },
+query: async (): Promise<{ rows: unknown[] }> => ({ rows: [] }),
     } as never,
     {
       resolveMpesaConfigByShortcode: async () => ({
@@ -1180,7 +1252,15 @@ test('MpesaC2bService redacts C2B API payment responses for legacy raw rows', as
 test('MpesaC2bPaymentsRepository bounds list responses and avoids raw payload egress', async () => {
   const queries: Array<{ sql: string; values: unknown[] }> = [];
   const repository = new MpesaC2bPaymentsRepository({
-    query: async (sql: string, values: unknown[]) => {
+        executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        }
+      });
+    },
+query: async (sql: string, values: unknown[]) => {
       queries.push({ sql, values });
       return { rows: [] };
     },
@@ -1272,7 +1352,15 @@ test('MpesaC2bService reconciles only provider-verified direct Paybill payments 
     requestContext,
     {
       withRequestTransaction: async <T>(callbackFn: () => Promise<T>): Promise<T> => callbackFn(),
-      query: async (): Promise<{ rows: unknown[] }> => ({ rows: [] }),
+          executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        }
+      });
+    },
+query: async (): Promise<{ rows: unknown[] }> => ({ rows: [] }),
     } as never,
     {
       resolveMpesaConfigByShortcode: async () => ({
@@ -1953,7 +2041,15 @@ test('TenantFinanceConfigService blocks MPESA go-live with sandbox credentials o
 test('TenantFinanceConfigRepository exposes MPESA setup state for principal dashboards', async () => {
   const repository = new TenantFinanceConfigRepository(
     {
-      query: async (sql: string) => {
+          executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        }
+      });
+    },
+query: async (sql: string) => {
         if (/FROM tenant_mpesa_configs/.test(sql)) {
           return {
             rows: [
@@ -2476,8 +2572,7 @@ test('MpesaCallbackController stores raw payload and enqueues a payments job by 
   let enqueuedPayload: Record<string, unknown> | null = null;
   let queuedJobId: string | null = null;
 
-  const controller = new MpesaCallbackController(
-    requestContext,
+  const controller = new MpesaCallbackController({} as never, requestContext,
     {
       createLog: async (input: Record<string, unknown>) => {
         createdLogInput = input;
@@ -2612,8 +2707,7 @@ test('MpesaCallbackController accepts unsigned direct Daraja callbacks as unveri
   let verificationQueueInput: Record<string, unknown> | null = null;
   let enqueued = false;
 
-  const controller = new MpesaCallbackController(
-    requestContext,
+  const controller = new MpesaCallbackController({} as never, requestContext,
     {
       createLog: async (input: Record<string, unknown>) => {
         createdLogInput = input;
@@ -2760,8 +2854,7 @@ test('MpesaCallbackController rejects unsigned callbacks in edge-signed mode bef
   let rejectedReason: string | null = null;
   let enqueued = false;
 
-  const controller = new MpesaCallbackController(
-    requestContext,
+  const controller = new MpesaCallbackController({} as never, requestContext,
     {
       createLog: async (): Promise<CallbackLogEntity> => callbackLog,
       markRejected: async (_tenantId: string, _callbackLogId: string, reason: string): Promise<void> => {
@@ -3406,7 +3499,15 @@ test('MpesaReconciliationService reports missing callbacks, duplicates, amount m
     } as never,
     requestContext,
     {
-      query: async (sql: string, params: unknown[]) => {
+          executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        }
+      });
+    },
+query: async (sql: string, params: unknown[]) => {
         queryLog.push({ sql, params });
 
         if (/INSERT INTO mpesa_reconciliation_batches/.test(sql)) {
@@ -3566,7 +3667,15 @@ test('MpesaReconciliationService lists accountant review items without raw M-PES
     { get: (): string | undefined => undefined } as never,
     requestContext,
     {
-      query: async (sql: string, params: unknown[]) => {
+          executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        }
+      });
+    },
+query: async (sql: string, params: unknown[]) => {
         queryLog.push({ sql, params });
 
         if (/FROM mpesa_reconciliation_discrepancies/.test(sql)) {
@@ -3677,7 +3786,15 @@ test('MpesaReconciliationService requires two distinct approvers before resolvin
     { get: (): string | undefined => undefined } as never,
     requestContext,
     {
-      query: async (sql: string, params: unknown[]) => {
+          executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        }
+      });
+    },
+query: async (sql: string, params: unknown[]) => {
         queryLog.push(sql);
 
         if (/INSERT INTO finance_approval_requests/.test(sql)) {
@@ -3846,7 +3963,15 @@ test('MpesaReconciliationService runs daily reconciliation for every active tena
     } as never,
     requestContext,
     {
-      query: async (sql: string) => {
+          executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        }
+      });
+    },
+query: async (sql: string) => {
         if (/FROM tenant_payment_channels tpc/.test(sql)) {
           return {
             rows: [
@@ -3904,7 +4029,15 @@ test('MpesaReconciliationService generates on-demand date-range reports for acco
     } as never,
     requestContext,
     {
-      query: async (sql: string) => {
+          executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        }
+      });
+    },
+query: async (sql: string) => {
         if (/INSERT INTO mpesa_reconciliation_batches/.test(sql)) {
           return { rows: [{ id: '00000000-0000-0000-0000-000000009001' }] };
         }

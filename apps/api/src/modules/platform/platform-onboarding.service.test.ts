@@ -18,7 +18,15 @@ test('PlatformOnboardingService creates a school and sends an invite without exp
   const service = new PlatformOnboardingService(
     {
       withRequestTransaction: async (callback: () => Promise<unknown>) => callback(),
-      query: async (text: string, values: unknown[]) => {
+          executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        }
+      });
+    },
+query: async (text: string, values: unknown[]) => {
         queries.push({ text, values });
 
         if (text.includes('INSERT INTO tenants')) {
@@ -114,7 +122,15 @@ test('PlatformOnboardingService persists the full blueprint onboarding profile a
   const service = new PlatformOnboardingService(
     {
       withRequestTransaction: async (callback: () => Promise<unknown>) => callback(),
-      query: async (text: string, values: unknown[]) => {
+          executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        }
+      });
+    },
+query: async (text: string, values: unknown[]) => {
         queries.push({ text, values });
 
         if (text.includes('INSERT INTO tenants')) {
@@ -223,7 +239,15 @@ test('PlatformOnboardingService rejects duplicate school URL slugs without sendi
   const service = new PlatformOnboardingService(
     {
       withRequestTransaction: async (callback: () => Promise<unknown>) => callback(),
-      query: async (text: string, values: unknown[]) => {
+          executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        }
+      });
+    },
+query: async (text: string, values: unknown[]) => {
         queries.push({ text, values });
 
         if (text.includes('INSERT INTO tenants')) {
@@ -278,7 +302,15 @@ test('PlatformOnboardingService creates the school even when invitation delivery
         transactionCalls += 1;
         return callback();
       },
-      query: async (text: string) => {
+          executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        }
+      });
+    },
+query: async (text: string) => {
         if (text.includes('INSERT INTO tenants')) {
           return {
             rows: [
@@ -347,7 +379,15 @@ test('PlatformOnboardingService resends a school administrator invite with a rot
   const service = new PlatformOnboardingService(
     {
       withRequestTransaction: async (callback: () => Promise<unknown>) => callback(),
-      query: async (text: string, values: unknown[]) => {
+          executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        }
+      });
+    },
+query: async (text: string, values: unknown[]) => {
         queries.push({ text, values });
 
         if (text.includes('FROM tenants') && text.includes('latest_token.email')) {
@@ -433,7 +473,15 @@ test('PlatformOnboardingService reports Resend testing mode as blocked instead o
   const service = new PlatformOnboardingService(
     {
       withRequestTransaction: async (callback: () => Promise<unknown>) => callback(),
-      query: async (text: string, values: unknown[]) => {
+          executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        }
+      });
+    },
+query: async (text: string, values: unknown[]) => {
         if (text.includes('INSERT INTO tenants')) {
           return {
             rows: [
@@ -504,7 +552,15 @@ test('PlatformOnboardingService reports Resend testing mode as blocked instead o
 test('PlatformOnboardingService unlocks stale Resend-domain failures after production sender is configured', async () => {
   const service = new PlatformOnboardingService(
     {
-      query: async () => ({
+          executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        }
+      });
+    },
+query: async () => ({
         rows: [
           {
             tenant_id: 'green-valley',
@@ -549,7 +605,15 @@ test('PlatformOnboardingService lists schools with persisted enabled module code
   const moduleLookups: string[] = [];
   const service = new PlatformOnboardingService(
     {
-      query: async () => ({
+          executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        }
+      });
+    },
+query: async () => ({
         rows: [
           {
             tenant_id: 'green-valley',
@@ -602,7 +666,15 @@ test('PlatformOnboardingService summarizes tenants in product for the Super Admi
   const queries: Array<{ text: string; values: unknown[] }> = [];
   const service = new PlatformOnboardingService(
     {
-      query: async (text: string, values: unknown[]) => {
+          executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        }
+      });
+    },
+query: async (text: string, values: unknown[]) => {
         queries.push({ text, values });
 
         return {
@@ -660,7 +732,15 @@ test('PlatformOnboardingService lets Superadmin manually set school billing stat
   const service = new PlatformOnboardingService(
     {
       withRequestTransaction: async (callback: () => Promise<unknown>) => callback(),
-      query: async (text: string, values: unknown[]) => {
+          executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        }
+      });
+    },
+query: async (text: string, values: unknown[]) => {
         queries.push({ text, values });
 
         if (text.includes('INSERT INTO subscriptions')) {
@@ -734,7 +814,15 @@ test('PlatformOnboardingService expires the current mutable subscription for man
   const service = new PlatformOnboardingService(
     {
       withRequestTransaction: async (callback: () => Promise<unknown>) => callback(),
-      query: async (text: string, values: unknown[]) => {
+          executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        }
+      });
+    },
+query: async (text: string, values: unknown[]) => {
         queries.push({ text, values });
 
         if (text.includes('UPDATE subscriptions') && values?.[2] === 'expired') {
@@ -803,7 +891,15 @@ test('PlatformOnboardingService hard deletes an empty failed-invite school after
   const service = new PlatformOnboardingService(
     {
       withRequestTransaction: async (callback: () => Promise<unknown>) => callback(),
-      query: async (text: string, values: unknown[]) => {
+          executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        }
+      });
+    },
+query: async (text: string, values: unknown[]) => {
         queries.push({ text, values });
 
         if (text.includes('FROM tenants') && text.includes('WHERE tenant_id = $1')) {
@@ -880,7 +976,15 @@ test('PlatformOnboardingService refuses delete when confirmation does not match 
   const service = new PlatformOnboardingService(
     {
       withRequestTransaction: async (callback: () => Promise<unknown>) => callback(),
-      query: async () => ({ rows: [] }),
+          executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        }
+      });
+    },
+query: async () => ({ rows: [] }),
     } as never,
     { ensureTenantAuthorizationBaseline: async () => undefined } as never,
     { getTransactionalEmailStatus: () => ({ provider: 'resend', status: 'configured' }) } as never,
@@ -905,7 +1009,15 @@ test('PlatformOnboardingService deprovisions instead of hard deleting a tenant w
   const service = new PlatformOnboardingService(
     {
       withRequestTransaction: async (callback: () => Promise<unknown>) => callback(),
-      query: async (text: string, values: unknown[]) => {
+          executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        }
+      });
+    },
+query: async (text: string, values: unknown[]) => {
         queries.push({ text, values });
 
         if (text.includes('FROM tenants') && text.includes('WHERE tenant_id = $1')) {
@@ -980,7 +1092,15 @@ test('PlatformOnboardingService deprovisions instead of hard deleting a tenant w
 test('PlatformOnboardingService exports a tenant offboarding manifest before contract closeout', async () => {
   const service = new PlatformOnboardingService(
     {
-      query: async (text: string) => {
+          executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        }
+      });
+    },
+query: async (text: string) => {
         if (text.includes('FROM tenants')) {
           return {
             rows: [
@@ -1031,7 +1151,15 @@ test('PlatformOnboardingService anonymizes tenant shell metadata for legal offbo
   const service = new PlatformOnboardingService(
     {
       withRequestTransaction: async (callback: () => Promise<unknown>) => callback(),
-      query: async (text: string, values: unknown[]) => {
+          executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        }
+      });
+    },
+query: async (text: string, values: unknown[]) => {
         queries.push({ text, values });
 
         if (text.includes('FROM tenants')) {

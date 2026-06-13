@@ -62,7 +62,15 @@ test('ClinicController is gated by clinic module and separates clinic, principal
 test('ClinicRepository lists medicine inventory with bounded paging and no medicine star', async () => {
   const queries: Array<{ sql: string; values: unknown[] }> = [];
   const repository = new ClinicRepository({
-    query: async (sql: string, values: unknown[]) => {
+        executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        }
+      });
+    },
+query: async (sql: string, values: unknown[]) => {
       queries.push({ sql, values });
       return { rows: [] };
     },
@@ -229,7 +237,15 @@ test('ClinicService creates procurement recommendations for low-stock medicine o
 test('ClinicRepository principal analytics include finance-safe costs and medicine usage without private notes', async () => {
   let observedSql = '';
   const repository = new ClinicRepository({
-    query: async (sql: string) => {
+        executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        }
+      });
+    },
+query: async (sql: string) => {
       observedSql = sql;
 
       return {

@@ -5,8 +5,11 @@ import { PrismaService } from '../../database/prisma.service';
 import { JwtAuthGuard } from '../../guards/jwt-auth.guard';
 import { ApprovalStatus } from '@prisma/client';
 
+import { Permissions } from '../../auth/decorators/permissions.decorator';
+
 @Controller('api/approvals')
 @UseGuards(JwtAuthGuard)
+@Permissions('approvals:*')
 export class ApprovalsController {
   constructor(
     private readonly approvalsService: ApprovalsService,

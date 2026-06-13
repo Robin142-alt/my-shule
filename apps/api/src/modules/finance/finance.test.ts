@@ -77,7 +77,7 @@ const makeTransactionEntity = (
   });
 
 test('LedgerService enforces balanced double-entry postings', () => {
-  const service = new LedgerService();
+  const service = new LedgerService({ executeWithTenant: async (tenantId: string, userId: string | null, cb: any) => cb() } as never, {} as never);
   const debitAccount = makeAccount({ id: '00000000-0000-0000-0000-000000000001', code: '1000' });
   const creditAccount = makeAccount({
     id: '00000000-0000-0000-0000-000000000002',
@@ -115,7 +115,7 @@ test('LedgerService enforces balanced double-entry postings', () => {
 });
 
 test('LedgerService calculates normal-balance-aware account balances', () => {
-  const service = new LedgerService();
+  const service = new LedgerService({ executeWithTenant: async (tenantId: string, userId: string | null, cb: any) => cb() } as never, {} as never);
   const revenueAccount = makeAccount({
     id: '00000000-0000-0000-0000-000000000003',
     code: '4000',
@@ -157,8 +157,7 @@ test('LedgerService creates a balanced append-only transaction from debit/credit
   let insertEntriesCallCount = 0;
   let completedResponse: PostedFinancialTransaction | null = null;
 
-  const service = new LedgerService(
-    {
+  const service = new LedgerService({ executeWithTenant: async (tenantId: string, userId: string | null, cb: any) => cb() } as never, {
       get: (key: string): number | undefined =>
         key === 'finance.idempotencyTtlSeconds' ? 86400 : undefined,
     } as never,
@@ -315,8 +314,7 @@ test('LedgerService rejects unbalanced debit/credit createTransaction input', as
     normal_balance: 'credit',
   });
 
-  const service = new LedgerService(
-    {
+  const service = new LedgerService({ executeWithTenant: async (tenantId: string, userId: string | null, cb: any) => cb() } as never, {
       get: (): number => 86400,
     } as never,
     requestContext,
@@ -412,8 +410,7 @@ test('LedgerService returns the existing transaction when a reference already ex
   });
   let createTransactionCalled = false;
 
-  const service = new LedgerService(
-    {
+  const service = new LedgerService({ executeWithTenant: async (tenantId: string, userId: string | null, cb: any) => cb() } as never, {
       get: (): number => 86400,
     } as never,
     requestContext,
@@ -570,8 +567,7 @@ test('LedgerService handles concurrent duplicate references without duplicate le
   let insertEntriesCalls = 0;
   let idempotencySequence = 0;
 
-  const service = new LedgerService(
-    {
+  const service = new LedgerService({ executeWithTenant: async (tenantId: string, userId: string | null, cb: any) => cb() } as never, {
       get: (): number => 86400,
     } as never,
     requestContext,

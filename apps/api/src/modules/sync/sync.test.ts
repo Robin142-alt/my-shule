@@ -134,7 +134,15 @@ test('SyncService pull returns ordered finance operations', async () => {
 test('SyncOperationLogsRepository caps offline pull scans per tenant', async () => {
   const calls: Array<{ sql: string; params: unknown[] }> = [];
   const repository = new SyncOperationLogsRepository({
-    query: async (sql: string, params: unknown[]) => {
+        executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        }
+      });
+    },
+query: async (sql: string, params: unknown[]) => {
       calls.push({ sql, params });
       return { rows: [] };
     },
@@ -160,7 +168,15 @@ test('SyncOperationLogsRepository caps offline pull scans per tenant', async () 
 test('AttendanceRecordsRepository bounds student attendance history reads', async () => {
   const calls: Array<{ sql: string; params: unknown[] }> = [];
   const repository = new AttendanceRecordsRepository({
-    query: async (sql: string, params: unknown[]) => {
+        executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        }
+      });
+    },
+query: async (sql: string, params: unknown[]) => {
       calls.push({ sql, params });
       return { rows: [] };
     },

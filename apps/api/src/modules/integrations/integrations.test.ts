@@ -8,7 +8,7 @@ import 'reflect-metadata';
 
 import { PERMISSIONS_KEY } from '../../auth/auth.constants';
 import { RequestContextService } from '../../common/request-context/request-context.service';
-import { DatabaseService } from '../../database/database.service';
+import { PrismaService } from '../../database/prisma.service';
 import { PiiEncryptionService } from '../security/pii-encryption.service';
 import { PlatformSmsRepository } from './platform-sms.repository';
 import { IntegrationsSchemaService } from './integrations-schema.service';
@@ -664,7 +664,15 @@ test('SchoolSmsWalletRepository reserves SMS credits transactionally with condit
       usedTransaction = true;
       return callback();
     },
-    query: async (sql: string) => {
+        executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        }
+      });
+    },
+query: async (sql: string) => {
       queries.push(sql);
 
       if (sql.includes('INSERT INTO school_sms_wallets') || sql.includes('FOR UPDATE')) {
@@ -711,7 +719,15 @@ test('SchoolSmsWalletRepository makes SMS credit refunds idempotent', async () =
       usedTransaction = true;
       return callback();
     },
-    query: async (sql: string) => {
+        executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        }
+      });
+    },
+query: async (sql: string) => {
       queries.push(sql);
 
       if (sql.includes('FROM sms_wallet_transactions')) {
@@ -742,7 +758,7 @@ test('SchoolSmsWalletRepository makes SMS credit refunds idempotent', async () =
 });
 
 test('Integrations providers expose concrete Nest dependency metadata', () => {
-  assert.deepEqual(Reflect.getMetadata('design:paramtypes', IntegrationsSchemaService), [DatabaseService]);
+  assert.deepEqual(Reflect.getMetadata('design:paramtypes', IntegrationsSchemaService), [PrismaService]);
   assert.deepEqual(
     Reflect.getMetadata('design:paramtypes', PlatformSmsService).slice(0, 2),
     [PlatformSmsRepository, PiiEncryptionService],

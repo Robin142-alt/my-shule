@@ -102,7 +102,15 @@ test('AI smart alerts provider exposes deterministic operational risk widgets', 
 test('AdminCommandRepository calculates deterministic AI smart alert metrics from module signals', async () => {
   let observedSql = '';
   const repository = new AdminCommandRepository({
-    query: async (sql: string) => {
+        executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        }
+      });
+    },
+query: async (sql: string) => {
       observedSql = sql;
 
       return {
@@ -149,7 +157,15 @@ test('clinic principal insight provider exposes finance-safe medicine analytics 
 test('AdminCommandRepository calculates finance-safe clinic principal metrics without invoice exposure', async () => {
   let observedSql = '';
   const repository = new AdminCommandRepository({
-    query: async (sql: string) => {
+        executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        }
+      });
+    },
+query: async (sql: string) => {
       observedSql = sql;
 
       return {

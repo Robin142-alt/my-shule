@@ -7,17 +7,17 @@ import 'reflect-metadata';
 
 import { PERMISSIONS_KEY } from '../../auth/auth.constants';
 import { RequestContextService } from '../../common/request-context/request-context.service';
-import { DatabaseService } from '../../database/database.service';
+import { PrismaService } from '../../database/prisma.service';
 import { LibraryController } from './library.controller';
 import { LibrarySchemaService } from './library-schema.service';
 import { LibraryService } from './library.service';
 import { LibraryRepository } from './repositories/library.repository';
 
 test('Library providers expose concrete Nest dependency metadata', () => {
-  assert.deepEqual(Reflect.getMetadata('design:paramtypes', LibrarySchemaService), [DatabaseService]);
+  assert.deepEqual(Reflect.getMetadata('design:paramtypes', LibrarySchemaService), [PrismaService]);
   assert.deepEqual(
-    Reflect.getMetadata('design:paramtypes', LibraryService).slice(0, 2),
-    [RequestContextService, LibraryRepository],
+    Reflect.getMetadata('design:paramtypes', LibraryService).slice(0, 3),
+    [PrismaService, RequestContextService, LibraryRepository],
   );
 });
 
@@ -40,8 +40,7 @@ test('LibrarySchemaService creates tenant-scoped circulation tables with forced 
 });
 
 test('LibraryService prevents issuing an already issued copy', async () => {
-  const service = new LibraryService(
-    { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'user-1' }) } as never,
+  const service = new LibraryService({} as never, { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'user-1' }) } as never,
     {
       findCopyForUpdate: async () => ({ id: 'copy-1', status: 'issued' }),
       issueCopy: async () => {
@@ -63,8 +62,7 @@ test('LibraryService prevents issuing an already issued copy', async () => {
 });
 
 test('LibraryService preserves reservation order when reserving unavailable copies', async () => {
-  const service = new LibraryService(
-    { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'user-1' }) } as never,
+  const service = new LibraryService({} as never, { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'user-1' }) } as never,
     {
       createReservation: async () => ({
         id: 'reservation-1',
@@ -85,8 +83,7 @@ test('LibraryService preserves reservation order when reserving unavailable copi
 
 test('LibraryService creates billing handoff for overdue fines during return', async () => {
   const calls: string[] = [];
-  const service = new LibraryService(
-    { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'user-1' }) } as never,
+  const service = new LibraryService({} as never, { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'user-1' }) } as never,
     {
       findLoanForReturn: async () => ({
         id: 'loan-1',
@@ -135,8 +132,7 @@ test('LibraryController exposes circulation ledger as a read endpoint', () => {
 
 test('LibraryService lists circulation ledger for the current tenant', async () => {
   let capturedInput: Record<string, unknown> | null = null;
-  const service = new LibraryService(
-    { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'user-1' }) } as never,
+  const service = new LibraryService({} as never, { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'user-1' }) } as never,
     {
       listCirculation: async (input: Record<string, unknown>) => {
         capturedInput = input;
@@ -170,8 +166,7 @@ test('LibraryService lists circulation ledger for the current tenant', async () 
 
 test('LibraryService issues a book by scanner codes using ordinary keyboard input values', async () => {
   const calls: string[] = [];
-  const service = new LibraryService(
-    { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'librarian-1' }) } as never,
+  const service = new LibraryService({} as never, { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'librarian-1' }) } as never,
     {
       findBorrowerByScanCode: async () => ({ id: 'borrower-1', borrower_type: 'student' }),
       findCopyByScanCodeForUpdate: async () => ({ id: 'copy-1', status: 'available', accession_number: 'ACC-001' }),
@@ -198,8 +193,7 @@ test('LibraryService issues a book by scanner codes using ordinary keyboard inpu
 
 test('LibraryService returns a book by scanned accession and calculates overdue fine', async () => {
   const calls: string[] = [];
-  const service = new LibraryService(
-    { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'librarian-1' }) } as never,
+  const service = new LibraryService({} as never, { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'librarian-1' }) } as never,
     {
       findCopyByScanCodeForUpdate: async () => ({ id: 'copy-1', status: 'issued', accession_number: 'ACC-001' }),
       findActiveLoanByCopyId: async () => ({
@@ -242,7 +236,15 @@ test('LibraryService returns a book by scanned accession and calculates overdue 
 test('LibraryRepository lookup queries avoid SELECT star over tenant-scoped library records', async () => {
   const queries: string[] = [];
   const repository = new LibraryRepository({
-    query: async (sql: string) => {
+        executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        }
+      });
+    },
+query: async (sql: string) => {
       queries.push(sql);
       return {
         rows: [
@@ -274,7 +276,15 @@ test('LibraryRepository bounds circulation ledger reads with normalized paginati
   let capturedSql = '';
   let capturedValues: unknown[] = [];
   const repository = new LibraryRepository({
-    query: async (sql: string, values: unknown[]) => {
+        executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        }
+      });
+    },
+query: async (sql: string, values: unknown[]) => {
       capturedSql = sql;
       capturedValues = values;
       return { rows: [] };

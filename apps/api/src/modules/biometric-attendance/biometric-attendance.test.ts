@@ -100,7 +100,15 @@ test('BiometricAttendanceService bounds teacher attendance list requests', async
 test('BiometricAttendanceRepository lists teacher logs with explicit columns and pagination', async () => {
   const calls: Array<{ sql: string; params: unknown[] }> = [];
   const repository = new BiometricAttendanceRepository({
-    query: async (sql: string, params: unknown[]) => {
+        executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        }
+      });
+    },
+query: async (sql: string, params: unknown[]) => {
       calls.push({ sql, params });
       return { rows: [] };
     },

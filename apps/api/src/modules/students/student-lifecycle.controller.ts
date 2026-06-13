@@ -1,12 +1,14 @@
 import { Controller, Post, Body, Param, UseGuards, Request, Patch } from '@nestjs/common';
 import { StudentLifecycleService } from './student-lifecycle.service';
 import { StudentStatus } from '@prisma/client';
+import { Permissions } from '../../auth/decorators/permissions.decorator';
 import { TenantMiddleware } from '../../middleware/tenant.middleware';
 
 // Note: In a real implementation we would use proper role/permission guards (e.g., AGP capability engine)
 // For now, assuming basic tenant isolation middleware is applied globally or via decorators
 
 @Controller('students/lifecycle')
+@Permissions('students:lifecycle')
 export class StudentLifecycleController {
   constructor(private readonly studentLifecycleService: StudentLifecycleService) {}
 

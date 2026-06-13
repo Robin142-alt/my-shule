@@ -288,9 +288,13 @@ test('AdmissionsService bounds admissions list pagination and suppresses one-let
 test('AdmissionsRepository applies bounded LIMIT/OFFSET to large admissions lists', async () => {
   const calls: Array<{ sql: string; params: unknown[] }> = [];
   const repository = new AdmissionsRepository({
-    query: async (sql: string, params: unknown[]) => {
-      calls.push({ sql, params });
-      return { rows: [] };
+    executeWithTenant: async (tenantId: string, userId: string | null, cb: any) => {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          calls.push({ sql, params });
+          return [];
+        },
+      });
     },
   } as never);
 
@@ -302,7 +306,7 @@ test('AdmissionsRepository applies bounded LIMIT/OFFSET to large admissions list
   await repository.listTransfers('tenant-a', { limit: 500, offset: -10 } as never);
 
   for (const call of calls) {
-    assert.match(call.sql, /tenant_id|tenant\.id/);
+    assert.match(call.sql, /tenant_id|tenant\\.id|school_id/);
     assert.match(call.sql, /LIMIT \$\d+::integer\s+OFFSET \$\d+::integer/);
   }
 
@@ -356,7 +360,7 @@ test('AdmissionsService invites the parent portal user when registration has a p
   const requestContext = new RequestContextService();
   const parentInvites: Array<{ email: string; display_name: string; role_code: string }> = [];
   const guardianLinks: Array<{
-    tenant_id: string;
+    school_id: string;
     student_id: string;
     invitation_id: string | null;
     display_name: string;
@@ -405,7 +409,7 @@ test('AdmissionsService invites the parent portal user when registration has a p
       }),
       findActiveFeeStructureForClass: async () => null,
       upsertStudentGuardianLink: async (input: {
-        tenant_id: string;
+        school_id: string;
         student_id: string;
         invitation_id: string | null;
         display_name: string;
@@ -497,7 +501,7 @@ test('AdmissionsService invites the parent portal user when registration has a p
   ]);
   assert.deepEqual(guardianLinks, [
     {
-      tenant_id: 'tenant-a',
+      school_id: 'tenant-a',
       student_id: '00000000-0000-0000-0000-000000000712',
       invitation_id: '00000000-0000-0000-0000-000000000715',
       display_name: 'Miriam Odhiambo',
@@ -516,7 +520,7 @@ test('AdmissionsService invites the parent portal user when registration has a p
 test('AdmissionsService assigns fees and creates a student fee invoice during registration', async () => {
   const requestContext = new RequestContextService();
   const feeAssignments: Array<{
-    tenant_id: string;
+    school_id: string;
     student_id: string;
     application_id: string;
     fee_structure_id: string;
@@ -576,7 +580,7 @@ test('AdmissionsService assigns fees and creates a student fee invoice during re
         due_days_after_registration: 14,
       }),
       createStudentFeeAssignmentInvoice: async (input: {
-        tenant_id: string;
+        school_id: string;
         student_id: string;
         application_id: string;
         fee_structure_id: string;
@@ -676,7 +680,7 @@ test('AdmissionsService assigns fees and creates a student fee invoice during re
 test('AdmissionsService creates an academic enrollment when class capacity is available', async () => {
   const requestContext = new RequestContextService();
   const enrollments: Array<{
-    tenant_id: string;
+    school_id: string;
     student_id: string;
     application_id: string;
     class_section_id: string | null;
@@ -725,7 +729,7 @@ test('AdmissionsService creates an academic enrollment when class capacity is av
         stream_name: 'West',
       }),
       createStudentAcademicEnrollment: async (input: {
-        tenant_id: string;
+        school_id: string;
         student_id: string;
         application_id: string;
         class_section_id: string | null;
@@ -800,7 +804,7 @@ test('AdmissionsService creates an academic enrollment when class capacity is av
 
   assert.deepEqual(enrollments, [
     {
-      tenant_id: 'tenant-a',
+      school_id: 'tenant-a',
       student_id: '00000000-0000-0000-0000-000000000742',
       application_id: '00000000-0000-0000-0000-000000000741',
       class_section_id: '00000000-0000-0000-0000-000000000744',
@@ -819,7 +823,7 @@ test('AdmissionsService enrolls registered students into configured subjects and
   const requestContext = new RequestContextService();
   const academicEnrollmentId = '00000000-0000-0000-0000-000000000765';
   const subjectTimetableCalls: Array<{
-    tenant_id: string;
+    school_id: string;
     student_id: string;
     academic_enrollment_id: string;
     class_section_id: string | null;
@@ -873,7 +877,7 @@ test('AdmissionsService enrolls registered students into configured subjects and
         status: 'active',
       }),
       enrollStudentSubjectsAndTimetable: async (input: {
-        tenant_id: string;
+        school_id: string;
         student_id: string;
         academic_enrollment_id: string;
         class_section_id: string | null;
@@ -958,7 +962,7 @@ test('AdmissionsService enrolls registered students into configured subjects and
 
   assert.deepEqual(subjectTimetableCalls, [
     {
-      tenant_id: 'tenant-a',
+      school_id: 'tenant-a',
       student_id: '00000000-0000-0000-0000-000000000762',
       academic_enrollment_id: academicEnrollmentId,
       class_section_id: '00000000-0000-0000-0000-000000000764',

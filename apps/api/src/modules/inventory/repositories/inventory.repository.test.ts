@@ -7,7 +7,15 @@ import { InventoryRepository } from './inventory.repository';
 test('InventoryRepository keeps missing supplier county empty instead of applying a hardcoded default', async () => {
   const queries: Array<{ text: string; values: unknown[] }> = [];
   const repository = new InventoryRepository({
-    query: async (text: string, values: unknown[]) => {
+        executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        }
+      });
+    },
+query: async (text: string, values: unknown[]) => {
       queries.push({ text, values });
       return {
         rows: [
@@ -35,7 +43,15 @@ test('InventoryRepository keeps missing supplier county empty instead of applyin
 test('InventoryRepository bounds stock movement dashboard reads with limit and offset', async () => {
   const queries: Array<{ text: string; values: unknown[] }> = [];
   const repository = new InventoryRepository({
-    query: async (text: string, values: unknown[]) => {
+        executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        }
+      });
+    },
+query: async (text: string, values: unknown[]) => {
       queries.push({ text, values });
       return { rows: [] };
     },
@@ -53,7 +69,15 @@ test('InventoryRepository bounds stock movement dashboard reads with limit and o
 test('InventoryRepository bounds procurement and request workflow lists', async () => {
   const queries: Array<{ text: string; values: unknown[] }> = [];
   const repository = new InventoryRepository({
-    query: async (text: string, values: unknown[]) => {
+        executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        }
+      });
+    },
+query: async (text: string, values: unknown[]) => {
       queries.push({ text, values });
       return { rows: [] };
     },
@@ -79,7 +103,15 @@ test('InventoryRepository bounds procurement and request workflow lists', async 
 test('InventoryRepository accepts null supplier county during creation', async () => {
   const queries: Array<{ text: string; values: unknown[] }> = [];
   const repository = new InventoryRepository({
-    query: async (text: string, values: unknown[]) => {
+        executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        }
+      });
+    },
+query: async (text: string, values: unknown[]) => {
       queries.push({ text, values });
       return {
         rows: [
@@ -115,7 +147,15 @@ test('InventoryRepository accepts null supplier county during creation', async (
 test('InventoryRepository locks purchase orders before stock receipt', async () => {
   const queries: Array<{ text: string; values: unknown[] }> = [];
   const repository = new InventoryRepository({
-    query: async (text: string, values: unknown[]) => {
+        executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        }
+      });
+    },
+query: async (text: string, values: unknown[]) => {
       queries.push({ text, values });
       return { rows: [] };
     },
@@ -136,7 +176,15 @@ test('InventoryRepository locks purchase orders before stock receipt', async () 
 test('InventoryRepository increments item stock with before and after audit quantities', async () => {
   const queries: Array<{ text: string; values: unknown[] }> = [];
   const repository = new InventoryRepository({
-    query: async (text: string, values: unknown[]) => {
+        executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        }
+      });
+    },
+query: async (text: string, values: unknown[]) => {
       queries.push({ text, values });
       return { rows: [] };
     },
@@ -163,7 +211,15 @@ test('InventoryRepository increments item stock with before and after audit quan
 test('InventoryRepository increments supplier receipts atomically with cost updates', async () => {
   const queries: Array<{ text: string; values: unknown[] }> = [];
   const repository = new InventoryRepository({
-    query: async (text: string, values: unknown[]) => {
+        executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        }
+      });
+    },
+query: async (text: string, values: unknown[]) => {
       queries.push({ text, values });
       return { rows: [] };
     },
@@ -194,7 +250,15 @@ test('InventoryRepository increments supplier receipts atomically with cost upda
 test('InventoryRepository returns explicit stock mutation columns instead of broad CTE rows', async () => {
   const queries: Array<{ text: string; values: unknown[] }> = [];
   const repository = new InventoryRepository({
-    query: async (text: string, values: unknown[]) => {
+        executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        }
+      });
+    },
+query: async (text: string, values: unknown[]) => {
       queries.push({ text, values });
       return { rows: [] };
     },
@@ -255,7 +319,15 @@ test('InventoryRepository returns explicit stock mutation columns instead of bro
 test('InventoryRepository increments item location balances with an upsert', async () => {
   const queries: Array<{ text: string; values: unknown[] }> = [];
   const repository = new InventoryRepository({
-    query: async (text: string, values: unknown[]) => {
+        executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        }
+      });
+    },
+query: async (text: string, values: unknown[]) => {
       queries.push({ text, values });
       return { rows: [] };
     },
@@ -283,7 +355,15 @@ test('InventoryRepository increments item location balances with an upsert', asy
 test('InventoryRepository lists and creates managed inventory locations', async () => {
   const queries: Array<{ text: string; values: unknown[] }> = [];
   const repository = new InventoryRepository({
-    query: async (text: string, values: unknown[]) => {
+        executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        }
+      });
+    },
+query: async (text: string, values: unknown[]) => {
       queries.push({ text, values });
 
       if (text.includes('INSERT INTO inventory_locations')) {
@@ -339,7 +419,15 @@ test('InventoryRepository lists and creates managed inventory locations', async 
 test('InventoryRepository updates managed inventory locations by tenant', async () => {
   const queries: Array<{ text: string; values: unknown[] }> = [];
   const repository = new InventoryRepository({
-    query: async (text: string, values: unknown[]) => {
+        executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        }
+      });
+    },
+query: async (text: string, values: unknown[]) => {
       queries.push({ text, values });
       return {
         rows: [
@@ -383,7 +471,15 @@ test('InventoryRepository updates managed inventory locations by tenant', async 
 test('InventoryRepository finds active managed locations by code or name', async () => {
   const queries: Array<{ text: string; values: unknown[] }> = [];
   const repository = new InventoryRepository({
-    query: async (text: string, values: unknown[]) => {
+        executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        }
+      });
+    },
+query: async (text: string, values: unknown[]) => {
       queries.push({ text, values });
       return {
         rows: [
@@ -413,7 +509,15 @@ test('InventoryRepository finds active managed locations by code or name', async
 test('InventoryRepository locks inventory requests before fulfillment', async () => {
   const queries: Array<{ text: string; values: unknown[] }> = [];
   const repository = new InventoryRepository({
-    query: async (text: string, values: unknown[]) => {
+        executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        }
+      });
+    },
+query: async (text: string, values: unknown[]) => {
       queries.push({ text, values });
       return { rows: [] };
     },
@@ -434,7 +538,15 @@ test('InventoryRepository locks inventory requests before fulfillment', async ()
 test('InventoryRepository transfers item balances between locations with row locks', async () => {
   const queries: Array<{ text: string; values: unknown[] }> = [];
   const repository = new InventoryRepository({
-    query: async (text: string, values: unknown[]) => {
+        executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        }
+      });
+    },
+query: async (text: string, values: unknown[]) => {
       queries.push({ text, values });
       return { rows: [] };
     },
@@ -464,7 +576,15 @@ test('InventoryRepository transfers item balances between locations with row loc
 test('InventoryRepository reserves request stock against available quantity', async () => {
   const queries: Array<{ text: string; values: unknown[] }> = [];
   const repository = new InventoryRepository({
-    query: async (text: string, values: unknown[]) => {
+        executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        }
+      });
+    },
+query: async (text: string, values: unknown[]) => {
       queries.push({ text, values });
       return { rows: [] };
     },
@@ -495,7 +615,15 @@ test('InventoryRepository reserves request stock against available quantity', as
 test('InventoryRepository lists reserved request lines for fulfillment with row locks', async () => {
   const queries: Array<{ text: string; values: unknown[] }> = [];
   const repository = new InventoryRepository({
-    query: async (text: string, values: unknown[]) => {
+        executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        }
+      });
+    },
+query: async (text: string, values: unknown[]) => {
       queries.push({ text, values });
       return { rows: [] };
     },
@@ -520,7 +648,15 @@ test('InventoryRepository lists reserved request lines for fulfillment with row 
 test('InventoryRepository records request backorders as tenant-scoped request lines', async () => {
   const queries: Array<{ text: string; values: unknown[] }> = [];
   const repository = new InventoryRepository({
-    query: async (text: string, values: unknown[]) => {
+        executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        }
+      });
+    },
+query: async (text: string, values: unknown[]) => {
       queries.push({ text, values });
       return { rows: [] };
     },
@@ -550,7 +686,15 @@ test('InventoryRepository records request backorders as tenant-scoped request li
 test('InventoryRepository locks open request backorders for stock receipt resolution', async () => {
   const queries: Array<{ text: string; values: unknown[] }> = [];
   const repository = new InventoryRepository({
-    query: async (text: string, values: unknown[]) => {
+        executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        }
+      });
+    },
+query: async (text: string, values: unknown[]) => {
       queries.push({ text, values });
       return { rows: [] };
     },
@@ -574,7 +718,15 @@ test('InventoryRepository locks open request backorders for stock receipt resolu
 test('InventoryRepository marks request backorders resolved and counts remaining open lines', async () => {
   const queries: Array<{ text: string; values: unknown[] }> = [];
   const repository = new InventoryRepository({
-    query: async (text: string, values: unknown[]) => {
+        executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        }
+      });
+    },
+query: async (text: string, values: unknown[]) => {
       queries.push({ text, values });
       return { rows: [{ open_backorders: '0' }] };
     },
@@ -606,7 +758,15 @@ test('InventoryRepository marks request backorders resolved and counts remaining
 test('InventoryRepository records the approver when request approval status is set', async () => {
   const queries: Array<{ text: string; values: unknown[] }> = [];
   const repository = new InventoryRepository({
-    query: async (text: string, values: unknown[]) => {
+        executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        }
+      });
+    },
+query: async (text: string, values: unknown[]) => {
       queries.push({ text, values });
       return { rows: [] };
     },
@@ -635,7 +795,15 @@ test('InventoryRepository records the approver when request approval status is s
 test('InventoryRepository sets item stock from posted stock counts with row locks', async () => {
   const queries: Array<{ text: string; values: unknown[] }> = [];
   const repository = new InventoryRepository({
-    query: async (text: string, values: unknown[]) => {
+        executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        }
+      });
+    },
+query: async (text: string, values: unknown[]) => {
       queries.push({ text, values });
       return { rows: [] };
     },
@@ -661,7 +829,15 @@ test('InventoryRepository sets item stock from posted stock counts with row lock
 test('InventoryRepository sets item location balances from posted stock counts with an upsert', async () => {
   const queries: Array<{ text: string; values: unknown[] }> = [];
   const repository = new InventoryRepository({
-    query: async (text: string, values: unknown[]) => {
+        executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        }
+      });
+    },
+query: async (text: string, values: unknown[]) => {
       queries.push({ text, values });
       return { rows: [] };
     },
@@ -690,7 +866,15 @@ test('InventoryRepository sets item location balances from posted stock counts w
 test('InventoryRepository creates posted stock count snapshots', async () => {
   const queries: Array<{ text: string; values: unknown[] }> = [];
   const repository = new InventoryRepository({
-    query: async (text: string, values: unknown[]) => {
+        executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        }
+      });
+    },
+query: async (text: string, values: unknown[]) => {
       queries.push({ text, values });
       return {
         rows: [
@@ -753,7 +937,15 @@ test('InventoryRepository creates posted stock count snapshots', async () => {
 test('InventoryRepository builds stock reconciliation from item and location balances', async () => {
   const queries: Array<{ text: string; values: unknown[] }> = [];
   const repository = new InventoryRepository({
-    query: async (text: string, values: unknown[]) => {
+        executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        }
+      });
+    },
+query: async (text: string, values: unknown[]) => {
       queries.push({ text, values });
 
       if (text.includes('inventory_item_balances')) {

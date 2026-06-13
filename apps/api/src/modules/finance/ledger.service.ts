@@ -95,12 +95,13 @@ export class LedgerService {
       'PrismaService',
     );
 
-    return databaseService.withRequestTransaction(async () => {
-      const requestContext = this.requireRuntimeDependency(
-        this.requestContext,
-        'RequestContextService',
-      ).requireStore();
-      const tenantId = this.requireTenantId();
+    const requestContext = this.requireRuntimeDependency(
+      this.requestContext,
+      'RequestContextService',
+    ).requireStore();
+    const tenantId = this.requireTenantId();
+
+    return databaseService.executeWithTenant(tenantId, null, async () => {
       const accountsRepository = this.requireRuntimeDependency(
         this.accountsRepository,
         'AccountsRepository',

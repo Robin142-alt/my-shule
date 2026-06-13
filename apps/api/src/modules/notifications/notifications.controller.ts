@@ -12,8 +12,11 @@ interface AuthenticatedRequest extends Request {
   };
 }
 
+import { Permissions } from '../../auth/decorators/permissions.decorator';
+
 @Controller('v1/notifications')
 @UseGuards(JwtAuthGuard)
+@Permissions('notifications:*')
 export class NotificationsController {
   constructor(private readonly notificationsService: NotificationsService) {}
 

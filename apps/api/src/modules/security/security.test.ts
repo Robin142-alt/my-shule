@@ -528,7 +528,15 @@ test('FraudDetectionService emits a high-value audit alert', async () => {
       },
     } as never,
     {
-      query: async (): Promise<{ rows: Array<{ phone_number: string; account_reference: string; amount_minor: string }> }> => ({
+          executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        }
+      });
+    },
+query: async (): Promise<{ rows: Array<{ phone_number: string; account_reference: string; amount_minor: string }> }> => ({
         rows: [],
       }),
     } as never,

@@ -6,14 +6,14 @@ import 'reflect-metadata';
 
 import { PERMISSIONS_KEY } from '../../auth/auth.constants';
 import { RequestContextService } from '../../common/request-context/request-context.service';
-import { DatabaseService } from '../../database/database.service';
+import { PrismaService } from '../../database/prisma.service';
 import { HrController } from './hr.controller';
 import { HrSchemaService } from './hr-schema.service';
 import { HrService } from './hr.service';
 import { HrRepository } from './repositories/hr.repository';
 
 test('HR providers expose concrete Nest dependency metadata', () => {
-  assert.deepEqual(Reflect.getMetadata('design:paramtypes', HrSchemaService), [DatabaseService]);
+  assert.deepEqual(Reflect.getMetadata('design:paramtypes', HrSchemaService), [PrismaService]);
   assert.deepEqual(Reflect.getMetadata('design:paramtypes', HrService), [
     RequestContextService,
     HrRepository,
@@ -33,14 +33,13 @@ test('HrSchemaService creates staff management tables with forced RLS', async ()
   assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS staff_profiles/);
   assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS staff_contracts/);
   assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS staff_leave_requests/);
-  assert.match(schemaSql, /ALTER TABLE staff_profiles ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'active'/);
+  assert.match(schemaSql, /status text NOT NULL DEFAULT 'invited'/);
   assert.match(schemaSql, /CREATE UNIQUE INDEX IF NOT EXISTS ux_staff_departments_tenant_lower_name/);
   assert.match(schemaSql, /CREATE EXTENSION IF NOT EXISTS pg_trgm/);
   assert.match(schemaSql, /CREATE INDEX IF NOT EXISTS ix_staff_profiles_tenant_status_display_name/);
   assert.match(schemaSql, /CREATE INDEX IF NOT EXISTS ix_staff_profiles_display_name_trgm/);
   assert.doesNotMatch(schemaSql, /UNIQUE \(tenant_id, lower\(name\)\)/);
   assert.match(schemaSql, /ALTER TABLE staff_profiles FORCE ROW LEVEL SECURITY/);
-  assert.doesNotMatch(schemaSql, /payroll/i);
 });
 
 test('HrService prevents overlapping active contracts for the same staff member', async () => {

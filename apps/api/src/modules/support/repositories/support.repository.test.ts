@@ -6,7 +6,15 @@ import { SupportRepository } from './support.repository';
 test('SupportRepository uses the production tenants.name column as the support school label', async () => {
   const queries: string[] = [];
   const repository = new SupportRepository({
-    query: async (text: string) => {
+        executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        }
+      });
+    },
+query: async (text: string) => {
       queries.push(text);
       return { rows: [] };
     },
@@ -27,7 +35,15 @@ test('SupportRepository uses the production tenants.name column as the support s
 test('SupportRepository leases due queued email notifications with row locking before retry delivery', async () => {
   const queries: Array<{ text: string; values: unknown[] }> = [];
   const repository = new SupportRepository({
-    query: async (text: string, values: unknown[] = []) => {
+        executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        }
+      });
+    },
+query: async (text: string, values: unknown[] = []) => {
       queries.push({ text, values });
       return { rows: [] };
     },
@@ -46,7 +62,15 @@ test('SupportRepository leases due queued email notifications with row locking b
 test('SupportRepository scopes portal ticket listings and reads to the requester user', async () => {
   const queries: Array<{ text: string; values: unknown[] }> = [];
   const repository = new SupportRepository({
-    query: async (text: string, values: unknown[] = []) => {
+        executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        }
+      });
+    },
+query: async (text: string, values: unknown[] = []) => {
       queries.push({ text, values });
       return { rows: [] };
     },
@@ -83,7 +107,15 @@ test('SupportRepository scopes portal ticket listings and reads to the requester
 test('SupportRepository hides internal-note attachments unless explicitly requested', async () => {
   const queries: Array<{ text: string; values: unknown[] }> = [];
   const repository = new SupportRepository({
-    query: async (text: string, values: unknown[] = []) => {
+        executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        }
+      });
+    },
+query: async (text: string, values: unknown[] = []) => {
       queries.push({ text, values });
       return { rows: [] };
     },
@@ -110,7 +142,15 @@ test('SupportRepository hides internal-note attachments unless explicitly reques
 test('SupportRepository leases due queued email and SMS notifications for provider retry delivery', async () => {
   const queries: Array<{ text: string; values: unknown[] }> = [];
   const repository = new SupportRepository({
-    query: async (text: string, values: unknown[] = []) => {
+        executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        }
+      });
+    },
+query: async (text: string, values: unknown[] = []) => {
       queries.push({ text, values });
       return { rows: [] };
     },
@@ -127,7 +167,15 @@ test('SupportRepository leases due queued email and SMS notifications for provid
 test('SupportRepository lists failed notification deliveries for dead-letter review', async () => {
   const queries: Array<{ text: string; values: unknown[] }> = [];
   const repository = new SupportRepository({
-    query: async (text: string, values: unknown[] = []) => {
+        executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        }
+      });
+    },
+query: async (text: string, values: unknown[] = []) => {
       queries.push({ text, values });
       return { rows: [] };
     },
@@ -146,7 +194,15 @@ test('SupportRepository lists failed notification deliveries for dead-letter rev
 test('SupportRepository lists unresolved tickets with unrecorded SLA breaches', async () => {
   const queries: Array<{ text: string; values: unknown[] }> = [];
   const repository = new SupportRepository({
-    query: async (text: string, values: unknown[] = []) => {
+        executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        }
+      });
+    },
+query: async (text: string, values: unknown[] = []) => {
       queries.push({ text, values });
       return { rows: [] };
     },
@@ -167,7 +223,15 @@ test('SupportRepository lists unresolved tickets with unrecorded SLA breaches', 
 test('SupportRepository analytics include response time, notification delivery, and active incidents', async () => {
   const queries: string[] = [];
   const repository = new SupportRepository({
-    query: async (text: string) => {
+        executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        }
+      });
+    },
+query: async (text: string) => {
       queries.push(text);
 
       if (text.includes('SELECT status, COUNT')) {
@@ -230,7 +294,15 @@ test('SupportRepository analytics include response time, notification delivery, 
 test('SupportRepository clears resolved and closed timestamps when tickets reopen', async () => {
   const queries: Array<{ text: string; values: unknown[] }> = [];
   const repository = new SupportRepository({
-    query: async (text: string, values: unknown[] = []) => {
+        executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        }
+      });
+    },
+query: async (text: string, values: unknown[] = []) => {
       queries.push({ text, values });
       return { rows: [] };
     },

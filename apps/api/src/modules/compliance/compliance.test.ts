@@ -49,7 +49,15 @@ test('ComplianceService runs data subject request workflow with SLA countdown, a
     requestContext,
     {
       withRequestTransaction: async (callback: () => Promise<unknown>) => callback(),
-      query: async (sql: string) => {
+          executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        }
+      });
+    },
+query: async (sql: string) => {
         queries.push(sql);
 
         if (/INSERT INTO data_subject_requests/.test(sql)) {
@@ -184,7 +192,15 @@ test('ComplianceService exports breach response reports with redacted evidence a
   const service = new ComplianceService(
     requestContext,
     {
-      query: async (sql: string) => {
+          executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        }
+      });
+    },
+query: async (sql: string) => {
         assert.match(sql, /FROM breach_response_reports/);
         return {
           rows: [

@@ -16,6 +16,7 @@ const nextNavigationRouterMock = {
   prefetch: routerPrefetchMock,
 };
 
+require("fake-indexeddb/auto");
 Object.assign(global, {
   TextEncoder,
   TextDecoder,

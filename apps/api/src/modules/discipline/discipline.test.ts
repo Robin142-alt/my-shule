@@ -313,7 +313,15 @@ test('DisciplineService does not upsert default offense categories when configur
 test('DisciplineRepository bounds incident lists and avoids broad category selects', async () => {
   const calls: Array<{ sql: string; params: unknown[] }> = [];
   const repository = new DisciplineRepository({
-    query: async (sql: string, params: unknown[]) => {
+        executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        }
+      });
+    },
+query: async (sql: string, params: unknown[]) => {
       calls.push({ sql, params });
       return { rows: [] };
     },
@@ -347,7 +355,15 @@ test('DisciplineRepository bounds incident lists and avoids broad category selec
 test('DisciplineRepository returns explicit columns for action workflow mutations', async () => {
   const calls: Array<{ sql: string; params: unknown[] }> = [];
   const repository = new DisciplineRepository({
-    query: async (sql: string, params: unknown[]) => {
+        executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        }
+      });
+    },
+query: async (sql: string, params: unknown[]) => {
       calls.push({ sql, params });
       return { rows: [] };
     },
@@ -693,7 +709,15 @@ test('CounsellingService bounds counselling list pagination before repository ca
 test('CounsellingRepository paginates tenant-scoped counselling lists without broad selects', async () => {
   const calls: Array<{ sql: string; params: unknown[] }> = [];
   const repository = new CounsellingRepository({
-    query: async (sql: string, params: unknown[]) => {
+        executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        }
+      });
+    },
+query: async (sql: string, params: unknown[]) => {
       calls.push({ sql, params });
       return { rows: [] };
     },

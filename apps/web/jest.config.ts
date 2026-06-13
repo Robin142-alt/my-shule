@@ -13,6 +13,7 @@ const customJestConfig = {
     "^@/(.*)$": "<rootDir>/src/$1",
     "^.+\\.module\\.(css|sass|scss)$": "identity-obj-proxy",
     "^.+\\.(css|sass|scss)$": "<rootDir>/tests/design/style-mock.ts",
+    "^uuid$": "<rootDir>/tests/design/uuid-mock.ts",
   },
   collectCoverageFrom: [
     "src/components/dashboard/**/*.{ts,tsx}",

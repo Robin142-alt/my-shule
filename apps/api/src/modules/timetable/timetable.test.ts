@@ -6,14 +6,14 @@ import 'reflect-metadata';
 
 import { PERMISSIONS_KEY } from '../../auth/auth.constants';
 import { RequestContextService } from '../../common/request-context/request-context.service';
-import { DatabaseService } from '../../database/database.service';
+import { PrismaService } from '../../database/prisma.service';
 import { TimetableController } from './timetable.controller';
 import { TimetableSchemaService } from './timetable-schema.service';
 import { TimetableService } from './timetable.service';
 import { TimetableRepository } from './repositories/timetable.repository';
 
 test('Timetable providers expose concrete Nest dependency metadata', () => {
-  assert.deepEqual(Reflect.getMetadata('design:paramtypes', TimetableSchemaService), [DatabaseService]);
+  assert.deepEqual(Reflect.getMetadata('design:paramtypes', TimetableSchemaService), [PrismaService]);
   assert.deepEqual(Reflect.getMetadata('design:paramtypes', TimetableService), [
     RequestContextService,
     TimetableRepository,
@@ -153,7 +153,15 @@ test('TimetableService lists published schedules for the current tenant', async 
 test('TimetableRepository bounds published schedule reads with pagination', async () => {
   const queries: Array<{ text: string; values: unknown[] }> = [];
   const repository = new TimetableRepository({
-    query: async (text: string, values: unknown[]) => {
+        executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        }
+      });
+    },
+query: async (text: string, values: unknown[]) => {
       queries.push({ text, values });
       return { rows: [] };
     },

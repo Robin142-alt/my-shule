@@ -287,7 +287,15 @@ test('SchoolOperationNotificationsRepository lists unread notifications for the 
     './repositories/school-operation-notifications.repository'
   );
   const repository = new SchoolOperationNotificationsRepository({
-    query: async (sql: string, values: unknown[] = []) => {
+        executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        }
+      });
+    },
+query: async (sql: string, values: unknown[] = []) => {
       queries.push({ sql, values });
       return {
         rows: [
@@ -355,7 +363,15 @@ test('SchoolOperationNotificationsRepository marks only tenant-role visible noti
     './repositories/school-operation-notifications.repository'
   );
   const repository = new SchoolOperationNotificationsRepository({
-    query: async (sql: string, values: unknown[] = []) => {
+        executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        }
+      });
+    },
+query: async (sql: string, values: unknown[] = []) => {
       queries.push({ sql, values });
       return {
         rows: [
@@ -899,7 +915,15 @@ test('OutboxEventsRepository reads dashboard stream events with tenant cursor an
   const queries: Array<{ sql: string; values: unknown[] }> = [];
   const { OutboxEventsRepository } = await import('./repositories/outbox-events.repository');
   const repository = new OutboxEventsRepository({
-    query: async (sql: string, values: unknown[] = []) => {
+        executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        }
+      });
+    },
+query: async (sql: string, values: unknown[] = []) => {
       queries.push({ sql, values });
       return { rows: [] };
     },
@@ -923,7 +947,15 @@ test('OutboxEventsRepository reads dashboard stream events with stable composite
   const queries: Array<{ sql: string; values: unknown[] }> = [];
   const { OutboxEventsRepository } = await import('./repositories/outbox-events.repository');
   const repository = new OutboxEventsRepository({
-    query: async (sql: string, values: unknown[] = []) => {
+        executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        }
+      });
+    },
+query: async (sql: string, values: unknown[] = []) => {
       queries.push({ sql, values });
       return { rows: [] };
     },
@@ -949,7 +981,15 @@ test('OutboxEventsRepository normalizes invalid dashboard stream cursor and limi
   const queries: Array<{ sql: string; values: unknown[] }> = [];
   const { OutboxEventsRepository } = await import('./repositories/outbox-events.repository');
   const repository = new OutboxEventsRepository({
-    query: async (sql: string, values: unknown[] = []) => {
+        executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        }
+      });
+    },
+query: async (sql: string, values: unknown[] = []) => {
       queries.push({ sql, values });
       return { rows: [] };
     },

@@ -71,7 +71,15 @@ test('ModuleAccessSchemaService creates package, trial, billing, and usage metad
     runSchemaBootstrap: async (sql: string) => {
       schemaSql += sql;
     },
-    query: async () => ({ rows: [] }),
+        executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        }
+      });
+    },
+query: async () => ({ rows: [] }),
   } as never);
 
   await service.onModuleInit();
@@ -92,7 +100,15 @@ test('ModuleAccessSchemaService restores enabled modules hidden by stale trial o
     runSchemaBootstrap: async (sql: string) => {
       schemaSql += sql;
     },
-    query: async () => ({ rows: [] }),
+        executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        }
+      });
+    },
+query: async () => ({ rows: [] }),
   } as never);
 
   await service.onModuleInit();
@@ -156,7 +172,15 @@ test('ModuleAccessRepository clears stale expiry and trial gates when superadmin
   const queries: Array<{ sql: string; values: unknown[] }> = [];
   const repository = new ModuleAccessRepository({
     withRequestTransaction: async <T>(callback: () => Promise<T>) => callback(),
-    query: async (sql: string, values: unknown[] = []) => {
+        executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        }
+      });
+    },
+query: async (sql: string, values: unknown[] = []) => {
       queries.push({ sql, values });
 
       if (sql.includes('SELECT code') && sql.includes('FROM module_registry')) {

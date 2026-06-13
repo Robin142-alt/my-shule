@@ -212,7 +212,15 @@ test('SupportSchemaService adds full-text indexes for ticket and knowledge-base 
 test('SupportRepository lists SLA breach candidates without SELECT star', async () => {
   const queries: Array<{ text: string; values: unknown[] }> = [];
   const repository = new SupportRepository({
-    query: async (text: string, values: unknown[]) => {
+        executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        }
+      });
+    },
+query: async (text: string, values: unknown[]) => {
       queries.push({ text, values });
       return { rows: [] };
     },
@@ -230,7 +238,15 @@ test('SupportRepository lists SLA breach candidates without SELECT star', async 
 test('SupportRepository bounds and school-scopes knowledge-base lists', async () => {
   const queries: Array<{ text: string; values: unknown[] }> = [];
   const repository = new SupportRepository({
-    query: async (text: string, values: unknown[]) => {
+        executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        }
+      });
+    },
+query: async (text: string, values: unknown[]) => {
       queries.push({ text, values });
       return { rows: [] };
     },

@@ -6,7 +6,15 @@ import { SimpleOperationsRepository } from './simple-operations';
 test('SimpleOperationsRepository returns explicit columns for create and status updates', async () => {
   const queries: Array<{ text: string; values: unknown[] }> = [];
   const repository = new SimpleOperationsRepository({
-    query: async (text: string, values: unknown[]) => {
+        executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        }
+      });
+    },
+query: async (text: string, values: unknown[]) => {
       queries.push({ text, values });
       return {
         rows: [

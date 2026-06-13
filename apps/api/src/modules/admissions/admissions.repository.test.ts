@@ -7,6 +7,14 @@ import { AdmissionsRepository } from './repositories/admissions.repository';
 test('AdmissionsRepository summary treats three uploads as the complete admissions document set', async () => {
   const queries: string[] = [];
   const repository = new AdmissionsRepository({
+    executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        }
+      });
+    },
     query: async (sql: string) => {
       queries.push(sql);
 
@@ -103,6 +111,14 @@ test('AdmissionsSchemaService creates subject and timetable enrollment tables', 
 test('AdmissionsRepository student profile includes academic downstream status records', async () => {
   const queries: string[] = [];
   const repository = new AdmissionsRepository({
+    executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        }
+      });
+    },
     query: async (sql: string) => {
       queries.push(sql);
 

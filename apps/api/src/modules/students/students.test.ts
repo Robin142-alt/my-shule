@@ -78,80 +78,16 @@ test('StudentsService creates a student and publishes student.created', async ()
         primary_guardian_phone: '254700000001',
         metadata: { stream: 'red' },
         created_by_user_id: '00000000-0000-0000-0000-000000000001',
-        created_at: new Date('2026-04-26T08:00:00.000Z'),
-        updated_at: new Date('2026-04-26T08:00:00.000Z'),
-      }),
-      listStudents: async () => [],
-      findById: async () => null,
-      updateStudent: async () => null,
-      countStudentsByStatus: async () => 0,
-    } as never,
-    new BillingAccessService(
-      requestContext,
-      {
-        findCurrentByTenant: async () => ({
-          id: '00000000-0000-0000-0000-000000000201',
-          tenant_id: 'tenant-a',
-          plan_code: 'starter',
-          status: 'active',
-          billing_phone_number: null,
-          currency_code: 'KES',
-          features: ['students'],
-          limits: {},
-          seats_allocated: 1,
-          current_period_start: new Date('2026-04-01T00:00:00.000Z'),
-          current_period_end: new Date('2026-05-01T00:00:00.000Z'),
-          trial_ends_at: null,
-          grace_period_ends_at: null,
-          restricted_at: null,
-          suspended_at: null,
-          suspension_reason: null,
-          activated_at: new Date('2026-04-01T00:00:00.000Z'),
-          canceled_at: null,
-          last_invoice_at: null,
-          metadata: {},
-          created_at: new Date(),
-          updated_at: new Date(),
-        }),
-      } as never,
-      {
-        ensureCurrentLifecycle: async () => ({
-          subscription: null,
-          overview: null,
-        }),
-      } as never,
-    ),
-    {
-      lockCurrentByTenant: async () => ({
-        id: '00000000-0000-0000-0000-000000000201',
-        tenant_id: 'tenant-a',
-        plan_code: 'starter',
-        status: 'active',
-        billing_phone_number: null,
-        currency_code: 'KES',
-        features: ['students'],
-        limits: {},
-        seats_allocated: 1,
-        current_period_start: new Date('2026-04-01T00:00:00.000Z'),
-        current_period_end: new Date('2026-05-01T00:00:00.000Z'),
-        trial_ends_at: null,
-        activated_at: new Date('2026-04-01T00:00:00.000Z'),
-        canceled_at: null,
-        last_invoice_at: null,
-        metadata: {},
         created_at: new Date(),
         updated_at: new Date(),
       }),
+      countActiveStudents: async () => 150,
     } as never,
-    {
-      publishStudentCreated: async (payload: Record<string, unknown>) => {
-        publishedPayload = payload;
-        return undefined;
-      },
-    } as never,
-    {
-      recordUsage: async (): Promise<void> => undefined,
-    } as never,
+    { resolveForTenant: async () => null } as never,
+    {} as never,
+    { publishStudentCreated: async (payload: any) => { publishedPayload = payload; } } as never,
+    { execute: async (req: any) => req.handler() } as never,
+    { recordUsage: async () => {} } as never,
   );
 
   const response = await requestContext.run(
@@ -198,29 +134,47 @@ test('StudentsRepository uses keyset cursor pagination for the high-volume stude
   const queries: Array<{ text: string; values: unknown[] }> = [];
   const repository = new StudentsRepository(
     {
-      query: async (text: string, values: unknown[]) => {
-        queries.push({ text, values });
-        return {
-          rows: [
-            {
-              id: '00000000-0000-0000-0000-000000000202',
-              tenant_id: 'tenant-a',
-              admission_number: 'ADM-202',
-              first_name: 'Amina',
-              last_name: 'Wanjiku',
-              middle_name: null,
-              status: 'active',
-              date_of_birth: '2013-02-01',
-              gender: 'female',
-              primary_guardian_name: null,
-              primary_guardian_phone: null,
-              metadata: {},
-              created_by_user_id: null,
-              created_at: new Date('2026-05-20T06:00:00.000Z'),
-              updated_at: new Date('2026-05-20T06:00:00.000Z'),
-            },
-          ],
-        };
+      executeWithTenant: async (tenantId: string, userId: string | null, cb: any) => {
+        return cb({
+          student: {
+            findMany: async (args: any) => {
+              queries.push({ text: 'prisma.student.findMany', values: [args] });
+              return [
+                {
+                  id: '00000000-0000-0000-0000-000000000202',
+                  tenant_id: 'tenant-a',
+                  admission_number: 'ADM-202',
+                  first_name: 'Amina',
+                  last_name: 'Wanjiku',
+                  middle_name: null,
+                  status: 'active',
+                  date_of_birth: new Date('2013-02-01'),
+                  gender: 'female',
+                  created_at: new Date('2026-05-20T06:00:00.000Z'),
+                  updated_at: new Date('2026-05-20T06:00:00.000Z'),
+                },
+              ];
+            }
+          },
+          $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+            queries.push({ text: sql, values: params });
+            return [
+              {
+                id: '00000000-0000-0000-0000-000000000202',
+                tenant_id: 'tenant-a',
+                admission_number: 'ADM-202',
+                first_name: 'Amina',
+                last_name: 'Wanjiku',
+                middle_name: null,
+                status: 'active',
+                date_of_birth: new Date('2013-02-01'),
+                gender: 'female',
+                created_at: new Date('2026-05-20T06:00:00.000Z'),
+                updated_at: new Date('2026-05-20T06:00:00.000Z'),
+              },
+            ];
+          },
+        });
       },
     } as never,
     {
@@ -241,15 +195,13 @@ test('StudentsRepository uses keyset cursor pagination for the high-volume stude
   });
 
   assert.equal(queries.length, 1);
-  assert.match(queries[0]!.text, /\(created_at, id\) < \(\$\d+::timestamptz, \$\d+::uuid\)/);
-  assert.match(queries[0]!.text, /ORDER BY created_at DESC, id DESC/);
-  assert.doesNotMatch(queries[0]!.text, /\bOFFSET\b/i);
-  assert.deepEqual(queries[0]!.values, [
-    'tenant-a',
-    'active',
-    '2026-05-20T07:00:00.000Z',
-    '00000000-0000-0000-0000-000000000201',
-    50,
-  ]);
+  assert.equal(queries[0]!.text, 'prisma.student.findMany');
+  assert.deepEqual(queries[0]!.values[0], {
+    where: { schoolId: 'tenant-a', studentStatus: 'ACTIVE' },
+    take: 50,
+    skip: 1,
+    cursor: { id: '00000000-0000-0000-0000-000000000201' },
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+  });
 });
 

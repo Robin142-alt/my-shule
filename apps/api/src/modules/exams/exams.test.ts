@@ -414,7 +414,15 @@ test('ExamsService publishes report cards with snapshot linkage and audit', asyn
 test('ExamsRepository does not mutate already-published report cards on conflict', async () => {
   const queries: string[] = [];
   const repository = new ExamsRepository({
-    query: async (sql: string) => {
+        executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        }
+      });
+    },
+query: async (sql: string) => {
       queries.push(sql);
       return {
         rows: [
@@ -443,7 +451,15 @@ test('ExamsRepository does not mutate already-published report cards on conflict
 test('ExamsRepository prevents mark upsert conflicts from crossing exam or subject scope', async () => {
   const queries: string[] = [];
   const repository = new ExamsRepository({
-    query: async (sql: string) => {
+        executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        }
+      });
+    },
+query: async (sql: string) => {
       queries.push(sql);
       return {
         rows: [
@@ -1009,7 +1025,15 @@ test('ExamsService lists tenant mark sheets with teacher and series filters', as
 test('ExamsRepository paginates mark-sheet lists', async () => {
   const calls: Array<{ sql: string; params: unknown[] }> = [];
   const repository = new ExamsRepository({
-    query: async (sql: string, params: unknown[]) => {
+        executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        }
+      });
+    },
+query: async (sql: string, params: unknown[]) => {
       calls.push({ sql, params });
       return { rows: [] };
     },
@@ -1184,7 +1208,15 @@ test('ExamsController exposes report-card batch, regeneration, and verification 
 test('ExamsRepository bounds report-card listing and avoids SELECT star', async () => {
   const queries: Array<{ text: string; values: unknown[] }> = [];
   const repository = new ExamsRepository({
-    query: async (text: string, values: unknown[]) => {
+        executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        }
+      });
+    },
+query: async (text: string, values: unknown[]) => {
       queries.push({ text, values });
       return { rows: [] };
     },
@@ -1214,7 +1246,15 @@ test('ExamsRepository bounds report-card listing and avoids SELECT star', async 
 test('ExamsRepository chunks report-card batch students with limit and offset', async () => {
   const queries: Array<{ text: string; values: unknown[] }> = [];
   const repository = new ExamsRepository({
-    query: async (text: string, values: unknown[]) => {
+        executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        }
+      });
+    },
+query: async (text: string, values: unknown[]) => {
       queries.push({ text, values });
       return { rows: [] };
     },
