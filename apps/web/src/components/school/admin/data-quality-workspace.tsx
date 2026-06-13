@@ -3,7 +3,7 @@
 import { AlertTriangle, CheckCircle, Search, Settings2, Users, FileText, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { useSchoolQuery } from "@/hooks/use-school-api";
+import { useSchoolQuery } from "@/lib/data/school-hooks";
 
 export function DataQualityWorkspace() {
   const { data: insightsData, isLoading } = useSchoolQuery<any>("/api/ai-insights/dashboard");
@@ -129,3 +129,4 @@ export function DataQualityWorkspace() {
     </div>
   );
 }
+

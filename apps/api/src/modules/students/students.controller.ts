@@ -74,7 +74,7 @@ export class StudentsController {
   async createGuardian(@Body() body: any) {
     const store = this.requestContext.requireStore();
     return this.studentsService.createGuardian(
-      store.tenant_id, 
+      store.tenant_id as string, 
       body.student_profile_id, 
       body.display_name, 
       body.relationship, 
@@ -87,6 +87,6 @@ export class StudentsController {
   @Permissions('students:read')
   async listGuardians() {
     const store = this.requestContext.requireStore();
-    return this.studentsService.listGuardians(store.tenant_id);
+    return this.studentsService.listGuardians(store.tenant_id as string);
   }
 }

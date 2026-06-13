@@ -1,12 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { DatabaseService } from '../../database/database.service';
+import { PrismaService } from '../../database/prisma.service';
 import { ApprovalStatus } from '@prisma/client';
 
 @Injectable()
 export class ApprovalsCronService {
   private readonly logger = new Logger(ApprovalsCronService.name);
 
-  constructor(private readonly db: DatabaseService) {}
+  constructor(private readonly db: PrismaService) {}
 
   // A basic implementation to be called by a NestJS Cron or external task scheduler
   async handleExpiredRequests() {
@@ -43,6 +43,7 @@ export class ApprovalsCronService {
             auditLogs: {
               create: {
                 schoolId: request.schoolId,
+                userId: 'SYSTEM',
                 action: 'AUTO_REJECT_EXPIRED',
                 comment: 'System Auto-Reject: Request expired after 7 days.',
                 previousStatus: request.status,

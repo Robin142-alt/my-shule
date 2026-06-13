@@ -62,3 +62,10 @@ CREATE TABLE IF NOT EXISTS bank_entries (
 
 ALTER TABLE bank_entries ENABLE ROW LEVEL SECURITY;
 CREATE POLICY bank_entries_tenant_policy ON bank_entries FOR ALL USING (tenant_id = current_setting('app.current_tenant_id', true));
+
+
+-- Tenant Isolation
+ALTER TABLE student_invoices FORCE ROW LEVEL SECURITY;
+ALTER TABLE tenant_pending_waivers FORCE ROW LEVEL SECURITY;
+ALTER TABLE school_expenses FORCE ROW LEVEL SECURITY;
+ALTER TABLE bank_entries FORCE ROW LEVEL SECURITY;

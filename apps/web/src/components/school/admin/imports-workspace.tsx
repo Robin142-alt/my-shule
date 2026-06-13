@@ -4,7 +4,7 @@ import { useState } from "react";
 import { UploadCloud, FileSpreadsheet, AlertCircle, CheckCircle, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { useSchoolMutation } from "@/hooks/use-school-api";
+import { useSchoolMutation } from "@/lib/data/school-hooks";
 
 export function ImportsWorkspace() {
   const [activeTab, setActiveTab] = useState<"students" | "staff" | "exams">("students");
@@ -158,3 +158,4 @@ export function ImportsWorkspace() {
     </div>
   );
 }
+

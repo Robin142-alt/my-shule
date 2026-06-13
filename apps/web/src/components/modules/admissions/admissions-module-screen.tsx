@@ -304,6 +304,7 @@ export function AdmissionsModuleScreen({
 
   const queryClient = useQueryClient();
   const liveSession = useLiveTenantSession(snapshot.tenant.id);
+  const isLiveMode = Boolean(liveSession.session && liveSession.apiConfigured);
   const transportEnabled = snapshot.tenant.transportEnabled === true;
   const [localDataset, setLocalDataset] = useState<AdmissionsDataset>(() => createAdmissionsDataset());
   const [applicationSearch, setApplicationSearch] = useState("");
@@ -346,16 +347,13 @@ export function AdmissionsModuleScreen({
   const [isSavingAcademicLifecycle, setIsSavingAcademicLifecycle] = useState(false);
 
   const liveAdmissionsQuery = useQuery({
-    queryKey: ["admissions-module", liveSession.session?.tenantId],
+    queryKey: ["admissions-live-dataset", liveSession.session?.tenantId],
     queryFn: () => fetchAdmissionsDatasetLive(liveSession.session!),
     enabled: Boolean(liveSession.session),
     placeholderData: (previous) => previous,
   });
-  const isLiveMode = Boolean(liveSession.session);
-  const dataset = isLiveMode
-    ? (liveAdmissionsQuery.data ?? createEmptyAdmissionsDataset())
-    : localDataset;
-  const isDatasetLoading = isLiveMode && liveAdmissionsQuery.isLoading;
+  const dataset = liveAdmissionsQuery.data ?? createEmptyAdmissionsDataset();
+  const isDatasetLoading = liveAdmissionsQuery.isLoading;
 
   const deferredApplicationSearch = useDeferredValue(applicationSearch);
   const filteredApplications = useMemo(() => {
@@ -433,18 +431,13 @@ export function AdmissionsModuleScreen({
       );
       return mapAdmissionsStudentProfileFromLive(response);
     },
-    enabled: Boolean(isLiveMode && liveSession.session && selectedStudentKey),
+    enabled: Boolean(liveSession.session && selectedStudentKey),
     placeholderData: (previous) => previous,
   });
-  const selectedStudentProfile = isLiveMode
-    ? (selectedStudentProfileQuery.data
+  const selectedStudentProfile = selectedStudentProfileQuery.data
       ?? dataset.studentProfiles.find((profile) => profile.id === selectedStudentKey)
-      ?? null)
-    : (dataset.studentProfiles.find((profile) => profile.id === selectedStudentId)
-      ?? dataset.studentProfiles[0]
-      ?? null);
-  const isSelectedStudentProfileSyncing =
-    isLiveMode && Boolean(selectedStudentKey) && selectedStudentProfileQuery.isFetching;
+      ?? null;
+  const isSelectedStudentProfileSyncing = Boolean(selectedStudentKey) && selectedStudentProfileQuery.isFetching;
   const reports = buildAdmissionsReports(dataset, { transportEnabled });
   const sections = buildAdmissionsModuleSections(dataset, { transportEnabled });
   const trend = buildAdmissionsTrend();
@@ -452,7 +445,7 @@ export function AdmissionsModuleScreen({
   async function exportAdmissionsReport(report: AdmissionsReportCard) {
     setModuleError(null);
 
-    if (isLiveMode && liveSession.session && report.serverExportId) {
+    if (liveSession.session && report.serverExportId) {
       setActiveActionId(`${report.id}-export`);
 
       try {
@@ -522,7 +515,7 @@ export function AdmissionsModuleScreen({
     setModuleError(null);
 
     try {
-      if (isLiveMode && liveSession.session) {
+      if (liveSession.session) {
         await updateAdmissionApplicationLive(liveSession.session, applicationId, {
           status: nextStatus,
           review_notes:
@@ -558,7 +551,7 @@ export function AdmissionsModuleScreen({
           ? buildAdmissionNumber(application.classApplying, dataset.students.length)
           : application.admissionNumber;
 
-      if (isLiveMode && liveSession.session) {
+      if (liveSession.session) {
         const response = await registerAdmissionApplicationLive(
           liveSession.session,
           application.id,
@@ -730,7 +723,7 @@ export function AdmissionsModuleScreen({
     setModuleError(null);
 
     try {
-      if (isLiveMode && liveSession.session) {
+      if (liveSession.session) {
         if (nextStatus !== "missing") {
           await updateAdmissionDocumentVerificationLive(liveSession.session, documentId, {
             verification_status: nextStatus,
@@ -845,7 +838,7 @@ export function AdmissionsModuleScreen({
       const documentType = documentUploadForm.documentType.trim();
       const fileName = documentUploadForm.fileName.trim();
 
-      if (isLiveMode && liveSession.session) {
+      if (liveSession.session) {
         await uploadAdmissionDocumentLive(liveSession.session, application.id, {
           document_type: documentType,
           file: documentUploadForm.file,
@@ -942,7 +935,7 @@ export function AdmissionsModuleScreen({
 
     try {
       const transportRoute = transportEnabled ? allocationForm.transportRoute.trim() : "";
-      if (isLiveMode && liveSession.session) {
+      if (liveSession.session) {
         await createAdmissionsAllocationLive(liveSession.session, student.id, {
           class_name: allocationForm.className.trim(),
           stream_name: allocationForm.streamName.trim(),
@@ -1035,7 +1028,7 @@ export function AdmissionsModuleScreen({
     setModuleError(null);
 
     try {
-      if (isLiveMode && liveSession.session) {
+      if (liveSession.session) {
         const matchedStudent = dataset.students.find(
           (student) => student.admissionNumber === transferForm.admissionNumber.trim(),
         );
@@ -1125,7 +1118,7 @@ export function AdmissionsModuleScreen({
     try {
       const admissionNumber = buildAdmissionNumber(registrationForm.className, dataset.students.length);
 
-      if (isLiveMode && liveSession.session) {
+      if (liveSession.session) {
         const manualAdmission = await createManualAdmissionLive(liveSession.session, {
           student: {
             full_name: registrationForm.fullName.trim(),
@@ -1404,7 +1397,7 @@ export function AdmissionsModuleScreen({
     setAcademicLifecycleMessage(null);
 
     try {
-      if (isLiveMode && liveSession.session) {
+      if (liveSession.session) {
         const response = await advanceAdmissionsStudentAcademicLifecycleLive(
           liveSession.session,
           selectedStudentProfile.id,

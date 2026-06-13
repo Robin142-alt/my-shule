@@ -2,7 +2,7 @@
 
 import { Wallet, AlertTriangle } from "lucide-react";
 import { Card } from "@/components/ui/card";
-import { useSchoolQuery } from "@/hooks/use-school-api";
+import { useSchoolQuery } from "@/lib/data/school-hooks";
 
 export function FeesWorkspace() {
   // Fetch real data from the finance endpoints
@@ -49,3 +49,4 @@ export function FeesWorkspace() {
     </div>
   );
 }
+

@@ -30,7 +30,7 @@ export function StaffRecordsWorkspace() {
   const completeProfileMutation = useSchoolMutation("/api/hr/staff/complete-profile");
   const markAttendanceMutation = useSchoolMutation("/api/hr/attendance");
   const requestLeaveMutation = useSchoolMutation("/api/hr/leave/request");
-  const updateLeaveStatusMutation = useSchoolMutation((vars: { id: string }) => `/api/hr/leave/${vars.id}/status`);
+  const updateLeaveStatusMutation = useSchoolMutation((vars: { id: string; status: string; reason?: string }) => `/api/hr/leave/${vars.id}/status`);
   const createDeptMutation = useSchoolMutation("/api/hr/departments");
   const createJobTitleMutation = useSchoolMutation("/api/hr/job-titles");
   const assignRoleMutation = useSchoolMutation("/api/hr/staff/role", "PATCH");
@@ -346,7 +346,7 @@ export function StaffRecordsWorkspace() {
                       </td>
                       <td className="px-4 py-3">
                         <StatusPill 
-                           status={staff.status === "active" ? "ok" : staff.status === "invited" ? "warning" : staff.status === "pending_approval" ? "warning" : "critical"} 
+                           tone={staff.status === "active" ? "ok" : staff.status === "invited" ? "warning" : staff.status === "pending_approval" ? "warning" : "critical"} 
                            label={staff.status.replace("_", " ")} 
                         />
                       </td>
@@ -494,7 +494,7 @@ export function StaffRecordsWorkspace() {
                       <td className="px-4 py-3">
                         {staff.attendance_status ? (
                           <StatusPill 
-                            status={staff.attendance_status === "present" ? "ok" : staff.attendance_status === "absent" ? "critical" : "warning"} 
+                            tone={staff.attendance_status === "present" ? "ok" : staff.attendance_status === "absent" ? "critical" : "warning"} 
                             label={staff.attendance_status.replace("_", " ")} 
                           />
                         ) : (
@@ -609,7 +609,7 @@ export function StaffRecordsWorkspace() {
                       <td className="px-4 py-3 text-slate-500 truncate max-w-[200px]">{req.override_reason || "—"}</td>
                       <td className="px-4 py-3">
                         <StatusPill 
-                           status={req.status === "approved" ? "ok" : req.status === "rejected" ? "critical" : "warning"} 
+                           tone={req.status === "approved" ? "ok" : req.status === "rejected" ? "critical" : "warning"} 
                            label={req.status} 
                         />
                       </td>
@@ -1012,7 +1012,7 @@ export function StaffRecordsWorkspace() {
                     className="flex h-9 w-full rounded-md border border-slate-200 bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-slate-950" 
                   />
                 </div>
-                <Button variant="destructive" onClick={handleCreateDisciplinary} disabled={createDisciplinaryMutation.isPending || !discStaffId || !discDescription} className="w-full">
+                <Button variant="danger" onClick={handleCreateDisciplinary} disabled={createDisciplinaryMutation.isPending || !discStaffId || !discDescription} className="w-full">
                   Record Disciplinary Action
                 </Button>
               </div>
@@ -1046,3 +1046,6 @@ export function StaffRecordsWorkspace() {
     </div>
   );
 }
+
+
+

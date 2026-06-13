@@ -227,8 +227,8 @@ export class StudentsRepository {
       VALUES ($1, $2::uuid, $3, $4, $5, $6, 'active', NOW(), NOW())
       RETURNING *
     `;
-    const result = await this.client.query(query, [tenantId, studentId, displayName, relationship, email, phone]);
-    return result.rows[0];
+    const result = await this.prisma.$queryRawUnsafe<any[]>(query, tenantId, studentId, displayName, relationship, email, phone);
+    return result[0];
   }
 
   async listGuardians(tenantId: string) {
@@ -239,7 +239,7 @@ export class StudentsRepository {
       WHERE g.tenant_id = $1
       ORDER BY g.display_name ASC
     `;
-    const result = await this.client.query(query, [tenantId]);
-    return result.rows;
+    const result = await this.prisma.$queryRawUnsafe<any[]>(query, tenantId);
+    return result;
   }
 }

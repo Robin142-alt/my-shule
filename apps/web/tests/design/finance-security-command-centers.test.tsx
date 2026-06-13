@@ -24,7 +24,7 @@ describe("finance and security command center interactions", () => {
   it("makes accountant search and finance export controls visible as working actions", async () => {
     const user = userEvent.setup();
 
-    renderWithProviders(<AccountantCommandCenter routeMode="hosted" />);
+    renderWithProviders(<AccountantCommandCenter routeMode="hosted" role="accountant" />);
 
     await user.type(screen.getByLabelText(/search receipts, parents, students, invoices, suppliers, or bank references/i), "QEX7");
     await user.click(screen.getByRole("button", { name: /m-pesa qex7abc123/i }));
@@ -53,7 +53,7 @@ describe("finance and security command center interactions", () => {
   it("opens accountant finance intelligence actions as traceable school work", async () => {
     const user = userEvent.setup();
 
-    renderWithProviders(<AccountantCommandCenter routeMode="hosted" />);
+    renderWithProviders(<AccountantCommandCenter routeMode="hosted" role="accountant" />);
 
     await user.click(screen.getByRole("button", { name: /generate arrears campaign/i }));
     expect(screen.getByText(/generate arrears campaign finance action ready with 92% confidence and critical priority for principal\/deputy review/i)).toBeVisible();

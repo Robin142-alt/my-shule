@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Settings, Building2, CheckCircle, Percent, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { useSchoolQuery, useSchoolMutation } from "@/hooks/use-school-api";
+import { useSchoolQuery, useSchoolMutation } from "@/lib/data/school-hooks";
 
 export function DataSetupWorkspace() {
   const [activeTab, setActiveTab] = useState<"school" | "grading" | "attendance">("school");
@@ -241,3 +241,4 @@ export function DataSetupWorkspace() {
     </div>
   );
 }
+

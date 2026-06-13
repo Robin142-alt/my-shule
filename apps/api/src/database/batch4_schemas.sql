@@ -151,3 +151,11 @@ CREATE POLICY security_incidents_tenant_policy ON security_incidents FOR ALL USI
 ALTER TABLE security_panic_alerts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE security_panic_alerts FORCE ROW LEVEL SECURITY;
 CREATE POLICY security_panic_alerts_tenant_policy ON security_panic_alerts FOR ALL USING (tenant_id = app.current_tenant_id()) WITH CHECK (tenant_id = app.current_tenant_id());
+
+
+-- Tenant Isolation
+ALTER TABLE academics_attendance FORCE ROW LEVEL SECURITY;
+ALTER TABLE academics_assignments FORCE ROW LEVEL SECURITY;
+ALTER TABLE academics_resources FORCE ROW LEVEL SECURITY;
+ALTER TABLE finance_tasks FORCE ROW LEVEL SECURITY;
+ALTER TABLE communication_sms_outbox FORCE ROW LEVEL SECURITY;

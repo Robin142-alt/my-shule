@@ -1,1 +1,7 @@
-"use client";`n`nimport { DashboardEngine } from "./dashboard-engine/dashboard-engine";`n`nexport function NurseCommandCenter() {`n  return <DashboardEngine role="nurse" />;`n}
+"use client";
+
+import { DashboardEngine } from "@/components/dashboard/dashboard-engine";
+
+export function NurseCommandCenter() {
+  return <DashboardEngine role="nurse" />;
+}

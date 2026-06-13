@@ -99,6 +99,10 @@ export class VisitorsSchemaService implements OnModuleInit {
       CREATE INDEX IF NOT EXISTS ix_visitors_appointments_tenant ON visitors_appointments (tenant_id, appointment_time);
       CREATE INDEX IF NOT EXISTS ix_visitors_logs_tenant ON visitors_logs (tenant_id, status);
       CREATE INDEX IF NOT EXISTS ix_student_exits_tenant ON student_exits (tenant_id, status);
+      ALTER TABLE visitors_registry FORCE ROW LEVEL SECURITY;
+      ALTER TABLE visitors_appointments FORCE ROW LEVEL SECURITY;
+      ALTER TABLE visitors_logs FORCE ROW LEVEL SECURITY;
+      ALTER TABLE student_exits FORCE ROW LEVEL SECURITY;
     `;
 
     await this.prisma.runSchemaBootstrap(schemaSql);

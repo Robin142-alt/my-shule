@@ -91,6 +91,7 @@ export function runTenantIsolationAudit(
     status: forcedRlsMissing.length === 0 ? 'pass' as const : 'fail' as const,
   });
 
+  console.log("MISSING RLS TABLES:", forcedRlsMissing);
   return {
     generated_at: options.generatedAt ?? new Date().toISOString(),
     ok: checks.every((item) => item.status === 'pass'),

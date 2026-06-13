@@ -4,7 +4,7 @@ import { useState } from "react";
 import { FileText, Download, PieChart, TrendingUp, Users, Banknote } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { useSchoolQuery } from "@/hooks/use-school-api";
+import { useSchoolQuery } from "@/lib/data/school-hooks";
 
 export function ReportsWorkspace() {
   const [activeCategory, setActiveCategory] = useState<"all" | "students" | "finance" | "academics">("all");
@@ -137,3 +137,4 @@ export function ReportsWorkspace() {
     </div>
   );
 }
+

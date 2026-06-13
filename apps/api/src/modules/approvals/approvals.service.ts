@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
-import { DatabaseService } from '../../database/database.service';
+import { PrismaService } from '../../database/prisma.service';
 import { ApprovalStatus } from '@prisma/client';
 
 export interface EnforceApprovalContext {
@@ -22,7 +22,7 @@ export type EnforceApprovalResult =
 
 @Injectable()
 export class ApprovalsService {
-  constructor(private readonly db: DatabaseService) {}
+  constructor(private readonly db: PrismaService) {}
 
   async getApprovalRule(schoolId: string, module: string, action: string) {
     return this.db.approvalRule.findFirst({

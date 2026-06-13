@@ -3,11 +3,11 @@
 import { Activity, Stethoscope, Pill, AlertTriangle, FileText, Download } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { useSchoolQuery } from "@/hooks/use-school-api";
+import { useSchoolQuery } from "@/lib/data/school-hooks";
 
 export function ClinicHealthWorkspace() {
   // Using 'me' or a hardcoded studentId for demonstration
-  const { data: historyData, isLoading } = useSchoolQuery('/api/clinic/parent/students/me/history');
+  const { data: historyData, isLoading } = useSchoolQuery<{ visits?: any[]; allergies?: string[]; medications?: any[] }>('/api/clinic/parent/students/me/history');
 
   const visits = historyData?.visits || [];
   const allergies = historyData?.allergies || ['Penicillin', 'Peanuts']; // Mocking if none returned
@@ -105,3 +105,4 @@ export function ClinicHealthWorkspace() {
     </div>
   );
 }
+

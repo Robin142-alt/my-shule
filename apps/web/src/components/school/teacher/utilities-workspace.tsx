@@ -4,7 +4,7 @@ import { useState } from "react";
 import { MessageSquare, Settings, FileText, Send, CheckCircle } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { useSchoolMutation } from "@/hooks/use-school-api";
+import { useSchoolMutation } from "@/lib/data/school-hooks";
 
 export function UtilitiesWorkspace() {
   const [activeTab, setActiveTab] = useState("broadcast");
@@ -159,3 +159,4 @@ export function UtilitiesWorkspace() {
     </div>
   );
 }
+

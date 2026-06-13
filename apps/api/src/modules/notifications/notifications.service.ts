@@ -114,7 +114,7 @@ export class NotificationsService {
       }
 
       return notification;
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(`Failed to create notification: ${error.message}`);
       throw error;
     }

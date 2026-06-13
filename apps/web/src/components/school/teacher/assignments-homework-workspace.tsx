@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Plus, Check, Clock, AlertTriangle, FileText } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { useSchoolQuery, useSchoolMutation } from "@/hooks/use-school-api";
+import { useSchoolQuery, useSchoolMutation } from "@/lib/data/school-hooks";
 
 export function AssignmentsHomeworkWorkspace() {
   const [isCreating, setIsCreating] = useState(false);
@@ -147,3 +147,4 @@ export function AssignmentsHomeworkWorkspace() {
     </div>
   );
 }
+

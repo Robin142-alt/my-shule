@@ -3,7 +3,7 @@
 import { Download, BookOpen, Clock, CheckCircle } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { useSchoolQuery, useSchoolMutation } from "@/hooks/use-school-api";
+import { useSchoolQuery, useSchoolMutation } from "@/lib/data/school-hooks";
 
 export function AcademicsWorkspace() {
   // Fetch real data from the backend
@@ -143,3 +143,4 @@ function FileText(props: any) {
     </svg>
   )
 }
+

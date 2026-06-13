@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Users, UserPlus, Mail, Phone, Link as LinkIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { useSchoolQuery, useSchoolMutation } from "@/hooks/use-school-api";
+import { useSchoolQuery, useSchoolMutation } from "@/lib/data/school-hooks";
 
 export function ParentsWorkspace() {
   const [activeTab, setActiveTab] = useState<"directory" | "add">("directory");
@@ -203,3 +203,4 @@ export function ParentsWorkspace() {
     </div>
   );
 }
+

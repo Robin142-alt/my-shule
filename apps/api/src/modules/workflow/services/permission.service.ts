@@ -72,6 +72,26 @@ export class PermissionService {
     return true;
   }
 
+  async evaluateActorCapabilities(userId: string, schoolId: string): Promise<string[]> {
+    const result = await this.db.query<{ resource: string; action: string }>(
+      `SELECT DISTINCT p.resource, p.action
+       FROM tenant_memberships tm
+       JOIN role_permissions rp
+         ON rp.tenant_id = tm.tenant_id
+        AND rp.role_id = tm.role_id
+       JOIN permissions p
+         ON p.tenant_id = rp.tenant_id
+        AND p.id = rp.permission_id
+       WHERE tm.user_id = $1
+         AND tm.tenant_id = $2
+         AND tm.status = 'active'
+       ORDER BY p.resource ASC, p.action ASC`,
+      [userId, schoolId]
+    );
+
+    return result.rows.map((permission) => `${permission.resource}:${permission.action}`);
+  }
+
   async requireModuleEnabled(schoolId: string, moduleKey: string) {
     // In MyShule, Super Admin enables modules via ModuleAccess
     const result = await this.db.query(

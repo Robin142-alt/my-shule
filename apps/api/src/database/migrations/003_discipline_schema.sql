@@ -26,3 +26,7 @@ USING (tenant_id = current_setting('app.current_tenant_id')::UUID);
 CREATE INDEX IF NOT EXISTS idx_admin_incidents_tenant ON admin_incidents(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_admin_incidents_status ON admin_incidents(tenant_id, status);
 CREATE INDEX IF NOT EXISTS idx_admin_incidents_severity ON admin_incidents(tenant_id, severity);
+
+
+-- Tenant Isolation
+ALTER TABLE admin_incidents FORCE ROW LEVEL SECURITY;

@@ -1,6 +1,6 @@
 "use client";
 
-import { useSchoolQuery } from "@/hooks/use-school-api";
+import { useSchoolQuery } from "@/lib/data/school-hooks";
 import { Card } from "@/components/ui/card";
 import { Users, Banknote, BookOpen, Activity, AlertCircle, CheckCircle, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -67,7 +67,7 @@ export function OverviewWorkspace() {
               <Users className="w-5 h-5 text-blue-500" />
               Students
             </h3>
-            {studentsWidget?.state === 'FAILED' && <AlertCircle className="w-4 h-4 text-rose-500" title="Widget failed to load" />}
+            {studentsWidget?.state === 'FAILED' && <AlertCircle className="w-4 h-4 text-rose-500"  />}
           </div>
           {studentsWidget?.state === 'ACTIVE' && studentsWidget.data ? (
             <div className="space-y-4">
@@ -98,7 +98,7 @@ export function OverviewWorkspace() {
               <Banknote className="w-5 h-5 text-emerald-500" />
               Finance
             </h3>
-            {financeWidget?.state === 'FAILED' && <AlertCircle className="w-4 h-4 text-rose-500" title="Widget failed to load" />}
+            {financeWidget?.state === 'FAILED' && <AlertCircle className="w-4 h-4 text-rose-500"  />}
           </div>
           {financeWidget?.state === 'ACTIVE' && financeWidget.data ? (
             <div className="space-y-4">
@@ -129,7 +129,7 @@ export function OverviewWorkspace() {
               <BookOpen className="w-5 h-5 text-purple-500" />
               Academics
             </h3>
-            {academicsWidget?.state === 'FAILED' && <AlertCircle className="w-4 h-4 text-rose-500" title="Widget failed to load" />}
+            {academicsWidget?.state === 'FAILED' && <AlertCircle className="w-4 h-4 text-rose-500"  />}
           </div>
           {academicsWidget?.state === 'ACTIVE' && academicsWidget.data ? (
             <div className="space-y-4">
@@ -194,3 +194,5 @@ export function OverviewWorkspace() {
     </div>
   );
 }
+
+

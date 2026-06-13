@@ -3,27 +3,29 @@
 import { CreditCard, Download, FileText, CheckCircle, Clock, AlertTriangle } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { useSchoolQuery, useSchoolMutation } from "@/hooks/use-school-api";
+import { useSchoolQuery, useSchoolMutation } from "@/lib/data/school-hooks";
 import { useState } from "react";
 
 export function FeesWorkspace() {
   const [isPaying, setIsPaying] = useState(false);
 
   // Fetch real data from the finance endpoints
-  const { data: accountsOverview, isLoading: accountsLoading } = useSchoolQuery('/api/finance/accounts-overview');
-  const { data: transactions, isLoading: txLoading, refetch: refetchTx } = useSchoolQuery('/api/finance/collections');
-  const { data: invoices, isLoading: invLoading, refetch: refetchInv } = useSchoolQuery('/api/finance/invoices');
+  const { data: accountsOverview, isLoading: accountsLoading } = useSchoolQuery<any>('/api/finance/accounts-overview');
+  const { data: transactions, isLoading: txLoading, refetch: refetchTx } = useSchoolQuery<any>('/api/finance/collections');
+  const { data: invoices, isLoading: invLoading, refetch: refetchInv } = useSchoolQuery<any>('/api/finance/invoices');
 
-  const recordPayment = useSchoolMutation({
-    endpoint: '/api/finance/payment',
-    method: 'POST',
-    onSuccess: () => {
-      refetchTx();
-      refetchInv();
-      setIsPaying(false);
-      alert('Payment recorded successfully!');
+  const recordPayment = useSchoolMutation(
+    '/api/finance/payment',
+    'POST',
+    {
+      onSuccess: () => {
+        refetchTx();
+        refetchInv();
+        setIsPaying(false);
+        alert('Payment recorded successfully!');
+      }
     }
-  });
+  );
 
   const handlePayNow = () => {
     setIsPaying(true);
@@ -161,3 +163,4 @@ export function FeesWorkspace() {
     </div>
   );
 }
+

@@ -3,7 +3,7 @@
 import { Users, BookOpen, Clock, ChevronRight } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { useSchoolQuery } from "@/hooks/use-school-api";
+import { useSchoolQuery } from "@/lib/data/school-hooks";
 
 export function SubjectsClassesWorkspace() {
   const { data: assignments, isLoading } = useSchoolQuery<any[]>("/api/academics/my-assignments");
@@ -63,3 +63,4 @@ export function SubjectsClassesWorkspace() {
     </div>
   );
 }
+

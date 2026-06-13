@@ -1,8 +1,8 @@
-import { Controller, Get, Post, Param, Body, UseGuards, Req, Patch, ForbiddenException, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Post, Param, Body, UseGuards, Req, Patch, ForbiddenException, BadRequestException, NotFoundException } from '@nestjs/common';
 import { ApprovalsService } from './approvals.service';
 import { ApprovalsExecutor } from './approvals.executor';
-import { DatabaseService } from '../../database/database.service';
-import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
+import { PrismaService } from '../../database/prisma.service';
+import { JwtAuthGuard } from '../../guards/jwt-auth.guard';
 import { ApprovalStatus } from '@prisma/client';
 
 @Controller('api/approvals')
@@ -11,32 +11,32 @@ export class ApprovalsController {
   constructor(
     private readonly approvalsService: ApprovalsService,
     private readonly approvalsExecutor: ApprovalsExecutor,
-    private readonly db: DatabaseService,
+    private readonly db: PrismaService,
   ) {}
 
   @Get('rules')
-  async getRules(@Req() req) {
+  async getRules(@Req() req: any) {
     const { schoolId } = req.user;
     const rules = await this.approvalsService.getRules(schoolId);
     return { success: true, data: rules };
   }
 
   @Post('rules')
-  async createRule(@Req() req, @Body() body: any) {
+  async createRule(@Req() req: any, @Body() body: any) {
     const { schoolId } = req.user;
     const rule = await this.approvalsService.createRule(schoolId, body);
     return { success: true, data: rule };
   }
 
   @Patch('rules/:id')
-  async updateRule(@Req() req, @Param('id') id: string, @Body() body: any) {
+  async updateRule(@Req() req: any, @Param('id') id: string, @Body() body: any) {
     const { schoolId } = req.user;
     const rule = await this.approvalsService.updateRule(schoolId, id, body);
     return { success: true, data: rule };
   }
 
   @Get('pending')
-  async getPendingApprovals(@Req() req) {
+  async getPendingApprovals(@Req() req: any) {
     const { schoolId, userId, role } = req.user;
     // Basic filter fetching all pending for the school. In a real scenario, filter strictly by user's role.
     const requests = await this.approvalsService.getPendingApprovals(schoolId, role);
@@ -44,7 +44,7 @@ export class ApprovalsController {
   }
 
   @Get('my-requests')
-  async getMyRequests(@Req() req) {
+  async getMyRequests(@Req() req: any) {
     const { schoolId, userId } = req.user;
     const requests = await this.approvalsService.getMyRequests(schoolId, userId);
     return { success: true, data: requests };
@@ -54,7 +54,7 @@ export class ApprovalsController {
   async processApprovalAction(
     @Param('id') requestId: string,
     @Body() body: { action: 'APPROVE' | 'REJECT' | 'REQUEST_CHANGES' | 'ESCALATE'; comment?: string },
-    @Req() req
+    @Req() req: any
   ) {
     const { schoolId, userId, role } = req.user;
 

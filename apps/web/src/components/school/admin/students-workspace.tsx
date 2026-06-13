@@ -4,13 +4,13 @@ import { useState } from "react";
 import { Users, UserPlus, Archive, CheckCircle, Search, AlertCircle, MapPin } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { useSchoolQuery, useSchoolMutation } from "@/hooks/use-school-api";
+import { useSchoolQuery, useSchoolMutation } from "@/lib/data/school-hooks";
 
 export function StudentsWorkspace() {
   const [activeTab, setActiveTab] = useState<"directory" | "enrollment" | "archived">("directory");
   
   const { data: studentsList, isLoading, refetch } = useSchoolQuery<any[]>("/api/students", { enabled: activeTab === "directory" || activeTab === "archived" });
-  const enrollMutation = useSchoolMutation("/api/students/lifecycle/enroll");
+  const enrollMutation = useSchoolMutation((vars: { student_id: string }) => `/api/students/lifecycle/${vars.student_id}/enroll`);
 
   const [enrollFirstName, setEnrollFirstName] = useState("");
   const [enrollLastName, setEnrollLastName] = useState("");
@@ -35,7 +35,7 @@ export function StudentsWorkspace() {
       const student = await createRes.json();
       
       // Then enroll
-      await enrollMutation.mutateAsync({}, { urlSuffix: `/${student.id}/enroll` });
+      await enrollMutation.mutateAsync({ student_id: student.id });
       setEnrollFirstName("");
       setEnrollLastName("");
       setActiveTab("directory");
@@ -224,3 +224,4 @@ export function StudentsWorkspace() {
     </div>
   );
 }
+

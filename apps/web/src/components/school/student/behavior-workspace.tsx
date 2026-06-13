@@ -2,7 +2,7 @@
 
 import { Award, AlertTriangle, MessageSquare, TrendingUp } from "lucide-react";
 import { Card } from "@/components/ui/card";
-import { useSchoolQuery } from "@/hooks/use-school-api";
+import { useSchoolQuery } from "@/lib/data/school-hooks";
 
 export function BehaviorWorkspace() {
   // Use the parent incidents endpoint as it provides a read-only view of own records
@@ -119,3 +119,4 @@ export function BehaviorWorkspace() {
     </div>
   );
 }
+

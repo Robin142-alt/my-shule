@@ -4,7 +4,7 @@ import { useState } from "react";
 import { BookOpen, Layers, Calendar, Plus, Settings2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { useSchoolQuery, useSchoolMutation } from "@/hooks/use-school-api";
+import { useSchoolQuery, useSchoolMutation } from "@/lib/data/school-hooks";
 
 export function ClassesStreamsWorkspace() {
   const [activeTab, setActiveTab] = useState<"sections" | "years">("sections");
@@ -220,3 +220,4 @@ export function ClassesStreamsWorkspace() {
     </div>
   );
 }
+

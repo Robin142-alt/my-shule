@@ -3,14 +3,14 @@
 import { Award, AlertTriangle, TrendingUp, User, ShieldAlert, CheckCircle } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { useSchoolQuery, useSchoolMutation } from "@/hooks/use-school-api";
+import { useSchoolQuery, useSchoolMutation } from "@/lib/data/school-hooks";
 
 export function BehaviorWorkspace() {
   // Use the parent incidents endpoint 
-  const { data: incidentsData, isLoading: incidentsLoading, refetch } = useSchoolQuery('/api/discipline/parent/incidents');
+  const { data: incidentsData, isLoading: incidentsLoading, refetch } = useSchoolQuery<{ data?: any[] }>('/api/discipline/parent/incidents');
   
   // Example call to fetch behavior score (hardcoding student ID or getting it from a selector)
-  const { data: scoreData, isLoading: scoreLoading } = useSchoolQuery('/api/discipline/students/me/behavior-score');
+  const { data: scoreData, isLoading: scoreLoading } = useSchoolQuery<{ score?: number }>('/api/discipline/students/me/behavior-score');
 
   const incidents = incidentsData?.data || [];
   const score = scoreData?.score || 95; // Default to 95 if not returned
@@ -19,14 +19,16 @@ export function BehaviorWorkspace() {
   const commendations = incidents.filter((i: any) => i.severity === 'commendation' || i.title?.toLowerCase().includes('commendation'));
   const infractions = incidents.filter((i: any) => i.severity !== 'commendation' && !i.title?.toLowerCase().includes('commendation'));
 
-  const ackMutation = useSchoolMutation({
-    endpoint: '/api/discipline/parent/incidents/ACK/acknowledge', // Dummy endpoint pattern
-    method: 'POST',
-    onSuccess: () => {
-      refetch();
-      alert('Incident Acknowledged');
+  const ackMutation = useSchoolMutation(
+    (vars: { incidentId: string }) => `/api/discipline/parent/incidents/${vars.incidentId}/acknowledge`,
+    "POST",
+    {
+      onSuccess: () => {
+        refetch();
+        alert('Incident Acknowledged');
+      }
     }
-  });
+  );
 
   const handleAcknowledge = (id: string) => {
     // In a real app we dynamically build the URL based on the ID, but for our useSchoolMutation hook setup 
@@ -144,3 +146,4 @@ export function BehaviorWorkspace() {
     </div>
   );
 }
+

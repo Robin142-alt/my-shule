@@ -108,7 +108,7 @@ export class StudentLifecycleService {
       aggregate_type: 'Student',
       aggregate_id: studentId,
       tenant_id: schoolId,
-      payload: { tenant_id: schoolId, student_id: studentId, status: 'ACTIVE', class_id: classId }
+      payload: { tenant_id: schoolId, student_id: studentId, class_id: classId }
     });
 
     return updatedStudent;

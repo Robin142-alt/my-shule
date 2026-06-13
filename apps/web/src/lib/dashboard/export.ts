@@ -360,3 +360,9 @@ export function openPrintDocument({
   popup.document.close();
   popup.focus();
 }
+
+export type CsvReportArtifactResponse = {
+  filename: string;
+  content_type: string;
+  csv: string;
+};

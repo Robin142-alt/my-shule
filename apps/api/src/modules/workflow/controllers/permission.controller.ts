@@ -1,12 +1,12 @@
 import { Controller, Get, Query, Req, UseGuards } from '@nestjs/common';
-import { RoleGovernanceService } from '../../auth/role-governance.service';
+import { PermissionService } from '../services/permission.service';
 
 // Assuming there is a standard auth guard available, if not, it should be added.
 // import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 
 @Controller('permissions')
 export class PermissionController {
-  constructor(private readonly roleGovernanceService: RoleGovernanceService) {}
+  constructor(private readonly permissionService: PermissionService) {}
 
   @Get('me')
   // @UseGuards(JwtAuthGuard) // To be enabled when standard auth guard is identified
@@ -23,7 +23,7 @@ export class PermissionController {
     }
 
     try {
-      const keys = await this.roleGovernanceService.evaluateActorCapabilities(userId, schoolId);
+      const keys = await this.permissionService.evaluateActorCapabilities(userId, schoolId);
       return { success: true, data: keys };
     } catch (error: any) {
       return { success: false, message: error.message, data: [] };

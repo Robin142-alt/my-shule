@@ -69,3 +69,9 @@ CREATE POLICY academics_report_card_settings_tenant_policy ON academics_report_c
   FOR ALL USING (tenant_id = current_setting('app.current_tenant')::tenant_key);
 
 COMMIT;
+
+
+-- Tenant Isolation
+ALTER TABLE academics_departments FORCE ROW LEVEL SECURITY;
+ALTER TABLE academics_class_teachers FORCE ROW LEVEL SECURITY;
+ALTER TABLE academics_report_card_settings FORCE ROW LEVEL SECURITY;

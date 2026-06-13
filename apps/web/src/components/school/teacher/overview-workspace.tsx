@@ -1,6 +1,6 @@
 "use client";
 
-import { useSchoolQuery } from "@/hooks/use-school-api";
+import { useSchoolQuery } from "@/lib/data/school-hooks";
 import { Card } from "@/components/ui/card";
 import { Calendar, CheckCircle, BookOpen, Clock, AlertCircle } from "lucide-react";
 
@@ -138,3 +138,4 @@ export function OverviewWorkspace() {
     </div>
   );
 }
+

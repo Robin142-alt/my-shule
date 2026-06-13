@@ -421,8 +421,8 @@ export class FinanceController {
     const role = store.role || 'accountant';
 
     const approvalResult = await this.approvals.enforceApprovalRule({
-      schoolId: tenantId,
-      userId,
+      schoolId: tenantId as string,
+      userId: userId as string,
       userRole: role,
       module: 'FINANCE',
       action: 'FEE_WAIVER',

@@ -43,3 +43,8 @@ USING (tenant_id = current_setting('app.current_tenant_id')::UUID);
 CREATE INDEX IF NOT EXISTS idx_tenant_finance_summary_tenant ON tenant_finance_summary(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_tenant_pending_waivers_tenant ON tenant_pending_waivers(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_tenant_pending_waivers_status ON tenant_pending_waivers(tenant_id, status);
+
+
+-- Tenant Isolation
+ALTER TABLE tenant_finance_summary FORCE ROW LEVEL SECURITY;
+ALTER TABLE tenant_pending_waivers FORCE ROW LEVEL SECURITY;

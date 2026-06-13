@@ -4,7 +4,7 @@ import { useState } from "react";
 import { BookOpen, Users, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { useSchoolQuery, useSchoolMutation } from "@/hooks/use-school-api";
+import { useSchoolQuery, useSchoolMutation } from "@/lib/data/school-hooks";
 
 export function SubjectsWorkspace() {
   const [activeTab, setActiveTab] = useState<"subjects" | "teachers">("subjects");
@@ -223,3 +223,4 @@ export function SubjectsWorkspace() {
     </div>
   );
 }
+

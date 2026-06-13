@@ -4,9 +4,16 @@ import { readAccessCookie, readTenantCookie } from "@/lib/auth/server-session";
 import { getDashboardApiBaseUrl } from "@/lib/dashboard/api-client";
 import { UnifiedLayoutRenderer } from "@/components/dashboard/UnifiedLayoutRenderer";
 
+import { redirect } from 'next/navigation';
+
 export default async function DashboardPage() {
   const token = readAccessCookie(await cookies());
   const tenantId = readTenantCookie(await cookies());
+  
+  if (!token) {
+    redirect('/login');
+  }
+
   const baseUrl = getDashboardApiBaseUrl();
   
   // Extract role from path or session (defaulting to user)

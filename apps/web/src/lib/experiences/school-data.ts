@@ -747,3 +747,15 @@ function buildSchoolSubscription(role: SchoolExperienceRole): SchoolSubscription
     stages,
   };
 }
+import { toSchoolStudentPath } from "@/lib/routing/experience-routes";
+
+export function buildSchoolStudentHref(
+  role: SchoolExperienceRole,
+  studentId: string,
+  routeMode: "nested" | "public",
+) {
+  if (routeMode === "public") {
+    return `/school/${role}/students/${studentId}`;
+  }
+  return toSchoolStudentPath(studentId);
+}

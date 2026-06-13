@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useState, type ReactNode } from "react";
+import { useState, useEffect, type ReactNode } from "react";
 import { isProductionReadyModule } from "@/lib/features/module-readiness";
 import type { OperationalSearchAction } from "@/lib/search/operational-search-registry";
 import { resolveOperationalSearch } from "@/lib/search/operational-search-resolver";

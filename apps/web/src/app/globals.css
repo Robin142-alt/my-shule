@@ -557,19 +557,53 @@ textarea {
 }
 
 @media print {
-  body {
-    background: white;
+  @page {
+    size: A4 portrait;
+    margin: 15mm 12mm 15mm 12mm;
+  }
+
+  @page landscape {
+    size: A4 landscape;
+    margin: 10mm;
+  }
+
+  @page thermal {
+    size: 80mm auto;
+    margin: 0 4mm;
+  }
+
+  html, body {
+    background: white !important;
+    color: black !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
 
   .no-print {
     display: none !important;
   }
 
+  .print-only {
+    display: block !important;
+  }
+
   .dashboard-card {
-    box-shadow: none;
-    border: 1px solid #D1D5DB;
+    box-shadow: none !important;
+    border: 1px solid #D1D5DB !important;
     break-inside: avoid;
   }
+
+  .page-break-before {
+    page-break-before: always;
+  }
+
+  .page-break-after {
+    page-break-after: always;
+  }
+}
+
+.print-only {
+  display: none;
 }
 
 @media (max-width: 767px) {
