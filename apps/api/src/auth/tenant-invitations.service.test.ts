@@ -163,6 +163,69 @@ test('TenantInvitationsService sends a tenant-scoped role invitation without exp
   assert.equal(outboxPayload.department, 'Science');
 });
 
+test('TenantInvitationsService allows a head teacher school admin to invite deputy principal users', async () => {
+  const roleLookups: Array<{ tenantId: string; code: string }> = [];
+  const sentInvites: Array<{ to: string; assignedRole?: string }> = [];
+
+  const service = new TenantInvitationsService(
+    {
+      withRequestTransaction: async (callback: () => Promise<unknown>) => callback(),
+      query: async (text: string) => {
+        if (text.includes('SELECT name FROM tenants')) {
+          return { rows: [{ name: 'Green Valley School' }] };
+        }
+
+        if (text.includes('FROM users') && text.includes('display_name')) {
+          return { rows: [{ display_name: 'Head Teacher Wanjiku', email: 'head@example.test' }] };
+        }
+
+        if (text.includes('INSERT INTO auth_action_tokens')) {
+          return { rows: [{ id: '00000000-0000-0000-0000-000000000802' }] };
+        }
+
+        if (text.includes('INSERT INTO auth_email_outbox')) {
+          return { rows: [{ id: '00000000-0000-0000-0000-000000000902' }] };
+        }
+
+        return { rows: [] };
+      },
+    } as never,
+    {
+      ensureTenantAuthorizationBaseline: async () => undefined,
+      getRoleByCode: async (tenantId: string, code: string) => {
+        roleLookups.push({ tenantId, code });
+        return { id: 'role-deputy', code, name: 'Deputy Principal' };
+      },
+    } as never,
+    {
+      assertTransactionalEmailConfigured: () => undefined,
+      sendInvitationEmail: async (input: { to: string; assignedRole?: string }) => {
+        sentInvites.push(input);
+      },
+    } as never,
+    { get: (key: string) => (key === 'email.publicAppUrl' ? 'https://my-shule-erp.vercel.app' : undefined) } as never,
+    {
+      requireStore: () => ({
+        tenant_id: 'green-valley',
+        user_id: 'head-teacher',
+        role: 'admin',
+      }),
+    } as never,
+  );
+
+  const response = await service.inviteTenantUser({
+    email: 'deputy@example.test',
+    display_name: 'Deputy One',
+    role_code: 'deputy_principal',
+  });
+
+  assert.equal(response.role_code, 'deputy_principal');
+  assert.deepEqual(roleLookups, [{ tenantId: 'green-valley', code: 'deputy_principal' }]);
+  assert.equal(sentInvites.length, 1);
+  assert.equal(sentInvites[0]?.to, 'deputy@example.test');
+  assert.equal(sentInvites[0]?.assignedRole, 'Deputy Principal');
+});
+
 test('TenantInvitationsService rejects unsupported tenant invitation roles before sending email', async () => {
   const sentInvites: unknown[] = [];
   const queries: Array<{ text: string; values: unknown[] }> = [];
