@@ -14,6 +14,7 @@ import {
   CommunicationSmsQueuedPayload,
   AdmissionsClearedPayload,
   StaffUpdatedPayload,
+  ReportCardPublishedPayload,
 } from './events.types';
 import { OutboxEventsRepository } from './repositories/outbox-events.repository';
 
@@ -169,10 +170,10 @@ export class EventPublisherService {
     payload: ReportCardPublishedPayload,
   ): Promise<DomainEvent<'report.card.published'>> {
     return this.publish({
-      event_key: `report.card.published:${payload.report_card_id}`,
+      event_key: `report.card.published:${payload.report_id}`,
       event_name: 'report.card.published',
       aggregate_type: 'report_card',
-      aggregate_id: payload.report_card_id,
+      aggregate_id: payload.report_id,
       payload,
     });
   }

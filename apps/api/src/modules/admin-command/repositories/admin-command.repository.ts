@@ -702,22 +702,19 @@ export class AdminCommandRepository {
 
     const activeAssignments = summaryResult.rows[0]?.active_assignments || 0;
 
+    const avgScoreRes = await this.executeSql(
+      `SELECT COALESCE(ROUND(AVG(score), 2), 0)::numeric as avg FROM exam_marks WHERE tenant_id = $1`,
+      [tenantId]
+    ).catch(() => ({ rows: [{ avg: 0 }] }));
+    const averageScore = Number(avgScoreRes.rows[0]?.avg || 0);
+
     return {
       status: "active",
       activeAssignments,
-      syllabusCoverage: 45, // Mock data until syllabus tracking is fully built
-      averageScore: 68, // Mock data until exam tracking is fully built
-      performanceTrend: [
-        { label: "Term 1", value: 65 },
-        { label: "Term 2", value: 68 },
-        { label: "Term 3", value: 0 }
-      ],
-      departmentPerformance: [
-        { department: "Mathematics", score: 62 },
-        { department: "Sciences", score: 71 },
-        { department: "Languages", score: 65 },
-        { department: "Humanities", score: 74 }
-      ]
+      syllabusCoverage: 0,
+      averageScore,
+      performanceTrend: [],
+      departmentPerformance: []
     };
   }
 
@@ -733,19 +730,30 @@ export class AdminCommandRepository {
       [tenantId],
     ).catch(() => ({ rows: [] }));
 
-    const pendingReviews = summaryResult.rows[0]?.pending_reviews || 0;
+    const activeExamsRes = await this.executeSql(
+      `SELECT count(*)::int as count FROM exam_series WHERE tenant_id = $1 AND ends_on >= CURRENT_DATE`,
+      [tenantId]
+    ).catch(() => ({ rows: [{ count: 0 }] }));
+
+    const missingMarksRes = await this.executeSql(
+      `SELECT count(*)::int as count FROM exam_marks WHERE tenant_id = $1 AND status = 'draft'`,
+      [tenantId]
+    ).catch(() => ({ rows: [{ count: 0 }] }));
+
+    const avgScoreRes = await this.executeSql(
+      `SELECT COALESCE(ROUND(AVG(score), 2), 0)::numeric as avg FROM exam_marks WHERE tenant_id = $1 AND status != 'draft'`,
+      [tenantId]
+    ).catch(() => ({ rows: [{ avg: 0 }] }));
+
+    const averageScore = Number(avgScoreRes.rows[0]?.avg || 0);
 
     return {
       status: "active",
-      activeExams: 2, // Mock data until academics_exams is fully mapped
-      reportsPending: pendingReviews,
-      missingMarksAlerts: 14, // Mock data
-      averageScore: 68,
-      performanceTrend: [
-        { label: "Term 1", value: 65 },
-        { label: "Term 2", value: 68 },
-        { label: "Term 3", value: 0 }
-      ],
+      activeExams: activeExamsRes.rows[0]?.count || 0,
+      reportsPending: summaryResult.rows[0]?.pending_reviews || 0,
+      missingMarksAlerts: missingMarksRes.rows[0]?.count || 0,
+      averageScore,
+      performanceTrend: [],
       recentResults: []
     };
   }
@@ -769,17 +777,11 @@ export class AdminCommandRepository {
 
     return {
       status: "active",
-      smsBalance: 4500, // Mock
+      smsBalance: 0,
       messagesSentToday: totalSent,
       failedDeliveries: failed,
       pendingMessages: pending,
-      communicationTrend: [
-        { label: "Mon", value: 120 },
-        { label: "Tue", value: 45 },
-        { label: "Wed", value: 300 },
-        { label: "Thu", value: 80 },
-        { label: "Fri", value: totalSent > 0 ? totalSent : 0 }
-      ],
+      communicationTrend: [],
       recentBroadcasts: []
     };
   }
@@ -853,15 +855,11 @@ export class AdminCommandRepository {
 
     return {
       status: "active",
-      totalStaff: activeStaff, // Showing active staff
-      teachingStaff: Math.floor(activeStaff * 0.7), // Mock calculation
-      supportStaff: Math.floor(activeStaff * 0.3), // Mock calculation
+      totalStaff: activeStaff,
+      teachingStaff: activeStaff,
+      supportStaff: 0,
       onLeave: 0,
-      staffDistribution: [
-        { label: "Teaching", value: Math.floor(activeStaff * 0.7) },
-        { label: "Admin", value: Math.floor(activeStaff * 0.15) },
-        { label: "Support", value: Math.floor(activeStaff * 0.15) }
-      ],
+      staffDistribution: [],
       recentOnboarding: []
     };
   }
@@ -947,13 +945,9 @@ export class AdminCommandRepository {
   async getApprovalsOverview(tenantId: string) {
     return {
       status: "active",
-      pendingTotal: 14,
-      urgentApprovals: 3,
-      categories: [
-        { name: "Fee Waivers", pending: 5, urgent: 1 },
-        { name: "Report Cards", pending: 7, urgent: 0 },
-        { name: "Disciplinary Actions", pending: 2, urgent: 2 }
-      ],
+      pendingTotal: 0,
+      urgentApprovals: 0,
+      categories: [],
       recentApprovals: []
     };
   }
@@ -961,14 +955,10 @@ export class AdminCommandRepository {
   async getPrincipalReportsOverview(tenantId: string) {
     return {
       status: "active",
-      availableReports: 24,
-      favoriteReports: 4,
-      recentlyGenerated: 12,
-      categories: [
-        { name: "Academic", count: 8 },
-        { name: "Financial", count: 6 },
-        { name: "Administrative", count: 10 }
-      ],
+      availableReports: 0,
+      favoriteReports: 0,
+      recentlyGenerated: 0,
+      categories: [],
       scheduledReports: []
     };
   }

@@ -237,16 +237,24 @@ export class AdmissionsService {
       actionName: 'APPLICATION_CREATED',
       requiredCapability: 'admissions:write',
       aggregateType: 'ADMISSION',
-      aggregateId: dto.student_email || dto.parent_email || dto.first_name,
+      aggregateId: dto.parent_email || dto.full_name,
       handler: async () => {
-        return this.admissionsRepository.createApplication(this.requireTenantId(), {
+        return this.admissionsRepository.createApplication({
           ...dto,
+          school_id: this.requireTenantId(),
+          application_number: `APP-${Date.now()}`,
           allergies: dto.allergies?.trim() || null,
           conditions: dto.conditions?.trim() || null,
           emergency_contact: dto.emergency_contact?.trim() || null,
           status: 'pending',
           interview_date: null,
           review_notes: null,
+          previous_school: dto.previous_school || null,
+          kcpe_results: dto.kcpe_results || null,
+          cbc_level: dto.cbc_level || null,
+          parent_email: dto.parent_email || null,
+          parent_occupation: dto.parent_occupation || null,
+          nemis_upi: dto.nemis_upi || null,
         });
       },
     });
@@ -492,7 +500,7 @@ export class AdmissionsService {
           notifications: [
             {
               id: `admission-finance-${student.id}`,
-              schoolId: tenantId,
+              school_id: tenantId,
               audienceRoles: ['accountant', 'finance', 'principal'],
               title: 'Fee Collection Required',
               body: `Registration fees for newly admitted student ${application.full_name} (${dto.admission_number}) require collection.`,
@@ -501,11 +509,11 @@ export class AdmissionsService {
               relatedRecordId: student.id,
               priority: 'high',
               read: false,
-              createdAt: new Date().toISOString(),
+              created_at: new Date().toISOString(),
             },
             {
               id: `admission-teacher-${student.id}`,
-              schoolId: tenantId,
+              school_id: tenantId,
               audienceRoles: ['class-teacher', 'teacher'],
               title: 'New Student Admitted',
               body: `${application.full_name} has been admitted to your class ${dto.class_name}.`,
@@ -514,7 +522,7 @@ export class AdmissionsService {
               relatedRecordId: student.id,
               priority: 'normal',
               read: false,
-              createdAt: new Date().toISOString(),
+              created_at: new Date().toISOString(),
             }
           ],
           sms: [

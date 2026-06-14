@@ -1,3 +1,4 @@
+import { AgpExecutionService } from '../../common/platform-governance/agp-execution.service';
 import {
   BadRequestException,
   ForbiddenException,
@@ -73,6 +74,7 @@ export class DisciplineService {
 
   constructor(
     private readonly requestContext: RequestContextService,
+    private readonly agp: AgpExecutionService,
     private readonly prisma: PrismaService,
     private readonly disciplineRepository: DisciplineRepository,
     @Optional() private readonly notificationService?: DisciplineNotificationService,
@@ -88,8 +90,10 @@ export class DisciplineService {
     
     const result = await this.executeSql(
       `SELECT 
-         COUNT(*) FILTER (WHERE status IN ('new', 'under_review')) as open_cases,
-         COUNT(*) FILTER (WHERE DATE(created_at) = CURRENT_DATE) as new_today
+         COUNT(*) FILTER (WHERE status IN ('reported', 'under_review')) as open_cases,
+         COUNT(*) FILTER (WHERE DATE(created_at) = CURRENT_DATE) as new_today,
+         COUNT(*) FILTER (WHERE status = 'awaiting_parent_response') as pending_parent,
+         COUNT(*) FILTER (WHERE status = 'pending_action') as pending_approval
        FROM discipline_incidents
        WHERE tenant_id = $1`,
       [tenantId]
@@ -99,10 +103,10 @@ export class DisciplineService {
       kpis: [
         { value: Number(result.rows[0]?.open_cases || 0) },
         { value: Number(result.rows[0]?.new_today || 0) },
-        { value: 5 }, // Mock for 'Pending Parent Contact'
-        { value: 2 }  // Mock for 'Pending Approval'
+        { value: Number(result.rows[0]?.pending_parent || 0) },
+        { value: Number(result.rows[0]?.pending_approval || 0) }
       ],
-      urgentCases: [] // For now, keep mock data in the frontend by returning empty or rely on frontend fallback
+      urgentCases: []
     };
   }
 

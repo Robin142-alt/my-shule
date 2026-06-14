@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import { Stethoscope } from "lucide-react";
 import { Panel, StatusChip, Tone } from "./shared";
 import { Modal } from "@/components/ui/modal";
+import { readSchoolData, subscribeToSchoolDataUpdates, addSchoolRecord, updateSchoolRecord, createNotification } from "@/lib/school/school-operational-store";
 
 export type WelfareCase = {
   id: string;

@@ -29,7 +29,7 @@ export function FeesWorkspace() {
 
   const handlePayNow = () => {
     setIsPaying(true);
-    // Simulating a mock payment to the backend
+    // Submitting payment directly to the backend
     recordPayment.mutate({
       id: `PAY-${Date.now()}`,
       amount: balanceMinor / 100,

@@ -15,7 +15,7 @@ export class PublishReportCardsConsumer implements EventConsumerDescriptor<'work
       return;
     }
 
-    const { tenant_id, data } = event.payload;
+    const tenant_id = event.payload.tenant_id; const data = event.payload.payload as any;
     if (!data?.examCycleId) {
       this.logger.warn(`Missing examCycleId for publishing report cards in tenant ${tenant_id}`);
       return;

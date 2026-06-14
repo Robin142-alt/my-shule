@@ -419,161 +419,57 @@ const activityFeed = [
   },
 ];
 
-const initialRequisitions = [
-  {
-    id: "REQ-1048",
-    department: "Kitchen",
-    requester: "Head Cook",
-    item: "Rice 90 kg bags",
-    quantity: "18 bags",
-    urgency: "Urgent",
-    date: "Today",
-    stage: "Principal review",
-    available: "7 bags",
-    tone: "critical" as Tone,
-  },
-  {
-    id: "REQ-1044",
-    department: "Laboratory",
-    requester: "Mr. Oloo",
-    item: "Safety goggles",
-    quantity: "40 pcs",
-    urgency: "High",
-    date: "Today",
-    stage: "Storekeeper check",
-    available: "16 pcs",
-    tone: "warning" as Tone,
-  },
-  {
-    id: "REQ-1039",
-    department: "Boarding",
-    requester: "Matron",
-    item: "Disinfectant",
-    quantity: "24 litres",
-    urgency: "Normal",
-    date: "Yesterday",
-    stage: "Partial approval",
-    available: "12 litres",
-    tone: "info" as Tone,
-  },
-  {
-    id: "REQ-1036",
-    department: "Office",
-    requester: "Secretary",
-    item: "Printing paper",
-    quantity: "30 reams",
-    urgency: "Pending",
-    date: "Yesterday",
-    stage: "Awaiting bursar",
-    available: "9 reams",
-    tone: "accent" as Tone,
-  },
-];
+export interface InventoryRequisition {
+  id: string;
+  department: string;
+  requester: string;
+  item: string;
+  quantity: string;
+  urgency: string;
+  date: string;
+  stage: string;
+  available: string;
+  tone: Tone;
+}
 
-const heatmap = [
-  { department: "Kitchen", score: 91, detail: "Rice and cooking oil risk", tone: "critical" as Tone },
-  { department: "Boarding", score: 72, detail: "Laundry stock pressure", tone: "warning" as Tone },
-  { department: "Library", score: 28, detail: "Healthy book stock", tone: "success" as Tone },
-  { department: "Lab", score: 84, detail: "Chemical controls needed", tone: "critical" as Tone },
-  { department: "Office", score: 52, detail: "Printing paper low", tone: "info" as Tone },
-  { department: "Cleaning supplies", score: 66, detail: "Disinfectant reorder soon", tone: "warning" as Tone },
-];
+export interface InventorySupplier {
+  name: string;
+  metric: string;
+  score: number;
+  detail: string;
+  tone: Tone;
+}
 
-const initialSuppliers = [
-  {
-    name: "Mombasa Staples Ltd",
-    metric: "Best supplier",
-    score: 96,
-    detail: "1.2 day average delivery, 0 rejected goods",
-    tone: "success" as Tone,
-  },
-  {
-    name: "Lake Lab Supplies",
-    metric: "Most delayed",
-    score: 62,
-    detail: "2 late deliveries this month",
-    tone: "warning" as Tone,
-  },
-  {
-    name: "Nyanza Stationers",
-    metric: "Price fluctuation",
-    score: 74,
-    detail: "Paper prices moved +9%",
-    tone: "info" as Tone,
-  },
-  {
-    name: "Kisumu Produce Market",
-    metric: "Rejected goods",
-    score: 58,
-    detail: "2 rice bags rejected for moisture",
-    tone: "critical" as Tone,
-  },
-];
+export interface InventoryWaste {
+  label: string;
+  value: string;
+  detail: string;
+  tone: Tone;
+}
 
-const initialWaste = [
-  { label: "Expired goods", value: "KES 18K", detail: "Food items and lab reagents", tone: "critical" as Tone },
-  { label: "Unused stock", value: "KES 92K", detail: "Dormitory supplies idle 60+ days", tone: "warning" as Tone },
-  { label: "Damaged items", value: "KES 41K", detail: "Books, glassware, and covers", tone: "accent" as Tone },
-  { label: "Overstocked products", value: "KES 136K", detail: "Exercise books above target", tone: "info" as Tone },
-];
+export interface InventoryAuditTrail {
+  id: string;
+  title: string;
+  detail: string;
+  owner: string;
+  time: string;
+  tone: Tone;
+}
 
-const initialAuditTrail = [
-  {
-    id: "AUD-4401",
-    title: "Stock variance flagged",
-    detail: "Sugar physical count is 2 bags below system quantity.",
-    owner: "Grace Achieng",
-    time: "Today, 11:42",
-    tone: "critical" as Tone,
-  },
-  {
-    id: "AUD-4398",
-    title: "Manual adjustment approved",
-    detail: "11 damaged mattress covers moved to write-off workflow.",
-    owner: "Mary Atieno",
-    time: "Today, 09:18",
-    tone: "warning" as Tone,
-  },
-  {
-    id: "AUD-4389",
-    title: "Recent audit closed",
-    detail: "Library textbook count reconciled with zero unresolved discrepancies.",
-    owner: "Sarah Wairimu",
-    time: "Yesterday, 16:04",
-    tone: "success" as Tone,
-  },
-];
+export interface AiInsight {
+  title: string;
+  detail: string;
+  confidence: string;
+  action: string;
+  tone: Tone;
+}
 
-const initialAiInsights = [
-  {
-    title: "Rice consumption increased 31% unusually",
-    detail: "Meal plan, attendance, and boarding occupancy do not fully explain the spike.",
-    confidence: "91% confidence",
-    action: "Audit kitchen issues",
-    tone: "critical" as Tone,
-  },
-  {
-    title: "You may run out of cooking oil in 6 days",
-    detail: "Current burn rate suggests reorder should be approved before Wednesday.",
-    confidence: "88% confidence",
-    action: "Prepare reorder",
-    tone: "warning" as Tone,
-  },
-  {
-    title: "Boarding department requests exceed historical averages",
-    detail: "Laundry and disinfectant requests are both trending above normal.",
-    confidence: "82% confidence",
-    action: "Compare dorm occupancy",
-    tone: "info" as Tone,
-  },
-  {
-    title: "Possible stock leakage detected",
-    detail: "Sugar variances correlate with late evening manual adjustments.",
-    confidence: "79% confidence",
-    action: "Open audit trail",
-    tone: "accent" as Tone,
-  },
-];
+export interface InventoryHeatmap {
+  department: string;
+  score: number;
+  detail: string;
+  tone: Tone;
+}
 
 const emptyStateExamples = [
   "No pending requisitions",
@@ -682,7 +578,7 @@ function recordHeroAlertAction(alert: (typeof heroAlerts)[number]) {
   });
 }
 
-function recordBulkApprovalReview(requisitions: typeof initialRequisitions) {
+function recordBulkApprovalReview(requisitions: InventoryRequisition[]) {
   return recordStorekeeperAction({
     type: "STORE_REQUISITION_BULK_REVIEW_READY",
     title: "Safe requisition bulk approval review ready",
@@ -696,7 +592,7 @@ function recordBulkApprovalReview(requisitions: typeof initialRequisitions) {
   });
 }
 
-function recordUrgencyFilterOpened(requisitions: typeof initialRequisitions) {
+function recordUrgencyFilterOpened(requisitions: InventoryRequisition[]) {
   return recordStorekeeperAction({
     type: "STORE_REQUISITION_URGENCY_FILTER_READY",
     title: "Requisition urgency filters ready",
@@ -711,7 +607,7 @@ function recordUrgencyFilterOpened(requisitions: typeof initialRequisitions) {
 }
 
 function recordRequisitionDecision(
-  req: (typeof initialRequisitions)[number],
+  req: (InventoryRequisition[])[number],
   decision: "approve" | "partial" | "reject",
 ) {
   const eventType =
@@ -771,7 +667,7 @@ function recordRequisitionDecision(
   });
 }
 
-function recordInventoryInsightOpened(insight: (typeof initialAiInsights)[number]) {
+function recordInventoryInsightOpened(insight: AiInsight) {
   const notice = `${insight.action} review ready from inventory insights.`;
 
   return recordStorekeeperAction({
@@ -1289,14 +1185,14 @@ function ActivityFeed({ data, isLoading, theme }: { data: any, isLoading: boolea
 }
 
 function RequisitionPanel({ theme }: { theme: StorekeeperTheme }) {
-  const { data: fetchedRequisitions } = useSchoolQuery<typeof initialRequisitions>("/api/inventory/requests");
+  const { data: fetchedRequisitions } = useSchoolQuery<InventoryRequisition[]>("/api/inventory/requests");
   const activeRequisitions = Array.isArray(fetchedRequisitions) ? fetchedRequisitions : [];
   const queryClient = useQueryClient();
   const surface = getSurfaceClasses(theme);
   const [decisionByRequisitionId, setDecisionByRequisitionId] = useState<Record<string, string>>({});
   const requisitionMutation = useSchoolMutation("/api/inventory/requisitions");
 
-  function handleRequisitionDecision(req: (typeof initialRequisitions)[number], decision: "approve" | "partial" | "reject") {
+  function handleRequisitionDecision(req: (InventoryRequisition[])[number], decision: "approve" | "partial" | "reject") {
     const status = decision === "approve" ? "Approved" : decision === "partial" ? "Partial issue pending" : "Rejected";
 
     requisitionMutation.mutate({ reqId: req.id, decision }, {
@@ -1390,16 +1286,18 @@ function RequisitionPanel({ theme }: { theme: StorekeeperTheme }) {
 }
 
 function Heatmap({ theme }: { theme: StorekeeperTheme }) {
+  const { data: fetchedHeatmap } = useSchoolQuery<InventoryHeatmap[]>("/api/inventory/heatmap");
+  const activeHeatmap = Array.isArray(fetchedHeatmap) ? fetchedHeatmap : [];
   const surface = getSurfaceClasses(theme);
   return (
-    <section id="departments" className={cn("rounded-3xl border p-5 md:p-6", surface.card)}>
+    <section id="heatmap" className={cn("rounded-3xl border p-5 md:p-6", surface.card)}>
       <SectionHeader
-        eyebrow="Department risk"
+        eyebrow="Stock pressure"
         title="Low stock heatmap"
         description="The redder a department becomes, the closer it is to operational disruption."
       />
       <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-        {heatmap.map((item) => (
+        {activeHeatmap.map((item: InventoryHeatmap) => (
           <article
             key={item.department}
             className={cn("rounded-3xl border p-4", surface.soft, toneStyles[item.tone].border)}
@@ -1435,7 +1333,7 @@ function Heatmap({ theme }: { theme: StorekeeperTheme }) {
 }
 
 function SupplierPerformance({ theme }: { theme: StorekeeperTheme }) {
-  const { data: fetchedSuppliers } = useSchoolQuery<typeof initialSuppliers>("/api/inventory/suppliers");
+  const { data: fetchedSuppliers } = useSchoolQuery<InventorySupplier[]>("/api/inventory/suppliers");
   const activeSuppliers = Array.isArray(fetchedSuppliers) ? fetchedSuppliers : [];
   const surface = getSurfaceClasses(theme);
   return (
@@ -1486,7 +1384,7 @@ function SupplierPerformance({ theme }: { theme: StorekeeperTheme }) {
 }
 
 function WastePanel({ theme }: { theme: StorekeeperTheme }) {
-  const { data: fetchedWaste } = useSchoolQuery<typeof initialWaste>("/api/inventory/incidents");
+  const { data: fetchedWaste } = useSchoolQuery<InventoryWaste[]>("/api/inventory/incidents");
   const activeWaste = Array.isArray(fetchedWaste) ? fetchedWaste : [];
   const surface = getSurfaceClasses(theme);
   return (
@@ -1510,7 +1408,7 @@ function WastePanel({ theme }: { theme: StorekeeperTheme }) {
 }
 
 function AuditPanel({ theme }: { theme: StorekeeperTheme }) {
-  const { data: fetchedAuditTrail } = useSchoolQuery<typeof initialAuditTrail>("/api/inventory/stock-movements");
+  const { data: fetchedAuditTrail } = useSchoolQuery<InventoryAuditTrail[]>("/api/inventory/stock-movements");
   const activeAuditTrail = Array.isArray(fetchedAuditTrail) ? fetchedAuditTrail : [];
   const surface = getSurfaceClasses(theme);
   return (
@@ -1556,7 +1454,7 @@ function AuditPanel({ theme }: { theme: StorekeeperTheme }) {
 }
 
 function AiInsights({ theme }: { theme: StorekeeperTheme }) {
-  const { data: fetchedAiInsights } = useSchoolQuery<typeof initialAiInsights>("/api/inventory/insights");
+  const { data: fetchedAiInsights } = useSchoolQuery<AiInsight[]>("/api/inventory/insights");
   const activeAiInsights = Array.isArray(fetchedAiInsights) ? fetchedAiInsights : [];
   const surface = getSurfaceClasses(theme);
   return (

@@ -958,6 +958,9 @@ model School {
   studentAuditLogs           StudentAuditLog[]
   studentCommunications      StudentCommunication[]
   communicationBroadcasts    CommunicationBroadcast[]
+  welfareConcerns            WelfareConcern[]
+  groupGuidanceSessions      GroupGuidanceSession[]
+  counsellingEscalations     CounsellingEscalation[]
 
   @@map("schools")
 }
@@ -1455,6 +1458,7 @@ model Student {
   studentClearances       StudentClearance[]
   studentAuditLogs        StudentAuditLog[]
   studentCommunications   StudentCommunication[]
+  welfareConcerns         WelfareConcern[]
 
   @@unique([schoolId, admissionNumber])
   @@unique([schoolId, upiNumber])
@@ -2171,21 +2175,22 @@ model DisciplineAction {
 // 13. Counselling & Welfare
 // ==========================================
 model CounsellingCase {
-  id                   String               @id @default(uuid())
-  schoolId             String               @map("school_id")
-  school               School               @relation(fields: [schoolId], references: [id])
-  studentId            String               @map("student_id")
-  student              Student              @relation(fields: [studentId], references: [id])
-  referredByUserId     String?              @map("referred_by_user_id")
-  counsellorUserId     String               @map("counsellor_user_id")
-  reason               String
-  priority             TaskPriority
-  confidentialityLevel ConfidentialityLevel @map("confidentiality_level")
-  status               CounsellingStatus
-  createdAt            DateTime             @default(now()) @map("created_at")
-  updatedAt            DateTime             @updatedAt @map("updated_at")
-  deletedAt            DateTime?            @map("deleted_at")
-  counsellingSessions  CounsellingSession[]
+  id                     String                  @id @default(uuid())
+  schoolId               String                  @map("school_id")
+  school                 School                  @relation(fields: [schoolId], references: [id])
+  studentId              String                  @map("student_id")
+  student                Student                 @relation(fields: [studentId], references: [id])
+  referredByUserId       String?                 @map("referred_by_user_id")
+  counsellorUserId       String                  @map("counsellor_user_id")
+  reason                 String
+  priority               TaskPriority
+  confidentialityLevel   ConfidentialityLevel    @map("confidentiality_level")
+  status                 CounsellingStatus
+  createdAt              DateTime                @default(now()) @map("created_at")
+  updatedAt              DateTime                @updatedAt @map("updated_at")
+  deletedAt              DateTime?               @map("deleted_at")
+  counsellingSessions    CounsellingSession[]
+  counsellingEscalations CounsellingEscalation[]
 
   @@index([schoolId])
   @@map("counselling_cases")
@@ -2210,6 +2215,57 @@ model CounsellingSession {
 }
 
 // ==========================================
+
+model WelfareConcern {
+  id             String   @id @default(uuid())
+  schoolId       String   @map("school_id")
+  school         School   @relation(fields: [schoolId], references: [id])
+  studentId      String   @map("student_id")
+  student        Student  @relation(fields: [studentId], references: [id])
+  reporterUserId String   @map("reporter_user_id")
+  description    String
+  category       String
+  status         String   @default("OPEN") // OPEN, RESOLVED, ESCALATED
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@index([schoolId])
+  @@map("welfare_concerns")
+}
+
+model GroupGuidanceSession {
+  id                String   @id @default(uuid())
+  schoolId          String   @map("school_id")
+  school            School   @relation(fields: [schoolId], references: [id])
+  topic             String
+  facilitatorUserId String   @map("facilitator_user_id")
+  sessionDate       DateTime @map("session_date")
+  attendanceCount   Int      @default(0) @map("attendance_count")
+  notes             String?
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  @@index([schoolId])
+  @@map("group_guidance_sessions")
+}
+
+model CounsellingEscalation {
+  id                String          @id @default(uuid())
+  schoolId          String          @map("school_id")
+  school            School          @relation(fields: [schoolId], references: [id])
+  counsellingCaseId String          @map("counselling_case_id")
+  counsellingCase   CounsellingCase @relation(fields: [counsellingCaseId], references: [id])
+  escalatedToUserId String          @map("escalated_to_user_id")
+  reason            String
+  actionTaken       String?         @map("action_taken")
+  status            String          @default("PENDING") // PENDING, ACTIONED, CLOSED
+  createdAt         DateTime        @default(now()) @map("created_at")
+  updatedAt         DateTime        @updatedAt @map("updated_at")
+
+  @@index([schoolId])
+  @@map("counselling_escalations")
+}
+
 // 14. Health / Sick Bay Schema
 // ==========================================
 model MedicalVisit {

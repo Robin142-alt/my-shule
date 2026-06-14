@@ -71,10 +71,10 @@ export class ExamsController {
   @Permissions('exams:write')
   configureExam(@Body() dto: any) {
     return this.examsService.createSeries({
-      academic_term_id: '00000000-0000-0000-0000-000000000000', // Mock UUID for now
-      name: dto.examName,
-      starts_on: new Date().toISOString().split('T')[0],
-      ends_on: new Date().toISOString().split('T')[0],
+      academic_term_id: dto.termId || dto.academic_term_id,
+      name: dto.examName || dto.name,
+      starts_on: dto.starts_on || new Date().toISOString().split('T')[0],
+      ends_on: dto.ends_on || new Date().toISOString().split('T')[0],
     });
   }
 

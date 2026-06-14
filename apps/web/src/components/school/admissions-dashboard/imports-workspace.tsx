@@ -55,8 +55,8 @@ export function AdmissionsImportsWorkspace({ dataset }: { dataset?: any }) {
         body: formData,
       });
       
-      if (response && response.rows) {
-        setRows(response.rows);
+      if (response && (response as any).rows) {
+        setRows((response as any).rows);
       }
       setUploadStatus("ready");
     } catch (e) {

@@ -67,4 +67,35 @@ export class LibraryController {
   listCatalogItems() {
     return this.libraryService.listCatalogItems();
   }
+
+  @Get('departments')
+  @Permissions('library:read')
+  getDepartments() {
+    return this.libraryService.getDepartments();
+  }
+
+  @Get('visits')
+  @Permissions('library:read')
+  getVisits() {
+    return this.libraryService.getVisits();
+  }
+
+  @Get('requests')
+  @Permissions('library:read')
+  getRequests() {
+    return this.libraryService.getRequests();
+  }
+
+  @Get('reports')
+  @Permissions('library:read')
+  getReports() {
+    return this.libraryService.getReports();
+  }
+
+  @Get('notices')
+  @Permissions('library:read')
+  getNotices() {
+    return this.libraryService.getNotices();
+  }
+
 }

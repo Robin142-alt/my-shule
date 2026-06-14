@@ -1,4 +1,5 @@
 "use client";
+import { DocxOperationalWorkspace } from "@/components/school/docx-operational-workspace";
 
 import { useMemo } from "react";
 import type { DashboardRole, DashboardSnapshot } from "@/lib/dashboard/types";
@@ -67,7 +68,7 @@ export function ExamsManagerModuleScreen({
     "exam-settings": <ExamSettingsWorkspace model={model} />,
   };
 
-  const content = workspaces[moduleName] || <PlaceholderWorkspace title="Workspace Not Found" desc="The requested workspace does not exist." />;
+  const content = workspaces[moduleName] || <DocxOperationalWorkspace moduleId={moduleName} />;
 
   return (
     <div className="space-y-6">
@@ -78,16 +79,3 @@ export function ExamsManagerModuleScreen({
 
 
 
-function PlaceholderWorkspace({ title, desc }: { title: string; desc: string }) {
-  return (
-    <div className="space-y-6">
-      <PageHeader eyebrow="Workspace" title={title} description={desc} />
-      <Card className="flex min-h-[400px] flex-col items-center justify-center p-8 text-center">
-        <p className="text-sm font-semibold text-foreground">Workspace under construction</p>
-        <p className="mt-2 max-w-md text-sm text-muted">
-          This workspace is registered in the architecture and mapped to the sidebar, but the detailed UI implementation is pending.
-        </p>
-      </Card>
-    </div>
-  );
-}

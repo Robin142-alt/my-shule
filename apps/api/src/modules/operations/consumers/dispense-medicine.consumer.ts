@@ -15,7 +15,7 @@ export class DispenseMedicineConsumer implements EventConsumerDescriptor<'workfl
       return;
     }
 
-    const { tenant_id, data } = event.payload;
+    const tenant_id = event.payload.tenant_id; const data = event.payload.payload as any;
     if (!data?.studentId || !data?.medicineInventoryId || !data?.quantityDispensed || !data?.symptoms) {
       this.logger.warn(`Missing dispense medicine details for tenant ${tenant_id}`);
       return;

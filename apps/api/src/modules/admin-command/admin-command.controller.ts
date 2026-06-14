@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Sse, UploadedFile, UseInterceptors, Param, Patch, Delete } from '@nestjs/common';
+import { Body, Controller, Get, Post, Sse, UploadedFile, UseInterceptors, Param, Patch, Delete, Query } from '@nestjs/common';
 import { StreamingUploadInterceptor } from '../../common/uploads/streaming-upload.interceptor';
 import { UploadFileMetadata } from '../../common/uploads/upload-policy';
 

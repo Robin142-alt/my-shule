@@ -15,7 +15,8 @@ export class LinkParentConsumer implements EventConsumerDescriptor<'workflow.act
       return;
     }
 
-    const { tenant_id, data } = event.payload;
+    const { tenant_id } = event.payload;
+    const data = event.payload.payload as any;
     if (!data?.studentId || !data?.guardianId) {
       this.logger.warn(`Missing studentId or guardianId for tenant ${tenant_id}`);
       return;

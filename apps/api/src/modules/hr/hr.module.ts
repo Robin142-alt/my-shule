@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { EventsModule } from '../events/events.module';
 
 import { HrController } from './hr.controller';
 import { HrSchemaService } from './hr-schema.service';

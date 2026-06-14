@@ -28,7 +28,7 @@ export function AdmissionsEnrolmentWorkspace({ dataset }: { dataset?: any }) {
   const handleEnrol = async () => {
     if (!selectedCandidate) return;
     
-    await enrolMutation.mutateAsync();
+    await enrolMutation.mutateAsync(selectedCandidate.id);
     refetch();
     
     setIsModalOpen(false);

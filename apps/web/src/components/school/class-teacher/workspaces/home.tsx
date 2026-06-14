@@ -1,12 +1,19 @@
 import { AlertTriangle, Home } from "lucide-react";
-import { Panel, StatusChip } from "../shared";
-import { useClassTeacherOverview } from "@/lib/data/class-teacher-hooks";
+import { Panel } from "../shared";
+import { useQuery } from "@tanstack/react-query";
+import { fetchClassTeacherOverviewLive } from "@/lib/modules/teacher-live";
+import { useLiveTenantSession } from "@/hooks/use-live-tenant-session";
 
 export function OverviewWorkspace() {
-  // Using a mock streamId for now. Real implementation would get this from active context.
-  const { data, isLoading, error } = useClassTeacherOverview("stream_123");
+  const liveSession = useLiveTenantSession();
+  
+  const { data, isLoading, error } = useQuery({
+    queryKey: ["class-teacher-overview", liveSession.session?.tenantId, liveSession.session?.user.user_id],
+    queryFn: () => fetchClassTeacherOverviewLive(liveSession.session!),
+    enabled: !!liveSession.session,
+  });
 
-  if (isLoading) {
+  if (isLoading || !liveSession.session) {
     return (
       <Panel title="Overview" description="This is the Class Teacher’s command center." icon={Home}>
         <div className="flex justify-center p-12"><div className="h-8 w-8 animate-spin rounded-full border-4 border-[#1D4ED8] border-t-transparent"></div></div>

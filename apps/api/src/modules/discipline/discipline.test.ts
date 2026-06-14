@@ -160,7 +160,8 @@ test('DisciplineService creates an incident with audit log and behavior points',
   };
   const service = new DisciplineService(
     requestContext,
-    { withRequestTransaction: async <T>(callback: () => Promise<T>) => callback() } as never,
+    { execute: async (params: any) => params.handler() } as never,
+    { executeWithTenant: async (t: any, o: any, cb: any) => cb({ $queryRawUnsafe: async () => [] }) } as never,
     repository as never,
     undefined as never,
   );
@@ -220,7 +221,8 @@ test('DisciplineService normalizes incident list pagination and avoids broad one
   };
   const service = new DisciplineService(
     requestContext,
-    { withRequestTransaction: async <T>(callback: () => Promise<T>) => callback() } as never,
+    { execute: async (params: any) => params.handler() } as never,
+    { executeWithTenant: async (t: any, o: any, cb: any) => cb({ $queryRawUnsafe: async () => [] }) } as never,
     repository as never,
   );
   const context = {
@@ -284,7 +286,8 @@ test('DisciplineService does not upsert default offense categories when configur
   };
   const service = new DisciplineService(
     requestContext,
-    { withRequestTransaction: async <T>(callback: () => Promise<T>) => callback() } as never,
+    { execute: async (params: any) => params.handler() } as never,
+    { executeWithTenant: async (t: any, o: any, cb: any) => cb({ $queryRawUnsafe: async () => [] }) } as never,
     repository as never,
   );
 
@@ -452,7 +455,8 @@ test('DisciplineService blocks parent acknowledgement for unlinked students', as
   };
   const service = new DisciplineService(
     requestContext,
-    { withRequestTransaction: async <T>(callback: () => Promise<T>) => callback() } as never,
+    { execute: async (params: any) => params.handler() } as never,
+    { executeWithTenant: async (t: any, o: any, cb: any) => cb({ $queryRawUnsafe: async () => [] }) } as never,
     repository as never,
     undefined as never,
   );
@@ -528,7 +532,8 @@ test('DisciplineService updates incident fields through the repository before au
   };
   const service = new DisciplineService(
     requestContext,
-    { withRequestTransaction: async <T>(callback: () => Promise<T>) => callback() } as never,
+    { execute: async (params: any) => params.handler() } as never,
+    { executeWithTenant: async (t: any, o: any, cb: any) => cb({ $queryRawUnsafe: async () => [] }) } as never,
     repository as never,
   );
 
@@ -579,7 +584,8 @@ test('DisciplineService returns operational analytics from the repository', asyn
   };
   const service = new DisciplineService(
     requestContext,
-    { withRequestTransaction: async <T>(callback: () => Promise<T>) => callback() } as never,
+    { execute: async (params: any) => params.handler() } as never,
+    { executeWithTenant: async (t: any, o: any, cb: any) => cb({ $queryRawUnsafe: async () => [] }) } as never,
     repository as never,
   );
 
@@ -785,7 +791,8 @@ test('DisciplineService does not let report-only users read raw incident cases',
   };
   const service = new DisciplineService(
     requestContext,
-    { withRequestTransaction: async <T>(callback: () => Promise<T>) => callback() } as never,
+    { execute: async (params: any) => params.handler() } as never,
+    { executeWithTenant: async (t: any, o: any, cb: any) => cb({ $queryRawUnsafe: async () => [] }) } as never,
     repository as never,
   );
 

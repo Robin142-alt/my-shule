@@ -95,6 +95,16 @@ export class ClassTeacherController {
     return this.classTeacherService.getDisciplineConcerns(tenantId, userId);
   }
 
+  @Post('discipline-concerns')
+  @Permissions('academics:write')
+  saveDisciplineConcern(
+    @Headers('x-tenant-id') tenantId: string,
+    @Headers('x-user-id') userId: string,
+    @Body() body: any
+  ) {
+    return this.classTeacherService.saveDisciplineConcern(tenantId, userId, body);
+  }
+
   @Get('report-comments')
   @Permissions('academics:read')
   getReportComments(
@@ -132,6 +142,16 @@ export class ClassTeacherController {
     @Body() body: { streamId: string; records: any[] }
   ) {
     return this.classTeacherService.saveAttendance(tenantId, userId, body.streamId, body.records);
+  }
+
+  @Post('marks')
+  @Permissions('exams:write')
+  saveMarks(
+    @Headers('x-tenant-id') tenantId: string,
+    @Headers('x-user-id') userId: string,
+    @Body() body: any
+  ) {
+    return this.classTeacherService.saveMarks(tenantId, userId, body);
   }
 
   @Get('progress')

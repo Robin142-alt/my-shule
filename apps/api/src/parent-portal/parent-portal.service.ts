@@ -54,18 +54,12 @@ export class ParentPortalService {
       data: {
         activeChild,
         children,
-        feeBalance: 12500, // Mocked for now since fee_structures logic requires more wiring
+        feeBalance: 0,
         attendance,
-        academics: { term: "Term 1", status: "Published" },
-        messages: 2,
-        actionRequired: [
-          { type: "Fees", message: "Term 2 balance KES 12,500", status: "Pending", tone: "warning" },
-          { type: "Consent", message: "Geography Trip to Longonot", status: "Required", tone: "danger" }
-        ],
-        recentActivity: [
-          { message: "Payment of KES 5,000 received.", date: "Yesterday at 14:30", type: "payment" },
-          { message: "Term 1 Report Card published by Principal.", date: "Monday", type: "academic" }
-        ]
+        academics: null,
+        messages: 0,
+        actionRequired: [],
+        recentActivity: []
       }
     };
   }
@@ -94,42 +88,21 @@ export class ParentPortalService {
 
     switch (module) {
       case 'fees':
-        // Simplified query representing fee_structures & fee_payments joining
-        data = [
-          { item: "Tuition Term 2", billed: "KES 20,000", paid: "KES 7,500", balance: "KES 12,500", due_date: "2026-05-10", status: "Overdue" },
-          { item: "Transport Term 2", billed: "KES 5,000", paid: "KES 5,000", balance: "KES 0", due_date: "2026-05-10", status: "Cleared" }
-        ];
-        columns = ["Fee Item", "Amount Billed", "Amount Paid", "Balance", "Due Date", "Status"];
+        data = [];
+        columns = ["Item", "Billed", "Paid", "Balance", "Due", "Status"];
         break;
-        
+      case 'exams':
+        data = [];
+        columns = ["Exam", "Subject", "Score", "Grade", "Rank", "Teacher Comment"];
+        break;
+      case 'discipline':
+        data = [];
+        columns = ["Date", "Category", "Issue", "Action Taken", "Status"];
+        break;
       case 'attendance':
-        const attResult = await this.db.query(`
-          SELECT attendance_date, status, reason
-          FROM academics_attendance
-          WHERE student_id = $1 AND tenant_id = $2
-          ORDER BY attendance_date DESC LIMIT 30
-        `, [studentId, context.tenant_id]);
-        
-        if (attResult.rows.length > 0) {
-          data = attResult.rows.map(r => ({
-            date: new Date(r.attendance_date).toLocaleDateString(),
-            status: r.status,
-            reason: r.reason || "N/A"
-          }));
-        } else {
-          data = [{ date: new Date().toLocaleDateString(), status: "Present", reason: "N/A" }];
-        }
-        columns = ["Date", "Status", "Reason"];
+        data = [];
+        columns = ["Date", "Status", "Remarks"];
         break;
-        
-      case 'academics':
-        data = [
-          { subject: "Mathematics", grade: "A-", remarks: "Excellent problem solving" },
-          { subject: "English", grade: "B+", remarks: "Good comprehension" }
-        ];
-        columns = ["Subject", "Grade", "Teacher Remarks"];
-        break;
-        
       default:
         data = [{ notice: `No detailed records found for ${module} yet.` }];
         columns = ["Notice"];

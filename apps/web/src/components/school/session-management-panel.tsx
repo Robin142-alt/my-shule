@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
 import { MonitorSmartphone, Power } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
@@ -15,20 +15,20 @@ type SessionRow = {
   status: "Current" | "Active";
 };
 
-const initialSessions: SessionRow[] = [
-  { id: "s-1", device: "Chrome on Windows", ip: "102.22.14.8", lastSeen: "Just now", status: "Current" },
-  { id: "s-2", device: "Safari on iPad", ip: "102.22.14.11", lastSeen: "Yesterday 18:20", status: "Active" },
-];
+import { useSchoolQuery, useSchoolMutation } from "@/lib/school/school-api";
 
 export function SessionManagementPanel() {
-  const [sessions, setSessions] = useState(initialSessions);
+  const queryClient = useQueryClient();
+  const { data: fetchedSessions } = useSchoolQuery<SessionRow[]>("/api/auth/sessions");
+  const sessions = Array.isArray(fetchedSessions) ? fetchedSessions : [];
+  const sessionMutation = useSchoolMutation("/api/auth/sessions/revoke");
 
   function revoke(sessionId: string) {
-    setSessions((current) => current.filter((session) => session.id !== sessionId));
+    sessionMutation.mutate({ sessionId }, { onSuccess: () => queryClient.invalidateQueries() });
   }
 
   function revokeAllOtherSessions() {
-    setSessions((current) => current.filter((session) => session.status === "Current"));
+    sessionMutation.mutate({ revokeAll: true }, { onSuccess: () => queryClient.invalidateQueries() });
   }
 
   return (

@@ -15,7 +15,7 @@ export class IssueStockConsumer implements EventConsumerDescriptor<'workflow.act
       return;
     }
 
-    const { tenant_id, data } = event.payload;
+    const tenant_id = event.payload.tenant_id; const data = event.payload.payload as any;
     if (!data?.inventoryItemId || !data?.quantity) {
       this.logger.warn(`Missing issue stock details for tenant ${tenant_id}`);
       return;

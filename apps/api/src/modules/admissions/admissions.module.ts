@@ -2,7 +2,7 @@ import * as moduleConsumers from './consumers';
 import { Module, forwardRef } from '@nestjs/common';
 
 import { DatabaseModule } from '../../database/database.module';
-import { AuthModule } from '../auth/auth.module';
+import { AuthModule } from '../../auth/auth.module';
 import { EventsModule } from '../events/events.module';
 import { AgpModule } from '../../common/platform-governance/agp.module';
 import { StudentsModule } from '../students/students.module';

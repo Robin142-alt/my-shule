@@ -5,6 +5,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 
+import { AgpExecutionService } from '../../common/platform-governance/agp-execution.service';
 import { RequestContextService } from '../../common/request-context/request-context.service';
 import {
   CreateTransportDriverDto,
@@ -23,6 +24,7 @@ import { Optional } from '@nestjs/common';
 export class TransportService {
   constructor(
     private readonly requestContext: RequestContextService,
+    private readonly agp: AgpExecutionService,
     private readonly repository: TransportRepository,
     @Optional() private readonly schoolEvents?: SchoolOperationalEventsService,
   ) {}

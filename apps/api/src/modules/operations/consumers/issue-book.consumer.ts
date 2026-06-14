@@ -15,7 +15,7 @@ export class IssueBookConsumer implements EventConsumerDescriptor<'workflow.acti
       return;
     }
 
-    const { tenant_id, data } = event.payload;
+    const tenant_id = event.payload.tenant_id; const data = event.payload.payload as any;
     if (!data?.bookCopyId || (!data?.studentId && !data?.staffUserId) || !data?.dueAt) {
       this.logger.warn(`Missing issue book details for tenant ${tenant_id}`);
       return;

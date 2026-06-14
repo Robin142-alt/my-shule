@@ -406,139 +406,8 @@ const workspacePanels: Array<{ id: WorkspacePanel; label: string }> = [
   { id: "form", label: "Form" },
 ];
 
-const initialClinicVisits: ClinicVisitRecord[] = [
-  {
-    id: "clinic-visit-brian",
-    student: "Brian Otieno",
-    className: "Form 2 East",
-    symptoms: "Fever and headache",
-    temperature: "38.1",
-    medicine: "Paracetamol",
-    quantity: 2,
-    guardianPhone: "0712 345 678",
-    status: "In sick bay",
-    parentContacted: true,
-    time: "08:45",
-  },
-  {
-    id: "clinic-visit-faith",
-    student: "Faith Akinyi",
-    className: "Grade 8 West",
-    symptoms: "Sports ankle injury",
-    temperature: "36.8",
-    medicine: "Bandage",
-    quantity: 1,
-    guardianPhone: "0798 765 432",
-    status: "Referred",
-    parentContacted: true,
-    time: "10:20",
-  },
-];
 
-const initialMedicineStock: MedicineStockRecord[] = [
-  { id: "medicine-paracetamol", medicine: "Paracetamol", batch: "PAR-0426", quantity: 18, expiry: "2026-09-30", reorderAt: 20 },
-  { id: "medicine-bandage", medicine: "Bandage", batch: "BDG-018", quantity: 34, expiry: "2027-01-15", reorderAt: 15 },
-  { id: "medicine-saline", medicine: "Oral Rehydration Salts", batch: "ORS-103", quantity: 12, expiry: "2026-07-10", reorderAt: 10 },
-  { id: "medicine-gloves", medicine: "Disposable Gloves", batch: "GLV-221", quantity: 8, expiry: "2028-04-01", reorderAt: 25 },
-];
 
-const initialAdmissionApplicants: AdmissionApplicantRecord[] = [
-  {
-    id: "admission-ivy-akinyi",
-    applicant: "Ivy Akinyi",
-    className: "Form 1 North",
-    parentPhone: "0712 889 441",
-    documents: "Partial",
-    interviewDate: "2026-05-29",
-    status: "Application Pending",
-    parentSmsSent: false,
-    letterPrinted: false,
-    note: "Birth certificate received, leaving certificate missing.",
-  },
-  {
-    id: "admission-david-kiptoo",
-    applicant: "David Kiptoo",
-    className: "Grade 8 East",
-    parentPhone: "0799 112 300",
-    documents: "Complete",
-    interviewDate: "2026-05-28",
-    status: "Documents Verified",
-    parentSmsSent: true,
-    letterPrinted: false,
-    note: "Interview completed, awaiting principal approval.",
-  },
-  {
-    id: "admission-grace-njeri",
-    applicant: "Grace Njeri",
-    className: "Form 2 West",
-    parentPhone: "0700 456 900",
-    documents: "Complete",
-    interviewDate: "2026-05-27",
-    status: "Approved",
-    admissionNumber: "KBI/2026/114",
-    parentSmsSent: true,
-    letterPrinted: true,
-    note: "Admission letter printed and first invoice prepared.",
-  },
-];
-
-const initialLibraryBooks: LibraryBookRecord[] = [
-  {
-    id: "library-book-bio-f1",
-    title: "Biology Form 1",
-    barcode: "KB-LIB-1001",
-    isbn: "9789966001011",
-    author: "KLB Biology Team",
-    category: "Science",
-    shelf: "SCI-A2",
-    status: "Issued",
-  },
-  {
-    id: "library-book-kiswahili-f2",
-    title: "Kiswahili Kitovu Form 2",
-    barcode: "KB-LIB-1002",
-    isbn: "9789966002216",
-    author: "Mwalimu Press",
-    category: "Languages",
-    shelf: "LAN-B4",
-    status: "Available",
-  },
-  {
-    id: "library-book-atlas",
-    title: "Longhorn Secondary Atlas",
-    barcode: "KB-LIB-1003",
-    isbn: "9789966003312",
-    author: "Longhorn Kenya",
-    category: "Geography",
-    shelf: "HUM-C1",
-    status: "Damaged",
-  },
-];
-
-const initialLibraryLoans: LibraryLoanRecord[] = [
-  {
-    id: "library-loan-brian",
-    bookTitle: "Biology Form 1",
-    barcode: "KB-LIB-1001",
-    borrower: "Brian Otieno",
-    admissionNo: "KBI/2026/044",
-    dueDate: "2026-05-24",
-    status: "Overdue",
-    fine: 120,
-    parentSmsSent: false,
-  },
-  {
-    id: "library-loan-faith",
-    bookTitle: "Chemistry Practical Manual",
-    barcode: "KB-LIB-1044",
-    borrower: "Faith Akinyi",
-    admissionNo: "KBI/2025/118",
-    dueDate: "2026-05-30",
-    status: "Issued",
-    fine: 0,
-    parentSmsSent: true,
-  },
-];
 
 const initialStockItems: StockItemRecord[] = [
   {
@@ -599,374 +468,10 @@ const initialStockMovements: StockMovementRecord[] = [
   },
 ];
 
-const initialBoardingRollCalls: BoardingRollCallRecord[] = [
-  {
-    id: "boarding-brian",
-    student: "Brian Otieno",
-    className: "Form 2 East",
-    dorm: "Lake House",
-    bed: "L-18",
-    status: "Present",
-    parentSmsSent: false,
-    lastMarked: "06:35",
-  },
-  {
-    id: "boarding-calvin",
-    student: "Calvin Were",
-    className: "Form 1 North",
-    dorm: "Hill House",
-    bed: "H-07",
-    status: "Missing",
-    parentSmsSent: true,
-    lastMarked: "06:40",
-  },
-  {
-    id: "boarding-faith",
-    student: "Faith Akinyi",
-    className: "Grade 8 West",
-    dorm: "River House",
-    bed: "R-22",
-    status: "Sick",
-    parentSmsSent: true,
-    lastMarked: "07:10",
-  },
-];
 
-const initialExeatRequests: ExeatRequestRecord[] = [
-  {
-    id: "exeat-brian",
-    student: "Brian Otieno",
-    dorm: "Lake House",
-    reason: "Dental appointment",
-    parentPhone: "0712 345 678",
-    status: "Pending",
-  },
-  {
-    id: "exeat-mary",
-    student: "Mary Wanjiku",
-    dorm: "Hill House",
-    reason: "Family function",
-    parentPhone: "0798 111 222",
-    status: "Forwarded",
-  },
-];
 
-const initialTransportVehicles: TransportVehicleRecord[] = [
-  {
-    id: "vehicle-kdk214f",
-    vehicle: "KDK 214F",
-    route: "Mamboleo Route",
-    driver: "James Mwangi",
-    status: "Maintenance",
-    fuelLevel: 32,
-    maintenanceNote: "Brake inspection due today",
-  },
-  {
-    id: "vehicle-kcf118b",
-    vehicle: "KCF 118B",
-    route: "Kondele Route",
-    driver: "Mercy Njeri",
-    status: "Active",
-    fuelLevel: 68,
-    maintenanceNote: "Service due next week",
-  },
-];
 
-const initialTransportTrips: TransportTripRecord[] = [
-  {
-    id: "trip-brian",
-    student: "Brian Otieno",
-    admissionNo: "KBI/2026/044",
-    route: "Mamboleo Route",
-    stop: "Mega City",
-    status: "Picked",
-    parentAlertSent: true,
-    time: "06:55",
-  },
-  {
-    id: "trip-faith",
-    student: "Faith Akinyi",
-    admissionNo: "KBI/2025/118",
-    route: "Kondele Route",
-    stop: "Kondele Stage",
-    status: "Not Picked",
-    parentAlertSent: false,
-    time: "07:05",
-  },
-];
 
-const initialLabInventory: LabInventoryRecord[] = [
-  {
-    id: "lab-hcl",
-    item: "Hydrochloric Acid",
-    category: "Chemical",
-    quantity: 4,
-    unit: "litres",
-    location: "Chemical cabinet A",
-    status: "Low Stock",
-    hazard: "High",
-  },
-  {
-    id: "lab-microscope",
-    item: "Student Microscope",
-    category: "Apparatus",
-    quantity: 18,
-    unit: "pieces",
-    location: "Biology Lab",
-    status: "OK",
-    hazard: "Low",
-  },
-  {
-    id: "lab-goggles",
-    item: "Safety Goggles",
-    category: "Apparatus",
-    quantity: 12,
-    unit: "pieces",
-    location: "Prep room",
-    status: "Low Stock",
-    hazard: "Medium",
-  },
-];
-
-const initialLabRequests: LabPracticalRequestRecord[] = [
-  {
-    id: "lab-request-titration",
-    teacher: "Mr. Otieno",
-    className: "Form 3 West",
-    subject: "Chemistry",
-    practical: "Acid-base titration",
-    requestedFor: "Today 10:40",
-    status: "Requested",
-    teacherAlerted: false,
-  },
-  {
-    id: "lab-request-microscope",
-    teacher: "Mrs. Achieng",
-    className: "Form 2 North",
-    subject: "Biology",
-    practical: "Onion cell microscopy",
-    requestedFor: "Tomorrow 08:20",
-    status: "Prepared",
-    teacherAlerted: true,
-  },
-];
-
-const initialLabIssues: LabIssueRecord[] = [
-  {
-    id: "lab-issue-goggles",
-    item: "Safety Goggles",
-    teacher: "Mr. Otieno",
-    className: "Form 3 West",
-    quantity: 10,
-    status: "Issued",
-    note: "For Chemistry practical",
-  },
-];
-
-const initialFeeBalances: FeeBalanceRecord[] = [
-  {
-    id: "fee-brian",
-    student: "Brian Otieno",
-    admissionNo: "KBI/2026/044",
-    className: "Form 2 East",
-    balance: 12400,
-    parentPhone: "0712 345 678",
-    lastPayment: 8000,
-    lastMethod: "M-Pesa",
-    status: "Balance",
-  },
-  {
-    id: "fee-faith",
-    student: "Faith Akinyi",
-    admissionNo: "KBI/2025/118",
-    className: "Grade 8 West",
-    balance: 28500,
-    parentPhone: "0798 111 222",
-    lastPayment: 12000,
-    lastMethod: "Bank",
-    status: "High Balance",
-  },
-  {
-    id: "fee-david",
-    student: "David Kiptoo",
-    admissionNo: "KBI/2026/330",
-    className: "Form 1 North",
-    balance: 0,
-    parentPhone: "0700 555 222",
-    lastPayment: 24500,
-    lastMethod: "Cash",
-    status: "Clear",
-  },
-];
-
-const initialFeePayments: FeePaymentRecord[] = [
-  {
-    id: "payment-qex7",
-    student: "Brian Otieno",
-    admissionNo: "KBI/2026/044",
-    amount: 8000,
-    method: "M-Pesa",
-    voteHead: "Tuition",
-    term: "Term 2 2026",
-    reference: "QEX7ABC123",
-    receiptNo: "KBI-RCPT-1044",
-    parentSmsSent: true,
-    status: "Confirmed",
-  },
-  {
-    id: "payment-pending-mpesa",
-    student: "Faith Akinyi",
-    admissionNo: "KBI/2025/118",
-    amount: 12000,
-    method: "M-Pesa",
-    voteHead: "Boarding",
-    term: "Term 2 2026",
-    reference: "QFE9PENDING",
-    receiptNo: "KBI-RCPT-1045",
-    parentSmsSent: false,
-    status: "M-Pesa Pending",
-  },
-];
-
-const initialSecretaryVisitors: SecretaryVisitorRecord[] = [
-  {
-    id: "visitor-otieno",
-    visitor: "Mr. Otieno",
-    phoneOrId: "0712 999 111",
-    visiting: "Brian Otieno",
-    reason: "Fee balance inquiry",
-    vehicle: "KDA 118Q",
-    status: "Inside",
-    checkInTime: "08:12",
-    slipPrinted: true,
-  },
-  {
-    id: "visitor-njeri",
-    visitor: "Grace Njeri",
-    phoneOrId: "ID 22881133",
-    visiting: "Admissions Office",
-    reason: "Admission inquiry",
-    vehicle: "",
-    status: "Waiting",
-    checkInTime: "09:05",
-    slipPrinted: false,
-  },
-];
-
-const initialSecretaryInquiries: SecretaryInquiryRecord[] = [
-  {
-    id: "inquiry-transfer",
-    parent: "Mrs. Achieng",
-    student: "Faith Akinyi",
-    className: "Grade 8 West",
-    phone: "0798 111 222",
-    issue: "Transfer letter request",
-    department: "Admissions",
-    status: "Waiting",
-    smsSent: false,
-  },
-  {
-    id: "inquiry-report-card",
-    parent: "Mr. Mwangi",
-    student: "David Kiptoo",
-    className: "Form 1 North",
-    phone: "0700 555 222",
-    issue: "Report card collection",
-    department: "Academics",
-    status: "In Progress",
-    smsSent: true,
-  },
-];
-
-const initialDisciplineCases: DisciplineCaseRecord[] = [
-  {
-    id: "discipline-calvin",
-    student: "Calvin Were",
-    className: "Form 1 North",
-    caseType: "Dormitory",
-    severity: "Serious",
-    reportedBy: "Boarding Master",
-    guardianPhone: "0700 444 112",
-    notes: "Missed night roll call twice and requires deputy follow-up.",
-    status: "Escalated",
-    parentSmsSent: true,
-    counsellorReferred: false,
-    time: "07:15",
-  },
-  {
-    id: "discipline-faith",
-    student: "Faith Akinyi",
-    className: "Grade 8 West",
-    caseType: "Lateness",
-    severity: "Moderate",
-    reportedBy: "Class Teacher",
-    guardianPhone: "0798 111 222",
-    notes: "Repeated lateness after lunch break, parent meeting pending.",
-    status: "Under Review",
-    parentSmsSent: false,
-    counsellorReferred: false,
-    time: "10:05",
-  },
-  {
-    id: "discipline-brian",
-    student: "Brian Otieno",
-    className: "Form 2 East",
-    caseType: "Bullying",
-    severity: "Critical",
-    reportedBy: "Mr. Otieno",
-    guardianPhone: "0712 345 678",
-    notes: "Bullying report under investigation; counsellor watch recommended.",
-    status: "Counsellor Referral",
-    parentSmsSent: true,
-    counsellorReferred: true,
-    time: "11:30",
-  },
-];
-
-const initialCounsellingSessions: CounsellingSessionRecord[] = [
-  {
-    id: "counselling-brian",
-    student: "Brian Otieno",
-    className: "Form 2 East",
-    referralSource: "Discipline Master",
-    riskLevel: "High",
-    sessionType: "Discipline Referral",
-    guardianPhone: "0712 345 678",
-    notes: "Bullying follow-up linked to discipline case and class teacher watch list.",
-    followUpDate: "2026-06-03",
-    status: "Follow-up Scheduled",
-    guardianSmsSent: true,
-    time: "09:20",
-  },
-  {
-    id: "counselling-faith",
-    student: "Faith Akinyi",
-    className: "Grade 8 West",
-    referralSource: "Class Teacher",
-    riskLevel: "Medium",
-    sessionType: "Academic Stress",
-    guardianPhone: "0798 111 222",
-    notes: "Needs study pressure check-in after missing assignments.",
-    followUpDate: "2026-06-05",
-    status: "Open",
-    guardianSmsSent: false,
-    time: "10:40",
-  },
-  {
-    id: "counselling-grace",
-    student: "Grace Njeri",
-    className: "Form 2 West",
-    referralSource: "Boarding Master",
-    riskLevel: "Low",
-    sessionType: "Boarding Support",
-    guardianPhone: "0711 555 990",
-    notes: "Dorm adjustment support; boarding master requested weekly check.",
-    followUpDate: "2026-06-07",
-    status: "Closed",
-    guardianSmsSent: true,
-    time: "12:15",
-  },
-];
 
 function slug(value: string) {
   return value
@@ -5356,7 +4861,6 @@ function GenericRoleOperationalCommandCenter({
   tenantSlug?: string | null;
 }) {
   const queryClient = useQueryClient();
-  const paymentMutation = useSchoolMutation("/api/finance/payment");
   const blueprintId = roleIdMap[role];
   const blueprint = blueprintId ? getOperationalRoleBlueprint(blueprintId) : null;
   const roleTitle = titleizeRole(role);
@@ -5397,57 +4901,101 @@ function GenericRoleOperationalCommandCenter({
   const [executionLog, setExecutionLog] = useState<ExecutionLogItem[]>([]);
   const [runtimeEntries, setRuntimeEntries] = useState<RuntimeWorkspaceEntry[]>([]);
   const [attendanceRegisters, setAttendanceRegisters] = useState<AttendanceRegisterRecord[]>([]);
-  const [clinicVisits, setClinicVisits] = useState<ClinicVisitRecord[]>(initialClinicVisits);
-  const [medicineStock, setMedicineStock] = useState<MedicineStockRecord[]>(initialMedicineStock);
+
+  const queryClient = useQueryClient();
+
+  const { data: fetchedClinicVisits } = useSchoolQuery<ClinicVisitRecord[]>("/api/clinic/visits");
+  const clinicVisits = Array.isArray(fetchedClinicVisits) ? fetchedClinicVisits : [];
+  const clinicVisitsMutation = useSchoolMutation("/api/clinic/visits");
+
+  const { data: fetchedMedicineStock } = useSchoolQuery<MedicineStockRecord[]>("/api/clinic/medicines/stock");
+  const medicineStock = Array.isArray(fetchedMedicineStock) ? fetchedMedicineStock : [];
+  const medicineStockMutation = useSchoolMutation("/api/clinic/medicines/stock");
+
   const [clinicNotice, setClinicNotice] = useState("Sick bay ready. Record visits, dispense medicine, notify parents, and print slips from this desk.");
-  const [admissionApplicants, setAdmissionApplicants] = useState<AdmissionApplicantRecord[]>(initialAdmissionApplicants);
+  const { data: fetchedAdmissionApplicants } = useSchoolQuery<AdmissionApplicantRecord[]>("/api/admissions/applicants");
+  const admissionApplicants = Array.isArray(fetchedAdmissionApplicants) ? fetchedAdmissionApplicants : [];
+  const admissionApplicantsMutation = useSchoolMutation("/api/admissions/applicants");
   const [admissionsNotice, setAdmissionsNotice] = useState("Admissions desk ready. Add inquiries, verify documents, approve learners, print letters, and notify parents.");
-  const [libraryBooks, setLibraryBooks] = useState<LibraryBookRecord[]>(initialLibraryBooks);
-  const [libraryLoans, setLibraryLoans] = useState<LibraryLoanRecord[]>(initialLibraryLoans);
+
+  const { data: fetchedLibraryBooks } = useSchoolQuery<LibraryBookRecord[]>("/api/library/books");
+  const libraryBooks = Array.isArray(fetchedLibraryBooks) ? fetchedLibraryBooks : [];
+  const libraryBooksMutation = useSchoolMutation("/api/library/books");
+
+  const { data: fetchedLibraryLoans } = useSchoolQuery<LibraryLoanRecord[]>("/api/library/loans");
+  const libraryLoans = Array.isArray(fetchedLibraryLoans) ? fetchedLibraryLoans : [];
+  const libraryLoansMutation = useSchoolMutation("/api/library/loans");
+
   const [libraryNotice, setLibraryNotice] = useState("Library desk ready. Scan books, issue returns, print slips, send SMS, and track fines from this desk.");
   const [stockItems, setStockItems] = useState<StockItemRecord[]>(initialStockItems);
   const [stockMovements, setStockMovements] = useState<StockMovementRecord[]>(initialStockMovements);
   const [stockNotice, setStockNotice] = useState("Store desk ready. Receive stock, issue items, track movement history, print slips, and export reports.");
-  const [boardingRollCalls, setBoardingRollCalls] = useState<BoardingRollCallRecord[]>(initialBoardingRollCalls);
-  const [exeatRequests, setExeatRequests] = useState<ExeatRequestRecord[]>(initialExeatRequests);
+  const { data: fetchedBoardingRollCalls } = useSchoolQuery<BoardingRollCallRecord[]>("/api/boarding/roll-calls");
+  const boardingRollCalls = Array.isArray(fetchedBoardingRollCalls) ? fetchedBoardingRollCalls : [];
+  const boardingRollCallsMutation = useSchoolMutation("/api/boarding/roll-calls");
+
+  const { data: fetchedExeatRequests } = useSchoolQuery<ExeatRequestRecord[]>("/api/boarding/exeats");
+  const exeatRequests = Array.isArray(fetchedExeatRequests) ? fetchedExeatRequests : [];
+  const exeatRequestsMutation = useSchoolMutation("/api/boarding/exeats");
+
   const [boardingNotice, setBoardingNotice] = useState("Boarding desk ready. Mark roll call, handle missing boarders, approve exeats, notify parents, and print hostel sheets.");
-  const [transportVehicles, setTransportVehicles] = useState<TransportVehicleRecord[]>(initialTransportVehicles);
-  const [transportTrips, setTransportTrips] = useState<TransportTripRecord[]>(initialTransportTrips);
+
+  const { data: fetchedTransportVehicles } = useSchoolQuery<TransportVehicleRecord[]>("/api/transport/vehicles");
+  const transportVehicles = Array.isArray(fetchedTransportVehicles) ? fetchedTransportVehicles : [];
+  const transportVehiclesMutation = useSchoolMutation("/api/transport/vehicles");
+
+  const { data: fetchedTransportTrips } = useSchoolQuery<TransportTripRecord[]>("/api/transport/trips");
+  const transportTrips = Array.isArray(fetchedTransportTrips) ? fetchedTransportTrips : [];
+  const transportTripsMutation = useSchoolMutation("/api/transport/trips");
+
   const [transportNotice, setTransportNotice] = useState("Transport desk ready. Record trips, mark pickups and drop-offs, alert parents, and track fuel or maintenance.");
-  const [labInventory, setLabInventory] = useState<LabInventoryRecord[]>(initialLabInventory);
-  const [labRequests, setLabRequests] = useState<LabPracticalRequestRecord[]>(initialLabRequests);
-  const [labIssues, setLabIssues] = useState<LabIssueRecord[]>(initialLabIssues);
+  const { data: fetchedLabInventory } = useSchoolQuery<LabInventoryRecord[]>("/api/labs/inventory");
+  const labInventory = Array.isArray(fetchedLabInventory) ? fetchedLabInventory : [];
+  const labInventoryMutation = useSchoolMutation("/api/labs/inventory");
+
+  const { data: fetchedLabRequests } = useSchoolQuery<LabPracticalRequestRecord[]>("/api/labs/requests");
+  const labRequests = Array.isArray(fetchedLabRequests) ? fetchedLabRequests : [];
+  const labRequestsMutation = useSchoolMutation("/api/labs/requests");
+
+  const { data: fetchedLabIssues } = useSchoolQuery<LabIssueRecord[]>("/api/labs/issues");
+  const labIssues = Array.isArray(fetchedLabIssues) ? fetchedLabIssues : [];
+  const labIssuesMutation = useSchoolMutation("/api/labs/issues");
+
   const [labNotice, setLabNotice] = useState("Laboratory desk ready. Prepare practicals, track chemicals, issue apparatus, record breakages, and alert teachers.");
-  const [feeBalances, setFeeBalances] = useState<FeeBalanceRecord[]>(initialFeeBalances);
-  const [feePayments, setFeePayments] = useState<FeePaymentRecord[]>(initialFeePayments);
+  const { data: fetchedFeeBalances } = useSchoolQuery<FeeBalanceRecord[]>("/api/finance/balances");
+  const feeBalances = Array.isArray(fetchedFeeBalances) ? fetchedFeeBalances : [];
+  const feeBalancesMutation = useSchoolMutation("/api/finance/balances");
+
+  const { data: fetchedFeePayments } = useSchoolQuery<FeePaymentRecord[]>("/api/finance/payments");
+  const feePayments = Array.isArray(fetchedFeePayments) ? fetchedFeePayments : [];
+  const feePaymentsMutation = useSchoolMutation("/api/finance/payments");
+
   const [financeNotice, setFinanceNotice] = useState("Finance desk ready. Record payments, confirm M-Pesa, print receipts, send SMS, and export fee lists.");
-  const [secretaryVisitors, setSecretaryVisitors] = useState<SecretaryVisitorRecord[]>(initialSecretaryVisitors);
-  const [secretaryInquiries, setSecretaryInquiries] = useState<SecretaryInquiryRecord[]>(initialSecretaryInquiries);
+
+  const { data: fetchedSecretaryVisitors } = useSchoolQuery<SecretaryVisitorRecord[]>("/api/secretary/visitors");
+  const secretaryVisitors = Array.isArray(fetchedSecretaryVisitors) ? fetchedSecretaryVisitors : [];
+  const secretaryVisitorsMutation = useSchoolMutation("/api/secretary/visitors");
+
+  const { data: fetchedSecretaryInquiries } = useSchoolQuery<SecretaryInquiryRecord[]>("/api/secretary/inquiries");
+  const secretaryInquiries = Array.isArray(fetchedSecretaryInquiries) ? fetchedSecretaryInquiries : [];
+  const secretaryInquiriesMutation = useSchoolMutation("/api/secretary/inquiries");
+
   const [secretaryNotice, setSecretaryNotice] = useState("Front office ready. Register visitors, serve parents, print slips, send SMS, and escalate issues.");
-  const [disciplineCases, setDisciplineCases] = useState<DisciplineCaseRecord[]>(initialDisciplineCases);
+
+  const { data: fetchedDisciplineCases } = useSchoolQuery<DisciplineCaseRecord[]>("/api/support/discipline");
+  const disciplineCases = Array.isArray(fetchedDisciplineCases) ? fetchedDisciplineCases : [];
+  const disciplineCasesMutation = useSchoolMutation("/api/support/discipline");
+
   const [disciplineNotice, setDisciplineNotice] = useState("Discipline desk ready. Record incidents, notify parents, refer counsellor, escalate serious cases, print letters, and close cases.");
-  const [counsellingSessions, setCounsellingSessions] = useState<CounsellingSessionRecord[]>(initialCounsellingSessions);
+
+  const { data: fetchedCounsellingSessions } = useSchoolQuery<CounsellingSessionRecord[]>("/api/support/counselling");
+  const counsellingSessions = Array.isArray(fetchedCounsellingSessions) ? fetchedCounsellingSessions : [];
+  const counsellingSessionsMutation = useSchoolMutation("/api/support/counselling");
+
   const [counsellingNotice, setCounsellingNotice] = useState("Counselling desk ready. Record sessions, notify guardians, schedule follow-ups, escalate high-risk cases, print summaries, and close follow-ups.");
 
   useEffect(() => {
     function hydrateStoredSchoolRecords() {
-      setClinicVisits(mergeSchoolRecordsById(initialClinicVisits, readSchoolData<ClinicVisitRecord>("clinic-visits", schoolId)));
-      setMedicineStock(mergeSchoolRecordsById(initialMedicineStock, readSchoolData<MedicineStockRecord>("medicine-stock", schoolId)));
-      setLibraryBooks(mergeSchoolRecordsById(initialLibraryBooks, readSchoolData<LibraryBookRecord>("library-books", schoolId)));
-      setLibraryLoans(mergeSchoolRecordsById(initialLibraryLoans, readSchoolData<LibraryLoanRecord>("library-loans", schoolId)));
-      setFeeBalances(mergeSchoolRecordsById(initialFeeBalances, readSchoolData<FeeBalanceRecord>("fee-balances", schoolId)));
-      setFeePayments(mergeSchoolRecordsById(initialFeePayments, readSchoolData<FeePaymentRecord>("finance-payments", schoolId)));
-      setSecretaryVisitors(mergeSchoolRecordsById(initialSecretaryVisitors, readSchoolData<SecretaryVisitorRecord>("visitors", schoolId)));
-      setSecretaryInquiries(mergeSchoolRecordsById(initialSecretaryInquiries, readSchoolData<SecretaryInquiryRecord>("front-office-inquiries", schoolId)));
-      setBoardingRollCalls(mergeSchoolRecordsById(initialBoardingRollCalls, readSchoolData<BoardingRollCallRecord>("boarding-roll-calls", schoolId)));
-      setExeatRequests(mergeSchoolRecordsById(initialExeatRequests, readSchoolData<ExeatRequestRecord>("boarding-exeat-requests", schoolId)));
-      setTransportVehicles(mergeSchoolRecordsById(initialTransportVehicles, readSchoolData<TransportVehicleRecord>("transport-vehicles", schoolId)));
-      setTransportTrips(mergeSchoolRecordsById(initialTransportTrips, readSchoolData<TransportTripRecord>("transport-trips", schoolId)));
-      setLabInventory(mergeSchoolRecordsById(initialLabInventory, readSchoolData<LabInventoryRecord>("lab-inventory", schoolId)));
-      setLabRequests(mergeSchoolRecordsById(initialLabRequests, readSchoolData<LabPracticalRequestRecord>("lab-practical-requests", schoolId)));
-      setLabIssues(mergeSchoolRecordsById(initialLabIssues, readSchoolData<LabIssueRecord>("lab-apparatus-issues", schoolId)));
-      setDisciplineCases(mergeSchoolRecordsById(initialDisciplineCases, readSchoolData<DisciplineCaseRecord>("discipline-cases", schoolId)));
-      setCounsellingSessions(mergeSchoolRecordsById(initialCounsellingSessions, readSchoolData<CounsellingSessionRecord>("counselling-sessions", schoolId)));
       setAttendanceRegisters(readSchoolData<AttendanceRegisterRecord>("attendance-registers", schoolId));
     }
 
@@ -5806,23 +5354,8 @@ function GenericRoleOperationalCommandCenter({
       parentContacted: false,
       time: new Date().toLocaleTimeString("en-KE", { hour: "2-digit", minute: "2-digit" }),
     };
-    setClinicVisits((current) => [newVisit, ...current]);
-    setMedicineStock((current) => current.map((item) => (
-      item.medicine === visit.medicine
-        ? { ...item, quantity: Math.max(0, item.quantity - quantity) }
-        : item
-    )));
-    addSchoolRecord("clinic-visits", newVisit, schoolId);
-    addSchoolRecord("medicine-dispensations", {
-      id: runtimeId("dispensation"),
-      student: visit.student,
-      className: visit.className,
-      medicine: visit.medicine,
-      quantity,
-      guardianPhone: visit.guardianPhone,
-      visitId,
-      createdAt: new Date().toISOString(),
-    }, schoolId);
+    clinicVisitsMutation.mutate({ action: "record_visit", visit: newVisit }, { onSuccess: () => queryClient.invalidateQueries() });
+    medicineStockMutation.mutate({ action: "dispense", medicine: visit.medicine, quantity }, { onSuccess: () => queryClient.invalidateQueries() });
     publishDashboardEvent({
       type: "CLINIC_VISIT_RECORDED",
       module: "clinic",
@@ -5847,19 +5380,14 @@ function GenericRoleOperationalCommandCenter({
   function loadMedicineStock(medicine: Omit<MedicineStockRecord, "id">) {
     const newMedicine = { ...medicine, id: runtimeId("medicine") };
 
-    setMedicineStock((current) => [
-      newMedicine,
-      ...current,
-    ]);
-    addSchoolRecord("medicine-stock", newMedicine, schoolId);
+    medicineStockMutation.mutate({ action: "load_stock", medicine: newMedicine }, { onSuccess: () => queryClient.invalidateQueries() });
     addLocalExecutionLog(`${medicine.medicine} stock loaded`, ["Medicine batch saved", "Stock count updated"]);
     setClinicNotice(`${medicine.medicine} stock loaded. Inventory count updated.`);
   }
 
   function notifyClinicParent(id: string) {
     const visit = clinicVisits.find((item) => item.id === id);
-    setClinicVisits((current) => current.map((item) => item.id === id ? { ...item, parentContacted: true } : item));
-    updateSchoolRecord("clinic-visits", id, { parentContacted: true }, schoolId);
+    clinicVisitsMutation.mutate({ action: "notify_parent", id }, { onSuccess: () => queryClient.invalidateQueries() });
     publishDashboardEvent({
       type: "CLINIC_PARENT_SMS_SENT",
       module: "clinic",
@@ -5876,8 +5404,7 @@ function GenericRoleOperationalCommandCenter({
 
   function referClinicVisit(id: string) {
     const visit = clinicVisits.find((item) => item.id === id);
-    setClinicVisits((current) => current.map((item) => item.id === id ? { ...item, status: "Referred", parentContacted: true } : item));
-    updateSchoolRecord("clinic-visits", id, { status: "Referred", parentContacted: true }, schoolId);
+    clinicVisitsMutation.mutate({ action: "refer", id }, { onSuccess: () => queryClient.invalidateQueries() });
     publishDashboardEvent({
       type: "CLINIC_REFERRAL_CREATED",
       module: "clinic",
@@ -5896,8 +5423,7 @@ function GenericRoleOperationalCommandCenter({
 
   function releaseClinicVisit(id: string) {
     const visit = clinicVisits.find((item) => item.id === id);
-    setClinicVisits((current) => current.map((item) => item.id === id ? { ...item, status: "Released" } : item));
-    updateSchoolRecord("clinic-visits", id, { status: "Released" }, schoolId);
+    clinicVisitsMutation.mutate({ action: "release", id }, { onSuccess: () => queryClient.invalidateQueries() });
     addLocalExecutionLog(`${visit?.student ?? "Student"} released from sick bay`, ["Visit closed", "Class teacher notified"]);
     setClinicNotice(`${visit?.student ?? "Student"} released from sick bay.`);
   }
@@ -5956,8 +5482,7 @@ function GenericRoleOperationalCommandCenter({
       letterPrinted: false,
     };
 
-    setAdmissionApplicants((current) => [newApplicant, ...current]);
-    addSchoolRecord("admission-applicants", newApplicant, schoolId);
+    admissionApplicantsMutation.mutate({ action: "add_applicant", applicant: newApplicant }, { onSuccess: () => queryClient.invalidateQueries() });
     publishDashboardEvent({
       type: "ADMISSION_INQUIRY_RECORDED",
       module: "admissions",
@@ -5979,11 +5504,7 @@ function GenericRoleOperationalCommandCenter({
   function verifyAdmissionDocuments(id: string) {
     const applicant = admissionApplicants.find((item) => item.id === id);
 
-    setAdmissionApplicants((current) => current.map((item) => item.id === id ? {
-      ...item,
-      documents: "Complete",
-      status: item.status === "Approved" || item.status === "Onboarded" ? item.status : "Documents Verified",
-    } : item));
+    admissionApplicantsMutation.mutate({ action: "verify_documents", id }, { onSuccess: () => queryClient.invalidateQueries() });
     addAdmissionsExecutionLog(`${applicant?.applicant ?? "Applicant"} documents verified`, ["Documents marked complete", "Interview/decision can continue"]);
     setAdmissionsNotice(`${applicant?.applicant ?? "Applicant"} documents verified.`);
   }
@@ -5991,11 +5512,7 @@ function GenericRoleOperationalCommandCenter({
   function scheduleAdmissionInterview(id: string) {
     const applicant = admissionApplicants.find((item) => item.id === id);
 
-    setAdmissionApplicants((current) => current.map((item) => item.id === id ? {
-      ...item,
-      status: item.status === "Approved" || item.status === "Onboarded" ? item.status : "Interview Scheduled",
-      interviewDate: item.interviewDate || "2026-05-29",
-    } : item));
+    admissionApplicantsMutation.mutate({ action: "schedule_interview", id }, { onSuccess: () => queryClient.invalidateQueries() });
     addAdmissionsExecutionLog(`${applicant?.applicant ?? "Applicant"} interview scheduled`, ["Interview date saved", "Parent reminder ready"]);
     setAdmissionsNotice(`${applicant?.applicant ?? "Applicant"} interview scheduled for ${applicant?.interviewDate || "2026-05-29"}.`);
   }
@@ -6004,12 +5521,7 @@ function GenericRoleOperationalCommandCenter({
     const applicant = admissionApplicants.find((item) => item.id === id);
     const generatedNumber = applicant?.admissionNumber ?? `KBI/2026/${runtimeNumber(100, 800)}`;
 
-    setAdmissionApplicants((current) => current.map((item) => item.id === id ? {
-      ...item,
-      documents: "Complete",
-      status: "Approved",
-      admissionNumber: item.admissionNumber ?? generatedNumber,
-    } : item));
+    admissionApplicantsMutation.mutate({ action: "approve_applicant", id, generatedNumber }, { onSuccess: () => queryClient.invalidateQueries() });
     addAdmissionsExecutionLog(`${applicant?.applicant ?? "Applicant"} admission approved`, ["Admission approved", "Admission number generated", "First invoice can be prepared"]);
     setAdmissionsNotice(`${applicant?.applicant ?? "Applicant"} approved with admission number ${generatedNumber}.`);
   }
@@ -6017,7 +5529,7 @@ function GenericRoleOperationalCommandCenter({
   function rejectAdmissionApplicant(id: string) {
     const applicant = admissionApplicants.find((item) => item.id === id);
 
-    setAdmissionApplicants((current) => current.map((item) => item.id === id ? { ...item, status: "Rejected" } : item));
+    admissionApplicantsMutation.mutate({ action: "reject_applicant", id }, { onSuccess: () => queryClient.invalidateQueries() });
     addAdmissionsExecutionLog(`${applicant?.applicant ?? "Applicant"} application rejected`, ["Application status updated", "Parent communication required"]);
     setAdmissionsNotice(`${applicant?.applicant ?? "Applicant"} application marked rejected. Parent communication is still available.`);
   }
@@ -6025,17 +5537,7 @@ function GenericRoleOperationalCommandCenter({
   function sendAdmissionParentSms(id: string) {
     const applicant = admissionApplicants.find((item) => item.id === id);
 
-    setAdmissionApplicants((current) => current.map((item) => {
-      if (item.id !== id) return item;
-
-      const shouldOnboard = item.status === "Approved" && item.letterPrinted;
-
-      return {
-        ...item,
-        parentSmsSent: true,
-        status: shouldOnboard ? "Onboarded" : item.status,
-      };
-    }));
+    admissionApplicantsMutation.mutate({ action: "send_sms", id }, { onSuccess: () => queryClient.invalidateQueries() });
     addAdmissionsExecutionLog(`${applicant?.applicant ?? "Applicant"} parent SMS queued`, ["Parent onboarding SMS queued", "Admissions communication log updated"]);
     setAdmissionsNotice(`${applicant?.applicant ?? "Applicant"} parent SMS queued to ${applicant?.parentPhone ?? "guardian"}.`);
   }
@@ -6043,17 +5545,7 @@ function GenericRoleOperationalCommandCenter({
   function printAdmissionLetter(id: string) {
     const applicant = admissionApplicants.find((item) => item.id === id);
 
-    setAdmissionApplicants((current) => current.map((item) => {
-      if (item.id !== id) return item;
-
-      const shouldOnboard = item.status === "Approved" && item.parentSmsSent;
-
-      return {
-        ...item,
-        letterPrinted: true,
-        status: shouldOnboard ? "Onboarded" : item.status,
-      };
-    }));
+    admissionApplicantsMutation.mutate({ action: "print_letter", id }, { onSuccess: () => queryClient.invalidateQueries() });
     addAdmissionsExecutionLog(`${applicant?.applicant ?? "Applicant"} admission letter preview ready`, ["Admission letter prepared", "Print preview ready"]);
     setAdmissionsNotice(
       `${applicant?.applicant ?? "Applicant"} admission letter print preview ready for ${schoolId}: applicant ${id}, ${applicant?.admissionNumber ?? "pending admission number"}, status ${applicant?.status ?? "unknown"}.`,
@@ -6105,8 +5597,7 @@ function GenericRoleOperationalCommandCenter({
       status: "Available",
     };
 
-    setLibraryBooks((current) => [newBook, ...current]);
-    addSchoolRecord("library-books", newBook, schoolId);
+    libraryBooksMutation.mutate({ action: "add_book", book: newBook }, { onSuccess: () => queryClient.invalidateQueries() });
     publishDashboardEvent({
       type: "LIBRARY_BOOK_ADDED",
       module: "library",
@@ -6133,15 +5624,9 @@ function GenericRoleOperationalCommandCenter({
       parentSmsSent: false,
     };
 
-    setLibraryLoans((current) => [newLoan, ...current]);
-    setLibraryBooks((current) => current.map((item) => (
-      item.barcode.toLowerCase() === loan.barcode.toLowerCase()
-        ? { ...item, status: "Issued" }
-        : item
-    )));
-    addSchoolRecord("library-loans", newLoan, schoolId);
+    libraryLoansMutation.mutate({ action: "issue_book", loan: newLoan }, { onSuccess: () => queryClient.invalidateQueries() });
     if (book) {
-      updateSchoolRecord("library-books", book.id, { status: "Issued" }, schoolId);
+      libraryBooksMutation.mutate({ action: "update_status", id: book.id, status: "Issued" }, { onSuccess: () => queryClient.invalidateQueries() });
     }
     publishDashboardEvent({
       type: "LIBRARY_BOOK_ISSUED",
@@ -6160,15 +5645,11 @@ function GenericRoleOperationalCommandCenter({
   function returnLibraryBook(id: string) {
     const loan = libraryLoans.find((item) => item.id === id);
 
-    setLibraryLoans((current) => current.map((item) => item.id === id ? { ...item, status: "Returned", fine: 0 } : item));
-    setLibraryBooks((current) => current.map((item) => (
-      loan && item.barcode === loan.barcode ? { ...item, status: "Available" } : item
-    )));
-    updateSchoolRecord("library-loans", id, { status: "Returned", fine: 0 }, schoolId);
+    libraryLoansMutation.mutate({ action: "return_book", id }, { onSuccess: () => queryClient.invalidateQueries() });
     if (loan) {
       const book = libraryBooks.find((item) => item.barcode === loan.barcode);
       if (book) {
-        updateSchoolRecord("library-books", book.id, { status: "Available" }, schoolId);
+        libraryBooksMutation.mutate({ action: "update_status", id: book.id, status: "Available" }, { onSuccess: () => queryClient.invalidateQueries() });
       }
     }
     publishDashboardEvent({
@@ -6187,11 +5668,13 @@ function GenericRoleOperationalCommandCenter({
   function markLibraryLost(id: string) {
     const loan = libraryLoans.find((item) => item.id === id);
 
-    setLibraryLoans((current) => current.map((item) => item.id === id ? { ...item, status: "Lost", fine: Math.max(item.fine, 850) } : item));
-    setLibraryBooks((current) => current.map((item) => (
-      loan && item.barcode === loan.barcode ? { ...item, status: "Lost" } : item
-    )));
-    updateSchoolRecord("library-loans", id, { status: "Lost", fine: Math.max(loan?.fine ?? 0, 850) }, schoolId);
+    libraryLoansMutation.mutate({ action: "mark_lost", id }, { onSuccess: () => queryClient.invalidateQueries() });
+    if (loan) {
+      const book = libraryBooks.find((item) => item.barcode === loan.barcode);
+      if (book) {
+        libraryBooksMutation.mutate({ action: "update_status", id: book.id, status: "Lost" }, { onSuccess: () => queryClient.invalidateQueries() });
+      }
+    }
     publishDashboardEvent({
       type: "LIBRARY_BOOK_LOST",
       module: "library",
@@ -6208,11 +5691,13 @@ function GenericRoleOperationalCommandCenter({
   function markLibraryDamaged(id: string) {
     const loan = libraryLoans.find((item) => item.id === id);
 
-    setLibraryLoans((current) => current.map((item) => item.id === id ? { ...item, status: "Damaged", fine: Math.max(item.fine, 300) } : item));
-    setLibraryBooks((current) => current.map((item) => (
-      loan && item.barcode === loan.barcode ? { ...item, status: "Damaged" } : item
-    )));
-    updateSchoolRecord("library-loans", id, { status: "Damaged", fine: Math.max(loan?.fine ?? 0, 300) }, schoolId);
+    libraryLoansMutation.mutate({ action: "mark_damaged", id }, { onSuccess: () => queryClient.invalidateQueries() });
+    if (loan) {
+      const book = libraryBooks.find((item) => item.barcode === loan.barcode);
+      if (book) {
+        libraryBooksMutation.mutate({ action: "update_status", id: book.id, status: "Damaged" }, { onSuccess: () => queryClient.invalidateQueries() });
+      }
+    }
     addLibraryExecutionLog(`${loan?.bookTitle ?? "Book"} marked damaged`, ["Damage record saved", "Fine applied"]);
     setLibraryNotice(`${loan?.bookTitle ?? "Book"} marked damaged. Repair or replacement follow-up is visible.`);
   }
@@ -6220,8 +5705,7 @@ function GenericRoleOperationalCommandCenter({
   function sendLibrarySms(id: string) {
     const loan = libraryLoans.find((item) => item.id === id);
 
-    setLibraryLoans((current) => current.map((item) => item.id === id ? { ...item, parentSmsSent: true } : item));
-    updateSchoolRecord("library-loans", id, { parentSmsSent: true }, schoolId);
+    libraryLoansMutation.mutate({ action: "send_sms", id }, { onSuccess: () => queryClient.invalidateQueries() });
     publishDashboardEvent({
       type: "LIBRARY_SMS_SENT",
       module: "library",
@@ -6435,8 +5919,7 @@ function GenericRoleOperationalCommandCenter({
       lastMarked: new Date().toLocaleTimeString("en-KE", { hour: "2-digit", minute: "2-digit" }),
     };
 
-    setBoardingRollCalls((current) => [newRecord, ...current]);
-    saveBoardingRollCallRecord(newRecord);
+    boardingRollCallsMutation.mutate({ action: "add_roll_call", record: newRecord }, { onSuccess: () => queryClient.invalidateQueries() });
     publishDashboardEvent({
       type: "BOARDING_ROLL_CALL_RECORDED",
       module: "boarding",
@@ -6484,9 +5967,8 @@ function GenericRoleOperationalCommandCenter({
         }
       : null;
 
-    setBoardingRollCalls((current) => current.map((item) => item.id === id && updatedRecord ? updatedRecord : item));
+    boardingRollCallsMutation.mutate({ action: "mark_present", id }, { onSuccess: () => queryClient.invalidateQueries() });
     if (updatedRecord) {
-      saveBoardingRollCallRecord(updatedRecord);
       publishDashboardEvent({
         type: "BOARDING_ROLL_CALL_CORRECTED",
         module: "boarding",
@@ -6512,9 +5994,8 @@ function GenericRoleOperationalCommandCenter({
         }
       : null;
 
-    setBoardingRollCalls((current) => current.map((item) => item.id === id && updatedRecord ? updatedRecord : item));
+    boardingRollCallsMutation.mutate({ action: "mark_missing", id }, { onSuccess: () => queryClient.invalidateQueries() });
     if (updatedRecord) {
-      saveBoardingRollCallRecord(updatedRecord);
       publishDashboardEvent({
         type: "BOARDING_MISSING_BOARDER_ALERTED",
         module: "boarding",
@@ -6538,9 +6019,8 @@ function GenericRoleOperationalCommandCenter({
     const record = boardingRollCalls.find((item) => item.id === id);
     const updatedRecord = record ? { ...record, parentSmsSent: true } : null;
 
-    setBoardingRollCalls((current) => current.map((item) => item.id === id && updatedRecord ? updatedRecord : item));
+    boardingRollCallsMutation.mutate({ action: "notify_parent", id }, { onSuccess: () => queryClient.invalidateQueries() });
     if (updatedRecord) {
-      saveBoardingRollCallRecord(updatedRecord);
       publishDashboardEvent({
         type: "BOARDING_PARENT_SMS_SENT",
         module: "boarding",
@@ -6560,19 +6040,8 @@ function GenericRoleOperationalCommandCenter({
     const record = boardingRollCalls.find((item) => item.id === id);
     const updatedRecord = record ? { ...record, status: "Sick" as const, parentSmsSent: true } : null;
 
-    setBoardingRollCalls((current) => current.map((item) => item.id === id && updatedRecord ? updatedRecord : item));
+    boardingRollCallsMutation.mutate({ action: "refer_to_nurse", id }, { onSuccess: () => queryClient.invalidateQueries() });
     if (updatedRecord) {
-      saveBoardingRollCallRecord(updatedRecord);
-      addSchoolRecord("boarding-nurse-referrals", {
-        id: runtimeId("boarding-nurse-referral"),
-        student: updatedRecord.student,
-        className: updatedRecord.className,
-        dorm: updatedRecord.dorm,
-        bed: updatedRecord.bed,
-        source: "Boarding Master",
-        status: "Sent to nurse",
-        createdAt: new Date().toISOString(),
-      }, schoolId);
       publishDashboardEvent({
         type: "BOARDING_NURSE_REFERRAL_CREATED",
         module: "boarding",
@@ -6599,8 +6068,7 @@ function GenericRoleOperationalCommandCenter({
       status: "Pending",
     };
 
-    setExeatRequests((current) => [newRequest, ...current]);
-    saveBoardingExeatRequest(newRequest);
+    exeatRequestsMutation.mutate({ action: "add_request", request: newRequest }, { onSuccess: () => queryClient.invalidateQueries() });
     publishDashboardEvent({
       type: "BOARDING_EXEAT_REQUESTED",
       module: "boarding",
@@ -6623,9 +6091,8 @@ function GenericRoleOperationalCommandCenter({
     const request = exeatRequests.find((item) => item.id === id);
     const updatedRequest = request ? { ...request, status: "Approved" as const } : null;
 
-    setExeatRequests((current) => current.map((item) => item.id === id && updatedRequest ? updatedRequest : item));
+    exeatRequestsMutation.mutate({ action: "approve_request", id }, { onSuccess: () => queryClient.invalidateQueries() });
     if (updatedRequest) {
-      saveBoardingExeatRequest(updatedRequest);
       publishDashboardEvent({
         type: "BOARDING_EXEAT_APPROVED",
         module: "boarding",
@@ -6648,9 +6115,8 @@ function GenericRoleOperationalCommandCenter({
     const request = exeatRequests.find((item) => item.id === id);
     const updatedRequest = request ? { ...request, status: "Forwarded" as const } : null;
 
-    setExeatRequests((current) => current.map((item) => item.id === id && updatedRequest ? updatedRequest : item));
+    exeatRequestsMutation.mutate({ action: "forward_request", id }, { onSuccess: () => queryClient.invalidateQueries() });
     if (updatedRequest) {
-      saveBoardingExeatRequest(updatedRequest);
       publishDashboardEvent({
         type: "BOARDING_EXEAT_FORWARDED",
         module: "boarding",
@@ -6728,8 +6194,7 @@ function GenericRoleOperationalCommandCenter({
       time: new Date().toLocaleTimeString("en-KE", { hour: "2-digit", minute: "2-digit" }),
     };
 
-    setTransportTrips((current) => [newTrip, ...current]);
-    saveTransportTripRecord(newTrip);
+    transportTripsMutation.mutate({ action: "add_trip", trip: newTrip }, { onSuccess: () => queryClient.invalidateQueries() });
     publishDashboardEvent({
       type: "TRANSPORT_TRIP_RECORDED",
       module: "transport",
@@ -6753,9 +6218,8 @@ function GenericRoleOperationalCommandCenter({
     const trip = transportTrips.find((item) => item.id === id);
     const updatedTrip = trip ? { ...trip, status: "Picked" as const, parentAlertSent: true } : null;
 
-    setTransportTrips((current) => current.map((item) => item.id === id && updatedTrip ? updatedTrip : item));
+    transportTripsMutation.mutate({ action: "mark_picked", id }, { onSuccess: () => queryClient.invalidateQueries() });
     if (updatedTrip) {
-      saveTransportTripRecord(updatedTrip);
       publishDashboardEvent({
         type: "TRANSPORT_STUDENT_PICKED",
         module: "transport",
@@ -6775,9 +6239,8 @@ function GenericRoleOperationalCommandCenter({
     const trip = transportTrips.find((item) => item.id === id);
     const updatedTrip = trip ? { ...trip, status: "Dropped" as const, parentAlertSent: true } : null;
 
-    setTransportTrips((current) => current.map((item) => item.id === id && updatedTrip ? updatedTrip : item));
+    transportTripsMutation.mutate({ action: "mark_dropped", id }, { onSuccess: () => queryClient.invalidateQueries() });
     if (updatedTrip) {
-      saveTransportTripRecord(updatedTrip);
       publishDashboardEvent({
         type: "TRANSPORT_STUDENT_DROPPED",
         module: "transport",
@@ -6797,9 +6260,8 @@ function GenericRoleOperationalCommandCenter({
     const trip = transportTrips.find((item) => item.id === id);
     const updatedTrip = trip ? { ...trip, parentAlertSent: true } : null;
 
-    setTransportTrips((current) => current.map((item) => item.id === id && updatedTrip ? updatedTrip : item));
+    transportTripsMutation.mutate({ action: "notify_parent", id }, { onSuccess: () => queryClient.invalidateQueries() });
     if (updatedTrip) {
-      saveTransportTripRecord(updatedTrip);
       publishDashboardEvent({
         type: "TRANSPORT_PARENT_ALERT_SENT",
         module: "transport",
@@ -6819,9 +6281,8 @@ function GenericRoleOperationalCommandCenter({
     const vehicle = transportVehicles.find((item) => item.id === id);
     const updatedVehicle = vehicle ? { ...vehicle, status: "Maintenance" as const, maintenanceNote: "Issue reported by transport desk" } : null;
 
-    setTransportVehicles((current) => current.map((item) => item.id === id && updatedVehicle ? updatedVehicle : item));
+    transportVehiclesMutation.mutate({ action: "report_issue", id }, { onSuccess: () => queryClient.invalidateQueries() });
     if (updatedVehicle) {
-      saveTransportVehicleRecord(updatedVehicle);
       publishDashboardEvent({
         type: "TRANSPORT_VEHICLE_ISSUE_REPORTED",
         module: "transport",
@@ -6840,18 +6301,8 @@ function GenericRoleOperationalCommandCenter({
     const vehicle = transportVehicles.find((item) => item.id === id);
     const updatedVehicle = vehicle ? { ...vehicle, fuelLevel: Math.min(100, vehicle.fuelLevel + 25) } : null;
 
-    setTransportVehicles((current) => current.map((item) => item.id === id && updatedVehicle ? updatedVehicle : item));
+    transportVehiclesMutation.mutate({ action: "add_fuel", id }, { onSuccess: () => queryClient.invalidateQueries() });
     if (updatedVehicle) {
-      saveTransportVehicleRecord(updatedVehicle);
-      addSchoolRecord("transport-fuel-records", {
-        id: runtimeId("transport-fuel"),
-        vehicle: updatedVehicle.vehicle,
-        route: updatedVehicle.route,
-        action: "Fuel Added",
-        fuelLevel: updatedVehicle.fuelLevel,
-        recordedBy: "Transport Manager",
-        createdAt: new Date().toISOString(),
-      }, schoolId);
       publishDashboardEvent({
         type: "TRANSPORT_FUEL_RECORDED",
         module: "transport",
@@ -6870,17 +6321,8 @@ function GenericRoleOperationalCommandCenter({
     const vehicle = transportVehicles.find((item) => item.id === id);
     const updatedVehicle = vehicle ? { ...vehicle, status: "Maintenance" as const, maintenanceNote: "Maintenance scheduled for today" } : null;
 
-    setTransportVehicles((current) => current.map((item) => item.id === id && updatedVehicle ? updatedVehicle : item));
+    transportVehiclesMutation.mutate({ action: "schedule_maintenance", id }, { onSuccess: () => queryClient.invalidateQueries() });
     if (updatedVehicle) {
-      saveTransportVehicleRecord(updatedVehicle);
-      addSchoolRecord("transport-maintenance-records", {
-        id: runtimeId("transport-maintenance"),
-        vehicle: updatedVehicle.vehicle,
-        route: updatedVehicle.route,
-        action: "Maintenance Scheduled",
-        note: updatedVehicle.maintenanceNote,
-        createdAt: new Date().toISOString(),
-      }, schoolId);
       publishDashboardEvent({
         type: "TRANSPORT_MAINTENANCE_SCHEDULED",
         module: "transport",
@@ -6971,8 +6413,7 @@ function GenericRoleOperationalCommandCenter({
       status: record.hazard === "High" ? "Hazard" : Number(record.quantity) <= 5 ? "Low Stock" : "OK",
     };
 
-    setLabInventory((current) => [newRecord, ...current]);
-    saveLabInventoryRecord(newRecord);
+    labInventoryMutation.mutate({ action: "add_inventory", record: newRecord }, { onSuccess: () => queryClient.invalidateQueries() });
     publishDashboardEvent({
       type: "LAB_STOCK_ADDED",
       module: "laboratory",
@@ -7008,8 +6449,7 @@ function GenericRoleOperationalCommandCenter({
       teacherAlerted: false,
     };
 
-    setLabRequests((current) => [newRequest, ...current]);
-    saveLabPracticalRequest(newRequest);
+    labRequestsMutation.mutate({ action: "add_request", request: newRequest }, { onSuccess: () => queryClient.invalidateQueries() });
     publishDashboardEvent({
       type: "LAB_PRACTICAL_REQUESTED",
       module: "laboratory",
@@ -7037,9 +6477,8 @@ function GenericRoleOperationalCommandCenter({
     const request = labRequests.find((item) => item.id === id);
     const updatedRequest = request ? { ...request, status: "Prepared" as const, teacherAlerted: true } : null;
 
-    setLabRequests((current) => current.map((item) => item.id === id && updatedRequest ? updatedRequest : item));
+    labRequestsMutation.mutate({ action: "approve_prep", id }, { onSuccess: () => queryClient.invalidateQueries() });
     if (updatedRequest) {
-      saveLabPracticalRequest(updatedRequest);
       publishDashboardEvent({
         type: "LAB_PRACTICAL_PREP_APPROVED",
         module: "laboratory",
@@ -7073,18 +6512,15 @@ function GenericRoleOperationalCommandCenter({
       note: request.practical,
     };
 
-    setLabInventory((current) => current.map((item) => item.id === apparatus.id ? { ...item, quantity: Math.max(0, item.quantity - issue.quantity), status: item.quantity - issue.quantity <= 5 ? "Low Stock" : item.status } : item));
-    setLabRequests((current) => current.map((item) => item.id === requestId ? { ...item, status: "Issued", teacherAlerted: true } : item));
-    setLabIssues((current) => [issue, ...current]);
+    labInventoryMutation.mutate({ action: "update_quantity", id: apparatus.id, quantity: Math.max(0, apparatus.quantity - issue.quantity), status: apparatus.quantity - issue.quantity <= 5 ? "Low Stock" : apparatus.status }, { onSuccess: () => queryClient.invalidateQueries() });
+    labRequestsMutation.mutate({ action: "mark_issued", id: requestId }, { onSuccess: () => queryClient.invalidateQueries() });
+    labIssuesMutation.mutate({ action: "add_issue", issue }, { onSuccess: () => queryClient.invalidateQueries() });
     const updatedApparatus = {
       ...apparatus,
       quantity: Math.max(0, apparatus.quantity - issue.quantity),
       status: apparatus.quantity - issue.quantity <= 5 ? "Low Stock" as const : apparatus.status,
     };
     const updatedRequest = { ...request, status: "Issued" as const, teacherAlerted: true };
-    saveLabInventoryRecord(updatedApparatus);
-    saveLabPracticalRequest(updatedRequest);
-    saveLabIssueRecord(issue);
     publishDashboardEvent({
       type: "LAB_APPARATUS_ISSUED",
       module: "laboratory",
@@ -7119,13 +6555,9 @@ function GenericRoleOperationalCommandCenter({
       status: "OK" as const,
     } : null;
 
-    setLabIssues((current) => current.map((item) => item.id === issueId && updatedIssue ? updatedIssue : item));
-    setLabInventory((current) => current.map((item) => item.item === issue?.item ? { ...item, quantity: item.quantity + (issue?.quantity ?? 0), status: "OK" } : item));
-    if (updatedIssue) {
-      saveLabIssueRecord(updatedIssue);
-    }
-    if (updatedInventoryItem) {
-      saveLabInventoryRecord(updatedInventoryItem);
+    labIssuesMutation.mutate({ action: "return_apparatus", id: issueId }, { onSuccess: () => queryClient.invalidateQueries() });
+    if (inventoryItem && issue) {
+      labInventoryMutation.mutate({ action: "update_quantity", id: inventoryItem.id, quantity: inventoryItem.quantity + issue.quantity, status: "OK" }, { onSuccess: () => queryClient.invalidateQueries() });
     }
     publishDashboardEvent({
       type: "LAB_APPARATUS_RETURNED",
@@ -7146,10 +6578,11 @@ function GenericRoleOperationalCommandCenter({
     const inventoryItem = labInventory.find((item) => item.item === issue?.item);
     const updatedInventoryItem = inventoryItem ? { ...inventoryItem, status: "Broken" as const } : null;
 
-    setLabIssues((current) => current.map((item) => item.id === issueId && updatedIssue ? updatedIssue : item));
-    setLabInventory((current) => current.map((item) => item.item === issue?.item ? { ...item, status: "Broken" } : item));
+    labIssuesMutation.mutate({ action: "record_breakage", id: issueId }, { onSuccess: () => queryClient.invalidateQueries() });
+    if (inventoryItem) {
+      labInventoryMutation.mutate({ action: "update_status", id: inventoryItem.id, status: "Broken" }, { onSuccess: () => queryClient.invalidateQueries() });
+    }
     if (updatedIssue) {
-      saveLabIssueRecord(updatedIssue);
       addSchoolRecord("lab-breakage-records", {
         id: runtimeId("lab-breakage"),
         item: updatedIssue.item,
@@ -7160,9 +6593,6 @@ function GenericRoleOperationalCommandCenter({
         note: updatedIssue.note,
         createdAt: new Date().toISOString(),
       }, schoolId);
-    }
-    if (updatedInventoryItem) {
-      saveLabInventoryRecord(updatedInventoryItem);
     }
     publishDashboardEvent({
       type: "LAB_BREAKAGE_RECORDED",
@@ -7185,9 +6615,8 @@ function GenericRoleOperationalCommandCenter({
     const request = labRequests.find((item) => item.id === requestId);
     const updatedRequest = request ? { ...request, teacherAlerted: true } : null;
 
-    setLabRequests((current) => current.map((item) => item.id === requestId && updatedRequest ? updatedRequest : item));
+    labRequestsMutation.mutate({ action: "alert_teacher", id: requestId }, { onSuccess: () => queryClient.invalidateQueries() });
     if (updatedRequest) {
-      saveLabPracticalRequest(updatedRequest);
       publishDashboardEvent({
         type: "LAB_TEACHER_ALERT_SENT",
         module: "laboratory",
@@ -7264,16 +6693,11 @@ function GenericRoleOperationalCommandCenter({
       status: payment.method === "M-Pesa" ? "M-Pesa Pending" : "Recorded",
     };
 
-    paymentMutation.mutate(newPayment, {
-      onSuccess: () => {
-          queryClient.invalidateQueries();
-        setFeePayments((current) => [newPayment, ...current]);
-        setFeeBalances((current) => current.map((item) => item.admissionNo === payment.admissionNo && nextBalanceRecord ? nextBalanceRecord : item));
-        // addSchoolRecord("finance-payments", newPayment, schoolId);
-        if (nextBalanceRecord) {
-          saveFeeBalanceRecord(nextBalanceRecord);
-        }
-        publishDashboardEvent({
+    feePaymentsMutation.mutate({ action: "record_payment", payment: newPayment }, { onSuccess: () => queryClient.invalidateQueries() });
+    if (nextBalanceRecord) {
+      feeBalancesMutation.mutate({ action: "update_balance", record: nextBalanceRecord }, { onSuccess: () => queryClient.invalidateQueries() });
+    }
+    publishDashboardEvent({
           type: "FEE_PAYMENT_RECORDED",
           module: "finance",
           title: `${payment.student} fee payment recorded`,
@@ -7286,21 +6710,15 @@ function GenericRoleOperationalCommandCenter({
           ],
         });
         addFinanceExecutionLog(`${payment.student} payment recorded`, ["Payment saved", "Student balance updated", "Receipt ready"]);
-        setFinanceNotice(
-          `${payment.student} payment recorded for ${schoolId}: ${newPayment.id}, receipt ${receiptNo}, KSh ${payment.amount.toLocaleString("en-KE")} via ${payment.method}, Principal/Secretary/Parent/Student notified.`,
-        );
-      },
-      onError: (err) => {
-        setFinanceNotice(`Action failed: Backend API missing or denied (${err.message})`);
-      }
-    });
+    setFinanceNotice(
+      `${payment.student} payment recorded for ${schoolId}: ${newPayment.id}, receipt ${receiptNo}, KSh ${payment.amount.toLocaleString("en-KE")} via ${payment.method}, Principal/Secretary/Parent/Student notified.`,
+    );
   }
 
   function confirmMpesaPayment(id: string) {
     const payment = feePayments.find((item) => item.id === id);
 
-    setFeePayments((current) => current.map((item) => item.id === id ? { ...item, status: "Confirmed" } : item));
-    updateSchoolRecord("finance-payments", id, { status: "Confirmed" }, schoolId);
+    feePaymentsMutation.mutate({ action: "confirm_mpesa", id }, { onSuccess: () => queryClient.invalidateQueries() });
     publishDashboardEvent({
       type: "MPESA_PAYMENT_CONFIRMED",
       module: "finance",
@@ -7357,8 +6775,7 @@ function GenericRoleOperationalCommandCenter({
     const payment = feePayments.find((item) => item.id === id);
     const balanceRecord = feeBalances.find((item) => item.admissionNo === payment?.admissionNo);
 
-    setFeePayments((current) => current.map((item) => item.id === id ? { ...item, parentSmsSent: true } : item));
-    updateSchoolRecord("finance-payments", id, { parentSmsSent: true }, schoolId);
+    feePaymentsMutation.mutate({ action: "send_sms", id }, { onSuccess: () => queryClient.invalidateQueries() });
     publishDashboardEvent({
       type: "FEE_RECEIPT_SMS_SENT",
       module: "finance",
@@ -7405,8 +6822,7 @@ function GenericRoleOperationalCommandCenter({
   function requestFeeReversal(id: string) {
     const payment = feePayments.find((item) => item.id === id);
 
-    setFeePayments((current) => current.map((item) => item.id === id ? { ...item, status: "Reversal Requested" } : item));
-    updateSchoolRecord("finance-payments", id, { status: "Reversal Requested" }, schoolId);
+    feePaymentsMutation.mutate({ action: "request_reversal", id }, { onSuccess: () => queryClient.invalidateQueries() });
     if (payment) {
       addSchoolRecord("finance-reversal-requests", {
         id: runtimeId("finance-reversal"),
@@ -7495,8 +6911,7 @@ function GenericRoleOperationalCommandCenter({
       slipPrinted: false,
     };
 
-    setSecretaryVisitors((current) => [newVisitor, ...current]);
-    addSchoolRecord("visitors", newVisitor, schoolId);
+    secretaryVisitorsMutation.mutate({ action: "register_visitor", visitor: newVisitor }, { onSuccess: () => queryClient.invalidateQueries() });
     publishDashboardEvent({
       type: "VISITOR_CHECKED_IN",
       module: "visitors",
@@ -7514,8 +6929,7 @@ function GenericRoleOperationalCommandCenter({
   function printSecretaryVisitorSlip(id: string) {
     const visitor = secretaryVisitors.find((item) => item.id === id);
 
-    setSecretaryVisitors((current) => current.map((item) => item.id === id ? { ...item, slipPrinted: true } : item));
-    updateSchoolRecord("visitors", id, { slipPrinted: true }, schoolId);
+    secretaryVisitorsMutation.mutate({ action: "print_slip", id }, { onSuccess: () => queryClient.invalidateQueries() });
     if (visitor) {
       addSchoolRecord("printed-documents", {
         id: runtimeId("printed-visitor-slip"),
@@ -7581,8 +6995,7 @@ function GenericRoleOperationalCommandCenter({
   function checkOutSecretaryVisitor(id: string) {
     const visitor = secretaryVisitors.find((item) => item.id === id);
 
-    setSecretaryVisitors((current) => current.map((item) => item.id === id ? { ...item, status: "Exited" } : item));
-    updateSchoolRecord("visitors", id, { status: "Exited" }, schoolId);
+    secretaryVisitorsMutation.mutate({ action: "check_out", id }, { onSuccess: () => queryClient.invalidateQueries() });
     publishDashboardEvent({
       type: "VISITOR_CHECKED_OUT",
       module: "visitors",
@@ -7604,8 +7017,7 @@ function GenericRoleOperationalCommandCenter({
       smsSent: false,
     };
 
-    setSecretaryInquiries((current) => [newInquiry, ...current]);
-    addSchoolRecord("front-office-inquiries", newInquiry, schoolId);
+    secretaryInquiriesMutation.mutate({ action: "add_inquiry", inquiry: newInquiry }, { onSuccess: () => queryClient.invalidateQueries() });
     publishDashboardEvent({
       type: "PARENT_INQUIRY_REGISTERED",
       module: "front-office",
@@ -7623,21 +7035,8 @@ function GenericRoleOperationalCommandCenter({
   function markSecretaryParentServed(id: string) {
     const inquiry = secretaryInquiries.find((item) => item.id === id);
 
-    setSecretaryInquiries((current) => current.map((item) => item.id === id ? { ...item, status: "Resolved" } : item));
-    updateSchoolRecord("front-office-inquiries", id, { status: "Resolved" }, schoolId);
+    secretaryInquiriesMutation.mutate({ action: "mark_served", id }, { onSuccess: () => queryClient.invalidateQueries() });
     if (inquiry) {
-      addSchoolRecord("front-office-service-records", {
-        id: runtimeId("front-office-service"),
-        inquiryId: inquiry.id,
-        parent: inquiry.parent,
-        student: inquiry.student,
-        className: inquiry.className,
-        issue: inquiry.issue,
-        department: inquiry.department,
-        status: "Resolved",
-        servedBy: "Secretary",
-        createdAt: new Date().toISOString(),
-      }, schoolId);
       publishDashboardEvent({
         type: "PARENT_INQUIRY_RESOLVED",
         module: "front-office",
@@ -7655,8 +7054,7 @@ function GenericRoleOperationalCommandCenter({
   function sendSecretaryParentSms(id: string) {
     const inquiry = secretaryInquiries.find((item) => item.id === id);
 
-    setSecretaryInquiries((current) => current.map((item) => item.id === id ? { ...item, smsSent: true } : item));
-    updateSchoolRecord("front-office-inquiries", id, { smsSent: true }, schoolId);
+    secretaryInquiriesMutation.mutate({ action: "send_sms", id }, { onSuccess: () => queryClient.invalidateQueries() });
     publishDashboardEvent({
       type: "PARENT_INQUIRY_SMS_SENT",
       module: "front-office",
@@ -7674,8 +7072,7 @@ function GenericRoleOperationalCommandCenter({
   function escalateSecretaryInquiry(id: string) {
     const inquiry = secretaryInquiries.find((item) => item.id === id);
 
-    setSecretaryInquiries((current) => current.map((item) => item.id === id ? { ...item, status: "Escalated" } : item));
-    updateSchoolRecord("front-office-inquiries", id, { status: "Escalated" }, schoolId);
+    secretaryInquiriesMutation.mutate({ action: "escalate", id }, { onSuccess: () => queryClient.invalidateQueries() });
     publishDashboardEvent({
       type: "PARENT_INQUIRY_ESCALATED",
       module: "front-office",
@@ -7717,8 +7114,7 @@ function GenericRoleOperationalCommandCenter({
       time: new Date().toLocaleTimeString("en-KE", { hour: "2-digit", minute: "2-digit" }),
     };
 
-    setDisciplineCases((current) => [newCase, ...current]);
-    saveDisciplineCaseRecord(newCase);
+    disciplineCasesMutation.mutate({ action: "add_case", record: newCase }, { onSuccess: () => queryClient.invalidateQueries() });
     publishDashboardEvent({
       type: "DISCIPLINE_CASE_RECORDED",
       module: "discipline",
@@ -7743,22 +7139,11 @@ function GenericRoleOperationalCommandCenter({
   }
 
   function updateDisciplineCase(id: string, updates: Partial<DisciplineCaseRecord>) {
-    let nextRecord: DisciplineCaseRecord | null = null;
-
-    setDisciplineCases((current) => current.map((item) => {
-      if (item.id !== id) {
-        return item;
-      }
-
-      nextRecord = { ...item, ...updates };
-      return nextRecord;
-    }));
-
     const currentRecord = disciplineCases.find((item) => item.id === id);
-    const recordToSave = nextRecord ?? (currentRecord ? { ...currentRecord, ...updates } : null);
+    const recordToSave = currentRecord ? { ...currentRecord, ...updates } : null;
 
     if (recordToSave) {
-      saveDisciplineCaseRecord(recordToSave);
+      disciplineCasesMutation.mutate({ action: "update_case", id, updates }, { onSuccess: () => queryClient.invalidateQueries() });
     }
 
     return recordToSave;
@@ -7929,8 +7314,7 @@ function GenericRoleOperationalCommandCenter({
       time: new Date().toLocaleTimeString("en-KE", { hour: "2-digit", minute: "2-digit" }),
     };
 
-    setCounsellingSessions((current) => [newSession, ...current]);
-    saveCounsellingSessionRecord(newSession);
+    counsellingSessionsMutation.mutate({ action: "add_session", session: newSession }, { onSuccess: () => queryClient.invalidateQueries() });
     publishDashboardEvent({
       type: "COUNSELLING_SESSION_RECORDED",
       module: "counselling",
@@ -7955,22 +7339,11 @@ function GenericRoleOperationalCommandCenter({
   }
 
   function updateCounsellingSession(id: string, updates: Partial<CounsellingSessionRecord>) {
-    let nextRecord: CounsellingSessionRecord | null = null;
-
-    setCounsellingSessions((current) => current.map((item) => {
-      if (item.id !== id) {
-        return item;
-      }
-
-      nextRecord = { ...item, ...updates };
-      return nextRecord;
-    }));
-
     const currentRecord = counsellingSessions.find((item) => item.id === id);
-    const recordToSave = nextRecord ?? (currentRecord ? { ...currentRecord, ...updates } : null);
+    const recordToSave = currentRecord ? { ...currentRecord, ...updates } : null;
 
     if (recordToSave) {
-      saveCounsellingSessionRecord(recordToSave);
+      counsellingSessionsMutation.mutate({ action: "update_session", id, updates }, { onSuccess: () => queryClient.invalidateQueries() });
     }
 
     return recordToSave;

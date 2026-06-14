@@ -366,6 +366,9 @@ export interface DomainEventPayloadMap {
   'system.fallback.activated': SystemFallbackActivatedPayload;
   'grading.system.created': GradingSystemCreatedPayload;
   'report.card.published': ReportCardPublishedPayload;
+  'communication.sms.queued': CommunicationSmsQueuedPayload;
+  'admissions.cleared': AdmissionsClearedPayload;
+  'staff.updated': StaffUpdatedPayload;
 }
 
 export interface DomainEvent<

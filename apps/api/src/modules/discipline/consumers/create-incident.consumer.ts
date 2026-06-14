@@ -15,7 +15,7 @@ export class CreateIncidentConsumer implements EventConsumerDescriptor<'workflow
       return;
     }
 
-    const { tenant_id, data } = event.payload;
+    const tenant_id = event.payload.tenant_id; const data = event.payload.payload as any;
     if (!data?.studentId || !data?.description) {
       this.logger.warn(`Missing incident data for tenant ${tenant_id}`);
       return;

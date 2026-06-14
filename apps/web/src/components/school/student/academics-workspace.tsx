@@ -15,7 +15,7 @@ export function AcademicsWorkspace() {
   const publishedReports = Array.isArray(reportCards) ? reportCards.slice(0, 3) : [];
 
   const markDoneMutation = useSchoolMutation({
-    // We mock an endpoint update for marking assignment done
+    // Hit the endpoint to mark assignment done
     endpoint: '/api/academics/assignments', 
     method: 'PATCH',
     onSuccess: () => {

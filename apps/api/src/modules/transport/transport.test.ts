@@ -55,6 +55,7 @@ test('TransportService creates auditable routes, vehicles, manifests, trips, eve
   const calls: Array<Record<string, unknown>> = [];
   const service = new TransportService(
     { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'user-1', permissions: ['transport:*'] }) } as never,
+    { execute: async (params: any) => params.handler() } as never,
     {
       createRoute: async (input: Record<string, unknown>) => {
         calls.push({ method: 'createRoute', ...input });
@@ -151,6 +152,7 @@ test('TransportService rejects unsafe transport mutations before repository writ
   const calls: string[] = [];
   const service = new TransportService(
     { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'user-1', permissions: ['transport:*'] }) } as never,
+    { execute: async (params: any) => params.handler() } as never,
     {
       createVehicle: async () => {
         calls.push('createVehicle');

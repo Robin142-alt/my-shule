@@ -17,21 +17,21 @@ async function fetchApi(endpoint: string, options?: RequestInit) {
 export function useClassTeacherOverview(streamId: string) {
   return useQuery({
     queryKey: ["class-teacher", "overview", streamId],
-    queryFn: () => fetchApi(`dashboard/summary?role=class-teacher&streamId=${streamId}`)
+    queryFn: () => fetchApi(`class-teacher/overview?streamId=${streamId}`)
   });
 }
 
 export function useClassTeacherRegister(streamId: string) {
   return useQuery({
     queryKey: ["class-teacher", "register", streamId],
-    queryFn: () => fetchApi(`students?streamId=${streamId}`)
+    queryFn: () => fetchApi(`class-teacher/register?streamId=${streamId}`)
   });
 }
 
 export function useClassTeacherAttendance(streamId: string) {
   return useQuery({
     queryKey: ["class-teacher", "attendance", streamId],
-    queryFn: () => fetchApi(`attendance/summary?streamId=${streamId}`)
+    queryFn: () => fetchApi(`class-teacher/attendance?streamId=${streamId}`)
   });
 }
 
@@ -44,7 +44,7 @@ export function useSaveAttendance() {
     action: "bulk_save",
     schoolId,
     mutationFn: (data: { streamId: string; records: any[] }) => 
-      fetchApi("attendance/bulk", {
+      fetchApi("class-teacher/attendance", {
         method: "POST",
         body: JSON.stringify(data)
       }),
@@ -58,21 +58,21 @@ export function useSaveAttendance() {
 export function useClassTeacherProgress(streamId: string) {
   return useQuery({
     queryKey: ["class-teacher", "progress", streamId],
-    queryFn: () => fetchApi(`exams/results?streamId=${streamId}`)
+    queryFn: () => fetchApi(`class-teacher/progress?streamId=${streamId}`)
   });
 }
 
 export function useClassTeacherComments(streamId: string) {
   return useQuery({
     queryKey: ["class-teacher", "comments", streamId],
-    queryFn: () => fetchApi(`exams/comments?streamId=${streamId}`)
+    queryFn: () => fetchApi(`class-teacher/comments?streamId=${streamId}`)
   });
 }
 
 export function useClassTeacherDiscipline(streamId: string) {
   return useQuery({
     queryKey: ["class-teacher", "discipline", streamId],
-    queryFn: () => fetchApi(`discipline/incidents?streamId=${streamId}`)
+    queryFn: () => fetchApi(`class-teacher/discipline?streamId=${streamId}`)
   });
 }
 
@@ -85,7 +85,7 @@ export function useReportDisciplineIncident() {
     action: "report_incident",
     schoolId,
     mutationFn: (data: { streamId: string; payload: any }) => 
-      fetchApi("discipline/incidents", {
+      fetchApi("class-teacher/discipline", {
         method: "POST",
         body: JSON.stringify(data)
       }),
@@ -98,7 +98,7 @@ export function useReportDisciplineIncident() {
 export function useClassTeacherWelfare(streamId: string) {
   return useQuery({
     queryKey: ["class-teacher", "welfare", streamId],
-    queryFn: () => fetchApi(`welfare/cases?streamId=${streamId}`)
+    queryFn: () => fetchApi(`class-teacher/welfare?streamId=${streamId}`)
   });
 }
 
@@ -111,7 +111,7 @@ export function useReferWelfareCase() {
     action: "refer_case",
     schoolId,
     mutationFn: (data: { streamId: string; payload: any }) => 
-      fetchApi("welfare/cases", {
+      fetchApi("class-teacher/welfare", {
         method: "POST",
         body: JSON.stringify(data)
       }),
@@ -124,91 +124,91 @@ export function useReferWelfareCase() {
 export function useClassTeacherTimetable(streamId: string) {
   return useQuery({
     queryKey: ["class-teacher", "timetable", streamId],
-    queryFn: () => fetchApi(`academics/timetable?streamId=${streamId}`)
+    queryFn: () => fetchApi(`class-teacher/timetable?streamId=${streamId}`)
   });
 }
 
 export function useClassTeacherSubjects(streamId: string) {
   return useQuery({
     queryKey: ["class-teacher", "subjects", streamId],
-    queryFn: () => fetchApi(`academics/subjects?streamId=${streamId}`)
+    queryFn: () => fetchApi(`class-teacher/subjects?streamId=${streamId}`)
   });
 }
 
 export function useClassTeacherCommunication(streamId: string) {
   return useQuery({
     queryKey: ["class-teacher", "communication", streamId],
-    queryFn: () => fetchApi(`communication/messages?streamId=${streamId}`)
+    queryFn: () => fetchApi(`class-teacher/communication?streamId=${streamId}`)
   });
 }
 
 export function useClassTeacherTasks(streamId: string) {
   return useQuery({
     queryKey: ["class-teacher", "tasks", streamId],
-    queryFn: () => fetchApi(`operations/tasks?streamId=${streamId}`)
+    queryFn: () => fetchApi(`class-teacher/tasks?streamId=${streamId}`)
   });
 }
 
 export function useClassTeacherFees(streamId: string) {
   return useQuery({
     queryKey: ["class-teacher", "fees", streamId],
-    queryFn: () => fetchApi(`finance/balances?streamId=${streamId}`)
+    queryFn: () => fetchApi(`class-teacher/fees?streamId=${streamId}`)
   });
 }
 
 export function useClassTeacherHealth(streamId: string) {
   return useQuery({
     queryKey: ["class-teacher", "health", streamId],
-    queryFn: () => fetchApi(`health/records?streamId=${streamId}`)
+    queryFn: () => fetchApi(`class-teacher/health?streamId=${streamId}`)
   });
 }
 
 export function useClassTeacherHomework(streamId: string) {
   return useQuery({
     queryKey: ["class-teacher", "homework", streamId],
-    queryFn: () => fetchApi(`academics/homework?streamId=${streamId}`)
+    queryFn: () => fetchApi(`class-teacher/homework?streamId=${streamId}`)
   });
 }
 
 export function useClassTeacherMeetings(streamId: string) {
   return useQuery({
     queryKey: ["class-teacher", "meetings", streamId],
-    queryFn: () => fetchApi(`communication/meetings?streamId=${streamId}`)
+    queryFn: () => fetchApi(`class-teacher/meetings?streamId=${streamId}`)
   });
 }
 
 export function useClassTeacherRequests(streamId: string) {
   return useQuery({
     queryKey: ["class-teacher", "requests", streamId],
-    queryFn: () => fetchApi(`operations/requests?streamId=${streamId}`)
+    queryFn: () => fetchApi(`class-teacher/requests?streamId=${streamId}`)
   });
 }
 
 export function useClassTeacherDocuments(streamId: string) {
   return useQuery({
     queryKey: ["class-teacher", "documents", streamId],
-    queryFn: () => fetchApi(`operations/documents?streamId=${streamId}`)
+    queryFn: () => fetchApi(`class-teacher/documents?streamId=${streamId}`)
   });
 }
 
 export function useClassTeacherNotifications(streamId: string) {
   return useQuery({
     queryKey: ["class-teacher", "notifications", streamId],
-    queryFn: () => fetchApi(`operations/notifications`)
+    queryFn: () => fetchApi(`class-teacher/notifications`)
   });
 }
 
 export function useClassTeacherReports(streamId: string) {
   return useQuery({
     queryKey: ["class-teacher", "reports", streamId],
-    queryFn: () => fetchApi(`operations/reports?streamId=${streamId}`)
+    queryFn: () => fetchApi(`class-teacher/reports?streamId=${streamId}`)
   });
 }
 
 export function useClassTeacherSettings(streamId: string) {
   return useQuery({
     queryKey: ["class-teacher", "settings", streamId],
-    queryFn: () => fetchApi(`school/settings`)
+    queryFn: () => fetchApi(`class-teacher/settings`)
   });
 }
 

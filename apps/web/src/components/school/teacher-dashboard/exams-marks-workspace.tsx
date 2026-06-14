@@ -5,7 +5,7 @@ import { Panel, RecordTable } from "./shared-components";
 import { TeacherAction, TeacherView } from "./types";
 import { Modal } from "@/components/ui/modal";
 import { useLiveTenantSession } from "@/hooks/use-live-tenant-session";
-import { fetchPendingMarksLive, fetchClassRegisterLive, type PendingMarksWindow } from "@/lib/modules/teacher-live";
+import { fetchPendingMarksLive, fetchClassRegisterLive, saveExamMarksLive, type PendingMarksWindow } from "@/lib/modules/teacher-live";
 
 
 function MarksEntryModal({ windowTask, onClose }: { windowTask: PendingMarksWindow; onClose: () => void }) {
@@ -33,15 +33,12 @@ function MarksEntryModal({ windowTask, onClose }: { windowTask: PendingMarksWind
   };
 
   const handleSubmit = async () => {
+    if (!liveSession.session) return;
     setSubmitting(true);
-    await fetch("/api/exams/marks", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        exam: windowTask.examName,
-        classSectionId: windowTask.classSectionId,
-        scores
-      })
+    await saveExamMarksLive(liveSession.session, {
+      examId: windowTask.id,
+      classSectionId: windowTask.classSectionId,
+      scores
     });
     
     queryClient.invalidateQueries({ queryKey: ["pending-marks"] });

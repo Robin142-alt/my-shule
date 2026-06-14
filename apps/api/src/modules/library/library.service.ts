@@ -453,4 +453,28 @@ export class LibraryService {
 
     return Number.isFinite(parsed) && parsed >= 0 ? Math.trunc(parsed) : undefined;
   }
+
+  async getDepartments() {
+    return []; // Future implementation: return this.prisma.department.findMany()
+  }
+
+  async getVisits() {
+    // return this.prisma.libraryVisit.findMany({ orderBy: { createdAt: 'desc' }, take: 20 });
+    return [];
+  }
+
+  async getRequests() {
+    // return this.prisma.libraryRequest.findMany({ orderBy: { createdAt: 'desc' }, take: 20 });
+    return [];
+  }
+
+  async getReports() {
+    return [];
+  }
+
+  async getNotices() {
+    // return this.prisma.libraryNotice.findMany({ orderBy: { createdAt: 'desc' }, take: 20 });
+    return [];
+  }
+
 }

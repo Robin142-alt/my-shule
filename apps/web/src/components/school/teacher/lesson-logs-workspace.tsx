@@ -9,7 +9,7 @@ import { useSchoolQuery, useSchoolMutation } from "@/lib/data/school-hooks";
 export function LessonLogsWorkspace() {
   const [activeDate, setActiveDate] = useState(new Date().toISOString().split("T")[0]);
 
-  const { data: lessonLogs = [], isLoading, refetch } = useSchoolQuery(`/api/academics/my-lesson-logs?date=${activeDate}`);
+  const { data: lessonLogs = [], isLoading, refetch } = useSchoolQuery<any[]>(`/api/academics/my-lesson-logs?date=${activeDate}`);
   const logMutation = useSchoolMutation("/api/academics/lesson-logs", "POST");
   const dailyLessons = lessonLogs.length > 0 ? lessonLogs : [];
 
@@ -36,7 +36,7 @@ export function LessonLogsWorkspace() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-1 space-y-3">
           <h3 className="text-sm font-medium text-slate-700 uppercase tracking-wider mb-2">Today's Schedule</h3>
-          {dailyLessons.map(lesson => (
+          {dailyLessons.map((lesson: any) => (
             <Card 
               key={lesson.id} 
               className={`p-4 border cursor-pointer transition-colors ${selectedLesson?.id === lesson.id ? 'border-blue-500 ring-1 ring-blue-500 bg-blue-50/20' : 'border-slate-200 hover:border-slate-300'}`}

@@ -88,17 +88,7 @@ export function ExamCalendarWorkspace({ model }: { model: any }) {
                   );
                 })}
 
-                {/* Keep mock fallbacks if no real data */}
-                {!isLoading && !series?.length && isCurrentMonth && day === 12 && (
-                  <div className="mt-1 p-1 text-xs bg-blue-100 text-blue-800 rounded truncate border border-blue-200">
-                    Midterm Exams Start
-                  </div>
-                )}
-                {!isLoading && !series?.length && isCurrentMonth && day === 14 && (
-                  <div className="mt-1 p-1 text-xs bg-red-100 text-red-800 rounded truncate border border-red-200">
-                    Marks Entry Deadline
-                  </div>
-                )}
+
               </div>
             );
           })}

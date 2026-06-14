@@ -16,7 +16,8 @@ export class AdmitStudentConsumer implements EventConsumerDescriptor<'workflow.a
       return;
     }
 
-    const { tenant_id, data } = event.payload;
+    const { tenant_id } = event.payload;
+    const data = event.payload.payload as any;
     this.logger.log(`Executing admit-student for tenant ${tenant_id}`);
 
     try {

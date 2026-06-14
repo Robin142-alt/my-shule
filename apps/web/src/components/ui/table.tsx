@@ -1,17 +1,58 @@
 import * as React from "react"
 
-const Table = React.forwardRef<
-  HTMLTableElement,
-  React.HTMLAttributes<HTMLTableElement>
->(({ className = "", ...props }, ref) => (
-  <div className="relative w-full overflow-auto rounded-xl border border-slate-200/60 bg-white shadow-sm ring-1 ring-slate-900/5">
-    <table
-      ref={ref}
-      className={`w-full caption-bottom text-sm transition-colors ${className}`}
-      {...props}
-    />
-  </div>
-))
+export interface TableProps extends React.HTMLAttributes<HTMLTableElement> {
+  columns?: string[];
+  data?: any[];
+  renderRow?: (item: any) => React.ReactNode;
+  emptyState?: React.ReactNode;
+}
+
+const Table = React.forwardRef<HTMLTableElement, TableProps>(
+  ({ className = "", columns, data, renderRow, emptyState, children, ...props }, ref) => {
+    if (columns && data && renderRow) {
+      return (
+        <div className="relative w-full overflow-auto rounded-xl border border-slate-200/60 bg-white shadow-sm ring-1 ring-slate-900/5">
+          <table
+            ref={ref}
+            className={`w-full caption-bottom text-sm transition-colors ${className}`}
+            {...props}
+          >
+            <thead className="bg-slate-50/80 backdrop-blur-md border-b border-slate-200/60">
+              <tr className="group border-b border-slate-100 transition-all duration-200">
+                {columns.map((col, i) => (
+                  <th key={i} className="h-11 px-4 text-left align-middle text-[12px] font-semibold uppercase tracking-wider text-slate-500">{col}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="[&_tr:last-child]:border-0">
+              {data.length === 0 && emptyState ? (
+                <tr className="group border-b border-slate-100">
+                  <td colSpan={columns.length} className="p-4 align-middle text-slate-700">
+                    {emptyState}
+                  </td>
+                </tr>
+              ) : (
+                data.map((item, idx) => <React.Fragment key={idx}>{renderRow(item)}</React.Fragment>)
+              )}
+            </tbody>
+          </table>
+        </div>
+      );
+    }
+
+    return (
+      <div className="relative w-full overflow-auto rounded-xl border border-slate-200/60 bg-white shadow-sm ring-1 ring-slate-900/5">
+        <table
+          ref={ref}
+          className={`w-full caption-bottom text-sm transition-colors ${className}`}
+          {...props}
+        >
+          {children}
+        </table>
+      </div>
+    );
+  }
+)
 Table.displayName = "Table"
 
 const TableHeader = React.forwardRef<

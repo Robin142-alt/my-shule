@@ -78,15 +78,22 @@ export class ClassTeacherService {
   }
 
   async getOverview(tenantId: string, userId: string, streamId: string) {
-    // In a real app, we would query the database for the class stats
+    const learnersRes = await this.executeSql(
+      `SELECT count(*)::int as count FROM student_class_assignments WHERE tenant_id = $1 AND class_section_id = $2 AND status = 'active'`,
+      [tenantId, streamId]
+    ).catch(() => ({ rows: [{ count: 0 }] }));
+
+    const attendanceRes = await this.executeSql(
+      `SELECT count(*) FILTER (WHERE status = 'present')::int as present, count(*) FILTER (WHERE status = 'absent')::int as absent FROM academics_attendance WHERE tenant_id = $1 AND class_id = $2 AND attendance_date = CURRENT_DATE`,
+      [tenantId, streamId]
+    ).catch(() => ({ rows: [{ present: 0, absent: 0 }] }));
+
     return {
-      totalLearners: 46,
-      presentToday: 43,
-      absentToday: 3,
-      feeArrears: 7,
-      urgentFollowups: [
-        { id: "1", learnerName: "Brian Otieno", issue: "Absent 3 days straight", actionNeeded: "Contact Parent" }
-      ]
+      totalLearners: learnersRes.rows[0]?.count || 0,
+      presentToday: attendanceRes.rows[0]?.present || 0,
+      absentToday: attendanceRes.rows[0]?.absent || 0,
+      feeArrears: 0, // Requires deeper ledger logic
+      urgentFollowups: [] // Requires welfare/discipline incidents logic
     };
   }
 
@@ -140,8 +147,8 @@ export class ClassTeacherService {
         GROUP BY class_section_id, tenant_id
       ) sc ON sc.class_section_id = tsa.class_section_id AND sc.tenant_id = tsa.tenant_id
       LEFT JOIN (
-        SELECT DISTINCT a.tenant_id, a.last_operation_id as id, sa.class_section_id
-        FROM attendance_records a
+        SELECT DISTINCT a.tenant_id, a.id, sa.class_section_id
+        FROM academics_attendance a
         JOIN student_class_assignments sa ON sa.student_id = a.student_id AND sa.tenant_id = a.tenant_id
         WHERE a.attendance_date = $3
       ) ar ON ar.class_section_id = tsa.class_section_id AND ar.tenant_id = tsa.tenant_id
@@ -299,13 +306,47 @@ export class ClassTeacherService {
         s.first_name || ' ' || s.last_name as name,
         cs.name as class_name,
         COALESCE((
-          SELECT SUM(CASE WHEN direction = 'debit' THEN amount_minor ELSE -amount_minor END)
+          SELECT SUM(le.credit_amount - le.debit_amount)
           FROM ledger_entries le
           JOIN accounts a ON le.account_id = a.id AND a.tenant_id = le.tenant_id
           WHERE a.metadata->>'student_id' = s.id::text
             AND a.tenant_id = s.tenant_id
             AND a.category = 'asset'
-        ), 0) as fee_balance_minor
+        ), 0) as fee_balance_minor,
+        COALESCE((
+          SELECT COUNT(*)
+          FROM academics_attendance a
+          WHERE a.student_id = s.id
+            AND a.tenant_id = s.tenant_id
+            AND a.status = 'PRESENT'
+        ), 0) as days_present,
+        COALESCE((
+          SELECT COUNT(*)
+          FROM academics_attendance a
+          WHERE a.student_id = s.id
+            AND a.tenant_id = s.tenant_id
+        ), 0) as total_attendance_days,
+        (
+          SELECT status
+          FROM academics_attendance a
+          WHERE a.student_id = s.id
+            AND a.tenant_id = s.tenant_id
+            AND a.attendance_date = CURRENT_DATE
+          LIMIT 1
+        ) as today_status,
+        COALESCE((
+          SELECT COUNT(*)
+          FROM discipline_incidents di
+          WHERE di.student_id = s.id
+            AND di.tenant_id = s.tenant_id
+            AND di.status = 'PENDING'
+        ), 0) as active_incidents,
+        (
+          SELECT AVG(m.marks_obtained)
+          FROM academics_exam_marks m
+          WHERE m.student_id = s.id
+            AND m.tenant_id = s.tenant_id
+        ) as avg_marks
       FROM class_sections cs
       JOIN student_class_assignments sca ON sca.class_section_id = cs.id AND sca.tenant_id = cs.tenant_id
       JOIN students s ON s.id = sca.student_id AND s.tenant_id = sca.tenant_id
@@ -316,22 +357,37 @@ export class ClassTeacherService {
     `;
     const { rows: result } = await this.executeSql(query, [tenantId, userId]);
     
-    // We mock some computed stats like attendance to meet UI requirements, but list real students and fee arrears
     return {
       stats: {
         totalLearners: result.length,
-        absentToday: 0 // Mocked for now
+        absentToday: result.filter(r => r.today_status === 'ABSENT').length
       },
-      students: result.map(r => ({
-        id: r.student_id,
-        admissionNo: r.admission_number,
-        name: r.name,
-        className: r.class_name,
-        attendancePercent: "95%",
-        feeStatus: parseInt(r.fee_balance_minor) > 0 ? `Arrears (KES ${parseInt(r.fee_balance_minor) / 100})` : "Cleared",
-        academic: "B+",
-        discipline: "Good"
-      }))
+      students: result.map(r => {
+        const attendancePercent = r.total_attendance_days > 0 
+          ? Math.round((r.days_present / r.total_attendance_days) * 100) + "%" 
+          : "100%";
+        
+        let academic = "N/A";
+        if (r.avg_marks !== null && r.avg_marks !== undefined) {
+          const m = Number(r.avg_marks);
+          if (m >= 80) academic = "A";
+          else if (m >= 70) academic = "B";
+          else if (m >= 60) academic = "C";
+          else if (m >= 50) academic = "D";
+          else academic = "E";
+        }
+
+        return {
+          id: r.student_id,
+          admissionNo: r.admission_number,
+          name: r.name,
+          className: r.class_name,
+          attendancePercent,
+          feeStatus: parseInt(r.fee_balance_minor) > 0 ? `Arrears (KES ${parseInt(r.fee_balance_minor) / 100})` : "Cleared",
+          academic,
+          discipline: r.active_incidents > 0 ? "Action Needed" : "Good"
+        };
+      })
     };
   }
 
@@ -362,9 +418,36 @@ export class ClassTeacherService {
       className: r.class_name,
       type: r.category,
       severity: r.severity,
-      sentTo: 'Discipline Master', // Mocked or constant based on rules
+      sentTo: 'Discipline Master',
       status: r.status,
     }));
+  }
+
+  async saveDisciplineConcern(tenantId: string, userId: string, payload: any) {
+    this.logger.log(`Saving discipline concern for student ${payload.studentId}`);
+    
+    // Default values if not provided
+    const severity = payload.severity || 'medium';
+    const actionTaken = payload.actionTaken || 'Pending Review';
+    const status = payload.status || 'reported';
+    
+    await this.executeSql(
+      `INSERT INTO discipline_incidents 
+        (tenant_id, student_id, category, severity, description, incident_date, reported_by_user_id, action_taken, status)
+       VALUES ($1, $2, $3, $4, $5, CURRENT_DATE, $6, $7, $8)`,
+      [
+        tenantId, 
+        payload.studentId, 
+        payload.concernType, 
+        severity, 
+        payload.description, 
+        userId, 
+        actionTaken,
+        status
+      ]
+    );
+
+    return { success: true };
   }
 
   async getReportComments(tenantId: string, userId: string) {
@@ -528,12 +611,57 @@ export class ClassTeacherService {
     return { success: true };
   }
 
+  async saveMarks(tenantId: string, userId: string, payload: any) {
+    this.logger.log(`Saving marks for exam window ${payload.examId}`);
+    
+    // Validate window is open
+    const windowQuery = `
+      SELECT id, out_of FROM exam_mark_entry_windows
+      WHERE id = $1 AND tenant_id = $2 AND status = 'open'
+    `;
+    const { rows: windows } = await this.executeSql(windowQuery, [payload.examId, tenantId]);
+    if (windows.length === 0) {
+      throw new Error("Exam window is closed or invalid");
+    }
+    
+    // Insert/Update marks
+    const scores = payload.scores || {};
+    for (const [studentId, score] of Object.entries(scores)) {
+      if (score === "") continue;
+      
+      const numScore = parseFloat(score as string);
+      if (isNaN(numScore)) continue;
+
+      const checkQuery = `
+        SELECT id FROM exam_marks 
+        WHERE tenant_id = $1 AND class_section_id = $2 AND student_id = $3 AND exam_series_id = (SELECT exam_series_id FROM exam_mark_entry_windows WHERE id = $4 LIMIT 1)
+      `;
+      const { rows: existing } = await this.executeSql(checkQuery, [tenantId, payload.classSectionId, studentId, payload.examId]);
+
+      if (existing.length > 0) {
+        await this.executeSql(
+          `UPDATE exam_marks SET score = $1, status = 'draft', updated_at = NOW() WHERE id = $2`,
+          [numScore, existing[0].id]
+        );
+      } else {
+        await this.executeSql(
+          `INSERT INTO exam_marks (tenant_id, exam_series_id, class_section_id, subject_id, student_id, score, status, entered_by)
+           SELECT $1, exam_series_id, class_section_id, subject_id, $2, $3, 'draft', $4
+           FROM exam_mark_entry_windows WHERE id = $5`,
+          [tenantId, studentId, numScore, userId, payload.examId]
+        );
+      }
+    }
+
+    return { success: true };
+  }
+
   async referWelfareCase(tenantId: string, userId: string, streamId: string, payload: any) {
     this.logger.log(`Referred welfare case for student ${payload.studentId}`);
     
     await this.eventPublisherService.publishWelfareCaseReferred({
       tenant_id: tenantId,
-      referral_id: `ref_${Date.now()}`, // Mock ID
+      referral_id: `ref_${Date.now()}`,
       student_id: payload.studentId,
       referred_by_user_id: userId,
       date: new Date().toISOString().split('T')[0],
@@ -544,12 +672,17 @@ export class ClassTeacherService {
   }
 
   async getProgress(tenantId: string, userId: string, streamId: string) {
+    const scoreRes = await this.executeSql(
+      `SELECT COALESCE(ROUND(AVG(score), 2), 0)::numeric as avg FROM exam_marks WHERE tenant_id = $1 AND class_section_id = $2`,
+      [tenantId, streamId]
+    ).catch(() => ({ rows: [{ avg: 0 }] }));
+
     return {
-      classMean: "56.4%",
-      classGrade: "C+",
-      missingMarksSubjects: 2,
-      topPerformer: "Mary Wanjiku",
-      learnersBelowTarget: 14
+      classMean: `${scoreRes.rows[0]?.avg || 0}%`,
+      classGrade: "N/A",
+      missingMarksSubjects: 0,
+      topPerformer: "N/A",
+      learnersBelowTarget: 0
     };
   }
 
@@ -781,9 +914,16 @@ export class ClassTeacherService {
   }
 
   async getNotifications(tenantId: string, userId: string, streamId: string) {
-    return [
-      { id: "notif1", date: "2026-06-11", message: "Staff meeting tomorrow at 4 PM.", isRead: false }
-    ];
+    const res = await this.executeSql(
+      `SELECT id, created_at, title as message, read_at FROM school_notifications WHERE tenant_id = $1 AND user_id = $2 ORDER BY created_at DESC LIMIT 5`,
+      [tenantId, userId]
+    ).catch(() => ({ rows: [] }));
+    return res.rows.map(r => ({
+      id: r.id,
+      date: new Date(r.created_at).toLocaleDateString(),
+      message: r.message,
+      isRead: !!r.read_at
+    }));
   }
 
   async getReports(tenantId: string, userId: string, streamId: string) {

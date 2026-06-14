@@ -15,7 +15,7 @@ export class SubmitAttendanceConsumer implements EventConsumerDescriptor<'workfl
       return;
     }
 
-    const { tenant_id, data } = event.payload;
+    const tenant_id = event.payload.tenant_id; const data = event.payload.payload as any;
     if (!data?.classId || !data?.date || !data?.records) {
       this.logger.warn(`Missing attendance data for tenant ${tenant_id}`);
       return;

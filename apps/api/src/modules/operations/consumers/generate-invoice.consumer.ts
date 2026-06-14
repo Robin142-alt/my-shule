@@ -15,7 +15,7 @@ export class GenerateInvoiceConsumer implements EventConsumerDescriptor<'workflo
       return;
     }
 
-    const { tenant_id, data } = event.payload;
+    const tenant_id = event.payload.tenant_id; const data = event.payload.payload as any;
     if (!data?.studentId || !data?.amountDue || !data?.items) {
       this.logger.warn(`Missing invoice details for tenant ${tenant_id}`);
       return;

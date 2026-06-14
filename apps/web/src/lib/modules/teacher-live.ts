@@ -155,6 +155,13 @@ export async function fetchDisciplineConcernsLive(session: LiveAuthSession): Pro
   });
 }
 
+export async function raiseDisciplineConcernLive(session: LiveAuthSession, data: any): Promise<{ success: boolean }> {
+  return withSession(session, "/class-teacher/discipline-concerns", {
+    method: "POST",
+    body: data,
+  });
+}
+
 export interface ReportComment {
   studentId: string;
   admissionNo: string;
@@ -175,3 +182,11 @@ export async function saveReportCommentLive(session: LiveAuthSession, data: any)
     body: data,
   });
 }
+
+export async function saveExamMarksLive(session: LiveAuthSession, data: any): Promise<{ success: boolean }> {
+  return withSession(session, "/class-teacher/marks", {
+    method: "POST",
+    body: data,
+  });
+}
+

@@ -184,6 +184,10 @@ export class AdminCommandService {
     return this.repository.getSecretaryDashboard(this.requireTenantId());
   }
 
+  async globalSearch(query: string) {
+    return { results: [] };
+  }
+
   async createIncident(dto: CreateAdminIncidentDto) {
     const incident = await this.repository.createIncident({
       tenant_id: this.requireTenantId(),

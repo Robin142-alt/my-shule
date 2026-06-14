@@ -31,8 +31,8 @@ export function BehaviorWorkspace() {
   );
 
   const handleAcknowledge = (id: string) => {
-    // In a real app we dynamically build the URL based on the ID, but for our useSchoolMutation hook setup 
-    // we would ideally pass the URL or modify the hook. For now we just mock the success flow.
+    // Ideally we'd map this ID to a real acknowledgment endpoint on the backend.
+    // For now it posts to the actual API but the backend might not have the handler wired up completely.
     ackMutation.mutate({ incidentId: id });
   };
 

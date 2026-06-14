@@ -97,14 +97,6 @@ export class AdmissionsController {
     return this.admissionsService.listApplications(query);
   }
 
-  @Patch('applications/:id')
-  @Permissions('admissions:write')
-  async updateApplication(
-    @Param('id') id: string,
-    @Body() dto: UpdateApplicationDto,
-  ) {
-    return this.admissionsService.updateApplication(id, dto);
-  }
 
   @Post('applications/:id/enrol')
   @Permissions('admissions:write')
