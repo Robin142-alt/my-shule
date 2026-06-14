@@ -8,6 +8,7 @@ import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
 import { requestDashboardApi } from "@/lib/dashboard/api-client";
 import { UserManagementPanel } from "@/components/school/user-management-panel";
+import { usePermissions } from "@/components/providers/permission-context";
 
 type PrincipalStaffData = {
   status: "active" | "degraded" | "setup_required";
@@ -26,6 +27,7 @@ export function PrincipalStaffRolesWorkspace() {
   const { data: classesData } = useSchoolQuery<any[]>('/academics/class-sections');
   const { data: subjectsData } = useSchoolQuery<any[]>('/academics/subjects');
   const { data: classTeachersData } = useSchoolQuery<any[]>('/academics/class-teachers');
+  const { hasPermission } = usePermissions();
 
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -126,15 +128,17 @@ export function PrincipalStaffRolesWorkspace() {
   return (
     <div className="space-y-6">
       <div className="flex justify-end gap-2">
-        <Button 
-          variant="outline" 
-          onClick={() => setIsAssignModalOpen(true)}
-          disabled={!hasPrerequisites}
-          title={!hasPrerequisites ? "Cannot assign teachers before terms, classes, and subjects exist" : ""}
-        >
-          <Plus className="h-4 w-4 mr-2" />
-          Assign Teacher
-        </Button>
+        {hasPermission('admin:write') && (
+          <Button 
+            variant="outline" 
+            onClick={() => setIsAssignModalOpen(true)}
+            disabled={!hasPrerequisites}
+            title={!hasPrerequisites ? "Cannot assign teachers before terms, classes, and subjects exist" : ""}
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Assign Teacher
+          </Button>
+        )}
       </div>
 
       <div className="grid gap-4 md:grid-cols-4">
@@ -191,14 +195,16 @@ export function PrincipalStaffRolesWorkspace() {
         <Card className="border border-white/10 bg-white/5 p-6 flex flex-col h-full">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xl font-bold text-white">Class Teachers</h2>
-            <Button 
-              size="sm" 
-              variant="outline" 
-              onClick={() => setIsClassTeacherModalOpen(true)}
-              disabled={!hasCTPrerequisites}
-            >
-              <Plus className="h-4 w-4 mr-1" /> Assign Class Teacher
-            </Button>
+            {hasPermission('academics:assign-teachers') && (
+              <Button 
+                size="sm" 
+                variant="outline" 
+                onClick={() => setIsClassTeacherModalOpen(true)}
+                disabled={!hasCTPrerequisites}
+              >
+                <Plus className="h-4 w-4 mr-1" /> Assign Class Teacher
+              </Button>
+            )}
           </div>
           
           {!classTeachersData || classTeachersData.length === 0 ? (

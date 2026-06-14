@@ -30,4 +30,46 @@ export class DashboardController {
       store.permissions
     );
   }
+
+  @Get('parent/overview')
+  async getParentOverview() {
+    const store = this.requestContext.requireStore();
+    return this.dashboardService.getParentOverview(store.tenant_id!, store.user_id!);
+  }
+
+  @Get('parent/academics')
+  async getParentAcademics() {
+    const store = this.requestContext.requireStore();
+    return this.dashboardService.getParentAcademics(store.tenant_id!, store.user_id!);
+  }
+
+  @Get('parent/finance')
+  async getParentFinance() {
+    const store = this.requestContext.requireStore();
+    return this.dashboardService.getParentFinance(store.tenant_id!, store.user_id!);
+  }
+
+  @Get('parent/communication')
+  async getParentCommunication() {
+    const store = this.requestContext.requireStore();
+    return this.dashboardService.getParentCommunication(store.tenant_id!, store.user_id!);
+  }
+
+  @Get('student/overview')
+  async getStudentOverview() {
+    const store = this.requestContext.requireStore();
+    return this.dashboardService.getStudentOverview(store.tenant_id!, store.user_id!);
+  }
+
+  @Get('student/academics')
+  async getStudentAcademics() {
+    const store = this.requestContext.requireStore();
+    return this.dashboardService.getStudentAcademics(store.tenant_id!, store.user_id!);
+  }
+
+  @Get('student/attendance')
+  async getStudentAttendance() {
+    const store = this.requestContext.requireStore();
+    return this.dashboardService.getStudentAttendance(store.tenant_id!, store.user_id!);
+  }
 }

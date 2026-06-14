@@ -32,8 +32,7 @@ export function FeesWorkspace() {
     // Simulating a mock payment to the backend
     recordPayment.mutate({
       id: `PAY-${Date.now()}`,
-      student: "Alice Kamau", 
-      amount: 150.00,
+      amount: balanceMinor / 100,
       method: "M-Pesa",
       voteHead: "Tuition",
       term: "Term 2",

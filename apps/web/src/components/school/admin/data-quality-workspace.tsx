@@ -8,19 +8,7 @@ import { useSchoolQuery } from "@/lib/data/school-hooks";
 export function DataQualityWorkspace() {
   const { data: insightsData, isLoading } = useSchoolQuery<any>("/api/ai-insights/dashboard");
 
-  // Since we don't have real AI anomaly data reliably yet, we'll build a standard data-audit view
-  // that a school admin would use. We fall back to a mock list if the API returns empty.
   let anomalies = insightsData?.items || [];
-  
-  if (anomalies.length === 0) {
-    anomalies = [
-      { id: 1, title: "Students Missing Guardians", count: 12, severity: "warning", module: "Students" },
-      { id: 2, title: "Staff Assigned No Roles", count: 3, severity: "critical", module: "HR" },
-      { id: 3, title: "Classes Missing Class Teacher", count: 2, severity: "warning", module: "Academics" },
-      { id: 4, title: "Unsubmitted Attendance Registers", count: 8, severity: "warning", module: "Academics" },
-    ];
-  }
-
   const criticalCount = anomalies.filter((a: any) => a.severity === 'critical').length;
   const warningCount = anomalies.filter((a: any) => a.severity === 'warning').length;
   const score = Math.max(0, 100 - (criticalCount * 2) - (warningCount * 0.5));

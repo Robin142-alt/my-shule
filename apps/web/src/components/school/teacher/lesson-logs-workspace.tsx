@@ -4,16 +4,14 @@ import { useState } from "react";
 import { Edit3, CheckCircle, Clock, Calendar } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { useSchoolQuery, useSchoolMutation } from "@/lib/data/school-hooks";
 
 export function LessonLogsWorkspace() {
   const [activeDate, setActiveDate] = useState(new Date().toISOString().split("T")[0]);
 
-  // Dummy lessons for the selected day
-  const dailyLessons = [
-    { id: 1, time: "08:00 AM - 08:40 AM", class: "Form 1 East", subject: "Mathematics", logged: true, notes: "Covered linear equations. Most students understood, but 3 need remedial." },
-    { id: 2, time: "09:20 AM - 10:00 AM", class: "Form 2 West", subject: "Mathematics", logged: false, notes: "" },
-    { id: 3, time: "11:20 AM - 12:00 PM", class: "Form 3 South", subject: "Physics", logged: false, notes: "" },
-  ];
+  const { data: lessonLogs = [], isLoading, refetch } = useSchoolQuery(`/api/academics/my-lesson-logs?date=${activeDate}`);
+  const logMutation = useSchoolMutation("/api/academics/lesson-logs", "POST");
+  const dailyLessons = lessonLogs.length > 0 ? lessonLogs : [];
 
   const [selectedLesson, setSelectedLesson] = useState<any>(null);
 
@@ -93,7 +91,18 @@ export function LessonLogsWorkspace() {
                 </div>
 
                 <div className="pt-4 flex justify-end">
-                  <Button className="gap-2">
+                  <Button 
+                    className="gap-2"
+                    onClick={async () => {
+                      await logMutation.mutateAsync({
+                        lesson_id: selectedLesson.id,
+                        notes: selectedLesson.notes,
+                        logged: true,
+                        date: activeDate
+                      });
+                      refetch();
+                    }}
+                  >
                     {selectedLesson.logged ? "Update Log" : "Submit Log"}
                   </Button>
                 </div>

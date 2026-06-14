@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/card";
 import { StatusPill } from "@/components/ui/status-pill";
 import { useSchoolQuery, useSchoolMutation } from "@/lib/data/school-hooks";
 import { Button } from "@/components/ui/button";
+import { Modal } from "@/components/ui/modal";
 
 export function StaffRecordsWorkspace() {
   const [activeTab, setActiveTab] = useState<"directory" | "attendance" | "leave" | "structure" | "payroll" | "performance">("directory");
@@ -50,16 +51,6 @@ export function StaffRecordsWorkspace() {
     setInviteName("");
     refetch();
   };
-
-  const handleSimulateAccept = async (id: string) => {
-    await acceptInviteMutation.mutateAsync({ staff_profile_id: id });
-    await completeProfileMutation.mutateAsync({ 
-      staff_profile_id: id, 
-      statutory_identifiers: { kra: "A123" }, 
-      emergency_contact: { phone: "0700" } 
-    });
-    refetch();
-  }
 
   const handleApprove = async (id: string) => {
     const num = prompt("Enter new Staff Number", `STF-${Date.now().toString().slice(-4)}`);
@@ -352,11 +343,7 @@ export function StaffRecordsWorkspace() {
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex gap-2 justify-end">
-                          {staff.status === "invited" && (
-                             <Button variant="outline" size="sm" onClick={() => handleSimulateAccept(staff.id)}>
-                               Simulate Accept & Complete
-                             </Button>
-                          )}
+
                           {staff.status === "pending_approval" && (
                              <Button variant="default" size="sm" onClick={() => handleApprove(staff.id)}>
                                <CheckCircle className="w-4 h-4 mr-1" /> Approve
@@ -382,78 +369,70 @@ export function StaffRecordsWorkspace() {
             </table>
           </div>
 
-          {assignRoleStaffId && (
-            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-              <Card className="p-6 w-full max-w-md space-y-4">
-                <h3 className="font-semibold text-lg">Assign Department & Role</h3>
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Department</label>
-                    <select 
-                      value={assignDeptId} 
-                      onChange={e => setAssignDeptId(e.target.value)} 
-                      className="flex h-9 w-full rounded-md border border-slate-200 bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-slate-950"
-                    >
-                      <option value="">None</option>
-                      {departmentList?.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
-                    </select>
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Job Title</label>
-                    <select 
-                      value={assignJobId} 
-                      onChange={e => setAssignJobId(e.target.value)} 
-                      className="flex h-9 w-full rounded-md border border-slate-200 bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-slate-950"
-                    >
-                      <option value="">None</option>
-                      {jobTitleList?.filter(j => !assignDeptId || j.department_id === assignDeptId).map(j => (
-                        <option key={j.id} value={j.id}>{j.title}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-                <div className="flex justify-end gap-2 pt-4">
-                  <Button variant="outline" onClick={() => setAssignRoleStaffId("")}>Cancel</Button>
-                  <Button onClick={handleAssignRole} disabled={assignRoleMutation.isPending}>Save</Button>
-                </div>
-              </Card>
+          <Modal open={!!assignRoleStaffId} onClose={() => setAssignRoleStaffId("")} title="Assign Department & Role" footer={
+            <>
+              <Button variant="outline" onClick={() => setAssignRoleStaffId("")}>Cancel</Button>
+              <Button onClick={handleAssignRole} disabled={assignRoleMutation.isPending}>Save</Button>
+            </>
+          }>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Department</label>
+                <select 
+                  value={assignDeptId} 
+                  onChange={e => setAssignDeptId(e.target.value)} 
+                  className="flex h-9 w-full rounded-md border border-slate-200 bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-slate-950"
+                >
+                  <option value="">None</option>
+                  {departmentList?.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                </select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Job Title</label>
+                <select 
+                  value={assignJobId} 
+                  onChange={e => setAssignJobId(e.target.value)} 
+                  className="flex h-9 w-full rounded-md border border-slate-200 bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-slate-950"
+                >
+                  <option value="">None</option>
+                  {jobTitleList?.filter(j => !assignDeptId || j.department_id === assignDeptId).map(j => (
+                    <option key={j.id} value={j.id}>{j.title}</option>
+                  ))}
+                </select>
+              </div>
             </div>
-          )}
+          </Modal>
 
-          {assignSalaryStaffId && (
-            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-              <Card className="p-6 w-full max-w-md space-y-4">
-                <h3 className="font-semibold text-lg">Set Salary Configuration</h3>
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Payroll Band</label>
-                    <select 
-                      value={assignBandId} 
-                      onChange={e => setAssignBandId(e.target.value)} 
-                      className="flex h-9 w-full rounded-md border border-slate-200 bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-slate-950"
-                    >
-                      <option value="">None / Custom</option>
-                      {bandList?.map(b => <option key={b.id} value={b.id}>{b.name} ({b.base_salary} {b.currency})</option>)}
-                    </select>
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Custom Base Salary (Overrides Band)</label>
-                    <input 
-                      type="number"
-                      value={assignCustomSalary} 
-                      onChange={e => setAssignCustomSalary(e.target.value ? Number(e.target.value) : "")} 
-                      placeholder="e.g. 50000"
-                      className="flex h-9 w-full rounded-md border border-slate-200 bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-slate-950"
-                    />
-                  </div>
-                </div>
-                <div className="flex justify-end gap-2 pt-4">
-                  <Button variant="outline" onClick={() => setAssignSalaryStaffId("")}>Cancel</Button>
-                  <Button onClick={handleAssignSalary} disabled={setSalaryMutation.isPending}>Save</Button>
-                </div>
-              </Card>
+          <Modal open={!!assignSalaryStaffId} onClose={() => setAssignSalaryStaffId("")} title="Set Salary Configuration" footer={
+            <>
+              <Button variant="outline" onClick={() => setAssignSalaryStaffId("")}>Cancel</Button>
+              <Button onClick={handleAssignSalary} disabled={setSalaryMutation.isPending}>Save</Button>
+            </>
+          }>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Payroll Band</label>
+                <select 
+                  value={assignBandId} 
+                  onChange={e => setAssignBandId(e.target.value)} 
+                  className="flex h-9 w-full rounded-md border border-slate-200 bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-slate-950"
+                >
+                  <option value="">None / Custom</option>
+                  {bandList?.map(b => <option key={b.id} value={b.id}>{b.name} ({b.base_salary} {b.currency})</option>)}
+                </select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Custom Base Salary (Overrides Band)</label>
+                <input 
+                  type="number"
+                  value={assignCustomSalary} 
+                  onChange={e => setAssignCustomSalary(e.target.value ? Number(e.target.value) : "")} 
+                  placeholder="e.g. 50000"
+                  className="flex h-9 w-full rounded-md border border-slate-200 bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-slate-950"
+                />
+              </div>
             </div>
-          )}
+          </Modal>
         </div>
       )}
 

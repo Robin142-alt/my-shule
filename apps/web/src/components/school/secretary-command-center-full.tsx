@@ -50,6 +50,9 @@ import {
   publishSchoolOperationalEvent,
 } from "@/lib/school/school-operational-store";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
+import { usePermissions } from "@/components/providers/permission-context";
+import { Modal } from "@/components/ui/modal";
+import { Button } from "@/components/ui/button";
 
 // ==========================================
 // TYPES AND CONSTANTS
@@ -406,21 +409,65 @@ function StudentLookupWorkspace({ onNavigate }: { onNavigate: (v: SecretaryView)
   );
 }
 
+function LogVisitorModal({ onClose }: { onClose: () => void }) {
+  const [submitting, setSubmitting] = useState(false);
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+    setTimeout(() => { setSubmitting(false); onClose(); }, 1000);
+  };
+  return (
+    <Modal title="New Visitor Sign-In" open={true} onClose={onClose} size="md">
+      <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <div>
+          <label className="block text-sm font-bold text-[#071D49] mb-1">Visitor Name</label>
+          <input required type="text" className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Full name" />
+        </div>
+        <div>
+          <label className="block text-sm font-bold text-[#071D49] mb-1">Host / Person to see</label>
+          <input required type="text" className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Staff name" />
+        </div>
+        <div>
+          <label className="block text-sm font-bold text-[#071D49] mb-1">Purpose of Visit</label>
+          <textarea required rows={3} className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]"></textarea>
+        </div>
+        <div className="mt-6 flex justify-end gap-3 pt-4 border-t border-[#D8E0EC]">
+          <button type="button" onClick={onClose} className="rounded-xl px-4 py-2 text-sm font-bold text-[#64748B]">Cancel</button>
+          <button disabled={submitting} type="submit" className="rounded-xl bg-[#071D49] px-6 py-2 text-sm font-black text-white">
+            {submitting ? "Signing In..." : "Sign In"}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
 function VisitorRegisterWorkspace({ onNavigate }: { onNavigate: (v: SecretaryView) => void }) {
   const { data: rawData, isLoading: loading, error } = useSchoolQuery<any[]>("/api/visitors/logs");
   const data = rawData || [];
+  const { hasPermission } = usePermissions();
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   return (
-    <Panel title="Visitor Register" description="Digital logbook for all school visitors." icon={ClipboardList} actions={<button className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-bold text-white transition hover:bg-[#071D49]/90"><Plus className="inline-block w-4 h-4 mr-1" /> New Visitor Sign-In</button>}>
-      <RealDataTable 
-        columns={["Time In","Visitor Name","Company/Org","Host","Purpose","Pass Number","Time Out","Status","Actions"]} 
-        actions={["Sign Out","Print Pass","View Details"]} 
-        data={data}
-        loading={loading}
-        error={error?.message || null}
-        emptyIcon={ClipboardList}
-      />
-    </Panel>
+    <>
+      <Panel title="Visitor Register" description="Digital logbook for all school visitors." icon={ClipboardList} actions={
+        hasPermission('frontoffice:write') ? (
+          <Button onClick={() => setIsModalOpen(true)}><Plus className="inline-block w-4 h-4 mr-1" /> New Visitor Sign-In</Button>
+        ) : (
+          <span className="text-xs font-bold text-[#64748B]">Restricted</span>
+        )
+      }>
+        <RealDataTable 
+          columns={["Time In","Visitor Name","Company/Org","Host","Purpose","Pass Number","Time Out","Status","Actions"]} 
+          actions={["Sign Out","Print Pass","View Details"]} 
+          data={data}
+          loading={loading}
+          error={error?.message || null}
+          emptyIcon={ClipboardList}
+        />
+      </Panel>
+      {isModalOpen && <LogVisitorModal onClose={() => setIsModalOpen(false)} />}
+    </>
   );
 }
 
@@ -442,21 +489,71 @@ function CallsLogWorkspace({ onNavigate }: { onNavigate: (v: SecretaryView) => v
   );
 }
 
+function ScheduleAppointmentModal({ onClose }: { onClose: () => void }) {
+  const [submitting, setSubmitting] = useState(false);
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+    setTimeout(() => { setSubmitting(false); onClose(); }, 1000);
+  };
+  return (
+    <Modal title="Schedule Appointment" open={true} onClose={onClose} size="md">
+      <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <div>
+          <label className="block text-sm font-bold text-[#071D49] mb-1">Visitor/Parent Name</label>
+          <input required type="text" className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Full name" />
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-bold text-[#071D49] mb-1">Date</label>
+            <input required type="date" className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" />
+          </div>
+          <div>
+            <label className="block text-sm font-bold text-[#071D49] mb-1">Time</label>
+            <input required type="time" className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" />
+          </div>
+        </div>
+        <div>
+          <label className="block text-sm font-bold text-[#071D49] mb-1">Host Staff</label>
+          <input required type="text" className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Staff name" />
+        </div>
+        <div className="mt-6 flex justify-end gap-3 pt-4 border-t border-[#D8E0EC]">
+          <button type="button" onClick={onClose} className="rounded-xl px-4 py-2 text-sm font-bold text-[#64748B]">Cancel</button>
+          <button disabled={submitting} type="submit" className="rounded-xl bg-[#071D49] px-6 py-2 text-sm font-black text-white">
+            {submitting ? "Saving..." : "Schedule"}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
 function AppointmentsWorkspace({ onNavigate }: { onNavigate: (v: SecretaryView) => void }) {
   const { data: rawData, isLoading: loading, error } = useSchoolQuery<any[]>("/api/visitors/appointments");
   const data = rawData || [];
+  const { hasPermission } = usePermissions();
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   return (
-    <Panel title="Appointments" description="Manage scheduled visits and meetings." icon={Calendar} actions={<button className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-bold text-white transition hover:bg-[#071D49]/90"><Plus className="inline-block w-4 h-4 mr-1" /> Schedule Appointment</button>}>
-      <RealDataTable 
-        columns={["Date","Time","Visitor Name","Host","Purpose","Status","Actions"]} 
-        actions={["Check-In","Reschedule","Cancel"]} 
-        data={data}
-        loading={loading}
-        error={error?.message || null}
-        emptyIcon={Calendar}
-      />
-    </Panel>
+    <>
+      <Panel title="Appointments" description="Manage scheduled visits and meetings." icon={Calendar} actions={
+        hasPermission('frontoffice:write') ? (
+          <Button onClick={() => setIsModalOpen(true)}><Plus className="inline-block w-4 h-4 mr-1" /> Schedule Appointment</Button>
+        ) : (
+          <span className="text-xs font-bold text-[#64748B]">Restricted</span>
+        )
+      }>
+        <RealDataTable 
+          columns={["Date","Time","Visitor Name","Host","Purpose","Status","Actions"]} 
+          actions={["Check-In","Reschedule","Cancel"]} 
+          data={data}
+          loading={loading}
+          error={error?.message || null}
+          emptyIcon={Calendar}
+        />
+      </Panel>
+      {isModalOpen && <ScheduleAppointmentModal onClose={() => setIsModalOpen(false)} />}
+    </>
   );
 }
 
@@ -514,21 +611,70 @@ function CommunicationWorkspace({ onNavigate }: { onNavigate: (v: SecretaryView)
   );
 }
 
+function RecordDispatchModal({ onClose }: { onClose: () => void }) {
+  const [submitting, setSubmitting] = useState(false);
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+    setTimeout(() => { setSubmitting(false); onClose(); }, 1000);
+  };
+  return (
+    <Modal title="Record Mail / Parcel" open={true} onClose={onClose} size="md">
+      <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <div>
+          <label className="block text-sm font-bold text-[#071D49] mb-1">Sender</label>
+          <input required type="text" className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Sender name or company" />
+        </div>
+        <div>
+          <label className="block text-sm font-bold text-[#071D49] mb-1">Recipient</label>
+          <input required type="text" className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Staff or Department" />
+        </div>
+        <div>
+          <label className="block text-sm font-bold text-[#071D49] mb-1">Item Type</label>
+          <select required className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]">
+            <option value="">Select type...</option>
+            <option value="letter">Official Letter</option>
+            <option value="parcel">Parcel / Package</option>
+            <option value="document">Document</option>
+          </select>
+        </div>
+        <div className="mt-6 flex justify-end gap-3 pt-4 border-t border-[#D8E0EC]">
+          <button type="button" onClick={onClose} className="rounded-xl px-4 py-2 text-sm font-bold text-[#64748B]">Cancel</button>
+          <button disabled={submitting} type="submit" className="rounded-xl bg-[#071D49] px-6 py-2 text-sm font-black text-white">
+            {submitting ? "Recording..." : "Record Item"}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
 function MailParcelsWorkspace({ onNavigate }: { onNavigate: (v: SecretaryView) => void }) {
   const { data: rawData, isLoading: loading, error } = useSchoolQuery<any[]>("/api/operations/reports");
   const data = rawData || [];
+  const { hasPermission } = usePermissions();
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   return (
-    <Panel title="Mail, Deliveries & Parcels" description="Tracks physical mail, deliveries, documents, and parcels entering or leaving school." icon={Package} actions={<button className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-bold text-white transition hover:bg-[#071D49]/90"><Plus className="inline-block w-4 h-4 mr-1" /> Record Mail/Parcel</button>}>
-      <RealDataTable 
-        columns={["Ref No.","Date","Sender","Recipient","Type","Description","Status","Received By","Actions"]} 
-        actions={["View","Assign Recipient","Notify Recipient","Mark Collected","Print Receipt","Mark Returned","Report Lost"]} 
-        data={data}
-        loading={loading}
-        error={error?.message || null}
-        emptyIcon={Package}
-      />
-    </Panel>
+    <>
+      <Panel title="Mail, Deliveries & Parcels" description="Tracks physical mail, deliveries, documents, and parcels entering or leaving school." icon={Package} actions={
+        hasPermission('frontoffice:write') ? (
+          <Button onClick={() => setIsModalOpen(true)}><Plus className="inline-block w-4 h-4 mr-1" /> Record Mail/Parcel</Button>
+        ) : (
+          <span className="text-xs font-bold text-[#64748B]">Restricted</span>
+        )
+      }>
+        <RealDataTable 
+          columns={["Ref No.","Date","Sender","Recipient","Type","Description","Status","Received By","Actions"]} 
+          actions={["View","Assign Recipient","Notify Recipient","Mark Collected","Print Receipt","Mark Returned","Report Lost"]} 
+          data={data}
+          loading={loading}
+          error={error?.message || null}
+          emptyIcon={Package}
+        />
+      </Panel>
+      {isModalOpen && <RecordDispatchModal onClose={() => setIsModalOpen(false)} />}
+    </>
   );
 }
 

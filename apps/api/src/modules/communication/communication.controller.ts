@@ -1,4 +1,4 @@
-import { Body, Controller, Post } from '@nestjs/common';
+import { Body, Controller, Post, Get } from '@nestjs/common';
 
 import { Permissions } from '../../auth/decorators/permissions.decorator';
 import { PrismaService } from '../../database/prisma.service';
@@ -40,5 +40,14 @@ export class CommunicationController {
       userId,
       ...dto,
     });
+  }
+
+  @Get('sms')
+  @Permissions('school_sms:read', 'school_communication:read')
+  async getSms() {
+    const store = this.requestContext.requireStore();
+    const tenantId = store.tenant_id;
+    if (!tenantId) throw new Error('Tenant context required');
+    return this.smsService.getSms(tenantId);
   }
 }

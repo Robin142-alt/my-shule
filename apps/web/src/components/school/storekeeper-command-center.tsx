@@ -42,6 +42,10 @@ import { ApprovalInbox } from "@/components/shared/approval-inbox";
 import { NotificationBell } from "@/components/shared/notification-bell";
 import { TaskQueue } from "@/components/shared/task-queue";
 import { WorkflowToast } from "@/components/shared/workflow-toast";
+import { usePermissions } from "@/components/providers/permission-context";
+import { Modal } from "@/components/ui/modal";
+import { ReceiveStockModal } from "@/components/school/storekeeper/stock-in-workspace";
+import { IssueItemModal } from "@/components/school/storekeeper/stock-issue-workspace";
 
 import { toSchoolPath, type SchoolSection } from "@/lib/routing/experience-routes";
 import {
@@ -1175,11 +1179,19 @@ function QuickActionCenter({ routeMode, theme }: { routeMode: StorekeeperRouteMo
           const toneClass = toneStyles[action.tone];
           const Icon = action.icon;
           return (
-            <Link
+            <button
               key={action.id}
-              href={buildHref(action.section, routeMode)}
+              onClick={(e) => {
+                if (action.id === 'receive' || action.id === 'issue') {
+                  e.preventDefault();
+                  announceAction(`Open ${action.id} modal`);
+                } else {
+                  // Fallback for others if we don't have modals for them yet
+                  window.location.href = buildHref(action.section, routeMode);
+                }
+              }}
               className={cn(
-                "group rounded-3xl border p-4 transition duration-200 hover:-translate-y-1",
+                "group rounded-3xl border p-4 transition duration-200 hover:-translate-y-1 text-left",
                 surface.soft,
                 toneClass.border,
               )}
@@ -1190,7 +1202,7 @@ function QuickActionCenter({ routeMode, theme }: { routeMode: StorekeeperRouteMo
               </div>
               <p className="mt-4 text-base font-black">{action.label}</p>
               <p className={cn("mt-2 text-sm leading-5", surface.muted)}>{action.detail}</p>
-            </Link>
+            </button>
           );
         })}
       </div>
@@ -1681,10 +1693,12 @@ export function StorekeeperCommandCenter({
 }: {
   routeMode: StorekeeperRouteMode;
 }) {
+  const { hasPermission } = usePermissions();
   const { data: summaryData, isLoading: isLoadingSummary } = useSchoolQuery<any>("/api/inventory/summary");
   const [theme, setTheme] = useState<StorekeeperTheme>("dark");
   const [searchTerm, setSearchTerm] = useState("");
   const [notice, setNotice] = useState("Store desk ready for receiving, issuing, stock counts, and approvals.");
+  const [activeModal, setActiveModal] = useState<string | null>(null);
   const surface = useMemo(() => getSurfaceClasses(theme), [theme]);
   
 
@@ -1699,10 +1713,10 @@ export function StorekeeperCommandCenter({
 
   useEffect(() => {
     function handleDashboardAction(event: Event) {
-      const detail = (event as CustomEvent<string>).detail;
-      if (detail) {
-        setNotice(detail);
-      }
+      const customEvent = event as CustomEvent<string>;
+      if (customEvent.detail === "Open receive modal") setActiveModal("receive");
+      else if (customEvent.detail === "Open issue modal") setActiveModal("issue");
+      else setNotice(customEvent.detail);
     }
 
     window.addEventListener("myshule-dashboard-action", handleDashboardAction);
@@ -1797,8 +1811,18 @@ export function StorekeeperCommandCenter({
         </main>
       </div>
 
-      <MobileQuickActions routeMode={routeMode} />
+      {activeModal === "receive" && hasPermission('inventory:write') && <ReceiveStockModal onClose={() => setActiveModal(null)} />}
+      {activeModal === "issue" && hasPermission('inventory:write') && <IssueItemModal onClose={() => setActiveModal(null)} />}
       
+      {(activeModal === "receive" || activeModal === "issue") && !hasPermission('inventory:write') && (
+        <Modal title="Restricted" open={true} onClose={() => setActiveModal(null)} size="sm">
+          <div className="p-6 text-center text-rose-600 font-bold">
+            You do not have permission to perform this action.
+          </div>
+        </Modal>
+      )}
+
+      <MobileQuickActions routeMode={routeMode} />
     </div>
   );
 }

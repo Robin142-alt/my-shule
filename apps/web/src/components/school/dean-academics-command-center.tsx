@@ -25,6 +25,9 @@ import type { WidgetState } from "@/lib/capability-engine/school-capability-engi
 import { getCurrentSchoolId, publishSchoolOperationalEvent } from "@/lib/school/school-operational-store";
 import { useLiveTenantSession } from "@/hooks/use-live-tenant-session";
 import { useSchoolQuery, useSchoolMutation } from "@/lib/data/school-hooks";
+import { usePermissions } from "@/components/providers/permission-context";
+import { Modal } from "@/components/ui/modal";
+import { Button } from "@/components/ui/button";
 
 type DeanRouteMode = "hosted" | "public";
 type Tone = "success" | "info" | "warning" | "danger" | "neutral";
@@ -438,6 +441,7 @@ function PendingReviews({ capability, onAction }: { capability: DeanWidgetCapabi
   const liveSession = useLiveTenantSession("school");
   const { data: schoolMarks, isLoading } = useSchoolQuery('/api/exams/marks/school', { enabled: !!liveSession.session });
   const lockMutation = useSchoolMutation('/api/exams/marks/lock');
+  const { hasPermission } = usePermissions();
 
   const pendingMarks = Array.isArray(schoolMarks) ? schoolMarks.filter((m: any) => m.status === 'reviewed') : [];
 
@@ -488,8 +492,12 @@ function PendingReviews({ capability, onAction }: { capability: DeanWidgetCapabi
         </div>
       </div>
       <div className="mt-4 flex flex-wrap gap-2">
-        <button type="button" onClick={handleLockBatch} className="rounded-xl border border-[#C7D4E6] bg-white px-3 py-2 text-sm font-black text-[#071D49] shadow-sm transition hover:-translate-y-0.5 hover:border-[#0B63CE] hover:text-[#0B63CE]">Approve batch (Lock)</button>
-        <ActionButton onAction={onAction}>Return for correction</ActionButton>
+        {hasPermission('exams:write') && (
+          <>
+            <button type="button" onClick={handleLockBatch} className="rounded-xl border border-[#C7D4E6] bg-white px-3 py-2 text-sm font-black text-[#071D49] shadow-sm transition hover:-translate-y-0.5 hover:border-[#0B63CE] hover:text-[#0B63CE]">Approve batch (Lock)</button>
+            <ActionButton onAction={onAction}>Return for correction</ActionButton>
+          </>
+        )}
       </div>
     </WidgetFrame>
   );
@@ -629,6 +637,8 @@ function Moderation({ capability }: { capability: DeanWidgetCapability }) {
 }
 
 function ResultsModeration({ capability, onAction }: { capability: DeanWidgetCapability; onAction: (label: string) => void }) {
+  const { hasPermission } = usePermissions();
+
   return (
     <WidgetFrame widget={widgets.find((item) => item.id === "pending")!} capability={capability}>
       <div className="grid gap-3">
@@ -645,8 +655,12 @@ function ResultsModeration({ capability, onAction }: { capability: DeanWidgetCap
         ))}
       </div>
       <div className="mt-4 flex flex-wrap gap-2">
-        <ActionButton onAction={onAction}>Open review</ActionButton>
-        <ActionButton onAction={onAction}>Return for correction</ActionButton>
+        {hasPermission('exams:write') && (
+          <>
+            <ActionButton onAction={onAction}>Open review</ActionButton>
+            <ActionButton onAction={onAction}>Return for correction</ActionButton>
+          </>
+        )}
       </div>
     </WidgetFrame>
   );
@@ -673,6 +687,8 @@ function AcademicAnalytics() {
 }
 
 function Interventions({ onAction }: { onAction: (label: string) => void }) {
+  const { hasPermission } = usePermissions();
+
   return (
     <ShellCard title="Academic Interventions" description="Assign academic support without publishing reports or editing marks." icon={UserCheck}>
       <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_260px]">
@@ -692,7 +708,9 @@ function Interventions({ onAction }: { onAction: (label: string) => void }) {
           <p className="text-sm font-black uppercase tracking-[0.14em] text-[#64748B]">Action</p>
           <p className="mt-2 text-sm font-semibold leading-6 text-[#64748B]">Record the intervention assignment and notify the responsible academic role.</p>
           <div className="mt-4">
-            <ActionButton onAction={onAction}>Assign intervention</ActionButton>
+            {hasPermission('academics:write') && (
+              <ActionButton onAction={onAction}>Assign intervention</ActionButton>
+            )}
           </div>
         </div>
       </div>

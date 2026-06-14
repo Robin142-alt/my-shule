@@ -7,9 +7,11 @@ import { Button } from "@/components/ui/button";
 import { redirectOnExpiredSessionError } from "@/lib/auth/session-expiry-client";
 import { fetchPlatformSchools } from "@/lib/platform/school-onboarding-client";
 
+import { type PlatformSchool } from "@/lib/platform/school-onboarding-client";
+
 export function OnboardingWorkspace() {
   const router = useRouter();
-  const [schools, setSchools] = useState<any[]>([]);
+  const [schools, setSchools] = useState<PlatformSchool[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -29,23 +31,20 @@ export function OnboardingWorkspace() {
     return () => { cancelled = true; };
   }, [router]);
 
-  const columns: DataTableColumn<any>[] = [
-    { id: "schoolName", header: "School Name", render: (row) => row.schoolName },
-    { id: "county", header: "County", render: (row) => row.county || "N/A" },
-    { id: "createdDate", header: "Created Date", render: (row) => new Date().toLocaleDateString() },
-    { id: "principal", header: "Principal", render: (row) => "Pending" },
-    { id: "stage", header: "Current Stage", render: (row) => "Setup In Progress" },
-    { id: "setupPercentage", header: "Setup %", render: (row) => "25%" },
-    { id: "blocker", header: "Blocker", render: (row) => "None" },
-    { id: "lastActivity", header: "Last Activity", render: (row) => "Today" },
-    { id: "supportOwner", header: "Support Owner", render: (row) => "Unassigned" },
+  const columns: DataTableColumn<PlatformSchool>[] = [
+    { id: "schoolName", header: "School Name", render: (row) => row.school_name },
+    { id: "subdomain", header: "Subdomain", render: (row) => row.subdomain },
+    { id: "createdDate", header: "Created Date", render: (row) => new Date(row.created_at).toLocaleDateString() },
+    { id: "adminEmail", header: "Admin Email", render: (row) => row.admin_email },
+    { id: "invitationStatus", header: "Invite Status", render: (row) => row.invitation_status || "Pending" },
+    { id: "status", header: "Status", render: (row) => row.status },
     {
       id: "actions",
       header: "Actions",
       render: (row) => (
         <div className="flex gap-2">
           <Button variant="ghost" size="sm">View</Button>
-          <Button variant="ghost" size="sm">Invite Principal</Button>
+          {row.can_resend_invite && <Button variant="ghost" size="sm">Resend Invite</Button>}
         </div>
       ),
     },
@@ -65,17 +64,17 @@ export function OnboardingWorkspace() {
         }
       />
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {["School Created", "Principal Invite Pending", "Principal Accepted", "Setup In Progress"].map((col) => (
-          <div key={col} className="bg-muted/50 p-4 rounded-xl border border-border">
-            <h3 className="font-semibold text-sm mb-4">{col}</h3>
+        {schools.slice(0, 4).map((school) => (
+          <div key={school.tenant_id} className="bg-muted/50 p-4 rounded-xl border border-border">
+            <h3 className="font-semibold text-sm mb-4">{school.invitation_status === "accepted" ? "Setup Complete" : "Pending Setup"}</h3>
             <div className="bg-background p-3 rounded-lg border border-border shadow-sm text-sm">
-              <div className="font-medium">Demo High School</div>
-              <div className="text-muted-foreground text-xs mt-1">Pending setup...</div>
+              <div className="font-medium">{school.school_name}</div>
+              <div className="text-muted-foreground text-xs mt-1">Status: {school.status}</div>
             </div>
           </div>
         ))}
       </div>
-      <DataTable title="All Onboarding Schools" subtitle="Detailed pipeline view." columns={columns} rows={schools} getRowKey={(row) => row.id} emptyMessage={isLoading ? "Loading..." : "No schools are currently onboarding."} />
+      <DataTable title="All Onboarding Schools" subtitle="Detailed pipeline view." columns={columns} rows={schools} getRowKey={(row) => row.tenant_id} emptyMessage={isLoading ? "Loading..." : "No schools are currently onboarding."} />
     </div>
   );
 }

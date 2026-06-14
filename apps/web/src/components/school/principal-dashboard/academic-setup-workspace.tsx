@@ -2,11 +2,12 @@
 
 import { useState } from "react";
 import { Card } from "@/components/ui/card";
-import { AlertCircle, GraduationCap, Calendar, Settings, Plus, Loader2 } from "lucide-react";
+import { AlertCircle, GraduationCap, Calendar, Settings, Plus, Loader2, FileText, CheckSquare } from "lucide-react";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
 import { requestDashboardApi } from "@/lib/dashboard/api-client";
+import { usePermissions } from "@/components/providers/permission-context";
 
 type AcademicSetupData = {
   status: "active" | "degraded" | "setup_required";
@@ -21,6 +22,7 @@ type AcademicSetupData = {
 
 export function PrincipalAcademicSetupWorkspace() {
   const { data, isLoading, error, refetch } = useSchoolQuery<AcademicSetupData>('/admin-command/principal/academic-setup');
+  const { hasPermission } = usePermissions();
   const { data: yearsData } = useSchoolQuery<any[]>('/academics/academic-years');
 
   const [isYearModalOpen, setIsYearModalOpen] = useState(false);
@@ -265,18 +267,22 @@ export function PrincipalAcademicSetupWorkspace() {
                 </div>
               </div>
               <div className="flex gap-2">
-                <Button size="sm" variant="outline" onClick={() => setIsYearModalOpen(true)}>
-                  <Plus className="h-4 w-4 mr-1" /> Year
-                </Button>
-                <Button 
-                  size="sm" 
-                  variant="outline" 
-                  onClick={() => setIsTermModalOpen(true)}
-                  disabled={!hasYears}
-                  title={!hasYears ? "Cannot create a term before an academic year exists" : ""}
-                >
-                  <Plus className="h-4 w-4 mr-1" /> Term
-                </Button>
+                {hasPermission('academics:write') && (
+                  <>
+                    <Button size="sm" variant="outline" onClick={() => setIsYearModalOpen(true)}>
+                      <Plus className="h-4 w-4 mr-1" /> Year
+                    </Button>
+                    <Button 
+                      size="sm" 
+                      variant="outline" 
+                      onClick={() => setIsTermModalOpen(true)}
+                      disabled={!hasYears}
+                      title={!hasYears ? "Cannot create a term before an academic year exists" : ""}
+                    >
+                      <Plus className="h-4 w-4 mr-1" /> Term
+                    </Button>
+                  </>
+                )}
               </div>
             </div>
             <div className="flex items-center justify-between p-4 rounded-lg bg-white/5 border border-white/10">
@@ -290,9 +296,11 @@ export function PrincipalAcademicSetupWorkspace() {
                 </div>
               </div>
               <div className="flex gap-2">
-                <Button size="sm" variant="outline" onClick={() => setIsGradingModalOpen(true)}>
-                  <Plus className="h-4 w-4 mr-1" /> Add
-                </Button>
+                {hasPermission('academics:write') && (
+                  <Button size="sm" variant="outline" onClick={() => setIsGradingModalOpen(true)}>
+                    <Plus className="h-4 w-4 mr-1" /> Add
+                  </Button>
+                )}
               </div>
             </div>
             <div className="flex items-center justify-between p-4 rounded-lg bg-white/5 border border-white/10">
@@ -306,9 +314,11 @@ export function PrincipalAcademicSetupWorkspace() {
                 </div>
               </div>
               <div className="flex gap-2">
-                <Button size="sm" variant="outline" onClick={() => setIsAttendanceModalOpen(true)}>
-                  <Plus className="h-4 w-4 mr-1" /> Add
-                </Button>
+                {hasPermission('academics:write') && (
+                  <Button size="sm" variant="outline" onClick={() => setIsAttendanceModalOpen(true)}>
+                    <Plus className="h-4 w-4 mr-1" /> Add
+                  </Button>
+                )}
               </div>
             </div>
           </div>
@@ -337,7 +347,14 @@ export function PrincipalAcademicSetupWorkspace() {
       <Card className="border border-white/10 bg-white/5 p-6 flex flex-col h-full mt-6">
         <h2 className="text-xl font-bold text-white mb-4">Academic Years</h2>
         {!yearsData || yearsData.length === 0 ? (
-          <div className="text-white/60 text-sm py-4">No academic years configured yet.</div>
+          <div className="flex flex-col items-center justify-center py-6 text-center">
+            <p className="text-white/60 text-sm mb-4">No academic years configured yet.</p>
+            {hasPermission('academics:write') && (
+              <Button size="sm" variant="outline" onClick={() => setIsYearModalOpen(true)}>
+                <Plus className="h-4 w-4 mr-2" /> Create Academic Year
+              </Button>
+            )}
+          </div>
         ) : (
           <div className="space-y-2">
             {yearsData.map((year: any) => (
@@ -360,7 +377,14 @@ export function PrincipalAcademicSetupWorkspace() {
       <Card className="border border-white/10 bg-white/5 p-6 flex flex-col h-full mt-6">
         <h2 className="text-xl font-bold text-white mb-4">Grading Systems</h2>
         {!gradingData || gradingData.length === 0 ? (
-          <div className="text-white/60 text-sm py-4">No grading systems configured yet.</div>
+          <div className="flex flex-col items-center justify-center py-6 text-center">
+            <p className="text-white/60 text-sm mb-4">No grading systems configured yet.</p>
+            {hasPermission('academics:write') && (
+              <Button size="sm" variant="outline" onClick={() => setIsGradingModalOpen(true)}>
+                <Plus className="h-4 w-4 mr-2" /> Create Grading System
+              </Button>
+            )}
+          </div>
         ) : (
           <div className="space-y-2">
             {gradingData.map((grading: any) => (
@@ -383,7 +407,14 @@ export function PrincipalAcademicSetupWorkspace() {
       <Card className="border border-white/10 bg-white/5 p-6 flex flex-col h-full mt-6">
         <h2 className="text-xl font-bold text-white mb-4">Attendance Settings</h2>
         {!attendanceData || attendanceData.length === 0 ? (
-          <div className="text-white/60 text-sm py-4">No attendance settings configured yet.</div>
+          <div className="flex flex-col items-center justify-center py-6 text-center">
+            <p className="text-white/60 text-sm mb-4">No attendance settings configured yet.</p>
+            {hasPermission('academics:write') && (
+              <Button size="sm" variant="outline" onClick={() => setIsAttendanceModalOpen(true)}>
+                <Plus className="h-4 w-4 mr-2" /> Create Attendance Setting
+              </Button>
+            )}
+          </div>
         ) : (
           <div className="space-y-2">
             {attendanceData.map((att: any) => (
@@ -403,34 +434,43 @@ export function PrincipalAcademicSetupWorkspace() {
         )}
       </Card>
 
-        <Card className="border border-white/10 bg-white/5 p-6 flex flex-col h-full mt-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-bold text-white">Report Card Settings</h2>
+      <Card className="border border-white/10 bg-white/5 p-6 flex flex-col h-full mt-6">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-bold text-white">Report Card Settings</h2>
+          {hasPermission('academics:write') && (
             <Button size="sm" variant="outline" onClick={() => setIsReportCardModalOpen(true)}>
               <Plus className="h-4 w-4 mr-1" /> Add Profile
             </Button>
+          )}
+        </div>
+        {!reportCardData || reportCardData.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-6 text-center">
+            <p className="text-white/60 text-sm mb-4">No report card settings configured yet.</p>
+            {hasPermission('academics:write') && (
+              <Button size="sm" variant="outline" onClick={() => setIsReportCardModalOpen(true)}>
+                <Plus className="h-4 w-4 mr-2" /> Create Profile
+              </Button>
+            )}
           </div>
-          {!reportCardData || reportCardData.length === 0 ? (
-            <div className="text-white/60 text-sm py-4 text-center">No report card settings configured yet.</div>
-          ) : (
-            <div className="space-y-2">
-              {reportCardData.map((s: any) => (
-                <div key={s.id} className="flex items-center justify-between p-3 rounded-lg bg-white/5 border border-white/10">
-                  <div>
-                    <div className="font-medium text-white">{s.name}</div>
-                    <div className="text-xs text-white/50">
-                      Rank: {s.show_rank ? "Yes" : "No"} | Attendance: {s.show_attendance ? "Yes" : "No"}
-                    </div>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button size="sm" variant="outline" className="text-red-400 border-red-500/20 hover:bg-red-500/20" onClick={() => handleArchiveReportCard(s.id)}>
-                      Archive
-                    </Button>
+        ) : (
+          <div className="space-y-2">
+            {reportCardData.map((s: any) => (
+              <div key={s.id} className="flex items-center justify-between p-3 rounded-lg bg-white/5 border border-white/10">
+                <div>
+                  <div className="font-medium text-white">{s.name}</div>
+                  <div className="text-xs text-white/50">
+                    Rank: {s.show_rank ? "Yes" : "No"} | Attendance: {s.show_attendance ? "Yes" : "No"}
                   </div>
                 </div>
-              ))}
-            </div>
-          )}
+                <div className="flex gap-2">
+                  <Button size="sm" variant="outline" className="text-red-400 border-red-500/20 hover:bg-red-500/20" onClick={() => handleArchiveReportCard(s.id)}>
+                    Archive
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
         </Card>
 
       <Modal open={isYearModalOpen} onClose={() => setIsYearModalOpen(false)} title="Create Academic Year">

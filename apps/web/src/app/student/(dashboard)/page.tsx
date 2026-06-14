@@ -1,10 +1,10 @@
 import React from 'react';
-import { ParentCommandCenter } from "@/components/parent/parent-command-center";
+import { StudentCommandCenter } from "@/components/student/student-command-center";
 
 export default function DashboardPage() {
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-[#0B1120] text-slate-900 dark:text-slate-100">
-      <ParentCommandCenter />
+      <StudentCommandCenter />
     </div>
   );
 }

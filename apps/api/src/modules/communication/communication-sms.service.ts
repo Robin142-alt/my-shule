@@ -1,5 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
+import { EventPublisherService } from '../events/event-publisher.service';
+import { AgpExecutionService } from '../../common/platform-governance/agp-execution.service';
 
 export interface SendSmsParams {
   tenantId: string;
@@ -33,19 +35,57 @@ export class CommunicationSmsService {
     }
   }
 
-  constructor(private readonly prisma: PrismaService, private readonly db: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly db: PrismaService,
+    private readonly eventPublisher?: EventPublisherService,
+    private readonly agp?: AgpExecutionService,
+  ) {}
 
   async sendSms(params: SendSmsParams) {
+    if (!this.agp) throw new Error('AGP Execution Service is required for this operation');
+
+    return this.agp.execute({
+      actionName: 'SMS_QUEUED',
+      requiredCapability: 'school_sms:send',
+      aggregateType: 'COMMUNICATION',
+      aggregateId: params.recipientPhone,
+      eventName: 'communication.sms.queued',
+      eventPayload: {
+        tenant_id: params.tenantId,
+        sms_id: 'pending', // Will be filled properly downstream, or we could just use recipient
+        recipient_phone: params.recipientPhone,
+        message: params.message,
+        sent_by: params.userId,
+      },
+      handler: async () => {
+        const result = await this.db.query(
+          `INSERT INTO communication_sms_outbox (
+             tenant_id, 
+             recipient_phone, 
+             message, 
+             status, 
+             sent_by
+           ) VALUES ($1, $2, $3, 'Pending', $4) RETURNING *`,
+          [params.tenantId, params.recipientPhone, params.message, params.userId]
+        );
+
+        const smsId = result.rows[0].id;
+
+        return { success: true, messageId: smsId, status: result.rows[0].status };
+      },
+      fallback: async (error) => {
+        // Fallback behaviour: Record it failed, but return degradation gracefully
+        return { success: false, messageId: 'FALLBACK', status: 'Failed' };
+      }
+    });
+  }
+
+  async getSms(tenantId: string) {
     const result = await this.db.query(
-      `INSERT INTO communication_sms_outbox (
-         tenant_id, 
-         recipient_phone, 
-         message, 
-         status, 
-         sent_by
-       ) VALUES ($1, $2, $3, 'Pending', $4) RETURNING *`,
-      [params.tenantId, params.recipientPhone, params.message, params.userId]
+      `SELECT * FROM communication_sms_outbox WHERE tenant_id = $1 ORDER BY created_at DESC`,
+      [tenantId]
     );
-    return { success: true, messageId: result.rows[0].id, status: result.rows[0].status };
+    return { data: result.rows };
   }
 }

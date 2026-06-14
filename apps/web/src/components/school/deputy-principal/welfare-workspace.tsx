@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import { Stethoscope } from "lucide-react";
 import { Panel, StatusChip, Tone } from "./shared";
-import { readSchoolData, addSchoolRecord, updateSchoolRecord, subscribeToSchoolDataUpdates, createNotification } from "@/lib/school/school-operational-store";
+import { Modal } from "@/components/ui/modal";
 
 export type WelfareCase = {
   id: string;
@@ -99,35 +99,31 @@ export function DeputyWelfareWorkspace() {
         </table>
       </div>
 
-      {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#071D49]/40 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-2xl border border-[#D8E0EC] bg-white p-6 shadow-2xl">
-            <h2 className="text-xl font-bold text-[#071D49] mb-4">Create Welfare Case</h2>
-            <div className="space-y-4">
-              <div>
-                <label className="text-sm font-bold text-[#334155]">Student Name</label>
-                <input value={formData.studentName} onChange={(e) => setFormData({...formData, studentName: e.target.value})} type="text" className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-2 text-sm focus:border-blue-500 focus:outline-none" />
-              </div>
-              <div>
-                <label className="text-sm font-bold text-[#334155]">Concern/Reason</label>
-                <input value={formData.concern} onChange={(e) => setFormData({...formData, concern: e.target.value})} type="text" className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-2 text-sm focus:border-blue-500 focus:outline-none" />
-              </div>
-              <div>
-                <label className="text-sm font-bold text-[#334155]">Assign To</label>
-                <select value={formData.assignedTo} onChange={(e) => setFormData({...formData, assignedTo: e.target.value})} className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-2 text-sm focus:border-blue-500 focus:outline-none">
-                  <option>School Counsellor</option>
-                  <option>School Nurse</option>
-                  <option>Class Teacher</option>
-                </select>
-              </div>
-            </div>
-            <div className="mt-6 flex justify-end gap-3">
-              <button onClick={() => setShowModal(false)} className="rounded-lg px-4 py-2 text-sm font-bold text-[#64748B] hover:bg-slate-100">Cancel</button>
-              <button disabled={!formData.studentName || !formData.concern} onClick={handleCreate} className="rounded-lg bg-rose-600 px-4 py-2 text-sm font-black text-white hover:bg-rose-700 disabled:opacity-50">Create Case</button>
-            </div>
+      <Modal open={showModal} onClose={() => setShowModal(false)} title="Log New Welfare Case" footer={
+        <>
+          <button onClick={() => setShowModal(false)} className="rounded-lg px-4 py-2 text-sm font-bold text-[#64748B] hover:bg-slate-100">Cancel</button>
+          <button disabled={!formData.studentName} onClick={handleCreate} className="rounded-lg bg-rose-600 px-4 py-2 text-sm font-black text-white hover:bg-rose-700 disabled:opacity-50">Save Case</button>
+        </>
+      }>
+        <div className="space-y-4">
+          <div>
+            <label className="text-sm font-bold text-[#334155]">Student Name</label>
+            <input value={formData.studentName} onChange={(e) => setFormData({...formData, studentName: e.target.value})} type="text" className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-2 text-sm focus:border-blue-500 focus:outline-none" />
+          </div>
+          <div>
+            <label className="text-sm font-bold text-[#334155]">Welfare Concern</label>
+            <input value={formData.concern} onChange={(e) => setFormData({...formData, concern: e.target.value})} type="text" className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-2 text-sm focus:border-blue-500 focus:outline-none" />
+          </div>
+          <div>
+            <label className="text-sm font-bold text-[#334155]">Assign To</label>
+            <select value={formData.assignedTo} onChange={(e) => setFormData({...formData, assignedTo: e.target.value})} className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-2 text-sm focus:border-blue-500 focus:outline-none">
+              <option>School Counsellor</option>
+              <option>Class Teacher</option>
+              <option>Nurse</option>
+            </select>
           </div>
         </div>
-      )}
+      </Modal>
     </Panel>
   );
 }

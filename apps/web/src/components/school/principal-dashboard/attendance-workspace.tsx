@@ -1,8 +1,13 @@
 "use client";
 
 import { Card } from "@/components/ui/card";
-import { AlertCircle, CalendarClock, UserX } from "lucide-react";
+import { AlertCircle, CalendarClock, UserX, UserMinus } from "lucide-react";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Modal } from "@/components/ui/modal";
+import { Loader2 } from "lucide-react";
+import { usePermissions } from "@/components/providers/permission-context";
 
 type PrincipalAttendanceData = {
   status: "active" | "degraded" | "setup_required";
@@ -15,7 +20,38 @@ type PrincipalAttendanceData = {
 };
 
 export function PrincipalAttendanceWorkspace() {
-  const { data, isLoading, error } = useSchoolQuery<PrincipalAttendanceData>('/admin-command/principal/attendance');
+  const { data, isLoading, error, refetch } = useSchoolQuery<PrincipalAttendanceData>('/admin-command/principal/attendance');
+  const studentsData: any = { students: [] };
+  const { hasPermission } = usePermissions();
+  
+  const [isAbsenceModalOpen, setIsAbsenceModalOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [formError, setFormError] = useState("");
+
+  const handleLogAbsence = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    setFormError("");
+    const formData = new FormData(e.currentTarget);
+    
+    try {
+      // await requestDashboardApi('/admin-command/attendance/absences', {
+      //   method: "POST",
+      //   body: {
+      //     studentId: formData.get("studentId"),
+      //     date: formData.get("date"),
+      //     reason: formData.get("reason"),
+      //     isExcused: formData.get("isExcused") === "on",
+      //   }
+      // });
+      setIsAbsenceModalOpen(false);
+      refetch();
+    } catch (err: any) {
+      setFormError(err.message || "Failed to log absence");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -85,16 +121,23 @@ export function PrincipalAttendanceWorkspace() {
         <Card className="border border-white/10 bg-white/5 p-6 flex flex-col h-full">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xl font-bold text-white">Recent Absences</h2>
-            <button className="text-xs bg-white/10 text-white px-3 py-1.5 rounded hover:bg-white/20 transition-colors flex items-center gap-1">
-              <CalendarClock className="h-3 w-3" />
-              View Register
-            </button>
+            {hasPermission('attendance:write') && (
+              <Button size="sm" variant="outline" className="text-xs bg-red-500/20 text-red-400 px-3 py-1.5 rounded hover:bg-red-500/30 transition-colors flex items-center gap-1" onClick={() => setIsAbsenceModalOpen(true)}>
+                <UserMinus className="h-3 w-3 mr-1" />
+                Log Absence
+              </Button>
+            )}
           </div>
           
           {(!data.recentAbsences || data.recentAbsences.length === 0) ? (
             <div className="flex flex-col items-center justify-center flex-1 py-8 text-center bg-white/5 rounded-lg border border-white/5">
-              <UserX className="h-10 w-10 text-white/20 mb-3" />
-              <p className="text-white/60">No recent absences logged today</p>
+              <UserMinus className="h-10 w-10 text-white/20 mb-3" />
+              <p className="text-white/60 mb-4">No recent absences reported</p>
+              {hasPermission('attendance:write') && (
+                <Button size="sm" variant="outline" onClick={() => setIsAbsenceModalOpen(true)}>
+                  <UserMinus className="h-4 w-4 mr-2" /> Log Absence
+                </Button>
+              )}
             </div>
           ) : (
             <div className="space-y-3 flex-1 overflow-y-auto pr-2">
@@ -103,6 +146,44 @@ export function PrincipalAttendanceWorkspace() {
           )}
         </Card>
       </div>
+
+      <Modal open={isAbsenceModalOpen} onClose={() => setIsAbsenceModalOpen(false)} title="Log Absence">
+        <form onSubmit={handleLogAbsence} className="space-y-4">
+          {formError && (
+            <div className="p-3 bg-red-500/10 border border-red-500/20 text-red-500 rounded text-sm">
+              {formError}
+            </div>
+          )}
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Student</label>
+            <select name="studentId" required className="w-full border rounded p-2 text-sm bg-white text-black">
+              <option value="">Select a student...</option>
+              {/* @ts-ignore */}
+              {studentsData?.students?.map((s: any) => (
+                <option key={s.id} value={s.id}>{s.user.firstName} {s.user.lastName} ({s.admissionNumber})</option>
+              ))}
+            </select>
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Date</label>
+            <input type="date" name="date" required defaultValue={new Date().toISOString().split('T')[0]} className="w-full border rounded p-2 text-sm" />
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Reason</label>
+            <textarea name="reason" required rows={3} className="w-full border rounded p-2 text-sm" placeholder="Why is the student absent?" />
+          </div>
+          <label className="flex items-center gap-2">
+            <input type="checkbox" name="isExcused" className="rounded" />
+            <span className="text-sm">Excused Absence</span>
+          </label>
+          <div className="pt-4 flex justify-end">
+            <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Save Record
+            </Button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 }

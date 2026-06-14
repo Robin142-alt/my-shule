@@ -7,6 +7,7 @@ import { useSchoolQuery } from "@/lib/data/school-hooks";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
 import { requestDashboardApi } from "@/lib/dashboard/api-client";
+import { usePermissions } from "@/components/providers/permission-context";
 
 type PrincipalWorkspaceData = {
   status: "active" | "degraded" | "setup_required";
@@ -19,10 +20,15 @@ type PrincipalWorkspaceData = {
 export function PrincipalFinanceOverviewWorkspace() {
   const { data, isLoading, error, refetch } = useSchoolQuery<PrincipalWorkspaceData>('/admin-command/principal/finance-overview');
   const { data: feeCategoriesData } = useSchoolQuery<any[]>('/finance/fee-categories');
+  const { hasPermission } = usePermissions();
 
   const [isFeeCategoryModalOpen, setIsFeeCategoryModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formError, setFormError] = useState("");
+
+  const [isWaiverModalOpen, setIsWaiverModalOpen] = useState(false);
+  const [isSubmittingWaiver, setIsSubmittingWaiver] = useState(false);
+  const [waiverFormError, setWaiverFormError] = useState("");
 
   const handleCreateFeeCategory = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -43,6 +49,29 @@ export function PrincipalFinanceOverviewWorkspace() {
       setFormError(err.message || "Failed to create fee category");
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleAddWaiver = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setIsSubmittingWaiver(true);
+    setWaiverFormError("");
+    const formData = new FormData(e.currentTarget);
+    try {
+      await requestDashboardApi('/finance/waivers', {
+        method: "POST",
+        body: {
+          student_id: formData.get("student_id"),
+          amount: parseFloat(formData.get("amount") as string),
+          reason: formData.get("reason"),
+        }
+      });
+      setIsWaiverModalOpen(false);
+      refetch();
+    } catch (err: any) {
+      setWaiverFormError(err.message || "Failed to add waiver");
+    } finally {
+      setIsSubmittingWaiver(false);
     }
   };
 
@@ -127,7 +156,12 @@ export function PrincipalFinanceOverviewWorkspace() {
           {(!data.pendingWaivers || data.pendingWaivers.length === 0) ? (
             <div className="flex flex-col items-center justify-center flex-1 py-8 text-center bg-white/5 rounded-lg border border-white/5">
               <CheckCircle2 className="h-10 w-10 text-white/20 mb-3" />
-              <p className="text-white/60">No pending waivers</p>
+              <p className="text-white/60 mb-4">No pending waivers</p>
+              {hasPermission('finance:write') && (
+                <Button size="sm" variant="outline" onClick={() => setIsWaiverModalOpen(true)}>
+                  <Plus className="h-4 w-4 mr-2" /> Add Waiver
+                </Button>
+              )}
             </div>
           ) : (
             <div className="space-y-3 flex-1 overflow-y-auto pr-2">
@@ -163,7 +197,12 @@ export function PrincipalFinanceOverviewWorkspace() {
             </Button>
           </div>
           {!feeCategoriesData || feeCategoriesData.length === 0 ? (
-            <div className="text-white/60 text-sm py-4 text-center">No fee categories configured yet.</div>
+            <div className="flex flex-col items-center justify-center py-6 text-center">
+              <p className="text-white/60 text-sm mb-4">No fee categories configured yet.</p>
+              <Button size="sm" variant="outline" onClick={() => setIsFeeCategoryModalOpen(true)}>
+                <Plus className="h-4 w-4 mr-2" /> Add Category
+              </Button>
+            </div>
           ) : (
             <div className="space-y-2">
               {feeCategoriesData.map((category: any) => (
@@ -203,6 +242,34 @@ export function PrincipalFinanceOverviewWorkspace() {
             <Button type="submit" disabled={isSubmitting}>
               {isSubmitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Create Category
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      <Modal open={isWaiverModalOpen} onClose={() => setIsWaiverModalOpen(false)} title="Add Waiver">
+        <form onSubmit={handleAddWaiver} className="space-y-4">
+          {waiverFormError && (
+            <div className="p-3 bg-red-500/10 border border-red-500/20 text-red-500 rounded text-sm">
+              {waiverFormError}
+            </div>
+          )}
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Student ID</label>
+            <input name="student_id" required className="w-full border rounded p-2 text-sm" placeholder="e.g. STU-1234" />
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Amount</label>
+            <input type="number" name="amount" required min="0" step="0.01" className="w-full border rounded p-2 text-sm" placeholder="e.g. 5000" />
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Reason</label>
+            <textarea name="reason" required className="w-full border rounded p-2 text-sm" placeholder="Reason for waiver..." />
+          </div>
+          <div className="pt-4 flex justify-end">
+            <Button type="submit" disabled={isSubmittingWaiver}>
+              {isSubmittingWaiver && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Submit Waiver
             </Button>
           </div>
         </form>

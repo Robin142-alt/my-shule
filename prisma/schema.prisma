@@ -1,5 +1,5 @@
 generator client {
-  provider = "prisma-client-js"
+  provider   = "prisma-client-js"
   engineType = "library"
 }
 
@@ -807,6 +807,7 @@ model User {
   schoolMemberships       SchoolMembership[]
   userRoleAssignments     UserRoleAssignment[]
   userPermissionOverrides UserPermissionOverride[]
+  communicationBroadcasts CommunicationBroadcast[]
 
   @@map("users")
 }
@@ -956,6 +957,7 @@ model School {
   studentClearances          StudentClearance[]
   studentAuditLogs           StudentAuditLog[]
   studentCommunications      StudentCommunication[]
+  communicationBroadcasts    CommunicationBroadcast[]
 
   @@map("schools")
 }
@@ -2009,21 +2011,43 @@ model FeeWaiver {
 // ==========================================
 
 model SmsLog {
-  id                String    @id @default(uuid())
-  schoolId          String    @map("school_id")
-  school            School    @relation(fields: [schoolId], references: [id])
-  phoneNumber       String    @map("phone_number")
+  id                String                  @id @default(uuid())
+  schoolId          String                  @map("school_id")
+  school            School                  @relation(fields: [schoolId], references: [id])
+  phoneNumber       String                  @map("phone_number")
   message           String
   provider          String
-  providerMessageId String?   @map("provider_message_id")
+  providerMessageId String?                 @map("provider_message_id")
   cost              Float?
   status            SmsStatus
-  errorMessage      String?   @map("error_message")
-  createdAt         DateTime  @default(now()) @map("created_at")
-  updatedAt         DateTime  @updatedAt @map("updated_at")
+  errorMessage      String?                 @map("error_message")
+  createdAt         DateTime                @default(now()) @map("created_at")
+  updatedAt         DateTime                @updatedAt @map("updated_at")
+  broadcastId       String?                 @map("broadcast_id")
+  broadcast         CommunicationBroadcast? @relation(fields: [broadcastId], references: [id])
 
   @@index([schoolId])
   @@map("sms_logs")
+}
+
+model CommunicationBroadcast {
+  id        String   @id @default(uuid())
+  schoolId  String   @map("school_id")
+  userId    String   @map("user_id")
+  audience  String
+  message   String   @db.Text
+  channels  String[]
+  status    String   @default("PENDING")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  school  School   @relation(fields: [schoolId], references: [id])
+  user    User     @relation(fields: [userId], references: [id])
+  smsLogs SmsLog[]
+
+  @@index([schoolId])
+  @@index([userId])
+  @@map("communication_broadcasts")
 }
 
 // ==========================================

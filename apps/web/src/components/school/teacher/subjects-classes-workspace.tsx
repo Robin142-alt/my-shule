@@ -6,17 +6,9 @@ import { Button } from "@/components/ui/button";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 
 export function SubjectsClassesWorkspace() {
-  const { data: assignments, isLoading } = useSchoolQuery<any[]>("/api/academics/my-assignments");
+  const { data: assignments = [], isLoading } = useSchoolQuery<any[]>("/api/academics/teacher-assignments");
 
-  // Fallback static data if endpoint isn't fully wired for the logged-in user yet
-  const mockAssignments = [
-    { id: 1, subject: "Mathematics", classLevel: "Form 1", section: "East", studentsCount: 42, weeklyPeriods: 5 },
-    { id: 2, subject: "Mathematics", classLevel: "Form 2", section: "West", studentsCount: 38, weeklyPeriods: 5 },
-    { id: 3, subject: "Physics", classLevel: "Form 3", section: "South", studentsCount: 30, weeklyPeriods: 4 },
-    { id: 4, subject: "Physics", classLevel: "Form 1", section: "East", studentsCount: 42, weeklyPeriods: 3 },
-  ];
-
-  const displayData = assignments?.length ? assignments : mockAssignments;
+  const displayData = assignments;
 
   return (
     <div className="space-y-6">

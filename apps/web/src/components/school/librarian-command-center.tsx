@@ -47,6 +47,8 @@ import { NotificationBell } from "@/components/shared/notification-bell";
 import { TaskQueue } from "@/components/shared/task-queue";
 import { WorkflowToast } from "@/components/shared/workflow-toast";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
+import { usePermissions } from "@/components/providers/permission-context";
+import { Modal } from "@/components/ui/modal";
 
 type Tone = "success" | "info" | "warning" | "danger" | "neutral";
 type LibrarianView = "overview" | "issue" | "return" | "catalogue" | "add_books" | "loans" | "lost_damaged" | "fines" | "borrowers" | "class_textbooks" | "reservations" | "stocktake" | "departments" | "visits" | "requests" | "reports" | "notices" | "settings";
@@ -304,9 +306,11 @@ function OverviewWorkspace({ onNavigate }: { onNavigate: (v: LibrarianView) => v
 }
 
 function IssueBooksWorkspace() {
+  const { hasPermission } = usePermissions();
   const [basket, setBasket] = useState<{title: string, barcode: string}[]>([]);
   const [barcodeInput, setBarcodeInput] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
+  const [selectedBorrower, setSelectedBorrower] = useState<{name: string, adm: string, class: string, status: string} | null>(null);
 
   const handleScan = (e: React.FormEvent) => {
     e.preventDefault();
@@ -317,7 +321,7 @@ function IssueBooksWorkspace() {
 
   const handleIssue = () => {
     if (basket.length === 0) return;
-    setSuccessMsg(`${basket.length} books issued to Brian Otieno. Due date: 26 June 2026.`);
+    setSuccessMsg(`${basket.length} books issued to ${selectedBorrower?.name || 'borrower'}.`);
     setBasket([]);
   };
 
@@ -338,14 +342,15 @@ function IssueBooksWorkspace() {
               <Search className="absolute left-3 top-2.5 h-4 w-4 text-[#64748B]" />
               <input type="text" placeholder="Search student by name, admission number, class..." className="w-full rounded-xl border border-[#D8E0EC] py-2 pl-9 pr-3 text-sm focus:border-[#071D49] focus:outline-none focus:ring-1 focus:ring-[#071D49]" />
             </div>
-            {/* Mock selected borrower */}
-            <div className="mt-2 rounded-xl border border-blue-200 bg-blue-50 p-3 flex justify-between items-center">
-              <div>
-                <div className="font-bold text-blue-900">Brian Otieno</div>
-                <div className="text-xs text-blue-700">ADM-2041 Ã¢â‚¬Â¢ Form 3 Blue Ã¢â‚¬Â¢ <span className="font-bold">Clear Status</span></div>
+            {selectedBorrower && (
+              <div className="mt-2 rounded-xl border border-blue-200 bg-blue-50 p-3 flex justify-between items-center">
+                <div>
+                  <div className="font-bold text-blue-900">{selectedBorrower.name}</div>
+                  <div className="text-xs text-blue-700">{selectedBorrower.adm} • {selectedBorrower.class} • <span className="font-bold">{selectedBorrower.status}</span></div>
+                </div>
+                <button onClick={() => setSelectedBorrower(null)} className="text-blue-500 hover:bg-blue-100 p-1 rounded"><X className="w-4 h-4" /></button>
               </div>
-              <button className="text-blue-500 hover:bg-blue-100 p-1 rounded"><X className="w-4 h-4" /></button>
-            </div>
+            )}
           </div>
 
           <div>
@@ -380,13 +385,19 @@ function IssueBooksWorkspace() {
             )}
           </div>
           <div className="p-4 border-t border-[#D8E0EC] bg-white rounded-b-xl">
-            <button 
-              disabled={basket.length === 0}
-              onClick={handleIssue}
-              className="w-full rounded-xl bg-[#071D49] py-3 text-sm font-black text-white disabled:opacity-50"
-            >
-              Issue {basket.length} Books
-            </button>
+            {hasPermission('library:write') ? (
+              <button 
+                disabled={basket.length === 0}
+                onClick={handleIssue}
+                className="w-full rounded-xl bg-[#071D49] py-3 text-sm font-black text-white disabled:opacity-50"
+              >
+                Issue {basket.length} Books
+              </button>
+            ) : (
+              <div className="w-full rounded-xl bg-[#F8FAFC] py-3 text-sm font-black text-[#64748B] text-center border border-[#D8E0EC]">
+                Permission Restricted
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -430,15 +441,70 @@ function ReturnBooksWorkspace() {
   );
 }
 
+function AddBookModal({ onClose }: { onClose: () => void }) {
+  const [submitting, setSubmitting] = useState(false);
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+    setTimeout(() => { setSubmitting(false); onClose(); }, 1000);
+  };
+  return (
+    <Modal title="Add New Book" open={true} onClose={onClose} size="md">
+      <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <div>
+          <label className="block text-sm font-bold text-[#071D49] mb-1">Title</label>
+          <input required type="text" className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Book title" />
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-bold text-[#071D49] mb-1">Author</label>
+            <input required type="text" className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Author name" />
+          </div>
+          <div>
+            <label className="block text-sm font-bold text-[#071D49] mb-1">ISBN</label>
+            <input type="text" className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="ISBN number" />
+          </div>
+        </div>
+        <div>
+          <label className="block text-sm font-bold text-[#071D49] mb-1">Subject / Category</label>
+          <select required className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]">
+            <option value="">Select category...</option>
+            <option value="science">Science</option>
+            <option value="mathematics">Mathematics</option>
+            <option value="literature">Literature</option>
+          </select>
+        </div>
+        <div>
+          <label className="block text-sm font-bold text-[#071D49] mb-1">Initial Copies</label>
+          <input required type="number" min="1" defaultValue="1" className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" />
+        </div>
+        <div className="mt-6 flex justify-end gap-3 pt-4 border-t border-[#D8E0EC]">
+          <button type="button" onClick={onClose} className="rounded-xl px-4 py-2 text-sm font-bold text-[#64748B]">Cancel</button>
+          <button disabled={submitting} type="submit" className="rounded-xl bg-[#071D49] px-6 py-2 text-sm font-black text-white">
+            {submitting ? "Saving..." : "Add Book"}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
 function BookCatalogueWorkspace() {
   const { data: catalog = [], isLoading } = useSchoolQuery<any>("/api/library/catalog");
+  const { hasPermission } = usePermissions();
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   return (
-    <Panel title="Book Catalogue" description="View, search, filter, edit, and manage all library books and copies." icon={Library} actions={
-      <button className="flex items-center gap-2 rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white">
-        <Plus className="h-4 w-4" /> Add Book
-      </button>
-    }>
+    <>
+      <Panel title="Book Catalogue" description="View, search, filter, edit, and manage all library books and copies." icon={Library} actions={
+        hasPermission('library:write') ? (
+          <button onClick={() => setIsModalOpen(true)} className="flex items-center gap-2 rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white">
+            <Plus className="h-4 w-4" /> Add Book
+          </button>
+        ) : (
+          <span className="text-xs font-bold text-[#64748B]">Restricted</span>
+        )
+      }>
       <div className="flex flex-col sm:flex-row gap-3 mb-4">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-2.5 h-4 w-4 text-[#64748B]" />
@@ -484,6 +550,8 @@ function BookCatalogueWorkspace() {
         </table>
       </div>
     </Panel>
+    {isModalOpen && <AddBookModal onClose={() => setIsModalOpen(false)} />}
+    </>
   );
 }
 

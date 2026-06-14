@@ -5,26 +5,29 @@ import { UploadCloud, FileSpreadsheet, AlertCircle, CheckCircle, Download } from
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useSchoolMutation } from "@/lib/data/school-hooks";
+import { requestDashboardApi } from "@/lib/dashboard/api-client";
 
 export function ImportsWorkspace() {
   const [activeTab, setActiveTab] = useState<"students" | "staff" | "exams">("students");
   const [file, setFile] = useState<File | null>(null);
   const [status, setStatus] = useState<"idle" | "uploading" | "success" | "error">("idle");
 
-  // In a real scenario, this would use FormData and multipart/form-data.
-  // For the UI, we'll mock the hook.
-  const uploadMutation = useSchoolMutation(`/api/admin-command/bulk-import-${activeTab}`);
-
   const handleUpload = async () => {
     if (!file) return;
     setStatus("uploading");
     try {
-      // Fake delay to simulate upload parsing
-      await new Promise(r => setTimeout(r, 1500));
-      // Fake success for UI since the backend route might not be fully wired
+      const formData = new FormData();
+      formData.append("file", file);
+      
+      await requestDashboardApi(`/admin-command/bulk-import-${activeTab}`, {
+        method: "POST",
+        body: formData,
+      });
+      
       setStatus("success");
       setFile(null);
     } catch (e) {
+      console.error(e);
       setStatus("error");
     }
   };

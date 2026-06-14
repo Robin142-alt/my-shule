@@ -28,6 +28,7 @@ import { ApprovalInbox } from "@/components/shared/approval-inbox";
 import { NotificationBell } from "@/components/shared/notification-bell";
 import { TaskQueue } from "@/components/shared/task-queue";
 import { WorkflowToast } from "@/components/shared/workflow-toast";
+import { usePermissions } from "@/components/providers/permission-context";
 
 type ExamsManagerRouteMode = "hosted" | "public";
 type Tone = "success" | "info" | "warning" | "danger" | "neutral";
@@ -102,12 +103,7 @@ type LifecycleQueueConfig = {
   }>;
 };
 
-const examsSearchRecords = [
-  { id: "form-4-mock", label: "Form 4 Mock Series", detail: "Marks entry open for Mathematics and English", view: "marks" },
-  { id: "class-7-cat", label: "Class 7 CAT", detail: "Three subjects awaiting teacher upload", view: "submissions" },
-  { id: "chem-upload", label: "Chemistry upload issue", detail: "Marks above allowed range", view: "validation" },
-  { id: "draft-batch", label: "Report card draft batch", detail: "Awaiting Dean review", view: "drafts" },
-] satisfies Array<{ id: string; label: string; detail: string; view: ExamsManagerView }>;
+const examsSearchRecords: Array<{ id: string; label: string; detail: string; view: ExamsManagerView }> = [];
 
 type ExamsSearchRecord = (typeof examsSearchRecords)[number];
 
@@ -118,24 +114,7 @@ const lifecycleWorkQueues: Partial<Record<ExamsManagerView, LifecycleQueueConfig
     title: "Entry Windows Work Queue",
     description: "Select the exact exam entry windows before opening, extending, closing, reopening, or locking entry.",
     itemLabel: "entry window",
-    records: [
-      {
-        id: "entry-form-3-science",
-        title: "Form 3 Science block",
-        detail: "Biology, Chemistry, and Physics entry window for Form 3 East and West.",
-        status: "Ready to open",
-        owner: "Science HOD",
-        tone: "warning",
-      },
-      {
-        id: "entry-grade-8-cbc",
-        title: "Grade 8 CBC Mathematics",
-        detail: "CBC/CBE mathematics observation entry for Grade 8 Unity.",
-        status: "Open",
-        owner: "Mathematics HOD",
-        tone: "info",
-      },
-    ],
+    records: [],
     actions: [
       {
         label: "Open Entry",
@@ -161,24 +140,7 @@ const lifecycleWorkQueues: Partial<Record<ExamsManagerView, LifecycleQueueConfig
     title: "Mark Entry Monitor Work Queue",
     description: "Select teacher marksheets before reminder, reopen, lock, or status export actions.",
     itemLabel: "mark entry record",
-    records: [
-      {
-        id: "marks-maths-form-4-north",
-        title: "Mathematics Form 4 North",
-        detail: "42 of 48 marks entered. 6 learner marks still pending before HOD review.",
-        status: "In progress",
-        owner: "Mr. Otieno",
-        tone: "warning",
-      },
-      {
-        id: "marks-english-form-2-west",
-        title: "English Form 2 West",
-        detail: "Teacher submitted the marksheet and is waiting for HOD review.",
-        status: "Submitted",
-        owner: "Ms. Achieng",
-        tone: "success",
-      },
-    ],
+    records: [],
     actions: [
       {
         label: "Send Reminder",
@@ -204,24 +166,7 @@ const lifecycleWorkQueues: Partial<Record<ExamsManagerView, LifecycleQueueConfig
     title: "Missing Marks Work Queue",
     description: "Select only the affected learner/subject records before notifying teachers or marking valid exceptions.",
     itemLabel: "missing mark record",
-    records: [
-      {
-        id: "missing-class-7b-science",
-        title: "Class 7B Science",
-        detail: "3 learner marks missing from the Science marksheet.",
-        status: "Teacher follow-up required",
-        owner: "Mrs. Wanjiru",
-        tone: "danger",
-      },
-      {
-        id: "missing-form-2-west-maths",
-        title: "Form 2 West Mathematics",
-        detail: "14 learner marks need confirmation before report generation.",
-        status: "Incomplete",
-        owner: "Mr. Ouma",
-        tone: "warning",
-      },
-    ],
+    records: [],
     actions: [
       {
         label: "Notify Teacher",
@@ -247,24 +192,7 @@ const lifecycleWorkQueues: Partial<Record<ExamsManagerView, LifecycleQueueConfig
     title: "Moderation Work Queue",
     description: "Review exact moderation records before sending validated data to the Dean quality gate.",
     itemLabel: "moderation record",
-    records: [
-      {
-        id: "moderation-term-2-cat-1",
-        title: "Term 2 CAT 1 moderation",
-        detail: "Validated marks, grade distribution, and exception notes ready for Dean review.",
-        status: "Ready",
-        owner: "Exams Manager",
-        tone: "success",
-      },
-      {
-        id: "moderation-hybrid-cbc",
-        title: "Hybrid CBC + Marks checks",
-        detail: "Competency observations and marks supplement need separate quality review.",
-        status: "Review",
-        owner: "Dean intake",
-        tone: "info",
-      },
-    ],
+    records: [],
     actions: [
       {
         label: "Approve selected to Dean review",
@@ -290,24 +218,7 @@ const lifecycleWorkQueues: Partial<Record<ExamsManagerView, LifecycleQueueConfig
     title: "Report Cards Work Queue",
     description: "Select report-card draft batches before generation, preview, download, print, regeneration, or Dean handoff.",
     itemLabel: "report card batch",
-    records: [
-      {
-        id: "draft-term-2-cat-1",
-        title: "Term 2 CAT 1 report card draft batch",
-        detail: "412 draft cards, 22 validation notes, and no parent visibility yet.",
-        status: "Draft",
-        owner: "Dean review queue",
-        tone: "warning",
-      },
-      {
-        id: "draft-grade-8-cbc",
-        title: "Grade 8 CBC report batch",
-        detail: "96 competency reports ready after observation checks.",
-        status: "Ready to generate",
-        owner: "Exams office",
-        tone: "success",
-      },
-    ],
+    records: [],
     actions: [
       {
         label: "Generate Selected",
@@ -333,32 +244,7 @@ const lifecycleWorkQueues: Partial<Record<ExamsManagerView, LifecycleQueueConfig
     title: "Report Templates Work Queue",
     description: "Select the template records before saving drafts or preparing print previews.",
     itemLabel: "report template",
-    records: [
-      {
-        id: "template-cbc-cbe",
-        title: "CBC/CBE Competency Report",
-        detail: "Descriptors, observations, parent support, verification, and mobile parent view.",
-        status: "Default",
-        owner: "Exams office",
-        tone: "success",
-      },
-      {
-        id: "template-hybrid",
-        title: "Hybrid CBC + Marks Report",
-        detail: "CBC-led layout with controlled marks supplement and ranking disabled by default.",
-        status: "Available",
-        owner: "Dean review",
-        tone: "info",
-      },
-      {
-        id: "template-legacy",
-        title: "Legacy 8-4-4/KCSE Report",
-        detail: "Legacy class/report format for configured transition classes and archives.",
-        status: "Legacy",
-        owner: "Principal approval",
-        tone: "warning",
-      },
-    ],
+    records: [],
     actions: [
       {
         label: "Save Template Draft",
@@ -378,40 +264,7 @@ const lifecycleWorkQueues: Partial<Record<ExamsManagerView, LifecycleQueueConfig
     title: "Export Center Work Queue",
     description: "Select internal export packages before preparing files. Parent-facing exports remain blocked before approvals.",
     itemLabel: "export package",
-    records: [
-      {
-        id: "export-knec-indices",
-        title: "KNEC Candidate Registers",
-        detail: "Candidate index numbers mapped for national exams registration.",
-        status: "Pending",
-        owner: "Exams Manager",
-        tone: "warning",
-      },
-      {
-        id: "export-excel-marksheets",
-        title: "Excel marksheets",
-        detail: "Internal quality-control export for the exams office.",
-        status: "Internal",
-        owner: "Exams Manager",
-        tone: "info",
-      },
-      {
-        id: "export-draft-report-cards",
-        title: "Draft report cards",
-        detail: "Watermarked draft batch for review teams only.",
-        status: "Draft",
-        owner: "Dean review",
-        tone: "warning",
-      },
-      {
-        id: "export-class-summaries",
-        title: "Class summaries",
-        detail: "Aggregated class summary for Dean intake.",
-        status: "Review",
-        owner: "Dean of Academics",
-        tone: "success",
-      },
-    ],
+    records: [],
     actions: [
       {
         label: "Prepare Export",
@@ -745,6 +598,7 @@ function SelectableLifecycleQueue({
   onClearSelection: () => void;
   onExecuteAction: (action: LifecycleQueueConfig["actions"][number], records: LifecycleQueueRecord[]) => void;
 }) {
+  const { hasPermission } = usePermissions();
   const [searchTerm, setSearchTerm] = useState("");
   const normalizedSearch = searchTerm.trim().toLowerCase();
   const visibleRecords = normalizedSearch
@@ -856,7 +710,7 @@ function SelectableLifecycleQueue({
       </div>
 
       <div className="mt-4 flex flex-wrap gap-2">
-        {config.actions.map((action) => (
+        {hasPermission('exams:write') && config.actions.map((action) => (
           <button
             key={action.label}
             type="button"
@@ -935,6 +789,8 @@ function ActiveWidgetContent({
   marksEntrySessions: ExamOperationalRecord[];
   deanReviewBatches: ExamOperationalRecord[];
 }) {
+  const { hasPermission } = usePermissions();
+
   if (view === "overview") {
     return (
       <div className="space-y-4">
@@ -973,9 +829,13 @@ function ActiveWidgetContent({
         <div className="rounded-2xl border border-[#D9E2EF] bg-white/80 p-4">
           <p className="text-sm font-black uppercase tracking-[0.18em] text-[#64748B]">Allowed actions</p>
           <div className="mt-4 flex flex-wrap gap-2">
-            <ActionButton tone="success" onClick={onCreateExamDraft}>Create exam draft</ActionButton>
-            <ActionButton onClick={onSaveConfiguration}>Save configuration</ActionButton>
-            <ActionButton tone="warning" onClick={onCheckTermAlignment}>Check term alignment</ActionButton>
+            {hasPermission('exams:write') && (
+              <>
+                <ActionButton tone="success" onClick={onCreateExamDraft}>Create exam draft</ActionButton>
+                <ActionButton onClick={onSaveConfiguration}>Save configuration</ActionButton>
+                <ActionButton tone="warning" onClick={onCheckTermAlignment}>Check term alignment</ActionButton>
+              </>
+            )}
           </div>
           <div className="mt-4 space-y-2">
             {examDrafts.map((draft) => (

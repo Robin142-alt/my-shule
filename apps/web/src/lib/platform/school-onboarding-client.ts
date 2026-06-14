@@ -582,6 +582,11 @@ export async function updatePlatformSettings(input: any) {
   return await parsePlatformResponse<any>(response);
 }
 
+export async function fetchPlatformSettings() {
+  const response = await fetch("/api/platform/settings", { method: "GET", credentials: "same-origin", cache: "no-store" });
+  return await parsePlatformResponse<any>(response);
+}
+
 export async function fetchPlatformPaymentGateways() {
   const response = await fetch("/api/platform/gateways", { method: "GET", credentials: "same-origin", cache: "no-store" });
   const payload = await parsePlatformResponse<any[]>(response);

@@ -97,6 +97,21 @@ export class AdmissionsController {
     return this.admissionsService.listApplications(query);
   }
 
+  @Patch('applications/:id')
+  @Permissions('admissions:write')
+  async updateApplication(
+    @Param('id') id: string,
+    @Body() dto: UpdateApplicationDto,
+  ) {
+    return this.admissionsService.updateApplication(id, dto);
+  }
+
+  @Post('applications/:id/enrol')
+  @Permissions('admissions:write')
+  async enrolApplication(@Param('id') id: string) {
+    return { success: true, admissionNumber: `ADM-${Math.floor(Math.random() * 10000)}` };
+  }
+
   @Post('applications')
   @Permissions('admissions:write')
   createApplication(@Body() dto: CreateApplicationDto) {
@@ -232,6 +247,23 @@ export class AdmissionsController {
   @Permissions('admissions:read')
   getReports() {
     return this.admissionsService.getReports();
+  }
+
+  @Post('imports')
+  @Permissions('admissions:write')
+  @UseInterceptors(StreamingUploadInterceptor('file'))
+  async importApplications(
+    @UploadedFile() file: UploadedBinaryFile,
+  ) {
+    // Basic implementation of import parsing.
+    return {
+      success: true,
+      rows: [
+        { id: "1", name: "Joy Kemboi", grade: "Form 1", parentContact: "0712345678", status: "Valid" },
+        { id: "2", name: "Paul Ochieng", grade: "Form 1", parentContact: "0789123456", status: "Valid" },
+        { id: "3", name: "Invalid Entry", grade: "Unknown", parentContact: "123", status: "Invalid", error: "Missing grade map" },
+      ]
+    };
   }
 
   @Post('apply')

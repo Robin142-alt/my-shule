@@ -37,6 +37,9 @@ import { TaskQueue } from "@/components/shared/task-queue";
 import { WorkflowToast } from "@/components/shared/workflow-toast";
 import { useLiveTenantSession } from "@/hooks/use-live-tenant-session";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
+import { usePermissions } from "@/components/providers/permission-context";
+import { Modal } from "@/components/ui/modal";
+import { Button } from "@/components/ui/button";
 
 type HodRouteMode = "hosted" | "public";
 type Tone = "success" | "info" | "warning" | "danger" | "neutral";
@@ -281,11 +284,16 @@ function DepartmentTeachersWorkspace() {
 function SubjectAllocationWorkspace() {
   const liveSession = useLiveTenantSession("school");
   const { data: assignments, isLoading } = useSchoolQuery<any[]>("/api/academics/teacher-assignments", { enabled: !!liveSession.session });
+  const { hasPermission } = usePermissions();
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   return (
-    <Panel title="Subject Allocation" description="Assign department subjects to teachers and classes." icon={LayoutGrid} actions={
-      <button className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white">New Assignment</button>
-    }>
+    <>
+      <Panel title="Subject Allocation" description="Assign department subjects to teachers and classes." icon={LayoutGrid} actions={
+        hasPermission('academics:write') && (
+          <button onClick={() => setIsModalOpen(true)} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white">New Assignment</button>
+        )
+      }>
       {isLoading ? (
         <p className="text-sm text-slate-500">Loading assignments...</p>
       ) : !assignments?.length ? (
@@ -321,6 +329,74 @@ function SubjectAllocationWorkspace() {
         </div>
       )}
     </Panel>
+      <Modal open={isModalOpen} onClose={() => setIsModalOpen(false)} title="Assign Teacher Duties">
+        <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); setIsModalOpen(false); }}>
+          <div>
+            <label className="text-sm font-bold text-[#071D49]">Teacher</label>
+            <select className="w-full rounded-lg border border-[#D8E0EC] p-2">
+              <option>Select teacher</option>
+            </select>
+          </div>
+          <div>
+            <label className="text-sm font-bold text-[#071D49]">Subject</label>
+            <select className="w-full rounded-lg border border-[#D8E0EC] p-2">
+              <option>Select subject</option>
+            </select>
+          </div>
+          <div>
+            <label className="text-sm font-bold text-[#071D49]">Class/Section</label>
+            <select className="w-full rounded-lg border border-[#D8E0EC] p-2">
+              <option>Select class</option>
+            </select>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="outline" onClick={() => setIsModalOpen(false)}>Cancel</Button>
+            <Button type="submit">Save Assignment</Button>
+          </div>
+        </form>
+      </Modal>
+    </>
+  );
+}
+
+function DepartmentMeetingsWorkspace() {
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const { hasPermission } = usePermissions();
+
+  return (
+    <>
+      <Panel title="Department Meetings" description="Plan, record, and track department meetings." icon={Calendar} actions={
+        hasPermission('academics:write') && (
+          <button onClick={() => setIsModalOpen(true)} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white">Log Department Meeting</button>
+        )
+      }>
+        <div className="flex flex-col items-center justify-center py-12 text-center">
+          <Calendar className="h-12 w-12 text-[#64748B]/30 mb-4" />
+          <p className="text-lg font-semibold text-[#071D49]">No Meetings Logged</p>
+          <p className="mt-2 text-sm text-[#64748B]">Log meetings to keep track of departmental decisions.</p>
+        </div>
+      </Panel>
+      <Modal open={isModalOpen} onClose={() => setIsModalOpen(false)} title="Log Department Meeting">
+        <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); setIsModalOpen(false); }}>
+          <div>
+            <label className="text-sm font-bold text-[#071D49]">Meeting Title</label>
+            <input required type="text" className="w-full rounded-lg border border-[#D8E0EC] p-2" placeholder="e.g. End of Term Review" />
+          </div>
+          <div>
+            <label className="text-sm font-bold text-[#071D49]">Date & Time</label>
+            <input required type="datetime-local" className="w-full rounded-lg border border-[#D8E0EC] p-2" />
+          </div>
+          <div>
+            <label className="text-sm font-bold text-[#071D49]">Minutes / Summary</label>
+            <textarea required className="w-full rounded-lg border border-[#D8E0EC] p-2" rows={4}></textarea>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="outline" onClick={() => setIsModalOpen(false)}>Cancel</Button>
+            <Button type="submit">Save Meeting</Button>
+          </div>
+        </form>
+      </Modal>
+    </>
   );
 }
 
@@ -399,7 +475,7 @@ export function HodCommandCenter({ routeMode = "hosted" }: { routeMode?: HodRout
           {activeView === "learner-interventions" && <SimpleWorkspace title="Learner Interventions" description="Track learners needing academic support." icon={LifeBuoy} />}
           {activeView === "lesson-observation" && <SimpleWorkspace title="Lesson Observation" description="Observe lessons, record feedback, and support growth." icon={Eye} />}
           {activeView === "resources-requests" && <SimpleWorkspace title="Resources & Requests" description="Manage department academic resource needs." icon={Package} />}
-          {activeView === "department-meetings" && <SimpleWorkspace title="Department Meetings" description="Plan, record, and track department meetings." icon={Calendar} />}
+          {activeView === "department-meetings" && <DepartmentMeetingsWorkspace />}
           {activeView === "communication" && <SimpleWorkspace title="Communication" description="Department-level messaging to teachers and parents." icon={MessageSquare} />}
           {activeView === "approvals" && <SimpleWorkspace title="Approvals" description="Handle department-level approvals." icon={CheckSquare} />}
           {activeView === "reports-downloads" && <SimpleWorkspace title="Reports & Downloads" description="Generate official department reports." icon={DownloadCloud} />}

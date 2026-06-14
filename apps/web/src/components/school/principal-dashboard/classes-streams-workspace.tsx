@@ -7,6 +7,7 @@ import { useSchoolQuery } from "@/lib/data/school-hooks";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
 import { requestDashboardApi } from "@/lib/dashboard/api-client";
+import { usePermissions } from "@/components/providers/permission-context";
 
 type PrincipalClassesData = {
   status: "active" | "degraded" | "setup_required";
@@ -22,6 +23,7 @@ export function PrincipalClassesStreamsWorkspace() {
   const { data, isLoading, error, refetch } = useSchoolQuery<PrincipalClassesData>('/admin-command/principal/classes');
   const { data: yearsData } = useSchoolQuery<any[]>('/academics/academic-years');
   const { data: classesData } = useSchoolQuery<any[]>('/academics/class-sections');
+  const { hasPermission } = usePermissions();
 
   const [isClassModalOpen, setIsClassModalOpen] = useState(false);
   const [isStreamModalOpen, setIsStreamModalOpen] = useState(false);
@@ -113,24 +115,28 @@ export function PrincipalClassesStreamsWorkspace() {
   return (
     <div className="space-y-6">
       <div className="flex justify-end gap-2">
-        <Button 
-          variant="outline" 
-          onClick={() => setIsClassModalOpen(true)}
-          disabled={!hasYears}
-          title={!hasYears ? "Cannot create a class before an academic year exists" : ""}
-        >
-          <Plus className="h-4 w-4 mr-2" />
-          Create Class Section
-        </Button>
-        <Button 
-          variant="outline" 
-          onClick={() => setIsStreamModalOpen(true)}
-          disabled={!hasClasses}
-          title={!hasClasses ? "Cannot create a stream before a class section exists" : ""}
-        >
-          <Plus className="h-4 w-4 mr-2" />
-          Create Stream
-        </Button>
+        {hasPermission('academics:write') && (
+          <>
+            <Button 
+              variant="outline" 
+              onClick={() => setIsClassModalOpen(true)}
+              disabled={!hasYears}
+              title={!hasYears ? "Cannot create a class before an academic year exists" : ""}
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Create Class Section
+            </Button>
+            <Button 
+              variant="outline" 
+              onClick={() => setIsStreamModalOpen(true)}
+              disabled={!hasClasses}
+              title={!hasClasses ? "Cannot create a stream before a class section exists" : ""}
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Create Stream
+            </Button>
+          </>
+        )}
       </div>
 
       <div className="grid gap-4 md:grid-cols-4">
@@ -159,8 +165,20 @@ export function PrincipalClassesStreamsWorkspace() {
             {(!data.classDistribution || data.classDistribution.length === 0) ? (
               <div className="flex flex-col items-center justify-center flex-1 py-8 text-center bg-white/5 rounded-lg border border-white/5 w-full">
                 <Users className="h-10 w-10 text-white/20 mb-3" />
-                <p className="text-white/60">No classes found</p>
-                <p className="text-xs text-white/40 mt-1">Create a class section to see distribution</p>
+                <p className="text-white/60 mb-1">No classes found</p>
+                <p className="text-xs text-white/40 mb-4">Create a class section to see distribution</p>
+                {hasPermission('academics:write') && (
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => setIsClassModalOpen(true)}
+                    disabled={!hasYears}
+                    title={!hasYears ? "Cannot create a class before an academic year exists" : ""}
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Create First Class
+                  </Button>
+                )}
               </div>
             ) : (
               data.classDistribution.map((item) => (
@@ -190,7 +208,19 @@ export function PrincipalClassesStreamsWorkspace() {
           {!classesData || classesData.length === 0 ? (
             <div className="flex flex-col items-center justify-center flex-1 py-8 text-center bg-white/5 rounded-lg border border-white/5">
               <LayoutDashboard className="h-10 w-10 text-white/20 mb-3" />
-              <p className="text-white/60">No classes configured</p>
+              <p className="text-white/60 mb-4">No classes configured</p>
+              {hasPermission('academics:write') && (
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => setIsClassModalOpen(true)}
+                  disabled={!hasYears}
+                  title={!hasYears ? "Cannot create a class before an academic year exists" : ""}
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Create Class Section
+                </Button>
+              )}
             </div>
           ) : (
             <div className="space-y-3 flex-1 overflow-y-auto pr-2">

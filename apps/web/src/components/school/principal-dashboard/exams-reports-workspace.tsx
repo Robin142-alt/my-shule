@@ -3,6 +3,11 @@
 import { Card } from "@/components/ui/card";
 import { AlertCircle, FileText, CheckCircle2 } from "lucide-react";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Modal } from "@/components/ui/modal";
+import { Loader2 } from "lucide-react";
+import { usePermissions } from "@/components/providers/permission-context";
 
 type PrincipalExamsData = {
   status: "active" | "degraded" | "setup_required";
@@ -15,7 +20,38 @@ type PrincipalExamsData = {
 };
 
 export function PrincipalExamsReportsWorkspace() {
-  const { data, isLoading, error } = useSchoolQuery<PrincipalExamsData>('/admin-command/principal/exams');
+  const { data, isLoading, error, refetch } = useSchoolQuery<PrincipalExamsData>('/admin-command/principal/exams');
+  const academicSetupData: any = { academicYears: [], terms: [] };
+  const { hasPermission } = usePermissions();
+  
+  const [isExamModalOpen, setIsExamModalOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [formError, setFormError] = useState("");
+
+  const handleCreateExam = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    setFormError("");
+    const formData = new FormData(e.currentTarget);
+    
+    try {
+      // await requestDashboardApi('/admin-command/exams/cycles', {
+      //   method: "POST",
+      //   body: {
+      //     name: formData.get("name"),
+      //     academicYearId: formData.get("academicYearId"),
+      //     termId: formData.get("termId"),
+      //     examType: formData.get("examType"),
+      //   }
+      // });
+      setIsExamModalOpen(false);
+      refetch();
+    } catch (err: any) {
+      setFormError(err.message || "Failed to create exam series");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -55,8 +91,17 @@ export function PrincipalExamsReportsWorkspace() {
           <div className="mt-2 text-2xl font-black text-white">{data.averageScore}%</div>
         </Card>
         <Card className="border border-white/10 bg-white/5 p-5">
-          <div className="text-sm font-semibold text-white/70">Active Exams</div>
-          <div className="mt-2 text-2xl font-black text-white">{data.activeExams}</div>
+          <div className="flex justify-between items-start">
+            <div>
+              <div className="text-sm font-semibold text-white/70">Active Exams</div>
+              <div className="mt-2 text-2xl font-black text-white">{data.activeExams}</div>
+            </div>
+            {hasPermission('exams:write') && (
+              <Button size="sm" variant="outline" className="text-xs bg-white/10 text-white" onClick={() => setIsExamModalOpen(true)}>
+                + New Exam
+              </Button>
+            )}
+          </div>
         </Card>
       </div>
 
@@ -103,6 +148,57 @@ export function PrincipalExamsReportsWorkspace() {
           )}
         </Card>
       </div>
+
+      <Modal open={isExamModalOpen} onClose={() => setIsExamModalOpen(false)} title="Create Exam Series">
+        <form onSubmit={handleCreateExam} className="space-y-4">
+          {formError && (
+            <div className="p-3 bg-red-500/10 border border-red-500/20 text-red-500 rounded text-sm">
+              {formError}
+            </div>
+          )}
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Exam Name</label>
+            <input type="text" name="name" required className="w-full border rounded p-2 text-sm" placeholder="e.g. Term 1 Midterms" />
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Academic Year</label>
+            <select name="academicYearId" required className="w-full border rounded p-2 text-sm bg-white text-black">
+              <option value="">Select Academic Year</option>
+              {/* @ts-ignore */}
+              {academicSetupData?.academicYears?.map((y: any) => (
+                <option key={y.id} value={y.id}>{y.name}</option>
+              ))}
+            </select>
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Term / Semester</label>
+            <select name="termId" required className="w-full border rounded p-2 text-sm bg-white text-black">
+              <option value="">Select Term</option>
+              {/* @ts-ignore */}
+              {academicSetupData?.terms?.map((t: any) => (
+                <option key={t.id} value={t.id}>{t.name}</option>
+              ))}
+            </select>
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Exam Type</label>
+            <select name="examType" required className="w-full border rounded p-2 text-sm bg-white text-black">
+              <option value="OPENER">Opener Exam</option>
+              <option value="MIDTERM">Midterm</option>
+              <option value="ENDTERM">End of Term</option>
+              <option value="MOCK">Mock Exam</option>
+              <option value="CAT">Continuous Assessment</option>
+              <option value="PROJECT">Project Work</option>
+            </select>
+          </div>
+          <div className="pt-4 flex justify-end">
+            <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Create Exam Series
+            </Button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 }

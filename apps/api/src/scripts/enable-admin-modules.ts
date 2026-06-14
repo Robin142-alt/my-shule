@@ -102,7 +102,7 @@ async function enableAdminModules() {
       RETURNING tenant_id, module_id;
     `);
     
-    console.log(`Successfully enabled admin modules for ${result.rowCount / 2} tenants.`);
+    console.log(`Successfully enabled admin modules for ${(result.rowCount || 0) / 2} tenants.`);
   } catch (err) {
     console.error('Migration failed:', err);
   } finally {

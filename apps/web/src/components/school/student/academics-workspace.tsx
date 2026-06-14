@@ -1,7 +1,7 @@
 // @ts-nocheck
 "use client";
 
-import { Download, BookOpen, Clock, CheckCircle } from "lucide-react";
+import { Download, BookOpen, Clock, CheckCircle, FileText } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useSchoolQuery, useSchoolMutation } from "@/lib/data/school-hooks";

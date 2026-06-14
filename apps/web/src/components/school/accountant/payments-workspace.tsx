@@ -20,6 +20,7 @@ import { LearnerPicker } from "@/components/common/learner-picker";
 import { getMissingFieldError } from "@/lib/forms/validation";
 import { SchoolPageHeader } from "@/components/school/school-page-header";
 import { MetricGrid } from "@/components/experience/metric-grid";
+import { usePermissions } from "@/components/providers/permission-context";
 import { buildFeeStructureLineItems, buildBulkFeeStudents, type BulkFeeInvoiceGenerationResponse, SubscriptionLifecyclePanel, buildFinanceSummaryItems, type FinanceActivityResponse, type FinanceActivityRow, type StudentFeeBalanceResponse, type StudentFeeStatementResponse, type FinanceReconciliationResponse, type FeeStructureResponse, type FeeLineItemDraft, type BillableFeeStudentResponse, type BulkFeeStudentDraft, toBulkFeeStudentDraft } from "@/components/school/school-pages";
 
 type SchoolRouteMode = "hosted" | "public";
@@ -98,6 +99,7 @@ export function PaymentsWorkspace({
   routeMode: SchoolRouteMode;
   activeSection?: string;
 }) {
+  const { hasPermission } = usePermissions();
   const { subscription } = getSchoolWorkspace(role, tenantSlug);
   const [activity, setActivity] = useState<FinanceActivityResponse[]>([]);
   const [rows, setRows] = useState<FinanceActivityRow[]>([]);
@@ -947,7 +949,11 @@ export function PaymentsWorkspace({
             <Button variant="secondary" onClick={openInvoiceModal}>
               Create invoice
             </Button>
-            <Button onClick={openPaymentModal}>Record payment</Button>
+            {hasPermission('finance:write') ? (
+              <Button onClick={openPaymentModal}>Record payment</Button>
+            ) : (
+              <span className="text-xs font-bold text-[#64748B]">Restricted</span>
+            )}
           </>
         }
       />

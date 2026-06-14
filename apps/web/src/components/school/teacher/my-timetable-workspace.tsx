@@ -3,6 +3,7 @@
 import { Clock, Calendar as CalendarIcon, ChevronLeft, ChevronRight } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { useSchoolQuery } from "@/lib/data/school-hooks";
 
 export function MyTimetableWorkspace() {
   const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
@@ -19,33 +20,8 @@ export function MyTimetableWorkspace() {
     { time: "02:10 - 02:50", name: "Period 8" },
   ];
 
-  // Dummy timetable data mapped by [Day][PeriodIndex]
-  const schedule: Record<string, Record<number, any>> = {
-    "Monday": {
-      0: { subject: "Math", class: "F1 East", room: "Room 12" },
-      1: { subject: "Math", class: "F2 West", room: "Room 14" },
-      5: { subject: "Physics", class: "F3 South", room: "Lab 1" },
-    },
-    "Tuesday": {
-      4: { subject: "Math", class: "F1 East", room: "Room 12" },
-      6: { subject: "Physics", class: "F1 East", room: "Lab 2" },
-    },
-    "Wednesday": {
-      1: { subject: "Physics", class: "F3 South", room: "Lab 1" },
-      2: { subject: "Math", class: "F2 West", room: "Room 14" },
-      8: { subject: "Physics", class: "F1 East", room: "Room 12" },
-    },
-    "Thursday": {
-      0: { subject: "Math", class: "F2 West", room: "Room 14" },
-      5: { subject: "Math", class: "F1 East", room: "Room 12" },
-      9: { subject: "Physics", class: "F3 South", room: "Lab 1" },
-    },
-    "Friday": {
-      2: { subject: "Physics", class: "F1 East", room: "Lab 2" },
-      4: { subject: "Math", class: "F2 West", room: "Room 14" },
-      8: { subject: "Physics", class: "F3 South", room: "Lab 1" },
-    }
-  };
+  const { data: scheduleData, isLoading } = useSchoolQuery<any>("/api/timetable/my-schedule");
+  const schedule = scheduleData || {};
 
   return (
     <div className="space-y-6">

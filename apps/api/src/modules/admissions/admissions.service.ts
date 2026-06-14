@@ -25,6 +25,7 @@ import { UploadMalwareScanService } from '../../common/uploads/upload-malware-sc
 import { validateUploadedFile } from '../../common/uploads/upload-policy';
 import { PrismaService } from '../../database/prisma.service';
 import { EventPublisherService } from '../events/event-publisher.service';
+import { AgpExecutionService } from '../../common/platform-governance/agp-execution.service';
 import { SchoolOperationalEventsService } from '../events/school-operational-events.service';
 import { CreateApplicationDto, UpdateApplicationDto } from './dto/create-application.dto';
 import { ListAdmissionsQueryDto } from './dto/list-admissions-query.dto';
@@ -209,6 +210,7 @@ export class AdmissionsService {
     private readonly studentsService: StudentsService,
     @Optional() private readonly tenantInvitationsService?: TenantInvitationsService,
     @Optional() private readonly eventPublisher?: EventPublisherService,
+    @Optional() private readonly agp?: AgpExecutionService,
     @Optional() private readonly schoolOperationalEventsService?: SchoolOperationalEventsService,
     @Optional() private readonly uploadMalwareScan?: UploadMalwareScanService,
   ) {}
@@ -229,50 +231,63 @@ export class AdmissionsService {
   }
 
   async createApplication(dto: CreateApplicationDto) {
-    return this.admissionsRepository.createApplication({
-      school_id: this.requireTenantId(),
-      application_number: this.buildNumber('APP'),
-      full_name: dto.full_name.trim(),
-      date_of_birth: dto.date_of_birth,
-      gender: dto.gender.trim(),
-      birth_certificate_number: dto.birth_certificate_number.trim(),
-      nationality: dto.nationality.trim(),
-      previous_school: dto.previous_school?.trim() || null,
-      kcpe_results: dto.kcpe_results?.trim() || null,
-      cbc_level: dto.cbc_level?.trim() || null,
-      nemis_upi: dto.nemis_upi?.trim() || null,
-      class_applying: dto.class_applying.trim(),
-      parent_name: dto.parent_name.trim(),
-      parent_phone: dto.parent_phone.trim(),
-      parent_email: dto.parent_email?.trim() || null,
-      parent_occupation: dto.parent_occupation?.trim() || null,
-      relationship: dto.relationship.trim(),
-      allergies: dto.allergies?.trim() || null,
-      conditions: dto.conditions?.trim() || null,
-      emergency_contact: dto.emergency_contact?.trim() || null,
-      status: 'pending',
-      interview_date: null,
-      review_notes: null,
+    if (!this.agp) throw new Error('AGP Execution Service is required for this operation');
+
+    return this.agp.execute({
+      actionName: 'APPLICATION_CREATED',
+      requiredCapability: 'admissions:write',
+      aggregateType: 'ADMISSION',
+      aggregateId: dto.student_email || dto.parent_email || dto.first_name,
+      handler: async () => {
+        return this.admissionsRepository.createApplication(this.requireTenantId(), {
+          ...dto,
+          allergies: dto.allergies?.trim() || null,
+          conditions: dto.conditions?.trim() || null,
+          emergency_contact: dto.emergency_contact?.trim() || null,
+          status: 'pending',
+          interview_date: null,
+          review_notes: null,
+        });
+      },
     });
   }
 
   async updateApplication(applicationId: string, dto: UpdateApplicationDto) {
-    const application = await this.admissionsRepository.updateApplication(
-      this.requireTenantId(),
-      applicationId,
-      {
-        status: dto.status?.trim(),
-        nemis_upi: dto.nemis_upi?.trim(),
-        review_notes: dto.review_notes?.trim(),
-        interview_date: dto.interview_date,
+    if (!this.agp) throw new Error('AGP Execution Service is required for this operation');
+
+    const eventName = (dto.status === 'approved' || dto.status === 'cleared') ? 'admissions.cleared' : undefined;
+    const eventPayload = eventName ? {
+      tenant_id: this.requireTenantId(),
+      applicant_id: applicationId,
+      cleared_by: this.requestContext.requireStore().user_id || 'system',
+    } : undefined;
+
+    return this.agp.execute({
+      actionName: 'APPLICATION_UPDATED',
+      requiredCapability: 'admissions:write',
+      aggregateType: 'ADMISSION',
+      aggregateId: applicationId,
+      eventName,
+      eventPayload,
+      handler: async () => {
+        const application = await this.admissionsRepository.updateApplication(
+          this.requireTenantId(),
+          applicationId,
+          {
+            status: dto.status?.trim(),
+            nemis_upi: dto.nemis_upi?.trim(),
+            review_notes: dto.review_notes?.trim(),
+            interview_date: dto.interview_date,
+          },
+        );
+
+        if (!application) {
+          throw new NotFoundException(`Admission application "${applicationId}" was not found`);
+        }
+
+        return application;
       },
-    );
-
-    if (!application) {
-      throw new NotFoundException(`Admission application "${applicationId}" was not found`);
-    }
-
-    return application;
+    });
   }
 
   async storeApplicationDocument(

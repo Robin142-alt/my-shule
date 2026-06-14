@@ -1,10 +1,12 @@
 "use client";
 
 import { Card } from "@/components/ui/card";
-import { AlertCircle, Users, UserPlus } from "lucide-react";
+import { AlertCircle, Users, UserPlus, Plus } from "lucide-react";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 import { useDashboardEventBus } from "@/lib/dashboard-communication/dashboard-communication-provider";
 import { useState } from "react";
+import { usePermissions } from "@/components/providers/permission-context";
+import { Button } from "@/components/ui/button";
 
 type PrincipalStudentsData = {
   status: "active" | "degraded" | "setup_required";
@@ -18,7 +20,7 @@ type PrincipalStudentsData = {
 export function PrincipalStudentsWorkspace() {
   const { data, isLoading, error } = useSchoolQuery<PrincipalStudentsData>('/admin-command/principal/students');
   const eventBus = useDashboardEventBus();
-  const [isAdmitting, setIsAdmitting] = useState(false);
+  const { hasPermission } = usePermissions();
 
   if (isLoading) {
     return (
@@ -42,26 +44,6 @@ export function PrincipalStudentsWorkspace() {
     );
   }
 
-  const handleTestAdmit = () => {
-    setIsAdmitting(true);
-    
-    // Simulate API delay
-    setTimeout(() => {
-      // 1. Emit to the Event Bus (This will update the Overview Workspace instantly)
-      eventBus.emit({
-        id: crypto.randomUUID(),
-        type: "STUDENT_ADMITTED",
-        tenantId: "tenant-1",
-        sourceModule: "admissions",
-        entityId: crypto.randomUUID(),
-        occurredAt: new Date().toISOString(),
-        payload: { studentName: "Test Student", class: "Form 1" }
-      });
-      
-      setIsAdmitting(false);
-    }, 500);
-  };
-
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between mb-4">
@@ -69,13 +51,6 @@ export function PrincipalStudentsWorkspace() {
           <Users className="h-5 w-5 text-cyan-400" />
           Students Directory
         </h2>
-        <button 
-          onClick={handleTestAdmit}
-          disabled={isAdmitting}
-          className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-bold rounded shadow transition disabled:opacity-50"
-        >
-          {isAdmitting ? "Admitting..." : "Test Admit Student (Triggers Event)"}
-        </button>
       </div>
 
       <div className="grid gap-4 md:grid-cols-4">
@@ -122,16 +97,23 @@ export function PrincipalStudentsWorkspace() {
         <Card className="border border-white/10 bg-white/5 p-6 flex flex-col h-full">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xl font-bold text-white">Recent Admissions</h2>
-            <button className="text-xs bg-blue-500/20 text-blue-400 px-3 py-1.5 rounded hover:bg-blue-500/30 transition-colors flex items-center gap-1">
-              <UserPlus className="h-3 w-3" />
-              Admit New
-            </button>
+            {hasPermission('school_admissions:write') && (
+              <Button size="sm" variant="outline" className="text-xs bg-blue-500/20 text-blue-400 border-blue-500/20 hover:bg-blue-500/30">
+                <Plus className="h-3 w-3 mr-1" />
+                Admit New
+              </Button>
+            )}
           </div>
           
           {(!data.recentAdmissions || data.recentAdmissions.length === 0) ? (
             <div className="flex flex-col items-center justify-center flex-1 py-8 text-center bg-white/5 rounded-lg border border-white/5">
               <Users className="h-10 w-10 text-white/20 mb-3" />
-              <p className="text-white/60">No recent admissions found</p>
+              <p className="text-white/60 mb-4">No recent admissions found</p>
+              {hasPermission('school_admissions:write') && (
+                <Button size="sm" variant="outline">
+                  <Plus className="h-4 w-4 mr-2" /> Admit Student
+                </Button>
+              )}
             </div>
           ) : (
             <div className="space-y-3 flex-1 overflow-y-auto pr-2">

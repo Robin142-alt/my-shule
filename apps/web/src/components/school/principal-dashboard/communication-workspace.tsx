@@ -7,6 +7,7 @@ import { useSchoolQuery } from "@/lib/data/school-hooks";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
 import { requestDashboardApi } from "@/lib/dashboard/api-client";
+import { usePermissions } from "@/components/providers/permission-context";
 
 type PrincipalCommunicationData = {
   status: "active" | "degraded" | "setup_required";
@@ -21,10 +22,16 @@ type PrincipalCommunicationData = {
 export function PrincipalCommunicationWorkspace() {
   const { data, isLoading, error, refetch } = useSchoolQuery<PrincipalCommunicationData>('/admin-command/principal/communication');
   const { data: templatesData } = useSchoolQuery<any[]>('/admin-command/communication-templates');
+  const { hasPermission } = usePermissions();
 
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formError, setFormError] = useState("");
+
+  const [isBroadcastModalOpen, setIsBroadcastModalOpen] = useState(false);
+  const [isSubmittingBroadcast, setIsSubmittingBroadcast] = useState(false);
+  const [broadcastFormError, setBroadcastFormError] = useState("");
+  const [broadcastAudience, setBroadcastAudience] = useState("ALL_PARENTS");
 
   const handleCreateTemplate = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -46,6 +53,40 @@ export function PrincipalCommunicationWorkspace() {
       setFormError(err.message || "Failed to create template");
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleCreateBroadcast = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setIsSubmittingBroadcast(true);
+    setBroadcastFormError("");
+    const formData = new FormData(e.currentTarget);
+    const channels = [];
+    if (formData.get("channel_sms") === "on") channels.push("SMS");
+    if (formData.get("channel_email") === "on") channels.push("EMAIL");
+
+    if (channels.length === 0) {
+      setBroadcastFormError("Please select at least one channel");
+      setIsSubmittingBroadcast(false);
+      return;
+    }
+
+    try {
+      await requestDashboardApi('/admin-command/communication-broadcasts', {
+        method: "POST",
+        body: {
+          audience: formData.get("audience"),
+          targetClass: formData.get("targetClass"),
+          message: formData.get("message"),
+          channels: channels,
+        }
+      });
+      setIsBroadcastModalOpen(false);
+      refetch();
+    } catch (err: any) {
+      setBroadcastFormError(err.message || "Failed to send broadcast");
+    } finally {
+      setIsSubmittingBroadcast(false);
     }
   };
 
@@ -127,16 +168,23 @@ export function PrincipalCommunicationWorkspace() {
         <Card className="border border-white/10 bg-white/5 p-6 flex flex-col h-full">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xl font-bold text-white">Recent Broadcasts</h2>
-            <button className="text-xs bg-white/10 text-white px-3 py-1.5 rounded hover:bg-white/20 transition-colors flex items-center gap-1">
-              <Send className="h-3 w-3" />
-              New Message
-            </button>
+            {hasPermission('communication:write') && (
+              <Button size="sm" variant="outline" className="text-xs bg-white/10 text-white px-3 py-1.5 rounded hover:bg-white/20 transition-colors flex items-center gap-1" onClick={() => setIsBroadcastModalOpen(true)}>
+                <Send className="h-3 w-3 mr-1" />
+                New Message
+              </Button>
+            )}
           </div>
           
           {(!data.recentBroadcasts || data.recentBroadcasts.length === 0) ? (
             <div className="flex flex-col items-center justify-center flex-1 py-8 text-center bg-white/5 rounded-lg border border-white/5">
               <MessageSquare className="h-10 w-10 text-white/20 mb-3" />
-              <p className="text-white/60">No recent broadcasts sent</p>
+              <p className="text-white/60 mb-4">No recent broadcasts sent</p>
+              {hasPermission('communication:write') && (
+                <Button size="sm" variant="outline" onClick={() => setIsBroadcastModalOpen(true)}>
+                  <Send className="h-4 w-4 mr-2" /> Send Broadcast
+                </Button>
+              )}
             </div>
           ) : (
             <div className="space-y-3 flex-1 overflow-y-auto pr-2">
@@ -202,6 +250,60 @@ export function PrincipalCommunicationWorkspace() {
             <Button type="submit" disabled={isSubmitting}>
               {isSubmitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Create Template
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      <Modal open={isBroadcastModalOpen} onClose={() => setIsBroadcastModalOpen(false)} title="Send Broadcast">
+        <form onSubmit={handleCreateBroadcast} className="space-y-4">
+          {broadcastFormError && (
+            <div className="p-3 bg-red-500/10 border border-red-500/20 text-red-500 rounded text-sm">
+              {broadcastFormError}
+            </div>
+          )}
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Audience</label>
+            <select 
+              name="audience" 
+              required 
+              value={broadcastAudience}
+              onChange={e => setBroadcastAudience(e.target.value)}
+              className="w-full border border-slate-200 rounded p-2 text-sm bg-white text-black focus:outline-none focus:ring-1 focus:ring-slate-950"
+            >
+              <option value="ALL_PARENTS">All Parents</option>
+              <option value="ALL_STAFF">All Staff</option>
+              <option value="SPECIFIC_CLASS">Specific Class</option>
+            </select>
+          </div>
+          {broadcastAudience === "SPECIFIC_CLASS" && (
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Class / Grade Name</label>
+              <input type="text" name="targetClass" placeholder="e.g. Form 1A" required className="w-full border border-slate-200 rounded p-2 text-sm bg-white text-black focus:outline-none focus:ring-1 focus:ring-slate-950" />
+            </div>
+          )}
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Channels</label>
+            <div className="flex gap-4">
+              <label className="flex items-center gap-2">
+                <input type="checkbox" name="channel_sms" defaultChecked className="rounded" />
+                <span className="text-sm">SMS</span>
+              </label>
+              <label className="flex items-center gap-2">
+                <input type="checkbox" name="channel_email" defaultChecked className="rounded" />
+                <span className="text-sm">Email</span>
+              </label>
+            </div>
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Message</label>
+            <textarea name="message" required rows={4} className="w-full border rounded p-2 text-sm" placeholder="Write your broadcast message..." />
+            <p className="text-xs text-gray-500">Variables like {"{{student_name}}"} will be replaced automatically.</p>
+          </div>
+          <div className="pt-4 flex justify-end">
+            <Button type="submit" disabled={isSubmittingBroadcast}>
+              {isSubmittingBroadcast && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Send Broadcast
             </Button>
           </div>
         </form>

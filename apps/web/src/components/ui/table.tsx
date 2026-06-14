@@ -4,10 +4,10 @@ const Table = React.forwardRef<
   HTMLTableElement,
   React.HTMLAttributes<HTMLTableElement>
 >(({ className = "", ...props }, ref) => (
-  <div className="relative w-full overflow-auto">
+  <div className="relative w-full overflow-auto rounded-xl border border-slate-200/60 bg-white shadow-sm ring-1 ring-slate-900/5">
     <table
       ref={ref}
-      className={`w-full caption-bottom text-sm ${className}`}
+      className={`w-full caption-bottom text-sm transition-colors ${className}`}
       {...props}
     />
   </div>
@@ -18,7 +18,7 @@ const TableHeader = React.forwardRef<
   HTMLTableSectionElement,
   React.HTMLAttributes<HTMLTableSectionElement>
 >(({ className = "", ...props }, ref) => (
-  <thead ref={ref} className={`[&_tr]:border-b ${className}`} {...props} />
+  <thead ref={ref} className={`bg-slate-50/80 backdrop-blur-md border-b border-slate-200/60 ${className}`} {...props} />
 ))
 TableHeader.displayName = "TableHeader"
 
@@ -52,7 +52,7 @@ const TableRow = React.forwardRef<
 >(({ className = "", ...props }, ref) => (
   <tr
     ref={ref}
-    className={`border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted ${className}`}
+    className={`group border-b border-slate-100 transition-all duration-200 hover:bg-slate-50/80 hover:shadow-[inset_0_1px_0_rgba(255,255,255,1),0_1px_3px_rgba(0,0,0,0.02)] data-[state=selected]:bg-slate-100/50 ${className}`}
     {...props}
   />
 ))
@@ -64,7 +64,7 @@ const TableHead = React.forwardRef<
 >(({ className = "", ...props }, ref) => (
   <th
     ref={ref}
-    className={`h-10 px-2 text-left align-middle font-medium text-muted-foreground [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px] ${className}`}
+    className={`h-11 px-4 text-left align-middle text-[12px] font-semibold uppercase tracking-wider text-slate-500 [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px] ${className}`}
     {...props}
   />
 ))
@@ -76,7 +76,7 @@ const TableCell = React.forwardRef<
 >(({ className = "", ...props }, ref) => (
   <td
     ref={ref}
-    className={`p-2 align-middle [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px] ${className}`}
+    className={`p-4 align-middle text-slate-700 transition-colors group-hover:text-slate-900 [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px] ${className}`}
     {...props}
   />
 ))

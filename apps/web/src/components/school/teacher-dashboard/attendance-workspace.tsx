@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Panel, RecordTable } from "./shared-components";
 import { Modal } from "@/components/ui/modal";
+import { usePermissions } from "@/components/providers/permission-context";
 import { useLiveTenantSession } from "@/hooks/use-live-tenant-session";
 import { fetchPendingAttendanceLive, fetchClassRegisterLive, type PendingAttendanceTask } from "@/lib/modules/teacher-live";
 import { useOfflineAttendanceSync, type OfflineAttendanceRecord } from "@/lib/modules/attendance-offline";
@@ -149,6 +150,7 @@ function AttendanceModal({
 
 export function AttendanceWorkspace() {
   const liveSession = useLiveTenantSession("school");
+  const { hasPermission } = usePermissions();
   const { isOnline, syncing, queueCount } = useOfflineAttendanceSync(liveSession.session);
   const [activeTask, setActiveTask] = useState<PendingAttendanceTask | null>(null);
   
@@ -168,13 +170,17 @@ export function AttendanceWorkspace() {
     <span key={t.id + 'status'} className={`font-bold ${t.status === 'Completed' ? 'text-green-600' : 'text-orange-500'}`}>
       {t.status}
     </span>,
-    <button 
-      key={t.id + 'btn'} 
-      onClick={() => setActiveTask(t)}
-      className="text-[#1D4ED8] hover:underline font-bold"
-    >
-      {t.status === 'Completed' ? 'Edit Register' : 'Mark Register'}
-    </button>
+    hasPermission('school_attendance:write') ? (
+      <button 
+        key={t.id + 'btn'} 
+        onClick={() => setActiveTask(t)}
+        className="text-[#1D4ED8] hover:underline font-bold"
+      >
+        {t.status === 'Completed' ? 'Edit Register' : 'Mark Register'}
+      </button>
+    ) : (
+      <span key={t.id + 'btn'} className="text-[#64748B] text-xs">Restricted</span>
+    )
   ]) || [];
 
   return (
@@ -217,7 +223,9 @@ export function AttendanceWorkspace() {
         </article>
       </div>
       <div className="mb-4">
-        <button type="button" className="rounded-xl bg-[#071D49] px-4 py-2 text-sm font-black text-white">Mark All Present</button>
+        {hasPermission('school_attendance:write') && (
+          <button type="button" className="rounded-xl bg-[#071D49] px-4 py-2 text-sm font-black text-white">Mark All Present</button>
+        )}
       </div>
       {isError ? (
         <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-red-800">

@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 import { Activity } from "lucide-react";
 import { Panel, StatusChip, Tone } from "./shared";
+import { Modal } from "@/components/ui/modal";
 import { readSchoolData, addSchoolRecord, subscribeToSchoolDataUpdates, createNotification } from "@/lib/school/school-operational-store";
 
 export type OperationNote = {
@@ -107,27 +108,23 @@ export function DeputyDailyOperationsWorkspace() {
         </table>
       </div>
 
-      {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#071D49]/40 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-2xl border border-[#D8E0EC] bg-white p-6 shadow-2xl">
-            <h2 className="text-xl font-bold text-[#071D49] mb-4">Log Daily Operation Note</h2>
-            <div className="space-y-4">
-              <div>
-                <label className="text-sm font-bold text-[#334155]">Area</label>
-                <input value={formData.area} onChange={(e) => setFormData({...formData, area: e.target.value})} type="text" className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-2 text-sm focus:border-blue-500 focus:outline-none" />
-              </div>
-              <div>
-                <label className="text-sm font-bold text-[#334155]">Issue Details</label>
-                <input value={formData.issue} onChange={(e) => setFormData({...formData, issue: e.target.value})} type="text" className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-2 text-sm focus:border-blue-500 focus:outline-none" />
-              </div>
-            </div>
-            <div className="mt-6 flex justify-end gap-3">
-              <button onClick={() => setShowModal(false)} className="rounded-lg px-4 py-2 text-sm font-bold text-[#64748B] hover:bg-slate-100">Cancel</button>
-              <button disabled={!formData.area || !formData.issue} onClick={handleCreate} className="rounded-lg bg-rose-600 px-4 py-2 text-sm font-black text-white hover:bg-rose-700 disabled:opacity-50">Save Note</button>
-            </div>
+      <Modal open={showModal} onClose={() => setShowModal(false)} title="Log Daily Operation Note" footer={
+        <>
+          <button onClick={() => setShowModal(false)} className="rounded-lg px-4 py-2 text-sm font-bold text-[#64748B] hover:bg-slate-100">Cancel</button>
+          <button disabled={!formData.area || !formData.issue} onClick={handleCreate} className="rounded-lg bg-rose-600 px-4 py-2 text-sm font-black text-white hover:bg-rose-700 disabled:opacity-50">Save Note</button>
+        </>
+      }>
+        <div className="space-y-4">
+          <div>
+            <label className="text-sm font-bold text-[#334155]">Area</label>
+            <input value={formData.area} onChange={(e) => setFormData({...formData, area: e.target.value})} type="text" className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-2 text-sm focus:border-blue-500 focus:outline-none" />
+          </div>
+          <div>
+            <label className="text-sm font-bold text-[#334155]">Issue Details</label>
+            <input value={formData.issue} onChange={(e) => setFormData({...formData, issue: e.target.value})} type="text" className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-2 text-sm focus:border-blue-500 focus:outline-none" />
           </div>
         </div>
-      )}
+      </Modal>
     </Panel>
   );
 }

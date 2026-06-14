@@ -36,6 +36,7 @@ import { WorkflowToast } from "@/components/shared/workflow-toast";
 import { getCurrentSchoolId, publishSchoolOperationalEvent } from "@/lib/school/school-operational-store";
 import { useLiveTenantSession } from "@/hooks/use-live-tenant-session";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
+import { usePermissions } from "@/components/providers/permission-context";
 
 type GradeRouteMode = "hosted" | "public";
 type Tone = "success" | "info" | "warning" | "danger" | "neutral";
@@ -432,13 +433,14 @@ function AcademicsWorkspace() {
 }
 
 function ExamsWorkspace() {
+  const { hasPermission } = usePermissions();
   return (
     <Panel title="Exams & Report Readiness" description="Monitor whether report cards are ready for their grade/form." icon={ClipboardCheck}>
       <DataTable 
         columns={["Stream", "Marks Status", "Teacher Comments", "Class Teacher", "Readiness", "Actions"]}
         rows={[
           ["Form 2 Blue", "100%", "95%", "100%", <StatusChip key="s1" label="Missing Comments" tone="warning"/>, <button key="a1" className="text-[#1D4ED8] font-bold text-xs">Request Comments</button>],
-          ["Form 2 Green", "100%", "100%", "100%", <StatusChip key="s2" label="Ready" tone="success"/>, <button key="a2" className="text-[#1D4ED8] font-bold text-xs">Print Drafts</button>],
+          ["Form 2 Green", "100%", "100%", "100%", <StatusChip key="s2" label="Ready" tone="success"/>, hasPermission('school_reports:write') ? <button key="a2" className="text-[#1D4ED8] font-bold text-xs bg-[#EEF5FF] px-2 py-1 rounded">Approve Reports</button> : <span key="a2" className="text-xs text-[#64748B]">Restricted</span>],
           ["Form 2 Red", "92%", "80%", "40%", <StatusChip key="s3" label="Missing Marks" tone="danger"/>, <button key="a3" className="text-[#1D4ED8] font-bold text-xs">Message Teacher</button>],
         ]}
       />

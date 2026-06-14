@@ -26,7 +26,10 @@ export type SupportedDomainEventName =
   | 'system.repair.triggered'
   | 'system.fallback.activated'
   | 'grading.system.created'
-  | 'report.card.published';
+  | 'report.card.published'
+  | 'communication.sms.queued'
+  | 'admissions.cleared'
+  | 'staff.updated';
 
 export type OutboxEventStatus =
   | 'pending'
@@ -488,4 +491,25 @@ export interface DashboardRealtimeSnapshot {
   generated_at: string;
   cursor: string | null;
   events: DashboardRealtimeEvent[];
+}
+
+export interface CommunicationSmsQueuedPayload {
+  tenant_id: string;
+  sms_id: string;
+  recipient_phone: string;
+  message: string;
+  sent_by: string;
+}
+
+export interface AdmissionsClearedPayload {
+  tenant_id: string;
+  applicant_id: string;
+  cleared_by: string;
+}
+
+export interface StaffUpdatedPayload {
+  tenant_id: string;
+  staff_id: string;
+  updated_fields: string[];
+  updated_by: string;
 }

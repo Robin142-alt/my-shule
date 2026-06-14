@@ -1,18 +1,54 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { DomainEvent, EventConsumerDescriptor } from '../../events/events.types';
+import { PrismaService } from '../../../database/prisma.service';
 
 @Injectable()
 export class IssueStockConsumer implements EventConsumerDescriptor<'workflow.action.completed'> {
+  private readonly logger = new Logger(IssueStockConsumer.name);
   readonly name = 'issue-stock.execution';
   readonly event_name = 'workflow.action.completed' as const;
 
+  constructor(private readonly prisma: PrismaService) {}
+
   async handle(event: DomainEvent<'workflow.action.completed'>): Promise<void> {
-    // Only process events that match our action workflow binding
     if (event.payload.workflow_id !== 'issue-stock' && event.payload.action_id !== 'issue-stock') {
       return;
     }
 
-    // TODO: Implement domain logic for issue-stock
-    console.log('[IssueStockConsumer] Executing action:', event.payload);
+    const { tenant_id, data } = event.payload;
+    if (!data?.inventoryItemId || !data?.quantity) {
+      this.logger.warn(`Missing issue stock details for tenant ${tenant_id}`);
+      return;
+    }
+
+    this.logger.log(`Issuing stock for item ${data.inventoryItemId} in tenant ${tenant_id}`);
+
+    try {
+      await this.prisma.$transaction(async (tx: any) => {
+        const item = await tx.inventoryItem.findUnique({ where: { id: data.inventoryItemId } });
+        if (item) {
+          await tx.inventoryStockMovement.create({
+            data: {
+              schoolId: tenant_id,
+              inventoryItemId: data.inventoryItemId,
+              movementType: 'OUT',
+              quantity: data.quantity,
+              fromLocation: item.storageLocation,
+              toLocation: data.toLocation || 'ISSUED',
+              issuedToDepartmentId: data.issuedToDepartmentId || undefined,
+            }
+          });
+
+          await tx.inventoryItem.update({
+            where: { id: data.inventoryItemId },
+            data: { quantityAvailable: item.quantityAvailable - data.quantity }
+          });
+        }
+      });
+      this.logger.log(`Successfully issued stock for item ${data.inventoryItemId}`);
+    } catch (error: any) {
+      this.logger.error(`Failed to issue stock: ${error.message}`, error.stack);
+      throw error;
+    }
   }
 }

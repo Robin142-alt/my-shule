@@ -34,10 +34,15 @@ function MarksEntryModal({ windowTask, onClose }: { windowTask: PendingMarksWind
 
   const handleSubmit = async () => {
     setSubmitting(true);
-    // In a real implementation we would loop through and POST to /exams/marks
-    // using withSession(liveSession.session!, "/exams/marks", { method: "POST", body: ... })
-    // We simulate a network delay
-    await new Promise(resolve => setTimeout(resolve, 600));
+    await fetch("/api/exams/marks", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        exam: windowTask.examName,
+        classSectionId: windowTask.classSectionId,
+        scores
+      })
+    });
     
     queryClient.invalidateQueries({ queryKey: ["pending-marks"] });
     setSubmitting(false);

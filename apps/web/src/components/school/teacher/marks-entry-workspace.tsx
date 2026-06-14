@@ -63,12 +63,7 @@ export function MarksEntryWorkspace() {
     }
   };
 
-  // Mock list for now until students query finishes loading
-  const displayStudents = students?.length > 0 ? students : [
-    { id: "1", first_name: "Alice", last_name: "Kamau", admission_number: "ADM-001" },
-    { id: "2", first_name: "Brian", last_name: "Ochieng", admission_number: "ADM-002" },
-    { id: "3", first_name: "Cynthia", last_name: "Wanjiru", admission_number: "ADM-003" },
-  ];
+  const displayStudents = students || [];
 
   return (
     <div className="space-y-6">
@@ -165,4 +160,3 @@ export function MarksEntryWorkspace() {
     </div>
   );
 }
-

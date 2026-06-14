@@ -21,6 +21,7 @@ import { getMissingFieldError } from "@/lib/forms/validation";
 import { SchoolPageHeader } from "@/components/school/school-page-header";
 import { MetricGrid } from "@/components/experience/metric-grid";
 import { buildFeeStructureLineItems, buildBulkFeeStudents, type BulkFeeInvoiceGenerationResponse, SubscriptionLifecyclePanel, buildFinanceSummaryItems, type FinanceActivityResponse, type FinanceActivityRow, type StudentFeeBalanceResponse, type StudentFeeStatementResponse, type FinanceReconciliationResponse, type FeeStructureResponse, type FeeLineItemDraft, type BillableFeeStudentResponse, type BulkFeeStudentDraft, toBulkFeeStudentDraft } from "@/components/school/school-pages";
+import { usePermissions } from "@/components/providers/permission-context";
 
 type SchoolRouteMode = "hosted" | "public";
 type ManualReceiptMethod = "cash" | "cheque" | "bank_deposit" | "eft" | "mpesa_c2b";
@@ -98,6 +99,7 @@ export function InvoicesWorkspace({
   routeMode: SchoolRouteMode;
   activeSection?: string;
 }) {
+  const { hasPermission } = usePermissions();
   const { subscription } = getSchoolWorkspace(role, tenantSlug);
   const [activity, setActivity] = useState<FinanceActivityResponse[]>([]);
   const [rows, setRows] = useState<FinanceActivityRow[]>([]);
@@ -931,12 +933,14 @@ export function InvoicesWorkspace({
         title="Collections desk"
         description="Record payments, generate statements, and keep balances obvious enough for bursars and admins to trust instantly."
         actions={
-          <>
-            <Button variant="secondary" onClick={openInvoiceModal}>
-              Create invoice
-            </Button>
-            <Button onClick={openPaymentModal}>Record payment</Button>
-          </>
+          hasPermission('finance:write') ? (
+            <div className="flex flex-wrap items-center gap-3">
+              <Button variant="outline" onClick={() => {}}>Bulk invoicing</Button>
+              <Button onClick={openInvoiceModal}>Generate invoice</Button>
+            </div>
+          ) : (
+            <span className="text-xs font-bold text-[#64748B]">Restricted</span>
+          )
         }
       />
       {financeMessage ? (

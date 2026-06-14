@@ -11,6 +11,9 @@ import {
   PublishDomainEventInput,
   StudentCreatedPayload,
   SupportedDomainEventName,
+  CommunicationSmsQueuedPayload,
+  AdmissionsClearedPayload,
+  StaffUpdatedPayload,
 } from './events.types';
 import { OutboxEventsRepository } from './repositories/outbox-events.repository';
 
@@ -163,13 +166,49 @@ export class EventPublisherService {
   }
 
   async publishReportCardPublished(
-    payload: import('./events.types').ReportCardPublishedPayload,
+    payload: ReportCardPublishedPayload,
   ): Promise<DomainEvent<'report.card.published'>> {
     return this.publish({
-      event_key: `report.card.published:${payload.report_id}`,
+      event_key: `report.card.published:${payload.report_card_id}`,
       event_name: 'report.card.published',
       aggregate_type: 'report_card',
-      aggregate_id: payload.report_id,
+      aggregate_id: payload.report_card_id,
+      payload,
+    });
+  }
+
+  async publishCommunicationSmsQueued(
+    payload: CommunicationSmsQueuedPayload,
+  ): Promise<DomainEvent<'communication.sms.queued'>> {
+    return this.publish({
+      event_key: `communication.sms.queued:${payload.sms_id}`,
+      event_name: 'communication.sms.queued',
+      aggregate_type: 'communication',
+      aggregate_id: payload.sms_id,
+      payload,
+    });
+  }
+
+  async publishAdmissionsCleared(
+    payload: AdmissionsClearedPayload,
+  ): Promise<DomainEvent<'admissions.cleared'>> {
+    return this.publish({
+      event_key: `admissions.cleared:${payload.applicant_id}`,
+      event_name: 'admissions.cleared',
+      aggregate_type: 'admission',
+      aggregate_id: payload.applicant_id,
+      payload,
+    });
+  }
+
+  async publishStaffUpdated(
+    payload: StaffUpdatedPayload,
+  ): Promise<DomainEvent<'staff.updated'>> {
+    return this.publish({
+      event_key: `staff.updated:${payload.staff_id}`,
+      event_name: 'staff.updated',
+      aggregate_type: 'staff',
+      aggregate_id: payload.staff_id,
       payload,
     });
   }

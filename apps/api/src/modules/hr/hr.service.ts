@@ -27,31 +27,45 @@ import type {
   VerifyStaffDocumentDto,
 } from './dto/hr.dto';
 import { HrRepository } from './repositories/hr.repository';
+import { EventPublisherService } from '../events/event-publisher.service';
+import { AgpExecutionService } from '../../common/platform-governance/agp-execution.service';
 
 @Injectable()
 export class HrService {
   constructor(
     private readonly requestContext: RequestContextService,
     private readonly hrRepository: HrRepository,
+    private readonly eventPublisher?: EventPublisherService,
+    private readonly agp?: AgpExecutionService,
   ) {}
 
   async inviteStaff(dto: InviteStaffDto) {
-    const tenantId = this.requireTenantId();
-    const profile = await this.hrRepository.createStaffProfile({
-      ...dto,
-      tenant_id: tenantId,
-      status: 'invited',
-    });
+    if (!this.agp) throw new Error('AGP Execution Service is required for this operation');
 
-    await this.hrRepository.appendAuditLog({
-      tenant_id: tenantId,
-      staff_profile_id: profile.id,
-      actor_user_id: this.getActorUserId(),
-      action: 'staff.invited',
-      metadata: { email: dto.email, display_name: dto.display_name },
-    });
+    return this.agp.execute({
+      actionName: 'STAFF_INVITED',
+      requiredCapability: 'hr:write',
+      aggregateType: 'STAFF',
+      aggregateId: dto.email,
+      handler: async () => {
+        const tenantId = this.requireTenantId();
+        const profile = await this.hrRepository.createStaffProfile({
+          ...dto,
+          tenant_id: tenantId,
+          status: 'invited',
+        });
 
-    return profile;
+        await this.hrRepository.appendAuditLog({
+          tenant_id: tenantId,
+          staff_profile_id: profile.id,
+          actor_user_id: this.getActorUserId(),
+          action: 'staff.invited',
+          metadata: { email: dto.email, display_name: dto.display_name },
+        });
+
+        return profile;
+      },
+    });
   }
 
   async acceptInvite(dto: AcceptInviteDto) {
@@ -93,30 +107,47 @@ export class HrService {
   }
 
   async approveStaff(dto: ApproveStaffDto) {
-    const tenantId = this.requireTenantId();
-    const profile = await this.hrRepository.approveStaffProfile({
-      tenant_id: tenantId,
-      staff_profile_id: dto.staff_profile_id,
-      staff_number: dto.staff_number,
-      status: 'active',
-    });
+    if (!this.agp) throw new Error('AGP Execution Service is required for this operation');
 
-    // Also approve the initial contract
-    await this.approveContract({
-      ...dto.contract,
-      staff_profile_id: dto.staff_profile_id,
-      approval_state: 'approved',
-    });
+    return this.agp.execute({
+      actionName: 'STAFF_APPROVED',
+      requiredCapability: 'hr:write',
+      aggregateType: 'STAFF',
+      aggregateId: dto.staff_profile_id,
+      eventName: 'staff.updated',
+      eventPayload: {
+        tenant_id: this.requireTenantId(),
+        staff_id: dto.staff_profile_id,
+        updated_fields: ['status', 'staff_number'],
+        updated_by: this.getActorUserId(),
+      },
+      handler: async () => {
+        const tenantId = this.requireTenantId();
+        const profile = await this.hrRepository.approveStaffProfile({
+          tenant_id: tenantId,
+          staff_profile_id: dto.staff_profile_id,
+          staff_number: dto.staff_number,
+          status: 'active',
+        });
 
-    await this.hrRepository.appendAuditLog({
-      tenant_id: tenantId,
-      staff_profile_id: dto.staff_profile_id,
-      actor_user_id: this.getActorUserId(),
-      action: 'staff.approved',
-      metadata: { staff_number: dto.staff_number },
-    });
+        // Also approve the initial contract
+        await this.approveContract({
+          ...dto.contract,
+          staff_profile_id: dto.staff_profile_id,
+          approval_state: 'approved',
+        });
 
-    return profile;
+        await this.hrRepository.appendAuditLog({
+          tenant_id: tenantId,
+          staff_profile_id: dto.staff_profile_id,
+          actor_user_id: this.getActorUserId(),
+          action: 'staff.approved',
+          metadata: { staff_number: dto.staff_number },
+        });
+
+        return profile;
+      },
+    });
   }
 
   async reactivateStaff(dto: ReactivateStaffDto) {

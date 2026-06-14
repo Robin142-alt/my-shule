@@ -15,23 +15,23 @@ export function buttonClasses({
   className?: string;
 }) {
   const base =
-    "inline-flex items-center justify-center gap-2 rounded-[var(--radius-sm)] font-semibold transition-all duration-150 focus-ring disabled:cursor-not-allowed disabled:opacity-50";
+    "inline-flex items-center justify-center gap-2 rounded-lg font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100 disabled:hover:shadow-none disabled:active:scale-100";
 
   const variantClasses: Record<ButtonVariant, string> = {
     primary:
-      "ui-button-primary hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98]",
+      "bg-gradient-to-b from-[#09275e] to-[#071D49] text-white shadow-[0_2px_10px_rgba(7,29,73,0.15)] border border-[#061638] hover:shadow-[0_4px_15px_rgba(7,29,73,0.25)] hover:from-[#0a2e70] hover:to-[#082255] hover:-translate-y-[1px] active:translate-y-0 active:scale-[0.98] active:shadow-sm",
     default:
-      "ui-button-primary hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98]",
+      "bg-gradient-to-b from-[#09275e] to-[#071D49] text-white shadow-[0_2px_10px_rgba(7,29,73,0.15)] border border-[#061638] hover:shadow-[0_4px_15px_rgba(7,29,73,0.25)] hover:from-[#0a2e70] hover:to-[#082255] hover:-translate-y-[1px] active:translate-y-0 active:scale-[0.98] active:shadow-sm",
     secondary:
-      "ui-button-secondary shadow-sm hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98]",
+      "bg-white text-slate-700 border border-slate-200 shadow-sm hover:bg-slate-50 hover:text-slate-900 hover:-translate-y-[1px] hover:shadow-md active:translate-y-0 active:scale-[0.98]",
     danger:
-      "bg-danger text-white hover:bg-danger-hover active:scale-[0.98] shadow-[0_10px_28px_rgba(220,38,38,0.16)]",
+      "bg-gradient-to-b from-red-500 to-red-600 text-white shadow-[0_2px_10px_rgba(220,38,38,0.2)] border border-red-700 hover:shadow-[0_4px_15px_rgba(220,38,38,0.3)] hover:from-red-400 hover:to-red-500 hover:-translate-y-[1px] active:translate-y-0 active:scale-[0.98]",
     ghost:
-      "bg-transparent text-muted hover:bg-primary-soft hover:text-primary",
+      "bg-transparent text-slate-500 hover:bg-slate-100 hover:text-slate-900 active:scale-[0.98]",
     outline:
-      "border border-input bg-background hover:bg-accent hover:text-accent-foreground",
+      "border border-slate-200 bg-transparent text-slate-700 hover:bg-slate-50 hover:text-slate-900 active:scale-[0.98]",
     link:
-      "text-primary underline-offset-4 hover:underline",
+      "text-primary underline-offset-4 hover:underline hover:text-primary/80",
   };
 
   const sizeClasses: Record<ButtonSize, string> = {

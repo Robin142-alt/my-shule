@@ -10,7 +10,7 @@ export function ClinicHealthWorkspace() {
   const { data: historyData, isLoading } = useSchoolQuery<{ visits?: any[]; allergies?: string[]; medications?: any[] }>('/api/clinic/parent/students/me/history');
 
   const visits = historyData?.visits || [];
-  const allergies = historyData?.allergies || ['Penicillin', 'Peanuts']; // Mocking if none returned
+  const allergies = historyData?.allergies || [];
   const medications = historyData?.medications || [];
 
   return (

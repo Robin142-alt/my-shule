@@ -7,6 +7,7 @@ import { useSchoolQuery } from "@/lib/data/school-hooks";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
 import { requestDashboardApi } from "@/lib/dashboard/api-client";
+import { usePermissions } from "@/components/providers/permission-context";
 
 type PrincipalSubjectsData = {
   status: "active" | "degraded" | "setup_required";
@@ -23,6 +24,7 @@ export function PrincipalSubjectsDepartmentsWorkspace() {
   const { data: yearsData } = useSchoolQuery<any[]>('/academics/academic-years');
   const { data: subjectsData } = useSchoolQuery<any[]>('/academics/subjects');
   const { data: departmentsData } = useSchoolQuery<any[]>('/academics/departments');
+  const { hasPermission } = usePermissions();
 
   const [isSubjectModalOpen, setIsSubjectModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -122,15 +124,17 @@ export function PrincipalSubjectsDepartmentsWorkspace() {
   return (
     <div className="space-y-6">
       <div className="flex justify-end">
-        <Button 
-          variant="outline" 
-          onClick={() => setIsSubjectModalOpen(true)}
-          disabled={!hasYears}
-          title={!hasYears ? "Cannot create subjects before an academic year is configured" : ""}
-        >
-          <Plus className="h-4 w-4 mr-2" />
-          Create Subject
-        </Button>
+        {hasPermission('academics:write') && (
+          <Button 
+            variant="outline" 
+            onClick={() => setIsSubjectModalOpen(true)}
+            disabled={!hasYears}
+            title={!hasYears ? "Cannot create subjects before an academic year is configured" : ""}
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Create Subject
+          </Button>
+        )}
       </div>
 
       <div className="grid gap-4 md:grid-cols-4">
@@ -216,9 +220,11 @@ export function PrincipalSubjectsDepartmentsWorkspace() {
         <Card className="border border-white/10 bg-white/5 p-6 flex flex-col h-full">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xl font-bold text-white">Departments</h2>
-            <Button size="sm" variant="outline" onClick={() => setIsDepartmentModalOpen(true)}>
-              <Plus className="h-4 w-4 mr-1" /> Add Department
-            </Button>
+            {hasPermission('academics:write') && (
+              <Button size="sm" variant="outline" onClick={() => setIsDepartmentModalOpen(true)}>
+                <Plus className="h-4 w-4 mr-1" /> Add Department
+              </Button>
+            )}
           </div>
           
           {!departmentsData || departmentsData.length === 0 ? (

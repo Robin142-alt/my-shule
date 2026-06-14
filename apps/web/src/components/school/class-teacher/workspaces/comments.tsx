@@ -1,9 +1,11 @@
 import { MessageSquare } from "lucide-react";
 import { Panel } from "../shared";
 import { useClassTeacherComments } from "@/lib/data/class-teacher-hooks";
+import { usePermissions } from "@/components/providers/permission-context";
 
 export function ReportCommentsWorkspace() {
   const streamId = "stream_123";
+  const { hasPermission } = usePermissions();
   const { data, isLoading, error } = useClassTeacherComments(streamId);
 
   if (isLoading) {
@@ -57,7 +59,11 @@ export function ReportCommentsWorkspace() {
         </table>
       </div>
       <div className="mt-4 flex justify-end">
-         <button className="rounded-lg bg-[#1D4ED8] px-4 py-2 text-sm font-black text-white">Save All Comments</button>
+         {hasPermission('school_reports:write') ? (
+           <button className="rounded-lg bg-[#1D4ED8] px-4 py-2 text-sm font-black text-white">Save All Comments</button>
+         ) : (
+           <span className="text-sm font-bold text-[#64748B]">Restricted</span>
+         )}
       </div>
     </Panel>
   );

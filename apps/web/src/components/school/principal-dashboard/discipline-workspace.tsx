@@ -3,6 +3,11 @@
 import { Card } from "@/components/ui/card";
 import { AlertCircle, AlertTriangle, ShieldAlert } from "lucide-react";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Modal } from "@/components/ui/modal";
+import { Loader2 } from "lucide-react";
+import { usePermissions } from "@/components/providers/permission-context";
 
 type PrincipalDisciplineData = {
   status: "active" | "degraded" | "setup_required";
@@ -14,7 +19,38 @@ type PrincipalDisciplineData = {
 };
 
 export function PrincipalDisciplineWorkspace() {
-  const { data, isLoading, error } = useSchoolQuery<PrincipalDisciplineData>('/admin-command/principal/discipline');
+  const { data, isLoading, error, refetch } = useSchoolQuery<PrincipalDisciplineData>('/admin-command/principal/discipline');
+  const studentsData: any = { students: [] };
+  const { hasPermission } = usePermissions();
+  
+  const [isIncidentModalOpen, setIsIncidentModalOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [formError, setFormError] = useState("");
+
+  const handleReportIncident = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    setFormError("");
+    const formData = new FormData(e.currentTarget);
+    
+    try {
+      // await requestDashboardApi('/admin-command/discipline/incidents', {
+      //   method: "POST",
+      //   body: {
+      //     studentId: formData.get("studentId"),
+      //     category: formData.get("category"),
+      //     severity: formData.get("severity"),
+      //     description: formData.get("description"),
+      //   }
+      // });
+      setIsIncidentModalOpen(false);
+      refetch();
+    } catch (err: any) {
+      setFormError(err.message || "Failed to report incident");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -87,16 +123,23 @@ export function PrincipalDisciplineWorkspace() {
         <Card className="border border-white/10 bg-white/5 p-6 flex flex-col h-full">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xl font-bold text-white">Recent Incidents</h2>
-            <button className="text-xs bg-red-500/20 text-red-400 px-3 py-1.5 rounded hover:bg-red-500/30 transition-colors flex items-center gap-1">
-              <ShieldAlert className="h-3 w-3" />
-              Report Incident
-            </button>
+            {hasPermission('discipline:write') && (
+              <Button size="sm" variant="outline" className="text-xs bg-red-500/20 text-red-400 px-3 py-1.5 rounded hover:bg-red-500/30 transition-colors flex items-center gap-1" onClick={() => setIsIncidentModalOpen(true)}>
+                <ShieldAlert className="h-3 w-3 mr-1" />
+                Report Incident
+              </Button>
+            )}
           </div>
           
           {(!data.recentIncidents || data.recentIncidents.length === 0) ? (
             <div className="flex flex-col items-center justify-center flex-1 py-8 text-center bg-white/5 rounded-lg border border-white/5">
               <AlertTriangle className="h-10 w-10 text-white/20 mb-3" />
-              <p className="text-white/60">No recent incidents reported</p>
+              <p className="text-white/60 mb-4">No recent incidents reported</p>
+              {hasPermission('discipline:write') && (
+                <Button size="sm" variant="outline" onClick={() => setIsIncidentModalOpen(true)}>
+                  <ShieldAlert className="h-4 w-4 mr-2" /> Report Incident
+                </Button>
+              )}
             </div>
           ) : (
             <div className="space-y-3 flex-1 overflow-y-auto pr-2">
@@ -120,6 +163,55 @@ export function PrincipalDisciplineWorkspace() {
           )}
         </Card>
       </div>
+
+      <Modal open={isIncidentModalOpen} onClose={() => setIsIncidentModalOpen(false)} title="Report Incident">
+        <form onSubmit={handleReportIncident} className="space-y-4">
+          {formError && (
+            <div className="p-3 bg-red-500/10 border border-red-500/20 text-red-500 rounded text-sm">
+              {formError}
+            </div>
+          )}
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Student Involved</label>
+            <select name="studentId" required className="w-full border rounded p-2 text-sm bg-white text-black">
+              <option value="">Select a student...</option>
+              {/* @ts-ignore */}
+              {studentsData?.students?.map((s: any) => (
+                <option key={s.id} value={s.id}>{s.user.firstName} {s.user.lastName} ({s.admissionNumber})</option>
+              ))}
+            </select>
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Incident Category</label>
+            <select name="category" required className="w-full border rounded p-2 text-sm bg-white text-black">
+              <option value="TRUANCY">Truancy / Absenteeism</option>
+              <option value="BULLYING">Bullying</option>
+              <option value="DISRUPTION">Classroom Disruption</option>
+              <option value="VANDALISM">Vandalism</option>
+              <option value="THEFT">Theft</option>
+              <option value="OTHER">Other</option>
+            </select>
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Severity</label>
+            <select name="severity" required className="w-full border rounded p-2 text-sm bg-white text-black">
+              <option value="MINOR">Minor</option>
+              <option value="MAJOR">Major</option>
+              <option value="CRITICAL">Critical</option>
+            </select>
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Description</label>
+            <textarea name="description" required rows={3} className="w-full border rounded p-2 text-sm" placeholder="Provide details about the incident..." />
+          </div>
+          <div className="pt-4 flex justify-end">
+            <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Report Incident
+            </Button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 }

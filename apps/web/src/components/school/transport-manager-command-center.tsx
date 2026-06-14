@@ -32,6 +32,9 @@ import { NotificationBell } from "@/components/shared/notification-bell";
 import { TaskQueue } from "@/components/shared/task-queue";
 import { WorkflowToast } from "@/components/shared/workflow-toast";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
+import { usePermissions } from "@/components/providers/permission-context";
+import { Button } from "@/components/ui/button";
+import { Modal } from "@/components/ui/modal";
 
 type TransportRouteMode = "hosted" | "public";
 type Tone = "success" | "info" | "warning" | "danger" | "neutral";
@@ -675,10 +678,61 @@ function RoutesWorkspace({ onAction }: { onAction: TransportActionHandler }) {
   );
 }
 
+function AssignRouteModal({ onClose }: { onClose: () => void }) {
+  const [submitting, setSubmitting] = useState(false);
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+    setTimeout(() => { setSubmitting(false); onClose(); }, 1000);
+  };
+  return (
+    <Modal title="Assign Route & Vehicle" open={true} onClose={onClose} size="md">
+      <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <div>
+          <label className="block text-sm font-bold text-[#071D49] mb-1">Student</label>
+          <input required type="text" className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Select student..." />
+        </div>
+        <div>
+          <label className="block text-sm font-bold text-[#071D49] mb-1">Route & Zone</label>
+          <select required className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]">
+            <option value="">Select route...</option>
+            <option value="kisumu_west">Kisumu West / Mamboleo</option>
+            <option value="milimani">Milimani Zone</option>
+          </select>
+        </div>
+        <div>
+          <label className="block text-sm font-bold text-[#071D49] mb-1">Pickup Stop</label>
+          <input required type="text" className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="e.g. Kibuye stage" />
+        </div>
+        <div className="mt-6 flex justify-end gap-3 pt-4 border-t border-[#D8E0EC]">
+          <button type="button" onClick={onClose} className="rounded-xl px-4 py-2 text-sm font-bold text-[#64748B]">Cancel</button>
+          <button disabled={submitting} type="submit" className="rounded-xl bg-[#071D49] px-6 py-2 text-sm font-black text-white">
+            {submitting ? "Saving..." : "Assign Transport"}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
 function AllocationWorkspace({ onAction }: { onAction: TransportActionHandler }) {
+  const { hasPermission } = usePermissions();
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
   return (
     <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
-      <Panel title="Student Transport Allocation" description="Assign routes, pickup stops, vehicles, parent contacts, and payment status from one focused page." icon={Users}>
+      <Panel 
+        title="Student Transport Allocation" 
+        description="Assign routes, pickup stops, vehicles, parent contacts, and payment status from one focused page." 
+        icon={Users}
+        actions={
+          hasPermission('transport:write') ? (
+            <Button onClick={() => setIsModalOpen(true)}>Assign Route</Button>
+          ) : (
+            <span className="text-xs font-bold text-[#64748B]">Restricted</span>
+          )
+        }
+      >
         <DataTable title="Student transport table" columns={["Student Name", "Admission Number", "Route", "Pickup Stop", "Vehicle", "Parent Contact", "Payment Status"]} rows={students} onAction={onAction} />
       </Panel>
       <Panel title="Student side panel" description="Transport history, attendance, parent contacts, route details, and payment history." icon={UserCheck}>
@@ -688,6 +742,8 @@ function AllocationWorkspace({ onAction }: { onAction: TransportActionHandler })
           ))}
         </div>
       </Panel>
+      
+      {isModalOpen && <AssignRouteModal onClose={() => setIsModalOpen(false)} />}
     </div>
   );
 }
@@ -731,25 +787,84 @@ function FuelWorkspace({ onAction }: { onAction: TransportActionHandler }) {
   );
 }
 
-function MaintenanceWorkspace() {
+function LogMaintenanceModal({ onClose }: { onClose: () => void }) {
+  const [submitting, setSubmitting] = useState(false);
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+    setTimeout(() => { setSubmitting(false); onClose(); }, 1000);
+  };
   return (
-    <Panel title="Maintenance & Repairs" description="Kanban-style servicing board with service history, downtime, parts, costs, and unsafe vehicle warnings." icon={Wrench}>
-      <div className="grid gap-3 md:grid-cols-4">
-        {[
-          ["Scheduled", "Bus 02 tire rotation", "Medium", "Mechanic Otis", "Tomorrow", "info"],
-          ["In Progress", "Bus 11 brake pads", "High", "Garage B", "Today 4 PM", "warning"],
-          ["Completed", "Bus 04 oil service", "Low", "In-house", "Closed", "success"],
-          ["Urgent", "Van 03 steering fault", "Critical", "External mechanic", "Blocked", "danger"],
-        ].map(([stage, issue, priority, mechanic, eta, tone]) => (
-          <article key={stage} className={cn("rounded-2xl border p-4", toneClasses[tone as Tone].card)}>
-            <StatusChip label={stage} tone={tone as Tone} />
-            <h3 className="mt-3 font-black">{issue}</h3>
-            <p className="mt-2 text-sm font-semibold opacity-75">{priority} - {mechanic}</p>
-            <p className="mt-1 text-sm font-semibold opacity-75">Estimated completion: {eta}</p>
-          </article>
-        ))}
-      </div>
-    </Panel>
+    <Modal title="Log Maintenance Issue" open={true} onClose={onClose} size="md">
+      <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <div>
+          <label className="block text-sm font-bold text-[#071D49] mb-1">Vehicle</label>
+          <select required className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]">
+            <option value="">Select vehicle...</option>
+            <option value="bus04">Bus 04 (KCA 123X)</option>
+            <option value="bus11">Bus 11 (KCB 456Y)</option>
+          </select>
+        </div>
+        <div>
+          <label className="block text-sm font-bold text-[#071D49] mb-1">Issue Description</label>
+          <textarea required rows={3} className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Describe the fault or service needed..."></textarea>
+        </div>
+        <div>
+          <label className="block text-sm font-bold text-[#071D49] mb-1">Priority</label>
+          <select required className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]">
+            <option value="low">Low (Routine)</option>
+            <option value="medium">Medium</option>
+            <option value="high">High</option>
+            <option value="critical">Critical (Do not drive)</option>
+          </select>
+        </div>
+        <div className="mt-6 flex justify-end gap-3 pt-4 border-t border-[#D8E0EC]">
+          <button type="button" onClick={onClose} className="rounded-xl px-4 py-2 text-sm font-bold text-[#64748B]">Cancel</button>
+          <button disabled={submitting} type="submit" className="rounded-xl bg-[#071D49] px-6 py-2 text-sm font-black text-white">
+            {submitting ? "Logging..." : "Log Issue"}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+function MaintenanceWorkspace() {
+  const { hasPermission } = usePermissions();
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  return (
+    <>
+      <Panel 
+        title="Maintenance & Repairs" 
+        description="Kanban-style servicing board with service history, downtime, parts, costs, and unsafe vehicle warnings." 
+        icon={Wrench}
+        actions={
+          hasPermission('transport:write') ? (
+            <Button onClick={() => setIsModalOpen(true)}>Log Maintenance</Button>
+          ) : (
+            <span className="text-xs font-bold text-[#64748B]">Restricted</span>
+          )
+        }
+      >
+        <div className="grid gap-3 md:grid-cols-4">
+          {[
+            ["Scheduled", "Bus 02 tire rotation", "Medium", "Mechanic Otis", "Tomorrow", "info"],
+            ["In Progress", "Bus 11 brake pads", "High", "Garage B", "Today 4 PM", "warning"],
+            ["Completed", "Bus 04 oil service", "Low", "In-house", "Closed", "success"],
+            ["Urgent", "Van 03 steering fault", "Critical", "External mechanic", "Blocked", "danger"],
+          ].map(([stage, issue, priority, mechanic, eta, tone]) => (
+            <article key={stage} className={cn("rounded-2xl border p-4", toneClasses[tone as Tone].card)}>
+              <StatusChip label={stage} tone={tone as Tone} />
+              <h3 className="mt-3 font-black">{issue}</h3>
+              <p className="mt-2 text-sm font-semibold opacity-75">{priority} - {mechanic}</p>
+              <p className="mt-1 text-sm font-semibold opacity-75">Estimated completion: {eta}</p>
+            </article>
+          ))}
+        </div>
+      </Panel>
+      {isModalOpen && <LogMaintenanceModal onClose={() => setIsModalOpen(false)} />}
+    </>
   );
 }
 

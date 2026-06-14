@@ -36,4 +36,53 @@ export class DashboardService {
       buttons: resolvedButtons
     };
   }
+
+  async getParentOverview(tenantId: string, parentId: string) {
+    return {
+      activities: [],
+      alerts: []
+    };
+  }
+
+  async getParentAcademics(tenantId: string, parentId: string) {
+    return {
+      grades: [],
+      assignments: []
+    };
+  }
+
+  async getParentFinance(tenantId: string, parentId: string) {
+    return {
+      invoices: [],
+      payments: []
+    };
+  }
+
+  async getParentCommunication(tenantId: string, parentId: string) {
+    return {
+      messages: [],
+      notices: []
+    };
+  }
+
+  async getStudentOverview(tenantId: string, studentId: string) {
+    return {
+      schedule: [],
+      announcements: []
+    };
+  }
+
+  async getStudentAcademics(tenantId: string, studentId: string) {
+    return {
+      assignments: [],
+      exams: [],
+      reportCards: []
+    };
+  }
+
+  async getStudentAttendance(tenantId: string, studentId: string) {
+    return {
+      records: []
+    };
+  }
 }

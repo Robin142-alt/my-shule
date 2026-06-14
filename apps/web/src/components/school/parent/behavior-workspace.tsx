@@ -13,7 +13,7 @@ export function BehaviorWorkspace() {
   const { data: scoreData, isLoading: scoreLoading } = useSchoolQuery<{ score?: number }>('/api/discipline/students/me/behavior-score');
 
   const incidents = incidentsData?.data || [];
-  const score = scoreData?.score || 95; // Default to 95 if not returned
+  const score = scoreData?.score;
   
   // We can filter by severity
   const commendations = incidents.filter((i: any) => i.severity === 'commendation' || i.title?.toLowerCase().includes('commendation'));
@@ -57,7 +57,7 @@ export function BehaviorWorkspace() {
             {scoreLoading ? (
                <div className="h-12 w-24 bg-slate-200 animate-pulse rounded"></div>
             ) : (
-               <span className="text-5xl font-bold text-slate-900">{score}</span>
+               <span className="text-5xl font-bold text-slate-900">{score ?? '--'}</span>
             )}
             <span className="text-slate-500 font-medium">/ 100</span>
           </div>

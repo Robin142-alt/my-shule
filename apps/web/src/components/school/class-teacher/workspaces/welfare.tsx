@@ -32,7 +32,7 @@ export function WelfareWorkspace() {
     referMutation.mutate({
       streamId,
       payload: {
-        studentId: learner || "mock_student_id",
+        studentId: learner,
         reason
       }
     }, {
