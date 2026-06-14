@@ -218,12 +218,7 @@ export class AdminCommandController {
   @Get('communication-templates')
   @Permissions('admin:read')
   async listCommunicationTemplates() {
-    const tenantId = (this.adminCommandService as any).requestContext?.getStore()?.tenant_id;
-    const result = await (this.adminCommandService as any).databaseService.query(
-      `SELECT * FROM communication_templates WHERE tenant_id = $1 AND is_active = true ORDER BY name ASC`,
-      [tenantId]
-    );
-    return result.rows;
+    return this.adminCommandService.getCommunicationTemplates();
   }
 
   @Post('communication-broadcasts')
@@ -253,37 +248,19 @@ export class AdminCommandController {
   @Post('communication-templates')
   @Permissions('admin:write')
   async createCommunicationTemplate(@Body() dto: { name: string; type: string; subject?: string; body: string; variables?: string[] }) {
-    const tenantId = (this.adminCommandService as any).requestContext?.getStore()?.tenant_id;
-    const result = await (this.adminCommandService as any).databaseService.query(
-      `INSERT INTO communication_templates (tenant_id, name, type, subject, body, variables)
-       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
-      [tenantId, dto.name, dto.type, dto.subject || null, dto.body, JSON.stringify(dto.variables || [])]
-    );
-    return result.rows[0];
+    return this.adminCommandService.createCommunicationTemplate(dto);
   }
 
   @Patch('communication-templates/:id')
   @Permissions('admin:write')
   async updateCommunicationTemplate(@Body() dto: { name?: string; type?: string; subject?: string; body?: string; variables?: string[] }, @Param('id') id: string) {
-    const tenantId = (this.adminCommandService as any).requestContext?.getStore()?.tenant_id;
-    const result = await (this.adminCommandService as any).databaseService.query(
-      `UPDATE communication_templates 
-       SET name = COALESCE($1, name), type = COALESCE($2, type), subject = COALESCE($3, subject), body = COALESCE($4, body), variables = COALESCE($5::jsonb, variables), updated_at = NOW()
-       WHERE tenant_id = $6 AND id = $7::uuid RETURNING *`,
-      [dto.name, dto.type, dto.subject, dto.body, dto.variables ? JSON.stringify(dto.variables) : null, tenantId, id]
-    );
-    return result.rows[0];
+    return this.adminCommandService.updateCommunicationTemplate(id, dto);
   }
 
   @Delete('communication-templates/:id')
   @Permissions('admin:write')
   async deleteCommunicationTemplate(@Param('id') id: string) {
-    const tenantId = (this.adminCommandService as any).requestContext?.getStore()?.tenant_id;
-    const result = await (this.adminCommandService as any).databaseService.query(
-      `UPDATE communication_templates SET is_active = false, updated_at = NOW() WHERE tenant_id = $1 AND id = $2::uuid RETURNING *`,
-      [tenantId, id]
-    );
-    return result.rows[0];
+    return this.adminCommandService.deleteCommunicationTemplate(id);
   }
 
   @Post('announcements')

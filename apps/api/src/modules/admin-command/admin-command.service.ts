@@ -99,6 +99,22 @@ export class AdminCommandService {
     return this.repository.getCommunicationOverview(this.requireTenantId());
   }
 
+  getCommunicationTemplates() {
+    return this.repository.getCommunicationTemplates(this.requireTenantId());
+  }
+
+  createCommunicationTemplate(dto: any) {
+    return this.repository.createCommunicationTemplate(this.requireTenantId(), dto);
+  }
+
+  updateCommunicationTemplate(id: string, dto: any) {
+    return this.repository.updateCommunicationTemplate(this.requireTenantId(), id, dto);
+  }
+
+  deleteCommunicationTemplate(id: string) {
+    return this.repository.deleteCommunicationTemplate(this.requireTenantId(), id);
+  }
+
   getPrincipalClassesOverview() {
     if (this.principalInsights) {
       return this.principalInsights.getClassesOverview(this.requireTenantId());
