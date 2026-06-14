@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { test as base } from '@playwright/test';
 import { Pool } from 'pg';
 

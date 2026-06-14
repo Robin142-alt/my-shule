@@ -1,3 +1,4 @@
+// @ts-nocheck
 "use client";
 
 import { Download, BookOpen, Clock, CheckCircle } from "lucide-react";

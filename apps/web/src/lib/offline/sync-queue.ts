@@ -35,19 +35,27 @@ interface ShuleOfflineDB extends DBSchema {
 }
 
 class SyncQueueService {
-  private dbPromise: Promise<IDBPDatabase<ShuleOfflineDB>>;
+  private dbPromise: Promise<IDBPDatabase<ShuleOfflineDB>> | null = null;
 
-  constructor() {
-    this.dbPromise = openDB<ShuleOfflineDB>('myshule-offline-db', 1, {
-      upgrade(db) {
-        if (!db.objectStoreNames.contains('sync_queue')) {
-          const store = db.createObjectStore('sync_queue', { keyPath: 'id' });
-          store.createIndex('by-school', 'schoolId');
-          store.createIndex('by-status', 'status');
-          store.createIndex('by-module', 'module');
-        }
-      },
-    });
+  constructor() {}
+
+  private getDB(): Promise<IDBPDatabase<ShuleOfflineDB>> {
+    if (typeof window === 'undefined') {
+      return Promise.reject(new Error('IndexedDB is not available on the server'));
+    }
+    if (!this.dbPromise) {
+      this.dbPromise = openDB<ShuleOfflineDB>('myshule-offline-db', 1, {
+        upgrade(db) {
+          if (!db.objectStoreNames.contains('sync_queue')) {
+            const store = db.createObjectStore('sync_queue', { keyPath: 'id' });
+            store.createIndex('by-school', 'schoolId');
+            store.createIndex('by-status', 'status');
+            store.createIndex('by-module', 'module');
+          }
+        },
+      });
+    }
+    return this.dbPromise;
   }
 
   /**
@@ -57,7 +65,7 @@ class SyncQueueService {
     recordData: Omit<OfflineSyncRecord, 'id' | 'operationId' | 'status' | 'retryCount' | 'createdAtLocal'>,
     isDraft = false
   ): Promise<OfflineSyncRecord> {
-    const db = await this.dbPromise;
+    const db = await this.getDB();
     const id = uuidv4();
     const operationId = uuidv4();
 
@@ -78,7 +86,7 @@ class SyncQueueService {
    * Retrieves records for a specific school and status
    */
   async getRecordsBySchoolAndStatus(schoolId: string, status: SyncStatus): Promise<OfflineSyncRecord[]> {
-    const db = await this.dbPromise;
+    const db = await this.getDB();
     const allForSchool = await db.getAllFromIndex('sync_queue', 'by-school', schoolId);
     return allForSchool.filter(r => r.status === status);
   }
@@ -87,7 +95,7 @@ class SyncQueueService {
    * Retrieves all records for a given school (to ensure tenant isolation on the client)
    */
   async getAllForSchool(schoolId: string): Promise<OfflineSyncRecord[]> {
-    const db = await this.dbPromise;
+    const db = await this.getDB();
     return db.getAllFromIndex('sync_queue', 'by-school', schoolId);
   }
 
@@ -95,7 +103,7 @@ class SyncQueueService {
    * Updates the status of a sync record
    */
   async updateStatus(id: string, status: SyncStatus, errorMessage?: string): Promise<void> {
-    const db = await this.dbPromise;
+    const db = await this.getDB();
     const record = await db.get('sync_queue', id);
     if (record) {
       record.status = status;
@@ -116,7 +124,7 @@ class SyncQueueService {
    * Remove a record completely
    */
   async removeRecord(id: string): Promise<void> {
-    const db = await this.dbPromise;
+    const db = await this.getDB();
     await db.delete('sync_queue', id);
   }
 
@@ -124,7 +132,7 @@ class SyncQueueService {
    * Clear all synced records
    */
   async clearSyncedRecords(schoolId: string): Promise<void> {
-    const db = await this.dbPromise;
+    const db = await this.getDB();
     const records = await this.getRecordsBySchoolAndStatus(schoolId, 'Synced');
     
     const tx = db.transaction('sync_queue', 'readwrite');

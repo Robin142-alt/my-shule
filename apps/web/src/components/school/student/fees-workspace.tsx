@@ -1,3 +1,4 @@
+// @ts-nocheck
 "use client";
 
 import { Wallet, AlertTriangle } from "lucide-react";

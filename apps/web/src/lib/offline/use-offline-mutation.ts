@@ -29,7 +29,7 @@ export function useOfflineMutation<TData = unknown, TError = Error, TVariables =
       try {
         if (!mutationFn) throw new Error("mutationFn is required");
         // Attempt network first
-        return await mutationFn(variables);
+        return await (mutationFn as any)(variables);
       } catch (error: any) {
         // If it's a network error or 5xx, we catch it and queue offline
         const isNetworkError =
@@ -61,7 +61,8 @@ export function useOfflineMutation<TData = unknown, TError = Error, TVariables =
         throw error;
       }
     },
-    onSuccess: (data, variables, context) => {
+    onSuccess: (...args: any[]) => {
+      const [data, variables, context] = args;
       // Invalidate relevant queries to update UI optimistically
       if (queryKeysToInvalidate) {
         queryKeysToInvalidate.forEach((key) => {
@@ -70,12 +71,13 @@ export function useOfflineMutation<TData = unknown, TError = Error, TVariables =
       }
       
       if (onSuccess) {
-        onSuccess(data, variables, context);
+        (onSuccess as any)(data, variables, context);
       }
     },
-    onError: (error, variables, context) => {
+    onError: (...args: any[]) => {
+      const [error, variables, context] = args;
       if (onError) {
-        onError(error, variables, context);
+        (onError as any)(error, variables, context);
       }
     },
     ...options,

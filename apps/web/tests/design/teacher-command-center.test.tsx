@@ -27,7 +27,7 @@ describe("TeacherCommandCenter", () => {
     const printMock = jest.fn();
     Object.defineProperty(window, "print", { value: printMock, writable: true });
 
-    renderWithProviders(<TeacherCommandCenter routeMode="hosted" />);
+    renderWithProviders(<TeacherCommandCenter />);
 
     await user.click(screen.getByRole("button", { name: /upload notes/i }));
     expect(screen.getByRole("heading", { name: /lms resources/i })).toBeVisible();
@@ -68,7 +68,7 @@ describe("TeacherCommandCenter", () => {
   it("submits class attendance into the school-scoped event store", async () => {
     const user = userEvent.setup();
 
-    renderWithProviders(<TeacherCommandCenter routeMode="hosted" />);
+    renderWithProviders(<TeacherCommandCenter />);
 
     await user.click(screen.getAllByRole("button", { name: /mark attendance/i })[0]);
     expect(screen.getByRole("heading", { name: /mark class attendance/i })).toBeVisible();
@@ -110,7 +110,7 @@ describe("TeacherCommandCenter", () => {
   it("stores named absent learners so parent and student dashboards can receive specific follow-up", async () => {
     const user = userEvent.setup();
 
-    renderWithProviders(<TeacherCommandCenter routeMode="hosted" />);
+    renderWithProviders(<TeacherCommandCenter />);
 
     await user.click(screen.getAllByRole("button", { name: /mark attendance/i })[0]);
     await user.clear(screen.getByLabelText(/absent learners/i));
@@ -132,7 +132,7 @@ describe("TeacherCommandCenter", () => {
   it("queues class SMS without claiming provider delivery", async () => {
     const user = userEvent.setup();
 
-    renderWithProviders(<TeacherCommandCenter routeMode="hosted" />);
+    renderWithProviders(<TeacherCommandCenter />);
 
     await user.click(screen.getAllByRole("button", { name: /send sms/i })[0]);
     expect(screen.getByRole("heading", { name: /send class message/i })).toBeVisible();
