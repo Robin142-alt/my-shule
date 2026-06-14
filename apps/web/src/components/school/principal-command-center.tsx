@@ -11,7 +11,6 @@ import { ApprovalInbox } from "@/components/shared/approval-inbox";
 import { NotificationBell } from "@/components/shared/notification-bell";
 import { TaskQueue } from "@/components/shared/task-queue";
 import { WorkflowToast } from "@/components/shared/workflow-toast";
-import { useAuth } from "@/lib/auth/auth-context";
 
 import { PrincipalOverviewWorkspace } from "./principal-dashboard/overview-workspace";
 import { PrincipalSetupChecklistWorkspace } from "./principal-dashboard/setup-checklist-workspace";
@@ -66,7 +65,6 @@ const BASE_NAV_ITEMS: NavItem[] = [
 ];
 
 export function PrincipalCommandCenter({ routeMode }: { routeMode?: "hosted" | "public" }) {
-  const { user } = useAuth();
   const [activeWorkspace, setActiveWorkspace] = useState("overview");
   const [isTeachingEnabled, setIsTeachingEnabled] = useState(true);
 
@@ -171,11 +169,11 @@ export function PrincipalCommandCenter({ routeMode }: { routeMode?: "hosted" | "
               <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
                 <div className="flex items-center gap-4">
                   <div className="grid h-12 w-12 place-items-center rounded-[var(--radius-lg)] bg-[#071D49] text-sm font-black text-white shadow-[0_16px_34px_rgba(7,29,73,0.18)]">
-                    {user?.name ? user.name.substring(0, 2).toUpperCase() : 'MS'}
+                    MS
                   </div>
                   <div>
                     <p className="text-xs font-black uppercase tracking-[0.16em] text-[#5F6F89]">
-                      Good morning, {user?.name ? user.name.split(' ')[0] : 'Principal'}
+                      Good morning, Principal
                     </p>
                     <p className="mt-1 text-lg font-black md:text-2xl">Principal Dashboard</p>
                   </div>
