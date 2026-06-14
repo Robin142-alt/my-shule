@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+require('dotenv').config();
 
 import { Client } from 'pg';
 
