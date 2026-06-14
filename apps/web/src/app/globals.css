@@ -162,85 +162,87 @@ textarea {
   background: rgba(255, 122, 26, 0.2);
 }
 
-.command-background {
-  background: var(--background);
-  color: var(--foreground);
-}
+@layer components {
+  .command-background {
+    background: var(--background);
+    color: var(--foreground);
+  }
 
-.command-grid {
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(255, 255, 255, 0) 18rem),
-    var(--background);
-}
+  .command-grid {
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(255, 255, 255, 0) 18rem),
+      var(--background);
+  }
 
-.glass-panel {
-  background: rgba(255, 255, 255, 0.94);
-  border: 1px solid var(--border);
-  box-shadow: var(--shadow);
-  backdrop-filter: blur(16px);
-}
+  .glass-panel {
+    background: rgba(255, 255, 255, 0.94);
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow);
+    backdrop-filter: blur(16px);
+  }
 
-.dashboard-card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow-sm);
-  transition:
-    box-shadow var(--duration) var(--ease),
-    border-color var(--duration) var(--ease),
-    transform var(--duration) var(--ease),
-    background-color var(--duration) var(--ease);
-}
+  .dashboard-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-sm);
+    transition:
+      box-shadow var(--duration) var(--ease),
+      border-color var(--duration) var(--ease),
+      transform var(--duration) var(--ease),
+      background-color var(--duration) var(--ease);
+  }
 
-.dashboard-card:hover {
-  border-color: rgba(7, 29, 73, 0.18);
-  box-shadow: var(--shadow);
-}
+  .dashboard-card:hover {
+    border-color: rgba(7, 29, 73, 0.18);
+    box-shadow: var(--shadow);
+  }
 
-.enterprise-shell {
-  background: var(--background);
-  color: var(--foreground);
-}
+  .enterprise-shell {
+    background: var(--background);
+    color: var(--foreground);
+  }
 
-.enterprise-sidebar {
-  background: var(--sidebar);
-  color: var(--sidebar-foreground);
-  border-color: rgba(255, 255, 255, 0.1);
-  box-shadow: 0 24px 80px rgba(7, 29, 73, 0.22);
-}
+  .enterprise-sidebar {
+    background: var(--sidebar);
+    color: var(--sidebar-foreground);
+    border-color: rgba(255, 255, 255, 0.1);
+    box-shadow: 0 24px 80px rgba(7, 29, 73, 0.22);
+  }
 
-.enterprise-topbar {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  box-shadow: var(--shadow-sm);
-}
+  .enterprise-topbar {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow-sm);
+  }
 
-.enterprise-card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow-sm);
-}
+  .enterprise-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-sm);
+  }
 
-.enterprise-card-hover {
-  transition:
-    border-color var(--duration) var(--ease),
-    box-shadow var(--duration) var(--ease),
-    transform var(--duration) var(--ease);
-}
+  .enterprise-card-hover {
+    transition:
+      border-color var(--duration) var(--ease),
+      box-shadow var(--duration) var(--ease),
+      transform var(--duration) var(--ease);
+  }
 
-.enterprise-card-hover:hover {
-  border-color: var(--border-strong);
-  box-shadow: var(--shadow-md);
-  transform: translateY(-1px);
-}
+  .enterprise-card-hover:hover {
+    border-color: var(--border-strong);
+    box-shadow: var(--shadow-md);
+    transform: translateY(-1px);
+  }
 
-.enterprise-analytics-panel {
-  background: linear-gradient(135deg, var(--navy), var(--darkblue));
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: var(--radius);
-  color: var(--white);
-  box-shadow: var(--shadow-md);
+  .enterprise-analytics-panel {
+    background: linear-gradient(135deg, var(--navy), var(--darkblue));
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: var(--radius);
+    color: var(--white);
+    box-shadow: var(--shadow-md);
+  }
 }
 
 .enterprise-kpi-highlight {

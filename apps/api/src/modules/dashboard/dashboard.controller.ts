@@ -5,11 +5,8 @@ import { JwtAuthGuard } from '../../guards/jwt-auth.guard';
 import { RbacGuard } from '../../guards/rbac.guard';
 import { RequestContextService } from '../../common/request-context/request-context.service';
 
-import { Permissions } from '../../auth/decorators/permissions.decorator';
-
 @UseGuards(JwtAuthGuard, RbacGuard)
 @Controller('dashboard')
-@Permissions('dashboard:*')
 export class DashboardController {
   constructor(
     private readonly dashboardService: DashboardService,
