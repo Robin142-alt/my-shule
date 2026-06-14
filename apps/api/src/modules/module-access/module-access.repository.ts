@@ -71,20 +71,10 @@ export class ModuleAccessRepository {
             base_price_cents, per_student_price_cents, billing_metadata,
             category, route_segment, permission_scopes
           )
-          VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7, $8::jsonb, $9, $10, $11::jsonb)
-          ON CONFLICT (code)
-          DO UPDATE SET
-            name = EXCLUDED.name,
-            description = EXCLUDED.description,
-            feature_flags = EXCLUDED.feature_flags,
-            status = EXCLUDED.status,
-            base_price_cents = EXCLUDED.base_price_cents,
-            per_student_price_cents = EXCLUDED.per_student_price_cents,
-            billing_metadata = EXCLUDED.billing_metadata,
-            category = EXCLUDED.category,
-            route_segment = EXCLUDED.route_segment,
-            permission_scopes = EXCLUDED.permission_scopes,
-            updated_at = NOW()
+          SELECT $1, $2, $3, $4::jsonb, $5, $6, $7, $8::jsonb, $9, $10, $11::jsonb
+          WHERE NOT EXISTS (
+            SELECT 1 FROM module_registry WHERE code = $1
+          )
         `,
         [
           moduleDefinition.code,
@@ -130,27 +120,22 @@ export class ModuleAccessRepository {
     route_segment: string | null;
     permission_scopes: string[];
   }): Promise<ModuleRegistryResponseDto> {
-    const result = await this.executeSql<ModuleRegistryRow>(
+    // Try to update first
+    const updateResult = await this.executeSql<ModuleRegistryRow>(
       `
-        INSERT INTO module_registry (
-          code, name, description, feature_flags, status,
-          base_price_cents, per_student_price_cents, billing_metadata,
-          category, route_segment, permission_scopes
-        )
-        VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7, $8::jsonb, $9, $10, $11::jsonb)
-        ON CONFLICT (code)
-        DO UPDATE SET
-          name = EXCLUDED.name,
-          description = EXCLUDED.description,
-          feature_flags = EXCLUDED.feature_flags,
-          status = EXCLUDED.status,
-          base_price_cents = EXCLUDED.base_price_cents,
-          per_student_price_cents = EXCLUDED.per_student_price_cents,
-          billing_metadata = EXCLUDED.billing_metadata,
-          category = EXCLUDED.category,
-          route_segment = EXCLUDED.route_segment,
-          permission_scopes = EXCLUDED.permission_scopes,
+        UPDATE module_registry SET
+          name = $2,
+          description = $3,
+          feature_flags = $4::jsonb,
+          status = $5,
+          base_price_cents = $6,
+          per_student_price_cents = $7,
+          billing_metadata = $8::jsonb,
+          category = $9,
+          route_segment = $10,
+          permission_scopes = $11::jsonb,
           updated_at = NOW()
+        WHERE code = $1
         RETURNING id::text, code, name, description, feature_flags, status,
                   base_price_cents, per_student_price_cents, billing_metadata,
                   category, route_segment, permission_scopes
@@ -170,7 +155,39 @@ export class ModuleAccessRepository {
       ],
     );
 
-    return this.mapRegistryRow(result.rows[0]);
+    if (updateResult.rows.length > 0) {
+      return this.mapRegistryRow(updateResult.rows[0]);
+    }
+
+    // If no row was updated, insert it
+    const insertResult = await this.executeSql<ModuleRegistryRow>(
+      `
+        INSERT INTO module_registry (
+          code, name, description, feature_flags, status,
+          base_price_cents, per_student_price_cents, billing_metadata,
+          category, route_segment, permission_scopes
+        )
+        VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7, $8::jsonb, $9, $10, $11::jsonb)
+        RETURNING id::text, code, name, description, feature_flags, status,
+                  base_price_cents, per_student_price_cents, billing_metadata,
+                  category, route_segment, permission_scopes
+      `,
+      [
+        input.code,
+        input.name,
+        input.description,
+        JSON.stringify(input.feature_flags),
+        input.status,
+        input.base_price_cents,
+        input.per_student_price_cents,
+        JSON.stringify(input.billing_metadata),
+        input.category,
+        input.route_segment,
+        JSON.stringify(input.permission_scopes),
+      ],
+    );
+
+    return this.mapRegistryRow(insertResult.rows[0]);
   }
 
   async listSchoolModules(tenantId: string): Promise<SchoolModuleAccessResponseDto[]> {
