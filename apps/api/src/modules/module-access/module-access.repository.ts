@@ -285,6 +285,24 @@ export class ModuleAccessRepository {
         [input.tenantId, input.updatedBy, input.moduleCodes],
       );
 
+      // First, update existing ones that should be enabled
+      await this.executeSql(
+        `
+          UPDATE school_module_access sma
+          SET enabled = true,
+              enabled_at = COALESCE(sma.enabled_at, NOW()),
+              disabled_at = NULL,
+              updated_by = $3::uuid,
+              updated_at = NOW()
+          FROM module_registry mr
+          WHERE sma.module_id = mr.id
+            AND sma.tenant_id = $1
+            AND (mr.code = ANY($2::text[]))
+        `,
+        [input.tenantId, input.moduleCodes, input.updatedBy],
+      );
+
+      // Then insert the missing ones
       await this.executeSql(
         `
           INSERT INTO school_module_access (
@@ -314,22 +332,13 @@ export class ModuleAccessRepository {
             NULL::text,
             '{}'::jsonb,
             'superadmin_bulk_allocation'
-          FROM module_registry
+          FROM module_registry mr
           WHERE code = ANY($2::text[])
             AND status = 'active'
-          ON CONFLICT (tenant_id, module_id)
-          DO UPDATE SET
-            enabled = true,
-            enabled_at = COALESCE(school_module_access.enabled_at, NOW()),
-            disabled_at = NULL,
-            updated_by = EXCLUDED.updated_by,
-            access_level = EXCLUDED.access_level,
-            trial_ends_at = EXCLUDED.trial_ends_at,
-            expires_at = EXCLUDED.expires_at,
-            billing_plan_code = EXCLUDED.billing_plan_code,
-            feature_flags = EXCLUDED.feature_flags,
-            activation_reason = EXCLUDED.activation_reason,
-            updated_at = NOW()
+            AND NOT EXISTS (
+              SELECT 1 FROM school_module_access sma
+              WHERE sma.module_id = mr.id AND sma.tenant_id = $1
+            )
         `,
         [input.tenantId, input.moduleCodes, input.updatedBy],
       );
