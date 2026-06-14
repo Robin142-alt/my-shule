@@ -5,7 +5,7 @@ import { fetchClassTeacherOverviewLive } from "@/lib/modules/teacher-live";
 import { useLiveTenantSession } from "@/hooks/use-live-tenant-session";
 
 export function OverviewWorkspace() {
-  const liveSession = useLiveTenantSession();
+  const liveSession = useLiveTenantSession("school");
   
   const { data, isLoading, error } = useQuery({
     queryKey: ["class-teacher-overview", liveSession.session?.tenantId, liveSession.session?.user.user_id],

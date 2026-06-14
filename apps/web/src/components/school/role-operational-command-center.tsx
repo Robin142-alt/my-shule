@@ -67,7 +67,7 @@ import {
   updateSchoolRecord,
 } from "@/lib/school/school-operational-store";
 import { useQueryClient } from "@tanstack/react-query";
-import { useSchoolMutation } from "@/lib/data/school-hooks";
+import { useSchoolMutation, useSchoolQuery } from "@/lib/data/school-hooks";
 import {
   getKisumuBoysRoleFeed,
   scoreKisumuBoysHighDemoReadiness,
@@ -4901,8 +4901,6 @@ function GenericRoleOperationalCommandCenter({
   const [executionLog, setExecutionLog] = useState<ExecutionLogItem[]>([]);
   const [runtimeEntries, setRuntimeEntries] = useState<RuntimeWorkspaceEntry[]>([]);
   const [attendanceRegisters, setAttendanceRegisters] = useState<AttendanceRegisterRecord[]>([]);
-
-  const queryClient = useQueryClient();
 
   const { data: fetchedClinicVisits } = useSchoolQuery<ClinicVisitRecord[]>("/api/clinic/visits");
   const clinicVisits = Array.isArray(fetchedClinicVisits) ? fetchedClinicVisits : [];

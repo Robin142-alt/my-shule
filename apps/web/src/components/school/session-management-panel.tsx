@@ -15,7 +15,7 @@ type SessionRow = {
   status: "Current" | "Active";
 };
 
-import { useSchoolQuery, useSchoolMutation } from "@/lib/school/school-api";
+import { useSchoolMutation, useSchoolQuery } from "@/lib/data/school-hooks";
 
 export function SessionManagementPanel() {
   const queryClient = useQueryClient();
