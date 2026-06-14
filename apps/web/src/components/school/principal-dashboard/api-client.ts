@@ -22,15 +22,15 @@ export async function fetchPrincipalAcademicSetup() {
 }
 
 export async function fetchPrincipalClassesStreams() {
-  return requestDashboardApi<PrincipalWorkspaceData>('/admin-command/principal/classes-streams');
+  return requestDashboardApi<PrincipalWorkspaceData>('/admin-command/principal/classes');
 }
 
 export async function fetchPrincipalSubjectsDepartments() {
-  return requestDashboardApi<PrincipalWorkspaceData>('/admin-command/principal/subjects-departments');
+  return requestDashboardApi<PrincipalWorkspaceData>('/admin-command/principal/subjects');
 }
 
 export async function fetchPrincipalStaffRoles() {
-  return requestDashboardApi<PrincipalWorkspaceData>('/admin-command/principal/staff-roles');
+  return requestDashboardApi<PrincipalWorkspaceData>('/admin-command/principal/staff');
 }
 
 export async function fetchPrincipalStudents() {
@@ -46,7 +46,7 @@ export async function fetchPrincipalAcademics() {
 }
 
 export async function fetchPrincipalExamsReports() {
-  return requestDashboardApi<PrincipalWorkspaceData>('/admin-command/principal/exams-reports');
+  return requestDashboardApi<PrincipalWorkspaceData>('/admin-command/principal/exams');
 }
 
 export async function fetchPrincipalFinanceOverview() {

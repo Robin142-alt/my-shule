@@ -63,6 +63,17 @@ describe("School Hooks Data Fetching Infrastructure", () => {
         tenantId: "explicit-tenant",
       });
     });
+
+    it("falls back to the session-backed API proxy when browser school storage is empty", async () => {
+      (getCurrentSchoolId as jest.Mock).mockReturnValue("");
+      (requestDashboardApi as jest.Mock).mockResolvedValue({ status: "ok" });
+
+      const { result } = renderHook(() => useSchoolQuery("/admin-command/principal/overview"), { wrapper });
+
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+      expect(requestDashboardApi).toHaveBeenCalledWith("/admin-command/principal/overview", {});
+    });
   });
 
   describe("useSchoolMutation", () => {

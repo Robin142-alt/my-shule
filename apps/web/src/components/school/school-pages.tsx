@@ -4155,7 +4155,7 @@ function SchoolPagesShell({
 
   if (renderRoleOperationalWorkspace) {
     if (role === "principal") {
-      return <PrincipalCommandCenter routeMode={routeMode} />;
+      return <PrincipalCommandCenter routeMode={routeMode} tenantSlug={tenantSlug} />;
     }
 
     if (role === "student") {

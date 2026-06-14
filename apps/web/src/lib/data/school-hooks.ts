@@ -36,17 +36,17 @@ interface SchoolQueryOptions<T>
  */
 export function useSchoolQuery<T>(path: string | null, options?: SchoolQueryOptions<T>) {
   const activeTenantId = options?.tenantId || getCurrentSchoolId();
+  const queryTenantId = activeTenantId || "session";
 
   return useQuery<T, Error>({
-    queryKey: ["school", activeTenantId, path],
+    queryKey: ["school", queryTenantId, path],
     queryFn: async () => {
       if (!path) return null as T;
-      if (!activeTenantId) {
-        throw new Error("Missing active school context");
-      }
 
       try {
-        return await requestDashboardApi<T>(path, { tenantId: activeTenantId });
+        return await requestDashboardApi<T>(path, {
+          ...(activeTenantId ? { tenantId: activeTenantId } : {}),
+        });
       } catch (err: unknown) {
         if (err instanceof Error && err.message?.includes("403")) throw new PermissionDeniedError();
         throw err;
@@ -86,17 +86,13 @@ export function useSchoolMutation<TData, TVariables>(
   return useOfflineMutation<TData, Error, TVariables>({
     module: typeof path === "string" ? getModuleAndAction(path).module : "dynamic",
     action: typeof path === "string" ? getModuleAndAction(path).action : "dynamic",
-    schoolId: activeTenantId || "myshule-tenant-demo",
+    schoolId: activeTenantId || "session",
     mutationFn: async (variables) => {
-      if (!activeTenantId) {
-        throw new Error("Missing active school context");
-      }
-
       const resolvedPath = typeof path === "function" ? path(variables) : path;
       try {
         return await requestDashboardApi<TData>(resolvedPath, {
           method,
-          tenantId: activeTenantId,
+          ...(activeTenantId ? { tenantId: activeTenantId } : {}),
           body: variables as Record<string, unknown>,
         });
       } catch (err: unknown) {

@@ -21,10 +21,15 @@ type PrincipalSubjectsData = {
 export function PrincipalSubjectsDepartmentsWorkspace() {
   const { data, isLoading, error, refetch } = useSchoolQuery<PrincipalSubjectsData>('/admin-command/principal/subjects');
   const { data: yearsData } = useSchoolQuery<any[]>('/academics/academic-years');
+  const { data: subjectsData } = useSchoolQuery<any[]>('/academics/subjects');
+  const { data: departmentsData } = useSchoolQuery<any[]>('/academics/departments');
 
   const [isSubjectModalOpen, setIsSubjectModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formError, setFormError] = useState("");
+  const [isDepartmentModalOpen, setIsDepartmentModalOpen] = useState(false);
+  const [isSubmittingDept, setIsSubmittingDept] = useState(false);
+  const [deptFormError, setDeptFormError] = useState("");
 
   const hasYears = yearsData && yearsData.length > 0;
 
@@ -81,13 +86,6 @@ export function PrincipalSubjectsDepartmentsWorkspace() {
       </Card>
     );
   }
-
-  const { data: subjectsData } = useSchoolQuery<any[]>('/academics/subjects');
-  const { data: departmentsData } = useSchoolQuery<any[]>('/academics/departments');
-
-  const [isDepartmentModalOpen, setIsDepartmentModalOpen] = useState(false);
-  const [isSubmittingDept, setIsSubmittingDept] = useState(false);
-  const [deptFormError, setDeptFormError] = useState("");
 
   const handleCreateDepartment = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();

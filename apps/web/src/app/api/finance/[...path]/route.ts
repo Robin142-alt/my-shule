@@ -15,3 +15,15 @@ export async function GET(request: NextRequest, context: RouteContext) {
 export async function POST(request: NextRequest, context: RouteContext) {
   return proxySchoolApiRequest(request, context, "/finance");
 }
+
+export async function PATCH(request: NextRequest, context: RouteContext) {
+  return proxySchoolApiRequest(request, context, "/finance");
+}
+
+export async function DELETE(request: NextRequest, context: RouteContext) {
+  return proxySchoolApiRequest(request, context, "/finance");
+}
+
+export async function PUT(request: NextRequest, context: RouteContext) {
+  return proxySchoolApiRequest(request, context, "/finance");
+}

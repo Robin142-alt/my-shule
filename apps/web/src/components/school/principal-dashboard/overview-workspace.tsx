@@ -30,7 +30,7 @@ export function PrincipalOverviewWorkspace() {
       // When a student is admitted somewhere else in the app, instantly update the metric
       const activeTenantId = getCurrentSchoolId();
       queryClient.setQueryData<PrincipalOverviewData>(
-        ["school", activeTenantId, '/admin-command/principal/overview'],
+        ["school", activeTenantId || "session", '/admin-command/principal/overview'],
         (currentData) => {
           if (!currentData) return currentData;
           return {

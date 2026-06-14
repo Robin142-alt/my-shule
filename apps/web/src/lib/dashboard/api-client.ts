@@ -3,6 +3,7 @@ type ApiEnvelope<T> = {
   meta: Record<string, unknown>;
 };
 
+import { getCsrfToken } from "@/lib/auth/csrf-client";
 import type {
   AlertItem,
   DashboardRole,
@@ -161,6 +162,12 @@ export interface ObservabilityHealthResponse {
 
 const API_TIMEOUT_MS = 4_500;
 
+function normalizeApiPath(path: string) {
+  const normalized = path.startsWith("/") ? path : `/${path}`;
+
+  return normalized.replace(/^\/api(?=\/)/, "");
+}
+
 function normalizeConfiguredUrl(value: string | undefined) {
   return value?.trim().replace(/^['"]|['"]$/g, "").replace(/\/$/, "") ?? null;
 }
@@ -213,13 +220,14 @@ export async function requestDashboardApi<T>(
   path: string,
   options?: {
     unwrapEnvelope?: boolean;
-    method?: "GET" | "POST" | "PATCH" | "DELETE";
+    method?: "GET" | "POST" | "PATCH" | "DELETE" | "PUT";
     tenantId?: string;
     accessToken?: string | null;
     body?: BodyInit | Record<string, unknown> | null;
   },
 ): Promise<T> {
   const baseUrl = getDashboardApiBaseUrl(options?.tenantId);
+  const apiPath = normalizeApiPath(path);
 
   if (!baseUrl) {
     throw new Error("Dashboard API base URL is not configured.");
@@ -227,6 +235,11 @@ export async function requestDashboardApi<T>(
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
+  const method = options?.method ?? "GET";
+  const csrfToken =
+    typeof window !== "undefined" && method !== "GET"
+      ? await getCsrfToken()
+      : null;
 
   const isFormData =
     typeof FormData !== "undefined" && options?.body instanceof FormData;
@@ -242,11 +255,12 @@ export async function requestDashboardApi<T>(
         : JSON.stringify(options.body);
 
   try {
-    const response = await fetch(`${baseUrl}${path}`, {
-      method: options?.method ?? "GET",
+    const response = await fetch(`${baseUrl}${apiPath}`, {
+      method,
       headers: {
         Accept: "application/json",
         ...(options?.tenantId ? { "x-tenant-id": options.tenantId } : {}),
+        ...(csrfToken ? { "x-myshule-csrf": csrfToken } : {}),
         ...(hasJsonBody ? { "Content-Type": "application/json" } : {}),
         ...(options?.accessToken
           ? {

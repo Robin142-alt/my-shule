@@ -64,9 +64,21 @@ const BASE_NAV_ITEMS: NavItem[] = [
   { id: "settings", label: "Settings", icon: Settings, group: "Administration" },
 ];
 
-export function PrincipalCommandCenter({ routeMode }: { routeMode?: "hosted" | "public" }) {
+export function PrincipalCommandCenter({
+  routeMode,
+  tenantSlug,
+}: {
+  routeMode?: "hosted" | "public";
+  tenantSlug?: string | null;
+}) {
   const [activeWorkspace, setActiveWorkspace] = useState("overview");
   const [isTeachingEnabled, setIsTeachingEnabled] = useState(true);
+
+  useEffect(() => {
+    if (!tenantSlug) return;
+
+    window.localStorage.setItem("myshule.currentSchoolId", tenantSlug);
+  }, [tenantSlug]);
 
   // Listen to teaching toggle from settings workspace
   useEffect(() => {
