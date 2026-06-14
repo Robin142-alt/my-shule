@@ -10,9 +10,11 @@ RUN npm ci
 COPY tsconfig.json ./
 COPY .env.example ./
 COPY jest.integration.config.js ./
+COPY prisma ./prisma
 COPY api ./api
 COPY apps ./apps
 
+RUN npx prisma generate
 RUN npm run build
 
 # ─── Production Runtime ──────────────────────────────────────────
@@ -36,6 +38,8 @@ RUN npm ci --omit=dev && npm cache clean --force
 
 # Copy built output
 COPY --from=build /app/dist ./dist
+COPY --from=build /app/node_modules/.prisma ./node_modules/.prisma
+COPY --from=build /app/node_modules/@prisma/client ./node_modules/@prisma/client
 
 # Set ownership
 RUN chown -R myshule:myshule /app
