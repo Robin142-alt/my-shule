@@ -11,8 +11,13 @@ export class BillingFeatureMiddleware implements NestMiddleware {
     private readonly billingAccessService: BillingAccessService,
   ) {}
 
-  async use(_request: Request, _response: Response, next: NextFunction): Promise<void> {
+  async use(request: Request, _response: Response, next: NextFunction): Promise<void> {
     try {
+      if (this.shouldBypassBillingAccess(request)) {
+        next();
+        return;
+      }
+
       const requestContext = this.requestContext.requireStore();
 
       if (!requestContext.tenant_id) {
@@ -29,5 +34,14 @@ export class BillingFeatureMiddleware implements NestMiddleware {
     } catch (error) {
       next(error as Error);
     }
+  }
+
+  private shouldBypassBillingAccess(request: Request): boolean {
+    const path = (request.path || request.originalUrl || request.url || '').toLowerCase();
+
+    return path === '/health'
+      || path.startsWith('/health/')
+      || path === '/auth'
+      || path.startsWith('/auth/');
   }
 }
