@@ -20,6 +20,11 @@ export class TenantMiddleware implements NestMiddleware {
     let client: PoolClient | null = null;
 
     try {
+      if (this.isHealthProbeRequest(request)) {
+        next();
+        return;
+      }
+
       const requestContext = this.requestContext.requireStore();
       const resolvedTenant = await this.tenantService.resolveTenantContextForRequest(
         request.headers.host,

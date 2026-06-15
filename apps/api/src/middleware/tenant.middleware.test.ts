@@ -95,16 +95,17 @@ test('TenantMiddleware defers request transactions for dashboard SSE streams', a
 test('TenantMiddleware defers request transactions for health readiness probes', async () => {
   const requestContext = new RequestContextService();
   const calls = {
+    resolveTenant: 0,
     acquireClient: 0,
     initializeRequestSession: 0,
   };
   const response = new TestResponse();
   const middleware = new TenantMiddleware(
     {
-      resolveTenantContextForRequest: async () => ({
-        tenant_id: 'tenant-a',
-        source: 'base_domain_default',
-      }),
+      resolveTenantContextForRequest: async () => {
+        calls.resolveTenant += 1;
+        throw new Error('health probes must not resolve tenant context');
+      },
     } as never,
     requestContext,
     {
@@ -141,12 +142,13 @@ test('TenantMiddleware defers request transactions for health readiness probes',
         }) as NextFunction,
       );
 
-      assert.equal(requestContext.requireStore().tenant_id, 'tenant-a');
-      assert.equal(requestContext.requireStore().tenant_source, 'base_domain_default');
+      assert.equal(requestContext.requireStore().tenant_id, null);
+      assert.equal(requestContext.requireStore().tenant_source, null);
     },
   );
 
   assert.deepEqual(calls, {
+    resolveTenant: 0,
     acquireClient: 0,
     initializeRequestSession: 0,
   });
