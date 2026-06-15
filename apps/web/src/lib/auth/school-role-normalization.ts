@@ -65,6 +65,7 @@ const schoolRoleAliases: Record<string, SchoolExperienceRole> = {
   "examination-officer": "exams-manager",
   "clinic-staff": "nurse",
   registrar: "admissions",
+  "admissions-officer": "admissions",
 };
 
 function normalizeSchoolRoleKey(role: string | null | undefined) {

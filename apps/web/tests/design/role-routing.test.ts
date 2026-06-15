@@ -9,6 +9,11 @@ describe("SaaS identity role routing", () => {
     expect(getRoleHomePath("deputy-principal")).toBe("/school/deputy-principal");
     expect(getRoleHomePath("secretary")).toBe("/school/secretary");
     expect(getRoleHomePath("owner")).toBe("/school/principal");
+    expect(getRoleHomePath("school_owner")).toBe("/school/principal");
+    expect(getRoleHomePath("school-owner")).toBe("/school/principal");
+    expect(getRoleHomePath("admin")).toBe("/school/admin");
+    expect(getRoleHomePath("school_admin")).toBe("/school/admin");
+    expect(getRoleHomePath("school-admin")).toBe("/school/admin");
     expect(getRoleHomePath("bursar")).toBe("/school/bursar");
     expect(getRoleHomePath("accountant")).toBe("/school/accountant");
     expect(getRoleHomePath("teacher")).toBe("/school/teacher");
@@ -27,11 +32,16 @@ describe("SaaS identity role routing", () => {
     expect(getRoleHomePath("form_master")).toBe("/school/grade-master");
     expect(getRoleHomePath("grade-master")).toBe("/school/grade-master");
     expect(getRoleHomePath("form-master")).toBe("/school/grade-master");
+    expect(getRoleHomePath("grade-form-master")).toBe("/school/grade-master");
     expect(getRoleHomePath("registrar")).toBe("/school/admissions");
     expect(getRoleHomePath("admissions")).toBe("/school/admissions");
+    expect(getRoleHomePath("admissions_officer")).toBe("/school/admissions");
+    expect(getRoleHomePath("admissions-officer")).toBe("/school/admissions");
     expect(getRoleHomePath("student")).toBe("/school/student");
     expect(getRoleHomePath("storekeeper")).toBe("/school/storekeeper");
     expect(getRoleHomePath("librarian")).toBe("/school/librarian");
+    expect(getRoleHomePath("nurse")).toBe("/school/nurse");
+    expect(getRoleHomePath("clinic-staff")).toBe("/school/nurse");
     expect(getRoleHomePath("boarding_master")).toBe("/school/boarding-master");
     expect(getRoleHomePath("boarding-master")).toBe("/school/boarding-master");
     expect(getRoleHomePath("security_officer")).toBe("/school/security-officer");
@@ -45,6 +55,8 @@ describe("SaaS identity role routing", () => {
     expect(getRoleHomePath("ict_manager")).toBe("/school/ict-manager");
     expect(getRoleHomePath("ict-manager")).toBe("/school/ict-manager");
     expect(getRoleHomePath("computer_lab_manager")).toBe("/school/ict-manager");
+    expect(getRoleHomePath("computer-lab-user")).toBe("/school/ict-manager");
+    expect(getRoleHomePath("ict-computer-lab-user")).toBe("/school/ict-manager");
     expect(getRoleHomePath("school_counsellor")).toBe("/school/guidance-counselling");
     expect(getRoleHomePath("school-counsellor")).toBe("/school/guidance-counselling");
     expect(getRoleHomePath("counsellor")).toBe("/school/guidance-counselling");
