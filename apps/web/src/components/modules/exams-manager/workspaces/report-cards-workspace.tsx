@@ -10,7 +10,9 @@ import { MoreHorizontal, FileText, Send, Download, MessageSquare, Eye, Edit, Loa
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 
 export function ReportCardsWorkspace({ model }: { model: any }) {
-  const { data: cards, isLoading, error } = useSchoolQuery<any[]>("/exams/report-cards");
+  const { data: cardsResponse, isLoading, error } = useSchoolQuery<any>("/exams/report-cards");
+  const cards = cardsResponse?.data || cardsResponse;
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -58,14 +60,14 @@ export function ReportCardsWorkspace({ model }: { model: any }) {
                   </TableCell>
                 </TableRow>
               )}
-              {!isLoading && !error && cards?.length === 0 && (
+              {!isLoading && !error && (!cards || !Array.isArray(cards) || cards.length === 0) && (
                 <TableRow>
                   <TableCell colSpan={8} className="text-center py-10 text-muted-foreground">
                     No report cards generated yet.
                   </TableCell>
                 </TableRow>
               )}
-              {!isLoading && !error && cards && cards.map((row, idx) => (
+              {!isLoading && !error && Array.isArray(cards) && cards.map((row: any, idx: number) => (
                 <TableRow key={idx}>
                   <TableCell className="font-medium">Student: {row.student_id}</TableCell>
                   <TableCell>Series: {row.exam_series_id}</TableCell>

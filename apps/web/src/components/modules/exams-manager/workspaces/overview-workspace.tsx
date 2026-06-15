@@ -10,8 +10,12 @@ import { MoreHorizontal, Plus, Upload, Download, CheckCircle, FileText, Send, Be
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 
 export function OverviewWorkspace({ model }: { model: any }) {
-  const { data: stats, isLoading, error } = useSchoolQuery<any>("/exams/dashboard-stats");
-  const { data: series } = useSchoolQuery<any[]>("/exams/series");
+  const { data: statsResponse, isLoading, error } = useSchoolQuery<any>("/exams/dashboard-stats");
+  const { data: seriesResponse } = useSchoolQuery<any>("/exams/series");
+
+  const stats = statsResponse?.data || statsResponse;
+  const series = seriesResponse?.data || seriesResponse;
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -56,7 +60,7 @@ export function OverviewWorkspace({ model }: { model: any }) {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {series && series.map((exam, idx) => (
+                  {Array.isArray(series) && series.map((exam: any, idx: number) => (
                     <TableRow key={idx}>
                       <TableCell className="font-medium">{exam.name}</TableCell>
                       <TableCell>Term</TableCell>
@@ -101,26 +105,44 @@ export function OverviewWorkspace({ model }: { model: any }) {
               <h3 className="text-lg font-semibold">Urgent Exam Tasks</h3>
             </div>
             <div className="p-0 divide-y">
-              {[
-                { title: "3 classes missing exam timetable", type: "warning", icon: AlertCircle },
-                { title: "12 teachers have not submitted marks", type: "destructive", icon: UserX },
-                { title: "2 subjects have abnormal score distribution", type: "warning", icon: AlertCircle },
-                { title: "Form 2 report cards awaiting moderation", type: "default", icon: FileText },
-                { title: "Principal returned Form 3 results for correction", type: "destructive", icon: CheckCircle },
-              ].map((task, idx) => {
-                const Icon = task.icon;
-                return (
-                  <div key={idx} className="p-4 flex items-center justify-between hover:bg-muted/50 transition-colors">
-                    <div className="flex items-center gap-3">
-                      <div className={`p-2 rounded-full bg-${task.type}/10 text-${task.type}`}>
-                        <Icon className="h-4 w-4" />
-                      </div>
-                      <span className="text-sm font-medium">{task.title}</span>
+              {stats?.pending_moderations > 0 && (
+                <div className="p-4 flex items-center justify-between hover:bg-muted/50 transition-colors">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-full bg-warning/10 text-warning">
+                      <AlertCircle className="h-4 w-4" />
                     </div>
-                    <Button variant="outline" size="sm">Open Task</Button>
+                    <span className="text-sm font-medium">{stats.pending_moderations} report cards awaiting moderation</span>
                   </div>
-                );
-              })}
+                  <Button variant="outline" size="sm">Review</Button>
+                </div>
+              )}
+              {stats?.draft_marks > 0 && (
+                <div className="p-4 flex items-center justify-between hover:bg-muted/50 transition-colors">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-full bg-destructive/10 text-destructive">
+                      <UserX className="h-4 w-4" />
+                    </div>
+                    <span className="text-sm font-medium">{stats.draft_marks} missing marks entries</span>
+                  </div>
+                  <Button variant="outline" size="sm">Monitor</Button>
+                </div>
+              )}
+              {stats?.published_reports > 0 && (
+                <div className="p-4 flex items-center justify-between hover:bg-muted/50 transition-colors">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-full bg-success/10 text-success">
+                      <CheckCircle className="h-4 w-4" />
+                    </div>
+                    <span className="text-sm font-medium">{stats.published_reports} published reports ready for parents</span>
+                  </div>
+                  <Button variant="outline" size="sm">View</Button>
+                </div>
+              )}
+              {!stats?.pending_moderations && !stats?.draft_marks && !stats?.published_reports && (
+                <div className="p-4 text-center text-muted-foreground text-sm">
+                  No urgent tasks at the moment.
+                </div>
+              )}
             </div>
           </Card>
         </div>

@@ -10,7 +10,9 @@ import { MoreHorizontal, Download, Upload, CheckCircle, Save, Edit, Loader2 } fr
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 
 export function MyMarksWorkspace({ model }: { model: any }) {
-  const { data: marks, isLoading, error } = useSchoolQuery<any[]>("/exams/marks");
+  const { data: marksResponse, isLoading, error } = useSchoolQuery<any>("/exams/marks");
+  const marks = marksResponse?.data || marksResponse;
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -60,14 +62,14 @@ export function MyMarksWorkspace({ model }: { model: any }) {
                   </TableCell>
                 </TableRow>
               )}
-              {!isLoading && !error && marks?.length === 0 && (
+              {!isLoading && !error && (!marks || !Array.isArray(marks) || marks.length === 0) && (
                 <TableRow>
                   <TableCell colSpan={10} className="text-center py-10 text-muted-foreground">
                     No marks entry records found.
                   </TableCell>
                 </TableRow>
               )}
-              {!isLoading && !error && marks && marks.map((row, idx) => (
+              {!isLoading && !error && Array.isArray(marks) && marks.map((row: any, idx: number) => (
                 <TableRow key={idx}>
                   <TableCell>Series: {row.exam_series_id}</TableCell>
                   <TableCell>Class: {row.class_section_id}</TableCell>

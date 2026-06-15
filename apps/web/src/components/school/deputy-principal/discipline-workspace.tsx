@@ -1,9 +1,10 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { ShieldAlert, Search, PlusCircle } from "lucide-react";
 import { Panel, StatusChip, Tone } from "./shared";
 import { Modal } from "@/components/ui/modal";
-import { readSchoolData, addSchoolRecord, updateSchoolRecord, subscribeToSchoolDataUpdates, createNotification } from "@/lib/school/school-operational-store";
+import { useSchoolQuery, useSchoolMutation } from "@/lib/data/school-hooks";
+import { useQueryClient } from "@tanstack/react-query";
 
 export type DisciplineIncident = {
   id: string;
@@ -15,62 +16,39 @@ export type DisciplineIncident = {
 };
 
 export function DeputyDisciplineWorkspace() {
-  const [incidents, setIncidents] = useState<DisciplineIncident[]>([]);
   const [showModal, setShowModal] = useState(false);
-  const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({ studentName: "", incidentType: "", severity: "High" });
 
-  const loadData = () => {
-    const data = readSchoolData<DisciplineIncident>("deputyDiscipline");
-    setIncidents(data.length > 0 ? data : [
-      { id: "1", caseNo: "CAS-089", studentName: "Brian Otieno", incidentType: "Fighting in dorm", severity: "Critical", status: "In Review" }
-    ]);
+  const queryClient = useQueryClient();
+  const { data: incidents = [], isLoading } = useSchoolQuery<DisciplineIncident[]>('/admin-command/deputy/discipline');
+  
+  const createMutation = useSchoolMutation('/admin-command/deputy/discipline', 'POST', {
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["school", "session", '/admin-command/deputy/discipline'] })
+  });
+  
+  const escalateMutation = useSchoolMutation<{ id: string }>('/admin-command/deputy/discipline/:id/escalate', 'POST', {
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["school", "session", '/admin-command/deputy/discipline'] })
+  });
+
+  const handleCreate = async () => {
+    await createMutation.mutateAsync({
+      studentName: formData.studentName,
+      incidentType: formData.incidentType,
+      severity: formData.severity,
+    });
+    setShowModal(false);
+    setFormData({ studentName: "", incidentType: "", severity: "High" });
+    alert("Incident logged successfully.");
   };
 
-  useEffect(() => {
-    loadData();
-    const unsub = subscribeToSchoolDataUpdates(({ moduleName }) => {
-      if (moduleName === "deputyDiscipline") loadData();
-    });
-    return unsub;
-  }, []);
-
-  const handleCreate = () => {
-    setLoading(true);
-    setTimeout(() => {
-      const newIncident: DisciplineIncident = {
-        id: Math.random().toString(36).slice(2, 9),
-        caseNo: `CAS-${Math.floor(Math.random() * 900) + 100}`,
-        studentName: formData.studentName,
-        incidentType: formData.incidentType,
-        severity: formData.severity as any,
-        status: "New"
-      };
-      addSchoolRecord("deputyDiscipline", newIncident);
-      createNotification({
-        audienceRoles: ["principal", "deputy_principal"],
-        sourceModule: "discipline",
-        title: "New Discipline Case",
-        body: `Case ${newIncident.caseNo} created for ${newIncident.studentName}`,
-        severity: newIncident.severity === "Critical" ? "critical" : "warning",
-      });
-      setShowModal(false);
-      setFormData({ studentName: "", incidentType: "", severity: "High" });
-      setLoading(false);
-      alert("Incident logged successfully.");
-    }, 600);
-  };
-
-  const handleEscalate = (id: string, caseNo: string) => {
-    updateSchoolRecord("deputyDiscipline", id, { status: "Escalated" });
-    createNotification({
-      audienceRoles: ["principal"],
-      sourceModule: "discipline",
-      title: "Case Escalated",
-      body: `Case ${caseNo} was escalated by Deputy Principal`,
-      severity: "critical",
-    });
-    alert(`Case ${caseNo} escalated to Principal.`);
+  const handleEscalate = async (id: string, caseNo: string) => {
+    try {
+      await fetch(`/api/v1/admin-command/deputy/discipline/${id}/escalate`, { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+      queryClient.invalidateQueries({ queryKey: ["school", "session", '/admin-command/deputy/discipline'] });
+      alert(`Case ${caseNo} escalated to Principal.`);
+    } catch (e) {
+      alert("Failed to escalate case.");
+    }
   };
 
   const getTone = (sev: string): Tone => {
@@ -111,30 +89,36 @@ export function DeputyDisciplineWorkspace() {
             </tr>
           </thead>
           <tbody className="divide-y divide-[#D8E0EC]">
-            {incidents.map((inc) => (
-              <tr key={inc.id} className="hover:bg-[#F8FAFC]">
-                <td className="px-4 py-3 font-semibold text-[#071D49]">{inc.caseNo}</td>
-                <td className="px-4 py-3 text-[#64748B]">{inc.studentName}</td>
-                <td className="px-4 py-3 text-[#64748B]">{inc.incidentType}</td>
-                <td className="px-4 py-3"><StatusChip label={inc.severity} tone={getTone(inc.severity)} /></td>
-                <td className="px-4 py-3"><StatusChip label={inc.status} tone={getStatusTone(inc.status)} /></td>
-                <td className="px-4 py-3 text-right">
-                  {inc.status !== "Escalated" && (
-                    <button onClick={() => handleEscalate(inc.id, inc.caseNo)} className="text-blue-600 hover:underline font-semibold text-xs mr-3">Escalate</button>
-                  )}
-                  <button className="text-blue-600 hover:underline font-semibold text-xs">Open Case</button>
-                </td>
+            {incidents.length === 0 ? (
+              <tr>
+                <td colSpan={6} className="px-4 py-8 text-center text-[#64748B]">No recent discipline cases found.</td>
               </tr>
-            ))}
+            ) : (
+              incidents.map((inc) => (
+                <tr key={inc.id} className="hover:bg-[#F8FAFC]">
+                  <td className="px-4 py-3 font-semibold text-[#071D49]">{inc.caseNo}</td>
+                  <td className="px-4 py-3 text-[#64748B]">{inc.studentName}</td>
+                  <td className="px-4 py-3 text-[#64748B]">{inc.incidentType}</td>
+                  <td className="px-4 py-3"><StatusChip label={inc.severity} tone={getTone(inc.severity)} /></td>
+                  <td className="px-4 py-3"><StatusChip label={inc.status} tone={getStatusTone(inc.status)} /></td>
+                  <td className="px-4 py-3 text-right">
+                    {inc.status !== "Escalated" && (
+                      <button onClick={() => handleEscalate(inc.id, inc.caseNo)} className="text-blue-600 hover:underline font-semibold text-xs mr-3">Escalate</button>
+                    )}
+                    <button className="text-blue-600 hover:underline font-semibold text-xs">Open Case</button>
+                  </td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>
 
       <Modal open={showModal} onClose={() => setShowModal(false)} title="Log New Incident" footer={
         <>
-          <button disabled={loading} onClick={() => setShowModal(false)} className="rounded-lg px-4 py-2 text-sm font-bold text-[#64748B] hover:bg-slate-100">Cancel</button>
-          <button disabled={loading || !formData.studentName} onClick={handleCreate} className="rounded-lg bg-rose-600 px-4 py-2 text-sm font-black text-white hover:bg-rose-700 disabled:opacity-50">
-            {loading ? "Saving..." : "Save Incident"}
+          <button disabled={createMutation.isPending} onClick={() => setShowModal(false)} className="rounded-lg px-4 py-2 text-sm font-bold text-[#64748B] hover:bg-slate-100">Cancel</button>
+          <button disabled={createMutation.isPending || !formData.studentName} onClick={handleCreate} className="rounded-lg bg-rose-600 px-4 py-2 text-sm font-black text-white hover:bg-rose-700 disabled:opacity-50">
+            {createMutation.isPending ? "Saving..." : "Save Incident"}
           </button>
         </>
       }>

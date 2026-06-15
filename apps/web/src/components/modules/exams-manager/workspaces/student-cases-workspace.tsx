@@ -10,7 +10,9 @@ import { MoreHorizontal, Plus, CheckCircle, HelpCircle, Eye, ShieldAlert, Loader
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 
 export function StudentCasesWorkspace({ model }: { model: any }) {
-  const { data: cases, isLoading, error } = useSchoolQuery<any[]>("/exams/student-cases");
+  const { data: casesResponse, isLoading, error } = useSchoolQuery<any>("/exams/student-cases");
+  const cases = casesResponse?.data || casesResponse;
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -57,14 +59,14 @@ export function StudentCasesWorkspace({ model }: { model: any }) {
                   </TableCell>
                 </TableRow>
               )}
-              {!isLoading && !error && cases?.length === 0 && (
+              {!isLoading && !error && (!cases || !Array.isArray(cases) || cases.length === 0) && (
                 <TableRow>
                   <TableCell colSpan={9} className="text-center py-10 text-muted-foreground">
                     No student cases reported yet.
                   </TableCell>
                 </TableRow>
               )}
-              {!isLoading && !error && cases && cases.map((row, idx) => (
+              {!isLoading && !error && Array.isArray(cases) && cases.map((row: any, idx: number) => (
                 <TableRow key={idx}>
                   <TableCell className="font-medium">Student {row.student_id}</TableCell>
                   <TableCell>-</TableCell>

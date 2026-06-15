@@ -11,7 +11,9 @@ import { Input } from "@/components/ui/input";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 
 export function AuditLogsWorkspace({ model }: { model: any }) {
-  const { data: logs, isLoading, error } = useSchoolQuery<any[]>("/exams/audit-logs");
+  const { data: logsResponse, isLoading, error } = useSchoolQuery<any>("/exams/audit-logs");
+  const logs = logsResponse?.data || logsResponse;
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -61,14 +63,14 @@ export function AuditLogsWorkspace({ model }: { model: any }) {
                   </TableCell>
                 </TableRow>
               )}
-              {!isLoading && !error && logs?.length === 0 && (
+              {!isLoading && !error && (!logs || !Array.isArray(logs) || logs.length === 0) && (
                 <TableRow>
                   <TableCell colSpan={6} className="text-center py-10 text-muted-foreground">
                     No audit logs recorded yet.
                   </TableCell>
                 </TableRow>
               )}
-              {!isLoading && !error && logs && logs.map((row, idx) => (
+              {!isLoading && !error && Array.isArray(logs) && logs.map((row: any, idx: number) => (
                 <TableRow key={idx}>
                   <TableCell className="whitespace-nowrap text-sm text-muted-foreground">{new Date(row.created_at).toLocaleString()}</TableCell>
                   <TableCell className="font-medium">{row.actor_user_id}</TableCell>

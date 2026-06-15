@@ -10,7 +10,9 @@ import { MoreHorizontal, Plus, Upload, Printer, Download, Bell, Edit, Lock, Aler
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 
 export function ExamAttendanceWorkspace({ model }: { model: any }) {
-  const { data: attendance, isLoading, error } = useSchoolQuery<any[]>("/exams/attendance");
+  const { data: attendanceResponse, isLoading, error } = useSchoolQuery<any>("/exams/attendance");
+  const attendance = attendanceResponse?.data || attendanceResponse;
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -59,14 +61,14 @@ export function ExamAttendanceWorkspace({ model }: { model: any }) {
                   </TableCell>
                 </TableRow>
               )}
-              {!isLoading && !error && attendance?.length === 0 && (
+              {!isLoading && !error && (!attendance || !Array.isArray(attendance) || attendance.length === 0) && (
                 <TableRow>
                   <TableCell colSpan={9} className="text-center py-10 text-muted-foreground">
                     No attendance records found.
                   </TableCell>
                 </TableRow>
               )}
-              {!isLoading && !error && attendance && attendance.map((row, idx) => (
+              {!isLoading && !error && Array.isArray(attendance) && attendance.map((row: any, idx: number) => (
                 <TableRow key={idx}>
                   <TableCell className="whitespace-nowrap">{new Date(row.created_at).toLocaleDateString()}</TableCell>
                   <TableCell>Class {row.student_id}</TableCell>

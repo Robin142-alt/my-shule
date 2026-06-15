@@ -31,10 +31,10 @@ export function PrincipalReportsWorkspace() {
     setIsSubmittingCat(true);
     const formData = new FormData(e.currentTarget);
     try {
-      // await requestDashboardApi('/admin-command/reports/generate', {
-      //   method: "POST",
-      //   body: { category: "financial", parameters: {} }
-      // });
+      await requestDashboardApi('/admin-command/reports/categories', {
+        method: "POST",
+        body: { name: formData.get("name") }
+      });
       setIsCategoryModalOpen(false);
       refetch();
     } catch (err: any) {
@@ -49,10 +49,10 @@ export function PrincipalReportsWorkspace() {
     setIsSubmittingSched(true);
     const formData = new FormData(e.currentTarget);
     try {
-      // await requestDashboardApi('/admin-command/reports/schedule', {
-      //   method: "POST",
-      //   body: { title: formData.get("title"), schedule: formData.get("schedule") }
-      // });
+      await requestDashboardApi('/admin-command/reports/schedule', {
+        method: "POST",
+        body: { title: formData.get("title"), schedule: formData.get("schedule") }
+      });
       setIsScheduleModalOpen(false);
       refetch();
     } catch (err: any) {

@@ -1,8 +1,9 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { GraduationCap } from "lucide-react";
 import { Panel, StatusChip, Tone } from "./shared";
-import { readSchoolData, updateSchoolRecord, subscribeToSchoolDataUpdates, createNotification } from "@/lib/school/school-operational-store";
+import { useSchoolQuery, useSchoolMutation } from "@/lib/data/school-hooks";
+import { useQueryClient } from "@tanstack/react-query";
 
 export type AcademicIntervention = {
   id: string;
@@ -14,35 +15,31 @@ export type AcademicIntervention = {
   actionTaken?: string;
 };
 
-export function DeputyAcademicsMonitoringWorkspace() {
-  const [interventions, setInterventions] = useState<AcademicIntervention[]>([]);
-
-  const loadData = () => {
-    const data = readSchoolData<AcademicIntervention>("deputyAcademics");
-    setInterventions(data.length > 0 ? data : [
-      { id: "1", className: "Form 4 West", subject: "Physics", teacher: "Mr. Kipchoge", coverage: "45%", concern: "Behind Schedule" }
-    ]);
+type AcademicsData = {
+  metrics: {
+    active_subjects: number;
   };
+  interventions: AcademicIntervention[];
+};
 
-  useEffect(() => {
-    loadData();
-    const unsub = subscribeToSchoolDataUpdates(({ moduleName }) => {
-      if (moduleName === "deputyAcademics") loadData();
-    });
-    return unsub;
-  }, []);
+export function DeputyAcademicsMonitoringWorkspace() {
+  const queryClient = useQueryClient();
+  const { data, isLoading } = useSchoolQuery<AcademicsData>('/admin-command/deputy/academics');
 
-  const handleMessageHOD = (id: string, subject: string, teacher: string) => {
-    updateSchoolRecord("deputyAcademics", id, { actionTaken: "HOD Messaged" });
-    
-    createNotification({
-      audienceRoles: ["head_of_department"],
-      sourceModule: "academics",
-      title: "Academic Intervention Required",
-      body: `Please review syllabus coverage for ${subject} taught by ${teacher}.`,
-      severity: "warning",
-    });
-    alert(`Message sent to ${subject} HOD regarding ${teacher}.`);
+  const messageMutation = useSchoolMutation<{ id: string }>('/admin-command/deputy/academics/:id/message-hod', 'POST', {
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["school", "session", '/admin-command/deputy/academics'] })
+  });
+
+  const interventions = data?.interventions || [];
+
+  const handleMessageHOD = async (id: string, subject: string, teacher: string) => {
+    try {
+      await fetch(`/api/v1/admin-command/deputy/academics/${id}/message-hod`, { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+      queryClient.invalidateQueries({ queryKey: ["school", "session", '/admin-command/deputy/academics'] });
+      alert(`Message sent to ${subject} HOD regarding ${teacher}.`);
+    } catch (e) {
+      alert("Failed to send message.");
+    }
   };
 
   const getConcernTone = (st: string): Tone => {
@@ -53,6 +50,12 @@ export function DeputyAcademicsMonitoringWorkspace() {
     <Panel title="Academics Monitoring" description="Syllabus progress, weak classes, and academic interventions." icon={GraduationCap} actions={
       <button onClick={() => alert("Intervention creation logic would launch here.")} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white hover:bg-blue-900 transition">Create Intervention</button>
     }>
+      <div className="grid gap-4 md:grid-cols-2 mb-6">
+        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
+          <div className="text-sm font-semibold text-[#64748B]">Active Subjects</div>
+          <div className="mt-1 text-lg font-black text-[#071D49]">{isLoading ? "..." : data?.metrics?.active_subjects || 0}</div>
+        </div>
+      </div>
       <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
         <table className="w-full text-sm text-left whitespace-nowrap">
           <thead className="bg-[#F8FAFC] text-[#071D49]">
@@ -67,21 +70,27 @@ export function DeputyAcademicsMonitoringWorkspace() {
             </tr>
           </thead>
           <tbody className="divide-y divide-[#D8E0EC]">
-            {interventions.map((inv) => (
-              <tr key={inv.id} className="hover:bg-[#F8FAFC]">
-                <td className="px-4 py-3 font-semibold text-[#071D49]">{inv.className}</td>
-                <td className="px-4 py-3 text-[#64748B]">{inv.subject}</td>
-                <td className="px-4 py-3 text-[#64748B]">{inv.teacher}</td>
-                <td className="px-4 py-3 font-bold">{inv.coverage}</td>
-                <td className="px-4 py-3"><StatusChip label={inv.concern} tone={getConcernTone(inv.concern)} /></td>
-                <td className="px-4 py-3"><StatusChip label={inv.actionTaken || "Pending Action"} tone={inv.actionTaken ? "info" : "danger"} /></td>
-                <td className="px-4 py-3 text-right">
-                  {!inv.actionTaken && (
-                    <button onClick={() => handleMessageHOD(inv.id, inv.subject, inv.teacher)} className="text-blue-600 hover:underline font-semibold text-xs mr-3">Message HOD</button>
-                  )}
-                </td>
+            {interventions.length === 0 ? (
+              <tr>
+                <td colSpan={7} className="px-4 py-8 text-center text-[#64748B]">No current academic interventions.</td>
               </tr>
-            ))}
+            ) : (
+              interventions.map((inv) => (
+                <tr key={inv.id} className="hover:bg-[#F8FAFC]">
+                  <td className="px-4 py-3 font-semibold text-[#071D49]">{inv.className}</td>
+                  <td className="px-4 py-3 text-[#64748B]">{inv.subject}</td>
+                  <td className="px-4 py-3 text-[#64748B]">{inv.teacher}</td>
+                  <td className="px-4 py-3 font-bold">{inv.coverage}</td>
+                  <td className="px-4 py-3"><StatusChip label={inv.concern} tone={getConcernTone(inv.concern)} /></td>
+                  <td className="px-4 py-3"><StatusChip label={inv.actionTaken || "Pending Action"} tone={inv.actionTaken ? "info" : "danger"} /></td>
+                  <td className="px-4 py-3 text-right">
+                    {!inv.actionTaken && (
+                      <button onClick={() => handleMessageHOD(inv.id, inv.subject, inv.teacher)} className="text-blue-600 hover:underline font-semibold text-xs mr-3">Message HOD</button>
+                    )}
+                  </td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>

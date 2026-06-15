@@ -37,4 +37,15 @@ export class AdmissionsCommandService {
   async getReports() { return this.admissionsRepository.getReports(this.requireTenantId()); }
   async getTasks() { return this.admissionsRepository.getTasks(this.requireTenantId()); }
   async getTemplates() { return this.admissionsRepository.getTemplates(this.requireTenantId()); }
+
+  async approveApplication(id: string) {
+    const tenantId = this.requireTenantId();
+    const userId = this.requestContext.getStore()?.user_id;
+    if (!userId) {
+      throw new UnauthorizedException('User context is required');
+    }
+    this.logger.log(`Approving admission application ${id} for tenant ${tenantId}`);
+    return this.admissionsRepository.approveApplication(tenantId, id, userId);
+  }
+
 }

@@ -10,7 +10,9 @@ import { MoreHorizontal, Plus, Copy, Upload, Download, Edit, Trash2, Settings, L
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 
 export function PapersComponentsWorkspace({ model }: { model: any }) {
-  const { data: components, isLoading, error } = useSchoolQuery<any[]>("/exams/assessment-components");
+  const { data: componentsResponse, isLoading, error } = useSchoolQuery<any>("/exams/assessment-components");
+  const components = componentsResponse?.data || componentsResponse;
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -59,14 +61,14 @@ export function PapersComponentsWorkspace({ model }: { model: any }) {
                   </TableCell>
                 </TableRow>
               )}
-              {!isLoading && !error && components?.length === 0 && (
+              {!isLoading && !error && (!components || !Array.isArray(components) || components.length === 0) && (
                 <TableRow>
                   <TableCell colSpan={9} className="text-center py-10 text-muted-foreground">
                     No components configured yet.
                   </TableCell>
                 </TableRow>
               )}
-              {!isLoading && !error && components && components.map((row, idx) => (
+              {!isLoading && !error && Array.isArray(components) && components.map((row: any, idx: number) => (
                 <TableRow key={idx}>
                   <TableCell>All</TableCell>
                   <TableCell className="font-medium">Assessment: {row.assessment_id}</TableCell>

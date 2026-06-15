@@ -35,15 +35,15 @@ export function PrincipalAttendanceWorkspace() {
     const formData = new FormData(e.currentTarget);
     
     try {
-      // await requestDashboardApi('/admin-command/attendance/absences', {
-      //   method: "POST",
-      //   body: {
-      //     studentId: formData.get("studentId"),
-      //     date: formData.get("date"),
-      //     reason: formData.get("reason"),
-      //     isExcused: formData.get("isExcused") === "on",
-      //   }
-      // });
+      await requestDashboardApi('/admin-command/attendance/absences', {
+        method: "POST",
+        body: {
+          studentId: formData.get("studentId"),
+          date: formData.get("date"),
+          reason: formData.get("reason"),
+          isExcused: formData.get("isExcused") === "on",
+        }
+      });
       setIsAbsenceModalOpen(false);
       refetch();
     } catch (err: any) {

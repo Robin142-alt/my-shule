@@ -10,7 +10,9 @@ import { Save, RotateCcw, Loader2 } from "lucide-react";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 
 export function ExamSettingsWorkspace({ model }: { model: any }) {
-  const { data: policies, isLoading, error } = useSchoolQuery<any[]>("/exams/grading-policies");
+  const { data: policiesResponse, isLoading, error } = useSchoolQuery<any>("/exams/grading-policies");
+  const policies = policiesResponse?.data || policiesResponse;
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -34,13 +36,13 @@ export function ExamSettingsWorkspace({ model }: { model: any }) {
           <CardContent className="space-y-4">
             {isLoading && <div className="py-4 flex items-center justify-center text-sm text-muted-foreground"><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading policies...</div>}
             {error && <div className="py-4 text-sm text-destructive">Failed to load policies.</div>}
-            {!isLoading && !error && policies?.map((p: any) => (
+            {!isLoading && !error && Array.isArray(policies) && policies.map((p: any) => (
               <div key={p.id} className="flex items-center justify-between p-2 border rounded-md">
                 <span className="text-sm font-medium">{p.name} ({p.reporting_mode})</span>
                 <span className="text-xs px-2 py-1 bg-muted rounded">{p.status}</span>
               </div>
             ))}
-            {!isLoading && !error && (!policies || policies.length === 0) && (
+            {!isLoading && !error && (!policies || !Array.isArray(policies) || policies.length === 0) && (
               <div className="text-sm text-muted-foreground">No grading policies found.</div>
             )}
           </CardContent>

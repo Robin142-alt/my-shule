@@ -1,4 +1,4 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, Post, Param } from '@nestjs/common';
 import { Permissions } from '../../auth/decorators/permissions.decorator';
 import { AdmissionsCommandService } from './admissions-command.service';
 
@@ -77,4 +77,75 @@ export class AdmissionsCommandController {
   @Get('templates')
   @Permissions('admissions:read')
   getTemplates() { return this.admissionsService.getTemplates(); }
+  @Get('dashboard')
+  @Permissions('admissions:read')
+  async getDashboard() {
+    const [
+      overview,
+      enquiries,
+      applications,
+      applicantProfiles,
+      documents,
+      interviews,
+      selection,
+      feeClearance,
+      enrolment,
+      classPlacement,
+      parents,
+      transfers,
+      communication,
+      appointments,
+      imports,
+      reports,
+      tasks,
+      templates
+    ] = await Promise.all([
+      this.admissionsService.getOverview(),
+      this.admissionsService.getEnquiries(),
+      this.admissionsService.getApplications(),
+      this.admissionsService.getApplicantProfiles(),
+      this.admissionsService.getDocuments(),
+      this.admissionsService.getInterviews(),
+      this.admissionsService.getSelection(),
+      this.admissionsService.getFeeClearance(),
+      this.admissionsService.getEnrolment(),
+      this.admissionsService.getClassPlacement(),
+      this.admissionsService.getParents(),
+      this.admissionsService.getTransfers(),
+      this.admissionsService.getCommunication(),
+      this.admissionsService.getAppointments(),
+      this.admissionsService.getImports(),
+      this.admissionsService.getReports(),
+      this.admissionsService.getTasks(),
+      this.admissionsService.getTemplates(),
+    ]);
+
+    return {
+      overview,
+      enquiries,
+      applications,
+      applicantProfiles,
+      documents,
+      interviews,
+      selection,
+      feeClearance,
+      enrolment,
+      classPlacement,
+      parents,
+      transfers,
+      communication,
+      appointments,
+      imports,
+      reports,
+      tasks,
+      templates,
+    };
+  }
+
+  @Post('applications/:id/approve')
+  @Permissions('admissions:write')
+  approveApplication(@Param('id') id: string) {
+    return this.admissionsService.approveApplication(id);
+  }
+
 }

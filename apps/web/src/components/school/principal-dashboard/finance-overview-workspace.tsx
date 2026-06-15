@@ -41,6 +41,8 @@ export function PrincipalFinanceOverviewWorkspace() {
         body: {
           name: formData.get("name"),
           description: formData.get("description"),
+          amount_minor: 0, // Placeholder, normally part of the form
+          currency_code: "KES"
         }
       });
       setIsFeeCategoryModalOpen(false);
@@ -62,8 +64,10 @@ export function PrincipalFinanceOverviewWorkspace() {
         method: "POST",
         body: {
           student_id: formData.get("student_id"),
-          amount: parseFloat(formData.get("amount") as string),
+          amount_minor: Math.round(parseFloat(formData.get("amount") as string) * 100),
           reason: formData.get("reason"),
+          student_name: "Lookup Required", // Or fetch from student selection
+          class_name: "Lookup Required"
         }
       });
       setIsWaiverModalOpen(false);

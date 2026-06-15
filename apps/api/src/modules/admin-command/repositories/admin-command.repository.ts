@@ -580,11 +580,11 @@ export class AdminCommandRepository {
     const summaryResult = await this.executeSql(
       `
         SELECT
-          COUNT(*) FILTER (WHERE status = 'active')::int AS total_students,
-          COUNT(*) FILTER (WHERE gender = 'male')::int AS boys,
-          COUNT(*) FILTER (WHERE gender = 'female')::int AS girls
+          COUNT(*) FILTER (WHERE student_status = 'ACTIVE')::int AS total_students,
+          COUNT(*) FILTER (WHERE gender ILIKE 'male')::int AS boys,
+          COUNT(*) FILTER (WHERE gender ILIKE 'female')::int AS girls
         FROM students
-        WHERE tenant_id = $1
+              WHERE school_id = $1
       `,
       [tenantId],
     ).catch(() => ({ rows: [] }));
@@ -592,13 +592,15 @@ export class AdminCommandRepository {
     const recentAdmissionsResult = await this.executeSql(
       `
         SELECT
-          admission_number AS id,
-          first_name || ' ' || last_name AS name,
-          COALESCE(gender, 'Not Specified') AS gender,
-          to_char(created_at, 'YYYY-MM-DD') AS admission_date
-        FROM students
-        WHERE tenant_id = $1
-        ORDER BY created_at DESC
+          s.admission_number AS id,
+          s.first_name || ' ' || s.last_name AS name,
+          COALESCE(s.gender, 'Not Specified') AS gender,
+          COALESCE(c.name, 'Unassigned') AS class,
+          to_char(s.created_at, 'YYYY-MM-DD') AS admission_date
+        FROM students s
+        LEFT JOIN classes c ON s.current_class_id = c.id
+              WHERE s.school_id = $1
+        ORDER BY s.created_at DESC
         LIMIT 5
       `,
       [tenantId],
@@ -613,7 +615,7 @@ export class AdminCommandRepository {
          to_char(date_trunc('month', created_at), 'Mon YYYY') as label,
          COUNT(*)::int as value
        FROM students
-       WHERE tenant_id = $1 AND created_at >= CURRENT_DATE - INTERVAL '3 months'
+       WHERE school_id = $1 AND created_at >= CURRENT_DATE - INTERVAL '3 months'
        GROUP BY date_trunc('month', created_at)
        ORDER BY date_trunc('month', created_at) ASC
        LIMIT 3`,
@@ -639,10 +641,7 @@ export class AdminCommandRepository {
       boys,
       girls,
       populationTrend,
-      recentAdmissions: recentAdmissionsResult.rows.map(row => ({
-        ...row,
-        class: "Pending Placement"
-      }))
+      recentAdmissions: recentAdmissionsResult.rows
     };
   }
 

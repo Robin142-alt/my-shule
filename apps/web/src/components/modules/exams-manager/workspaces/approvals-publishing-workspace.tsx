@@ -10,7 +10,9 @@ import { MoreHorizontal, Send, RotateCcw, CheckCircle, Eye, XCircle, Globe, Load
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 
 export function ApprovalsPublishingWorkspace({ model }: { model: any }) {
-  const { data: reportCards, isLoading, error } = useSchoolQuery<any[]>("/exams/report-cards?status=under_review,approved,published");
+  const { data: reportCardsResponse, isLoading, error } = useSchoolQuery<any>("/exams/report-cards?status=under_review,approved,published");
+  const reportCards = reportCardsResponse?.data || reportCardsResponse;
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -58,14 +60,14 @@ export function ApprovalsPublishingWorkspace({ model }: { model: any }) {
                   </TableCell>
                 </TableRow>
               )}
-              {!isLoading && !error && reportCards?.length === 0 && (
+              {!isLoading && !error && (!reportCards || !Array.isArray(reportCards) || reportCards.length === 0) && (
                 <TableRow>
                   <TableCell colSpan={7} className="text-center py-10 text-muted-foreground">
                     No items pending approval or publishing.
                   </TableCell>
                 </TableRow>
               )}
-              {!isLoading && !error && reportCards && reportCards.map((row, idx) => (
+              {!isLoading && !error && Array.isArray(reportCards) && reportCards.map((row: any, idx: number) => (
                 <TableRow key={idx}>
                   <TableCell className="font-medium">Series: {row.exam_series_id}</TableCell>
                   <TableCell>Student: {row.student_id}</TableCell>

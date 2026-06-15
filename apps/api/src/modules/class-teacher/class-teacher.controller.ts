@@ -27,6 +27,15 @@ export class ClassTeacherController {
     return this.classTeacherService.getOverview(tenantId, userId, streamId);
   }
 
+  @Get('dashboard-overview')
+  @Permissions('academics:read')
+  getDashboardOverview(
+    @Headers('x-tenant-id') tenantId: string,
+    @Headers('x-user-id') userId: string,
+  ) {
+    return this.classTeacherService.getDashboardOverview(tenantId, userId);
+  }
+
   @Get('register')
   @Permissions('academics:read')
   getRegister(
@@ -274,6 +283,36 @@ export class ClassTeacherController {
     @Query('streamId') streamId: string
   ) {
     return this.classTeacherService.getHomework(tenantId, userId, streamId);
+  }
+
+  @Post('homework')
+  @Permissions('academics:write')
+  saveHomework(
+    @Headers('x-tenant-id') tenantId: string,
+    @Headers('x-user-id') userId: string,
+    @Body() body: any
+  ) {
+    return this.classTeacherService.saveHomework(tenantId, userId, body);
+  }
+
+  @Get('lesson-logs')
+  @Permissions('academics:read')
+  getLessonLogs(
+    @Headers('x-tenant-id') tenantId: string,
+    @Headers('x-user-id') userId: string,
+    @Query('streamId') streamId?: string
+  ) {
+    return this.classTeacherService.getLessonLogs(tenantId, userId, streamId);
+  }
+
+  @Post('lesson-logs')
+  @Permissions('academics:write')
+  saveLessonLog(
+    @Headers('x-tenant-id') tenantId: string,
+    @Headers('x-user-id') userId: string,
+    @Body() body: any
+  ) {
+    return this.classTeacherService.saveLessonLog(tenantId, userId, body);
   }
 
   @Get('meetings')

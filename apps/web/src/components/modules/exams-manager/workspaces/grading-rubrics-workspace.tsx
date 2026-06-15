@@ -10,7 +10,9 @@ import { MoreHorizontal, Plus, Copy, Download, Upload, CheckCircle, Edit, Trash2
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 
 export function GradingRubricsWorkspace({ model }: { model: any }) {
-  const { data: policies, isLoading, error } = useSchoolQuery<any[]>("/exams/grading-policies");
+  const { data: policiesResponse, isLoading, error } = useSchoolQuery<any>("/exams/grading-policies");
+  const policies = policiesResponse?.data || policiesResponse;
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -63,14 +65,14 @@ export function GradingRubricsWorkspace({ model }: { model: any }) {
                   </TableCell>
                 </TableRow>
               )}
-              {!isLoading && !error && policies?.length === 0 && (
+              {!isLoading && !error && (!policies || !Array.isArray(policies) || policies.length === 0) && (
                 <TableRow>
                   <TableCell colSpan={8} className="text-center py-10 text-muted-foreground">
                     No grading policies found.
                   </TableCell>
                 </TableRow>
               )}
-              {!isLoading && !error && policies && policies.map((row, idx) => (
+              {!isLoading && !error && Array.isArray(policies) && policies.map((row: any, idx: number) => (
                 <TableRow key={idx}>
                   <TableCell className="font-medium">{row.name}</TableCell>
                   <TableCell>Standard</TableCell>

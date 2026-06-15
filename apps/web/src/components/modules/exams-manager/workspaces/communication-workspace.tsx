@@ -10,7 +10,9 @@ import { MoreHorizontal, Plus, Send, Clock, Eye, Copy, MessageSquare, Loader2 } 
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 
 export function CommunicationWorkspace({ model }: { model: any }) {
-  const { data: series, isLoading, error } = useSchoolQuery<any[]>("/exams/series");
+  const { data: seriesResponse, isLoading, error } = useSchoolQuery<any>("/exams/series");
+  const series = seriesResponse?.data || seriesResponse;
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -74,14 +76,14 @@ export function CommunicationWorkspace({ model }: { model: any }) {
                   </TableCell>
                 </TableRow>
               )}
-              {!isLoading && !error && series?.length === 0 && (
+              {!isLoading && !error && (!series || !Array.isArray(series) || series.length === 0) && (
                 <TableRow>
                   <TableCell colSpan={6} className="text-center py-10 text-muted-foreground">
                     No active communications.
                   </TableCell>
                 </TableRow>
               )}
-              {!isLoading && !error && series && series.map((row, idx) => (
+              {!isLoading && !error && Array.isArray(series) && series.map((row: any, idx: number) => (
                 <TableRow key={idx}>
                   <TableCell className="whitespace-nowrap text-sm">{new Date(row.starts_on).toLocaleDateString()}</TableCell>
                   <TableCell>All Parents</TableCell>

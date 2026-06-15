@@ -22,7 +22,7 @@ import { ProcurementModuleScreen } from "@/components/modules/procurement/procur
 import { TransportModuleScreen } from "@/components/modules/transport/transport-module-screen";
 import { VisitorManagementModuleScreen } from "@/components/modules/visitors/visitor-management-module-screen";
 import { ErpShell } from "@/components/school/erp-shell";
-import { DeanAcademicsCommandCenter } from "@/components/school/dean-academics-command-center";
+import { DeanModuleScreen } from "@/components/modules/dean/dean-module-screen";
 import { DeputyPrincipalCommandCenter } from "@/components/school/deputy-principal-command-center";
 import { PrincipalCommandCenter } from "@/components/school/principal-command-center";
 import { BoardingMasterCommandCenter } from "@/components/school/boarding-master-command-center";
@@ -4221,10 +4221,6 @@ function SchoolPagesShell({
       return <HodCommandCenter routeMode={routeMode} />;
     }
 
-    if (role === "dean-academics") {
-      // @ts-ignore
-      return <DeanAcademicsCommandCenter routeMode={routeMode} />;
-    }
 
     if (role === "deputy-principal") {
       // @ts-ignore
@@ -4403,6 +4399,9 @@ function SchoolPagesShell({
       ) : null}
       {!studentId && !renderRoleOperationalWorkspace && section === "inventory" ? (
         <InventoryModuleScreen role={workspace.dashboardRole} snapshot={workspace.snapshot} online />
+      ) : null}
+      {!studentId && !renderRoleOperationalWorkspace && role === "dean-academics" ? (
+        <DeanModuleScreen role="dean" moduleName={section || "command-center"} snapshot={workspace.snapshot} online={true} />
       ) : null}
       {!studentId && !renderRoleOperationalWorkspace && section === "settings" ? (
         <div className="space-y-6">

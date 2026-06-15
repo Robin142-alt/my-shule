@@ -10,7 +10,9 @@ import { MoreHorizontal, Plus, Copy, Users, BookOpen, Trash2, UserPlus, Eye, Loa
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 
 export function ExamClassesWorkspace({ model }: { model: any }) {
-  const { data: weightings, isLoading, error } = useSchoolQuery<any[]>("/exams/subject-weightings");
+  const { data: weightingsResponse, isLoading, error } = useSchoolQuery<any>("/exams/subject-weightings");
+  const weightings = weightingsResponse?.data || weightingsResponse;
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -57,14 +59,14 @@ export function ExamClassesWorkspace({ model }: { model: any }) {
                   </TableCell>
                 </TableRow>
               )}
-              {!isLoading && !error && weightings?.length === 0 && (
+              {!isLoading && !error && (!weightings || !Array.isArray(weightings) || weightings.length === 0) && (
                 <TableRow>
                   <TableCell colSpan={8} className="text-center py-10 text-muted-foreground">
                     No classes or subjects configured yet.
                   </TableCell>
                 </TableRow>
               )}
-              {!isLoading && !error && weightings && weightings.map((row, idx) => (
+              {!isLoading && !error && Array.isArray(weightings) && weightings.map((row: any, idx: number) => (
                 <TableRow key={idx}>
                   <TableCell className="font-medium">Class/Subject Setup</TableCell>
                   <TableCell>N/A</TableCell>

@@ -66,6 +66,7 @@ import { getDashboardStudentHref, getDashboardWorkspaceHref } from "@/lib/dashbo
 import { isProductionReadyModule } from "@/lib/features/module-readiness";
 import { requestDashboardApi } from "@/lib/dashboard/api-client";
 import { publishSchoolOperationalEventAndSync } from "@/lib/school/school-operational-store";
+import { staticStudentDataService } from "@/lib/students/student-data-service";
 
 type CreatedStudentResponse = {
   first_name?: string | null;
@@ -566,16 +567,11 @@ export function StudentsPage({
      }
 
      try {
-       // Use the live API to create the student.
-       const response = await requestDashboardApi<CreatedStudentResponse>("/students", {
-         method: "POST",
-         body: {
-           admission_number: studentForm.admissionNumber.trim(),
-           first_name: studentForm.name.trim().split(" ")[0] || "",
-           last_name: studentForm.name.trim().split(" ")[1] || "",
-           parent_phone: studentForm.parentPhone.trim(),
-         },
-         tenantId: tenantId,
+       // Use the unified student data service to create the student and emit events.
+       const response = await staticStudentDataService.admitStudent({
+         admission_number: studentForm.admissionNumber.trim(),
+         first_name: studentForm.name.trim().split(" ")[0] || "",
+         last_name: studentForm.name.trim().split(" ")[1] || "",
        });
 
        // If successful, refresh the student list

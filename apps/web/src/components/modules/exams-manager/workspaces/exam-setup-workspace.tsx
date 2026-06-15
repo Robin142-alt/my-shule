@@ -1,16 +1,106 @@
 "use client";
 
+import { useState } from "react";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { MoreHorizontal, Plus, Copy, Upload, Download, Archive, Edit, Settings, Trash2, CalendarDays, Loader2 } from "lucide-react";
-import { useSchoolQuery } from "@/lib/data/school-hooks";
+import { useSchoolQuery, useSchoolMutation } from "@/lib/data/school-hooks";
+
+function CreateExamDialog({ children, onSuccess }: { children: React.ReactNode, onSuccess?: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [formData, setFormData] = useState({
+    name: "",
+    academic_term_id: "",
+    starts_on: "",
+    ends_on: ""
+  });
+  
+  const createMutation = useSchoolMutation("/exams/draft", "POST");
+  
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await createMutation.mutateAsync(formData);
+      setOpen(false);
+      onSuccess?.();
+    } catch (err) {
+      console.error("Failed to create exam", err);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        {children}
+      </DialogTrigger>
+      <DialogContent>
+        <form onSubmit={handleSubmit}>
+          <DialogHeader>
+            <DialogTitle>Create New Exam Series</DialogTitle>
+            <DialogDescription>Set up a new examination period.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Exam Name</Label>
+              <Input 
+                required 
+                value={formData.name} 
+                onChange={e => setFormData({ ...formData, name: e.target.value })} 
+                placeholder="e.g. End of Term 1" 
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Term ID</Label>
+              <Input 
+                required 
+                value={formData.academic_term_id} 
+                onChange={e => setFormData({ ...formData, academic_term_id: e.target.value })} 
+                placeholder="Term UUID" 
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Start Date</Label>
+              <Input 
+                type="date" 
+                required 
+                value={formData.starts_on} 
+                onChange={e => setFormData({ ...formData, starts_on: e.target.value })} 
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>End Date</Label>
+              <Input 
+                type="date" 
+                required 
+                value={formData.ends_on} 
+                onChange={e => setFormData({ ...formData, ends_on: e.target.value })} 
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" type="button" onClick={() => setOpen(false)}>Cancel</Button>
+            <Button type="submit" disabled={createMutation.isPending}>
+              {createMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Create Exam
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 export function ExamSetupWorkspace({ model }: { model: any }) {
-  const { data: assessments, isLoading, error } = useSchoolQuery<any[]>("/exams/assessments");
+  const { data: assessmentsResponse, isLoading, error, refetch } = useSchoolQuery<any>("/exams/assessments");
+  const assessments = assessmentsResponse?.data || assessmentsResponse;
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -23,7 +113,9 @@ export function ExamSetupWorkspace({ model }: { model: any }) {
           <Button variant="outline"><Upload className="mr-2 h-4 w-4" /> Import Setup</Button>
           <Button variant="outline"><Copy className="mr-2 h-4 w-4" /> Duplicate</Button>
           <Button variant="outline"><Archive className="mr-2 h-4 w-4" /> Archive</Button>
-          <Button><Plus className="mr-2 h-4 w-4" /> Create Exam</Button>
+          <CreateExamDialog onSuccess={refetch}>
+            <Button><Plus className="mr-2 h-4 w-4" /> Create Exam</Button>
+          </CreateExamDialog>
         </div>
       </div>
 
@@ -58,14 +150,14 @@ export function ExamSetupWorkspace({ model }: { model: any }) {
                   </TableCell>
                 </TableRow>
               )}
-              {!isLoading && !error && assessments?.length === 0 && (
+              {!isLoading && !error && (!assessments || !Array.isArray(assessments) || assessments.length === 0) && (
                 <TableRow>
                   <TableCell colSpan={8} className="text-center py-10 text-muted-foreground">
                     No exam configurations found.
                   </TableCell>
                 </TableRow>
               )}
-              {!isLoading && !error && assessments && assessments.map((exam, idx) => (
+              {!isLoading && !error && Array.isArray(assessments) && assessments.map((exam: any, idx: number) => (
                 <TableRow key={idx}>
                   <TableCell className="font-medium">{exam.name}</TableCell>
                   <TableCell>{exam.assessment_type || 'Custom'}</TableCell>

@@ -54,7 +54,12 @@ export type DashboardEventType =
   | "ADMISSION_APPLICATION_UPDATED"
   | "REPORT_CARD_GENERATED"
   | "GRADE_PROCESSING_COMPLETED"
-  | "FEE_WAIVER_REQUESTED";
+  | "FEE_WAIVER_REQUESTED"
+  | "STUDENT_ENROLLED"
+  | "STUDENT_UPDATED"
+  | "STUDENT_CLASS_PLACED"
+  | "STUDENT_PROMOTED"
+  | "STUDENT_STATUS_CHANGED";
 
 export interface DashboardEvent<TPayload extends Record<string, unknown> = Record<string, unknown>> {
   id: string;

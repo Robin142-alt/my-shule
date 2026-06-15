@@ -10,7 +10,9 @@ import { MoreHorizontal, Plus, Calendar, Settings, Printer, Download, AlertTrian
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 
 export function ExamTimetableWorkspace({ model }: { model: any }) {
-  const { data: slots, isLoading, error } = useSchoolQuery<any[]>("/exams/timetable-slots");
+  const { data: slotsResponse, isLoading, error } = useSchoolQuery<any>("/exams/timetable-slots");
+  const slots = slotsResponse?.data || slotsResponse;
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -70,14 +72,14 @@ export function ExamTimetableWorkspace({ model }: { model: any }) {
                   </TableCell>
                 </TableRow>
               )}
-              {!isLoading && !error && slots?.length === 0 && (
+              {!isLoading && !error && (!slots || !Array.isArray(slots) || slots.length === 0) && (
                 <TableRow>
                   <TableCell colSpan={8} className="text-center py-10 text-muted-foreground">
                     No timetable slots scheduled yet.
                   </TableCell>
                 </TableRow>
               )}
-              {!isLoading && !error && slots && slots.map((row, idx) => (
+              {!isLoading && !error && Array.isArray(slots) && slots.map((row: any, idx: number) => (
                 <TableRow key={idx}>
                   <TableCell className="whitespace-nowrap">{new Date(row.date).toLocaleDateString()}</TableCell>
                   <TableCell className="whitespace-nowrap">{row.start_time} - {row.end_time}</TableCell>

@@ -7,7 +7,9 @@ import { Download, Printer, Filter, CalendarDays, FileSpreadsheet, BarChart, Tre
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 
 export function ReportsWorkspace({ model }: { model: any }) {
-  const { data: series, isLoading, error } = useSchoolQuery<any[]>("/exams/series");
+  const { data: seriesResponse, isLoading, error } = useSchoolQuery<any>("/exams/series");
+  const series = seriesResponse?.data || seriesResponse;
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -25,7 +27,8 @@ export function ReportsWorkspace({ model }: { model: any }) {
       <div className="mb-4 flex items-center justify-between text-sm text-muted-foreground">
         {isLoading && <span className="flex items-center"><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading available exam series for reporting...</span>}
         {error && <span className="text-destructive">Failed to load exam series context.</span>}
-        {!isLoading && !error && series && <span>{series.length} active exam series available for analysis.</span>}
+        {!isLoading && !error && (!series || !Array.isArray(series)) && <span>No active exam series available for analysis.</span>}
+        {!isLoading && !error && Array.isArray(series) && <span>{series.length} active exam series available for analysis.</span>}
       </div>
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">

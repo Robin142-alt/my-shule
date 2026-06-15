@@ -10,7 +10,9 @@ import { MoreHorizontal, Download, Upload, CheckCircle, FileSpreadsheet, RotateC
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 
 export function ImportsTemplatesWorkspace({ model }: { model: any }) {
-  const { data: assessments, isLoading, error } = useSchoolQuery<any[]>("/exams/assessments");
+  const { data: assessmentsResponse, isLoading, error } = useSchoolQuery<any>("/exams/assessments");
+  const assessments = assessmentsResponse?.data || assessmentsResponse;
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -80,14 +82,14 @@ export function ImportsTemplatesWorkspace({ model }: { model: any }) {
                   </TableCell>
                 </TableRow>
               )}
-              {!isLoading && !error && assessments?.length === 0 && (
+              {!isLoading && !error && (!assessments || !Array.isArray(assessments) || assessments.length === 0) && (
                 <TableRow>
                   <TableCell colSpan={9} className="text-center py-10 text-muted-foreground">
                     No active template imports found.
                   </TableCell>
                 </TableRow>
               )}
-              {!isLoading && !error && assessments && assessments.map((row, idx) => (
+              {!isLoading && !error && Array.isArray(assessments) && assessments.map((row: any, idx: number) => (
                 <TableRow key={idx}>
                   <TableCell className="font-medium">{row.name.toLowerCase().replace(/ /g, '_')}_marks.csv</TableCell>
                   <TableCell>Marks</TableCell>

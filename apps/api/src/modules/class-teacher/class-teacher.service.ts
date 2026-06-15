@@ -97,6 +97,63 @@ export class ClassTeacherService {
     };
   }
 
+  async getDashboardOverview(tenantId: string, userId: string) {
+    const today = new Date().toISOString().split('T')[0];
+
+    // Todays Lessons
+    const lessonsRes = await this.executeSql(
+      `SELECT count(*)::int as count FROM academics_timetable_slots WHERE tenant_id = $1 AND teacher_id = $2 AND day_of_week = EXTRACT(ISODOW FROM CURRENT_DATE)`,
+      [tenantId, userId]
+    ).catch(() => ({ rows: [{ count: 0 }] }));
+    const todaysLessonsCount = lessonsRes.rows[0]?.count || 0;
+
+    // Pending Attendance
+    const { stats: attendanceStats } = await this.getPendingAttendance(tenantId, userId);
+
+    // Lesson Logs
+    const lessonLogsRes = await this.executeSql(
+      `SELECT count(*)::int as count FROM academics_lesson_logs WHERE tenant_id = $1 AND teacher_id = $2 AND log_date = $3`,
+      [tenantId, userId, today]
+    ).catch(() => ({ rows: [{ count: 0 }] }));
+    const pendingLessonLogs = Math.max(0, todaysLessonsCount - (lessonLogsRes.rows[0]?.count || 0));
+
+    // Marks
+    const { stats: marksStats } = await this.getPendingMarks(tenantId, userId);
+
+    // Assignments
+    const assignmentsRes = await this.executeSql(
+      `SELECT count(*)::int as count FROM academics_assignments WHERE tenant_id = $1 AND teacher_id = $2 AND due_date >= CURRENT_DATE AND due_date < CURRENT_DATE + interval '7 days'`,
+      [tenantId, userId]
+    ).catch(() => ({ rows: [{ count: 0 }] }));
+
+    // Learners needing attention (Discipline)
+    const disciplineRes = await this.executeSql(
+      `SELECT count(DISTINCT di.student_id)::int as count 
+       FROM discipline_incidents di 
+       JOIN student_class_assignments sca ON di.student_id = sca.student_id AND sca.tenant_id = di.tenant_id AND sca.status = 'active'
+       JOIN teacher_subject_assignments tsa ON sca.class_section_id = tsa.class_section_id AND tsa.tenant_id = sca.tenant_id
+       WHERE di.status = 'PENDING' AND tsa.teacher_user_id = $2 AND di.tenant_id = $1`,
+      [tenantId, userId]
+    ).catch(() => ({ rows: [{ count: 0 }] }));
+
+    // Messages
+    const msgRes = await this.executeSql(
+      `SELECT count(*)::int as count FROM school_notifications WHERE tenant_id = $1 AND user_id = $2 AND read_at IS NULL`,
+      [tenantId, userId]
+    ).catch(() => ({ rows: [{ count: 0 }] }));
+
+    return {
+      todaysLessons: { count: todaysLessonsCount, detail: \`\${todaysLessonsCount} scheduled for today\` },
+      pendingAttendance: { count: attendanceStats.pendingTasks, detail: \`\${attendanceStats.pendingTasks} classes not marked\` },
+      pendingLessonLogs: { count: pendingLessonLogs, detail: \`\${pendingLessonLogs} lessons not logged\` },
+      openMarkEntry: { count: marksStats.totalWindows, detail: \`\${marksStats.totalWindows} exams awaiting marks\` },
+      assignmentsDue: { count: assignmentsRes.rows[0]?.count || 0, detail: \`\${assignmentsRes.rows[0]?.count || 0} assignments due this week\` },
+      learnersNeedingAttention: { count: disciplineRes.rows[0]?.count || 0, detail: \`\${disciplineRes.rows[0]?.count || 0} flagged learners\` },
+      unreadMessages: { count: msgRes.rows[0]?.count || 0, detail: \`\${msgRes.rows[0]?.count || 0} unread messages\` },
+      storeRequests: { count: 0, detail: "0 pending requests" } // Placeholder
+    };
+  }
+
   async getRegister(tenantId: string, userId: string, streamId: string) {
     // streamId here is actually class_section_id
     const query = `
@@ -810,17 +867,71 @@ export class ClassTeacherService {
   async getHomework(tenantId: string, userId: string, streamId: string) {
     const query = `
       SELECT 
-        id,
-        title,
-        subject_id as subject,
-        due_date as "dueDate",
-        status
-      FROM academics_assignments
-      WHERE tenant_id = $1 AND class_id = $2
-      ORDER BY due_date DESC
+        a.id,
+        a.title,
+        s.name as subject,
+        a.due_date as "dueDate",
+        a.status
+      FROM academics_assignments a
+      JOIN subjects s ON s.id::text = a.subject_id AND s.tenant_id = a.tenant_id
+      WHERE a.tenant_id = $1 ${streamId ? 'AND a.class_id = $2' : ''} AND a.teacher_id = ${streamId ? '$3' : '$2'}
+      ORDER BY a.due_date DESC
     `;
-    const { rows } = await this.executeSql(query, [tenantId, streamId]);
-    return rows.map(r => ({ ...r, dueDate: new Date(r.dueDate).toLocaleDateString() }));
+    const params = streamId ? [tenantId, streamId, userId] : [tenantId, userId];
+    const { rows } = await this.executeSql(query, params).catch(() => ({ rows: [] }));
+    return rows.map((r: any) => ({ ...r, dueDate: new Date(r.dueDate).toLocaleDateString() }));
+  }
+
+  async saveHomework(tenantId: string, userId: string, payload: any) {
+    const query = `
+      INSERT INTO academics_assignments (tenant_id, title, description, class_id, subject_id, due_date, teacher_id, status)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, 'Published')
+    `;
+    await this.executeSql(query, [
+      tenantId,
+      payload.title || 'Assignment',
+      payload.description || '',
+      payload.classId || '00000000-0000-0000-0000-000000000000',
+      payload.subjectId || '00000000-0000-0000-0000-000000000000',
+      payload.dueDate || new Date().toISOString(),
+      userId
+    ]);
+    return { success: true };
+  }
+
+  async getLessonLogs(tenantId: string, userId: string, streamId?: string) {
+    const query = `
+      SELECT 
+        l.id,
+        l.log_date as date,
+        cs.name as class,
+        'General' as subject,
+        l.covered_topics as topics,
+        'Logged' as status
+      FROM academics_lesson_logs l
+      JOIN class_sections cs ON cs.id = l.class_id AND cs.tenant_id = l.tenant_id
+      WHERE l.tenant_id = $1 AND l.teacher_id = $2
+      ORDER BY l.log_date DESC
+    `;
+    const { rows } = await this.executeSql(query, [tenantId, userId]).catch(() => ({ rows: [] }));
+    return rows.map((r: any) => ({ ...r, date: new Date(r.date).toLocaleDateString() }));
+  }
+
+  async saveLessonLog(tenantId: string, userId: string, payload: any) {
+    const query = `
+      INSERT INTO academics_lesson_logs (tenant_id, teacher_id, class_id, log_date, covered_topics, student_understanding_notes, challenges)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
+    `;
+    await this.executeSql(query, [
+      tenantId,
+      userId,
+      payload.classId,
+      payload.date || new Date().toISOString().split('T')[0],
+      payload.topics || '',
+      payload.notes || '',
+      payload.challenges || ''
+    ]);
+    return { success: true };
   }
 
   async getTasks(tenantId: string, userId: string, streamId: string) {

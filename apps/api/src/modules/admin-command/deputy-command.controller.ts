@@ -1,4 +1,4 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param } from '@nestjs/common';
 import { Permissions } from '../../auth/decorators/permissions.decorator';
 import { DeputyCommandService } from './deputy-command.service';
 
@@ -14,33 +14,85 @@ export class DeputyCommandController {
   @Permissions('deputy:read')
   getDailyOperations() { return this.deputyService.getDailyOperations(); }
 
+  @Post('daily-operations')
+  @Permissions('deputy:write')
+  createDailyOperationNote(@Body() dto: any) { return this.deputyService.createDailyOperationNote(dto); }
+
   @Get('attendance')
   @Permissions('deputy:read')
   getAttendance() { return this.deputyService.getAttendance(); }
+
+  @Post('attendance/:id/notify')
+  @Permissions('deputy:write')
+  notifyParent(@Param('id') id: string) { return this.deputyService.notifyParent(id); }
 
   @Get('discipline')
   @Permissions('deputy:read')
   getDiscipline() { return this.deputyService.getDiscipline(); }
 
+  @Post('discipline')
+  @Permissions('deputy:write')
+  createDisciplineIncident(@Body() dto: any) { return this.deputyService.createDisciplineIncident(dto); }
+
+  @Post('discipline/:id/escalate')
+  @Permissions('deputy:write')
+  escalateDisciplineIncident(@Param('id') id: string) { return this.deputyService.escalateDisciplineIncident(id); }
+
   @Get('welfare')
   @Permissions('deputy:read')
   getWelfare() { return this.deputyService.getWelfare(); }
+
+  @Post('welfare')
+  @Permissions('deputy:write')
+  createWelfareCase(@Body() dto: any) { return this.deputyService.createWelfareCase(dto); }
+
+  @Post('welfare/:id/open')
+  @Permissions('deputy:write')
+  openWelfareCase(@Param('id') id: string) { return this.deputyService.openWelfareCase(id); }
 
   @Get('staff-duty')
   @Permissions('deputy:read')
   getStaffDuty() { return this.deputyService.getStaffDuty(); }
 
+  @Post('staff-duty/:id/request-report')
+  @Permissions('deputy:write')
+  requestDutyReport(@Param('id') id: string) { return this.deputyService.requestDutyReport(id); }
+
+  @Get('teaching')
+  @Permissions('deputy:read')
+  getTeaching() { return this.deputyService.getTeaching(); }
+
+  @Post('teaching/:id/mark-attendance')
+  @Permissions('deputy:write')
+  markTeachingAttendance(@Param('id') id: string) { return this.deputyService.markTeachingAttendance(id); }
+
+  @Post('teaching/:id/log-lesson')
+  @Permissions('deputy:write')
+  logTeachingLesson(@Param('id') id: string) { return this.deputyService.logTeachingLesson(id); }
+
   @Get('timetable')
   @Permissions('deputy:read')
   getTimetable() { return this.deputyService.getTimetable(); }
+
+  @Post('timetable/:id/assign')
+  @Permissions('deputy:write')
+  assignReliefTeacher(@Param('id') id: string, @Body('teacherName') teacherName: string) { return this.deputyService.assignReliefTeacher(id, teacherName); }
 
   @Get('academics')
   @Permissions('deputy:read')
   getAcademics() { return this.deputyService.getAcademics(); }
 
+  @Post('academics/:id/message-hod')
+  @Permissions('deputy:write')
+  messageHOD(@Param('id') id: string) { return this.deputyService.messageHOD(id); }
+
   @Get('exams')
   @Permissions('deputy:read')
   getExams() { return this.deputyService.getExams(); }
+
+  @Post('exams/:id/flag-delay')
+  @Permissions('deputy:write')
+  flagExamDelay(@Param('id') id: string) { return this.deputyService.flagExamDelay(id); }
 
   @Get('classes')
   @Permissions('deputy:read')
@@ -50,6 +102,10 @@ export class DeputyCommandController {
   @Permissions('deputy:read')
   getApprovals() { return this.deputyService.getApprovals(); }
 
+  @Post('approvals/:id/action')
+  @Permissions('deputy:write')
+  actionApproval(@Param('id') id: string, @Body('action') action: string) { return this.deputyService.actionApproval(id, action); }
+
   @Get('communication')
   @Permissions('deputy:read')
   getCommunication() { return this.deputyService.getCommunication(); }
@@ -58,7 +114,15 @@ export class DeputyCommandController {
   @Permissions('deputy:read')
   getReports() { return this.deputyService.getReports(); }
 
+  @Post('reports/generate')
+  @Permissions('deputy:write')
+  generateReport(@Body() body: any) { return this.deputyService.generateReport(body); }
+
   @Get('staff')
   @Permissions('deputy:read')
   getStaff() { return this.deputyService.getStaff(); }
+
+  @Post('staff/assign-role')
+  @Permissions('deputy:write')
+  assignRole(@Body() body: any) { return this.deputyService.assignRole(body); }
 }

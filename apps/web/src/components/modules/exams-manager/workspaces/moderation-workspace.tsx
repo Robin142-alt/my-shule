@@ -10,7 +10,9 @@ import { MoreHorizontal, PlayCircle, ShieldAlert, CheckCircle, Mail, Download, U
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 
 export function ModerationWorkspace({ model }: { model: any }) {
-  const { data: versions, isLoading, error } = useSchoolQuery<any[]>("/exams/mark-versions");
+  const { data: versionsResponse, isLoading, error } = useSchoolQuery<any>("/exams/mark-versions");
+  const versions = versionsResponse?.data || versionsResponse;
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -73,14 +75,14 @@ export function ModerationWorkspace({ model }: { model: any }) {
                   </TableCell>
                 </TableRow>
               )}
-              {!isLoading && !error && versions?.length === 0 && (
+              {!isLoading && !error && (!versions || !Array.isArray(versions) || versions.length === 0) && (
                 <TableRow>
                   <TableCell colSpan={8} className="text-center py-10 text-muted-foreground">
                     No pending moderation requests.
                   </TableCell>
                 </TableRow>
               )}
-              {!isLoading && !error && versions && versions.map((row, idx) => (
+              {!isLoading && !error && Array.isArray(versions) && versions.map((row: any, idx: number) => (
                 <TableRow key={idx}>
                   <TableCell>
                     <div className="flex items-center gap-2">

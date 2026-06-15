@@ -1,8 +1,9 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { CalendarClock } from "lucide-react";
 import { Panel, StatusChip, Tone } from "./shared";
-import { readSchoolData, addSchoolRecord, updateSchoolRecord, subscribeToSchoolDataUpdates, createNotification } from "@/lib/school/school-operational-store";
+import { useSchoolQuery, useSchoolMutation } from "@/lib/data/school-hooks";
+import { useQueryClient } from "@tanstack/react-query";
 
 export type ReliefLesson = {
   id: string;
@@ -14,37 +15,38 @@ export type ReliefLesson = {
   assignedTeacher?: string;
 };
 
-export function DeputyTimetableReliefWorkspace() {
-  const [lessons, setLessons] = useState<ReliefLesson[]>([]);
-
-  const loadData = () => {
-    const data = readSchoolData<ReliefLesson>("deputyRelief");
-    setLessons(data.length > 0 ? data : [
-      { id: "1", lessonTime: "09:00 - 09:40", className: "Form 2 East", subject: "Mathematics", absentTeacher: "Mr. Omondi", reliefStatus: "Needed" }
-    ]);
+type TimetableData = {
+  metrics: {
+    total_periods: number;
   };
+  lessons: ReliefLesson[];
+};
 
-  useEffect(() => {
-    loadData();
-    const unsub = subscribeToSchoolDataUpdates(({ moduleName }) => {
-      if (moduleName === "deputyRelief") loadData();
-    });
-    return unsub;
-  }, []);
+export function DeputyTimetableReliefWorkspace() {
+  const queryClient = useQueryClient();
+  const { data, isLoading } = useSchoolQuery<TimetableData>('/admin-command/deputy/timetable');
 
-  const handleAssign = (id: string, className: string, time: string) => {
+  const assignMutation = useSchoolMutation<{ id: string, teacherName: string }>('/admin-command/deputy/timetable/:id/assign', 'POST', {
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["school", "session", '/admin-command/deputy/timetable'] })
+  });
+
+  const lessons = data?.lessons || [];
+
+  const handleAssign = async (id: string, className: string, time: string) => {
     const teacher = prompt("Enter the name of the relief teacher to assign:");
     if (!teacher) return;
     
-    updateSchoolRecord("deputyRelief", id, { reliefStatus: "Assigned", assignedTeacher: teacher });
-    createNotification({
-      audienceRoles: ["teacher", "deputy_principal"],
-      sourceModule: "timetable",
-      title: "Relief Lesson Assigned",
-      body: `You have been assigned to cover ${className} at ${time}.`,
-      severity: "info",
-    });
-    alert(`${teacher} has been assigned to cover ${className}.`);
+    try {
+      await fetch(`/api/v1/admin-command/deputy/timetable/${id}/assign`, { 
+        method: 'POST', 
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ teacherName: teacher })
+      });
+      queryClient.invalidateQueries({ queryKey: ["school", "session", '/admin-command/deputy/timetable'] });
+      alert(`${teacher} has been assigned to cover ${className}.`);
+    } catch (e) {
+      alert("Failed to assign relief teacher.");
+    }
   };
 
   const getStatusTone = (st: string): Tone => {
@@ -57,6 +59,12 @@ export function DeputyTimetableReliefWorkspace() {
     <Panel title="Timetable & Relief Lessons" description="Lesson disruptions, absences, and relief coverage." icon={CalendarClock} actions={
       <button onClick={() => alert("Auto-assigning available teachers...")} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white hover:bg-blue-900 transition">Auto-Assign Relief</button>
     }>
+      <div className="grid gap-4 md:grid-cols-2 mb-6">
+        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
+          <div className="text-sm font-semibold text-[#64748B]">Total Periods Today</div>
+          <div className="mt-1 text-lg font-black text-[#071D49]">{isLoading ? "..." : data?.metrics?.total_periods || 0}</div>
+        </div>
+      </div>
       <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
         <table className="w-full text-sm text-left whitespace-nowrap">
           <thead className="bg-[#F8FAFC] text-[#071D49]">
@@ -70,22 +78,28 @@ export function DeputyTimetableReliefWorkspace() {
             </tr>
           </thead>
           <tbody className="divide-y divide-[#D8E0EC]">
-            {lessons.map((lesson) => (
-              <tr key={lesson.id} className="hover:bg-[#F8FAFC]">
-                <td className="px-4 py-3 text-[#64748B]">{lesson.lessonTime}</td>
-                <td className="px-4 py-3 font-semibold text-[#071D49]">{lesson.className}</td>
-                <td className="px-4 py-3 text-[#64748B]">{lesson.subject}</td>
-                <td className="px-4 py-3 text-[#64748B]">{lesson.absentTeacher}</td>
-                <td className="px-4 py-3">
-                  <StatusChip label={lesson.reliefStatus === "Assigned" ? `Assigned to ${lesson.assignedTeacher}` : lesson.reliefStatus} tone={getStatusTone(lesson.reliefStatus)} />
-                </td>
-                <td className="px-4 py-3 text-right">
-                  {lesson.reliefStatus === "Needed" && (
-                    <button onClick={() => handleAssign(lesson.id, lesson.className, lesson.lessonTime)} className="text-blue-600 hover:underline font-semibold text-xs">Assign</button>
-                  )}
-                </td>
+            {lessons.length === 0 ? (
+              <tr>
+                <td colSpan={6} className="px-4 py-8 text-center text-[#64748B]">No relief lessons found.</td>
               </tr>
-            ))}
+            ) : (
+              lessons.map((lesson) => (
+                <tr key={lesson.id} className="hover:bg-[#F8FAFC]">
+                  <td className="px-4 py-3 text-[#64748B]">{lesson.lessonTime}</td>
+                  <td className="px-4 py-3 font-semibold text-[#071D49]">{lesson.className}</td>
+                  <td className="px-4 py-3 text-[#64748B]">{lesson.subject}</td>
+                  <td className="px-4 py-3 text-[#64748B]">{lesson.absentTeacher}</td>
+                  <td className="px-4 py-3">
+                    <StatusChip label={lesson.reliefStatus === "Assigned" ? `Assigned to ${lesson.assignedTeacher}` : lesson.reliefStatus} tone={getStatusTone(lesson.reliefStatus)} />
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    {lesson.reliefStatus === "Needed" && (
+                      <button onClick={() => handleAssign(lesson.id, lesson.className, lesson.lessonTime)} className="text-blue-600 hover:underline font-semibold text-xs">Assign</button>
+                    )}
+                  </td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>

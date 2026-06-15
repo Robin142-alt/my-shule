@@ -8,6 +8,8 @@ import { useState } from "react";
 import { usePermissions } from "@/components/providers/permission-context";
 import { Button } from "@/components/ui/button";
 
+import { useStudentEvents } from "@/hooks/useStudentEvents";
+
 type PrincipalStudentsData = {
   status: "active" | "degraded" | "setup_required";
   totalStudents: number;
@@ -18,6 +20,7 @@ type PrincipalStudentsData = {
 };
 
 export function PrincipalStudentsWorkspace() {
+  useStudentEvents();
   const { data, isLoading, error } = useSchoolQuery<PrincipalStudentsData>('/admin-command/principal/students');
   const eventBus = useDashboardEventBus();
   const { hasPermission } = usePermissions();

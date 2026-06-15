@@ -30,6 +30,66 @@ export async function fetchClassTeacherOverviewLive(session: LiveAuthSession, st
   });
 }
 
+export interface TeacherDashboardOverview {
+  todaysLessons: { count: number; detail: string };
+  pendingAttendance: { count: number; detail: string };
+  pendingLessonLogs: { count: number; detail: string };
+  openMarkEntry: { count: number; detail: string };
+  assignmentsDue: { count: number; detail: string };
+  learnersNeedingAttention: { count: number; detail: string };
+  unreadMessages: { count: number; detail: string };
+  storeRequests: { count: number; detail: string };
+}
+
+export async function fetchTeacherDashboardOverviewLive(session: LiveAuthSession): Promise<TeacherDashboardOverview> {
+  return withSession(session, `/class-teacher/dashboard-overview`, {
+    method: "GET",
+  });
+}
+
+export interface AssignmentTask {
+  id: string;
+  title: string;
+  subject: string;
+  dueDate: string;
+  status: string;
+}
+
+export async function fetchAssignmentsLive(session: LiveAuthSession, streamId?: string): Promise<AssignmentTask[]> {
+  return withSession(session, `/class-teacher/homework${streamId ? `?streamId=${streamId}` : ''}`, {
+    method: "GET",
+  });
+}
+
+export async function createAssignmentLive(session: LiveAuthSession, data: any): Promise<{ success: boolean }> {
+  return withSession(session, `/class-teacher/homework`, {
+    method: "POST",
+    body: data,
+  });
+}
+
+export interface LessonLog {
+  id: string;
+  date: string;
+  class: string;
+  subject: string;
+  topics: string;
+  status: string;
+}
+
+export async function fetchLessonLogsLive(session: LiveAuthSession, streamId?: string): Promise<LessonLog[]> {
+  return withSession(session, `/class-teacher/lesson-logs${streamId ? `?streamId=${streamId}` : ''}`, {
+    method: "GET",
+  });
+}
+
+export async function createLessonLogLive(session: LiveAuthSession, data: any): Promise<{ success: boolean }> {
+  return withSession(session, `/class-teacher/lesson-logs`, {
+    method: "POST",
+    body: data,
+  });
+}
+
 export interface PendingAttendanceTask {
   id: string;
   classSectionId: string;

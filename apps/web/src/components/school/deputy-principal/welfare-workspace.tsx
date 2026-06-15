@@ -1,9 +1,10 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Stethoscope } from "lucide-react";
 import { Panel, StatusChip, Tone } from "./shared";
 import { Modal } from "@/components/ui/modal";
-import { readSchoolData, subscribeToSchoolDataUpdates, addSchoolRecord, updateSchoolRecord, createNotification } from "@/lib/school/school-operational-store";
+import { useSchoolQuery, useSchoolMutation } from "@/lib/data/school-hooks";
+import { useQueryClient } from "@tanstack/react-query";
 
 export type WelfareCase = {
   id: string;
@@ -13,42 +14,31 @@ export type WelfareCase = {
   status: "Referred" | "In Progress" | "Resolved";
 };
 
+type WelfareData = {
+  metrics: {
+    clinic_visits_today: number;
+  };
+  cases: WelfareCase[];
+};
+
 export function DeputyWelfareWorkspace() {
-  const [cases, setCases] = useState<WelfareCase[]>([]);
   const [showModal, setShowModal] = useState(false);
   const [formData, setFormData] = useState({ studentName: "", concern: "", assignedTo: "School Counsellor" });
 
-  const loadData = () => {
-    const data = readSchoolData<WelfareCase>("deputyWelfare");
-    setCases(data.length > 0 ? data : [
-      { id: "1", studentName: "Jane Njeri", concern: "Repeated absenteeism", assignedTo: "School Counsellor", status: "Referred" }
-    ]);
-  };
+  const queryClient = useQueryClient();
+  const { data, isLoading } = useSchoolQuery<WelfareData>('/admin-command/deputy/welfare');
 
-  useEffect(() => {
-    loadData();
-    const unsub = subscribeToSchoolDataUpdates(({ moduleName }) => {
-      if (moduleName === "deputyWelfare") loadData();
-    });
-    return unsub;
-  }, []);
+  const createMutation = useSchoolMutation('/admin-command/deputy/welfare', 'POST', {
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["school", "session", '/admin-command/deputy/welfare'] })
+  });
 
-  const handleCreate = () => {
-    const newCase: WelfareCase = {
-      id: Math.random().toString(36).slice(2, 9),
+  const cases = data?.cases || [];
+
+  const handleCreate = async () => {
+    await createMutation.mutateAsync({
       studentName: formData.studentName,
       concern: formData.concern,
       assignedTo: formData.assignedTo,
-      status: "Referred"
-    };
-    addSchoolRecord("deputyWelfare", newCase);
-    
-    createNotification({
-      audienceRoles: ["school_counsellor", "deputy_principal", "school_nurse"],
-      sourceModule: "welfare",
-      title: "New Welfare Referral",
-      body: `Welfare case created for ${formData.studentName} concerning ${formData.concern}. Assigned to ${formData.assignedTo}.`,
-      severity: "info",
     });
     
     setShowModal(false);
@@ -56,9 +46,14 @@ export function DeputyWelfareWorkspace() {
     alert("Welfare case created and referred successfully.");
   };
 
-  const handleOpenCase = (id: string, studentName: string) => {
-    updateSchoolRecord("deputyWelfare", id, { status: "In Progress" });
-    alert(`Case for ${studentName} opened. Status updated to In Progress.`);
+  const handleOpenCase = async (id: string, studentName: string) => {
+    try {
+      await fetch(`/api/v1/admin-command/deputy/welfare/${id}/open`, { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+      queryClient.invalidateQueries({ queryKey: ["school", "session", '/admin-command/deputy/welfare'] });
+      alert(`Case for ${studentName} opened. Status updated to In Progress.`);
+    } catch (e) {
+      alert("Failed to open case.");
+    }
   };
 
   const getStatusTone = (st: string): Tone => {
@@ -71,6 +66,12 @@ export function DeputyWelfareWorkspace() {
     <Panel title="Student Welfare" description="Non-punitive student support, counselling, and general welfare." icon={Stethoscope} actions={
       <button onClick={() => setShowModal(true)} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white hover:bg-blue-900 transition">Create Welfare Case</button>
     }>
+      <div className="grid gap-4 md:grid-cols-2 mb-6">
+        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
+          <div className="text-sm font-semibold text-[#64748B]">Clinic Visits Today</div>
+          <div className="mt-1 text-lg font-black text-[#071D49]">{isLoading ? "..." : data?.metrics?.clinic_visits_today || 0}</div>
+        </div>
+      </div>
       <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
         <table className="w-full text-sm text-left whitespace-nowrap">
           <thead className="bg-[#F8FAFC] text-[#071D49]">
@@ -83,19 +84,25 @@ export function DeputyWelfareWorkspace() {
             </tr>
           </thead>
           <tbody className="divide-y divide-[#D8E0EC]">
-            {cases.map((wc) => (
-              <tr key={wc.id} className="hover:bg-[#F8FAFC]">
-                <td className="px-4 py-3 font-semibold text-[#071D49]">{wc.studentName}</td>
-                <td className="px-4 py-3 text-[#64748B]">{wc.concern}</td>
-                <td className="px-4 py-3 text-[#64748B]">{wc.assignedTo}</td>
-                <td className="px-4 py-3"><StatusChip label={wc.status} tone={getStatusTone(wc.status)} /></td>
-                <td className="px-4 py-3 text-right">
-                  {wc.status === "Referred" && (
-                    <button onClick={() => handleOpenCase(wc.id, wc.studentName)} className="text-blue-600 hover:underline font-semibold text-xs">Open Case</button>
-                  )}
-                </td>
+            {cases.length === 0 ? (
+              <tr>
+                <td colSpan={5} className="px-4 py-8 text-center text-[#64748B]">No recent welfare cases found.</td>
               </tr>
-            ))}
+            ) : (
+              cases.map((wc) => (
+                <tr key={wc.id} className="hover:bg-[#F8FAFC]">
+                  <td className="px-4 py-3 font-semibold text-[#071D49]">{wc.studentName}</td>
+                  <td className="px-4 py-3 text-[#64748B]">{wc.concern}</td>
+                  <td className="px-4 py-3 text-[#64748B]">{wc.assignedTo}</td>
+                  <td className="px-4 py-3"><StatusChip label={wc.status} tone={getStatusTone(wc.status)} /></td>
+                  <td className="px-4 py-3 text-right">
+                    {wc.status === "Referred" && (
+                      <button onClick={() => handleOpenCase(wc.id, wc.studentName)} className="text-blue-600 hover:underline font-semibold text-xs">Open Case</button>
+                    )}
+                  </td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>
@@ -103,7 +110,9 @@ export function DeputyWelfareWorkspace() {
       <Modal open={showModal} onClose={() => setShowModal(false)} title="Log New Welfare Case" footer={
         <>
           <button onClick={() => setShowModal(false)} className="rounded-lg px-4 py-2 text-sm font-bold text-[#64748B] hover:bg-slate-100">Cancel</button>
-          <button disabled={!formData.studentName} onClick={handleCreate} className="rounded-lg bg-rose-600 px-4 py-2 text-sm font-black text-white hover:bg-rose-700 disabled:opacity-50">Save Case</button>
+          <button disabled={!formData.studentName || createMutation.isPending} onClick={handleCreate} className="rounded-lg bg-rose-600 px-4 py-2 text-sm font-black text-white hover:bg-rose-700 disabled:opacity-50">
+            {createMutation.isPending ? "Saving..." : "Save Case"}
+          </button>
         </>
       }>
         <div className="space-y-4">

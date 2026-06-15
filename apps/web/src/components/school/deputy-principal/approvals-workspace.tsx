@@ -1,8 +1,8 @@
 "use client";
-import { useState, useEffect } from "react";
 import { CheckCircle2 } from "lucide-react";
 import { Panel, StatusChip, Tone } from "./shared";
-import { readSchoolData, updateSchoolRecord, subscribeToSchoolDataUpdates, createNotification } from "@/lib/school/school-operational-store";
+import { useSchoolQuery, useSchoolMutation } from "@/lib/data/school-hooks";
+import { useQueryClient } from "@tanstack/react-query";
 
 export type ApprovalRequest = {
   id: string;
@@ -12,36 +12,35 @@ export type ApprovalRequest = {
   status: "Pending Approval" | "Approved" | "Rejected";
 };
 
-export function DeputyApprovalsWorkspace() {
-  const [approvals, setApprovals] = useState<ApprovalRequest[]>([]);
-
-  const loadData = () => {
-    const data = readSchoolData<ApprovalRequest>("deputyApprovals");
-    setApprovals(data.length > 0 ? data : [
-      { id: "1", type: "Suspension Recommend", raisedBy: "Discipline Master", affectedPerson: "Brian Otieno", status: "Pending Approval" }
-    ]);
+type ApprovalsData = {
+  metrics: {
+    pending_approvals: number;
   };
+  approvalsList: ApprovalRequest[];
+};
 
-  useEffect(() => {
-    loadData();
-    const unsub = subscribeToSchoolDataUpdates(({ moduleName }) => {
-      if (moduleName === "deputyApprovals") loadData();
-    });
-    return unsub;
-  }, []);
+export function DeputyApprovalsWorkspace() {
+  const queryClient = useQueryClient();
+  const { data, isLoading } = useSchoolQuery<ApprovalsData>('/admin-command/deputy/approvals');
 
-  const handleAction = (id: string, action: "Approve" | "Reject") => {
-    const newStatus = action === "Approve" ? "Approved" : "Rejected";
-    updateSchoolRecord("deputyApprovals", id, { status: newStatus });
-    
-    createNotification({
-      audienceRoles: ["discipline_master", "principal"],
-      sourceModule: "approvals",
-      title: `Approval ${newStatus}`,
-      body: `The recommendation has been ${newStatus.toLowerCase()} by the Deputy Principal.`,
-      severity: action === "Approve" ? "success" : "warning",
-    });
-    alert(`Request has been ${newStatus}.`);
+  const actionMutation = useSchoolMutation<{ id: string, action: string }>('/admin-command/deputy/approvals/:id/action', 'POST', {
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["school", "session", '/admin-command/deputy/approvals'] })
+  });
+
+  const approvals = data?.approvalsList || [];
+
+  const handleAction = async (id: string, action: "Approve" | "Reject") => {
+    try {
+      await fetch(`/api/v1/admin-command/deputy/approvals/${id}/action`, { 
+        method: 'POST', 
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action })
+      });
+      queryClient.invalidateQueries({ queryKey: ["school", "session", '/admin-command/deputy/approvals'] });
+      alert(`Request has been ${action}d.`);
+    } catch (e) {
+      alert("Failed to process approval action.");
+    }
   };
 
   const getStatusTone = (st: string): Tone => {
@@ -52,6 +51,12 @@ export function DeputyApprovalsWorkspace() {
 
   return (
     <Panel title="Approvals & Escalations" description="Handle operational approvals and escalations." icon={CheckCircle2}>
+      <div className="grid gap-4 md:grid-cols-2 mb-6">
+        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
+          <div className="text-sm font-semibold text-[#64748B]">Pending Approvals</div>
+          <div className="mt-1 text-lg font-black text-[#071D49]">{isLoading ? "..." : data?.metrics?.pending_approvals || 0}</div>
+        </div>
+      </div>
       <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
         <table className="w-full text-sm text-left whitespace-nowrap">
           <thead className="bg-[#F8FAFC] text-[#071D49]">
@@ -64,24 +69,30 @@ export function DeputyApprovalsWorkspace() {
             </tr>
           </thead>
           <tbody className="divide-y divide-[#D8E0EC]">
-            {approvals.map((req) => (
-              <tr key={req.id} className="hover:bg-[#F8FAFC]">
-                <td className="px-4 py-3 font-semibold text-[#071D49]">{req.type}</td>
-                <td className="px-4 py-3 text-[#64748B]">{req.raisedBy}</td>
-                <td className="px-4 py-3 text-[#64748B]">{req.affectedPerson}</td>
-                <td className="px-4 py-3"><StatusChip label={req.status} tone={getStatusTone(req.status)} /></td>
-                <td className="px-4 py-3 text-right">
-                  {req.status === "Pending Approval" ? (
-                    <>
-                      <button onClick={() => handleAction(req.id, "Approve")} className="text-emerald-600 hover:underline font-semibold text-xs mr-3">Approve</button>
-                      <button onClick={() => handleAction(req.id, "Reject")} className="text-rose-600 hover:underline font-semibold text-xs mr-3">Reject</button>
-                    </>
-                  ) : (
-                    <span className="text-[#64748B] text-xs font-semibold">Processed</span>
-                  )}
-                </td>
+            {approvals.length === 0 ? (
+              <tr>
+                <td colSpan={5} className="px-4 py-8 text-center text-[#64748B]">No pending approvals.</td>
               </tr>
-            ))}
+            ) : (
+              approvals.map((req) => (
+                <tr key={req.id} className="hover:bg-[#F8FAFC]">
+                  <td className="px-4 py-3 font-semibold text-[#071D49]">{req.type}</td>
+                  <td className="px-4 py-3 text-[#64748B]">{req.raisedBy}</td>
+                  <td className="px-4 py-3 text-[#64748B]">{req.affectedPerson}</td>
+                  <td className="px-4 py-3"><StatusChip label={req.status} tone={getStatusTone(req.status)} /></td>
+                  <td className="px-4 py-3 text-right">
+                    {req.status === "Pending Approval" ? (
+                      <>
+                        <button onClick={() => handleAction(req.id, "Approve")} className="text-emerald-600 hover:underline font-semibold text-xs mr-3">Approve</button>
+                        <button onClick={() => handleAction(req.id, "Reject")} className="text-rose-600 hover:underline font-semibold text-xs mr-3">Reject</button>
+                      </>
+                    ) : (
+                      <span className="text-[#64748B] text-xs font-semibold">Processed</span>
+                    )}
+                  </td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>

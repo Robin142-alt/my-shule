@@ -4,13 +4,14 @@ import { useState } from "react";
 import { Users, UserPlus, Archive, CheckCircle, Search, AlertCircle, MapPin } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { useSchoolQuery, useSchoolMutation } from "@/lib/data/school-hooks";
+import { useStudents } from "@/hooks/useStudents";
+import { useStudentDataService } from "@/hooks/useStudentDataService";
 
 export function StudentsWorkspace() {
   const [activeTab, setActiveTab] = useState<"directory" | "enrollment" | "archived">("directory");
   
-  const { data: studentsList, isLoading, refetch } = useSchoolQuery<any[]>("/api/students", { enabled: activeTab === "directory" || activeTab === "archived" });
-  const enrollMutation = useSchoolMutation((vars: { student_id: string }) => `/api/students/lifecycle/${vars.student_id}/enroll`);
+  const { data: studentsList, isLoading } = useStudents();
+  const studentDataService = useStudentDataService();
 
   const [enrollFirstName, setEnrollFirstName] = useState("");
   const [enrollLastName, setEnrollLastName] = useState("");
@@ -20,26 +21,20 @@ export function StudentsWorkspace() {
   const handleEnroll = async () => {
     if (!enrollFirstName || !enrollLastName) return;
     try {
-      // Create student first
-      const createRes = await fetch("/api/students", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          first_name: enrollFirstName,
-          last_name: enrollLastName,
-          gender: enrollGender,
-          date_of_birth: enrollDob || undefined,
-        })
+      // Create and admit student using the unified service (emits events)
+      const student = await studentDataService.admitStudent({
+        first_name: enrollFirstName,
+        last_name: enrollLastName,
+        gender: enrollGender,
+        date_of_birth: enrollDob || undefined,
       });
-      if (!createRes.ok) throw new Error("Failed to create student");
-      const student = await createRes.json();
       
       // Then enroll
-      await enrollMutation.mutateAsync({ student_id: student.id });
+      await studentDataService.enrollStudent(student.id);
+      
       setEnrollFirstName("");
       setEnrollLastName("");
       setActiveTab("directory");
-      refetch();
     } catch (e: any) {
       alert(e.message || "Failed to enroll student");
     }

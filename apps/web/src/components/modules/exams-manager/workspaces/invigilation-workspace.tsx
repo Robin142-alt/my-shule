@@ -10,7 +10,9 @@ import { MoreHorizontal, Plus, Settings, Printer, Mail, UserCheck, UserX, AlertC
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 
 export function InvigilationWorkspace({ model }: { model: any }) {
-  const { data: invigilators, isLoading, error } = useSchoolQuery<any[]>("/exams/invigilators");
+  const { data: invigilatorsResponse, isLoading, error } = useSchoolQuery<any>("/exams/invigilators");
+  const invigilators = invigilatorsResponse?.data || invigilatorsResponse;
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -79,14 +81,14 @@ export function InvigilationWorkspace({ model }: { model: any }) {
                   </TableCell>
                 </TableRow>
               )}
-              {!isLoading && !error && invigilators?.length === 0 && (
+              {!isLoading && !error && (!invigilators || !Array.isArray(invigilators) || invigilators.length === 0) && (
                 <TableRow>
                   <TableCell colSpan={7} className="text-center py-10 text-muted-foreground">
                     No invigilators assigned yet.
                   </TableCell>
                 </TableRow>
               )}
-              {!isLoading && !error && invigilators && invigilators.map((row, idx) => (
+              {!isLoading && !error && Array.isArray(invigilators) && invigilators.map((row: any, idx: number) => (
                 <TableRow key={idx}>
                   <TableCell className="whitespace-nowrap">{new Date(row.created_at).toLocaleDateString()}</TableCell>
                   <TableCell>{row.timetable_slot_id || "Unassigned"}</TableCell>

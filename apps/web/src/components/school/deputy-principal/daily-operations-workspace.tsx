@@ -1,9 +1,10 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Activity } from "lucide-react";
 import { Panel, StatusChip, Tone } from "./shared";
 import { Modal } from "@/components/ui/modal";
-import { readSchoolData, addSchoolRecord, subscribeToSchoolDataUpdates, createNotification } from "@/lib/school/school-operational-store";
+import { useSchoolQuery, useSchoolMutation } from "@/lib/data/school-hooks";
+import { useQueryClient } from "@tanstack/react-query";
 
 export type OperationNote = {
   id: string;
@@ -13,41 +14,42 @@ export type OperationNote = {
   status: "Active" | "Resolved";
 };
 
+type DailyOperationsData = {
+  metrics: {
+    morning_parade_status: string;
+    staff_on_duty_present: number;
+    staff_on_duty_total: number;
+    gate_security_status: string;
+    classes_not_started: number;
+  };
+  notes: OperationNote[];
+};
+
 export function DeputyDailyOperationsWorkspace() {
-  const [notes, setNotes] = useState<OperationNote[]>([]);
   const [showModal, setShowModal] = useState(false);
   const [formData, setFormData] = useState({ area: "", issue: "" });
+  
+  const queryClient = useQueryClient();
+  const { data, isLoading } = useSchoolQuery<DailyOperationsData>('/admin-command/deputy/daily-operations');
+  const createNoteMutation = useSchoolMutation('/admin-command/deputy/daily-operations', 'POST', {
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["school", "session", '/admin-command/deputy/daily-operations'] });
+    }
+  });
 
-  const loadData = () => {
-    const data = readSchoolData<OperationNote>("deputyOperations");
-    setNotes(data.length > 0 ? data : [
-      { id: "1", time: "08:15 AM", area: "Main Gate", issue: "Parent visitor log high", status: "Resolved" }
-    ]);
+  const notes = data?.notes || [];
+  const metrics = data?.metrics || {
+    morning_parade_status: "Pending",
+    staff_on_duty_present: 0,
+    staff_on_duty_total: 0,
+    gate_security_status: "No Report",
+    classes_not_started: 0,
   };
 
-  useEffect(() => {
-    loadData();
-    const unsub = subscribeToSchoolDataUpdates(({ moduleName }) => {
-      if (moduleName === "deputyOperations") loadData();
-    });
-    return unsub;
-  }, []);
-
-  const handleCreate = () => {
-    const newNote: OperationNote = {
-      id: Math.random().toString(36).slice(2, 9),
-      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+  const handleCreate = async () => {
+    await createNoteMutation.mutateAsync({
       area: formData.area,
-      issue: formData.issue,
-      status: "Active"
-    };
-    addSchoolRecord("deputyOperations", newNote);
-    createNotification({
-      audienceRoles: ["principal", "deputy_principal", "security"],
-      sourceModule: "daily_operations",
-      title: "New Operation Alert",
-      body: `Operation issue logged at ${newNote.area}: ${newNote.issue}`,
-      severity: "warning",
+      issue: formData.issue
     });
     setShowModal(false);
     setFormData({ area: "", issue: "" });
@@ -61,24 +63,24 @@ export function DeputyDailyOperationsWorkspace() {
 
   return (
     <Panel title="Daily Operations" description="Manage the school day from morning to evening." icon={Activity} actions={
-      <button onClick={() => setShowModal(true)} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white">Create Operation Note</button>
+      <button onClick={() => setShowModal(true)} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white hover:bg-blue-900">Create Operation Note</button>
     }>
       <div className="grid gap-4 md:grid-cols-4 mb-6">
         <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
           <div className="text-sm font-semibold text-[#64748B]">Morning Parade</div>
-          <div className="mt-1 text-lg font-black text-emerald-600">Completed</div>
+          <div className="mt-1 text-lg font-black text-emerald-600">{isLoading ? "..." : metrics.morning_parade_status}</div>
         </div>
         <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
           <div className="text-sm font-semibold text-[#64748B]">Staff on Duty</div>
-          <div className="mt-1 text-lg font-black text-[#071D49]">6 / 6 Present</div>
+          <div className="mt-1 text-lg font-black text-[#071D49]">{isLoading ? "..." : `${metrics.staff_on_duty_present} / ${metrics.staff_on_duty_total} Present`}</div>
         </div>
         <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
           <div className="text-sm font-semibold text-[#64748B]">Gate Security</div>
-          <div className="mt-1 text-lg font-black text-[#071D49]">Report Received</div>
+          <div className="mt-1 text-lg font-black text-[#071D49]">{isLoading ? "..." : metrics.gate_security_status}</div>
         </div>
         <div className="rounded-xl border border-rose-200 bg-rose-50 p-4">
           <div className="text-sm font-semibold text-rose-700">Classes Not Started</div>
-          <div className="mt-1 text-lg font-black text-rose-700">2</div>
+          <div className="mt-1 text-lg font-black text-rose-700">{isLoading ? "..." : metrics.classes_not_started}</div>
         </div>
       </div>
       <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
@@ -93,17 +95,23 @@ export function DeputyDailyOperationsWorkspace() {
             </tr>
           </thead>
           <tbody className="divide-y divide-[#D8E0EC]">
-            {notes.map((note) => (
-              <tr key={note.id} className="hover:bg-[#F8FAFC]">
-                <td className="px-4 py-3 text-[#64748B]">{note.time}</td>
-                <td className="px-4 py-3 font-semibold text-[#071D49]">{note.area}</td>
-                <td className="px-4 py-3 text-[#64748B]">{note.issue}</td>
-                <td className="px-4 py-3"><StatusChip label={note.status} tone={getStatusTone(note.status)} /></td>
-                <td className="px-4 py-3 text-right">
-                  <button className="text-blue-600 hover:underline font-semibold text-xs">View Note</button>
-                </td>
+            {notes.length === 0 ? (
+              <tr>
+                <td colSpan={5} className="px-4 py-8 text-center text-[#64748B]">No operational notes logged today.</td>
               </tr>
-            ))}
+            ) : (
+              notes.map((note) => (
+                <tr key={note.id} className="hover:bg-[#F8FAFC]">
+                  <td className="px-4 py-3 text-[#64748B]">{note.time}</td>
+                  <td className="px-4 py-3 font-semibold text-[#071D49]">{note.area}</td>
+                  <td className="px-4 py-3 text-[#64748B]">{note.issue}</td>
+                  <td className="px-4 py-3"><StatusChip label={note.status} tone={getStatusTone(note.status)} /></td>
+                  <td className="px-4 py-3 text-right">
+                    <button className="text-blue-600 hover:underline font-semibold text-xs">View Note</button>
+                  </td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>
@@ -111,7 +119,9 @@ export function DeputyDailyOperationsWorkspace() {
       <Modal open={showModal} onClose={() => setShowModal(false)} title="Log Daily Operation Note" footer={
         <>
           <button onClick={() => setShowModal(false)} className="rounded-lg px-4 py-2 text-sm font-bold text-[#64748B] hover:bg-slate-100">Cancel</button>
-          <button disabled={!formData.area || !formData.issue} onClick={handleCreate} className="rounded-lg bg-rose-600 px-4 py-2 text-sm font-black text-white hover:bg-rose-700 disabled:opacity-50">Save Note</button>
+          <button disabled={!formData.area || !formData.issue || createNoteMutation.isPending} onClick={handleCreate} className="rounded-lg bg-rose-600 px-4 py-2 text-sm font-black text-white hover:bg-rose-700 disabled:opacity-50">
+            {createNoteMutation.isPending ? "Saving..." : "Save Note"}
+          </button>
         </>
       }>
         <div className="space-y-4">

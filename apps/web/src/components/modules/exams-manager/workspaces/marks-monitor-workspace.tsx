@@ -10,7 +10,9 @@ import { MoreHorizontal, PlayCircle, StopCircle, Bell, Download, Lock, Eye, Rota
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 
 export function MarksMonitorWorkspace({ model }: { model: any }) {
-  const { data: windows, isLoading, error } = useSchoolQuery<any[]>("/exams/mark-entry-windows");
+  const { data: windowsResponse, isLoading, error } = useSchoolQuery<any>("/exams/mark-entry-windows");
+  const windows = windowsResponse?.data || windowsResponse;
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -74,14 +76,14 @@ export function MarksMonitorWorkspace({ model }: { model: any }) {
                   </TableCell>
                 </TableRow>
               )}
-              {!isLoading && !error && windows?.length === 0 && (
+              {!isLoading && !error && (!windows || !Array.isArray(windows) || windows.length === 0) && (
                 <TableRow>
                   <TableCell colSpan={10} className="text-center py-10 text-muted-foreground">
                     No mark entry windows configured.
                   </TableCell>
                 </TableRow>
               )}
-              {!isLoading && !error && windows && windows.map((row, idx) => (
+              {!isLoading && !error && Array.isArray(windows) && windows.map((row: any, idx: number) => (
                 <TableRow key={idx}>
                   <TableCell>Class: {row.class_section_id}</TableCell>
                   <TableCell className="font-medium">Subject: {row.subject_id}</TableCell>

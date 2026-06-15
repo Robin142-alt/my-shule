@@ -1,6 +1,7 @@
 "use client";
 
 import { useSchoolQuery, useSchoolMutation } from "@/lib/data/school-hooks";
+import { useStudentEvents } from "./useStudentEvents";
 import type { Student, StudentGuardian } from "@/types/shared";
 
 interface StudentFilters {
@@ -14,6 +15,8 @@ export function useStudents(filters?: StudentFilters) {
   const queryParams = filters
     ? "?" + new URLSearchParams(filters as Record<string, string>).toString()
     : "";
+
+  useStudentEvents();
 
   return useSchoolQuery<Student[]>(`/api/students${queryParams}`);
 }

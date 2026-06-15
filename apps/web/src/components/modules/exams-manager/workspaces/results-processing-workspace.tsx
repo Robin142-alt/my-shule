@@ -10,7 +10,9 @@ import { MoreHorizontal, PlayCircle, BarChart, RotateCcw, FileSpreadsheet, Activ
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 
 export function ResultsProcessingWorkspace({ model }: { model: any }) {
-  const { data: batches, isLoading, error } = useSchoolQuery<any[]>("/exams/report-card-batches");
+  const { data: batchesResponse, isLoading, error } = useSchoolQuery<any>("/exams/report-card-batches");
+  const batches = batchesResponse?.data || batchesResponse;
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -57,14 +59,14 @@ export function ResultsProcessingWorkspace({ model }: { model: any }) {
                   </TableCell>
                 </TableRow>
               )}
-              {!isLoading && !error && batches?.length === 0 && (
+              {!isLoading && !error && (!batches || !Array.isArray(batches) || batches.length === 0) && (
                 <TableRow>
                   <TableCell colSpan={8} className="text-center py-10 text-muted-foreground">
                     No results processing batches found.
                   </TableCell>
                 </TableRow>
               )}
-              {!isLoading && !error && batches && batches.map((row, idx) => (
+              {!isLoading && !error && Array.isArray(batches) && batches.map((row: any, idx: number) => (
                 <TableRow key={idx}>
                   <TableCell className="font-medium">Series: {row.exam_series_id}</TableCell>
                   <TableCell>{row.class_section_id || 'All Classes'}</TableCell>
