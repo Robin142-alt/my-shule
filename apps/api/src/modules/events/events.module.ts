@@ -84,6 +84,7 @@ import { WorkflowRepository } from './repositories/workflow.repository';
   ],
   exports: [
     EventPublisherService,
+    EventConsumerRegistryService,
     StudentEventsService,
     AuditLogsRepository,
     DashboardRealtimeService,
