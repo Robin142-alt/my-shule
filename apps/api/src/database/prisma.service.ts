@@ -1,13 +1,18 @@
 import { Injectable, OnModuleInit, OnModuleDestroy, Logger } from '@nestjs/common';
 import { PrismaClient, Prisma } from '@prisma/client';
+import { PrismaPg } from '@prisma/adapter-pg';
 import { RequestContextService } from '../common/request-context/request-context.service';
+
+const DEFAULT_DATABASE_URL = 'postgresql://postgres:postgres@localhost:5432/shule_hub';
 
 @Injectable()
 export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(PrismaService.name);
 
   constructor(private readonly requestContext: RequestContextService) {
-    super({});
+    super({
+      adapter: new PrismaPg(process.env.DATABASE_URL ?? DEFAULT_DATABASE_URL),
+    });
   }
 
   async onModuleInit() {
