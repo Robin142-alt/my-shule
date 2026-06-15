@@ -53,7 +53,7 @@ export class AdminCommandController {
 
   @Get('principal/attendance')
   @RequiresModule('admin_command_centers', 'principal_dashboard')
-  @Permissions('principal:read', 'attendance:read')
+  @Permissions('principal:read')
   getPrincipalAttendance() {
     return this.adminCommandService.getPrincipalAttendanceOverview();
   }
@@ -74,28 +74,28 @@ export class AdminCommandController {
 
   @Get('principal/communication')
   @RequiresModule('admin_command_centers', 'principal_dashboard')
-  @Permissions('principal:read', 'communication:read')
+  @Permissions('principal:read', 'school_sms:read')
   getPrincipalCommunication() {
     return this.adminCommandService.getPrincipalCommunicationOverview();
   }
 
   @Get('principal/classes')
   @RequiresModule('admin_command_centers', 'principal_dashboard')
-  @Permissions('principal:read', 'classes:read')
+  @Permissions('principal:read', 'academics:read')
   getPrincipalClasses() {
     return this.adminCommandService.getPrincipalClassesOverview();
   }
 
   @Get('principal/subjects')
   @RequiresModule('admin_command_centers', 'principal_dashboard')
-  @Permissions('principal:read', 'subjects:read')
+  @Permissions('principal:read', 'academics:read')
   getPrincipalSubjects() {
     return this.adminCommandService.getPrincipalSubjectsOverview();
   }
 
   @Get('principal/staff')
   @RequiresModule('admin_command_centers', 'principal_dashboard')
-  @Permissions('principal:read', 'staff:read')
+  @Permissions('principal:read', 'hr:read')
   getPrincipalStaff() {
     return this.adminCommandService.getPrincipalStaffOverview();
   }
@@ -109,14 +109,14 @@ export class AdminCommandController {
 
   @Get('principal/school-profile')
   @RequiresModule('admin_command_centers', 'principal_dashboard')
-  @Permissions('principal:read', 'school_profile:read')
+  @Permissions('principal:read')
   getSchoolProfile() {
     return this.adminCommandService.getSchoolProfile();
   }
 
   @Get('principal/approvals')
   @RequiresModule('admin_command_centers', 'principal_dashboard')
-  @Permissions('principal:read', 'approvals:read')
+  @Permissions('principal:read')
   getApprovalsOverview() {
     return this.adminCommandService.getApprovalsOverview();
   }
@@ -129,13 +129,13 @@ export class AdminCommandController {
   }
 
   @Post('global-search')
-  @Permissions('admin:read')
+  @Permissions('principal:read')
   async globalSearch(@Query('q') query: string) {
     return this.adminCommandService.globalSearch(query);
   }
 
   @Post('bulk-import-:type')
-  @Permissions('admin:write')
+  @Permissions('principal:write')
   @UseInterceptors(StreamingUploadInterceptor('file'))
   async bulkImport(
     @Param('type') type: string,
@@ -216,7 +216,7 @@ export class AdminCommandController {
 
 
   @Get('communication-templates')
-  @Permissions('admin:read')
+  @Permissions('school_sms:read')
   async listCommunicationTemplates() {
     return this.adminCommandService.getCommunicationTemplates();
   }
@@ -228,37 +228,37 @@ export class AdminCommandController {
   }
 
   @Post('attendance/absences')
-  @Permissions('school_attendance:write')
+  @Permissions('students:write')
   async logAbsence(@Body() dto: { studentId: string; date: string; reason: string; isExcused: boolean }) {
     return { success: true, message: 'Absence logged' };
   }
 
   @Post('exams/cycles')
-  @Permissions('school_exams:write')
+  @Permissions('exams:write')
   async createExamCycle(@Body() dto: { name: string; academicYearId: string; termId: string; examType: any }) {
     return { success: true, message: 'Exam cycle created' };
   }
 
   @Post('discipline/incidents')
-  @Permissions('school_discipline:write')
+  @Permissions('discipline:write')
   async reportIncident(@Body() dto: { studentId: string; category: string; severity: any; description: string }) {
     return { success: true, message: 'Incident reported' };
   }
 
   @Post('communication-templates')
-  @Permissions('admin:write')
+  @Permissions('school_sms:send')
   async createCommunicationTemplate(@Body() dto: { name: string; type: string; subject?: string; body: string; variables?: string[] }) {
     return this.adminCommandService.createCommunicationTemplate(dto);
   }
 
   @Patch('communication-templates/:id')
-  @Permissions('admin:write')
+  @Permissions('school_sms:send')
   async updateCommunicationTemplate(@Body() dto: { name?: string; type?: string; subject?: string; body?: string; variables?: string[] }, @Param('id') id: string) {
     return this.adminCommandService.updateCommunicationTemplate(id, dto);
   }
 
   @Delete('communication-templates/:id')
-  @Permissions('admin:write')
+  @Permissions('school_sms:send')
   async deleteCommunicationTemplate(@Param('id') id: string) {
     return this.adminCommandService.deleteCommunicationTemplate(id);
   }
@@ -277,7 +277,7 @@ export class AdminCommandController {
 
   @Post('communication/announcement')
   @RequiresModule('admin_command_centers')
-  @Permissions('school_communication:write')
+  @Permissions('school_sms:send')
   createSchoolAnnouncement(@Body() body: any) {
     return { success: true, message: 'Announcement created successfully' };
   }

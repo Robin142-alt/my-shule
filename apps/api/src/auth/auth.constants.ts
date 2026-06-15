@@ -437,6 +437,7 @@ export const DEFAULT_ROLE_CATALOG = [
       'inventory:read',
       'procurement:read',
       'school_sms:read',
+      'school_sms:send',
       'transport:read',
       'hostel:read',
       'boarding:read',
