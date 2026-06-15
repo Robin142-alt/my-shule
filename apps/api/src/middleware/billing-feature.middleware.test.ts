@@ -55,3 +55,42 @@ test('BillingFeatureMiddleware bypasses public auth routes before resolving bill
   assert.equal(nextError, undefined);
   assert.equal(requestContext.getStore()?.billing, undefined);
 });
+
+test('BillingFeatureMiddleware degrades to unconfigured access when billing lookup fails', async () => {
+  const requestContext = new RequestContextService();
+  const middleware = new BillingFeatureMiddleware(
+    requestContext,
+    {
+      resolveForTenant: async () => {
+        throw new Error('billing projection unavailable');
+      },
+    } as never,
+  );
+
+  let nextCalled = false;
+  let nextError: unknown;
+  let accessMode: string | null | undefined;
+  let isActive: boolean | undefined;
+
+  await requestContext.run(createContext('/admin-command/principal/overview'), async () => {
+    await middleware.use(
+      {
+        path: '/admin-command/principal/overview',
+        originalUrl: '/admin-command/principal/overview',
+        url: '/admin-command/principal/overview',
+      } as never,
+      {} as never,
+      ((error?: unknown) => {
+        nextCalled = true;
+        nextError = error;
+      }) as never,
+    );
+    accessMode = requestContext.getStore()?.billing?.access_mode;
+    isActive = requestContext.getStore()?.billing?.is_active;
+  });
+
+  assert.equal(nextCalled, true);
+  assert.equal(nextError, undefined);
+  assert.equal(accessMode, null);
+  assert.equal(isActive, false);
+});

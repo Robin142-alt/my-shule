@@ -1,6 +1,7 @@
 import { Injectable, NestMiddleware } from '@nestjs/common';
 import type { NextFunction, Request, Response } from 'express';
 
+import type { BillingAccessContextState } from '../common/request-context/request-context.types';
 import { RequestContextService } from '../common/request-context/request-context.service';
 import { BillingAccessService } from '../modules/billing/billing-access.service';
 
@@ -25,9 +26,7 @@ export class BillingFeatureMiddleware implements NestMiddleware {
         return;
       }
 
-      const billingAccess = await this.billingAccessService.resolveForTenant(
-        requestContext.tenant_id,
-      );
+      const billingAccess = await this.resolveBillingAccess(requestContext.tenant_id);
       this.requestContext.setBillingAccess(billingAccess);
 
       next();
@@ -43,5 +42,30 @@ export class BillingFeatureMiddleware implements NestMiddleware {
       || path.startsWith('/health/')
       || path === '/auth'
       || path.startsWith('/auth/');
+  }
+
+  private async resolveBillingAccess(tenantId: string): Promise<BillingAccessContextState> {
+    try {
+      return await this.billingAccessService.resolveForTenant(tenantId);
+    } catch {
+      return {
+        subscription_id: null,
+        plan_code: null,
+        status: null,
+        lifecycle_state: null,
+        access_mode: null,
+        features: [],
+        limits: {},
+        current_period_start: null,
+        current_period_end: null,
+        warning_starts_at: null,
+        grace_period_ends_at: null,
+        restricted_at: null,
+        suspended_at: null,
+        suspension_reason: null,
+        renewal_required: false,
+        is_active: false,
+      };
+    }
   }
 }
