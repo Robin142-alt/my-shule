@@ -23,20 +23,22 @@ export function DeputyApprovalsWorkspace() {
   const queryClient = useQueryClient();
   const { data, isLoading } = useSchoolQuery<ApprovalsData>('/admin-command/deputy/approvals');
 
-  const actionMutation = useSchoolMutation<{ id: string, action: string }>('/admin-command/deputy/approvals/:id/action', 'POST', {
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["school", "session", '/admin-command/deputy/approvals'] })
-  });
+  const actionMutation = useSchoolMutation<
+    { id: string; action: string },
+    { id: string; action: "Approve" | "Reject" }
+  >(
+    ({ id }) => `/admin-command/deputy/approvals/${id}/action`,
+    'POST',
+    {
+      onSuccess: () => queryClient.invalidateQueries({ queryKey: ["school", "session", '/admin-command/deputy/approvals'] })
+    }
+  );
 
   const approvals = data?.approvalsList || [];
 
   const handleAction = async (id: string, action: "Approve" | "Reject") => {
     try {
-      await fetch(`/api/v1/admin-command/deputy/approvals/${id}/action`, { 
-        method: 'POST', 
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action })
-      });
-      queryClient.invalidateQueries({ queryKey: ["school", "session", '/admin-command/deputy/approvals'] });
+      await actionMutation.mutateAsync({ id, action });
       alert(`Request has been ${action}d.`);
     } catch (e) {
       alert("Failed to process approval action.");

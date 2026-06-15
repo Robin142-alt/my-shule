@@ -8,6 +8,19 @@ export interface School {
   status: "ACTIVE" | "INACTIVE" | "SUSPENDED";
 }
 
+export type StudentLifecycleStatus =
+  | "APPLICANT"
+  | "ACCEPTED"
+  | "ENROLLED"
+  | "ACTIVE"
+  | "SUSPENDED"
+  | "ON_LEAVE"
+  | "TRANSFERRED_OUT"
+  | "WITHDRAWN"
+  | "GRADUATED"
+  | "ALUMNI"
+  | "ARCHIVED";
+
 export interface Student {
   id: string;
   school_id: string;
@@ -15,11 +28,12 @@ export interface Student {
   first_name: string;
   middle_name?: string;
   last_name: string;
+  email?: string;
   gender: "MALE" | "FEMALE" | "OTHER";
   date_of_birth: string;
   class_id?: string;
   stream_id?: string;
-  status: "ACTIVE" | "INACTIVE" | "GRADUATED" | "SUSPENDED" | "EXPELLED" | "TRANSFERRED";
+  status: StudentLifecycleStatus;
   admission_date: string;
   boarding_status: "DAY" | "BOARDING";
   transport_status: "NONE" | "SCHOOL_BUS" | "PRIVATE";

@@ -15,20 +15,34 @@ export type DisciplineIncident = {
   status: "New" | "In Review" | "Escalated" | "Resolved";
 };
 
+type DisciplineIncidentDraft = {
+  studentName: string;
+  incidentType: string;
+  severity: DisciplineIncident["severity"];
+};
+
 export function DeputyDisciplineWorkspace() {
   const [showModal, setShowModal] = useState(false);
-  const [formData, setFormData] = useState({ studentName: "", incidentType: "", severity: "High" });
+  const [formData, setFormData] = useState<DisciplineIncidentDraft>({ studentName: "", incidentType: "", severity: "High" });
 
   const queryClient = useQueryClient();
   const { data: incidents = [], isLoading } = useSchoolQuery<DisciplineIncident[]>('/admin-command/deputy/discipline');
   
-  const createMutation = useSchoolMutation('/admin-command/deputy/discipline', 'POST', {
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["school", "session", '/admin-command/deputy/discipline'] })
-  });
+  const createMutation = useSchoolMutation<DisciplineIncident, DisciplineIncidentDraft>(
+    '/admin-command/deputy/discipline',
+    'POST',
+    {
+      onSuccess: () => queryClient.invalidateQueries({ queryKey: ["school", "session", '/admin-command/deputy/discipline'] })
+    }
+  );
   
-  const escalateMutation = useSchoolMutation<{ id: string }>('/admin-command/deputy/discipline/:id/escalate', 'POST', {
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["school", "session", '/admin-command/deputy/discipline'] })
-  });
+  const escalateMutation = useSchoolMutation<{ id: string }, { id: string }>(
+    ({ id }) => `/admin-command/deputy/discipline/${id}/escalate`,
+    'POST',
+    {
+      onSuccess: () => queryClient.invalidateQueries({ queryKey: ["school", "session", '/admin-command/deputy/discipline'] })
+    }
+  );
 
   const handleCreate = async () => {
     await createMutation.mutateAsync({
@@ -43,8 +57,7 @@ export function DeputyDisciplineWorkspace() {
 
   const handleEscalate = async (id: string, caseNo: string) => {
     try {
-      await fetch(`/api/v1/admin-command/deputy/discipline/${id}/escalate`, { method: 'POST', headers: { 'Content-Type': 'application/json' } });
-      queryClient.invalidateQueries({ queryKey: ["school", "session", '/admin-command/deputy/discipline'] });
+      await escalateMutation.mutateAsync({ id });
       alert(`Case ${caseNo} escalated to Principal.`);
     } catch (e) {
       alert("Failed to escalate case.");
@@ -133,7 +146,7 @@ export function DeputyDisciplineWorkspace() {
           </div>
           <div>
             <label className="text-sm font-bold text-[#334155]">Severity</label>
-            <select value={formData.severity} onChange={(e) => setFormData({...formData, severity: e.target.value})} className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-2 text-sm focus:border-blue-500 focus:outline-none">
+            <select value={formData.severity} onChange={(e) => setFormData({...formData, severity: e.target.value as DisciplineIncident["severity"]})} className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-2 text-sm focus:border-blue-500 focus:outline-none">
               <option>Low</option>
               <option>Medium</option>
               <option>High</option>

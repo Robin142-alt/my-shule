@@ -23,20 +23,26 @@ export function DeputyStaffRolesWorkspace() {
   const queryClient = useQueryClient();
   const { data, isLoading } = useSchoolQuery<StaffData>('/admin-command/deputy/staff');
 
-  const assignMutation = useSchoolMutation<any>('/admin-command/deputy/staff/assign-role', 'POST', {
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["school", "session", '/admin-command/deputy/staff'] })
-  });
+  const assignMutation = useSchoolMutation<
+    StaffRole,
+    { name: string; role: string; department: string }
+  >(
+    '/admin-command/deputy/staff/assign-role',
+    'POST',
+    {
+      onSuccess: () => queryClient.invalidateQueries({ queryKey: ["school", "session", '/admin-command/deputy/staff'] })
+    }
+  );
 
   const staff = data?.staffList || [];
 
   const handleAddRole = async () => {
     try {
-      await fetch(`/api/v1/admin-command/deputy/staff/assign-role`, { 
-        method: 'POST', 
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: "New Teacher", role: "Assigned Role", department: "General" })
+      await assignMutation.mutateAsync({
+        name: "New Teacher",
+        role: "Assigned Role",
+        department: "General",
       });
-      queryClient.invalidateQueries({ queryKey: ["school", "session", '/admin-command/deputy/staff'] });
       alert("Role assigned successfully.");
     } catch (e) {
       alert("Failed to assign role.");

@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { Loader2 } from "lucide-react";
 import { usePermissions } from "@/components/providers/permission-context";
+import { requestDashboardApi } from "@/lib/dashboard/api-client";
 
 type PrincipalAttendanceData = {
   status: "active" | "degraded" | "setup_required";

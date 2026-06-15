@@ -24,16 +24,19 @@ export function DeputyStaffDutyWorkspace() {
   const queryClient = useQueryClient();
   const { data, isLoading } = useSchoolQuery<StaffDutyData>('/admin-command/deputy/staff-duty');
 
-  const requestMutation = useSchoolMutation<{ id: string }>('/admin-command/deputy/staff-duty/:id/request-report', 'POST', {
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["school", "session", '/admin-command/deputy/staff-duty'] })
-  });
+  const requestMutation = useSchoolMutation<{ id: string }, { id: string }>(
+    ({ id }) => `/admin-command/deputy/staff-duty/${id}/request-report`,
+    'POST',
+    {
+      onSuccess: () => queryClient.invalidateQueries({ queryKey: ["school", "session", '/admin-command/deputy/staff-duty'] })
+    }
+  );
 
   const duties = data?.duties || [];
 
   const handleRequestReport = async (id: string, staffName: string) => {
     try {
-      await fetch(`/api/v1/admin-command/deputy/staff-duty/${id}/request-report`, { method: 'POST', headers: { 'Content-Type': 'application/json' } });
-      queryClient.invalidateQueries({ queryKey: ["school", "session", '/admin-command/deputy/staff-duty'] });
+      await requestMutation.mutateAsync({ id });
       alert(`Report requested from ${staffName}.`);
     } catch (e) {
       alert("Failed to request report.");

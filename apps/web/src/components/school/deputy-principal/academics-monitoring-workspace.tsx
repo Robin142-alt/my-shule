@@ -26,16 +26,19 @@ export function DeputyAcademicsMonitoringWorkspace() {
   const queryClient = useQueryClient();
   const { data, isLoading } = useSchoolQuery<AcademicsData>('/admin-command/deputy/academics');
 
-  const messageMutation = useSchoolMutation<{ id: string }>('/admin-command/deputy/academics/:id/message-hod', 'POST', {
+  const messageMutation = useSchoolMutation<{ id: string }, { id: string }>(
+    ({ id }) => `/admin-command/deputy/academics/${id}/message-hod`,
+    'POST',
+    {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["school", "session", '/admin-command/deputy/academics'] })
-  });
+    }
+  );
 
   const interventions = data?.interventions || [];
 
   const handleMessageHOD = async (id: string, subject: string, teacher: string) => {
     try {
-      await fetch(`/api/v1/admin-command/deputy/academics/${id}/message-hod`, { method: 'POST', headers: { 'Content-Type': 'application/json' } });
-      queryClient.invalidateQueries({ queryKey: ["school", "session", '/admin-command/deputy/academics'] });
+      await messageMutation.mutateAsync({ id });
       alert(`Message sent to ${subject} HOD regarding ${teacher}.`);
     } catch (e) {
       alert("Failed to send message.");

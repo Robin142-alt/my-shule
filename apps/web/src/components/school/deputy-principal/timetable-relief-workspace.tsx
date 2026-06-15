@@ -1,5 +1,4 @@
 "use client";
-import { useState } from "react";
 import { CalendarClock } from "lucide-react";
 import { Panel, StatusChip, Tone } from "./shared";
 import { useSchoolQuery, useSchoolMutation } from "@/lib/data/school-hooks";
@@ -26,9 +25,16 @@ export function DeputyTimetableReliefWorkspace() {
   const queryClient = useQueryClient();
   const { data, isLoading } = useSchoolQuery<TimetableData>('/admin-command/deputy/timetable');
 
-  const assignMutation = useSchoolMutation<{ id: string, teacherName: string }>('/admin-command/deputy/timetable/:id/assign', 'POST', {
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["school", "session", '/admin-command/deputy/timetable'] })
-  });
+  const assignMutation = useSchoolMutation<
+    { id: string; teacherName: string },
+    { id: string; teacherName: string }
+  >(
+    ({ id }) => `/admin-command/deputy/timetable/${id}/assign`,
+    'POST',
+    {
+      onSuccess: () => queryClient.invalidateQueries({ queryKey: ["school", "session", '/admin-command/deputy/timetable'] })
+    }
+  );
 
   const lessons = data?.lessons || [];
 
@@ -37,13 +43,8 @@ export function DeputyTimetableReliefWorkspace() {
     if (!teacher) return;
     
     try {
-      await fetch(`/api/v1/admin-command/deputy/timetable/${id}/assign`, { 
-        method: 'POST', 
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ teacherName: teacher })
-      });
-      queryClient.invalidateQueries({ queryKey: ["school", "session", '/admin-command/deputy/timetable'] });
-      alert(`${teacher} has been assigned to cover ${className}.`);
+      await assignMutation.mutateAsync({ id, teacherName: teacher });
+      alert(`${teacher} has been assigned to cover ${className} at ${time}.`);
     } catch (e) {
       alert("Failed to assign relief teacher.");
     }

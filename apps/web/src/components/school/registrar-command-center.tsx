@@ -101,6 +101,18 @@ type SimpleCard = {
   tone: Tone;
 };
 
+type AdmissionsDashboardModel = {
+  kpis: Kpi[];
+  funnelStages: FunnelStage[];
+  applicants: ApplicantRow[];
+  documentCards: SimpleCard[];
+  interviewCards: SimpleCard[];
+  transferCards: SimpleCard[];
+  allocationCards: SimpleCard[];
+  aiInsights: Insight[];
+  auditCards: SimpleCard[];
+};
+
 const registrarSearchRecords = [
   { id: "applicant-faith", label: "Faith Akinyi", detail: "Grade 8 East applicant | documents pending", sectionId: "applications" },
   { id: "admission-kb-1042", label: "KB-2026-1042", detail: "Admission number generated, fee clearance pending", sectionId: "student-ids" },
@@ -242,11 +254,11 @@ const funnelStages: FunnelStage[] = [
 ];
 
 const applicants: ApplicantRow[] = [
-  { name: "Amina Wanjiru", admissionNumber: "ADM-2026-1184", grade: "Form 1 East", parent: "0712 440 901", status: "Verified", fee: "Confirmed", documents: "Complete", interview: "Recommended", risk: "Clear", date: "May 24", tone: "success" },
-  { name: "Brian Otieno", admissionNumber: "Pending", grade: "Form 2 North", parent: "0790 104 228", status: "Pending", fee: "Mismatch", documents: "Missing KCPE", interview: "Scheduled", risk: "Payment mismatch", date: "May 23", tone: "danger" },
-  { name: "Grace Achieng", admissionNumber: "ADM-2026-1169", grade: "Grade 7", parent: "0700 551 119", status: "Waitlisted", fee: "Pending", documents: "Parent ID missing", interview: "Rescheduled", risk: "Incomplete guardian data", date: "May 22", tone: "warning" },
-  { name: "Moses Kariuki", admissionNumber: "ADM-2026-1164", grade: "Form 1 West", parent: "0722 880 441", status: "Rejected", fee: "Unverified", documents: "Tampering alert", interview: "Declined", risk: "Fake document suspicion", date: "May 21", tone: "danger" },
-  { name: "Njeri Mwangi", admissionNumber: "ADM-2026-1157", grade: "Form 3 South", parent: "0788 119 002", status: "Approved", fee: "Confirmed", documents: "OCR verified", interview: "Attended", risk: "Duplicate records checked", date: "May 20", tone: "success" },
+  { id: "applicant-amina-wanjiru", name: "Amina Wanjiru", admissionNumber: "ADM-2026-1184", grade: "Form 1 East", parent: "0712 440 901", status: "Verified", fee: "Confirmed", documents: "Complete", interview: "Recommended", risk: "Clear", date: "May 24", tone: "success" },
+  { id: "applicant-brian-otieno", name: "Brian Otieno", admissionNumber: "Pending", grade: "Form 2 North", parent: "0790 104 228", status: "Pending", fee: "Mismatch", documents: "Missing KCPE", interview: "Scheduled", risk: "Payment mismatch", date: "May 23", tone: "danger" },
+  { id: "applicant-grace-achieng", name: "Grace Achieng", admissionNumber: "ADM-2026-1169", grade: "Grade 7", parent: "0700 551 119", status: "Waitlisted", fee: "Pending", documents: "Parent ID missing", interview: "Rescheduled", risk: "Incomplete guardian data", date: "May 22", tone: "warning" },
+  { id: "applicant-moses-kariuki", name: "Moses Kariuki", admissionNumber: "ADM-2026-1164", grade: "Form 1 West", parent: "0722 880 441", status: "Rejected", fee: "Unverified", documents: "Tampering alert", interview: "Declined", risk: "Fake document suspicion", date: "May 21", tone: "danger" },
+  { id: "applicant-njeri-mwangi", name: "Njeri Mwangi", admissionNumber: "ADM-2026-1157", grade: "Form 3 South", parent: "0788 119 002", status: "Approved", fee: "Confirmed", documents: "OCR verified", interview: "Attended", risk: "Duplicate records checked", date: "May 20", tone: "success" },
 ];
 
 const documentCards: SimpleCard[] = [
@@ -619,7 +631,7 @@ function SectionTitle({ eyebrow, title, description, action }: { eyebrow: string
   );
 }
 
-function AdmissionsFunnel({ data }: { data: any }) {
+function AdmissionsFunnel({ data }: { data: AdmissionsDashboardModel | null }) {
   return (
     <DarkSection id="admission-funnel" className="bg-[radial-gradient(circle_at_top_right,rgba(34,211,238,0.14),transparent_25%),#071D49]">
       <SectionTitle
@@ -830,7 +842,7 @@ function CommunicationAndReports({ data }: { data: any }) {
   );
 }
 
-function AiInsights({ data }: { data: any }) {
+function AiInsights({ data }: { data: AdmissionsDashboardModel | null }) {
   return (
     <DarkSection id="ai-insights" className="bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.16),transparent_25%),#071D49]">
       <SectionTitle eyebrow="AI assistant" title="AI registrar insights" description="Bottlenecks, enrollment predictions, suspicious applications, follow-up suggestions, seat shortage forecasts, and inactive applicant detection." action={<StatusChip icon={BrainCircuit} label="Predictive" tone="cyan" />} />
@@ -850,7 +862,7 @@ function AiInsights({ data }: { data: any }) {
   );
 }
 
-function AuditCompliance({ data }: { data: any }) {
+function AuditCompliance({ data }: { data: AdmissionsDashboardModel | null }) {
   return (
     <DarkSection id="audit">
       <SectionTitle eyebrow="Government-compliant records" title="Audit & compliance" description="Who approved admissions, who edited records, document upload history, status changes, fee approval logs, transfer logs, and compliance-ready traceability." action={<StatusChip icon={ShieldCheck} label="Audit-ready" tone="success" />} />
@@ -920,8 +932,8 @@ function MobileActions() {
 }
 
 
-function useAdmissionsDashboardMapper(backendData: any) {
-  return useMemo(() => {
+function useAdmissionsDashboardMapper(backendData: any): AdmissionsDashboardModel | null {
+  return useMemo<AdmissionsDashboardModel | null>(() => {
     if (!backendData) return null;
 
     const { overview, enquiries, applications, documents, interviews, selection, feeClearance, transfers, audit } = backendData;
@@ -987,7 +999,7 @@ function useAdmissionsDashboardMapper(backendData: any) {
 }
 
 export function RegistrarCommandCenter({ routeMode }: { routeMode: RegistrarRouteMode }) {
-  const { data: rawData, isLoading } = useSchoolQuery<any>('/admin-command/admissions/dashboard');
+  const { data: rawData, isLoading, refetch } = useSchoolQuery<any>('/admin-command/admissions/dashboard');
   const data = useAdmissionsDashboardMapper(rawData);
   const [searchTerm, setSearchTerm] = useState("");
   const [notice, setNotice] = useState("Admissions desk ready for inquiries, applications, documents, interviews, and onboarding.");
@@ -1086,7 +1098,7 @@ export function RegistrarCommandCenter({ routeMode }: { routeMode: RegistrarRout
       if (res.ok) {
         setNotice(`Application for ${selectedApplicantPreview.name} has been successfully approved and enrolled as a student.`);
         setSelectedApplicantPreview(null);
-        mutate('/admin-command/admissions/dashboard');
+        void refetch();
       } else {
         const error = await res.json();
         setNotice(`Failed to approve: ${error.message || 'Unknown error'}`);

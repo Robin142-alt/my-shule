@@ -1,5 +1,4 @@
 "use client";
-import { useState } from "react";
 import { UserRoundCheck, Search } from "lucide-react";
 import { Panel, StatusChip, Tone } from "./shared";
 import { useSchoolQuery, useSchoolMutation } from "@/lib/data/school-hooks";
@@ -25,20 +24,25 @@ type AttendanceData = {
 export function DeputyAttendanceWorkspace() {
   const queryClient = useQueryClient();
   const { data, isLoading } = useSchoolQuery<AttendanceData>('/admin-command/deputy/attendance');
-  const notifyMutation = useSchoolMutation<{ id: string }>('/admin-command/deputy/attendance/:id/notify', 'POST', {
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["school", "session", '/admin-command/deputy/attendance'] });
+  const notifyMutation = useSchoolMutation<{ id: string }, { id: string }>(
+    ({ id }) => `/admin-command/deputy/attendance/${id}/notify`,
+    'POST',
+    {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ["school", "session", '/admin-command/deputy/attendance'] });
+      }
     }
-  });
+  );
 
   const records = data?.records || [];
 
   const handleNotifyParent = async (id: string, studentName: string) => {
-    // The endpoint expects /attendance/:id/notify, so we replace :id in the hook or construct the URL manually if hook doesn't support it.
-    // wait, `useSchoolMutation` takes url directly. We need to pass the constructed url.
-    // Let's assume we can't easily change the hook, so we'll construct it in the mutation or use standard fetch if needed.
-    // Wait! `useSchoolMutation` from `school-hooks` takes a fixed URL. 
-    // We should use an API client directly or construct the hook carefully. Let's just create a quick fetch inside the handler since the hook might not support dynamic URLs easily.
+    try {
+      await notifyMutation.mutateAsync({ id });
+      alert(`Parent of ${studentName} has been notified.`);
+    } catch (e) {
+      alert("Failed to notify parent");
+    }
   };
 
   const getStatusTone = (st: string): Tone => {
@@ -103,18 +107,7 @@ export function DeputyAttendanceWorkspace() {
                   <td className="px-4 py-3"><StatusChip label={rec.parentNotified} tone={getNotifiedTone(rec.parentNotified)} /></td>
                   <td className="px-4 py-3 text-right">
                     {rec.parentNotified === "Pending" && (
-                      <button onClick={async () => {
-                        try {
-                          await fetch(`/api/v1/admin-command/deputy/attendance/${rec.id}/notify`, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' }
-                          });
-                          queryClient.invalidateQueries({ queryKey: ["school", "session", '/admin-command/deputy/attendance'] });
-                          alert(`Parent of ${rec.studentName} has been notified.`);
-                        } catch (e) {
-                          alert('Failed to notify parent');
-                        }
-                      }} className="text-blue-600 hover:underline font-semibold text-xs mr-3">Contact Parent</button>
+                      <button onClick={() => handleNotifyParent(rec.id, rec.studentName)} className="text-blue-600 hover:underline font-semibold text-xs mr-3">Contact Parent</button>
                     )}
                     <button className="text-blue-600 hover:underline font-semibold text-xs">Follow Up</button>
                   </td>

@@ -23,20 +23,22 @@ export function DeputyReportsDownloadsWorkspace() {
   const queryClient = useQueryClient();
   const { data, isLoading } = useSchoolQuery<ReportsData>('/admin-command/deputy/reports');
 
-  const generateMutation = useSchoolMutation<{ name: string, format: string }>('/admin-command/deputy/reports/generate', 'POST', {
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["school", "session", '/admin-command/deputy/reports'] })
-  });
+  const generateMutation = useSchoolMutation<
+    GeneratedReport,
+    { name: string; format: GeneratedReport["type"] }
+  >(
+    '/admin-command/deputy/reports/generate',
+    'POST',
+    {
+      onSuccess: () => queryClient.invalidateQueries({ queryKey: ["school", "session", '/admin-command/deputy/reports'] })
+    }
+  );
 
   const reports = data?.reportsList || [];
 
   const handleGenerate = async () => {
     try {
-      await fetch(`/api/v1/admin-command/deputy/reports/generate`, { 
-        method: 'POST', 
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: "Custom Operational Extract", format: "Excel" })
-      });
-      queryClient.invalidateQueries({ queryKey: ["school", "session", '/admin-command/deputy/reports'] });
+      await generateMutation.mutateAsync({ name: "Custom Operational Extract", format: "Excel" });
       alert("Report generated successfully.");
     } catch (e) {
       alert("Failed to generate report.");

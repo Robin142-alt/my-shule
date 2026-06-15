@@ -3,6 +3,7 @@
 import { Card } from "@/components/ui/card";
 import { AlertCircle, BarChart3, FileText, Download, Star, Plus, Loader2 } from "lucide-react";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
+import { requestDashboardApi } from "@/lib/dashboard/api-client";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";

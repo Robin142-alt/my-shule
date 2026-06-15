@@ -24,26 +24,33 @@ export function DeputyTeachingWorkspace() {
   const queryClient = useQueryClient();
   const { data, isLoading } = useSchoolQuery<TeachingData>('/admin-command/deputy/teaching');
 
-  const attendanceMutation = useSchoolMutation<{ id: string }>('/admin-command/deputy/teaching/:id/mark-attendance', 'POST', {
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["school", "session", '/admin-command/deputy/teaching'] })
-  });
+  const attendanceMutation = useSchoolMutation<{ id: string }, { id: string }>(
+    ({ id }) => `/admin-command/deputy/teaching/${id}/mark-attendance`,
+    'POST',
+    {
+      onSuccess: () => queryClient.invalidateQueries({ queryKey: ["school", "session", '/admin-command/deputy/teaching'] })
+    }
+  );
 
-  const logMutation = useSchoolMutation<{ id: string }>('/admin-command/deputy/teaching/:id/log-lesson', 'POST', {
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["school", "session", '/admin-command/deputy/teaching'] })
-  });
+  const logMutation = useSchoolMutation<{ id: string }, { id: string }>(
+    ({ id }) => `/admin-command/deputy/teaching/${id}/log-lesson`,
+    'POST',
+    {
+      onSuccess: () => queryClient.invalidateQueries({ queryKey: ["school", "session", '/admin-command/deputy/teaching'] })
+    }
+  );
 
   const lessons = data?.lessons || [];
 
   const handleAction = async (id: string, type: "Attendance" | "Log") => {
     try {
       if (type === "Attendance") {
-        await fetch(`/api/v1/admin-command/deputy/teaching/${id}/mark-attendance`, { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+        await attendanceMutation.mutateAsync({ id });
         alert("Attendance marked successfully.");
       } else {
-        await fetch(`/api/v1/admin-command/deputy/teaching/${id}/log-lesson`, { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+        await logMutation.mutateAsync({ id });
         alert("Lesson logged successfully.");
       }
-      queryClient.invalidateQueries({ queryKey: ["school", "session", '/admin-command/deputy/teaching'] });
     } catch (e) {
       alert(`Failed to ${type === "Attendance" ? "mark attendance" : "log lesson"}.`);
     }

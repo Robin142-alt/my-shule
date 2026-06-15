@@ -1,5 +1,4 @@
 "use client";
-import { useState } from "react";
 import { ClipboardCheck } from "lucide-react";
 import { Panel, StatusChip, Tone } from "./shared";
 import { useSchoolQuery, useSchoolMutation } from "@/lib/data/school-hooks";
@@ -25,16 +24,19 @@ export function DeputyExamsMarksWorkspace() {
   const queryClient = useQueryClient();
   const { data, isLoading } = useSchoolQuery<ExamsData>('/admin-command/deputy/exams');
 
-  const flagMutation = useSchoolMutation<{ id: string }>('/admin-command/deputy/exams/:id/flag-delay', 'POST', {
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["school", "session", '/admin-command/deputy/exams'] })
-  });
+  const flagMutation = useSchoolMutation<{ id: string }, { id: string }>(
+    ({ id }) => `/admin-command/deputy/exams/${id}/flag-delay`,
+    'POST',
+    {
+      onSuccess: () => queryClient.invalidateQueries({ queryKey: ["school", "session", '/admin-command/deputy/exams'] })
+    }
+  );
 
   const exams = data?.examsList || [];
 
   const handleFlagDelay = async (id: string, teacher: string) => {
     try {
-      await fetch(`/api/v1/admin-command/deputy/exams/${id}/flag-delay`, { method: 'POST', headers: { 'Content-Type': 'application/json' } });
-      queryClient.invalidateQueries({ queryKey: ["school", "session", '/admin-command/deputy/exams'] });
+      await flagMutation.mutateAsync({ id });
       alert(`Reminder sent to ${teacher} regarding delayed marks.`);
     } catch (e) {
       alert("Failed to flag delay.");

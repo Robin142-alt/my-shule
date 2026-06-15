@@ -16,7 +16,7 @@ export class StudentDataService {
   private emitEvent(type: any, payload: any, title: string, body: string, module = "students") {
     // 1. Emit to modern DashboardEventBus
     if (this.eventBus) {
-      this.eventBus.publish({
+      this.eventBus.emit({
         id: crypto.randomUUID(),
         type,
         tenantId: getCurrentSchoolId(),

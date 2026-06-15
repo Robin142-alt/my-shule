@@ -6,9 +6,41 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useStudents } from "@/hooks/useStudents";
 import { useStudentDataService } from "@/hooks/useStudentDataService";
+import type { StudentLifecycleStatus } from "@/types/shared";
+
+const activeDirectoryStatuses = new Set<StudentLifecycleStatus>([
+  "ACCEPTED",
+  "ENROLLED",
+  "ACTIVE",
+  "SUSPENDED",
+  "ON_LEAVE",
+]);
+
+function studentStatusClasses(status: StudentLifecycleStatus) {
+  switch (status) {
+    case "ACTIVE":
+      return "bg-emerald-100 text-emerald-700";
+    case "ENROLLED":
+    case "ACCEPTED":
+      return "bg-blue-100 text-blue-700";
+    case "SUSPENDED":
+    case "ON_LEAVE":
+      return "bg-orange-100 text-orange-700";
+    case "ARCHIVED":
+    case "ALUMNI":
+      return "bg-slate-100 text-slate-700";
+    default:
+      return "bg-rose-100 text-rose-700";
+  }
+}
+
+function formatStudentStatus(status: StudentLifecycleStatus) {
+  return status.replace(/_/g, " ").toLowerCase();
+}
 
 export function StudentsWorkspace() {
   const [activeTab, setActiveTab] = useState<"directory" | "enrollment" | "archived">("directory");
+  const [isEnrolling, setIsEnrolling] = useState(false);
   
   const { data: studentsList, isLoading } = useStudents();
   const studentDataService = useStudentDataService();
@@ -20,6 +52,7 @@ export function StudentsWorkspace() {
 
   const handleEnroll = async () => {
     if (!enrollFirstName || !enrollLastName) return;
+    setIsEnrolling(true);
     try {
       // Create and admit student using the unified service (emits events)
       const student = await studentDataService.admitStudent({
@@ -37,11 +70,13 @@ export function StudentsWorkspace() {
       setActiveTab("directory");
     } catch (e: any) {
       alert(e.message || "Failed to enroll student");
+    } finally {
+      setIsEnrolling(false);
     }
   };
 
-  const activeStudents = studentsList?.filter(s => s.status !== 'archived') || [];
-  const archivedStudents = studentsList?.filter(s => s.status === 'archived') || [];
+  const activeStudents = studentsList?.filter((student) => activeDirectoryStatuses.has(student.status)) || [];
+  const archivedStudents = studentsList?.filter((student) => !activeDirectoryStatuses.has(student.status)) || [];
 
   return (
     <div className="space-y-6">
@@ -123,13 +158,8 @@ export function StudentsWorkspace() {
                       </td>
                       <td className="px-4 py-3 font-mono text-xs">{student.admission_number || '-'}</td>
                       <td className="px-4 py-3">
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium capitalize ${
-                          student.status === 'active' ? 'bg-emerald-100 text-emerald-700' :
-                          student.status === 'enrolled' ? 'bg-blue-100 text-blue-700' :
-                          student.status === 'suspended' ? 'bg-orange-100 text-orange-700' :
-                          'bg-slate-100 text-slate-700'
-                        }`}>
-                          {student.status}
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium capitalize ${studentStatusClasses(student.status)}`}>
+                          {formatStudentStatus(student.status)}
                         </span>
                       </td>
                       <td className="px-4 py-3 capitalize">{student.gender?.toLowerCase()}</td>
@@ -198,9 +228,9 @@ export function StudentsWorkspace() {
               <div className="pt-4 flex justify-end">
                 <Button 
                   onClick={handleEnroll} 
-                  disabled={enrollMutation.isPending || !enrollFirstName || !enrollLastName}
+                  disabled={isEnrolling || !enrollFirstName || !enrollLastName}
                 >
-                  Create & Enroll Student
+                  {isEnrolling ? "Creating..." : "Create & Enroll Student"}
                 </Button>
               </div>
             </div>
@@ -210,9 +240,45 @@ export function StudentsWorkspace() {
 
       {activeTab === "archived" && (
         <Card className="border border-slate-200 overflow-hidden">
-          <div className="p-8 text-center text-slate-500">
-            <Archive className="w-12 h-12 mx-auto text-slate-300 mb-4" />
-            <p>Archived students will appear here.</p>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm text-left">
+              <thead className="text-xs text-slate-500 uppercase bg-slate-50/50 border-b border-slate-200">
+                <tr>
+                  <th className="px-4 py-3 font-medium">Name</th>
+                  <th className="px-4 py-3 font-medium">Admission No</th>
+                  <th className="px-4 py-3 font-medium">Status</th>
+                  <th className="px-4 py-3 font-medium">Gender</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {isLoading ? (
+                  <tr><td colSpan={4} className="px-4 py-8 text-center text-slate-500">Loading archived students...</td></tr>
+                ) : archivedStudents.length === 0 ? (
+                  <tr>
+                    <td colSpan={4} className="px-4 py-8 text-center text-slate-500">
+                      <Archive className="w-10 h-10 mx-auto text-slate-300 mb-3" />
+                      No archived or exited students found.
+                    </td>
+                  </tr>
+                ) : (
+                  archivedStudents.map((student) => (
+                    <tr key={student.id} className="hover:bg-slate-50/50 transition-colors">
+                      <td className="px-4 py-3">
+                        <div className="font-medium text-slate-900">{student.first_name} {student.last_name}</div>
+                        <div className="text-xs text-slate-500">{student.email || "No email"}</div>
+                      </td>
+                      <td className="px-4 py-3 font-mono text-xs">{student.admission_number || "-"}</td>
+                      <td className="px-4 py-3">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium capitalize ${studentStatusClasses(student.status)}`}>
+                          {formatStudentStatus(student.status)}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 capitalize">{student.gender?.toLowerCase()}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
           </div>
         </Card>
       )}
