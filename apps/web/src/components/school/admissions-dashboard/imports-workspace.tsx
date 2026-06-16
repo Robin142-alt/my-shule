@@ -19,7 +19,7 @@ type ImportedRow = {
 export function AdmissionsImportsWorkspace({ dataset }: { dataset?: any }) {
   const [isDragging, setIsDragging] = useState(false);
   const [rows, setRows] = useState<ImportedRow[]>([]);
-  const [uploadStatus, setUploadStatus] = useState<"idle" | "validating" | "ready">("idle");
+  const [uploadStatus, setUploadStatus] = useState<"idle" | "validating" | "ready" | "committing" | "success" | "error">("idle");
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -65,10 +65,22 @@ export function AdmissionsImportsWorkspace({ dataset }: { dataset?: any }) {
     }
   };
 
-  const handleCommit = () => {
-    setRows([]);
-    setUploadStatus("idle");
-    alert("Valid records imported successfully!");
+  const handleCommit = async () => {
+    setUploadStatus("committing");
+    try {
+      const validRows = rows.filter((r) => r.status === "Valid");
+      await requestDashboardApi("/admissions/imports/commit", {
+        method: "POST",
+        body: JSON.stringify({ rows: validRows }),
+      });
+      setRows([]);
+      setUploadStatus("success");
+      setTimeout(() => setUploadStatus("idle"), 3000);
+    } catch (e) {
+      console.error(e);
+      setUploadStatus("error");
+      setTimeout(() => setUploadStatus("ready"), 3000);
+    }
   };
 
   return (
@@ -153,6 +165,29 @@ export function AdmissionsImportsWorkspace({ dataset }: { dataset?: any }) {
             )}
             emptyState={<></>}
           />
+        </Card>
+      )}
+      {uploadStatus === "committing" && (
+        <Card className="border border-white/10 bg-white/5 p-12 flex flex-col items-center justify-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mb-4"></div>
+          <h3 className="text-xl font-bold text-white">Committing Records...</h3>
+          <p className="text-white/50">Saving valid records to the database</p>
+        </Card>
+      )}
+
+      {uploadStatus === "success" && (
+        <Card className="border border-green-500/30 bg-green-500/10 p-12 flex flex-col items-center justify-center">
+          <CheckCircle2 className="h-16 w-16 mb-4 text-green-400" />
+          <h3 className="text-xl font-bold text-white mb-2">Import Successful!</h3>
+          <p className="text-white/50">The valid records have been saved.</p>
+        </Card>
+      )}
+
+      {uploadStatus === "error" && (
+        <Card className="border border-rose-500/30 bg-rose-500/10 p-12 flex flex-col items-center justify-center">
+          <AlertTriangle className="h-16 w-16 mb-4 text-rose-400" />
+          <h3 className="text-xl font-bold text-white mb-2">Import Failed</h3>
+          <p className="text-white/50">There was an error saving the records. Please try again.</p>
         </Card>
       )}
     </div>

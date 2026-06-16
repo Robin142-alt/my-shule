@@ -57,6 +57,30 @@ export class SecretaryController {
     return this.secretaryService.getOfficeDocuments(this.requireTenantId());
   }
 
+  @Post('visitors')
+  @Roles('SECRETARY', 'SECURITY', 'PRINCIPAL')
+  async logVisitor(@Body() body: Record<string, unknown>) {
+    const store = this.requestContext.requireStore();
+    if (!store.user_id) throw new Error('Authenticated user context required');
+    return this.secretaryService.logVisitor(this.requireTenantId(), store.user_id, body);
+  }
+
+  @Post('appointments')
+  @Roles('SECRETARY', 'PRINCIPAL', 'DEPUTY_PRINCIPAL')
+  async scheduleAppointment(@Body() body: Record<string, unknown>) {
+    const store = this.requestContext.requireStore();
+    if (!store.user_id) throw new Error('Authenticated user context required');
+    return this.secretaryService.scheduleAppointment(this.requireTenantId(), store.user_id, body);
+  }
+
+  @Post('mail')
+  @Roles('SECRETARY', 'PRINCIPAL')
+  async recordMail(@Body() body: Record<string, unknown>) {
+    const store = this.requestContext.requireStore();
+    if (!store.user_id) throw new Error('Authenticated user context required');
+    return this.secretaryService.recordMail(this.requireTenantId(), store.user_id, body);
+  }
+
   private requireTenantId(): string {
     const store = this.requestContext.requireStore();
     if (!store.tenant_id) {

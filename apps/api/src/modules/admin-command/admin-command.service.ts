@@ -218,6 +218,49 @@ export class AdminCommandService {
     return incident;
   }
 
+  async scheduleReport(dto: any) {
+    await this.repository.scheduleReport({
+      tenant_id: this.requireTenantId(),
+      user_id: this.currentUserId() || 'system',
+      title: dto.title,
+      schedule: dto.schedule,
+    });
+    return { success: true, message: 'Report scheduled' };
+  }
+
+  async createCommunicationBroadcast(dto: any) {
+    await this.repository.createCommunicationBroadcast({
+      tenant_id: this.requireTenantId(),
+      user_id: this.currentUserId() || 'system',
+      audience: dto.audience,
+      message: dto.message,
+    });
+    return { success: true, message: 'Broadcast created' };
+  }
+
+  async logAbsence(dto: any) {
+    await this.repository.logAbsence({
+      tenant_id: this.requireTenantId(),
+      user_id: this.currentUserId() || 'system',
+      student_id: dto.studentId,
+      date: dto.date,
+      is_excused: dto.isExcused,
+    });
+    return { success: true, message: 'Absence logged' };
+  }
+
+  async reportIncidentMock(dto: any) {
+    await this.repository.reportIncidentMock({
+      tenant_id: this.requireTenantId(),
+      user_id: this.currentUserId() || 'system',
+      student_id: dto.studentId,
+      category: dto.category,
+      severity: dto.severity,
+      description: dto.description,
+    });
+    return { success: true, message: 'Incident reported' };
+  }
+
   async createAnnouncement(dto: CreateAnnouncementDto) {
     const announcement = await this.repository.createAnnouncement({
       tenant_id: this.requireTenantId(),

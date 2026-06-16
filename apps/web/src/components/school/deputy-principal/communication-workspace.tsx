@@ -1,42 +1,45 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { MessageSquareText } from "lucide-react";
 import { Panel, StatusChip, Tone } from "./shared";
 import { Modal } from "@/components/ui/modal";
-import { useSchoolQuery, useSchoolMutation } from "@/lib/data/school-hooks";
+import { useSchoolQuery } from "@/lib/data/school-hooks";
+import { toast } from "sonner";
+import { requestDashboardApi } from "@/lib/dashboard/api-client";
 
 export type CommMessage = {
   id: string;
-  date: string;
-  recipient: string;
-  type: string;
+  created_at: string;
+  recipient_phone: string;
   status: "Sent" | "Failed";
 };
 
 export function DeputyCommunicationWorkspace() {
   const [showModal, setShowModal] = useState(false);
   const [formData, setFormData] = useState({ recipient: "All Staff", message: "" });
-  const { data: smsData, isLoading, refetch } = useSchoolQuery<{ data: any[] }>('/api/communication/sms');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const { data: smsData, isLoading, refetch } = useSchoolQuery<{ data: CommMessage[] }>('/api/communication/sms');
   const messages = smsData?.data || [];
-  
-  const sendMutation = useSchoolMutation(
-    '/api/communication/sms',
-    'POST',
-    {
-      onSuccess: () => {
-        refetch();
-        alert('Message queued for sending.');
-        setShowModal(false);
-        setFormData({ recipient: "All Staff", message: "" });
-      }
-    }
-  );
 
-  const handleSend = () => {
-    sendMutation.mutate({
-      recipientPhone: formData.recipient,
-      message: formData.message
-    });
+  const handleSend = async () => {
+    try {
+      setIsSubmitting(true);
+      await requestDashboardApi('/api/communication/sms', {
+        method: 'POST',
+        body: {
+          recipientPhone: formData.recipient,
+          message: formData.message
+        }
+      });
+      toast.success('Message queued for sending.');
+      setShowModal(false);
+      setFormData({ recipient: "All Staff", message: "" });
+      refetch();
+    } catch (e) {
+      toast.error('Failed to send message.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -55,17 +58,23 @@ export function DeputyCommunicationWorkspace() {
             </tr>
           </thead>
           <tbody className="divide-y divide-[#D8E0EC]">
-            {messages.map((msg) => (
-              <tr key={msg.id} className="hover:bg-[#F8FAFC]">
-                <td className="px-4 py-3 text-[#64748B]">{new Date(msg.created_at).toLocaleString()}</td>
-                <td className="px-4 py-3 font-semibold text-[#071D49]">{msg.recipient_phone}</td>
-                <td className="px-4 py-3 text-[#64748B]">Notice</td>
-                <td className="px-4 py-3"><StatusChip label={msg.status} tone={msg.status === "Sent" ? "success" : "neutral"} /></td>
-                <td className="px-4 py-3 text-right">
-                  <button className="text-blue-600 hover:underline font-semibold text-xs">View</button>
-                </td>
+            {messages.length === 0 ? (
+              <tr>
+                <td colSpan={5} className="px-4 py-8 text-center text-[#64748B]">No messages sent yet.</td>
               </tr>
-            ))}
+            ) : (
+              messages.map((msg) => (
+                <tr key={msg.id} className="hover:bg-[#F8FAFC]">
+                  <td className="px-4 py-3 text-[#64748B]">{new Date(msg.created_at).toLocaleString()}</td>
+                  <td className="px-4 py-3 font-semibold text-[#071D49]">{msg.recipient_phone}</td>
+                  <td className="px-4 py-3 text-[#64748B]">Notice</td>
+                  <td className="px-4 py-3"><StatusChip label={msg.status} tone={msg.status === "Sent" ? "success" : "neutral"} /></td>
+                  <td className="px-4 py-3 text-right">
+                    <button onClick={() => toast.info("Viewing message details...")} className="text-blue-600 hover:underline font-semibold text-xs">View</button>
+                  </td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>
@@ -73,7 +82,9 @@ export function DeputyCommunicationWorkspace() {
       <Modal open={showModal} onClose={() => setShowModal(false)} title="Compose Message" footer={
         <>
           <button onClick={() => setShowModal(false)} className="rounded-lg px-4 py-2 text-sm font-bold text-[#64748B] hover:bg-slate-100">Cancel</button>
-          <button disabled={!formData.message} onClick={handleSend} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white hover:bg-blue-900 disabled:opacity-50">Send Message</button>
+          <button disabled={!formData.message || isSubmitting} onClick={handleSend} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white hover:bg-blue-900 disabled:opacity-50">
+            {isSubmitting ? "Sending..." : "Send Message"}
+          </button>
         </>
       }>
         <div className="space-y-4">

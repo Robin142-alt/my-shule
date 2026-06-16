@@ -1128,6 +1128,11 @@ export class AdminCommandRepository {
       [tenantId]
     ).catch(() => ({ rows: [{ count: 0 }] }));
 
+    const gradesComplete = await this.executeSql(
+      `SELECT count(*)::int as count FROM academics_grading_systems WHERE tenant_id = $1`,
+      [tenantId]
+    ).catch(() => ({ rows: [{ count: 0 }] }));
+
     const subjectsComplete = await this.executeSql(
       `SELECT count(*)::int as count FROM subjects WHERE tenant_id = $1`,
       [tenantId]
@@ -1141,11 +1146,12 @@ export class AdminCommandRepository {
     const hasProfile = (profileComplete.rows[0]?.count || 0) > 0;
     const hasStaff = (staffComplete.rows[0]?.count || 0) > 0;
     const hasTerms = (termsComplete.rows[0]?.count || 0) > 0;
+    const hasGrades = (gradesComplete.rows[0]?.count || 0) > 0;
     const hasSubjects = (subjectsComplete.rows[0]?.count || 0) > 0;
     const hasStudents = (studentsComplete.rows[0]?.count || 0) > 0;
 
-    const completedTasks = [hasProfile, hasStaff, hasTerms, hasSubjects, hasStudents].filter(Boolean).length;
-    const overallProgress = Math.round((completedTasks / 5) * 100);
+    const completedTasks = [hasProfile, hasStaff, hasTerms, hasGrades, hasSubjects, hasStudents].filter(Boolean).length;
+    const overallProgress = Math.round((completedTasks / 6) * 100);
 
     return {
       status: overallProgress === 100 ? "active" : "setup_required",
@@ -1154,8 +1160,9 @@ export class AdminCommandRepository {
         { id: "1", title: "Complete School Profile", completed: hasProfile, group: "General" },
         { id: "2", title: "Add Principal and Deputy", completed: hasStaff, group: "General" },
         { id: "3", title: "Configure Academic Term", completed: hasTerms, group: "Academics" },
-        { id: "4", title: "Register Subjects", completed: hasSubjects, group: "Academics" },
-        { id: "5", title: "Add Students", completed: hasStudents, group: "Data Entry" }
+        { id: "4", title: "Configure Grading System", completed: hasGrades, group: "Academics" },
+        { id: "5", title: "Register Subjects", completed: hasSubjects, group: "Academics" },
+        { id: "6", title: "Add Students", completed: hasStudents, group: "Data Entry" }
       ]
     };
   }
@@ -1174,7 +1181,7 @@ export class AdminCommandRepository {
     }
 
     const gradings = await this.executeSql(
-      `SELECT count(*)::int as count FROM academics_assignments WHERE tenant_id = $1`, // dummy check, grading_systems might not exist
+      `SELECT count(*)::int as count FROM academics_grading_systems WHERE tenant_id = $1`,
       [tenantId]
     ).catch(() => ({ rows: [{ count: 0 }] }));
 
@@ -1465,5 +1472,42 @@ export class AdminCommandRepository {
     }
 
     return {};
+  }
+
+  async scheduleReport(data: { tenant_id: string; user_id: string; title: string; schedule: string }) {
+    await this.executeSql(
+      `INSERT INTO operations_reports (content, prepared_by, tenant_id, title, updated_at) VALUES ($1, $2, $3, $4, NOW())`,
+      [JSON.stringify({ schedule: data.schedule }), data.user_id, data.tenant_id, data.title]
+    );
+  }
+
+  async createCommunicationBroadcast(data: { tenant_id: string; user_id: string; audience: string; message: string }) {
+    await this.executeSql(
+      `INSERT INTO communication_sms_outbox (message, recipient_phone, sent_by, status, tenant_id, updated_at) 
+       VALUES ($1, $2, $3, $4, $5, NOW())`,
+      [data.message, data.audience, data.user_id, 'Pending', data.tenant_id]
+    );
+  }
+
+  async logAbsence(data: { tenant_id: string; user_id: string; student_id: string; date: string; is_excused: boolean }) {
+    const studentRes = await this.executeSql(
+      `SELECT current_class_id FROM students WHERE id = $1 AND school_id = $2`,
+      [data.student_id, data.tenant_id]
+    );
+    const classId = studentRes.rows[0]?.current_class_id || '00000000-0000-0000-0000-000000000000';
+
+    await this.executeSql(
+      `INSERT INTO academics_attendance (attendance_date, class_id, status, student_id, submitted_by, tenant_id, updated_at) 
+       VALUES ($1, $2, $3, $4, $5, $6, NOW())`,
+      [data.date, classId, data.is_excused ? 'absent_excused' : 'absent', data.student_id, data.user_id, data.tenant_id]
+    );
+  }
+
+  async reportIncidentMock(data: { tenant_id: string; user_id: string; student_id: string; category: string; severity: string; description: string }) {
+    await this.executeSql(
+      `INSERT INTO admin_incidents (created_by, description, involved_parties, severity, tenant_id, title, updated_at) 
+       VALUES ($1, $2, $3, $4, $5, $6, NOW())`,
+      [data.user_id, data.description, data.student_id, data.severity, data.tenant_id, data.category]
+    );
   }
 }

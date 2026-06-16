@@ -35,6 +35,7 @@ import { ApprovalInbox } from "@/components/shared/approval-inbox";
 import { NotificationBell } from "@/components/shared/notification-bell";
 import { TaskQueue } from "@/components/shared/task-queue";
 import { WorkflowToast } from "@/components/shared/workflow-toast";
+import { buildSchoolSectionHref } from "./school-pages";
 
 import { DeputyOverviewWorkspace } from "./deputy-principal/overview-workspace";
 import { DeputyDailyOperationsWorkspace } from "./deputy-principal/daily-operations-workspace";
@@ -82,8 +83,14 @@ const BASE_NAV_ITEMS: NavItem[] = [
   { id: "settings", label: "Settings", icon: Settings, group: "Administration" },
 ];
 
-export function DeputyPrincipalCommandCenter({ routeMode }: { routeMode: "hosted" | "public" }) {
-  const [activeWorkspace, setActiveWorkspace] = useState("overview");
+export function DeputyPrincipalCommandCenter({ activeSection, routeMode }: { activeSection?: string; routeMode?: "hosted" | "public" }) {
+  const [activeWorkspace, setActiveWorkspaceState] = useState(activeSection && activeSection !== "dashboard" ? activeSection : "overview");
+
+  const setActiveWorkspace = (view: string) => {
+    setActiveWorkspaceState(view);
+    const newPath = buildSchoolSectionHref("deputy-principal", view, routeMode ?? "hosted");
+    window.history.replaceState(null, "", newPath);
+  };
   const [isTeachingEnabled, setIsTeachingEnabled] = useState(true);
 
   // Listen to teaching toggle from settings workspace

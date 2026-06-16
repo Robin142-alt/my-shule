@@ -1,8 +1,10 @@
 "use client";
 import { CheckCircle2 } from "lucide-react";
 import { Panel, StatusChip, Tone } from "./shared";
-import { useSchoolQuery, useSchoolMutation } from "@/lib/data/school-hooks";
-import { useQueryClient } from "@tanstack/react-query";
+import { useSchoolQuery } from "@/lib/data/school-hooks";
+import { useState } from "react";
+import { toast } from "sonner";
+import { actionApproval } from "./api-client";
 
 export type ApprovalRequest = {
   id: string;
@@ -20,28 +22,21 @@ type ApprovalsData = {
 };
 
 export function DeputyApprovalsWorkspace() {
-  const queryClient = useQueryClient();
-  const { data, isLoading } = useSchoolQuery<ApprovalsData>('/admin-command/deputy/approvals');
-
-  const actionMutation = useSchoolMutation<
-    { id: string; action: string },
-    { id: string; action: "Approve" | "Reject" }
-  >(
-    ({ id }) => `/admin-command/deputy/approvals/${id}/action`,
-    'POST',
-    {
-      onSuccess: () => queryClient.invalidateQueries({ queryKey: ["school", "session", '/admin-command/deputy/approvals'] })
-    }
-  );
+  const { data, isLoading, refetch } = useSchoolQuery<ApprovalsData>('/admin-command/deputy/approvals');
+  const [submittingId, setSubmittingId] = useState<string | null>(null);
 
   const approvals = data?.approvalsList || [];
 
   const handleAction = async (id: string, action: "Approve" | "Reject") => {
     try {
-      await actionMutation.mutateAsync({ id, action });
-      alert(`Request has been ${action}d.`);
+      setSubmittingId(id);
+      await actionApproval(id, action);
+      toast.success(`Request has been ${action.toLowerCase()}d.`);
+      refetch();
     } catch (e) {
-      alert("Failed to process approval action.");
+      toast.error("Failed to process approval action.");
+    } finally {
+      setSubmittingId(null);
     }
   };
 
@@ -85,8 +80,20 @@ export function DeputyApprovalsWorkspace() {
                   <td className="px-4 py-3 text-right">
                     {req.status === "Pending Approval" ? (
                       <>
-                        <button onClick={() => handleAction(req.id, "Approve")} className="text-emerald-600 hover:underline font-semibold text-xs mr-3">Approve</button>
-                        <button onClick={() => handleAction(req.id, "Reject")} className="text-rose-600 hover:underline font-semibold text-xs mr-3">Reject</button>
+                        <button 
+                          onClick={() => handleAction(req.id, "Approve")} 
+                          disabled={submittingId === req.id}
+                          className="text-emerald-600 hover:underline font-semibold text-xs mr-3 disabled:opacity-50"
+                        >
+                          Approve
+                        </button>
+                        <button 
+                          onClick={() => handleAction(req.id, "Reject")} 
+                          disabled={submittingId === req.id}
+                          className="text-rose-600 hover:underline font-semibold text-xs mr-3 disabled:opacity-50"
+                        >
+                          Reject
+                        </button>
                       </>
                     ) : (
                       <span className="text-[#64748B] text-xs font-semibold">Processed</span>

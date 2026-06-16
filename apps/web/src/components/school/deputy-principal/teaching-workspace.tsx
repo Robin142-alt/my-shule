@@ -1,8 +1,10 @@
 "use client";
 import { BookOpen } from "lucide-react";
 import { Panel, StatusChip, Tone } from "./shared";
-import { useSchoolQuery, useSchoolMutation } from "@/lib/data/school-hooks";
-import { useQueryClient } from "@tanstack/react-query";
+import { useSchoolQuery } from "@/lib/data/school-hooks";
+import { useState } from "react";
+import { toast } from "sonner";
+import { markTeachingAttendance, logTeachingLesson } from "./api-client";
 
 export type TeachingLesson = {
   id: string;
@@ -21,38 +23,26 @@ type TeachingData = {
 };
 
 export function DeputyTeachingWorkspace() {
-  const queryClient = useQueryClient();
-  const { data, isLoading } = useSchoolQuery<TeachingData>('/admin-command/deputy/teaching');
-
-  const attendanceMutation = useSchoolMutation<{ id: string }, { id: string }>(
-    ({ id }) => `/admin-command/deputy/teaching/${id}/mark-attendance`,
-    'POST',
-    {
-      onSuccess: () => queryClient.invalidateQueries({ queryKey: ["school", "session", '/admin-command/deputy/teaching'] })
-    }
-  );
-
-  const logMutation = useSchoolMutation<{ id: string }, { id: string }>(
-    ({ id }) => `/admin-command/deputy/teaching/${id}/log-lesson`,
-    'POST',
-    {
-      onSuccess: () => queryClient.invalidateQueries({ queryKey: ["school", "session", '/admin-command/deputy/teaching'] })
-    }
-  );
+  const { data, isLoading, refetch } = useSchoolQuery<TeachingData>('/admin-command/deputy/teaching');
+  const [submittingId, setSubmittingId] = useState<string | null>(null);
 
   const lessons = data?.lessons || [];
 
   const handleAction = async (id: string, type: "Attendance" | "Log") => {
     try {
+      setSubmittingId(id);
       if (type === "Attendance") {
-        await attendanceMutation.mutateAsync({ id });
-        alert("Attendance marked successfully.");
+        await markTeachingAttendance(id);
+        toast.success("Attendance marked successfully.");
       } else {
-        await logMutation.mutateAsync({ id });
-        alert("Lesson logged successfully.");
+        await logTeachingLesson(id);
+        toast.success("Lesson logged successfully.");
       }
+      refetch();
     } catch (e) {
-      alert(`Failed to ${type === "Attendance" ? "mark attendance" : "log lesson"}.`);
+      toast.error(`Failed to ${type === "Attendance" ? "mark attendance" : "log lesson"}.`);
+    } finally {
+      setSubmittingId(null);
     }
   };
 
@@ -93,10 +83,22 @@ export function DeputyTeachingWorkspace() {
                   <td className="px-4 py-3"><StatusChip label={ls.logStatus} tone={getTone(ls.logStatus)} /></td>
                   <td className="px-4 py-3 text-right">
                     {ls.attendanceStatus === "Pending" && (
-                      <button onClick={() => handleAction(ls.id, "Attendance")} className="text-blue-600 hover:underline font-semibold text-xs mr-3">Mark</button>
+                      <button 
+                        onClick={() => handleAction(ls.id, "Attendance")} 
+                        disabled={submittingId === ls.id}
+                        className="text-blue-600 hover:underline font-semibold text-xs mr-3 disabled:opacity-50"
+                      >
+                        {submittingId === ls.id ? "Marking..." : "Mark"}
+                      </button>
                     )}
                     {ls.logStatus === "Pending" && (
-                      <button onClick={() => handleAction(ls.id, "Log")} className="text-blue-600 hover:underline font-semibold text-xs">Log</button>
+                      <button 
+                        onClick={() => handleAction(ls.id, "Log")} 
+                        disabled={submittingId === ls.id}
+                        className="text-blue-600 hover:underline font-semibold text-xs disabled:opacity-50"
+                      >
+                        {submittingId === ls.id ? "Logging..." : "Log"}
+                      </button>
                     )}
                   </td>
                 </tr>

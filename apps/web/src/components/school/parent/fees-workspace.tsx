@@ -3,8 +3,10 @@
 import { CreditCard, Download, FileText, CheckCircle, Clock, AlertTriangle } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { useSchoolQuery, useSchoolMutation } from "@/lib/data/school-hooks";
+import { useSchoolQuery } from "@/lib/data/school-hooks";
 import { useState } from "react";
+import { toast } from "sonner";
+import { requestDashboardApi } from "@/lib/dashboard/api-client";
 
 export function FeesWorkspace() {
   const [isPaying, setIsPaying] = useState(false);
@@ -14,33 +16,31 @@ export function FeesWorkspace() {
   const { data: transactions, isLoading: txLoading, refetch: refetchTx } = useSchoolQuery<any>('/api/finance/collections');
   const { data: invoices, isLoading: invLoading, refetch: refetchInv } = useSchoolQuery<any>('/api/finance/invoices');
 
-  const recordPayment = useSchoolMutation(
-    '/api/finance/payment',
-    'POST',
-    {
-      onSuccess: () => {
-        refetchTx();
-        refetchInv();
-        setIsPaying(false);
-        alert('Payment recorded successfully!');
-      }
-    }
-  );
-
-  const handlePayNow = () => {
+  const handlePayNow = async () => {
     setIsPaying(true);
-    // Submitting payment directly to the backend
-    recordPayment.mutate({
-      id: `PAY-${Date.now()}`,
-      amount: balanceMinor / 100,
-      method: "M-Pesa",
-      voteHead: "Tuition",
-      term: "Term 2",
-      receiptNo: `MPESA-${Date.now().toString().slice(-6)}`,
-      reference: "Mobile Checkout",
-      parentSmsSent: true,
-      status: "completed"
-    });
+    try {
+      await requestDashboardApi("/api/parent-portal/fees/pay", {
+        method: "POST",
+        body: JSON.stringify({
+          id: `PAY-${Date.now()}`,
+          amount: balanceMinor / 100,
+          method: "M-Pesa",
+          voteHead: "Tuition",
+          term: "Term 2",
+          receiptNo: `MPESA-${Date.now().toString().slice(-6)}`,
+          reference: "Mobile Checkout",
+          parentSmsSent: true,
+          status: "completed"
+        })
+      });
+      toast.success('Payment recorded successfully!');
+      refetchTx();
+      refetchInv();
+    } catch (error) {
+      toast.error('Failed to process payment');
+    } finally {
+      setIsPaying(false);
+    }
   };
 
   const balanceMinor = accountsOverview?.[0]?.balance_minor || 0;

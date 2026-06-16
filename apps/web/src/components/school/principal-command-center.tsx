@@ -64,15 +64,27 @@ const BASE_NAV_ITEMS: NavItem[] = [
   { id: "settings", label: "Settings", icon: Settings, group: "Administration" },
 ];
 
+import { buildSchoolSectionHref } from "./school-pages";
+
 export function PrincipalCommandCenter({
   routeMode,
   tenantSlug,
+  activeSection,
 }: {
   routeMode?: "hosted" | "public";
   tenantSlug?: string | null;
+  activeSection?: string;
 }) {
-  const [activeWorkspace, setActiveWorkspace] = useState("overview");
+  const [activeWorkspaceState, setActiveWorkspaceState] = useState(
+    activeSection && activeSection !== "dashboard" ? activeSection : "overview"
+  );
   const [isTeachingEnabled, setIsTeachingEnabled] = useState(true);
+
+  const setActiveWorkspace = (id: string) => {
+    setActiveWorkspaceState(id);
+    const newPath = buildSchoolSectionHref("principal", id, routeMode ?? "hosted");
+    window.history.replaceState(null, "", newPath);
+  };
 
   useEffect(() => {
     if (!tenantSlug) return;
@@ -85,13 +97,13 @@ export function PrincipalCommandCenter({
     const handleToggle = (e: Event) => {
       const customEvent = e as CustomEvent;
       setIsTeachingEnabled(customEvent.detail);
-      if (!customEvent.detail && activeWorkspace === "teaching") {
+      if (!customEvent.detail && activeWorkspaceState === "teaching") {
         setActiveWorkspace("overview");
       }
     };
     window.addEventListener("principal-teaching-toggle", handleToggle);
     return () => window.removeEventListener("principal-teaching-toggle", handleToggle);
-  }, [activeWorkspace]);
+  }, [activeWorkspaceState]);
 
   const navItems = useMemo(() => {
     if (isTeachingEnabled) {
@@ -112,7 +124,7 @@ export function PrincipalCommandCenter({
   }, [navItems]);
 
   const renderWorkspace = () => {
-    switch (activeWorkspace) {
+    switch (activeWorkspaceState) {
       case "overview": return <PrincipalOverviewWorkspace />;
       case "setup-checklist": return <PrincipalSetupChecklistWorkspace />;
       case "school-profile": return <PrincipalSchoolProfileWorkspace />;
@@ -152,7 +164,7 @@ export function PrincipalCommandCenter({
                   <div className="mt-2 grid gap-1">
                     {items.map((item) => {
                       const Icon = item.icon;
-                      const active = activeWorkspace === item.id;
+                      const active = activeWorkspaceState === item.id;
                       return (
                         <button
                           key={item.id}
@@ -210,7 +222,7 @@ export function PrincipalCommandCenter({
 
             <div className="rounded-[var(--radius-xl)] bg-[#071D49] p-5 shadow-[0_24px_70px_rgba(7,29,73,0.22)]">
               <h1 className="mb-6 text-3xl font-black text-white">
-                {navItems.find((n) => n.id === activeWorkspace)?.label}
+                {navItems.find((n) => n.id === activeWorkspaceState)?.label}
               </h1>
               {renderWorkspace()}
             </div>
@@ -228,7 +240,7 @@ export function PrincipalCommandCenter({
                   onClick={() => setActiveWorkspace(item.id)}
                   className={cn(
                     "flex min-h-14 flex-col items-center justify-center gap-1 rounded-[var(--radius)] px-1 text-center text-[10px] font-black active:scale-95",
-                    activeWorkspace === item.id ? "text-cyan-400" : "text-white/70"
+                    activeWorkspaceState === item.id ? "text-cyan-400" : "text-white/70"
                   )}
                 >
                   <Icon className="h-4 w-4" aria-hidden="true" />

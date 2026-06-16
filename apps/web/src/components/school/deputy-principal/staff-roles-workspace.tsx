@@ -1,8 +1,10 @@
 "use client";
 import { UserCog } from "lucide-react";
 import { Panel, StatusChip, Tone } from "./shared";
-import { useSchoolQuery, useSchoolMutation } from "@/lib/data/school-hooks";
-import { useQueryClient } from "@tanstack/react-query";
+import { useSchoolQuery } from "@/lib/data/school-hooks";
+import { useState } from "react";
+import { toast } from "sonner";
+import { assignRole } from "./api-client";
 
 export type StaffRole = {
   id: string;
@@ -20,32 +22,25 @@ type StaffData = {
 };
 
 export function DeputyStaffRolesWorkspace() {
-  const queryClient = useQueryClient();
-  const { data, isLoading } = useSchoolQuery<StaffData>('/admin-command/deputy/staff');
-
-  const assignMutation = useSchoolMutation<
-    StaffRole,
-    { name: string; role: string; department: string }
-  >(
-    '/admin-command/deputy/staff/assign-role',
-    'POST',
-    {
-      onSuccess: () => queryClient.invalidateQueries({ queryKey: ["school", "session", '/admin-command/deputy/staff'] })
-    }
-  );
+  const { data, isLoading, refetch } = useSchoolQuery<StaffData>('/admin-command/deputy/staff');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const staff = data?.staffList || [];
 
   const handleAddRole = async () => {
     try {
-      await assignMutation.mutateAsync({
+      setIsSubmitting(true);
+      await assignRole({
         name: "New Teacher",
         role: "Assigned Role",
         department: "General",
       });
-      alert("Role assigned successfully.");
+      toast.success("Role assigned successfully.");
+      refetch();
     } catch (e) {
-      alert("Failed to assign role.");
+      toast.error("Failed to assign role.");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -53,7 +48,13 @@ export function DeputyStaffRolesWorkspace() {
 
   return (
     <Panel title="Staff & Roles" description="View teaching staff, assignments, and roles." icon={UserCog} actions={
-      <button onClick={handleAddRole} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white hover:bg-blue-900 transition">Assign Role</button>
+      <button 
+        onClick={handleAddRole} 
+        disabled={isSubmitting}
+        className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white hover:bg-blue-900 transition disabled:opacity-50"
+      >
+        {isSubmitting ? "Assigning..." : "Assign Role"}
+      </button>
     }>
       <div className="grid gap-4 md:grid-cols-2 mb-6">
         <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
@@ -85,7 +86,7 @@ export function DeputyStaffRolesWorkspace() {
                   <td className="px-4 py-3 text-[#64748B]">{st.department}</td>
                   <td className="px-4 py-3"><StatusChip label={st.status} tone={getTone(st.status)} /></td>
                   <td className="px-4 py-3 text-right">
-                    <button onClick={() => alert("Managing roles...")} className="text-blue-600 hover:underline font-semibold text-xs">Manage</button>
+                    <button onClick={() => toast.info("Managing roles...")} className="text-blue-600 hover:underline font-semibold text-xs">Manage</button>
                   </td>
                 </tr>
               ))

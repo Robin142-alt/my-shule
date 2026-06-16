@@ -31,6 +31,7 @@ import { ApprovalInbox } from "@/components/shared/approval-inbox";
 import { NotificationBell } from "@/components/shared/notification-bell";
 import { TaskQueue } from "@/components/shared/task-queue";
 import { WorkflowToast } from "@/components/shared/workflow-toast";
+import { buildSchoolSectionHref } from "./school-pages";
 
 const SIDEBAR_ITEMS = [
   { id: "overview", label: "Overview", icon: Home },
@@ -52,9 +53,15 @@ const SIDEBAR_ITEMS = [
   { id: "settings", label: "Settings", icon: Settings },
 ];
 
-export function DisciplineMasterCommandCenter() {
+export function DisciplineMasterCommandCenter({ activeSection, routeMode }: { activeSection?: string; routeMode?: "hosted" | "public" }) {
   const queryClient = useQueryClient();
-  const [activeWorkspace, setActiveWorkspace] = useState("overview");
+  const [activeWorkspace, setActiveWorkspaceState] = useState(activeSection && activeSection !== "dashboard" ? activeSection : "overview");
+
+  const setActiveWorkspace = (view: string) => {
+    setActiveWorkspaceState(view);
+    const newPath = buildSchoolSectionHref("discipline-master", view, routeMode ?? "hosted");
+    window.history.replaceState(null, "", newPath);
+  };
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const renderWorkspace = () => {

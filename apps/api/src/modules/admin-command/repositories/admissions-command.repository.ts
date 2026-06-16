@@ -314,9 +314,9 @@ export class AdmissionsCommandRepository {
           schoolId: tenantId,
           studentId: student.id,
           guardianId: guardian.id,
+          relationshipType: (application.guardianRelationship?.toUpperCase() || 'GUARDIAN') as any,
           isPrimaryContact: true,
-          isEmergencyContact: true,
-          canPickup: true,
+          canPickStudent: true,
         },
       });
 
@@ -332,7 +332,9 @@ export class AdmissionsCommandRepository {
           schoolId: tenantId,
           studentId: student.id,
           action: 'ADMISSION_APPROVED',
-          description: `Student ${student.firstName} ${student.lastName} was admitted from application ${application.applicationNumber}.`,
+          metadata: {
+            description: `Student ${student.firstName} ${student.lastName} was admitted from application ${application.applicationNumber}.`
+          },
           performedByUserId: userId,
         }
       });

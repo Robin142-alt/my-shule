@@ -5,7 +5,7 @@ import { Card } from "@/components/ui/card";
 
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 
-export function StudentCommandCenter({ routeMode }: { routeMode?: "hosted" | "public" }) {
+export function StudentCommandCenter({ routeMode, activeSection }: { routeMode?: "hosted" | "public", activeSection?: string }) {
   const { data: response, isLoading } = useSchoolQuery<any>("/api/student/dashboard");
   const dashboard = response?.data;
 

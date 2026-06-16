@@ -1,8 +1,10 @@
 "use client";
 import { ClipboardCheck } from "lucide-react";
 import { Panel, StatusChip, Tone } from "./shared";
-import { useSchoolQuery, useSchoolMutation } from "@/lib/data/school-hooks";
-import { useQueryClient } from "@tanstack/react-query";
+import { useSchoolQuery } from "@/lib/data/school-hooks";
+import { useState } from "react";
+import { toast } from "sonner";
+import { flagExamDelay } from "./api-client";
 
 export type ExamMarkProgress = {
   id: string;
@@ -21,25 +23,21 @@ type ExamsData = {
 };
 
 export function DeputyExamsMarksWorkspace() {
-  const queryClient = useQueryClient();
-  const { data, isLoading } = useSchoolQuery<ExamsData>('/admin-command/deputy/exams');
-
-  const flagMutation = useSchoolMutation<{ id: string }, { id: string }>(
-    ({ id }) => `/admin-command/deputy/exams/${id}/flag-delay`,
-    'POST',
-    {
-      onSuccess: () => queryClient.invalidateQueries({ queryKey: ["school", "session", '/admin-command/deputy/exams'] })
-    }
-  );
+  const { data, isLoading, refetch } = useSchoolQuery<ExamsData>('/admin-command/deputy/exams');
+  const [submittingId, setSubmittingId] = useState<string | null>(null);
 
   const exams = data?.examsList || [];
 
   const handleFlagDelay = async (id: string, teacher: string) => {
     try {
-      await flagMutation.mutateAsync({ id });
-      alert(`Reminder sent to ${teacher} regarding delayed marks.`);
+      setSubmittingId(id);
+      await flagExamDelay(id);
+      toast.success(`Reminder sent to ${teacher} regarding delayed marks.`);
+      refetch();
     } catch (e) {
-      alert("Failed to flag delay.");
+      toast.error("Failed to flag delay.");
+    } finally {
+      setSubmittingId(null);
     }
   };
 
@@ -51,7 +49,7 @@ export function DeputyExamsMarksWorkspace() {
 
   return (
     <Panel title="Exams & Marks" description="Monitor exams at senior level and enter marks for assigned classes." icon={ClipboardCheck} actions={
-      <button onClick={() => alert("Launching gradebook...")} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white hover:bg-blue-900 transition">Enter My Marks</button>
+      <button onClick={() => toast.info("Opening gradebook module...")} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white hover:bg-blue-900 transition">Enter My Marks</button>
     }>
       <div className="grid gap-4 md:grid-cols-2 mb-6">
         <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
@@ -86,7 +84,13 @@ export function DeputyExamsMarksWorkspace() {
                   <td className="px-4 py-3"><StatusChip label={ex.progress} tone={getTone(ex.progress)} /></td>
                   <td className="px-4 py-3 text-right">
                     {ex.progress === "Missing Marks" && (
-                      <button onClick={() => handleFlagDelay(ex.id, ex.teacher)} className="text-blue-600 hover:underline font-semibold text-xs">Flag Delay</button>
+                      <button 
+                        onClick={() => handleFlagDelay(ex.id, ex.teacher)} 
+                        disabled={submittingId === ex.id}
+                        className="text-blue-600 hover:underline font-semibold text-xs disabled:opacity-50"
+                      >
+                        {submittingId === ex.id ? "Flagging..." : "Flag Delay"}
+                      </button>
                     )}
                   </td>
                 </tr>

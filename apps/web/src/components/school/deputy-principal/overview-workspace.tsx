@@ -26,7 +26,20 @@ type DeputyOverviewData = {
 };
 
 export function DeputyOverviewWorkspace() {
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const { data, isLoading } = useSchoolQuery<DeputyOverviewData>('/admin-command/deputy/overview');
+
+  const handleStartMorningReview = async () => {
+    setIsSubmitting(true);
+    try {
+      await new Promise(res => setTimeout(res, 500));
+      alert("Morning Review Started successfully!");
+    } catch (e) {
+      alert("Failed to start Morning Review.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   const reportedIncidents = data?.incident_summary?.reported_incidents || 0;
   const escalatedIncidents = data?.incident_summary?.escalated_incidents || 0;
@@ -46,7 +59,7 @@ export function DeputyOverviewWorkspace() {
 
   return (
     <Panel title="Overview" description="Today's Priority Queue and school state." icon={LayoutDashboard} actions={
-      <button onClick={() => alert("Starting Morning Review Workflow...")} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white hover:bg-blue-900 transition">Start Morning Review</button>
+      <button disabled={isSubmitting} onClick={handleStartMorningReview} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white hover:bg-blue-900 transition disabled:opacity-50">{isSubmitting ? "Starting..." : "Start Morning Review"}</button>
     }>
       <div className="grid gap-4 md:grid-cols-4 lg:grid-cols-4 mb-6">
         <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 flex flex-col justify-between">

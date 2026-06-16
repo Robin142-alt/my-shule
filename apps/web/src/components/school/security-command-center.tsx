@@ -31,6 +31,8 @@ import { ApprovalInbox } from "@/components/shared/approval-inbox";
 import { NotificationBell } from "@/components/shared/notification-bell";
 import { TaskQueue } from "@/components/shared/task-queue";
 import { WorkflowToast } from "@/components/shared/workflow-toast";
+import { toast } from "sonner";
+import { requestDashboardApi } from "@/lib/dashboard/api-client";
 
 type RouteMode = "hosted" | "public";
 type Tone = "success" | "info" | "warning" | "danger" | "neutral";
@@ -240,11 +242,44 @@ function OverviewWorkspace({ onNavigate }: { onNavigate: (v: ViewId) => void }) 
 }
 
 function ShiftWorkspace() {
+  const [isSubmittingStart, setIsSubmittingStart] = useState(false);
+  const [isSubmittingEnd, setIsSubmittingEnd] = useState(false);
+
+  const handleStartShift = async () => {
+    setIsSubmittingStart(true);
+    try {
+      await requestDashboardApi("/api/admin-command/frontoffice/dispatch", {
+        method: "POST",
+        body: JSON.stringify({ action: "start_shift" })
+      });
+      toast.success("Shift started successfully");
+    } catch (e: any) {
+      toast.error(e.message || "Failed to start shift");
+    } finally {
+      setIsSubmittingStart(false);
+    }
+  };
+
+  const handleEndShift = async () => {
+    setIsSubmittingEnd(true);
+    try {
+      await requestDashboardApi("/api/admin-command/frontoffice/dispatch", {
+        method: "POST",
+        body: JSON.stringify({ action: "end_shift" })
+      });
+      toast.success("Shift ended successfully");
+    } catch (e: any) {
+      toast.error(e.message || "Failed to end shift");
+    } finally {
+      setIsSubmittingEnd(false);
+    }
+  };
+
   return (
     <Panel title="My Shift & Handover" description="Start and end shifts properly with accountability." icon={Clock} actions={
       <div className="flex gap-2">
-        <button className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-black text-white">Start Shift</button>
-        <button className="rounded-lg bg-rose-600 px-4 py-2 text-sm font-black text-white">End Shift</button>
+        <button onClick={handleStartShift} disabled={isSubmittingStart} className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-black text-white disabled:opacity-50">{isSubmittingStart ? "Starting..." : "Start Shift"}</button>
+        <button onClick={handleEndShift} disabled={isSubmittingEnd} className="rounded-lg bg-rose-600 px-4 py-2 text-sm font-black text-white disabled:opacity-50">{isSubmittingEnd ? "Ending..." : "End Shift"}</button>
       </div>
     }>
       <div className="grid gap-4 md:grid-cols-4 mb-6">
@@ -504,9 +539,27 @@ function GatePassesWorkspace() {
 }
 
 function LateArrivalsWorkspace() {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const handleRecord = async () => {
+    setIsSubmitting(true);
+    try {
+      await requestDashboardApi("/api/admin-command/frontoffice/dispatch", {
+        method: "POST",
+        body: JSON.stringify({ action: "record_late_arrival" })
+      });
+      toast.success("Late arrival recorded successfully");
+    } catch (e: any) {
+      toast.error(e.message || "Failed to record late arrival");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
     <Panel title="Late Arrivals" description="Records students who arrive late to school." icon={ClockAlert} actions={
-      <button className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white">Record Late Arrival</button>
+      <button onClick={handleRecord} disabled={isSubmitting} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white disabled:opacity-50">
+        {isSubmitting ? "Recording..." : "Record Late Arrival"}
+      </button>
     }>
       <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
         <table className="w-full text-sm text-left whitespace-nowrap">
@@ -537,9 +590,27 @@ function LateArrivalsWorkspace() {
 }
 
 function EarlyDeparturesWorkspace() {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const handleRecord = async () => {
+    setIsSubmitting(true);
+    try {
+      await requestDashboardApi("/api/admin-command/frontoffice/dispatch", {
+        method: "POST",
+        body: JSON.stringify({ action: "record_early_departure" })
+      });
+      toast.success("Early departure recorded successfully");
+    } catch (e: any) {
+      toast.error(e.message || "Failed to record early departure");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
     <Panel title="Early Departures" description="Records students leaving before normal closing time." icon={LogOut} actions={
-      <button className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white">Record Early Departure</button>
+      <button onClick={handleRecord} disabled={isSubmitting} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white disabled:opacity-50">
+        {isSubmitting ? "Recording..." : "Record Early Departure"}
+      </button>
     }>
       <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
         <table className="w-full text-sm text-left whitespace-nowrap">
@@ -570,11 +641,48 @@ function EarlyDeparturesWorkspace() {
 }
 
 function StaffMovementWorkspace() {
+  const [isSubmittingEntry, setIsSubmittingEntry] = useState(false);
+  const [isSubmittingExit, setIsSubmittingExit] = useState(false);
+
+  const handleEntry = async () => {
+    setIsSubmittingEntry(true);
+    try {
+      await requestDashboardApi("/api/admin-command/frontoffice/dispatch", {
+        method: "POST",
+        body: JSON.stringify({ action: "record_staff_entry" })
+      });
+      toast.success("Staff entry recorded successfully");
+    } catch (e: any) {
+      toast.error(e.message || "Failed to record staff entry");
+    } finally {
+      setIsSubmittingEntry(false);
+    }
+  };
+
+  const handleExit = async () => {
+    setIsSubmittingExit(true);
+    try {
+      await requestDashboardApi("/api/admin-command/frontoffice/dispatch", {
+        method: "POST",
+        body: JSON.stringify({ action: "record_staff_exit" })
+      });
+      toast.success("Staff exit recorded successfully");
+    } catch (e: any) {
+      toast.error(e.message || "Failed to record staff exit");
+    } finally {
+      setIsSubmittingExit(false);
+    }
+  };
+
   return (
     <Panel title="Staff Movement" description="Tracks staff entry and exit." icon={Users} actions={
       <div className="flex gap-2">
-        <button className="rounded-lg border border-[#D8E0EC] px-4 py-2 text-sm font-bold text-[#071D49]">Record Entry</button>
-        <button className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white">Record Exit</button>
+        <button onClick={handleEntry} disabled={isSubmittingEntry} className="rounded-lg border border-[#D8E0EC] px-4 py-2 text-sm font-bold text-[#071D49] disabled:opacity-50">
+          {isSubmittingEntry ? "Recording..." : "Record Entry"}
+        </button>
+        <button onClick={handleExit} disabled={isSubmittingExit} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white disabled:opacity-50">
+          {isSubmittingExit ? "Recording..." : "Record Exit"}
+        </button>
       </div>
     }>
       <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
@@ -606,9 +714,27 @@ function StaffMovementWorkspace() {
 }
 
 function VehicleLogWorkspace() {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const handleRecord = async () => {
+    setIsSubmitting(true);
+    try {
+      await requestDashboardApi("/api/admin-command/frontoffice/dispatch", {
+        method: "POST",
+        body: JSON.stringify({ action: "record_vehicle_entry" })
+      });
+      toast.success("Vehicle entry recorded successfully");
+    } catch (e: any) {
+      toast.error(e.message || "Failed to record vehicle entry");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
     <Panel title="Vehicle Log" description="Records vehicles entering and leaving school compound." icon={Car} actions={
-      <button className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white">Record Vehicle Entry</button>
+      <button onClick={handleRecord} disabled={isSubmitting} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white disabled:opacity-50">
+        {isSubmitting ? "Recording..." : "Record Vehicle Entry"}
+      </button>
     }>
       <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
         <table className="w-full text-sm text-left whitespace-nowrap">
@@ -639,9 +765,27 @@ function VehicleLogWorkspace() {
 }
 
 function DeliveriesWorkspace() {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const handleRecord = async () => {
+    setIsSubmitting(true);
+    try {
+      await requestDashboardApi("/api/admin-command/frontoffice/dispatch", {
+        method: "POST",
+        body: JSON.stringify({ action: "record_delivery" })
+      });
+      toast.success("Delivery recorded successfully");
+    } catch (e: any) {
+      toast.error(e.message || "Failed to record delivery");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
     <Panel title="Deliveries & Parcels" description="Tracks parcels, supplies, exam materials." icon={Package} actions={
-      <button className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white">Record Delivery</button>
+      <button onClick={handleRecord} disabled={isSubmitting} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white disabled:opacity-50">
+        {isSubmitting ? "Recording..." : "Record Delivery"}
+      </button>
     }>
       <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
         <table className="w-full text-sm text-left whitespace-nowrap">
@@ -673,11 +817,48 @@ function DeliveriesWorkspace() {
 }
 
 function IncidentsWorkspace() {
+  const [isSubmittingAlert, setIsSubmittingAlert] = useState(false);
+  const [isSubmittingReport, setIsSubmittingReport] = useState(false);
+
+  const handleAlert = async () => {
+    setIsSubmittingAlert(true);
+    try {
+      await requestDashboardApi("/api/admin-command/frontoffice/dispatch", {
+        method: "POST",
+        body: JSON.stringify({ action: "send_emergency_alert" })
+      });
+      toast.success("Emergency alert sent successfully");
+    } catch (e: any) {
+      toast.error(e.message || "Failed to send emergency alert");
+    } finally {
+      setIsSubmittingAlert(false);
+    }
+  };
+
+  const handleReport = async () => {
+    setIsSubmittingReport(true);
+    try {
+      await requestDashboardApi("/api/admin-command/frontoffice/dispatch", {
+        method: "POST",
+        body: JSON.stringify({ action: "report_incident" })
+      });
+      toast.success("Incident reported successfully");
+    } catch (e: any) {
+      toast.error(e.message || "Failed to report incident");
+    } finally {
+      setIsSubmittingReport(false);
+    }
+  };
+
   return (
     <Panel title="Incidents & Emergencies" description="Record gate-related incidents." icon={AlertTriangle} actions={
       <div className="flex gap-2">
-        <button className="rounded-lg bg-rose-600 px-4 py-2 text-sm font-black text-white">Send Emergency Alert</button>
-        <button className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white">Report Incident</button>
+        <button onClick={handleAlert} disabled={isSubmittingAlert} className="rounded-lg bg-rose-600 px-4 py-2 text-sm font-black text-white disabled:opacity-50">
+          {isSubmittingAlert ? "Sending..." : "Send Emergency Alert"}
+        </button>
+        <button onClick={handleReport} disabled={isSubmittingReport} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white disabled:opacity-50">
+          {isSubmittingReport ? "Reporting..." : "Report Incident"}
+        </button>
       </div>
     }>
       <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">

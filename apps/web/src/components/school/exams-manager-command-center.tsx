@@ -26,9 +26,12 @@ import { useSchoolQuery, useSchoolMutation } from "@/lib/data/school-hooks";
 import { downloadCsvFile, openPrintDocument } from "@/lib/dashboard/export";
 import { ApprovalInbox } from "@/components/shared/approval-inbox";
 import { NotificationBell } from "@/components/shared/notification-bell";
+import { buildSchoolSectionHref } from "./school-pages";
 import { TaskQueue } from "@/components/shared/task-queue";
 import { WorkflowToast } from "@/components/shared/workflow-toast";
 import { usePermissions } from "@/components/providers/permission-context";
+import { toast } from "sonner";
+import { requestDashboardApi } from "@/lib/dashboard/api-client";
 
 type ExamsManagerRouteMode = "hosted" | "public";
 type Tone = "success" | "info" | "warning" | "danger" | "neutral";
@@ -790,6 +793,7 @@ function ActiveWidgetContent({
   deanReviewBatches: ExamOperationalRecord[];
 }) {
   const { hasPermission } = usePermissions();
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   if (view === "overview") {
     return (
@@ -922,16 +926,58 @@ function ActiveWidgetContent({
           </div>
           <div className="mt-4 flex flex-wrap gap-2">
             <ActionButton tone="info" onClick={onOpenMarksEntry}>Enter marks</ActionButton>
-            <ActionButton tone="success" onClick={() => alert("Simulating import marks...")}>Import Marks (CSV)</ActionButton>
-            <ActionButton tone="neutral" onClick={() => {
-              downloadCsvFile({
-                filename: "marks-template.csv",
-                headers: ["Admission Number", "KNEC Index Number", "Student Name", "Score"],
-                rows: []
-              });
-              alert("CSV export downloaded");
+            <ActionButton tone="success" onClick={async () => {
+              if (isSubmitting) return;
+              setIsSubmitting(true);
+              try {
+                await requestDashboardApi("/api/academic/exams-manager/import-marks", {
+                  method: "POST",
+                  body: JSON.stringify({ type: "csv_import" })
+                });
+                toast.success("Marks imported successfully");
+              } catch (error) {
+                toast.error("Failed to import marks");
+              } finally {
+                setIsSubmitting(false);
+              }
+            }}>
+              {isSubmitting ? "Importing..." : "Import Marks (CSV)"}
+            </ActionButton>
+            <ActionButton tone="neutral" onClick={async () => {
+              if (isSubmitting) return;
+              setIsSubmitting(true);
+              try {
+                await requestDashboardApi("/api/academic/exams-manager/export-marks", {
+                  method: "POST",
+                  body: JSON.stringify({ type: "csv_export" })
+                });
+                downloadCsvFile({
+                  filename: "marks-template.csv",
+                  headers: ["Admission Number", "KNEC Index Number", "Student Name", "Score"],
+                  rows: []
+                });
+                toast.success("CSV export downloaded");
+              } catch (error) {
+                toast.error("Failed to export marks template");
+              } finally {
+                setIsSubmitting(false);
+              }
             }}>Export Marks Template</ActionButton>
-            <ActionButton tone="warning" onClick={() => alert("Zeraki integration not configured for this tenant")}>Zeraki Sync</ActionButton>
+            <ActionButton tone="warning" onClick={async () => {
+              if (isSubmitting) return;
+              setIsSubmitting(true);
+              try {
+                await requestDashboardApi("/api/academic/exams-manager/zeraki-sync", {
+                  method: "POST",
+                  body: JSON.stringify({ sync: true })
+                });
+                toast.success("Zeraki sync initiated");
+              } catch (error) {
+                toast.error("Zeraki integration not configured for this tenant");
+              } finally {
+                setIsSubmitting(false);
+              }
+            }}>Zeraki Sync</ActionButton>
           </div>
           <div className="mt-4 space-y-2">
             {marksEntrySessions.length > 0 ? (
@@ -1227,15 +1273,23 @@ function MainWorkspace({
 }
 
 export function ExamsManagerCommandCenter({
+  activeSection,
   routeMode,
   examsEnabled = true,
   rolePermitted = true,
 }: {
-  routeMode: ExamsManagerRouteMode;
+  activeSection?: string;
+  routeMode?: "hosted" | "public";
   examsEnabled?: boolean;
   rolePermitted?: boolean;
 }) {
-  const [activeView, setActiveView] = useState<ExamsManagerView>("overview");
+  const [activeView, setActiveViewState] = useState<ExamsManagerView>((activeSection && activeSection !== "dashboard" ? activeSection : "overview") as ExamsManagerView);
+
+  const setActiveView = (view: ExamsManagerView) => {
+    setActiveViewState(view);
+    const newPath = buildSchoolSectionHref("exams-manager", view, routeMode ?? "hosted");
+    window.history.replaceState(null, "", newPath);
+  };
   const [searchTerm, setSearchTerm] = useState("");
   const [notice, setNotice] = useState("Exams desk ready for exam setup, marks entry, validation, and draft report cards.");
   const [selectedLifecycleIds, setSelectedLifecycleIds] = useState<Partial<Record<ExamsManagerView, string[]>>>({});

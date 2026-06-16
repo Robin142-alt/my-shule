@@ -79,4 +79,43 @@ export class SecretaryService {
       [tenantId]
     );
   }
+
+  async logVisitor(tenantId: string, userId: string, data: any) {
+    return this.executeSql(
+      `INSERT INTO admin_incidents (tenant_id, incident_type, recorded_by_user_id, description, metadata, status)
+       VALUES ($1, 'VISITOR_LOG', $2, $3, $4, 'ACTIVE') RETURNING *`,
+      [
+        tenantId,
+        userId,
+        `Visitor ${data.name} to see ${data.host}`,
+        JSON.stringify({ name: data.name, host: data.host, purpose: data.purpose })
+      ]
+    );
+  }
+
+  async scheduleAppointment(tenantId: string, userId: string, data: any) {
+    return this.executeSql(
+      `INSERT INTO admin_incidents (tenant_id, incident_type, recorded_by_user_id, description, metadata, status)
+       VALUES ($1, 'APPOINTMENT', $2, $3, $4, 'SCHEDULED') RETURNING *`,
+      [
+        tenantId,
+        userId,
+        `Appointment: ${data.visitorName} with ${data.host} on ${data.date} at ${data.time}`,
+        JSON.stringify({ visitorName: data.visitorName, date: data.date, time: data.time, host: data.host })
+      ]
+    );
+  }
+
+  async recordMail(tenantId: string, userId: string, data: any) {
+    return this.executeSql(
+      `INSERT INTO admin_incidents (tenant_id, incident_type, recorded_by_user_id, description, metadata, status)
+       VALUES ($1, 'MAIL_PARCEL', $2, $3, $4, 'RECEIVED') RETURNING *`,
+      [
+        tenantId,
+        userId,
+        `${data.type} from ${data.sender} to ${data.recipient}`,
+        JSON.stringify({ sender: data.sender, recipient: data.recipient, type: data.type })
+      ]
+    );
+  }
 }

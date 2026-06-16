@@ -121,8 +121,20 @@ function DataTable({ title, columns, rows }: { title?: string; columns: string[]
   );
 }
 
-export function CounsellorCommandCenter({ routeMode }: { routeMode: RouteMode }) {
-  const [activeView, setActiveView] = useState<CounsellorView>("overview");
+import { buildSchoolSectionHref } from "./school-pages";
+
+export function CounsellorCommandCenter({ activeSection, routeMode }: { activeSection?: string; routeMode?: RouteMode }) {
+  const [activeViewState, setActiveViewState] = useState<any>(
+    activeSection && activeSection !== "dashboard" ? activeSection : "overview"
+  );
+  const activeView = activeViewState;
+
+  const setActiveView = (view: any) => {
+    setActiveViewState(view);
+    const newPath = buildSchoolSectionHref("guidance-counselling", view, routeMode ?? "hosted");
+    window.history.replaceState(null, "", newPath);
+  };
+  
   const [schoolId, setSchoolId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
@@ -410,7 +422,7 @@ export function CounsellorCommandCenter({ routeMode }: { routeMode: RouteMode })
             </Panel>
           )}
 
-          {activeView === "escalations" && (
+          {activeViewState === "escalations" && (
             <Panel title="Safeguarding & Escalations" description="Urgent matters escalated to school leadership." actions={<button onClick={() => handleAction("Escalate Case")} className="rounded-lg bg-red-600 px-4 py-2 text-sm font-bold text-white">New Escalation</button>}>
               <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-4">
                 <div className="flex items-start gap-3 text-red-800">
@@ -430,7 +442,7 @@ export function CounsellorCommandCenter({ routeMode }: { routeMode: RouteMode })
             </Panel>
           )}
 
-          {activeView === "reports" && (
+          {activeViewState === "reports" && (
             <div className="space-y-6">
               <Panel title="Counselling Reports" description="Generate anonymised welfare and workload reports for leadership.">
                 <div className="grid gap-4 md:grid-cols-3">
@@ -446,7 +458,7 @@ export function CounsellorCommandCenter({ routeMode }: { routeMode: RouteMode })
             </div>
           )}
 
-          {activeView === "templates" && (
+          {activeViewState === "templates" && (
             <Panel title="Resources & Templates" description="Forms and materials for counselling support." actions={<button onClick={() => handleAction("Upload Resource")} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-bold text-white">Upload File</button>}>
               <DataTable
                 columns={["Resource Name", "Category", "Uploaded", "Visibility", "Actions"]}
@@ -458,7 +470,7 @@ export function CounsellorCommandCenter({ routeMode }: { routeMode: RouteMode })
             </Panel>
           )}
 
-          {activeView === "settings" && (
+          {activeViewState === "settings" && (
             <div className="space-y-6">
               <Panel title="Privacy & Notification Settings" description="Configure default visibility and notification rules.">
                 <div className="space-y-4 max-w-lg">

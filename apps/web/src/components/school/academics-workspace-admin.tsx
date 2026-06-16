@@ -11,8 +11,12 @@ import { SchoolPageHeader } from "@/components/school/school-page-header";
 import { MetricGrid } from "@/components/experience/metric-grid";
 import { StatusPill } from "@/components/ui/status-pill";
 import { getSchoolWorkspace, type SchoolExperienceRole, buildSchoolStudentHref } from "@/lib/experiences/school-data";
+import { AcademicSetup } from "@/components/modules/academics/AcademicSetup";
+import { MarksEntryTable } from "@/components/modules/exams/MarksEntryTable";
+import { ReportCardGenerator } from "@/components/modules/exams/ReportCardGenerator";
 
 import type { SchoolRouteMode } from "@/components/school/school-pages";
+
 export function SchoolAcademicsPage({
   role,
   tenantSlug,
@@ -88,51 +92,31 @@ export function SchoolAcademicsPage({
       <Tabs
         items={[
           {
-            id: "subjects",
-            label: "Subjects",
-            panel: (
-              <DataTable
-                columns={[
-                  { id: "subject", header: "Subject", render: (row) => row.subject },
-                  { id: "teacher", header: "Teacher", render: (row) => row.teacher },
-                  { id: "className", header: "Class", render: (row) => row.className },
-                  { id: "average", header: "Average", render: (row) => row.average, className: "text-right font-semibold", headerClassName: "text-right" },
-                ]}
-                rows={model.academics.subjects}
-                getRowKey={(row) => row.id}
-              />
-            ),
+            id: "setup",
+            label: "Academic Setup",
+            panel: <AcademicSetup tenantId={tenantSlug || undefined} />,
           },
           {
             id: "marks",
-            label: "Marks entry",
+            label: "Marks Entry",
             panel: (
-              <DataTable
-                columns={[
-                  { id: "student", header: "Student", render: (row) => row.student },
-                  { id: "english", header: "English", render: (row) => row.english, className: "text-right", headerClassName: "text-right" },
-                  { id: "maths", header: "Maths", render: (row) => row.maths, className: "text-right", headerClassName: "text-right" },
-                  { id: "science", header: "Science", render: (row) => row.science, className: "text-right", headerClassName: "text-right" },
-                  { id: "socialStudies", header: "SST", render: (row) => row.socialStudies, className: "text-right", headerClassName: "text-right" },
-                ]}
-                rows={model.academics.marks}
-                getRowKey={(row) => row.id}
+              <MarksEntryTable 
+                tenantId={tenantSlug || undefined} 
+                examSeriesId="series-uuid" 
+                assessmentId="assessment-uuid" 
+                classSectionId="class-uuid" 
+                subjectId="subject-uuid" 
+                academicTermId="term-uuid" 
               />
             ),
           },
           {
             id: "report-cards",
-            label: "Report cards",
+            label: "Publish Reports",
             panel: (
-              <DataTable
-                columns={[
-                  { id: "learner", header: "Learner", render: (row) => row.learner },
-                  { id: "className", header: "Class", render: (row) => row.className },
-                  { id: "reportType", header: "Report", render: (row) => row.reportType },
-                  { id: "status", header: "Status", render: (row) => <StatusPill label={row.status} tone={row.statusTone} /> },
-                ]}
-                rows={model.academics.reports}
-                getRowKey={(row) => row.id}
+              <ReportCardGenerator 
+                tenantId={tenantSlug || undefined} 
+                examSeriesId="series-uuid" 
               />
             ),
           },
@@ -140,4 +124,4 @@ export function SchoolAcademicsPage({
       />
     </div>
   );
-}
+}

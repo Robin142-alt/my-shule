@@ -28,6 +28,9 @@ import { useSchoolQuery, useSchoolMutation } from "@/lib/data/school-hooks";
 import { usePermissions } from "@/components/providers/permission-context";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
+import { buildSchoolSectionHref } from "./school-pages";
+import { requestDashboardApi } from "@/lib/dashboard/api-client";
+import { toast } from "sonner";
 
 type DeanRouteMode = "hosted" | "public";
 type Tone = "success" | "info" | "warning" | "danger" | "neutral";
@@ -440,33 +443,44 @@ function PendingReviews({ capability, onAction }: { capability: DeanWidgetCapabi
   const widget = widgets.find((item) => item.id === "pending")!;
   const liveSession = useLiveTenantSession("school");
   const { data: schoolMarks, isLoading } = useSchoolQuery('/api/exams/marks/school', { enabled: !!liveSession.session });
-  const lockMutation = useSchoolMutation('/api/exams/marks/lock');
   const { hasPermission } = usePermissions();
+  const [isLocking, setIsLocking] = useState(false);
 
   const pendingMarks = Array.isArray(schoolMarks) ? schoolMarks.filter((m: any) => m.status === 'reviewed') : [];
 
-  function handleLockBatch() {
+  async function handleLockBatch() {
     if (pendingMarks.length === 0) return;
     
-    // Simulate batch lock
-    pendingMarks.forEach((mark: any) => {
-      lockMutation.mutate({
-        mark_id: mark.id
+    setIsLocking(true);
+    const schoolId = getCurrentSchoolId();
+    
+    try {
+      await requestDashboardApi("/api/academic/dean/lock-batch", {
+        method: "POST",
+        body: JSON.stringify({
+          schoolId,
+          markIds: pendingMarks.map((m: any) => m.id)
+        })
       });
-    });
 
-    publishSchoolOperationalEvent({
-      schoolId: getCurrentSchoolId(),
-      type: "DEAN_MARKS_LOCKED",
-      module: "exams",
-      actorRole: "Dean of Academics",
-      title: "Batch Locked for Publication",
-      body: `Dean locked ${pendingMarks.length} reviewed marks.`,
-      entityId: `dean-lock-${Date.now()}`,
-      severity: "success",
-    });
+      publishSchoolOperationalEvent({
+        schoolId,
+        type: "DEAN_MARKS_LOCKED",
+        module: "exams",
+        actorRole: "Dean of Academics",
+        title: "Batch Locked for Publication",
+        body: `Dean locked ${pendingMarks.length} reviewed marks.`,
+        entityId: `dean-lock-${Date.now()}`,
+        severity: "success",
+      });
 
-    onAction("Approve batch");
+      toast.success(`Batch locked successfully.`);
+      onAction("Approve batch");
+    } catch (error) {
+      toast.error(`Failed to lock batch. Please try again.`);
+    } finally {
+      setIsLocking(false);
+    }
   }
 
   return (
@@ -494,7 +508,9 @@ function PendingReviews({ capability, onAction }: { capability: DeanWidgetCapabi
       <div className="mt-4 flex flex-wrap gap-2">
         {hasPermission('exams:write') && (
           <>
-            <button type="button" onClick={handleLockBatch} className="rounded-xl border border-[#C7D4E6] bg-white px-3 py-2 text-sm font-black text-[#071D49] shadow-sm transition hover:-translate-y-0.5 hover:border-[#0B63CE] hover:text-[#0B63CE]">Approve batch (Lock)</button>
+            <button type="button" onClick={handleLockBatch} disabled={isLocking} className="rounded-xl border border-[#C7D4E6] bg-white px-3 py-2 text-sm font-black text-[#071D49] shadow-sm transition hover:-translate-y-0.5 hover:border-[#0B63CE] hover:text-[#0B63CE] disabled:opacity-50">
+              {isLocking ? "Locking..." : "Approve batch (Lock)"}
+            </button>
             <ActionButton onAction={onAction}>Return for correction</ActionButton>
           </>
         )}
@@ -503,7 +519,7 @@ function PendingReviews({ capability, onAction }: { capability: DeanWidgetCapabi
   );
 }
 
-function ReportCards({ capability }: { capability: DeanWidgetCapability }) {
+function ReportCards({ capability, onAction }: { capability: DeanWidgetCapability; onAction: (label: string) => void }) {
   const widget = widgets.find((item) => item.id === "reports")!;
   return (
     <WidgetFrame widget={widget} capability={capability}>
@@ -521,9 +537,9 @@ function ReportCards({ capability }: { capability: DeanWidgetCapability }) {
         ))}
       </div>
       <div className="mt-4 flex flex-wrap gap-2 text-sm font-black text-[#071D49]">
-        <span>Approve report card batch</span>
-        <span>Reject with comments</span>
-        <span>Request reprocessing</span>
+        <ActionButton onAction={onAction}>Approve report card batch</ActionButton>
+        <ActionButton onAction={onAction}>Reject with comments</ActionButton>
+        <ActionButton onAction={onAction}>Request reprocessing</ActionButton>
       </div>
     </WidgetFrame>
   );
@@ -572,7 +588,7 @@ function TeacherTracker({ capability }: { capability: DeanWidgetCapability }) {
   );
 }
 
-function Curriculum({ capability }: { capability: DeanWidgetCapability }) {
+function Curriculum({ capability, onAction }: { capability: DeanWidgetCapability; onAction: (label: string) => void }) {
   const widget = widgets.find((item) => item.id === "curriculum")!;
   return (
     <WidgetFrame widget={widget} capability={capability}>
@@ -581,6 +597,9 @@ function Curriculum({ capability }: { capability: DeanWidgetCapability }) {
           <div key={item} className="rounded-2xl border border-[#D9E2EF] bg-white p-4">
             <p className="font-black text-[#071D49]">{item}</p>
             <p className="mt-2 text-sm leading-6 text-[#64748B]">Flags missing strands and over/under-weighted topics before approval.</p>
+            <div className="mt-4">
+              <ActionButton onAction={onAction}>Modify {item} coverage status</ActionButton>
+            </div>
           </div>
         ))}
       </div>
@@ -779,7 +798,7 @@ function ActiveWorkspace({
     case "interventions":
       return <Interventions onAction={onDeanAction} />;
     case "reports":
-      return <ReportCards capability={capabilities.get("reports")!} />;
+      return <ReportCards capability={capabilities.get("reports")!} onAction={onDeanAction} />;
     case "integrity":
       return <Integrity capability={capabilities.get("integrity")!} />;
     case "teachers":
@@ -787,7 +806,7 @@ function ActiveWorkspace({
     case "alerts":
       return <AcademicAlerts capability={capabilities.get("alerts")!} />;
     case "curriculum":
-      return <Curriculum capability={capabilities.get("curriculum")!} />;
+      return <Curriculum capability={capabilities.get("curriculum")!} onAction={onDeanAction} />;
     case "history":
       return <ApprovalHistory capability={capabilities.get("history")!} />;
     default:
@@ -796,18 +815,24 @@ function ActiveWorkspace({
 }
 
 export function DeanAcademicsCommandCenter({
+  activeSection,
   routeMode,
   examsEnabled = true,
   rolePermitted = true,
 }: {
+  activeSection?: string;
   routeMode: DeanRouteMode;
   examsEnabled?: boolean;
   rolePermitted?: boolean;
 }) {
-  const [activeView, setActiveView] = useState<DeanView>("overview");
+  const [activeViewState, setActiveViewState] = useState<DeanView>(
+    (activeSection && activeSection !== "dashboard" ? activeSection : "overview") as DeanView
+  );
+  const activeView = activeViewState;
   const [searchTerm, setSearchTerm] = useState("");
   const [notice, setNotice] = useState("Ready for academic review decisions.");
   const [selectedAction, setSelectedAction] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const searchResults = searchTerm.trim()
     ? deanSearchRecords.filter((record) => `${record.label} ${record.detail}`.toLowerCase().includes(searchTerm.toLowerCase()))
     : [];
@@ -825,12 +850,14 @@ export function DeanAcademicsCommandCenter({
   }, [examsEnabled, rolePermitted]);
 
   function openView(view: DeanView) {
-    setActiveView(view);
+    setActiveViewState(view);
     setNotice(`${getViewLabel(view)} workspace ready.`);
+    const newPath = buildSchoolSectionHref("dean-academics", view, routeMode ?? "hosted");
+    window.history.replaceState(null, "", newPath);
   }
 
   function openSearchRecord(record: DeanSearchRecord) {
-    setActiveView(record.view);
+    openView(record.view);
     setSearchTerm("");
     setNotice(`${record.label} dean search loaded ${getViewLabel(record.view)} workspace: ${record.detail}.`);
   }
@@ -840,44 +867,64 @@ export function DeanAcademicsCommandCenter({
     setNotice(`${label} ready for Dean review.`);
   }
 
-  function saveDeanAction() {
+  async function saveDeanAction() {
     if (!selectedAction) {
       return;
     }
 
+    setIsSubmitting(true);
     const schoolId = getCurrentSchoolId();
     const entityId = `dean-action-${selectedAction.toLowerCase().replaceAll(" ", "-")}`;
-    publishSchoolOperationalEvent({
-      schoolId,
-      type: "ACADEMIC_DEAN_ACTION_RECORDED",
-      module: "academics",
-      actorRole: "Dean of Academics",
-      title: `${selectedAction} recorded`,
-      body: `${selectedAction} was recorded for Term 2 CAT 1 academic review.`,
-      entityId,
-      severity: selectedAction.toLowerCase().includes("reject") ? "warning" : "success",
-      payload: {
-        action: selectedAction,
-        exam: "Term 2 CAT 1",
-        classStream: "Class 7B",
-        workspace: activeView,
-      },
-      notifications: [
-        {
-          audienceRoles: ["Exams Manager", "Principal", "Class Teacher"],
-          title: `${selectedAction} academic review update`,
-          body: "Dean of Academics updated the Term 2 CAT 1 review queue.",
-          severity: selectedAction.toLowerCase().includes("reject") ? "warning" : "info",
-          relatedModule: "academics",
-          relatedRecordId: entityId,
-        },
-      ],
-    });
 
-    setNotice(
-      `${selectedAction} academic action saved for ${schoolId}: ${entityId}, Term 2 CAT 1 Class 7B, Exams Manager/Principal/Class Teacher notified.`,
-    );
-    setSelectedAction(null);
+    try {
+      await requestDashboardApi("/api/academic/dean/action", {
+        method: "POST",
+        body: JSON.stringify({
+          action: selectedAction,
+          schoolId,
+          exam: "Term 2 CAT 1",
+          classStream: "Class 7B",
+          workspace: activeView,
+        })
+      });
+
+      publishSchoolOperationalEvent({
+        schoolId,
+        type: "ACADEMIC_DEAN_ACTION_RECORDED",
+        module: "academics",
+        actorRole: "Dean of Academics",
+        title: `${selectedAction} recorded`,
+        body: `${selectedAction} was recorded for Term 2 CAT 1 academic review.`,
+        entityId,
+        severity: selectedAction.toLowerCase().includes("reject") ? "warning" : "success",
+        payload: {
+          action: selectedAction,
+          exam: "Term 2 CAT 1",
+          classStream: "Class 7B",
+          workspace: activeView,
+        },
+        notifications: [
+          {
+            audienceRoles: ["Exams Manager", "Principal", "Class Teacher"],
+            title: `${selectedAction} academic review update`,
+            body: "Dean of Academics updated the Term 2 CAT 1 review queue.",
+            severity: selectedAction.toLowerCase().includes("reject") ? "warning" : "info",
+            relatedModule: "academics",
+            relatedRecordId: entityId,
+          },
+        ],
+      });
+
+      toast.success(`${selectedAction} saved successfully.`);
+      setNotice(
+        `${selectedAction} academic action saved for ${schoolId}: ${entityId}, Term 2 CAT 1 Class 7B, Exams Manager/Principal/Class Teacher notified.`,
+      );
+      setSelectedAction(null);
+    } catch (error) {
+      toast.error(`Failed to save ${selectedAction}. Please try again.`);
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   return (
@@ -908,10 +955,10 @@ export function DeanAcademicsCommandCenter({
                     </p>
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    <button type="button" onClick={saveDeanAction} className="min-h-11 rounded-xl bg-[#0B63CE] px-4 py-2 text-sm font-black text-white">
-                      Save academic action
+                    <button type="button" onClick={saveDeanAction} disabled={isSubmitting} className="min-h-11 rounded-xl bg-[#0B63CE] px-4 py-2 text-sm font-black text-white disabled:opacity-50">
+                      {isSubmitting ? "Saving..." : "Save academic action"}
                     </button>
-                    <button type="button" onClick={() => setSelectedAction(null)} className="min-h-11 rounded-xl border border-[#C7D4E6] bg-white px-4 py-2 text-sm font-black text-[#071D49]">
+                    <button type="button" disabled={isSubmitting} onClick={() => setSelectedAction(null)} className="min-h-11 rounded-xl border border-[#C7D4E6] bg-white px-4 py-2 text-sm font-black text-[#071D49] disabled:opacity-50">
                       Cancel
                     </button>
                   </div>

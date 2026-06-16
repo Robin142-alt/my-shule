@@ -2,11 +2,26 @@
 
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Download, FileText, FileSpreadsheet, Printer, Users, UserPlus, UserCheck } from "lucide-react";
+import { Download, FileText, FileSpreadsheet, Printer, Users, UserPlus, UserCheck, Loader2 } from "lucide-react";
+import { useState } from "react";
+import { requestDashboardApi } from "@/lib/dashboard/api-client";
 
 export function AdmissionsReportsWorkspace({ dataset }: { dataset?: any }) {
-  const handleDownload = (type: string) => {
-    alert(`Generating ${type} report... (Download will start shortly)`);
+  const [isGenerating, setIsGenerating] = useState<string | null>(null);
+
+  const handleDownload = async (type: string) => {
+    setIsGenerating(type);
+    try {
+      await requestDashboardApi('/admissions/reports', {
+        method: 'POST',
+        body: JSON.stringify({ type }),
+      });
+      // Optionally handle the download file response here
+    } catch (error) {
+      console.error("Failed to generate report:", error);
+    } finally {
+      setIsGenerating(null);
+    }
   };
 
   return (
@@ -60,8 +75,8 @@ export function AdmissionsReportsWorkspace({ dataset }: { dataset?: any }) {
                   <div className="text-xs text-white/50">PDF format, sorted by grade</div>
                 </div>
               </div>
-              <Button size="sm" variant="ghost" onClick={() => handleDownload("Master List PDF")}>
-                <Download className="h-4 w-4" />
+              <Button size="sm" variant="ghost" onClick={() => handleDownload("Master List PDF")} disabled={isGenerating === "Master List PDF"}>
+                {isGenerating === "Master List PDF" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
               </Button>
             </div>
             
@@ -73,8 +88,8 @@ export function AdmissionsReportsWorkspace({ dataset }: { dataset?: any }) {
                   <div className="text-xs text-white/50">Excel format, includes contact info</div>
                 </div>
               </div>
-              <Button size="sm" variant="ghost" onClick={() => handleDownload("Interview Schedule Excel")}>
-                <Download className="h-4 w-4" />
+              <Button size="sm" variant="ghost" onClick={() => handleDownload("Interview Schedule Excel")} disabled={isGenerating === "Interview Schedule Excel"}>
+                {isGenerating === "Interview Schedule Excel" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
               </Button>
             </div>
 
@@ -86,8 +101,8 @@ export function AdmissionsReportsWorkspace({ dataset }: { dataset?: any }) {
                   <div className="text-xs text-white/50">Print-ready PDF for accepted students</div>
                 </div>
               </div>
-              <Button size="sm" variant="ghost" onClick={() => handleDownload("Admission Letters Print")}>
-                <Download className="h-4 w-4" />
+              <Button size="sm" variant="ghost" onClick={() => handleDownload("Admission Letters Print")} disabled={isGenerating === "Admission Letters Print"}>
+                {isGenerating === "Admission Letters Print" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
               </Button>
             </div>
           </div>

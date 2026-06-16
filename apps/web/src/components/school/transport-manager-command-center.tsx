@@ -35,6 +35,9 @@ import { useSchoolQuery } from "@/lib/data/school-hooks";
 import { usePermissions } from "@/components/providers/permission-context";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
+import { buildSchoolSectionHref } from "./school-pages";
+import { requestDashboardApi } from "@/lib/dashboard/api-client";
+import { toast } from "sonner";
 
 type TransportRouteMode = "hosted" | "public";
 type Tone = "success" | "info" | "warning" | "danger" | "neutral";
@@ -680,21 +683,34 @@ function RoutesWorkspace({ onAction }: { onAction: TransportActionHandler }) {
 
 function AssignRouteModal({ onClose }: { onClose: () => void }) {
   const [submitting, setSubmitting] = useState(false);
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setSubmitting(true);
-    setTimeout(() => { setSubmitting(false); onClose(); }, 1000);
+    try {
+      const formData = new FormData(e.currentTarget);
+      const data = Object.fromEntries(formData.entries());
+      await requestDashboardApi("/api/admin-command/transport/route", {
+        method: "POST",
+        body: JSON.stringify(data),
+      });
+      toast.success("Transport assigned successfully");
+      onClose();
+    } catch (error) {
+      toast.error("Failed to assign transport");
+    } finally {
+      setSubmitting(false);
+    }
   };
   return (
     <Modal title="Assign Route & Vehicle" open={true} onClose={onClose} size="md">
       <form onSubmit={handleSubmit} className="p-6 space-y-4">
         <div>
           <label className="block text-sm font-bold text-[#071D49] mb-1">Student</label>
-          <input required type="text" className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Select student..." />
+          <input required name="student" type="text" className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Select student..." />
         </div>
         <div>
           <label className="block text-sm font-bold text-[#071D49] mb-1">Route & Zone</label>
-          <select required className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]">
+          <select required name="route" className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]">
             <option value="">Select route...</option>
             <option value="kisumu_west">Kisumu West / Mamboleo</option>
             <option value="milimani">Milimani Zone</option>
@@ -702,7 +718,7 @@ function AssignRouteModal({ onClose }: { onClose: () => void }) {
         </div>
         <div>
           <label className="block text-sm font-bold text-[#071D49] mb-1">Pickup Stop</label>
-          <input required type="text" className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="e.g. Kibuye stage" />
+          <input required name="pickup_stop" type="text" className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="e.g. Kibuye stage" />
         </div>
         <div className="mt-6 flex justify-end gap-3 pt-4 border-t border-[#D8E0EC]">
           <button type="button" onClick={onClose} className="rounded-xl px-4 py-2 text-sm font-bold text-[#64748B]">Cancel</button>
@@ -789,17 +805,30 @@ function FuelWorkspace({ onAction }: { onAction: TransportActionHandler }) {
 
 function LogMaintenanceModal({ onClose }: { onClose: () => void }) {
   const [submitting, setSubmitting] = useState(false);
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setSubmitting(true);
-    setTimeout(() => { setSubmitting(false); onClose(); }, 1000);
+    try {
+      const formData = new FormData(e.currentTarget);
+      const data = Object.fromEntries(formData.entries());
+      await requestDashboardApi("/api/admin-command/transport/maintenance", {
+        method: "POST",
+        body: JSON.stringify(data),
+      });
+      toast.success("Maintenance issue logged successfully");
+      onClose();
+    } catch (error) {
+      toast.error("Failed to log maintenance issue");
+    } finally {
+      setSubmitting(false);
+    }
   };
   return (
     <Modal title="Log Maintenance Issue" open={true} onClose={onClose} size="md">
       <form onSubmit={handleSubmit} className="p-6 space-y-4">
         <div>
           <label className="block text-sm font-bold text-[#071D49] mb-1">Vehicle</label>
-          <select required className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]">
+          <select required name="vehicle" className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]">
             <option value="">Select vehicle...</option>
             <option value="bus04">Bus 04 (KCA 123X)</option>
             <option value="bus11">Bus 11 (KCB 456Y)</option>
@@ -807,11 +836,11 @@ function LogMaintenanceModal({ onClose }: { onClose: () => void }) {
         </div>
         <div>
           <label className="block text-sm font-bold text-[#071D49] mb-1">Issue Description</label>
-          <textarea required rows={3} className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Describe the fault or service needed..."></textarea>
+          <textarea required name="description" rows={3} className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Describe the fault or service needed..."></textarea>
         </div>
         <div>
           <label className="block text-sm font-bold text-[#071D49] mb-1">Priority</label>
-          <select required className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]">
+          <select required name="priority" className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]">
             <option value="low">Low (Routine)</option>
             <option value="medium">Medium</option>
             <option value="high">High</option>
@@ -1072,8 +1101,10 @@ function ActiveWorkspace({
   }
 }
 
-export function TransportManagerCommandCenter({ routeMode }: { routeMode: TransportRouteMode }) {
-  const [activeView, setActiveView] = useState<TransportView>("overview");
+export function TransportManagerCommandCenter({ routeMode, activeSection }: { routeMode: TransportRouteMode; activeSection?: string }) {
+  const [activeView, setActiveView] = useState<TransportView>(
+    (activeSection && activeSection !== "dashboard" ? activeSection : "overview") as TransportView
+  );
   const [searchTerm, setSearchTerm] = useState("");
   const [notice, setNotice] = useState("Ready for today's transport operations.");
   const searchResults = searchTerm.trim()
@@ -1082,11 +1113,13 @@ export function TransportManagerCommandCenter({ routeMode }: { routeMode: Transp
 
   function openView(view: TransportView) {
     setActiveView(view);
+    window.history.replaceState(null, "", buildSchoolSectionHref("transport-manager", view, routeMode ?? "hosted"));
     setNotice(`${getViewLabel(view)} workspace ready.`);
   }
 
   function openSearchRecord(record: TransportSearchRecord) {
     setActiveView(record.view);
+    window.history.replaceState(null, "", buildSchoolSectionHref("transport-manager", record.view, routeMode ?? "hosted"));
     setSearchTerm("");
     setNotice(`${record.label} focused in ${getViewLabel(record.view)}.`);
   }

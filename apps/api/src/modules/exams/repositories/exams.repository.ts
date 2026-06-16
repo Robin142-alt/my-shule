@@ -6,7 +6,7 @@ import { PrismaService } from '../../../database/prisma.service';
 export class ExamsRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  private async executeSql<T = any>(query: string, params: any[] = []): Promise<{ rows: T[], rowCount: number }> {
+  public async executeSql<T = any>(query: string, params: any[] = []): Promise<{ rows: T[], rowCount: number }> {
     const tenantId = params[0] as string;
     return this.prisma.executeWithTenant(tenantId, null, async (tx: any) => {
       const result = await tx.$queryRawUnsafe(query, ...params);

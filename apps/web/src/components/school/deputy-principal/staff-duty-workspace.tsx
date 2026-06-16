@@ -3,6 +3,8 @@ import { UsersRound } from "lucide-react";
 import { Panel, StatusChip, Tone } from "./shared";
 import { useSchoolQuery, useSchoolMutation } from "@/lib/data/school-hooks";
 import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { requestDutyReport } from "./api-client";
 
 export type StaffDutyRecord = {
   id: string;
@@ -36,10 +38,11 @@ export function DeputyStaffDutyWorkspace() {
 
   const handleRequestReport = async (id: string, staffName: string) => {
     try {
-      await requestMutation.mutateAsync({ id });
-      alert(`Report requested from ${staffName}.`);
-    } catch (e) {
-      alert("Failed to request report.");
+      await requestDutyReport(id);
+      queryClient.invalidateQueries({ queryKey: ["school", "session", '/admin-command/deputy/staff-duty'] });
+      toast.success(`Report requested from ${staffName}.`);
+    } catch (e: any) {
+      toast.error(e.message || "Failed to request report.");
     }
   };
 
@@ -51,7 +54,7 @@ export function DeputyStaffDutyWorkspace() {
 
   return (
     <Panel title="Staff Duty & Supervision" description="Staff duty rosters, supervision zones, and presence." icon={UsersRound} actions={
-      <button onClick={() => alert("Duty roster module opening...")} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white hover:bg-blue-900 transition">Manage Roster</button>
+      <button onClick={() => toast.info("Duty roster module coming soon")} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white hover:bg-blue-900 transition">Manage Roster</button>
     }>
       <div className="grid gap-4 md:grid-cols-2 mb-6">
         <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">

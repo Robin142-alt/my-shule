@@ -25,6 +25,8 @@ export function PrincipalAcademicSetupWorkspace() {
   const { hasPermission } = usePermissions();
   const { data: yearsData } = useSchoolQuery<any[]>('/academics/academic-years');
 
+  const [actionError, setActionError] = useState<string | null>(null);
+
   const [isYearModalOpen, setIsYearModalOpen] = useState(false);
   const [isTermModalOpen, setIsTermModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -81,11 +83,12 @@ export function PrincipalAcademicSetupWorkspace() {
 
   const handleArchiveYear = async (id: string) => {
     if (!confirm("Are you sure you want to archive this academic year?")) return;
+    setActionError(null);
     try {
       await requestDashboardApi(`/academics/years/${id}`, { method: "DELETE" });
       refetch();
     } catch (err: any) {
-      alert(err.message || "Failed to archive year");
+      setActionError(err.message || "Failed to archive year");
     }
   };
 
@@ -175,31 +178,34 @@ export function PrincipalAcademicSetupWorkspace() {
 
   const handleArchiveGrading = async (id: string) => {
     if (!confirm("Are you sure you want to archive this grading system?")) return;
+    setActionError(null);
     try {
       await requestDashboardApi(`/academics/grading-systems/${id}`, { method: "DELETE" });
       refetch();
     } catch (err: any) {
-      alert(err.message || "Failed to archive grading system");
+      setActionError(err.message || "Failed to archive grading system");
     }
   };
 
   const handleArchiveAttendance = async (id: string) => {
     if (!confirm("Are you sure you want to archive this attendance setting?")) return;
+    setActionError(null);
     try {
       await requestDashboardApi(`/academics/attendance-settings/${id}`, { method: "DELETE" });
       refetch();
     } catch (err: any) {
-      alert(err.message || "Failed to archive attendance setting");
+      setActionError(err.message || "Failed to archive attendance setting");
     }
   };
 
   const handleArchiveReportCard = async (id: string) => {
     if (!confirm("Are you sure you want to archive this report card setting?")) return;
+    setActionError(null);
     try {
       await requestDashboardApi(`/academics/report-card-settings/${id}`, { method: "DELETE" });
       refetch();
     } catch (err: any) {
-      alert(err.message || "Failed to archive report card setting");
+      setActionError(err.message || "Failed to archive report card setting");
     }
   };
 
@@ -227,6 +233,15 @@ export function PrincipalAcademicSetupWorkspace() {
 
   return (
     <div className="space-y-6">
+      {actionError && (
+        <Card className="border border-red-500/20 bg-red-500/10 p-4">
+          <div className="flex items-center gap-3">
+            <AlertCircle className="h-5 w-5 text-red-500" />
+            <p className="text-sm font-medium text-red-500">{actionError}</p>
+          </div>
+        </Card>
+      )}
+
       <div className="grid gap-4 md:grid-cols-4">
         <Card className="border border-white/10 bg-white/5 p-5">
           <div className="text-sm font-semibold text-white/70">Active Term</div>

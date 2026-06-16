@@ -6,40 +6,63 @@ import { useSchoolQuery } from "@/lib/data/school-hooks";
 import { usePermissions } from "@/components/providers/permission-context";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
+import { requestDashboardApi } from "@/lib/dashboard/api-client";
 
 function LogClinicVisitModal({ onClose }: { onClose: () => void }) {
   const [submitting, setSubmitting] = useState(false);
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
-    setTimeout(() => { setSubmitting(false); onClose(); }, 1000);
+    
+    try {
+      const form = e.target as HTMLFormElement;
+      const formData = new FormData(form);
+      const data = Object.fromEntries(formData.entries());
+      
+      const res = await requestDashboardApi("/api/admin-command/clinic/visit", {
+        method: "POST",
+        body: JSON.stringify(data)
+      });
+      
+      if (!res.ok) {
+        throw new Error("Failed to log visit");
+      }
+      
+      toast.success("Clinic visit logged successfully");
+      onClose();
+    } catch (err: any) {
+      toast.error(err.message || "An error occurred");
+    } finally {
+      setSubmitting(false);
+    }
   };
   return (
     <Modal title="Log Clinic Visit" open={true} onClose={onClose} size="md">
       <form onSubmit={handleSubmit} className="p-6 space-y-4">
         <div>
           <label className="block text-sm font-bold text-[#071D49] mb-1">Student</label>
-          <input required type="text" className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Select student..." />
+          <input name="student" required type="text" className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Select student..." />
         </div>
         <div>
           <label className="block text-sm font-bold text-[#071D49] mb-1">Symptoms / Reason</label>
-          <textarea required rows={3} className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Describe the visit reason..."></textarea>
+          <textarea name="symptoms" required rows={3} className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Describe the visit reason..."></textarea>
         </div>
         <div>
           <label className="block text-sm font-bold text-[#071D49] mb-1">Action Taken / Treatment</label>
-          <textarea required rows={3} className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Describe treatment..."></textarea>
+          <textarea name="treatment" required rows={3} className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Describe treatment..."></textarea>
         </div>
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-bold text-[#071D49] mb-1">Sent Home?</label>
-            <select required className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]">
+            <select name="sentHome" required className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]">
               <option value="no">No, returned to class</option>
               <option value="yes">Yes, parent called</option>
             </select>
           </div>
           <div>
             <label className="block text-sm font-bold text-[#071D49] mb-1">Follow up needed?</label>
-            <select required className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]">
+            <select name="followUp" required className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]">
               <option value="no">No</option>
               <option value="yes">Yes</option>
             </select>

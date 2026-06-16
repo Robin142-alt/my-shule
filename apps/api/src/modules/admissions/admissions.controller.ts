@@ -241,6 +241,20 @@ export class AdmissionsController {
     return this.admissionsService.getReports();
   }
 
+  @Post('reports')
+  @Permissions('admissions:read')
+  async generateReport(@Body() body: any) {
+    const store = this.requestContext.requireStore();
+    return this.admissionsService.generateReport(store.tenant_id as string, body.type);
+  }
+
+  @Post('imports/commit')
+  @Permissions('admissions:write')
+  async commitImports(@Body() body: any) {
+    const store = this.requestContext.requireStore();
+    return this.admissionsService.commitImports(store.tenant_id as string, body);
+  }
+
   @Post('imports')
   @Permissions('admissions:write')
   @UseInterceptors(StreamingUploadInterceptor('file'))

@@ -1,8 +1,10 @@
 "use client";
 import { FileText } from "lucide-react";
 import { Panel, StatusChip, Tone } from "./shared";
-import { useSchoolQuery, useSchoolMutation } from "@/lib/data/school-hooks";
-import { useQueryClient } from "@tanstack/react-query";
+import { useSchoolQuery } from "@/lib/data/school-hooks";
+import { useState } from "react";
+import { toast } from "sonner";
+import { generateReport } from "./api-client";
 
 export type GeneratedReport = {
   id: string;
@@ -20,28 +22,21 @@ type ReportsData = {
 };
 
 export function DeputyReportsDownloadsWorkspace() {
-  const queryClient = useQueryClient();
-  const { data, isLoading } = useSchoolQuery<ReportsData>('/admin-command/deputy/reports');
-
-  const generateMutation = useSchoolMutation<
-    GeneratedReport,
-    { name: string; format: GeneratedReport["type"] }
-  >(
-    '/admin-command/deputy/reports/generate',
-    'POST',
-    {
-      onSuccess: () => queryClient.invalidateQueries({ queryKey: ["school", "session", '/admin-command/deputy/reports'] })
-    }
-  );
+  const { data, isLoading, refetch } = useSchoolQuery<ReportsData>('/admin-command/deputy/reports');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const reports = data?.reportsList || [];
 
   const handleGenerate = async () => {
     try {
-      await generateMutation.mutateAsync({ name: "Custom Operational Extract", format: "Excel" });
-      alert("Report generated successfully.");
+      setIsSubmitting(true);
+      await generateReport({ name: "Custom Operational Extract", format: "Excel" });
+      toast.success("Report generated successfully.");
+      refetch();
     } catch (e) {
-      alert("Failed to generate report.");
+      toast.error("Failed to generate report.");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -49,7 +44,13 @@ export function DeputyReportsDownloadsWorkspace() {
 
   return (
     <Panel title="Reports & Downloads" description="Generate operational reports for attendance, discipline, and duty." icon={FileText} actions={
-      <button onClick={handleGenerate} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white hover:bg-blue-900 transition">Generate New Report</button>
+      <button 
+        onClick={handleGenerate} 
+        disabled={isSubmitting}
+        className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white hover:bg-blue-900 transition disabled:opacity-50"
+      >
+        {isSubmitting ? "Generating..." : "Generate New Report"}
+      </button>
     }>
       <div className="grid gap-4 md:grid-cols-2 mb-6">
         <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
@@ -82,7 +83,7 @@ export function DeputyReportsDownloadsWorkspace() {
                   <td className="px-4 py-3"><StatusChip label={rep.status} tone={getTone(rep.status)} /></td>
                   <td className="px-4 py-3 text-right">
                     {rep.status === "Ready" && (
-                      <button onClick={() => alert("Downloading file...")} className="text-blue-600 hover:underline font-semibold text-xs">Download</button>
+                      <button onClick={() => toast.info("Downloading file...")} className="text-blue-600 hover:underline font-semibold text-xs">Download</button>
                     )}
                   </td>
                 </tr>

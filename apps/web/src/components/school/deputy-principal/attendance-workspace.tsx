@@ -1,8 +1,9 @@
 "use client";
+import { useState } from "react";
 import { UserRoundCheck, Search } from "lucide-react";
 import { Panel, StatusChip, Tone } from "./shared";
-import { useSchoolQuery, useSchoolMutation } from "@/lib/data/school-hooks";
-import { useQueryClient } from "@tanstack/react-query";
+import { useSchoolQuery } from "@/lib/data/school-hooks";
+import { notifyParentAttendance } from "./api-client";
 
 export type AttendanceRecord = {
   id: string;
@@ -22,26 +23,21 @@ type AttendanceData = {
 };
 
 export function DeputyAttendanceWorkspace() {
-  const queryClient = useQueryClient();
-  const { data, isLoading } = useSchoolQuery<AttendanceData>('/admin-command/deputy/attendance');
-  const notifyMutation = useSchoolMutation<{ id: string }, { id: string }>(
-    ({ id }) => `/admin-command/deputy/attendance/${id}/notify`,
-    'POST',
-    {
-      onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: ["school", "session", '/admin-command/deputy/attendance'] });
-      }
-    }
-  );
+  const [isSubmittingId, setIsSubmittingId] = useState<string | null>(null);
+  const { data, isLoading, refetch } = useSchoolQuery<AttendanceData>('/admin-command/deputy/attendance');
 
   const records = data?.records || [];
 
   const handleNotifyParent = async (id: string, studentName: string) => {
+    setIsSubmittingId(id);
     try {
-      await notifyMutation.mutateAsync({ id });
+      await notifyParentAttendance(id);
       alert(`Parent of ${studentName} has been notified.`);
+      refetch();
     } catch (e) {
       alert("Failed to notify parent");
+    } finally {
+      setIsSubmittingId(null);
     }
   };
 
@@ -107,7 +103,9 @@ export function DeputyAttendanceWorkspace() {
                   <td className="px-4 py-3"><StatusChip label={rec.parentNotified} tone={getNotifiedTone(rec.parentNotified)} /></td>
                   <td className="px-4 py-3 text-right">
                     {rec.parentNotified === "Pending" && (
-                      <button onClick={() => handleNotifyParent(rec.id, rec.studentName)} className="text-blue-600 hover:underline font-semibold text-xs mr-3">Contact Parent</button>
+                      <button disabled={isSubmittingId === rec.id} onClick={() => handleNotifyParent(rec.id, rec.studentName)} className="text-blue-600 hover:underline font-semibold text-xs mr-3 disabled:opacity-50 disabled:no-underline">
+                        {isSubmittingId === rec.id ? "Notifying..." : "Contact Parent"}
+                      </button>
                     )}
                     <button className="text-blue-600 hover:underline font-semibold text-xs">Follow Up</button>
                   </td>

@@ -4,17 +4,31 @@ import { Panel, StatusChip } from "../shared";
 import { useClassTeacherCommunication } from "@/lib/data/class-teacher-hooks";
 import { usePermissions } from "@/components/providers/permission-context";
 import { Modal } from "@/components/ui/modal";
+import { requestDashboardApi } from "@/lib/dashboard/api-client";
+import { toast } from "sonner";
 
 function CreateAnnouncementModal({ onClose }: { onClose: () => void }) {
   const [submitting, setSubmitting] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
-    setTimeout(() => {
-      setSubmitting(false);
+    const formData = new FormData(e.target as HTMLFormElement);
+    try {
+      await requestDashboardApi("/api/academic/communications", {
+        method: "POST",
+        body: JSON.stringify({
+          message: formData.get("message"),
+          sendSms: formData.get("sendSms") === "on",
+        }),
+      });
+      toast.success("Announcement published successfully.");
       onClose();
-    }, 1000);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to publish announcement.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -22,10 +36,10 @@ function CreateAnnouncementModal({ onClose }: { onClose: () => void }) {
       <form onSubmit={handleSubmit} className="p-6 space-y-4">
         <div>
           <label className="block text-sm font-bold text-[#071D49] mb-1">Message</label>
-          <textarea required rows={4} className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Write your announcement here..."></textarea>
+          <textarea name="message" required rows={4} className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Write your announcement here..."></textarea>
         </div>
         <div className="flex items-center gap-2">
-          <input type="checkbox" id="sms" className="h-4 w-4 rounded border-[#D8E0EC]" />
+          <input name="sendSms" type="checkbox" id="sms" className="h-4 w-4 rounded border-[#D8E0EC]" />
           <label htmlFor="sms" className="text-sm font-bold text-[#071D49]">Also send as SMS to Parents</label>
         </div>
         <div className="mt-6 flex justify-end gap-3 pt-4 border-t border-[#D8E0EC]">

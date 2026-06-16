@@ -1,11 +1,13 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Search, ShoppingCart, FileText, Truck, DollarSign, LayoutDashboard, Plus, Package } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { StatusPill } from "@/components/ui/status-pill";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
+import { buildSchoolSectionHref } from "./school-pages";
 
 type ProcurementView = "overview" | "pos" | "suppliers" | "requisitions" | "budget";
 
@@ -223,9 +225,18 @@ function BudgetTrackingWorkspace() {
   );
 }
 
-export function ProcurementOfficerCommandCenter({ routeMode }: { routeMode?: "hosted" | "public" }) {
+export function ProcurementOfficerCommandCenter({ routeMode, activeSection }: { routeMode?: "hosted" | "public"; activeSection?: string }) {
   const [searchTerm, setSearchTerm] = useState("");
-  const [activeView, setActiveView] = useState<ProcurementView>("overview");
+  const [rawActiveView, setRawActiveView] = useState<ProcurementView>(
+    (activeSection && activeSection !== "dashboard" ? activeSection : "overview") as ProcurementView
+  );
+
+  const setActiveView = (view: ProcurementView) => {
+    setRawActiveView(view);
+    window.history.replaceState(null, "", buildSchoolSectionHref("procurement-officer", view, routeMode ?? "hosted"));
+  };
+  
+  const activeView = rawActiveView;
 
   return (
     <div className="min-h-screen bg-[#F3F6FA]">

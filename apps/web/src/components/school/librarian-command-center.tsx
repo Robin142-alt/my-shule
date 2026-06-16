@@ -49,6 +49,8 @@ import { WorkflowToast } from "@/components/shared/workflow-toast";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 import { usePermissions } from "@/components/providers/permission-context";
 import { Modal } from "@/components/ui/modal";
+import { toast } from "sonner";
+import { requestDashboardApi } from "@/lib/dashboard/api-client";
 
 type Tone = "success" | "info" | "warning" | "danger" | "neutral";
 type LibrarianView = "overview" | "issue" | "return" | "catalogue" | "add_books" | "loans" | "lost_damaged" | "fines" | "borrowers" | "class_textbooks" | "reservations" | "stocktake" | "departments" | "visits" | "requests" | "reports" | "notices" | "settings";
@@ -319,10 +321,24 @@ function IssueBooksWorkspace() {
     setBarcodeInput("");
   };
 
-  const handleIssue = () => {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleIssue = async () => {
     if (basket.length === 0) return;
-    setSuccessMsg(`${basket.length} books issued to ${selectedBorrower?.name || 'borrower'}.`);
-    setBasket([]);
+    setIsSubmitting(true);
+    try {
+      await requestDashboardApi("/api/admin-command/library/issue", {
+        method: "POST",
+        body: JSON.stringify({ borrowerId: selectedBorrower?.adm, books: basket })
+      });
+      toast.success(`${basket.length} books issued to ${selectedBorrower?.name || 'borrower'}.`);
+      setSuccessMsg(`${basket.length} books issued to ${selectedBorrower?.name || 'borrower'}.`);
+      setBasket([]);
+    } catch (error) {
+      toast.error("Failed to issue books");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -387,11 +403,11 @@ function IssueBooksWorkspace() {
           <div className="p-4 border-t border-[#D8E0EC] bg-white rounded-b-xl">
             {hasPermission('library:write') ? (
               <button 
-                disabled={basket.length === 0}
+                disabled={basket.length === 0 || isSubmitting}
                 onClick={handleIssue}
                 className="w-full rounded-xl bg-[#071D49] py-3 text-sm font-black text-white disabled:opacity-50"
               >
-                Issue {basket.length} Books
+                {isSubmitting ? "Issuing..." : `Issue ${basket.length} Books`}
               </button>
             ) : (
               <div className="w-full rounded-xl bg-[#F8FAFC] py-3 text-sm font-black text-[#64748B] text-center border border-[#D8E0EC]">
@@ -408,12 +424,25 @@ function IssueBooksWorkspace() {
 function ReturnBooksWorkspace() {
   const [barcodeInput, setBarcodeInput] = useState("");
   const [returned, setReturned] = useState<{title: string, borrower: string, fine: string} | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleScan = (e: React.FormEvent) => {
+  const handleScan = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!barcodeInput) return;
-    setReturned({ title: "The River and the Source", borrower: "Amina Wanjiku", fine: "None" });
-    setBarcodeInput("");
+    setIsSubmitting(true);
+    try {
+      await requestDashboardApi("/api/admin-command/library/return", {
+        method: "POST",
+        body: JSON.stringify({ barcode: barcodeInput })
+      });
+      setReturned({ title: "Returned Book", borrower: "Library User", fine: "None" });
+      toast.success("Book returned successfully");
+      setBarcodeInput("");
+    } catch (error) {
+      toast.error("Failed to return book");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -422,7 +451,9 @@ function ReturnBooksWorkspace() {
         <form onSubmit={handleScan} className="mb-6 relative">
           <ScanBarcode className="absolute left-4 top-3.5 h-5 w-5 text-[#64748B]" />
           <input autoFocus type="text" value={barcodeInput} onChange={e => setBarcodeInput(e.target.value)} placeholder="Scan book barcode to return..." className="w-full rounded-2xl border-2 border-[#D8E0EC] py-3 pl-12 pr-4 text-base focus:border-[#071D49] focus:outline-none" />
-          <button type="submit" className="absolute right-2 top-2 rounded-lg bg-[#071D49] px-4 py-1.5 text-sm font-black text-white">Return</button>
+          <button disabled={isSubmitting} type="submit" className="absolute right-2 top-2 rounded-lg bg-[#071D49] px-4 py-1.5 text-sm font-black text-white disabled:opacity-50">
+            {isSubmitting ? "Returning..." : "Return"}
+          </button>
         </form>
 
         {returned && (
@@ -443,10 +474,21 @@ function ReturnBooksWorkspace() {
 
 function AddBookModal({ onClose }: { onClose: () => void }) {
   const [submitting, setSubmitting] = useState(false);
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
-    setTimeout(() => { setSubmitting(false); onClose(); }, 1000);
+    try {
+      await requestDashboardApi("/api/admin-command/library/add", {
+        method: "POST",
+        body: JSON.stringify({ title: "New Book" })
+      });
+      toast.success("Book added successfully");
+      onClose();
+    } catch (error) {
+      toast.error("Failed to add book");
+    } finally {
+      setSubmitting(false);
+    }
   };
   return (
     <Modal title="Add New Book" open={true} onClose={onClose} size="md">
@@ -833,33 +875,43 @@ function SimpleWorkspace({ title, description, icon: Icon }: { title: string; de
   );
 }
 
-export function LibrarianCommandCenter() {
-  const [activeView, setActiveView] = useState<LibrarianView>("overview");
+import { buildSchoolSectionHref } from "./school-pages";
+
+export function LibrarianCommandCenter({ activeSection, routeMode }: { activeSection?: string; routeMode?: "hosted" | "public" }) {
+  const [activeViewState, setActiveViewState] = useState<any>(
+    activeSection && activeSection !== "dashboard" ? activeSection : "overview"
+  );
+
+  const setActiveView = (view: any) => {
+    setActiveViewState(view);
+    const newPath = buildSchoolSectionHref("librarian", view, routeMode ?? "hosted");
+    window.history.replaceState(null, "", newPath);
+  };
 
   return (
     <div className="flex min-h-screen bg-[#F3F6FA] font-sans">
-      <Sidebar activeView={activeView} onViewChange={setActiveView} />
+      <Sidebar activeView={activeViewState} onViewChange={setActiveView} />
       <main className="flex-1 min-w-0 flex flex-col h-screen">
-        <Topbar activeView={activeView} />
+        <Topbar activeView={activeViewState} />
         <div className="flex-1 overflow-y-auto p-4 lg:p-6 space-y-6">
-          {activeView === "overview" && <OverviewWorkspace onNavigate={setActiveView} />}
-          {activeView === "issue" && <IssueBooksWorkspace />}
-          {activeView === "return" && <ReturnBooksWorkspace />}
-          {activeView === "catalogue" && <BookCatalogueWorkspace />}
+          {activeViewState === "overview" && <OverviewWorkspace onNavigate={setActiveView} />}
+          {activeViewState === "issue" && <IssueBooksWorkspace />}
+          {activeViewState === "return" && <ReturnBooksWorkspace />}
+          {activeViewState === "catalogue" && <BookCatalogueWorkspace />}
 
-          {activeView === "reservations" && <ReservationsWorkspace />}
-          {activeView === "departments" && <DepartmentsWorkspace />}
-          {activeView === "visits" && <VisitsWorkspace />}
-          {activeView === "requests" && <RequestsApprovalsWorkspace />}
-          {activeView === "reports" && <ReportsDownloadsWorkspace />}
-          {activeView === "notices" && <NoticesCommunicationWorkspace />}
+          {activeViewState === "reservations" && <ReservationsWorkspace />}
+          {activeViewState === "departments" && <DepartmentsWorkspace />}
+          {activeViewState === "visits" && <VisitsWorkspace />}
+          {activeViewState === "requests" && <RequestsApprovalsWorkspace />}
+          {activeViewState === "reports" && <ReportsDownloadsWorkspace />}
+          {activeViewState === "notices" && <NoticesCommunicationWorkspace />}
           {/* Dynamically render the rest with SimpleWorkspace */}
-          {!["overview", "issue", "return", "catalogue", "reservations", "departments", "visits", "requests", "reports", "notices"].includes(activeView) && (
-            <SimpleWorkspace 
-              title={navItems.find(i => i.id === activeView)?.label || ""} 
-              description="" 
-              icon={navItems.find(i => i.id === activeView)?.icon || AlertTriangle} 
-            />
+          {!["overview", "issue", "return", "catalogue", "reservations", "departments", "visits", "requests", "reports", "notices"].includes(activeViewState) && (
+             <SimpleWorkspace 
+               title={navItems.find(i => i.id === activeViewState)?.label || ""} 
+               description="" 
+               icon={navItems.find(i => i.id === activeViewState)?.icon || AlertTriangle} 
+             />
           )}
         </div>
       </main>

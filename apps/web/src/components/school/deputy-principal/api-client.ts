@@ -55,3 +55,64 @@ export async function fetchDeputyReports() {
 export async function fetchDeputyStaff() {
   return requestDashboardApi('/admin-command/deputy/staff');
 }
+
+export async function createDailyOperationNote(data: any) {
+  return requestDashboardApi('/admin-command/deputy/daily-operations', { method: 'POST', body: data });
+}
+
+export async function notifyParentAttendance(attendanceId: string) {
+  return requestDashboardApi(`/admin-command/deputy/attendance/${attendanceId}/notify`, { method: 'POST' });
+}
+
+export async function createDisciplineIncident(data: any) {
+  return requestDashboardApi('/admin-command/deputy/discipline', { method: 'POST', body: data });
+}
+
+export async function escalateDisciplineIncident(id: string) {
+  return requestDashboardApi(`/admin-command/deputy/discipline/${id}/escalate`, { method: 'POST' });
+}
+
+export async function createWelfareCase(data: any) {
+  return requestDashboardApi('/admin-command/deputy/welfare', { method: 'POST', body: data });
+}
+
+export async function openWelfareCase(id: string) {
+  return requestDashboardApi(`/admin-command/deputy/welfare/${id}/open`, { method: 'POST' });
+}
+
+export async function requestDutyReport(id: string) {
+  return requestDashboardApi(`/admin-command/deputy/staff-duty/${id}/request-report`, { method: 'POST' });
+}
+
+export async function markTeachingAttendance(id: string) {
+  return requestDashboardApi(`/admin-command/deputy/teaching/${id}/mark-attendance`, { method: 'POST' });
+}
+
+export async function logTeachingLesson(id: string) {
+  return requestDashboardApi(`/admin-command/deputy/teaching/${id}/log-lesson`, { method: 'POST' });
+}
+
+export async function assignReliefTeacher(id: string, teacherName: string) {
+  return requestDashboardApi(`/admin-command/deputy/timetable/${id}/assign`, { method: 'POST', body: { teacherName } });
+}
+
+export async function messageHOD(id: string) {
+  return requestDashboardApi(`/admin-command/deputy/academics/${id}/message-hod`, { method: 'POST' });
+}
+
+export async function flagExamDelay(id: string) {
+  return requestDashboardApi(`/admin-command/deputy/exams/${id}/flag-delay`, { method: 'POST' });
+}
+
+export async function actionApproval(id: string, action: string) {
+  return requestDashboardApi(`/admin-command/deputy/approvals/${id}/action`, { method: 'POST', body: { action } });
+}
+
+export async function generateReport(data: any) {
+  return requestDashboardApi('/admin-command/deputy/reports/generate', { method: 'POST', body: data });
+}
+
+export async function assignRole(data: any) {
+  return requestDashboardApi('/admin-command/deputy/staff/assign-role', { method: 'POST', body: data });
+}
+

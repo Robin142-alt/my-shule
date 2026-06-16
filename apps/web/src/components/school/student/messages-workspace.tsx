@@ -4,14 +4,39 @@ import { useState } from "react";
 import { Mail, Send, Search, User } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { requestDashboardApi } from "@/lib/dashboard/api-client";
+import { toast } from "sonner";
 
 export function MessagesWorkspace() {
   const [activeThread, setActiveThread] = useState<number | null>(1);
+  const [replyText, setReplyText] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const threads = [
     { id: 1, sender: "Mr. J. Kamau (Math)", subject: "Algebra Worksheet", preview: "Please remember that the worksheet is due...", time: "Yesterday", unread: false },
     { id: 2, sender: "School Administration", subject: "Sports Day Sign-ups", preview: "Sign-ups for the annual sports day are now open...", time: "Mon", unread: false },
   ];
+
+  const handleReply = async (threadId: number) => {
+    if (!replyText.trim()) return;
+    try {
+      setIsSubmitting(true);
+      const res = await requestDashboardApi("/api/student-portal/messages/reply", {
+        method: "POST",
+        body: JSON.stringify({ threadId, message: replyText })
+      });
+      if (res.success) {
+        toast.success("Message sent!");
+        setReplyText("");
+      } else {
+        toast.error(res.error || "Failed to send message");
+      }
+    } catch (err: any) {
+      toast.error(err.message || "An error occurred");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <div className="space-y-6 h-[calc(100vh-140px)] flex flex-col">
@@ -76,11 +101,19 @@ export function MessagesWorkspace() {
               <div className="p-4 border-t border-slate-200 bg-white">
                 <div className="relative">
                   <textarea 
+                    value={replyText}
+                    onChange={(e) => setReplyText(e.target.value)}
                     placeholder="Type your reply to Mr. Kamau..." 
                     className="w-full min-h-[100px] p-3 pr-12 rounded-md border border-slate-200 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none"
+                    disabled={isSubmitting}
                   />
-                  <Button size="sm" className="absolute bottom-3 right-3 gap-2">
-                    <Send className="w-3 h-3" /> Reply
+                  <Button 
+                    size="sm" 
+                    className="absolute bottom-3 right-3 gap-2"
+                    onClick={() => activeThread && handleReply(activeThread)}
+                    disabled={isSubmitting || !replyText.trim() || !activeThread}
+                  >
+                    <Send className="w-3 h-3" /> {isSubmitting ? "Sending..." : "Reply"}
                   </Button>
                 </div>
               </div>

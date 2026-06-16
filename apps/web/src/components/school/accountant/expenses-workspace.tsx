@@ -4,6 +4,8 @@ import { useState } from "react";
 import { usePermissions } from "@/components/providers/permission-context";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
+import { requestDashboardApi } from "@/lib/dashboard/api-client";
+import { toast } from "sonner";
 function Panel({ title, description, children, actions }: { title: string; description?: string; children: React.ReactNode; actions?: React.ReactNode }) {
   return (
     <div className="rounded-xl border bg-white shadow-sm overflow-hidden mb-6">
@@ -20,15 +22,30 @@ function Panel({ title, description, children, actions }: { title: string; descr
 }
 
 function CreateExpenseModal({ onClose }: { onClose: () => void }) {
-  const [submitting, setSubmitting] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    setSubmitting(true);
-    setTimeout(() => {
-      setSubmitting(false);
+    setIsSubmitting(true);
+    
+    const formData = new FormData(e.currentTarget);
+    const payee = formData.get("payee") as string;
+    const category = formData.get("category") as string;
+    const amount = formData.get("amount") as string;
+    const description = formData.get("description") as string;
+
+    try {
+      await requestDashboardApi("/api/finance/expenses", {
+        method: "POST",
+        body: JSON.stringify({ payee, category, amount, description })
+      });
+      toast.success("Expense recorded successfully.");
       onClose();
-    }, 1000);
+    } catch (error: any) {
+      toast.error(error.message || "Failed to record expense.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -36,11 +53,11 @@ function CreateExpenseModal({ onClose }: { onClose: () => void }) {
       <form onSubmit={handleSubmit} className="p-6 space-y-4">
         <div>
           <label className="block text-sm font-bold text-[#071D49] mb-1">Payee / Vendor</label>
-          <input required type="text" className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="e.g. Kenya Power" />
+          <input required name="payee" type="text" className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="e.g. Kenya Power" />
         </div>
         <div>
           <label className="block text-sm font-bold text-[#071D49] mb-1">Category</label>
-          <select required className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]">
+          <select required name="category" className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]">
             <option value="">Select category...</option>
             <option value="utilities">Utilities</option>
             <option value="supplies">Supplies</option>
@@ -50,16 +67,16 @@ function CreateExpenseModal({ onClose }: { onClose: () => void }) {
         </div>
         <div>
           <label className="block text-sm font-bold text-[#071D49] mb-1">Amount (KES)</label>
-          <input required type="number" min="1" className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="0.00" />
+          <input required name="amount" type="number" min="1" className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="0.00" />
         </div>
         <div>
           <label className="block text-sm font-bold text-[#071D49] mb-1">Description</label>
-          <textarea required rows={3} className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Brief description of the expense..."></textarea>
+          <textarea required name="description" rows={3} className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Brief description of the expense..."></textarea>
         </div>
         <div className="mt-6 flex justify-end gap-3 pt-4 border-t border-[#D8E0EC]">
           <button type="button" onClick={onClose} className="rounded-xl px-4 py-2 text-sm font-bold text-[#64748B]">Cancel</button>
-          <button disabled={submitting} type="submit" className="rounded-xl bg-[#071D49] px-6 py-2 text-sm font-black text-white">
-            {submitting ? "Saving..." : "Save Expense"}
+          <button disabled={isSubmitting} type="submit" className="rounded-xl bg-[#071D49] px-6 py-2 text-sm font-black text-white">
+            {isSubmitting ? "Saving..." : "Save Expense"}
           </button>
         </div>
       </form>

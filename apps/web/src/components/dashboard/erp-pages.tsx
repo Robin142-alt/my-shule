@@ -33,6 +33,9 @@ import { QuickActions } from "@/components/dashboard/quick-actions";
 import { Card } from "@/components/ui/card";
 import { Button, buttonClasses } from "@/components/ui/button";
 import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
+import { AcademicSetup } from "@/components/modules/academics/AcademicSetup";
+import { MarksEntryTable } from "@/components/modules/exams/MarksEntryTable";
+import { ReportCardGenerator } from "@/components/modules/exams/ReportCardGenerator";
 import { Modal } from "@/components/ui/modal";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatusPill } from "@/components/ui/status-pill";
@@ -2032,41 +2035,31 @@ export function AcademicsPage({
       <Tabs
         items={[
           {
-            id: "subjects",
-            label: "Subjects",
-            panel: (
-              <DataTable
-                title="Subjects"
-                subtitle="CBC subject coverage and current average performance."
-                columns={subjectColumns}
-                rows={model.academics.subjects}
-                getRowKey={(row) => row.id}
-              />
-            ),
+            id: "setup",
+            label: "Academic Setup",
+            panel: <AcademicSetup tenantId={snapshot.tenant?.id || undefined} />,
           },
           {
             id: "marks",
-            label: "Marks entry",
+            label: "Marks Entry",
             panel: (
-              <DataTable
-                title="Marks entry"
-                subtitle="Recent marks entry view for quick review."
-                columns={marksColumns}
-                rows={marksRows}
-                getRowKey={(row) => row.id}
+              <MarksEntryTable 
+                tenantId={snapshot.tenant?.id || undefined} 
+                examSeriesId="series-uuid" 
+                assessmentId="assessment-uuid" 
+                classSectionId="class-uuid" 
+                subjectId="subject-uuid" 
+                academicTermId="term-uuid" 
               />
             ),
           },
           {
-            id: "reports",
-            label: "Report cards",
+            id: "report-cards",
+            label: "Publish Reports",
             panel: (
-              <DataTable
-                title="Report cards"
-                subtitle="What is ready to print and what still needs attention."
-                columns={reportColumns}
-                rows={model.academics.reports}
-                getRowKey={(row) => row.id}
+              <ReportCardGenerator 
+                tenantId={snapshot.tenant?.id || undefined} 
+                examSeriesId="series-uuid" 
               />
             ),
           },

@@ -6,6 +6,7 @@ import { InvoicesWorkspace } from "@/components/school/accountant/invoices-works
 import { PaymentsWorkspace } from "@/components/school/accountant/payments-workspace";
 import { MPesaReconciliationWorkspace } from "@/components/school/accountant/m-pesa-reconciliation-workspace";
 import { OverviewWorkspace } from "@/components/school/accountant/overview-workspace";
+import { ExpensesWorkspace } from "@/components/school/accountant/expenses-workspace";
 import type { SchoolExperienceRole } from "@/lib/experiences/school-data";
 import type { SchoolRouteMode } from "@/components/school/school-pages";
 
@@ -31,6 +32,9 @@ export function AccountantCommandCenter({
   }
   if (activeSection === "mpesa") {
     return <MPesaReconciliationWorkspace role={role} tenantSlug={tenantSlug} />;
+  }
+  if (activeSection === "expenses") {
+    return <ExpensesWorkspace />;
   }
   if (activeSection === "overview") {
     // We haven't built this one fully isolated, maybe just pass it down or show dashboard

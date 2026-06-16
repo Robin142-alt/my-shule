@@ -14,6 +14,7 @@ import { NotificationBell } from "@/components/shared/notification-bell";
 import { TaskQueue } from "@/components/shared/task-queue";
 import { WorkflowToast } from "@/components/shared/workflow-toast";
 import { type TeacherView, StatusChip, cn } from "./class-teacher/shared";
+import { buildSchoolSectionHref } from "./school-pages";
 import { OverviewWorkspace } from "./class-teacher/workspaces/home";
 import { ClassRegisterWorkspace } from "./class-teacher/workspaces/register";
 import { AttendanceWorkspace } from "./class-teacher/workspaces/attendance";
@@ -87,8 +88,17 @@ function LearnerProfileDrawer({ learnerId, onClose }: { learnerId: string | null
   );
 }
 
-export function ClassTeacherCommandCenter({ routeMode }: { routeMode?: string }) {
-  const [activeView, setActiveView] = useState<TeacherView>("home");
+export function ClassTeacherCommandCenter({ activeSection, routeMode }: { activeSection?: string; routeMode?: string }) {
+  const [activeViewState, setActiveViewState] = useState<TeacherView>(
+    (activeSection && activeSection !== "dashboard" ? activeSection : "home") as TeacherView
+  );
+  const activeView = activeViewState;
+
+  const setActiveView = (view: any) => {
+    setActiveViewState(view);
+    const newPath = buildSchoolSectionHref("class-teacher", view, (routeMode as any) ?? "hosted");
+    window.history.replaceState(null, "", newPath);
+  };
   const [selectedLearner, setSelectedLearner] = useState<string | null>(null);
 
   return (

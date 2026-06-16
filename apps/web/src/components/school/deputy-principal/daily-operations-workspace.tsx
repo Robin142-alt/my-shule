@@ -3,8 +3,8 @@ import { useState } from "react";
 import { Activity } from "lucide-react";
 import { Panel, StatusChip, Tone } from "./shared";
 import { Modal } from "@/components/ui/modal";
-import { useSchoolQuery, useSchoolMutation } from "@/lib/data/school-hooks";
-import { useQueryClient } from "@tanstack/react-query";
+import { useSchoolQuery } from "@/lib/data/school-hooks";
+import { createDailyOperationNote } from "./api-client";
 
 export type OperationNote = {
   id: string;
@@ -29,13 +29,8 @@ export function DeputyDailyOperationsWorkspace() {
   const [showModal, setShowModal] = useState(false);
   const [formData, setFormData] = useState({ area: "", issue: "" });
   
-  const queryClient = useQueryClient();
-  const { data, isLoading } = useSchoolQuery<DailyOperationsData>('/admin-command/deputy/daily-operations');
-  const createNoteMutation = useSchoolMutation('/admin-command/deputy/daily-operations', 'POST', {
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["school", "session", '/admin-command/deputy/daily-operations'] });
-    }
-  });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const { data, isLoading, refetch } = useSchoolQuery<DailyOperationsData>('/admin-command/deputy/daily-operations');
 
   const notes = data?.notes || [];
   const metrics = data?.metrics || {
@@ -47,13 +42,21 @@ export function DeputyDailyOperationsWorkspace() {
   };
 
   const handleCreate = async () => {
-    await createNoteMutation.mutateAsync({
-      area: formData.area,
-      issue: formData.issue
-    });
-    setShowModal(false);
-    setFormData({ area: "", issue: "" });
-    alert("Operation Note created.");
+    setIsSubmitting(true);
+    try {
+      await createDailyOperationNote({
+        area: formData.area,
+        issue: formData.issue
+      });
+      alert("Operation Note created successfully.");
+      setShowModal(false);
+      setFormData({ area: "", issue: "" });
+      refetch();
+    } catch (error) {
+      alert("Failed to create Operation Note.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const getStatusTone = (st: string): Tone => {
@@ -119,8 +122,8 @@ export function DeputyDailyOperationsWorkspace() {
       <Modal open={showModal} onClose={() => setShowModal(false)} title="Log Daily Operation Note" footer={
         <>
           <button onClick={() => setShowModal(false)} className="rounded-lg px-4 py-2 text-sm font-bold text-[#64748B] hover:bg-slate-100">Cancel</button>
-          <button disabled={!formData.area || !formData.issue || createNoteMutation.isPending} onClick={handleCreate} className="rounded-lg bg-rose-600 px-4 py-2 text-sm font-black text-white hover:bg-rose-700 disabled:opacity-50">
-            {createNoteMutation.isPending ? "Saving..." : "Save Note"}
+          <button disabled={!formData.area || !formData.issue || isSubmitting} onClick={handleCreate} className="rounded-lg bg-rose-600 px-4 py-2 text-sm font-black text-white hover:bg-rose-700 disabled:opacity-50">
+            {isSubmitting ? "Saving..." : "Save Note"}
           </button>
         </>
       }>

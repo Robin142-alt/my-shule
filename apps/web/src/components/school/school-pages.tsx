@@ -354,16 +354,16 @@ const financeReconciliationBucketTone: Record<FinanceReconciliationBucket, "ok" 
   exception: "critical",
 };
 
-function buildSchoolSectionHref(
+export function buildSchoolSectionHref(
   role: SchoolExperienceRole,
-  section: Parameters<typeof toSchoolPath>[0],
+  section: string,
   routeMode: SchoolRouteMode,
 ) {
   if (routeMode === "public") {
     return section === "dashboard" ? `/school/${role}` : `/school/${role}/${section}`;
   }
 
-  return toSchoolPath(section);
+  return toSchoolPath(section as any);
 }
 
 function buildSchoolStudentHref(
@@ -389,7 +389,7 @@ function mapSchoolHref(
 
   return buildSchoolSectionHref(
     role,
-    section as Parameters<typeof toSchoolPath>[0],
+    (section as string) || "dashboard",
     routeMode,
   );
 }
@@ -3892,7 +3892,7 @@ function SchoolPagesShell({
       ? buildSchoolSectionHref(role, "dashboard", routeMode)
       : buildSchoolSectionHref(
           role,
-          section as Parameters<typeof toSchoolPath>[0],
+          (section as string) || "dashboard",
           routeMode,
         );
   useEffect(() => {
@@ -4155,23 +4155,23 @@ function SchoolPagesShell({
 
   if (renderRoleOperationalWorkspace) {
     if (role === "principal") {
-      return <PrincipalCommandCenter routeMode={routeMode} tenantSlug={tenantSlug} />;
+      return <PrincipalCommandCenter routeMode={routeMode} tenantSlug={tenantSlug} activeSection={section} />;
     }
 
     if (role === "student") {
-      return <StudentCommandCenter routeMode={routeMode} />;
+      return <StudentCommandCenter routeMode={routeMode} activeSection={section} />;
     }
 
     if (role === "secretary") {
-      return <SecretaryCommandCenterFull routeMode={routeMode} />;
+      return <SecretaryCommandCenterFull routeMode={routeMode} activeSection={section} />;
     }
 
     if (role === "ict-manager") {
-      return <IctManagerCommandCenter routeMode={routeMode} />;
+      return <IctManagerCommandCenter routeMode={routeMode} activeSection={section} />;
     }
 
     if (role === "procurement-officer") {
-      return <ProcurementOfficerCommandCenter routeMode={routeMode} />;
+      return <ProcurementOfficerCommandCenter routeMode={routeMode} activeSection={section} />;
     }
 
     if (role === "accountant" || role === "bursar") {
@@ -4179,82 +4179,82 @@ function SchoolPagesShell({
     }
 
     if (role === "discipline-master") {
-      return <DisciplineMasterCommandCenter />;
+      return <DisciplineMasterCommandCenter activeSection={section} />;
     }
 
     if (role === "librarian") {
-      return <LibrarianCommandCenter />;
+      return <LibrarianCommandCenter activeSection={section} />;
     }
 
     if (role === "boarding-master") {
       // @ts-ignore
-      return <BoardingMasterCommandCenter routeMode={routeMode} />;
+      return <BoardingMasterCommandCenter routeMode={routeMode} activeSection={section} />;
     }
 
     if (role === "nurse") {
       // @ts-ignore
-      return <NurseCommandCenter />;
+      return <NurseCommandCenter activeSection={section} />;
     }
 
     if (role === "guidance-counselling") {
       // @ts-ignore
-      return <CounsellorCommandCenter routeMode={routeMode} />;
+      return <CounsellorCommandCenter routeMode={routeMode} activeSection={section} />;
     }
 
     if (role === "laboratory-technician") {
       // @ts-ignore
-      return <LaboratoryTechnicianCommandCenter routeMode={routeMode} />;
+      return <LaboratoryTechnicianCommandCenter routeMode={routeMode} activeSection={section} />;
     }
 
     if (role === "security-officer") {
       // @ts-ignore
-      return <SecurityCommandCenter routeMode={routeMode} />;
+      return <SecurityCommandCenter routeMode={routeMode} activeSection={section} />;
     }
 
     if (role === "grade-master") {
       // @ts-ignore
-      return <GradeMasterCommandCenter routeMode={routeMode} />;
+      return <GradeMasterCommandCenter routeMode={routeMode} activeSection={section} />;
     }
 
     if (role === "hod") {
       // @ts-ignore
-      return <HodCommandCenter routeMode={routeMode} />;
+      return <HodCommandCenter routeMode={routeMode} activeSection={section} />;
     }
 
 
     if (role === "deputy-principal") {
       // @ts-ignore
-      return <DeputyPrincipalCommandCenter routeMode={routeMode} />;
+      return <DeputyPrincipalCommandCenter routeMode={routeMode} activeSection={section} />;
     }
 
     if (role === "exams-manager") {
       // @ts-ignore
-      return <ExamsManagerCommandCenter routeMode={routeMode} />;
+      return <ExamsManagerCommandCenter routeMode={routeMode} activeSection={section} />;
     }
 
     if (role === "teacher") {
       // @ts-ignore
-      return <TeacherCommandCenter />;
+      return <TeacherCommandCenter activeSection={section} />;
     }
 
     if (role === "class-teacher") {
       // @ts-ignore
-      return <ClassTeacherCommandCenter routeMode={routeMode} />;
+      return <ClassTeacherCommandCenter routeMode={routeMode} activeSection={section} />;
     }
 
     if (role === "admissions") {
       // @ts-ignore
-      return <RegistrarCommandCenter routeMode={routeMode} />;
+      return <RegistrarCommandCenter routeMode={routeMode} activeSection={section} />;
     }
 
     if (role === "storekeeper") {
       // @ts-ignore
-      return <StorekeeperCommandCenter routeMode={routeMode} />;
+      return <StorekeeperCommandCenter routeMode={routeMode} activeSection={section} />;
     }
 
     if (role === "transport-manager") {
       // @ts-ignore
-      return <TransportManagerCommandCenter routeMode={routeMode} />;
+      return <TransportManagerCommandCenter routeMode={routeMode} activeSection={section} />;
     }
 
     return (

@@ -8,6 +8,7 @@ import { TaskQueue } from "@/components/shared/task-queue";
 import { navItems } from "./teacher-dashboard/nav-config";
 import { TeacherView, TeacherAction } from "./teacher-dashboard/types";
 import { cn } from "./class-teacher/shared";
+import { buildSchoolSectionHref } from "./school-pages";
 
 // Workspaces
 import { OverviewWorkspace } from "./teacher-dashboard/overview-workspace";
@@ -20,9 +21,18 @@ import { ExamsMarksWorkspace } from "./teacher-dashboard/exams-marks-workspace";
 import { LessonLogWorkspace } from "./teacher-dashboard/lesson-log-workspace";
 import { ParentCommunicationWorkspace } from "./teacher-dashboard/parent-communication-workspace";
 
-export function TeacherCommandCenter() {
-  const [activeView, setActiveView] = useState<TeacherView>("overview");
+export function TeacherCommandCenter({ activeSection, routeMode }: { activeSection?: string; routeMode?: "hosted" | "public" } = {}) {
+  const [activeViewState, setActiveViewState] = useState<TeacherView>(
+    (activeSection && activeSection !== "dashboard" ? activeSection : "overview") as TeacherView
+  );
+  const activeView = activeViewState;
   const [notice, setNotice] = useState("");
+
+  const setActiveView = (view: TeacherView) => {
+    setActiveViewState(view);
+    const newPath = buildSchoolSectionHref("teacher", view, routeMode ?? "hosted");
+    window.history.replaceState(null, "", newPath);
+  };
 
   const handleStartAction = (action: TeacherAction, view: TeacherView, message: string) => {
     setActiveView(view);

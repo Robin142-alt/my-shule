@@ -3,6 +3,8 @@ import { CalendarClock } from "lucide-react";
 import { Panel, StatusChip, Tone } from "./shared";
 import { useSchoolQuery, useSchoolMutation } from "@/lib/data/school-hooks";
 import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { assignReliefTeacher } from "./api-client";
 
 export type ReliefLesson = {
   id: string;
@@ -43,10 +45,11 @@ export function DeputyTimetableReliefWorkspace() {
     if (!teacher) return;
     
     try {
-      await assignMutation.mutateAsync({ id, teacherName: teacher });
-      alert(`${teacher} has been assigned to cover ${className} at ${time}.`);
-    } catch (e) {
-      alert("Failed to assign relief teacher.");
+      await assignReliefTeacher(id, teacher);
+      queryClient.invalidateQueries({ queryKey: ["school", "session", '/admin-command/deputy/timetable'] });
+      toast.success(`${teacher} has been assigned to cover ${className} at ${time}.`);
+    } catch (e: any) {
+      toast.error(e.message || "Failed to assign relief teacher.");
     }
   };
 
@@ -58,7 +61,7 @@ export function DeputyTimetableReliefWorkspace() {
 
   return (
     <Panel title="Timetable & Relief Lessons" description="Lesson disruptions, absences, and relief coverage." icon={CalendarClock} actions={
-      <button onClick={() => alert("Auto-assigning available teachers...")} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white hover:bg-blue-900 transition">Auto-Assign Relief</button>
+      <button onClick={() => toast.info("Auto-assign algorithm coming soon")} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white hover:bg-blue-900 transition">Auto-Assign Relief</button>
     }>
       <div className="grid gap-4 md:grid-cols-2 mb-6">
         <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">

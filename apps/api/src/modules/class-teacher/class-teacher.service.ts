@@ -143,13 +143,13 @@ export class ClassTeacherService {
     ).catch(() => ({ rows: [{ count: 0 }] }));
 
     return {
-      todaysLessons: { count: todaysLessonsCount, detail: \`\${todaysLessonsCount} scheduled for today\` },
-      pendingAttendance: { count: attendanceStats.pendingTasks, detail: \`\${attendanceStats.pendingTasks} classes not marked\` },
-      pendingLessonLogs: { count: pendingLessonLogs, detail: \`\${pendingLessonLogs} lessons not logged\` },
-      openMarkEntry: { count: marksStats.totalWindows, detail: \`\${marksStats.totalWindows} exams awaiting marks\` },
-      assignmentsDue: { count: assignmentsRes.rows[0]?.count || 0, detail: \`\${assignmentsRes.rows[0]?.count || 0} assignments due this week\` },
-      learnersNeedingAttention: { count: disciplineRes.rows[0]?.count || 0, detail: \`\${disciplineRes.rows[0]?.count || 0} flagged learners\` },
-      unreadMessages: { count: msgRes.rows[0]?.count || 0, detail: \`\${msgRes.rows[0]?.count || 0} unread messages\` },
+      todaysLessons: { count: todaysLessonsCount, detail: `${todaysLessonsCount} scheduled for today` },
+      pendingAttendance: { count: attendanceStats.pendingTasks, detail: `${attendanceStats.pendingTasks} classes not marked` },
+      pendingLessonLogs: { count: pendingLessonLogs, detail: `${pendingLessonLogs} lessons not logged` },
+      openMarkEntry: { count: marksStats.totalWindows, detail: `${marksStats.totalWindows} exams awaiting marks` },
+      assignmentsDue: { count: assignmentsRes.rows[0]?.count || 0, detail: `${assignmentsRes.rows[0]?.count || 0} assignments due this week` },
+      learnersNeedingAttention: { count: disciplineRes.rows[0]?.count || 0, detail: `${disciplineRes.rows[0]?.count || 0} flagged learners` },
+      unreadMessages: { count: msgRes.rows[0]?.count || 0, detail: `${msgRes.rows[0]?.count || 0} unread messages` },
       storeRequests: { count: 0, detail: "0 pending requests" } // Placeholder
     };
   }

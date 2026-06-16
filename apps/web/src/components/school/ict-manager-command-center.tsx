@@ -211,9 +211,19 @@ function SystemLogsWorkspace() {
   );
 }
 
-export function IctManagerCommandCenter({ routeMode }: { routeMode?: "hosted" | "public" }) {
+import { buildSchoolSectionHref } from "./school-pages";
+
+export function IctManagerCommandCenter({ activeSection, routeMode }: { activeSection?: string; routeMode?: "hosted" | "public" }) {
   const [searchTerm, setSearchTerm] = useState("");
-  const [activeView, setActiveView] = useState<IctView>("overview");
+  const [activeView, setActiveView] = useState<any>(
+    activeSection && activeSection !== "dashboard" ? activeSection : "overview"
+  );
+
+  const handleSetView = (view: any) => {
+    setActiveView(view);
+    const newPath = buildSchoolSectionHref("ict-manager", view, routeMode ?? "hosted");
+    window.history.replaceState(null, "", newPath);
+  };
 
   const { data: ticketsData } = useSchoolQuery<any>("/api/support/tickets");
   const { data: alertsData } = useSchoolQuery<any>("/api/observability/alerts");
@@ -237,36 +247,21 @@ export function IctManagerCommandCenter({ routeMode }: { routeMode?: "hosted" | 
             <p className="mt-2 text-sm leading-6 text-white/65">Systems & Devices.</p>
           </div>
           <nav className="mt-4 flex-1 space-y-2 overflow-y-auto pr-2 custom-scrollbar" aria-label="Navigation">
-            <button 
-              onClick={() => setActiveView("overview")}
-              className={`flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm font-bold transition ${activeView === "overview" ? "bg-white/14 text-white shadow-[inset_4px_0_0_#38BDF8]" : "text-white/72 hover:bg-white/10 hover:text-white"}`}>
-              <LayoutDashboard className="h-4 w-4 shrink-0" />
-              Overview
-            </button>
-            <button 
-              onClick={() => setActiveView("helpdesk")}
-              className={`flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm font-bold transition ${activeView === "helpdesk" ? "bg-white/14 text-white shadow-[inset_4px_0_0_#38BDF8]" : "text-white/72 hover:bg-white/10 hover:text-white"}`}>
-              <Monitor className="h-4 w-4 shrink-0" />
-              IT Helpdesk
-            </button>
-            <button 
-              onClick={() => setActiveView("inventory")}
-              className={`flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm font-bold transition ${activeView === "inventory" ? "bg-white/14 text-white shadow-[inset_4px_0_0_#38BDF8]" : "text-white/72 hover:bg-white/10 hover:text-white"}`}>
-              <Smartphone className="h-4 w-4 shrink-0" />
-              Device Inventory
-            </button>
-            <button 
-              onClick={() => setActiveView("access")}
-              className={`flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm font-bold transition ${activeView === "access" ? "bg-white/14 text-white shadow-[inset_4px_0_0_#38BDF8]" : "text-white/72 hover:bg-white/10 hover:text-white"}`}>
-              <ShieldAlert className="h-4 w-4 shrink-0" />
-              Access Control
-            </button>
-            <button 
-              onClick={() => setActiveView("logs")}
-              className={`flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm font-bold transition ${activeView === "logs" ? "bg-white/14 text-white shadow-[inset_4px_0_0_#38BDF8]" : "text-white/72 hover:bg-white/10 hover:text-white"}`}>
-              <Server className="h-4 w-4 shrink-0" />
-              System Logs
-            </button>
+              <button onClick={() => handleSetView("overview")} className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-bold ${activeView === "overview" ? "bg-white/15 text-white shadow-[inset_4px_0_0_#38BDF8]" : "text-white/70 hover:bg-white/10 hover:text-white"}`}>
+                <LayoutDashboard className="h-4 w-4" /> Overview
+              </button>
+              <button onClick={() => handleSetView("helpdesk")} className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-bold ${activeView === "helpdesk" ? "bg-white/15 text-white shadow-[inset_4px_0_0_#38BDF8]" : "text-white/70 hover:bg-white/10 hover:text-white"}`}>
+                <ShieldAlert className="h-4 w-4" /> Helpdesk
+              </button>
+              <button onClick={() => handleSetView("inventory")} className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-bold ${activeView === "inventory" ? "bg-white/15 text-white shadow-[inset_4px_0_0_#38BDF8]" : "text-white/70 hover:bg-white/10 hover:text-white"}`}>
+                <Monitor className="h-4 w-4" /> Asset Inventory
+              </button>
+              <button onClick={() => handleSetView("access")} className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-bold ${activeView === "access" ? "bg-white/15 text-white shadow-[inset_4px_0_0_#38BDF8]" : "text-white/70 hover:bg-white/10 hover:text-white"}`}>
+                <Users className="h-4 w-4" /> Access Control
+              </button>
+              <button onClick={() => handleSetView("logs")} className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-bold ${activeView === "logs" ? "bg-white/15 text-white shadow-[inset_4px_0_0_#38BDF8]" : "text-white/70 hover:bg-white/10 hover:text-white"}`}>
+                <Server className="h-4 w-4" /> System Logs
+              </button>
           </nav>
         </aside>
 

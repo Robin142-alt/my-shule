@@ -37,6 +37,9 @@ import { getCurrentSchoolId, publishSchoolOperationalEvent } from "@/lib/school/
 import { useLiveTenantSession } from "@/hooks/use-live-tenant-session";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 import { usePermissions } from "@/components/providers/permission-context";
+import { buildSchoolSectionHref } from "./school-pages";
+import { requestDashboardApi } from "@/lib/dashboard/api-client";
+import { toast } from "sonner";
 
 type GradeRouteMode = "hosted" | "public";
 type Tone = "success" | "info" | "warning" | "danger" | "neutral";
@@ -373,14 +376,27 @@ function LearnersWorkspace({ onSelectLearner }: { onSelectLearner: (id: string) 
 }
 
 function StreamsWorkspace() {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const handleMessageTeacher = async () => {
+    setIsSubmitting(true);
+    try {
+      await requestDashboardApi("/api/academic/communications", { method: "POST", body: JSON.stringify({ type: "teacher_message" }) });
+      toast.success("Message sent successfully.");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to send message.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
     <Panel title="Streams & Class Teachers" description="Coordinate all class teachers under the form/grade." icon={Network}>
       <DataTable 
         columns={["Stream", "Class Teacher", "Learners", "Present", "Open Concerns", "Last Update", "Actions"]}
         rows={[
-          ["Form 2 Blue", "Mr. Kamau", "140", "135", "2", "Today, 08:00 AM", <button key="m1" className="text-[#1D4ED8] font-bold text-xs">Message Teacher</button>],
-          ["Form 2 Green", "Mrs. Njeri", "142", "140", "0", "Today, 08:15 AM", <button key="m2" className="text-[#1D4ED8] font-bold text-xs">Message Teacher</button>],
-          ["Form 2 Red", "Mr. Otieno", "138", "131", "4", "Yesterday, 04:00 PM", <button key="m3" className="text-[#1D4ED8] font-bold text-xs">Request Update</button>],
+          ["Form 2 Blue", "Mr. Kamau", "140", "135", "2", "Today, 08:00 AM", <button key="m1" onClick={handleMessageTeacher} disabled={isSubmitting} className="text-[#1D4ED8] font-bold text-xs disabled:opacity-50">{isSubmitting ? "Sending..." : "Message Teacher"}</button>],
+          ["Form 2 Green", "Mrs. Njeri", "142", "140", "0", "Today, 08:15 AM", <button key="m2" onClick={handleMessageTeacher} disabled={isSubmitting} className="text-[#1D4ED8] font-bold text-xs disabled:opacity-50">{isSubmitting ? "Sending..." : "Message Teacher"}</button>],
+          ["Form 2 Red", "Mr. Otieno", "138", "131", "4", "Yesterday, 04:00 PM", <button key="m3" onClick={handleMessageTeacher} disabled={isSubmitting} className="text-[#1D4ED8] font-bold text-xs disabled:opacity-50">{isSubmitting ? "Requesting..." : "Request Update"}</button>],
         ]}
       />
     </Panel>
@@ -434,14 +450,28 @@ function AcademicsWorkspace() {
 
 function ExamsWorkspace() {
   const { hasPermission } = usePermissions();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  const handleAction = async (action: string) => {
+    setIsSubmitting(true);
+    try {
+      await requestDashboardApi("/api/academic/grade-master/compile", { method: "POST", body: JSON.stringify({ action }) });
+      toast.success(`Action '${action}' completed successfully.`);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to complete action.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
     <Panel title="Exams & Report Readiness" description="Monitor whether report cards are ready for their grade/form." icon={ClipboardCheck}>
       <DataTable 
         columns={["Stream", "Marks Status", "Teacher Comments", "Class Teacher", "Readiness", "Actions"]}
         rows={[
-          ["Form 2 Blue", "100%", "95%", "100%", <StatusChip key="s1" label="Missing Comments" tone="warning"/>, <button key="a1" className="text-[#1D4ED8] font-bold text-xs">Request Comments</button>],
-          ["Form 2 Green", "100%", "100%", "100%", <StatusChip key="s2" label="Ready" tone="success"/>, hasPermission('school_reports:write') ? <button key="a2" className="text-[#1D4ED8] font-bold text-xs bg-[#EEF5FF] px-2 py-1 rounded">Approve Reports</button> : <span key="a2" className="text-xs text-[#64748B]">Restricted</span>],
-          ["Form 2 Red", "92%", "80%", "40%", <StatusChip key="s3" label="Missing Marks" tone="danger"/>, <button key="a3" className="text-[#1D4ED8] font-bold text-xs">Message Teacher</button>],
+          ["Form 2 Blue", "100%", "95%", "100%", <StatusChip key="s1" label="Missing Comments" tone="warning"/>, <button key="a1" onClick={() => handleAction('request_comments')} disabled={isSubmitting} className="text-[#1D4ED8] font-bold text-xs disabled:opacity-50">{isSubmitting ? "Processing..." : "Request Comments"}</button>],
+          ["Form 2 Green", "100%", "100%", "100%", <StatusChip key="s2" label="Ready" tone="success"/>, hasPermission('school_reports:write') ? <button key="a2" onClick={() => handleAction('approve_reports')} disabled={isSubmitting} className="text-[#1D4ED8] font-bold text-xs bg-[#EEF5FF] px-2 py-1 rounded disabled:opacity-50">{isSubmitting ? "Approving..." : "Approve Reports"}</button> : <span key="a2" className="text-xs text-[#64748B]">Restricted</span>],
+          ["Form 2 Red", "92%", "80%", "40%", <StatusChip key="s3" label="Missing Marks" tone="danger"/>, <button key="a3" onClick={() => handleAction('message_teacher')} disabled={isSubmitting} className="text-[#1D4ED8] font-bold text-xs disabled:opacity-50">{isSubmitting ? "Processing..." : "Message Teacher"}</button>],
         ]}
       />
     </Panel>
@@ -492,16 +522,29 @@ function FeesWorkspace() {
 }
 
 function CommunicationWorkspace() {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const handleSendMessage = async () => {
+    setIsSubmitting(true);
+    try {
+      await requestDashboardApi("/api/academic/communications", { method: "POST", body: JSON.stringify({ type: "bulk_notice" }) });
+      toast.success("Message sent successfully.");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to send message.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
     <Panel title="Parent Communication" description="Where the Grade/Form Master communicates with parents." icon={MessageCircle}>
        <div className="mb-4 flex gap-2">
-           <button className="rounded-xl bg-[#071D49] px-3 py-2 text-sm font-black text-white">Send Bulk Notice</button>
+           <button onClick={handleSendMessage} disabled={isSubmitting} className="rounded-xl bg-[#071D49] px-3 py-2 text-sm font-black text-white disabled:opacity-50">{isSubmitting ? "Sending..." : "Send Bulk Notice"}</button>
            <button className="rounded-xl border border-[#D8E0EC] px-3 py-2 text-sm font-black text-[#071D49]">Message Templates</button>
        </div>
        <DataTable 
         columns={["Learner", "Parent/Guardian", "Last Contacted", "Last Message Type", "Status", "Actions"]}
         rows={[
-          ["Brian Otieno", "Mr. Otieno", "Today", "Attendance concern", <StatusChip key="s1" label="Delivered" tone="success"/>, <button key="a1" className="text-[#1D4ED8] font-bold text-xs">Send Message</button>],
+          ["Brian Otieno", "Mr. Otieno", "Today", "Attendance concern", <StatusChip key="s1" label="Delivered" tone="success"/>, <button key="a1" onClick={handleSendMessage} disabled={isSubmitting} className="text-[#1D4ED8] font-bold text-xs disabled:opacity-50">{isSubmitting ? "Sending..." : "Send Message"}</button>],
         ]}
       />
     </Panel>
@@ -549,12 +592,25 @@ function AssignmentsWorkspace() {
 }
 
 function RequestsWorkspace() {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const handleAddComment = async () => {
+    setIsSubmitting(true);
+    try {
+      await requestDashboardApi("/api/academic/grade-master/comment", { method: "POST", body: JSON.stringify({ action: "add_comment" }) });
+      toast.success("Comment added successfully.");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to add comment.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
     <Panel title="Requests & Approvals" description="Handles requests that the Grade/Form Master can raise or review." icon={CheckSquare}>
        <DataTable 
         columns={["Request No.", "Type", "Learner/Stream", "Assigned To", "Status", "Actions"]}
         rows={[
-          ["REQ-992", "Deputy intervention", "Peter Otieno", "Deputy Principal", <StatusChip key="s1" label="Pending" tone="warning"/>, <button key="a1" className="text-[#1D4ED8] font-bold text-xs">Add Comment</button>],
+          ["REQ-992", "Deputy intervention", "Peter Otieno", "Deputy Principal", <StatusChip key="s1" label="Pending" tone="warning"/>, <button key="a1" onClick={handleAddComment} disabled={isSubmitting} className="text-[#1D4ED8] font-bold text-xs disabled:opacity-50">{isSubmitting ? "Processing..." : "Add Comment"}</button>],
         ]}
       />
     </Panel>
@@ -619,10 +675,12 @@ function SettingsWorkspace() {
 
 // Simple Layout Components
 
-export function GradeMasterCommandCenter({ routeMode }: { routeMode: GradeRouteMode }) {
-  const [activeView, setActiveView] = useState<GradeView>("overview");
+export function GradeMasterCommandCenter({ activeSection, routeMode }: { activeSection?: string; routeMode: GradeRouteMode }) {
+  const [activeViewState, setActiveViewState] = useState<GradeView>(
+    (activeSection && activeSection !== "dashboard" ? activeSection : "overview") as GradeView
+  );
+  const activeView = activeViewState;
   const [searchTerm, setSearchTerm] = useState("");
-  const [notice, setNotice] = useState("");
   const [selectedLearner, setSelectedLearner] = useState<string | null>(null);
 
   const searchResults = searchTerm.trim()
@@ -633,8 +691,7 @@ export function GradeMasterCommandCenter({ routeMode }: { routeMode: GradeRouteM
     function handleDashboardAction(event: Event) {
       const message = (event as CustomEvent<string>).detail;
       if (message) {
-        setNotice(message);
-        setTimeout(() => setNotice(""), 5000);
+        toast.info(message);
       }
     }
     window.addEventListener("myshule-dashboard-action", handleDashboardAction);
@@ -642,14 +699,15 @@ export function GradeMasterCommandCenter({ routeMode }: { routeMode: GradeRouteM
   }, []);
 
   function openView(view: GradeView) {
-    setActiveView(view);
+    setActiveViewState(view);
+    const newPath = buildSchoolSectionHref("grade-master", view, routeMode ?? "hosted");
+    window.history.replaceState(null, "", newPath);
   }
 
   function openSearchRecord(record: GradeSearchRecord) {
-    setActiveView(record.view);
+    openView(record.view);
     setSearchTerm("");
-    setNotice(`Opened search result: ${record.label}`);
-    setTimeout(() => setNotice(""), 5000);
+    toast.success(`Opened search result: ${record.label}`);
   }
 
   return (
@@ -740,13 +798,6 @@ export function GradeMasterCommandCenter({ routeMode }: { routeMode: GradeRouteM
 
         {/* Content Area */}
         <div className="flex-1 overflow-y-auto p-4 lg:p-6">
-          {notice && (
-            <div className="mb-6 rounded-xl bg-blue-50 border border-blue-200 p-3 text-sm font-semibold text-blue-800 flex justify-between items-center">
-              {notice}
-              <button onClick={() => setNotice("")} className="text-blue-500 hover:text-blue-700"><X className="h-4 w-4" /></button>
-            </div>
-          )}
-
           {activeView === "overview" && <OverviewWorkspace onNavigate={openView} />}
           {activeView === "learners" && <LearnersWorkspace onSelectLearner={setSelectedLearner} />}
           {activeView === "streams" && <StreamsWorkspace />}

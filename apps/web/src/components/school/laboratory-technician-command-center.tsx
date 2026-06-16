@@ -26,6 +26,7 @@ import {
   X,
   type LucideIcon,
 } from "lucide-react";
+import { buildSchoolSectionHref } from "./school-pages";
 import { ApprovalInbox } from "@/components/shared/approval-inbox";
 import { NotificationBell } from "@/components/shared/notification-bell";
 import { TaskQueue } from "@/components/shared/task-queue";
@@ -369,8 +370,16 @@ function IssueReturnWorkspace() {
   );
 }
 
-export function LaboratoryTechnicianCommandCenter({ routeMode }: { routeMode?: RouteMode }) {
-  const [activeView, setActiveView] = useState<ViewId>("overview");
+export function LaboratoryTechnicianCommandCenter({ activeSection, routeMode }: { activeSection?: string; routeMode?: RouteMode }) {
+  const [activeViewState, setActiveViewState] = useState<any>(
+    activeSection && activeSection !== "dashboard" ? activeSection : "overview"
+  );
+
+  const setActiveView = (view: any) => {
+    setActiveViewState(view);
+    const newPath = buildSchoolSectionHref("laboratory-technician", view, routeMode ?? "hosted");
+    window.history.replaceState(null, "", newPath);
+  };
 
   return (
     <div className="flex min-h-screen bg-[#F3F6FA] font-sans">
@@ -392,7 +401,7 @@ export function LaboratoryTechnicianCommandCenter({ routeMode }: { routeMode?: R
                   onClick={() => setActiveView(item.id)}
                   className={cn(
                     "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-bold text-white/70 transition hover:bg-white/10 hover:text-white",
-                    activeView === item.id && "bg-white/15 text-white shadow-[inset_4px_0_0_#38BDF8]"
+                    activeViewState === item.id && "bg-white/15 text-white shadow-[inset_4px_0_0_#38BDF8]"
                   )}
                 >
                   <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
@@ -408,7 +417,7 @@ export function LaboratoryTechnicianCommandCenter({ routeMode }: { routeMode?: R
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
               <div className="grid h-10 w-10 place-items-center rounded-xl bg-[#071D49] text-xs font-black text-white shrink-0">LT</div>
-              <h1 className="text-lg font-black text-[#071D49] truncate">{navItems.find(i => i.id === activeView)?.label || "Dashboard"}</h1>
+              <h1 className="text-lg font-black text-[#071D49] truncate">{navItems.find(i => i.id === activeViewState)?.label || "Dashboard"}</h1>
             </div>
             <div className="flex items-center gap-3 shrink-0">
               <StatusChip label="Term 2 (2026)" tone="info" />
@@ -425,7 +434,7 @@ export function LaboratoryTechnicianCommandCenter({ routeMode }: { routeMode?: R
           <div className="mt-3 lg:hidden">
             <select
               className="h-10 w-full rounded-xl border border-[#D8E0EC] bg-white px-3 text-sm font-bold text-[#071D49] outline-none"
-              value={activeView}
+              value={activeViewState}
               onChange={(e) => setActiveView(e.target.value as ViewId)}
             >
               {navItems.map((item) => (
@@ -435,15 +444,15 @@ export function LaboratoryTechnicianCommandCenter({ routeMode }: { routeMode?: R
           </div>
         </header>
         <div className="flex-1 overflow-y-auto p-4 lg:p-6 space-y-6">
-          {activeView === "overview" && <OverviewWorkspace onNavigate={setActiveView} />}
-          {activeView === "requests" && <TeacherRequestsWorkspace onNavigate={setActiveView} />}
-          {activeView === "issue_return" && <IssueReturnWorkspace />}
+          {activeViewState === "overview" && <OverviewWorkspace onNavigate={setActiveView} />}
+          {activeViewState === "requests" && <TeacherRequestsWorkspace onNavigate={setActiveView} />}
+          {activeViewState === "issue_return" && <IssueReturnWorkspace />}
           {/* Dynamically render the rest with SimpleWorkspace */}
-          {!["overview", "requests", "issue_return"].includes(activeView) && (
+          {!["overview", "requests", "issue_return"].includes(activeViewState) && (
             <SimpleWorkspace 
-              title={navItems.find(i => i.id === activeView)?.label || ""} 
-              description={navItems.find(i => i.id === activeView)?.desc || ""} 
-              icon={navItems.find(i => i.id === activeView)?.icon || AlertTriangle} 
+              title={navItems.find(i => i.id === activeViewState)?.label || ""} 
+              description={navItems.find(i => i.id === activeViewState)?.desc || ""} 
+              icon={navItems.find(i => i.id === activeViewState)?.icon || AlertTriangle} 
             />
           )}
         </div>

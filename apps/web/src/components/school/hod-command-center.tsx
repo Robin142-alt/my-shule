@@ -40,6 +40,9 @@ import { useSchoolQuery } from "@/lib/data/school-hooks";
 import { usePermissions } from "@/components/providers/permission-context";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
+import { requestDashboardApi } from "@/lib/dashboard/api-client";
+import { buildSchoolSectionHref } from "./school-pages";
 
 type HodRouteMode = "hosted" | "public";
 type Tone = "success" | "info" | "warning" | "danger" | "neutral";
@@ -234,12 +237,32 @@ function MyTeachingWorkspace() {
 function DepartmentTeachersWorkspace() {
   const liveSession = useLiveTenantSession("school");
   const { data: staff, isLoading } = useSchoolQuery<any>("/api/hr/staff?department=academics", { enabled: !!liveSession.session });
+  const [isSubmitting, setIsSubmitting] = useState(false);
   
+  const handleAddTeacher = async () => {
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+    try {
+      const response = await requestDashboardApi("/api/academic/hod/requests", {
+        method: "POST",
+        body: JSON.stringify({ action: "add_teacher" })
+      });
+      if (response?.error) throw new Error(response.error);
+      toast.success("Teacher addition request sent.");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to send request.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const teachers = staff?.items || staff || [];
 
   return (
     <Panel title="Department Teachers" description="Manage and supervise teachers in the department." icon={Users} actions={
-      <button className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white">Add Teacher to Dept</button>
+      <button onClick={handleAddTeacher} disabled={isSubmitting} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white">
+        {isSubmitting ? "Sending..." : "Add Teacher to Dept"}
+      </button>
     }>
       {isLoading ? (
         <p className="text-sm text-slate-500">Loading teachers...</p>
@@ -286,6 +309,26 @@ function SubjectAllocationWorkspace() {
   const { data: assignments, isLoading } = useSchoolQuery<any[]>("/api/academics/teacher-assignments", { enabled: !!liveSession.session });
   const { hasPermission } = usePermissions();
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+    try {
+      const response = await requestDashboardApi("/api/academic/hod/subject-allocation", {
+        method: "POST",
+        body: JSON.stringify({ action: "allocate_subject" })
+      });
+      if (response?.error) throw new Error(response.error);
+      toast.success("Subject allocated successfully.");
+      setIsModalOpen(false);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to allocate subject.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <>
@@ -330,7 +373,7 @@ function SubjectAllocationWorkspace() {
       )}
     </Panel>
       <Modal open={isModalOpen} onClose={() => setIsModalOpen(false)} title="Assign Teacher Duties">
-        <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); setIsModalOpen(false); }}>
+        <form className="space-y-4" onSubmit={handleSubmit}>
           <div>
             <label className="text-sm font-bold text-[#071D49]">Teacher</label>
             <select className="w-full rounded-lg border border-[#D8E0EC] p-2">
@@ -351,7 +394,9 @@ function SubjectAllocationWorkspace() {
           </div>
           <div className="flex justify-end gap-2">
             <Button type="button" variant="outline" onClick={() => setIsModalOpen(false)}>Cancel</Button>
-            <Button type="submit">Save Assignment</Button>
+            <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting ? "Saving..." : "Save Assignment"}
+            </Button>
           </div>
         </form>
       </Modal>
@@ -361,7 +406,27 @@ function SubjectAllocationWorkspace() {
 
 function DepartmentMeetingsWorkspace() {
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const { hasPermission } = usePermissions();
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+    try {
+      const response = await requestDashboardApi("/api/academic/hod/department-meetings", {
+        method: "POST",
+        body: JSON.stringify({ action: "log_meeting" })
+      });
+      if (response?.error) throw new Error(response.error);
+      toast.success("Meeting logged successfully.");
+      setIsModalOpen(false);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to log meeting.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <>
@@ -377,7 +442,7 @@ function DepartmentMeetingsWorkspace() {
         </div>
       </Panel>
       <Modal open={isModalOpen} onClose={() => setIsModalOpen(false)} title="Log Department Meeting">
-        <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); setIsModalOpen(false); }}>
+        <form className="space-y-4" onSubmit={handleSubmit}>
           <div>
             <label className="text-sm font-bold text-[#071D49]">Meeting Title</label>
             <input required type="text" className="w-full rounded-lg border border-[#D8E0EC] p-2" placeholder="e.g. End of Term Review" />
@@ -392,7 +457,9 @@ function DepartmentMeetingsWorkspace() {
           </div>
           <div className="flex justify-end gap-2">
             <Button type="button" variant="outline" onClick={() => setIsModalOpen(false)}>Cancel</Button>
-            <Button type="submit">Save Meeting</Button>
+            <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting ? "Saving..." : "Save Meeting"}
+            </Button>
           </div>
         </form>
       </Modal>
@@ -403,12 +470,52 @@ function DepartmentMeetingsWorkspace() {
 function OverviewWorkspace() {
   const liveSession = useLiveTenantSession("school");
   const { data: summary, isLoading } = useSchoolQuery<any>("/api/academics/summary", { enabled: !!liveSession.session });
+  const [isSubmittingReport, setIsSubmittingReport] = useState(false);
+  const [isSubmittingUpdate, setIsSubmittingUpdate] = useState(false);
+
+  const handleNewReport = async () => {
+    if (isSubmittingReport) return;
+    setIsSubmittingReport(true);
+    try {
+      const response = await requestDashboardApi("/api/academic/hod/requests", {
+        method: "POST",
+        body: JSON.stringify({ action: "new_report" })
+      });
+      if (response?.error) throw new Error(response.error);
+      toast.success("Report generated successfully.");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to generate report.");
+    } finally {
+      setIsSubmittingReport(false);
+    }
+  };
+
+  const handleWeeklyUpdate = async () => {
+    if (isSubmittingUpdate) return;
+    setIsSubmittingUpdate(true);
+    try {
+      const response = await requestDashboardApi("/api/academic/hod/requests", {
+        method: "POST",
+        body: JSON.stringify({ action: "weekly_update" })
+      });
+      if (response?.error) throw new Error(response.error);
+      toast.success("Weekly update submitted successfully.");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to submit update.");
+    } finally {
+      setIsSubmittingUpdate(false);
+    }
+  };
 
   return (
     <Panel title="Overview" description="Live command center for department health." icon={Home} actions={
       <div className="flex gap-2">
-        <button className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white">New Department Report</button>
-        <button className="rounded-lg border border-[#D8E0EC] px-4 py-2 text-sm font-black text-[#071D49]">Submit Weekly Update</button>
+        <button onClick={handleNewReport} disabled={isSubmittingReport} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white">
+          {isSubmittingReport ? "Generating..." : "New Department Report"}
+        </button>
+        <button onClick={handleWeeklyUpdate} disabled={isSubmittingUpdate} className="rounded-lg border border-[#D8E0EC] px-4 py-2 text-sm font-black text-[#071D49]">
+          {isSubmittingUpdate ? "Submitting..." : "Submit Weekly Update"}
+        </button>
       </div>
     }>
       <div className="grid gap-4 md:grid-cols-4">
@@ -433,14 +540,19 @@ function OverviewWorkspace() {
   );
 }
 
-export function HodCommandCenter({ routeMode = "hosted" }: { routeMode?: HodRouteMode }) {
-  const [activeView, setActiveView] = useState<HodView>("overview");
+export function HodCommandCenter({ activeSection, routeMode = "hosted" }: { activeSection?: string; routeMode?: HodRouteMode }) {
+  const [activeViewState, setActiveViewState] = useState<HodView>(
+    (activeSection && activeSection !== "dashboard" ? activeSection : "overview") as HodView
+  );
+  const activeView = activeViewState;
   const [searchTerm, setSearchTerm] = useState("");
   const [notice, setNotice] = useState("");
 
   function openView(view: HodView) {
-    setActiveView(view);
+    setActiveViewState(view);
     setNotice("");
+    const newPath = buildSchoolSectionHref("hod", view, routeMode ?? "hosted");
+    window.history.replaceState(null, "", newPath);
   }
 
   return (

@@ -19,16 +19,37 @@ function Panel({ title, description, children, actions }: { title: string; descr
   );
 }
 
+import { requestDashboardApi } from "@/lib/dashboard/api-client";
+import { toast } from "sonner";
+
 export function IssueItemModal({ onClose }: { onClose: () => void }) {
   const [submitting, setSubmitting] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const form = e.target as HTMLFormElement;
+    const formData = new FormData(form);
+    const itemName = formData.get("itemName") as string;
+    const quantity = formData.get("quantity") as string;
+    const department = formData.get("department") as string;
+
     setSubmitting(true);
-    setTimeout(() => {
-      setSubmitting(false);
+    try {
+      await requestDashboardApi("/api/admin-command/inventory/issue", {
+        method: "POST",
+        body: JSON.stringify({
+          itemName,
+          quantity: Number(quantity),
+          department,
+        }),
+      });
+      toast.success("Item issued successfully");
       onClose();
-    }, 1000);
+    } catch (error) {
+      toast.error("Failed to issue item");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -36,7 +57,7 @@ export function IssueItemModal({ onClose }: { onClose: () => void }) {
       <form onSubmit={handleSubmit} className="p-6 space-y-4">
         <div>
           <label className="block text-sm font-bold text-[#071D49] mb-1">Item Name</label>
-          <select required className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]">
+          <select name="itemName" required className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]">
             <option value="">Select item...</option>
             <option value="chalk">White Chalk (Boxes)</option>
             <option value="paper">A4 Paper (Reams)</option>
@@ -45,11 +66,11 @@ export function IssueItemModal({ onClose }: { onClose: () => void }) {
         </div>
         <div>
           <label className="block text-sm font-bold text-[#071D49] mb-1">Quantity to Issue</label>
-          <input required type="number" min="1" className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="0" />
+          <input name="quantity" required type="number" min="1" className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="0" />
         </div>
         <div>
           <label className="block text-sm font-bold text-[#071D49] mb-1">Issued To / Department</label>
-          <input required type="text" className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="e.g. Science Department" />
+          <input name="department" required type="text" className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="e.g. Science Department" />
         </div>
         <div className="mt-6 flex justify-end gap-3 pt-4 border-t border-[#D8E0EC]">
           <button type="button" onClick={onClose} className="rounded-xl px-4 py-2 text-sm font-bold text-[#64748B]">Cancel</button>

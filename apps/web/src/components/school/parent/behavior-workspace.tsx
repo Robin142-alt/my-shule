@@ -3,7 +3,10 @@
 import { Award, AlertTriangle, TrendingUp, User, ShieldAlert, CheckCircle } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { useSchoolQuery, useSchoolMutation } from "@/lib/data/school-hooks";
+import { useSchoolQuery } from "@/lib/data/school-hooks";
+import { useState } from "react";
+import { toast } from "sonner";
+import { requestDashboardApi } from "@/lib/dashboard/api-client";
 
 export function BehaviorWorkspace() {
   // Use the parent incidents endpoint 
@@ -19,21 +22,22 @@ export function BehaviorWorkspace() {
   const commendations = incidents.filter((i: any) => i.severity === 'commendation' || i.title?.toLowerCase().includes('commendation'));
   const infractions = incidents.filter((i: any) => i.severity !== 'commendation' && !i.title?.toLowerCase().includes('commendation'));
 
-  const ackMutation = useSchoolMutation(
-    (vars: { incidentId: string }) => `/api/discipline/parent/incidents/${vars.incidentId}/acknowledge`,
-    "POST",
-    {
-      onSuccess: () => {
-        refetch();
-        alert('Incident Acknowledged');
-      }
-    }
-  );
+  const [isSubmitting, setIsSubmitting] = useState<string | null>(null);
 
-  const handleAcknowledge = (id: string) => {
-    // Ideally we'd map this ID to a real acknowledgment endpoint on the backend.
-    // For now it posts to the actual API but the backend might not have the handler wired up completely.
-    ackMutation.mutate({ incidentId: id });
+  const handleAcknowledge = async (id: string) => {
+    setIsSubmitting(id);
+    try {
+      await requestDashboardApi(`/api/parent-portal/behavior/acknowledge`, {
+        method: "POST",
+        body: JSON.stringify({ incidentId: id }),
+      });
+      toast.success('Incident Acknowledged');
+      refetch();
+    } catch (error) {
+      toast.error('Failed to acknowledge incident');
+    } finally {
+      setIsSubmitting(null);
+    }
   };
 
   return (
@@ -98,9 +102,9 @@ export function BehaviorWorkspace() {
                       variant="outline" 
                       className="w-full gap-2 mt-2" 
                       onClick={() => handleAcknowledge(item.id)}
-                      disabled={ackMutation.isPending}
+                      disabled={isSubmitting === item.id}
                     >
-                      <CheckCircle className="w-4 h-4" /> {ackMutation.isPending ? 'Acknowledging...' : 'Acknowledge Notice'}
+                      <CheckCircle className="w-4 h-4" /> {isSubmitting === item.id ? 'Acknowledging...' : 'Acknowledge Notice'}
                     </Button>
                   </div>
                ))

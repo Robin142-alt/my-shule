@@ -1,10 +1,13 @@
 // @ts-nocheck
 "use client";
 
+import { useState } from "react";
 import { Download, BookOpen, Clock, CheckCircle, FileText } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { useSchoolQuery, useSchoolMutation } from "@/lib/data/school-hooks";
+import { useSchoolQuery } from "@/lib/data/school-hooks";
+import { requestDashboardApi } from "@/lib/dashboard/api-client";
+import { toast } from "sonner";
 
 export function AcademicsWorkspace() {
   // Fetch real data from the backend
@@ -14,15 +17,27 @@ export function AcademicsWorkspace() {
   const activeAssignments = Array.isArray(assignments) ? assignments : [];
   const publishedReports = Array.isArray(reportCards) ? reportCards.slice(0, 3) : [];
 
-  const markDoneMutation = useSchoolMutation({
-    // Hit the endpoint to mark assignment done
-    endpoint: '/api/academics/assignments', 
-    method: 'PATCH',
-    onSuccess: () => {
-      refetchAssign();
-      alert('Marked as done!');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleMarkDone = async (id: number) => {
+    try {
+      setIsSubmitting(true);
+      const res = await requestDashboardApi("/api/student-portal/assignments/mark-done", {
+        method: "POST",
+        body: JSON.stringify({ id, status: 'completed' })
+      });
+      if (res.success) {
+        toast.success("Assignment marked as done!");
+        refetchAssign();
+      } else {
+        toast.error(res.error || "Failed to mark assignment as done");
+      }
+    } catch (err: any) {
+      toast.error(err.message || "An error occurred");
+    } finally {
+      setIsSubmitting(false);
     }
-  });
+  };
 
   return (
     <div className="space-y-6">
@@ -65,8 +80,8 @@ export function AcademicsWorkspace() {
                     <Button 
                       variant="outline" 
                       className="gap-2 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 border-emerald-200"
-                      onClick={() => markDoneMutation.mutate({ id: task.id, status: 'completed' })}
-                      disabled={markDoneMutation.isPending}
+                      onClick={() => handleMarkDone(task.id)}
+                      disabled={isSubmitting}
                     >
                       <CheckCircle className="w-4 h-4" /> Mark Done
                     </Button>

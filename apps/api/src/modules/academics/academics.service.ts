@@ -112,6 +112,23 @@ export class AcademicsService {
 
   async assignTeacher(dto: AssignTeacherDto) {
     const tenantId = this.requireTenantId();
+    
+    // Check for overlap
+    const existing = await this.repository.executeSql(
+      tenantId,
+      `SELECT id FROM teacher_subject_assignments 
+       WHERE tenant_id = $1 
+         AND academic_term_id = $2::uuid 
+         AND class_section_id = $3::uuid 
+         AND subject_id = $4::uuid
+         AND is_active = true`,
+      [tenantId, dto.academic_term_id, dto.class_section_id, dto.subject_id]
+    );
+
+    if (existing.rows.length > 0) {
+      throw new BadRequestException('A teacher is already assigned to this subject for this class in this term.');
+    }
+
     const assignment = await this.repository.createTeacherAssignment({
       tenant_id: tenantId,
       created_by_user_id: this.currentUserId(),

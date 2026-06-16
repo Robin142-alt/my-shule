@@ -5,6 +5,8 @@ import { Panel, StatusChip, Tone } from "./shared";
 import { Modal } from "@/components/ui/modal";
 import { useSchoolQuery, useSchoolMutation } from "@/lib/data/school-hooks";
 import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { createDisciplineIncident, escalateDisciplineIncident } from "./api-client";
 
 export type DisciplineIncident = {
   id: string;
@@ -24,43 +26,37 @@ type DisciplineIncidentDraft = {
 export function DeputyDisciplineWorkspace() {
   const [showModal, setShowModal] = useState(false);
   const [formData, setFormData] = useState<DisciplineIncidentDraft>({ studentName: "", incidentType: "", severity: "High" });
+  const [isSubmittingCreate, setIsSubmittingCreate] = useState(false);
 
   const queryClient = useQueryClient();
   const { data: incidents = [], isLoading } = useSchoolQuery<DisciplineIncident[]>('/admin-command/deputy/discipline');
   
-  const createMutation = useSchoolMutation<DisciplineIncident, DisciplineIncidentDraft>(
-    '/admin-command/deputy/discipline',
-    'POST',
-    {
-      onSuccess: () => queryClient.invalidateQueries({ queryKey: ["school", "session", '/admin-command/deputy/discipline'] })
-    }
-  );
-  
-  const escalateMutation = useSchoolMutation<{ id: string }, { id: string }>(
-    ({ id }) => `/admin-command/deputy/discipline/${id}/escalate`,
-    'POST',
-    {
-      onSuccess: () => queryClient.invalidateQueries({ queryKey: ["school", "session", '/admin-command/deputy/discipline'] })
-    }
-  );
-
   const handleCreate = async () => {
-    await createMutation.mutateAsync({
-      studentName: formData.studentName,
-      incidentType: formData.incidentType,
-      severity: formData.severity,
-    });
-    setShowModal(false);
-    setFormData({ studentName: "", incidentType: "", severity: "High" });
-    alert("Incident logged successfully.");
+    setIsSubmittingCreate(true);
+    try {
+      await createDisciplineIncident({
+        studentName: formData.studentName,
+        incidentType: formData.incidentType,
+        severity: formData.severity,
+      });
+      setShowModal(false);
+      setFormData({ studentName: "", incidentType: "", severity: "High" });
+      queryClient.invalidateQueries({ queryKey: ["school", "session", '/admin-command/deputy/discipline'] });
+      toast.success("Incident logged successfully.");
+    } catch (error: any) {
+      toast.error(error.message || "Failed to log incident.");
+    } finally {
+      setIsSubmittingCreate(false);
+    }
   };
 
   const handleEscalate = async (id: string, caseNo: string) => {
     try {
-      await escalateMutation.mutateAsync({ id });
-      alert(`Case ${caseNo} escalated to Principal.`);
-    } catch (e) {
-      alert("Failed to escalate case.");
+      await escalateDisciplineIncident(id);
+      queryClient.invalidateQueries({ queryKey: ["school", "session", '/admin-command/deputy/discipline'] });
+      toast.success(`Case ${caseNo} escalated to Principal.`);
+    } catch (e: any) {
+      toast.error(e.message || "Failed to escalate case.");
     }
   };
 
@@ -129,9 +125,9 @@ export function DeputyDisciplineWorkspace() {
 
       <Modal open={showModal} onClose={() => setShowModal(false)} title="Log New Incident" footer={
         <>
-          <button disabled={createMutation.isPending} onClick={() => setShowModal(false)} className="rounded-lg px-4 py-2 text-sm font-bold text-[#64748B] hover:bg-slate-100">Cancel</button>
-          <button disabled={createMutation.isPending || !formData.studentName} onClick={handleCreate} className="rounded-lg bg-rose-600 px-4 py-2 text-sm font-black text-white hover:bg-rose-700 disabled:opacity-50">
-            {createMutation.isPending ? "Saving..." : "Save Incident"}
+          <button disabled={isSubmittingCreate} onClick={() => setShowModal(false)} className="rounded-lg px-4 py-2 text-sm font-bold text-[#64748B] hover:bg-slate-100">Cancel</button>
+          <button disabled={isSubmittingCreate || !formData.studentName} onClick={handleCreate} className="rounded-lg bg-rose-600 px-4 py-2 text-sm font-black text-white hover:bg-rose-700 disabled:opacity-50">
+            {isSubmittingCreate ? "Saving..." : "Save Incident"}
           </button>
         </>
       }>

@@ -32,10 +32,13 @@ import {
 
 import { useSchoolQuery, useSchoolMutation } from "@/lib/data/school-hooks";
 import { getCurrentSchoolId, publishSchoolOperationalEvent } from "@/lib/school/school-operational-store";
+import { requestDashboardApi } from "@/lib/dashboard/api-client";
+import { toast } from "sonner";
 import { ApprovalInbox } from "@/components/shared/approval-inbox";
 import { NotificationBell } from "@/components/shared/notification-bell";
 import { TaskQueue } from "@/components/shared/task-queue";
 import { WorkflowToast } from "@/components/shared/workflow-toast";
+import { buildSchoolSectionHref } from "./school-pages";
 
 type RouteMode = "hosted" | "public";
 type Tone = "success" | "info" | "warning" | "danger" | "neutral";
@@ -326,6 +329,24 @@ function DormsWorkspace() {
 
 function BedsWorkspace() {
   const { data: dashboard, isLoading } = useSchoolQuery<any>("/api/boarding/dashboard");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleAssignBed = async (studentId?: string, bedId?: string) => {
+    setIsSubmitting(true);
+    try {
+      const res = await requestDashboardApi("/api/admin-command/boarding/assign-bed", {
+        method: "POST",
+        body: JSON.stringify({ student_id: studentId || "auto", bed_id: bedId || "auto" }),
+      });
+      if (!res.ok) throw new Error("Failed to assign bed");
+      toast.success("Bed assigned successfully");
+      publishSchoolOperationalEvent("dashboard.refresh");
+    } catch (e: any) {
+      toast.error(e.message || "Failed to assign bed");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <Panel title="Bed Allocation" description="Assign, change, transfer, and release beds." icon={BedDouble}>
@@ -335,7 +356,7 @@ function BedsWorkspace() {
            <DataTable 
              columns={["Student", "Status", "Action"]}
              rows={(dashboard?.records || []).filter((r: any) => r.status !== 'active').map((r: any) => [
-               r.title, r.status, <button key="a1" className="text-[#1D4ED8] font-bold text-xs">Allocate</button>
+               r.title, r.status, <button key="a1" onClick={() => handleAssignBed(r.id, undefined)} disabled={isSubmitting} className="text-[#1D4ED8] font-bold text-xs disabled:opacity-50">Allocate</button>
              ])}
            />
         </div>
@@ -344,7 +365,7 @@ function BedsWorkspace() {
            <DataTable 
              columns={["Dorm", "Room", "Bed No.", "Action"]}
              rows={(dashboard?.records || []).filter((r: any) => r.category === 'bed').map((r: any) => [
-               r.owner_name || "-", "-", r.title, <button key="a1" className="text-[#1D4ED8] font-bold text-xs">Assign Bed</button>
+               r.owner_name || "-", "-", r.title, <button key="a1" onClick={() => handleAssignBed(undefined, r.id)} disabled={isSubmitting} className="text-[#1D4ED8] font-bold text-xs disabled:opacity-50">Assign Bed</button>
              ])}
            />
         </div>
@@ -355,11 +376,31 @@ function BedsWorkspace() {
 
 function RollCallWorkspace() {
   const { data: dashboard } = useSchoolQuery<any>("/api/boarding/dashboard");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleRollCall = async (studentId?: string) => {
+    setIsSubmitting(true);
+    try {
+      const res = await requestDashboardApi("/api/admin-command/boarding/roll-call", {
+        method: "POST",
+        body: JSON.stringify(studentId ? { student_id: studentId, status: "present" } : { action: "start_roll_call" }),
+      });
+      if (!res.ok) throw new Error("Failed to process roll call");
+      toast.success(studentId ? "Roll call marked" : "Roll call started");
+      publishSchoolOperationalEvent("dashboard.refresh");
+    } catch (e: any) {
+      toast.error(e.message || "Failed to process roll call");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <Panel title="Daily Roll Call" description="Confirm that every boarder is accounted for." icon={ClipboardList}>
       <div className="mb-4 flex gap-2">
-           <button className="rounded-xl bg-[#071D49] px-3 py-2 text-sm font-black text-white">Start Roll Call</button>
+           <button onClick={() => handleRollCall()} disabled={isSubmitting} className="rounded-xl bg-[#071D49] px-3 py-2 text-sm font-black text-white disabled:opacity-50">
+             {isSubmitting ? "Starting..." : "Start Roll Call"}
+           </button>
            <button className="rounded-xl border border-[#D8E0EC] px-3 py-2 text-sm font-black text-[#071D49]">Print Missing List</button>
       </div>
       <DataTable 
@@ -369,11 +410,11 @@ function RollCallWorkspace() {
           ? (dashboard?.records || []).filter((r: any) => r.category === 'student').map((r: any) => [
               r.title, r.metadata?.adm || "-", r.metadata?.dorm || "-", r.metadata?.room || "-", r.metadata?.bed || "-",
               <StatusChip key="s1" label={r.status === 'active' ? "Present" : "Missing"} tone={r.status === 'active' ? "success" : "danger"}/>,
-              <button key="a1" className="text-[#1D4ED8] font-bold text-xs">Edit Status</button>
+              <button key="a1" onClick={() => handleRollCall(r.id)} disabled={isSubmitting} className="text-[#1D4ED8] font-bold text-xs disabled:opacity-50">Edit Status</button>
             ])
           : [
-            ["Brian Otieno", "2451", "St. Joseph", "1A", "B12", <StatusChip key="s1" label="Present" tone="success"/>, <button key="a1" className="text-[#1D4ED8] font-bold text-xs">Edit Status</button>],
-            ["John Doe", "2211", "St. Paul", "2B", "C10", <StatusChip key="s2" label="Not Marked" tone="danger"/>, <button key="a2" className="text-[#1D4ED8] font-bold text-xs">Mark Now</button>],
+            ["Brian Otieno", "2451", "St. Joseph", "1A", "B12", <StatusChip key="s1" label="Present" tone="success"/>, <button key="a1" onClick={() => handleRollCall("brian")} disabled={isSubmitting} className="text-[#1D4ED8] font-bold text-xs disabled:opacity-50">Edit Status</button>],
+            ["John Doe", "2211", "St. Paul", "2B", "C10", <StatusChip key="s2" label="Not Marked" tone="danger"/>, <button key="a2" onClick={() => handleRollCall("john")} disabled={isSubmitting} className="text-[#1D4ED8] font-bold text-xs disabled:opacity-50">Mark Now</button>],
           ]
         }
       />
@@ -425,11 +466,31 @@ function DutyWorkspace() {
 
 function IncidentsWorkspace() {
   const { data: dashboard } = useSchoolQuery<any>("/api/boarding/dashboard");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleLogIncident = async (incidentId?: string) => {
+    setIsSubmitting(true);
+    try {
+      const res = await requestDashboardApi("/api/admin-command/boarding/incidents", {
+        method: "POST",
+        body: JSON.stringify(incidentId ? { action: "escalate", incident_id: incidentId } : { action: "log_incident", type: "noise" }),
+      });
+      if (!res.ok) throw new Error("Failed to process incident");
+      toast.success(incidentId ? "Incident escalated" : "Incident logged");
+      publishSchoolOperationalEvent("dashboard.refresh");
+    } catch (e: any) {
+      toast.error(e.message || "Failed to process incident");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <Panel title="Dorm Incidents" description="Log boarding-related incidents in hostels or dormitories." icon={ShieldAlert}>
        <div className="mb-4 flex gap-2">
-           <button className="rounded-xl bg-rose-50 text-rose-700 border border-rose-200 px-3 py-2 text-sm font-black">Log Incident</button>
+           <button onClick={() => handleLogIncident()} disabled={isSubmitting} className="rounded-xl bg-rose-50 text-rose-700 border border-rose-200 px-3 py-2 text-sm font-black disabled:opacity-50">
+             {isSubmitting ? "Logging..." : "Log Incident"}
+           </button>
        </div>
        <DataTable 
         columns={["Ref", "Student(s)", "Dorm", "Type", "Severity", "Status", "Actions"]}
@@ -439,10 +500,10 @@ function IncidentsWorkspace() {
               `#${r.id.substring(0, 4)}`, r.title, r.owner_name || "-", r.metadata?.type || "-",
               <StatusChip key="s1" label={r.priority} tone={r.priority === 'critical' ? 'danger' : 'warning'}/>,
               r.status,
-              <button key="a1" className="text-[#1D4ED8] font-bold text-xs">Escalate</button>
+              <button key="a1" onClick={() => handleLogIncident(r.id)} disabled={isSubmitting} className="text-[#1D4ED8] font-bold text-xs disabled:opacity-50">Escalate</button>
             ])
           : [
-            ["#1042", "Peter Otieno", "St. Joseph", "Noise", <StatusChip key="s1" label="Medium" tone="warning"/>, "Open", <button key="a1" className="text-[#1D4ED8] font-bold text-xs">Escalate</button>],
+            ["#1042", "Peter Otieno", "St. Joseph", "Noise", <StatusChip key="s1" label="Medium" tone="warning"/>, "Open", <button key="a1" onClick={() => handleLogIncident("1042")} disabled={isSubmitting} className="text-[#1D4ED8] font-bold text-xs disabled:opacity-50">Escalate</button>],
           ]
         }
       />
@@ -591,10 +652,11 @@ function SettingsWorkspace() {
 
 // Simple Layout Components
 
-export function BoardingMasterCommandCenter({ routeMode }: { routeMode: RouteMode }) {
-  const [activeView, setActiveView] = useState<ViewId>("overview");
+export function BoardingMasterCommandCenter({ routeMode, activeSection }: { routeMode: RouteMode; activeSection?: string }) {
+  const [activeView, setActiveView] = useState<ViewId>(
+    (activeSection && activeSection !== "dashboard" ? activeSection : "overview") as ViewId
+  );
   const [searchTerm, setSearchTerm] = useState("");
-  const [notice, setNotice] = useState("");
 
   const searchResults = searchTerm.trim()
     ? searchRecords.filter((record) => `${record.label} ${record.detail}`.toLowerCase().includes(searchTerm.toLowerCase()))
@@ -604,8 +666,7 @@ export function BoardingMasterCommandCenter({ routeMode }: { routeMode: RouteMod
     function handleDashboardAction(event: Event) {
       const message = (event as CustomEvent<string>).detail;
       if (message) {
-        setNotice(message);
-        setTimeout(() => setNotice(""), 5000);
+        toast.info(message);
       }
     }
     window.addEventListener("myshule-dashboard-action", handleDashboardAction);
@@ -614,13 +675,14 @@ export function BoardingMasterCommandCenter({ routeMode }: { routeMode: RouteMod
 
   function openView(view: ViewId) {
     setActiveView(view);
+    window.history.replaceState(null, "", buildSchoolSectionHref("boarding-master", view, routeMode ?? "hosted"));
   }
 
   function openSearchRecord(record: SearchRecord) {
     setActiveView(record.view);
+    window.history.replaceState(null, "", buildSchoolSectionHref("boarding-master", record.view, routeMode ?? "hosted"));
     setSearchTerm("");
-    setNotice(`Opened search result: ${record.label}`);
-    setTimeout(() => setNotice(""), 5000);
+    toast.success(`Opened search result: ${record.label}`);
   }
 
   return (
@@ -713,13 +775,6 @@ export function BoardingMasterCommandCenter({ routeMode }: { routeMode: RouteMod
 
         {/* Content Area */}
         <div className="flex-1 overflow-y-auto p-4 lg:p-6">
-          {notice && (
-            <div className="mb-6 rounded-xl bg-blue-50 border border-blue-200 p-3 text-sm font-semibold text-blue-800 flex justify-between items-center">
-              {notice}
-              <button onClick={() => setNotice("")} className="text-blue-500 hover:text-blue-700"><X className="h-4 w-4" /></button>
-            </div>
-          )}
-
           {activeView === "overview" && <OverviewWorkspace onNavigate={openView} />}
           {activeView === "register" && <RegisterWorkspace />}
           {activeView === "dorms" && <DormsWorkspace />}

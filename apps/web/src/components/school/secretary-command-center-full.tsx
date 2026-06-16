@@ -44,15 +44,18 @@ import {
   type LucideIcon,
   Loader2,
 } from "lucide-react";
+import { toast } from "sonner";
 
 import {
   getCurrentSchoolId,
   publishSchoolOperationalEvent,
 } from "@/lib/school/school-operational-store";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
+import { requestDashboardApi } from "@/lib/dashboard/api-client";
 import { usePermissions } from "@/components/providers/permission-context";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
+import { buildSchoolSectionHref } from "./school-pages";
 
 // ==========================================
 // TYPES AND CONSTANTS
@@ -409,32 +412,55 @@ function StudentLookupWorkspace({ onNavigate }: { onNavigate: (v: SecretaryView)
   );
 }
 
-function LogVisitorModal({ onClose }: { onClose: () => void }) {
-  const [submitting, setSubmitting] = useState(false);
-  const handleSubmit = (e: React.FormEvent) => {
+function LogVisitorModal({ onClose, onSuccess }: { onClose: () => void, onSuccess?: () => void }) {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    setSubmitting(true);
-    setTimeout(() => { setSubmitting(false); onClose(); }, 1000);
+    setIsSubmitting(true);
+    setError(null);
+    const formData = new FormData(e.currentTarget);
+    try {
+      await requestDashboardApi("/api/admin-command/frontoffice/visitors", {
+        method: "POST",
+        body: JSON.stringify({
+          name: formData.get("name"),
+          host: formData.get("host"),
+          purpose: formData.get("purpose"),
+        })
+      });
+      toast.success("Visitor logged successfully");
+      if (onSuccess) onSuccess();
+      onClose();
+    } catch (err: any) {
+      const msg = err.message || "Failed to log visitor";
+      setError(msg);
+      toast.error(msg);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
   return (
     <Modal title="New Visitor Sign-In" open={true} onClose={onClose} size="md">
       <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        {error && <div className="p-3 text-sm text-rose-700 bg-rose-50 rounded-xl">{error}</div>}
         <div>
           <label className="block text-sm font-bold text-[#071D49] mb-1">Visitor Name</label>
-          <input required type="text" className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Full name" />
+          <input name="name" required type="text" className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Full name" />
         </div>
         <div>
           <label className="block text-sm font-bold text-[#071D49] mb-1">Host / Person to see</label>
-          <input required type="text" className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Staff name" />
+          <input name="host" required type="text" className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Staff name" />
         </div>
         <div>
           <label className="block text-sm font-bold text-[#071D49] mb-1">Purpose of Visit</label>
-          <textarea required rows={3} className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]"></textarea>
+          <textarea name="purpose" required rows={3} className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]"></textarea>
         </div>
         <div className="mt-6 flex justify-end gap-3 pt-4 border-t border-[#D8E0EC]">
           <button type="button" onClick={onClose} className="rounded-xl px-4 py-2 text-sm font-bold text-[#64748B]">Cancel</button>
-          <button disabled={submitting} type="submit" className="rounded-xl bg-[#071D49] px-6 py-2 text-sm font-black text-white">
-            {submitting ? "Signing In..." : "Sign In"}
+          <button disabled={isSubmitting} type="submit" className="rounded-xl bg-[#071D49] px-6 py-2 text-sm font-black text-white">
+            {isSubmitting ? "Signing In..." : "Sign In"}
           </button>
         </div>
       </form>
@@ -443,7 +469,7 @@ function LogVisitorModal({ onClose }: { onClose: () => void }) {
 }
 
 function VisitorRegisterWorkspace({ onNavigate }: { onNavigate: (v: SecretaryView) => void }) {
-  const { data: rawData, isLoading: loading, error } = useSchoolQuery<any[]>("/api/visitors/logs");
+  const { data: rawData, isLoading: loading, error, refetch } = useSchoolQuery<any[]>("/api/visitors/logs");
   const data = rawData || [];
   const { hasPermission } = usePermissions();
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -466,7 +492,7 @@ function VisitorRegisterWorkspace({ onNavigate }: { onNavigate: (v: SecretaryVie
           emptyIcon={ClipboardList}
         />
       </Panel>
-      {isModalOpen && <LogVisitorModal onClose={() => setIsModalOpen(false)} />}
+      {isModalOpen && <LogVisitorModal onClose={() => setIsModalOpen(false)} onSuccess={() => refetch()} />}
     </>
   );
 }
@@ -489,38 +515,62 @@ function CallsLogWorkspace({ onNavigate }: { onNavigate: (v: SecretaryView) => v
   );
 }
 
-function ScheduleAppointmentModal({ onClose }: { onClose: () => void }) {
-  const [submitting, setSubmitting] = useState(false);
-  const handleSubmit = (e: React.FormEvent) => {
+function ScheduleAppointmentModal({ onClose, onSuccess }: { onClose: () => void, onSuccess?: () => void }) {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    setSubmitting(true);
-    setTimeout(() => { setSubmitting(false); onClose(); }, 1000);
+    setIsSubmitting(true);
+    setError(null);
+    const formData = new FormData(e.currentTarget);
+    try {
+      await requestDashboardApi("/api/admin-command/frontoffice/appointments", {
+        method: "POST",
+        body: JSON.stringify({
+          visitorName: formData.get("visitorName"),
+          date: formData.get("date"),
+          time: formData.get("time"),
+          host: formData.get("host"),
+        })
+      });
+      toast.success("Appointment scheduled successfully");
+      if (onSuccess) onSuccess();
+      onClose();
+    } catch (err: any) {
+      const msg = err.message || "Failed to schedule appointment";
+      setError(msg);
+      toast.error(msg);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
   return (
     <Modal title="Schedule Appointment" open={true} onClose={onClose} size="md">
       <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        {error && <div className="p-3 text-sm text-rose-700 bg-rose-50 rounded-xl">{error}</div>}
         <div>
           <label className="block text-sm font-bold text-[#071D49] mb-1">Visitor/Parent Name</label>
-          <input required type="text" className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Full name" />
+          <input name="visitorName" required type="text" className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Full name" />
         </div>
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-bold text-[#071D49] mb-1">Date</label>
-            <input required type="date" className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" />
+            <input name="date" required type="date" className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" />
           </div>
           <div>
             <label className="block text-sm font-bold text-[#071D49] mb-1">Time</label>
-            <input required type="time" className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" />
+            <input name="time" required type="time" className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" />
           </div>
         </div>
         <div>
           <label className="block text-sm font-bold text-[#071D49] mb-1">Host Staff</label>
-          <input required type="text" className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Staff name" />
+          <input name="host" required type="text" className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Staff name" />
         </div>
         <div className="mt-6 flex justify-end gap-3 pt-4 border-t border-[#D8E0EC]">
           <button type="button" onClick={onClose} className="rounded-xl px-4 py-2 text-sm font-bold text-[#64748B]">Cancel</button>
-          <button disabled={submitting} type="submit" className="rounded-xl bg-[#071D49] px-6 py-2 text-sm font-black text-white">
-            {submitting ? "Saving..." : "Schedule"}
+          <button disabled={isSubmitting} type="submit" className="rounded-xl bg-[#071D49] px-6 py-2 text-sm font-black text-white">
+            {isSubmitting ? "Saving..." : "Schedule"}
           </button>
         </div>
       </form>
@@ -529,7 +579,7 @@ function ScheduleAppointmentModal({ onClose }: { onClose: () => void }) {
 }
 
 function AppointmentsWorkspace({ onNavigate }: { onNavigate: (v: SecretaryView) => void }) {
-  const { data: rawData, isLoading: loading, error } = useSchoolQuery<any[]>("/api/visitors/appointments");
+  const { data: rawData, isLoading: loading, error, refetch } = useSchoolQuery<any[]>("/api/visitors/appointments");
   const data = rawData || [];
   const { hasPermission } = usePermissions();
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -552,7 +602,7 @@ function AppointmentsWorkspace({ onNavigate }: { onNavigate: (v: SecretaryView) 
           emptyIcon={Calendar}
         />
       </Panel>
-      {isModalOpen && <ScheduleAppointmentModal onClose={() => setIsModalOpen(false)} />}
+      {isModalOpen && <ScheduleAppointmentModal onClose={() => setIsModalOpen(false)} onSuccess={() => refetch()} />}
     </>
   );
 }
@@ -611,27 +661,50 @@ function CommunicationWorkspace({ onNavigate }: { onNavigate: (v: SecretaryView)
   );
 }
 
-function RecordDispatchModal({ onClose }: { onClose: () => void }) {
-  const [submitting, setSubmitting] = useState(false);
-  const handleSubmit = (e: React.FormEvent) => {
+function RecordDispatchModal({ onClose, onSuccess }: { onClose: () => void, onSuccess?: () => void }) {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    setSubmitting(true);
-    setTimeout(() => { setSubmitting(false); onClose(); }, 1000);
+    setIsSubmitting(true);
+    setError(null);
+    const formData = new FormData(e.currentTarget);
+    try {
+      await requestDashboardApi("/api/admin-command/frontoffice/mail", {
+        method: "POST",
+        body: JSON.stringify({
+          sender: formData.get("sender"),
+          recipient: formData.get("recipient"),
+          type: formData.get("type"),
+        })
+      });
+      toast.success("Mail/Parcel recorded successfully");
+      if (onSuccess) onSuccess();
+      onClose();
+    } catch (err: any) {
+      const msg = err.message || "Failed to record mail/parcel";
+      setError(msg);
+      toast.error(msg);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
   return (
     <Modal title="Record Mail / Parcel" open={true} onClose={onClose} size="md">
       <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        {error && <div className="p-3 text-sm text-rose-700 bg-rose-50 rounded-xl">{error}</div>}
         <div>
           <label className="block text-sm font-bold text-[#071D49] mb-1">Sender</label>
-          <input required type="text" className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Sender name or company" />
+          <input name="sender" required type="text" className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Sender name or company" />
         </div>
         <div>
           <label className="block text-sm font-bold text-[#071D49] mb-1">Recipient</label>
-          <input required type="text" className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Staff or Department" />
+          <input name="recipient" required type="text" className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Staff or Department" />
         </div>
         <div>
           <label className="block text-sm font-bold text-[#071D49] mb-1">Item Type</label>
-          <select required className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]">
+          <select name="type" required className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]">
             <option value="">Select type...</option>
             <option value="letter">Official Letter</option>
             <option value="parcel">Parcel / Package</option>
@@ -640,8 +713,8 @@ function RecordDispatchModal({ onClose }: { onClose: () => void }) {
         </div>
         <div className="mt-6 flex justify-end gap-3 pt-4 border-t border-[#D8E0EC]">
           <button type="button" onClick={onClose} className="rounded-xl px-4 py-2 text-sm font-bold text-[#64748B]">Cancel</button>
-          <button disabled={submitting} type="submit" className="rounded-xl bg-[#071D49] px-6 py-2 text-sm font-black text-white">
-            {submitting ? "Recording..." : "Record Item"}
+          <button disabled={isSubmitting} type="submit" className="rounded-xl bg-[#071D49] px-6 py-2 text-sm font-black text-white">
+            {isSubmitting ? "Recording..." : "Record Item"}
           </button>
         </div>
       </form>
@@ -650,7 +723,7 @@ function RecordDispatchModal({ onClose }: { onClose: () => void }) {
 }
 
 function MailParcelsWorkspace({ onNavigate }: { onNavigate: (v: SecretaryView) => void }) {
-  const { data: rawData, isLoading: loading, error } = useSchoolQuery<any[]>("/api/operations/reports");
+  const { data: rawData, isLoading: loading, error, refetch } = useSchoolQuery<any[]>("/api/operations/reports");
   const data = rawData || [];
   const { hasPermission } = usePermissions();
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -673,7 +746,7 @@ function MailParcelsWorkspace({ onNavigate }: { onNavigate: (v: SecretaryView) =
           emptyIcon={Package}
         />
       </Panel>
-      {isModalOpen && <RecordDispatchModal onClose={() => setIsModalOpen(false)} />}
+      {isModalOpen && <RecordDispatchModal onClose={() => setIsModalOpen(false)} onSuccess={() => refetch()} />}
     </>
   );
 }
@@ -754,8 +827,14 @@ function SettingsWorkspace({ onNavigate }: { onNavigate: (v: SecretaryView) => v
 // MAIN SHELL
 // ==========================================
 
-export function SecretaryCommandCenterFull({ routeMode }: { routeMode?: "hosted" | "public" }) {
-  const [activeView, setActiveView] = useState<SecretaryView>("overview");
+export function SecretaryCommandCenterFull({ activeSection, routeMode }: { activeSection?: string; routeMode?: "hosted" | "public" }) {
+  const [activeView, setActiveViewState] = useState<SecretaryView>((activeSection && activeSection !== "dashboard" ? activeSection : "overview") as SecretaryView);
+
+  const setActiveView = (view: SecretaryView) => {
+    setActiveViewState(view);
+    const newPath = buildSchoolSectionHref("secretary", view, routeMode ?? "hosted");
+    window.history.replaceState(null, "", newPath);
+  };
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const activeNav = navItems.find((n) => n.id === activeView);

@@ -2,6 +2,7 @@
 import { School } from "lucide-react";
 import { Panel, StatusChip, Tone } from "./shared";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
+import { toast } from "sonner";
 
 export type ClassRecord = {
   id: string;
@@ -31,7 +32,7 @@ export function DeputyClassesStreamsWorkspace() {
 
   return (
     <Panel title="Classes & Streams" description="View and manage class configurations and stream sizes." icon={School} actions={
-      <button onClick={() => alert("Launching Class Configuration...")} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white hover:bg-blue-900 transition">Manage Streams</button>
+      <button onClick={() => toast.info("Opening Class Configuration module...")} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white hover:bg-blue-900 transition">Manage Streams</button>
     }>
       <div className="grid gap-4 md:grid-cols-2 mb-6">
         <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
@@ -63,7 +64,7 @@ export function DeputyClassesStreamsWorkspace() {
                   <td className="px-4 py-3 text-[#64748B]">{cls.studentCount}</td>
                   <td className="px-4 py-3"><StatusChip label={cls.status} tone={getTone(cls.status)} /></td>
                   <td className="px-4 py-3 text-right">
-                    <button onClick={() => alert(`Opening overview for ${cls.name}`)} className="text-blue-600 hover:underline font-semibold text-xs">View Register</button>
+                    <button onClick={() => toast.info(`Opening overview for ${cls.name}`)} className="text-blue-600 hover:underline font-semibold text-xs">View Register</button>
                   </td>
                 </tr>
               ))

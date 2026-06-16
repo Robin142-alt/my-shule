@@ -251,6 +251,12 @@ export class ExamsController {
     return this.examsService.getExamSeries(query);
   }
 
+  @Get('series/:id/readiness')
+  @Permissions('exams:read')
+  getExamReadiness(@Param('id') id: string) {
+    return this.examsService.getExamReadiness(id);
+  }
+
   @Get('assessments')
   @Permissions('exams:read')
   getExamAssessments(@Query() query: Record<string, string | undefined>) {

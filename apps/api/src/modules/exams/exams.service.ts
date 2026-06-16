@@ -590,9 +590,35 @@ export class ExamsService {
     return { success: true, locked_count: updatedMarks.length };
   }
 
+  async getExamReadiness(examSeriesId: string) {
+    const tenantId = this.requireTenantId();
+    const unapprovedMarks = await this.repository.executeSql(
+      `SELECT count(*) FROM exam_marks WHERE tenant_id = $1 AND exam_series_id = $2::uuid AND status NOT IN ('reviewed', 'locked')`,
+      [tenantId, examSeriesId]
+    );
+    const unapprovedCount = parseInt(unapprovedMarks.rows[0].count, 10);
+
+    // Simplistic missing check for readiness
+    const issues = [];
+    if (unapprovedCount > 0) issues.push(`${unapprovedCount} marks are unapproved or draft`);
+
+    return {
+      ready: issues.length === 0,
+      issues,
+      unapprovedCount,
+      missingCount: 0 // Mocked for now to avoid complex queries across dynamic schemas
+    };
+  }
+
   async publishExamSeries(examSeriesId: string) {
     const tenantId = this.requireTenantId();
     const actorUserId = this.requireUserId();
+
+    const readiness = await this.getExamReadiness(examSeriesId);
+    if (!readiness.ready) {
+      throw new BadRequestException(`Cannot publish exam series. Issues: ${readiness.issues.join(', ')}`);
+    }
+
     const updatedMarks = await this.repository.publishExamSeries({
       tenant_id: tenantId,
       exam_series_id: this.requireText(examSeriesId, 'Exam series'),

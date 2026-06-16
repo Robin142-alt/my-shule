@@ -41,6 +41,8 @@ import { NotificationBell } from "@/components/shared/notification-bell";
 import { TaskQueue } from "@/components/shared/task-queue";
 import { WorkflowToast } from "@/components/shared/workflow-toast";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
+import { requestDashboardApi } from "@/lib/dashboard/api-client";
+import { toast } from "sonner";
 
 type RegistrarRouteMode = "hosted" | "public";
 type Tone = "secure" | "info" | "success" | "warning" | "danger" | "cyan";
@@ -1002,6 +1004,7 @@ export function RegistrarCommandCenter({ routeMode }: { routeMode: RegistrarRout
   const { data: rawData, isLoading, refetch } = useSchoolQuery<any>('/admin-command/admissions/dashboard');
   const data = useAdmissionsDashboardMapper(rawData);
   const [searchTerm, setSearchTerm] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [notice, setNotice] = useState("Admissions desk ready for inquiries, applications, documents, interviews, and onboarding.");
   const [quickActionsOpen, setQuickActionsOpen] = useState(false);
   const [activeApplicantFilter, setActiveApplicantFilter] = useState<ApplicantFilter | null>(null);
@@ -1091,20 +1094,21 @@ export function RegistrarCommandCenter({ routeMode }: { routeMode: RegistrarRout
   
   async function approveApplication() {
     if (!selectedApplicantPreview) return;
+    setIsSubmitting(true);
     try {
-      const res = await fetch(`/api/admin-command/admissions/applications/${selectedApplicantPreview.id}/approve`, {
+      await requestDashboardApi(`/api/admissions/applications/${selectedApplicantPreview.id}/approve`, {
         method: 'POST',
+        body: { applicantId: selectedApplicantPreview.id },
       });
-      if (res.ok) {
-        setNotice(`Application for ${selectedApplicantPreview.name} has been successfully approved and enrolled as a student.`);
-        setSelectedApplicantPreview(null);
-        void refetch();
-      } else {
-        const error = await res.json();
-        setNotice(`Failed to approve: ${error.message || 'Unknown error'}`);
-      }
-    } catch (e) {
+      toast.success(`Application for ${selectedApplicantPreview.name} has been successfully approved and enrolled as a student.`);
+      setNotice(`Application for ${selectedApplicantPreview.name} has been successfully approved and enrolled as a student.`);
+      setSelectedApplicantPreview(null);
+      void refetch();
+    } catch (e: any) {
+      toast.error(`Failed to approve: ${e.message || 'Unknown error'}`);
       setNotice('Error connecting to the server to approve application.');
+    } finally {
+      setIsSubmitting(false);
     }
   }
 
@@ -1155,8 +1159,21 @@ export function RegistrarCommandCenter({ routeMode }: { routeMode: RegistrarRout
     setSelectedApplicantPreview(null);
   }
 
-  function saveAdmissionsAction() {
+  async function saveAdmissionsAction() {
+    setIsSubmitting(true);
     const schoolId = getCurrentSchoolId();
+
+    try {
+      await requestDashboardApi("/api/admissions/quick-actions", {
+        method: "POST",
+        body: { action: "quick_admission_action" },
+      });
+      toast.success("Admissions quick action saved");
+    } catch (error: any) {
+      toast.error(`Failed to save action: ${error.message || 'Unknown error'}`);
+      setIsSubmitting(false);
+      return;
+    }
 
     publishSchoolOperationalEvent({
       schoolId,
@@ -1190,6 +1207,7 @@ export function RegistrarCommandCenter({ routeMode }: { routeMode: RegistrarRout
     setNotice(
       `${schoolId} admissions quick action saved: admissions-quick-action, next step Verify documents and notify parent, Secretary/Accountant/Class Teacher/Principal notified.`,
     );
+    setIsSubmitting(false);
   }
 
   return (
@@ -1286,6 +1304,15 @@ export function RegistrarCommandCenter({ routeMode }: { routeMode: RegistrarRout
               <div className="mt-5 flex flex-wrap gap-2">
                 <button
                   type="button"
+                  onClick={approveApplication}
+                  disabled={isSubmitting}
+                  className="inline-flex min-h-10 items-center gap-2 rounded-[var(--radius)] bg-emerald-600 px-4 text-sm font-black text-white disabled:opacity-50"
+                >
+                  <UserCheck className="h-4 w-4" aria-hidden="true" />
+                  {isSubmitting ? "Approving..." : "Approve Admission"}
+                </button>
+                <button
+                  type="button"
                   onClick={recordApplicationPreview}
                   className="inline-flex min-h-10 items-center gap-2 rounded-[var(--radius)] bg-[#071D49] px-4 text-sm font-black text-white"
                 >
@@ -1330,10 +1357,11 @@ export function RegistrarCommandCenter({ routeMode }: { routeMode: RegistrarRout
                 <button
                   type="button"
                   onClick={saveAdmissionsAction}
-                  className="inline-flex min-h-10 items-center gap-2 rounded-[var(--radius)] bg-[#071D49] px-4 text-sm font-black text-white"
+                  disabled={isSubmitting}
+                  className="inline-flex min-h-10 items-center gap-2 rounded-[var(--radius)] bg-[#071D49] px-4 text-sm font-black text-white disabled:opacity-50"
                 >
                   <Sparkles className="h-4 w-4" aria-hidden="true" />
-                  Save admissions action
+                  {isSubmitting ? "Saving..." : "Save admissions action"}
                 </button>
                 <button
                   type="button"

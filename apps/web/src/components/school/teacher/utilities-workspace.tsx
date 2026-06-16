@@ -5,33 +5,38 @@ import { useState } from "react";
 import { MessageSquare, Settings, FileText, Send, CheckCircle } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { useSchoolMutation } from "@/lib/data/school-hooks";
+import { requestDashboardApi } from "@/lib/dashboard/api-client";
+import { toast } from "sonner";
 
 export function UtilitiesWorkspace() {
   const [activeTab, setActiveTab] = useState("broadcast");
   const [message, setMessage] = useState("");
   const [recipient, setRecipient] = useState("all-parents");
   const [phone, setPhone] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const sendSmsMutation = useSchoolMutation({
-    endpoint: '/api/communication/sms',
-    method: 'POST',
-    onSuccess: () => {
-      alert("Message sent successfully!");
-      setMessage("");
-      setPhone("");
-    }
-  });
-
-  const handleSendBroadcast = () => {
+  const handleSendBroadcast = async () => {
     if (!message) return;
     
-    // In a real scenario we'd resolve the target group to actual phone numbers.
-    // For this demonstration, we just fire the mutation with the provided phone or a dummy.
-    sendSmsMutation.mutate({
-      recipientPhone: phone || "+254700000000",
-      message: message
-    });
+    setIsSubmitting(true);
+    try {
+      await requestDashboardApi("/api/academic/communications", {
+        method: "POST",
+        body: JSON.stringify({
+          recipientPhone: phone || "+254700000000",
+          message: message,
+          recipientGroup: recipient
+        })
+      });
+      toast.success("Message sent successfully!");
+      setMessage("");
+      setPhone("");
+    } catch (error) {
+      console.error(error);
+      toast.error("Failed to send message. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -111,9 +116,9 @@ export function UtilitiesWorkspace() {
               <Button 
                 className="w-full gap-2 bg-blue-600 hover:bg-blue-700" 
                 onClick={handleSendBroadcast}
-                disabled={!message || sendSmsMutation.isPending}
+                disabled={!message || isSubmitting}
               >
-                <Send className="w-4 h-4" /> {sendSmsMutation.isPending ? 'Sending...' : 'Send SMS'}
+                <Send className="w-4 h-4" /> {isSubmitting ? 'Sending...' : 'Send SMS'}
               </Button>
             </div>
           </Card>

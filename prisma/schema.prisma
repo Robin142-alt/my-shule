@@ -296,6 +296,7 @@ enum ExamSubjectStatus {
 enum MarksEntryStatus {
   DRAFT
   SUBMITTED
+  RETURNED
   APPROVED
   LOCKED
 }
@@ -4026,9 +4027,12 @@ model ExamMarks {
   score              Decimal
   student_id         String   @db.Uuid
   subject_id         String   @db.Uuid
-  tenant_id          String   @db.Uuid
-  updated_at         DateTime @updatedAt
-  updated_by_user_id String   @db.Uuid
+  tenant_id          String    @db.Uuid
+  updated_at         DateTime  @updatedAt
+  updated_by_user_id String    @db.Uuid
+  status             String    @default("draft")
+  reviewed_at        DateTime?
+  locked_at          DateTime?
 
   @@map("exam_marks")
 }

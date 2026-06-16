@@ -5,7 +5,9 @@ import { useState } from "react";
 import { Check, Save, Download } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { useSchoolQuery, useSchoolMutation } from "@/lib/data/school-hooks";
+import { useSchoolQuery } from "@/lib/data/school-hooks";
+import { requestDashboardApi } from "@/lib/dashboard/api-client";
+import { toast } from "sonner";
 
 export function MarksEntryWorkspace() {
   const [selectedExam, setSelectedExam] = useState("Mid-Term Math");
@@ -16,15 +18,9 @@ export function MarksEntryWorkspace() {
   const { data: savedMarks, isLoading: marksLoading, refetch } = useSchoolQuery('/api/exams/marks?exam=' + encodeURIComponent(selectedExam));
 
   const [marks, setMarks] = useState<Record<string, string>>({});
-  const [isSaving, setIsSaving] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const saveMarkMutation = useSchoolMutation({
-    endpoint: '/api/exams/marks',
-    method: 'POST',
-    onSuccess: () => {
-      refetch();
-    }
-  });
+
 
   const handleMarkChange = (studentId: string, val: string) => {
     // Basic validation for 0-100
@@ -44,22 +40,28 @@ export function MarksEntryWorkspace() {
   };
 
   const handleSaveAll = async () => {
-    setIsSaving(true);
+    setIsSubmitting(true);
     try {
-      const promises = Object.entries(marks).map(([studentId, score]) => 
-        saveMarkMutation.mutateAsync({
-          student_id: studentId,
+      const marksPayload = Object.entries(marks).map(([studentId, score]) => ({
+        student_id: studentId,
+        score: Number(score)
+      }));
+
+      await requestDashboardApi("/api/academic/marks/enter", {
+        method: "POST",
+        body: JSON.stringify({
           exam: selectedExam,
-          score: Number(score)
+          class_section: selectedClass,
+          marks: marksPayload
         })
-      );
-      await Promise.all(promises);
-      alert("All marks saved successfully!");
+      });
+      toast.success("All marks saved successfully!");
+      refetch();
     } catch (e) {
       console.error(e);
-      alert("Error saving some marks. Please try again.");
+      toast.error("Error saving some marks. Please try again.");
     } finally {
-      setIsSaving(false);
+      setIsSubmitting(false);
     }
   };
 
@@ -76,8 +78,8 @@ export function MarksEntryWorkspace() {
           <Button variant="outline" className="gap-2">
             <Download className="w-4 h-4" /> Export Template
           </Button>
-          <Button className="gap-2" onClick={handleSaveAll} disabled={isSaving}>
-            <Save className="w-4 h-4" /> {isSaving ? "Saving..." : "Save Marks"}
+          <Button className="gap-2" onClick={handleSaveAll} disabled={isSubmitting}>
+            <Save className="w-4 h-4" /> {isSubmitting ? "Saving..." : "Save Marks"}
           </Button>
         </div>
       </div>

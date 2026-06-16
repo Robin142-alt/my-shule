@@ -5,7 +5,7 @@ import { PrismaService } from '../../../database/prisma.service';
 @Injectable()
 export class AcademicsRepository {
 
-  private async executeSqlGlobal<T = any>(query: string, params: any[] = []): Promise<{ rows: T[], rowCount: number }> {
+  public async executeSqlGlobal<T = any>(query: string, params: any[] = []): Promise<{ rows: T[], rowCount: number }> {
     const firstParam = params[0];
     const isUuid = typeof firstParam === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(firstParam);
 
@@ -28,7 +28,7 @@ export class AcademicsRepository {
 
   constructor(private readonly prisma: PrismaService) {}
 
-  private async executeSql(tenantId: string, sql: string, params: any[] = []): Promise<{rows: any[]}> {
+  public async executeSql(tenantId: string, sql: string, params: any[] = []): Promise<{rows: any[]}> {
     return this.prisma.executeWithTenant<any>(tenantId, null, async (tx: any) => {
       const rows = await tx.$queryRawUnsafe(sql, ...params);
       return { rows: Array.isArray(rows) ? rows : [rows] } as any;
@@ -799,23 +799,41 @@ export class AcademicsRepository {
   async getSummary(tenant_id: string) {
     const [
       assignmentsRes,
+      marksRes
     ] = await Promise.all([
-      this.executeSql(this.getTenantId(['SELECT COUNT(*) as count FROM academics_assignments WHERE tenant_id = $1 AND status != \'Completed\'',
-        [tenant_id]]), 'SELECT COUNT(*) as count FROM academics_assignments WHERE tenant_id = $1 AND status != \'Completed\'',
-        [tenant_id]).catch(() => ({ rows: [{ count: 0 }] })),
+      this.executeSql(
+        tenant_id,
+        `SELECT COUNT(*) as count FROM academics_assignments WHERE tenant_id = $1 AND status != 'Completed'`,
+        [tenant_id]
+      ).catch(() => ({ rows: [{ count: 0 }] })),
+      this.executeSql(
+        tenant_id,
+        `SELECT 
+           subject_id, 
+           AVG(score) as avg_score 
+         FROM exam_marks 
+         WHERE tenant_id = $1 AND status IN ('reviewed', 'locked', 'published')
+         GROUP BY subject_id`,
+        [tenant_id]
+      ).catch(() => ({ rows: [] }))
     ]);
 
     const gradingQueue = parseInt(assignmentsRes.rows[0]?.count || '0', 10);
+    
+    let totalScore = 0;
+    const subjects = marksRes.rows.map((r: any) => {
+      const avg = parseFloat(r.avg_score);
+      totalScore += avg;
+      return { subject: r.subject_id, value: Math.round(avg) };
+    });
+    
+    const overallAvg = subjects.length > 0 ? Math.round(totalScore / subjects.length) : 0;
 
     return {
-      nextExam: 'Mid-Term (14 days)', // Can be derived from exams table when added
+      nextExam: 'Not scheduled', // Could be queried from exams table
       gradingQueue: `${gradingQueue} pending`,
-      performanceTrend: 'Stable average 68%',
-      subjects: [
-        { subject: 'Mathematics', value: 72 },
-        { subject: 'English', value: 65 },
-        { subject: 'Science', value: 81 },
-      ],
+      performanceTrend: overallAvg > 0 ? `Stable average ${overallAvg}%` : 'No data available',
+      subjects: subjects.length > 0 ? subjects : [],
     };
   }
 
