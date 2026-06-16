@@ -293,6 +293,25 @@ enum ExamSubjectStatus {
   LOCKED
 }
 
+enum AssessmentResponsibility {
+  MAIN_TEACHER
+  ASSISTANT_TEACHER
+  SUBSTITUTE
+}
+
+enum DepartmentScope {
+  CBC
+  EIGHT_FOUR_FOUR
+  BOTH
+}
+
+enum CBCAssessmentLevel {
+  EXCEEDING_EXPECTATION
+  MEETING_EXPECTATION
+  APPROACHING_EXPECTATION
+  BELOW_EXPECTATION
+}
+
 enum MarksEntryStatus {
   DRAFT
   SUBMITTED
@@ -962,6 +981,14 @@ model School {
   welfareConcerns            WelfareConcern[]
   groupGuidanceSessions      GroupGuidanceSession[]
   counsellingEscalations     CounsellingEscalation[]
+  hodassignments             HODAssignment[]
+  learningAreas              LearningArea[]
+  strands                    Strand[]
+  subStrands                 SubStrand[]
+  cbcassessmentEntries       CBCAssessmentEntry[]
+  markSubmissions            MarkSubmission[]
+  hodreviews                 HODReview[]
+  examReadinessChecks        ExamReadinessCheck[]
 
   @@map("schools")
 }
@@ -1204,6 +1231,7 @@ model AcademicYear {
   classTimetableEntries     ClassTimetableEntry[]
   classTeacherAssignments   ClassTeacherAssignment[]   @relation("AcademicYearToClassTeacherAssignment")
   studentClassAssignments   StudentClassAssignment[]   @relation("AcademicYearToStudentClassAssignment")
+  hodassignments            HODAssignment[]
 
   @@unique([schoolId, name])
   @@index([schoolId])
@@ -1242,16 +1270,22 @@ model Term {
 }
 
 model Department {
-  id        String    @id @default(uuid())
-  schoolId  String    @map("school_id")
-  school    School    @relation(fields: [schoolId], references: [id])
+  id        String  @id @default(uuid())
+  schoolId  String  @map("school_id")
+  school    School  @relation(fields: [schoolId], references: [id])
   name      String
   code      String
-  hodUserId String?   @map("hod_user_id")
-  createdAt DateTime  @default(now()) @map("created_at")
-  updatedAt DateTime  @updatedAt @map("updated_at")
-  deletedAt DateTime? @map("deleted_at")
-  subjects  Subject[]
+  hodUserId String? @map("hod_user_id")
+
+  // Added fields
+  curriculumScope DepartmentScope @default(BOTH) @map("curriculum_scope")
+  isActive        Boolean         @default(true) @map("is_active")
+
+  createdAt      DateTime        @default(now()) @map("created_at")
+  updatedAt      DateTime        @updatedAt @map("updated_at")
+  deletedAt      DateTime?       @map("deleted_at")
+  subjects       Subject[]
+  hodAssignments HODAssignment[]
 
   @@index([schoolId])
   @@map("departments")
@@ -1290,6 +1324,7 @@ model Class {
   academicResources         AcademicResource[]         @relation("ClassToAcademicResource")
   lessonLogs                LessonLog[]                @relation("ClassToLessonLog")
   classTeacherAssignments   ClassTeacherAssignment[]   @relation("ClassToClassTeacherAssignment")
+  cbcassessmentEntries      CBCAssessmentEntry[]
 
   @@unique([schoolId, name])
   @@index([schoolId])
@@ -1319,6 +1354,7 @@ model Stream {
   computerLabSessions       ComputerLabSession[]
   classTimetableEntries     ClassTimetableEntry[]
   studentClassAssignments   StudentClassAssignment[]
+  cbcassessmentEntries      CBCAssessmentEntry[]
 
   @@unique([schoolId, classId, name])
   @@index([schoolId])
@@ -1386,9 +1422,16 @@ model TeacherSubjectAssignment {
   subject          Subject                 @relation(fields: [subjectId], references: [id])
   assignedByUserId String                  @map("assigned_by_user_id")
   status           TeacherAssignmentStatus
-  createdAt        DateTime                @default(now()) @map("created_at")
-  updatedAt        DateTime                @updatedAt @map("updated_at")
-  deletedAt        DateTime?               @map("deleted_at")
+
+  // Added fields
+  curriculumType           CurriculumType           @default(EIGHT_FOUR_FOUR) @map("curriculum_type")
+  assessmentResponsibility AssessmentResponsibility @default(MAIN_TEACHER) @map("assessment_responsibility")
+  canEnterMarks            Boolean                  @default(true) @map("can_enter_marks")
+  canSubmitMarks           Boolean                  @default(true) @map("can_submit_marks")
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
 
   @@index([schoolId])
   @@index([schoolId, teacherUserId])
@@ -1460,6 +1503,7 @@ model Student {
   studentAuditLogs        StudentAuditLog[]
   studentCommunications   StudentCommunication[]
   welfareConcerns         WelfareConcern[]
+  cbcassessmentEntries    CBCAssessmentEntry[]
 
   @@unique([schoolId, admissionNumber])
   @@unique([schoolId, upiNumber])
@@ -1674,23 +1718,26 @@ model AttendanceRecord {
 // 8. Exams, Assessments & Report Cards
 // ==========================================
 model ExamCycle {
-  id              String          @id @default(uuid())
-  schoolId        String          @map("school_id")
-  school          School          @relation(fields: [schoolId], references: [id])
-  academicYearId  String          @map("academic_year_id")
-  academicYear    AcademicYear    @relation(fields: [academicYearId], references: [id])
-  termId          String          @map("term_id")
-  term            Term            @relation(fields: [termId], references: [id])
-  name            String
-  examType        ExamType        @map("exam_type")
-  status          ExamCycleStatus
-  createdByUserId String          @map("created_by_user_id")
-  createdAt       DateTime        @default(now()) @map("created_at")
-  updatedAt       DateTime        @updatedAt @map("updated_at")
-  deletedAt       DateTime?       @map("deleted_at")
-  examSubjects    ExamSubject[]
-  marksEntries    MarksEntry[]
-  reportCards     ReportCard[]
+  id                   String               @id @default(uuid())
+  schoolId             String               @map("school_id")
+  school               School               @relation(fields: [schoolId], references: [id])
+  academicYearId       String               @map("academic_year_id")
+  academicYear         AcademicYear         @relation(fields: [academicYearId], references: [id])
+  termId               String               @map("term_id")
+  term                 Term                 @relation(fields: [termId], references: [id])
+  name                 String
+  examType             ExamType             @map("exam_type")
+  status               ExamCycleStatus
+  createdByUserId      String               @map("created_by_user_id")
+  createdAt            DateTime             @default(now()) @map("created_at")
+  updatedAt            DateTime             @updatedAt @map("updated_at")
+  deletedAt            DateTime?            @map("deleted_at")
+  examSubjects         ExamSubject[]
+  marksEntries         MarksEntry[]
+  reportCards          ReportCard[]
+  cbcassessmentEntries CBCAssessmentEntry[]
+  markSubmissions      MarkSubmission[]
+  examReadinessChecks  ExamReadinessCheck[]
 
   @@index([schoolId])
   @@index([schoolId, academicYearId])
@@ -1738,7 +1785,7 @@ model MarksEntry {
   grade         String?
   points        Float?
   comment       String?
-  status        MarksEntryStatus
+  status        MarksEntryStatus @default(DRAFT)
   createdAt     DateTime         @default(now()) @map("created_at")
   updatedAt     DateTime         @updatedAt @map("updated_at")
   deletedAt     DateTime?        @map("deleted_at")
@@ -4016,17 +4063,17 @@ model ExamMarkEntryWindows {
 }
 
 model ExamMarks {
-  academic_term_id   String   @db.Uuid
-  assessment_id      String   @db.Uuid
-  class_section_id   String   @db.Uuid
-  created_at         DateTime @default(now())
-  entered_by_user_id String   @db.Uuid
-  exam_series_id     String   @db.Uuid
-  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  academic_term_id   String    @db.Uuid
+  assessment_id      String    @db.Uuid
+  class_section_id   String    @db.Uuid
+  created_at         DateTime  @default(now())
+  entered_by_user_id String    @db.Uuid
+  exam_series_id     String    @db.Uuid
+  id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   remarks            String
   score              Decimal
-  student_id         String   @db.Uuid
-  subject_id         String   @db.Uuid
+  student_id         String    @db.Uuid
+  subject_id         String    @db.Uuid
   tenant_id          String    @db.Uuid
   updated_at         DateTime  @updatedAt
   updated_by_user_id String    @db.Uuid
@@ -6699,4 +6746,165 @@ model NotificationRule {
 
   @@index([schoolId])
   @@map("notification_rules")
+}
+
+// ==========================================
+// Academic Engine: HOD, CBC, Workflow
+// ==========================================
+
+model HODAssignment {
+  id             String          @id @default(uuid())
+  schoolId       String          @map("school_id")
+  school         School          @relation(fields: [schoolId], references: [id])
+  departmentId   String          @map("department_id")
+  department     Department      @relation(fields: [departmentId], references: [id])
+  teacherUserId  String          @map("teacher_user_id")
+  academicYearId String          @map("academic_year_id")
+  academicYear   AcademicYear    @relation(fields: [academicYearId], references: [id])
+  startDate      DateTime        @default(now()) @map("start_date")
+  endDate        DateTime?       @map("end_date")
+  scope          DepartmentScope @default(BOTH)
+  isActive       Boolean         @default(true) @map("is_active")
+  createdAt      DateTime        @default(now()) @map("created_at")
+  updatedAt      DateTime        @updatedAt @map("updated_at")
+  deletedAt      DateTime?       @map("deleted_at")
+
+  @@index([schoolId])
+  @@index([schoolId, teacherUserId])
+  @@index([schoolId, departmentId])
+  @@map("hod_assignments")
+}
+
+model LearningArea {
+  id           String    @id @default(uuid())
+  schoolId     String    @map("school_id")
+  school       School    @relation(fields: [schoolId], references: [id])
+  name         String
+  code         String
+  departmentId String?   @map("department_id")
+  isCompulsory Boolean   @default(false) @map("is_compulsory")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+  deletedAt    DateTime? @map("deleted_at")
+  strands      Strand[]
+
+  @@index([schoolId])
+  @@map("learning_areas")
+}
+
+model Strand {
+  id             String               @id @default(uuid())
+  schoolId       String               @map("school_id")
+  school         School               @relation(fields: [schoolId], references: [id])
+  learningAreaId String               @map("learning_area_id")
+  learningArea   LearningArea         @relation(fields: [learningAreaId], references: [id])
+  name           String
+  description    String?
+  createdAt      DateTime             @default(now()) @map("created_at")
+  updatedAt      DateTime             @updatedAt @map("updated_at")
+  deletedAt      DateTime?            @map("deleted_at")
+  subStrands     SubStrand[]
+  cbcEntries     CBCAssessmentEntry[]
+
+  @@index([schoolId])
+  @@map("strands")
+}
+
+model SubStrand {
+  id          String               @id @default(uuid())
+  schoolId    String               @map("school_id")
+  school      School               @relation(fields: [schoolId], references: [id])
+  strandId    String               @map("strand_id")
+  strand      Strand               @relation(fields: [strandId], references: [id])
+  name        String
+  description String?
+  createdAt   DateTime             @default(now()) @map("created_at")
+  updatedAt   DateTime             @updatedAt @map("updated_at")
+  deletedAt   DateTime?            @map("deleted_at")
+  cbcEntries  CBCAssessmentEntry[]
+
+  @@index([schoolId])
+  @@map("sub_strands")
+}
+
+model CBCAssessmentEntry {
+  id            String             @id @default(uuid())
+  schoolId      String             @map("school_id")
+  school        School             @relation(fields: [schoolId], references: [id])
+  examCycleId   String             @map("exam_cycle_id")
+  examCycle     ExamCycle          @relation(fields: [examCycleId], references: [id])
+  studentId     String             @map("student_id")
+  student       Student            @relation(fields: [studentId], references: [id])
+  classId       String             @map("class_id")
+  class         Class              @relation(fields: [classId], references: [id])
+  streamId      String?            @map("stream_id")
+  stream        Stream?            @relation(fields: [streamId], references: [id])
+  strandId      String             @map("strand_id")
+  strand        Strand             @relation(fields: [strandId], references: [id])
+  subStrandId   String?            @map("sub_strand_id")
+  subStrand     SubStrand?         @relation(fields: [subStrandId], references: [id])
+  teacherUserId String             @map("teacher_user_id")
+  level         CBCAssessmentLevel
+  descriptor    String?
+  comment       String?
+  status        MarksEntryStatus   @default(DRAFT)
+  createdAt     DateTime           @default(now()) @map("created_at")
+  updatedAt     DateTime           @updatedAt @map("updated_at")
+  deletedAt     DateTime?          @map("deleted_at")
+
+  @@index([schoolId])
+  @@index([schoolId, examCycleId])
+  @@index([schoolId, studentId])
+  @@map("cbc_assessment_entries")
+}
+
+model MarkSubmission {
+  id            String           @id @default(uuid())
+  schoolId      String           @map("school_id")
+  school        School           @relation(fields: [schoolId], references: [id])
+  examCycleId   String           @map("exam_cycle_id")
+  examCycle     ExamCycle        @relation(fields: [examCycleId], references: [id])
+  subjectId     String?          @map("subject_id") // For 8-4-4
+  teacherUserId String           @map("teacher_user_id")
+  status        MarksEntryStatus @default(SUBMITTED)
+  submittedAt   DateTime         @default(now()) @map("submitted_at")
+  createdAt     DateTime         @default(now()) @map("created_at")
+  updatedAt     DateTime         @updatedAt @map("updated_at")
+  hodReviews    HODReview[]
+
+  @@index([schoolId])
+  @@map("mark_submissions")
+}
+
+model HODReview {
+  id               String           @id @default(uuid())
+  schoolId         String           @map("school_id")
+  school           School           @relation(fields: [schoolId], references: [id])
+  markSubmissionId String           @map("mark_submission_id")
+  markSubmission   MarkSubmission   @relation(fields: [markSubmissionId], references: [id])
+  hodUserId        String           @map("hod_user_id")
+  status           MarksEntryStatus
+  reason           String?
+  reviewedAt       DateTime         @default(now()) @map("reviewed_at")
+  createdAt        DateTime         @default(now()) @map("created_at")
+  updatedAt        DateTime         @updatedAt @map("updated_at")
+
+  @@index([schoolId])
+  @@map("hod_reviews")
+}
+
+model ExamReadinessCheck {
+  id              String    @id @default(uuid())
+  schoolId        String    @map("school_id")
+  school          School    @relation(fields: [schoolId], references: [id])
+  examCycleId     String    @map("exam_cycle_id")
+  examCycle       ExamCycle @relation(fields: [examCycleId], references: [id])
+  isReady         Boolean   @default(false) @map("is_ready")
+  details         String?   @db.Text
+  checkedByUserId String    @map("checked_by_user_id")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  @@index([schoolId])
+  @@map("exam_readiness_checks")
 }

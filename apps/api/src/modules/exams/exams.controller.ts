@@ -323,4 +323,29 @@ export class ExamsController {
     return this.examsService.getExamDashboardStats();
   }
 
+
+  // --- CBC Assessment & Mark Workflow ---
+  @Post('cbc-assessment')
+  @Permissions('academics:write')
+  enterCBCAssessment(@Body() dto: any) {
+    return this.examsService.enterCBCAssessment(dto);
+  }
+
+  @Post('mark-submissions')
+  @Permissions('academics:write')
+  submitMarks(@Body() dto: any) {
+    return this.examsService.submitMarks(dto);
+  }
+
+  @Post('hod-reviews')
+  @Permissions('academics:write') // Should be specific to HOD
+  reviewMarks(@Body() dto: any) {
+    return this.examsService.reviewMarks(dto);
+  }
+
+  @Post('readiness-checks')
+  @Permissions('academics:write') // Should be Admin/Dean
+  checkExamReadiness(@Body() dto: any) {
+    return this.examsService.checkExamReadiness(dto);
+  }
 }

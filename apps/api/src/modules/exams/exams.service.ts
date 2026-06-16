@@ -1488,4 +1488,113 @@ function safeEqual(left: string, right: string): boolean {
   const rightBuffer = Buffer.from(right);
 
   return leftBuffer.length === rightBuffer.length && timingSafeEqual(leftBuffer, rightBuffer);
+
+  // --- CBC Assessment & Mark Workflow ---
+  async enterCBCAssessment(dto: any) {
+    const store = (this as any).requestContext?.getStore();
+    const schoolId = store?.schoolId;
+    if (!schoolId) throw new Error('No school context');
+
+    return this.prisma.cBCAssessmentEntry.create({
+      data: {
+        schoolId,
+        examCycleId: dto.examCycleId,
+        studentId: dto.studentId,
+        classId: dto.classId,
+        streamId: dto.streamId,
+        strandId: dto.strandId,
+        subStrandId: dto.subStrandId,
+        teacherUserId: dto.teacherUserId,
+        level: dto.level,
+        descriptor: dto.descriptor,
+        comment: dto.comment,
+        status: 'DRAFT',
+      }
+    });
+  }
+
+  async submitMarks(dto: any) {
+    const store = (this as any).requestContext?.getStore();
+    const schoolId = store?.schoolId;
+    if (!schoolId) throw new Error('No school context');
+
+    // Ensure teacher has assignment before submitting
+    const assignment = await this.prisma.teacherSubjectAssignment.findFirst({
+      where: { schoolId, teacherUserId: dto.teacherUserId, subjectId: dto.subjectId }
+    });
+    if (!assignment) throw new Error('Not authorized to submit marks for this subject');
+
+    // Update draft marks
+    await this.prisma.marksEntry.updateMany({
+      where: { schoolId, examCycleId: dto.examCycleId, subjectId: dto.subjectId, teacherUserId: dto.teacherUserId },
+      data: { status: 'SUBMITTED' }
+    });
+
+    return this.prisma.markSubmission.create({
+      data: {
+        schoolId,
+        examCycleId: dto.examCycleId,
+        subjectId: dto.subjectId,
+        teacherUserId: dto.teacherUserId,
+        status: 'SUBMITTED',
+      }
+    });
+  }
+
+  async reviewMarks(dto: any) {
+    const store = (this as any).requestContext?.getStore();
+    const schoolId = store?.schoolId;
+    if (!schoolId) throw new Error('No school context');
+
+    const submission = await this.prisma.markSubmission.findUnique({ where: { id: dto.markSubmissionId } });
+    if (!submission) throw new Error('Submission not found');
+
+    const newStatus = dto.approved ? 'APPROVED' : 'RETURNED';
+
+    await this.prisma.markSubmission.update({
+      where: { id: dto.markSubmissionId },
+      data: { status: newStatus }
+    });
+
+    if (submission.subjectId) {
+       await this.prisma.marksEntry.updateMany({
+        where: { schoolId, examCycleId: submission.examCycleId, subjectId: submission.subjectId },
+        data: { status: newStatus }
+      });
+    }
+
+    return this.prisma.hODReview.create({
+      data: {
+        schoolId,
+        markSubmissionId: dto.markSubmissionId,
+        hodUserId: dto.hodUserId,
+        status: newStatus,
+        reason: dto.reason,
+      }
+    });
+  }
+
+  async checkExamReadiness(dto: any) {
+    const store = (this as any).requestContext?.getStore();
+    const schoolId = store?.schoolId;
+    if (!schoolId) throw new Error('No school context');
+
+    // Mock readiness logic
+    const submissions = await this.prisma.markSubmission.findMany({
+      where: { schoolId, examCycleId: dto.examCycleId }
+    });
+    
+    const unapproved = submissions.filter((s: any) => s.status !== 'APPROVED');
+    const isReady = unapproved.length === 0;
+
+    return this.prisma.examReadinessCheck.create({
+      data: {
+        schoolId,
+        examCycleId: dto.examCycleId,
+        checkedByUserId: dto.checkedByUserId,
+        isReady,
+        details: isReady ? 'All marks approved' : 'Pending HOD approvals',
+      }
+    });
+  }
 }
