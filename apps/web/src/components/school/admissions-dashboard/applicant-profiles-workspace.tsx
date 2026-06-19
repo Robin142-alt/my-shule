@@ -1,121 +1,65 @@
 "use client";
+import { Users } from "lucide-react";
+import { useSchoolQuery } from "@/lib/data/school-hooks";
 
-import { useState } from "react";
-import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Table } from "@/components/ui/table";
-import { Modal } from "@/components/ui/modal";
-import { Plus, FileText, Search } from "lucide-react";
-
-type Applicant = {
-  id: string;
-  name: string;
-  dob: string;
-  prevSchool: string;
-  parentContact: string;
-  status: string;
+type ApplicantProfilesData = {
+  metrics: Record<string, number>;
+  items: any[];
 };
 
-export function AdmissionsApplicantProfilesWorkspace({ dataset }: { dataset?: any }) {
-  const [applicants, setApplicants] = useState<Applicant[]>([]);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [searchTerm, setSearchTerm] = useState("");
-
-  const handleAdd = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const formData = new FormData(e.currentTarget);
-    const newApp: Applicant = {
-      id: Math.random().toString(36).substr(2, 9),
-      name: formData.get("name") as string,
-      dob: formData.get("dob") as string,
-      prevSchool: formData.get("prevSchool") as string,
-      parentContact: formData.get("parentContact") as string,
-      status: "Profile Created",
-    };
-    setApplicants([newApp, ...applicants]);
-    setIsModalOpen(false);
-  };
-
-  const filtered = applicants.filter(a => a.name.toLowerCase().includes(searchTerm.toLowerCase()));
+export function ApplicantProfilesWorkspace() {
+  const { data, isLoading } = useSchoolQuery<ApplicantProfilesData>("/admin-command/admissions/applicant-profiles");
+  const items = data?.items || [];
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+    <section className="rounded-2xl border border-[#D8E0EC] bg-white p-5 shadow-[0_18px_50px_rgba(7,29,73,0.08)]">
+      <div className="mb-4 flex min-w-0 gap-3">
+        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#EEF5FF] text-[#1D4ED8]">
+          <Users className="h-5 w-5" aria-hidden="true" />
+        </span>
         <div>
-          <h2 className="text-2xl font-bold text-white">Applicant Profiles</h2>
-          <p className="text-white/60 text-sm">Detailed drill-down grid for applicant records</p>
+          <h2 className="text-xl font-black tracking-[-0.01em] text-[#071D49]">Applicant Profiles</h2>
+          <p className="mt-1 text-sm leading-6 text-[#64748B]">View detailed applicant information.</p>
         </div>
-        <Button onClick={() => setIsModalOpen(true)} className="gap-2">
-          <Plus className="h-4 w-4" />
-          Add Applicant
-        </Button>
       </div>
 
-      <Card className="border border-white/10 bg-white/5 p-6">
-        <div className="flex items-center gap-2 mb-6 bg-slate-900/50 border border-white/10 rounded-lg px-3 py-2 w-full max-w-sm">
-          <Search className="h-4 w-4 text-white/50" />
-          <input 
-            type="text" 
-            placeholder="Search applicants..." 
-            value={searchTerm}
-            onChange={e => setSearchTerm(e.target.value)}
-            className="bg-transparent border-none text-white text-sm focus:outline-none w-full placeholder:text-white/30" 
-          />
+      <div className="grid gap-4 md:grid-cols-1 mb-6">
+        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
+          <div className="text-sm font-semibold text-[#64748B]">Total Profiles</div>
+          <div className="mt-1 text-lg font-black text-[#071D49]">{isLoading ? "..." : data?.metrics?.total ?? 0}</div>
         </div>
+      </div>
 
-        <Table
-          columns={["Name", "Date of Birth", "Previous School", "Parent Contact", "Status", "Actions"]}
-          data={filtered}
-          renderRow={(app) => (
-            <tr key={app.id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
-              <td className="p-3 text-sm text-white font-medium">{app.name}</td>
-              <td className="p-3 text-sm text-white/70">{app.dob}</td>
-              <td className="p-3 text-sm text-white/70">{app.prevSchool}</td>
-              <td className="p-3 text-sm text-white/70">{app.parentContact}</td>
-              <td className="p-3 text-sm text-white/70">
-                <span className="px-2 py-1 bg-blue-500/10 text-blue-400 rounded-full text-xs font-medium border border-blue-500/20">
-                  {app.status}
-                </span>
-              </td>
-              <td className="p-3 text-sm">
-                <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-white/50 hover:text-white">
-                  <FileText className="h-4 w-4" />
-                </Button>
-              </td>
+      <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
+        <table className="w-full text-sm text-left whitespace-nowrap">
+          <thead className="bg-[#F8FAFC] text-[#071D49]">
+            <tr>
+              <th className="px-4 py-3 font-bold">Name</th>
+              <th className="px-4 py-3 font-bold">Class Applied</th>
+              <th className="px-4 py-3 font-bold">Date</th>
+              <th className="px-4 py-3 font-bold">Parent</th>
+              <th className="px-4 py-3 font-bold">Status</th>
             </tr>
-          )}
-          emptyState={
-            <div className="py-12 text-center text-white/50">
-              No applicant profiles found. Click "Add Applicant" to create one.
-            </div>
-          }
-        />
-      </Card>
-
-      <Modal open={isModalOpen} onClose={() => setIsModalOpen(false)} title="Add New Applicant">
-        <form onSubmit={handleAdd} className="space-y-4">
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Full Name</label>
-            <input name="name" required className="w-full rounded-md border border-slate-200 p-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500" />
-          </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Date of Birth</label>
-            <input type="date" name="dob" required className="w-full rounded-md border border-slate-200 p-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500" />
-          </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Previous School</label>
-            <input name="prevSchool" required className="w-full rounded-md border border-slate-200 p-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500" />
-          </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Parent Contact</label>
-            <input name="parentContact" required placeholder="Phone number" className="w-full rounded-md border border-slate-200 p-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500" />
-          </div>
-          <div className="flex justify-end gap-2 pt-4">
-            <Button type="button" variant="outline" onClick={() => setIsModalOpen(false)}>Cancel</Button>
-            <Button type="submit">Save Profile</Button>
-          </div>
-        </form>
-      </Modal>
-    </div>
+          </thead>
+          <tbody>
+            {isLoading ? (
+              <tr><td colSpan={5} className="px-4 py-8 text-center text-[#64748B]">Loading...</td></tr>
+            ) : items.length === 0 ? (
+              <tr><td colSpan={5} className="px-4 py-8 text-center text-[#64748B]">No records found. Create the first entry to get started.</td></tr>
+            ) : (
+              items.map((row: any, i: number) => (
+                <tr key={row.id || i} className="border-t border-[#D8E0EC] hover:bg-[#F8FAFC]">
+                  <td className="px-4 py-3 text-[#64748B]">{row.applicant_name}</td>
+                  <td className="px-4 py-3 text-[#64748B]">{row.class_applied}</td>
+                  <td className="px-4 py-3 text-[#64748B]">{row.date}</td>
+                  <td className="px-4 py-3 text-[#64748B]">{row.parent_name}</td>
+                  <td className="px-4 py-3"><span className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-bold whitespace-nowrap">{row.status}</span></td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+    </section>
   );
 }

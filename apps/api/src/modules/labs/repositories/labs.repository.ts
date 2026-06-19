@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, InternalServerErrorException } from '@nestjs/common';
 
 import { PrismaService } from '../../../database/prisma.service';
 
@@ -800,5 +800,280 @@ export class LabsRepository {
     const result = await this.executeSql(sql, values);
 
     return result.rows[0];
+  }
+
+  async getDashboard(tenantId: string) {
+    try {
+      const todayStr = new Date().toISOString().split('T')[0];
+      const todaySessionsRes = await this.executeSql(
+        `SELECT COUNT(*)::int as count FROM lab_sessions WHERE tenant_id = $1::uuid AND session_date = $2::date`,
+        [tenantId, todayStr]
+      );
+      const todaysSessionsCount = Number(todaySessionsRes.rows[0]?.count ?? 0);
+
+      const pendingRes = await this.executeSql(
+        `SELECT COUNT(*)::int as count FROM lab_sessions WHERE tenant_id = $1::uuid AND (status = 'PENDING' OR status = 'SCHEDULED')`,
+        [tenantId]
+      );
+      const pendingRequestsCount = Number(pendingRes.rows[0]?.count ?? 0);
+
+      const lowStockRes = await this.executeSql(
+        `SELECT COUNT(*)::int as count FROM chemical_items WHERE tenant_id = $1::uuid AND (quantity_available <= 5 OR expiry_date <= NOW() + INTERVAL '30 days')`,
+        [tenantId]
+      );
+      const lowStockOrExpiringCount = Number(lowStockRes.rows[0]?.count ?? 0);
+
+      const unreturnedRes = await this.executeSql(
+        `SELECT COUNT(*)::int as count FROM lab_session_equipment_usage WHERE tenant_id = $1::uuid`,
+        [tenantId]
+      );
+      const unreturnedItemsCount = Number(unreturnedRes.rows[0]?.count ?? 0);
+
+      const breakagesRes = await this.executeSql(
+        `SELECT COUNT(*)::int as count FROM lab_session_equipment_usage WHERE tenant_id = $1::uuid AND condition_after_use = 'BROKEN'`,
+        [tenantId]
+      );
+      const activeBreakagesCount = Number(breakagesRes.rows[0]?.count ?? 0);
+
+      const lowStockChemRes = await this.executeSql(
+        `SELECT COUNT(*)::int as count FROM chemical_items WHERE tenant_id = $1::uuid AND quantity_available <= 5`,
+        [tenantId]
+      );
+      const lowStockChemicalsCount = Number(lowStockChemRes.rows[0]?.count ?? 0);
+
+      return {
+        kpis: [
+          { label: "Today's Practicals", value: String(todaysSessionsCount) },
+          { label: "Pending Requests", value: String(pendingRequestsCount) },
+          { label: "Low Stock / Expiring", value: String(lowStockOrExpiringCount) },
+          { label: "Unreturned Items", value: String(unreturnedItemsCount) }
+        ],
+        todaysSessions: todaysSessionsCount,
+        pendingRequests: pendingRequestsCount,
+        lowStockExpiring: lowStockOrExpiringCount,
+        unreturnedItems: unreturnedItemsCount,
+        activeBreakages: activeBreakagesCount,
+        lowStockChemicals: lowStockChemicalsCount
+      };
+    } catch (e: any) {
+      console.error('getDashboard error:', e);
+      throw new InternalServerErrorException(e.message || 'Database error occurred');
+    }
+  }
+
+  async getInventory(tenantId: string) {
+    try {
+      const equipment = await this.executeSql(
+        `SELECT id, name, quantity_available, is_consumable FROM lab_equipment WHERE tenant_id = $1::uuid`,
+        [tenantId]
+      );
+      const chemicals = await this.executeSql(
+        `SELECT id, name, quantity_available, unit, hazard_class FROM chemical_items WHERE tenant_id = $1::uuid`,
+        [tenantId]
+      );
+
+      const list: any[] = [];
+      for (const eq of equipment.rows) {
+        list.push({
+          id: eq.id,
+          item: eq.name,
+          category: eq.is_consumable ? 'Chemical' : 'Apparatus',
+          quantity: Number(eq.quantity_available),
+          unit: 'Pcs',
+          location: 'Lab',
+          status: eq.quantity_available <= 5 ? 'Low Stock' : 'OK',
+          hazard: 'Low'
+        });
+      }
+      for (const chem of chemicals.rows) {
+        list.push({
+          id: chem.id,
+          item: chem.name,
+          category: 'Chemical',
+          quantity: Number(chem.quantity_available),
+          unit: chem.unit || 'L',
+          location: 'Chemical Store',
+          status: chem.quantity_available <= 2 ? 'Low Stock' : 'OK',
+          hazard: chem.hazard_class || 'Medium'
+        });
+      }
+      return list;
+    } catch (e: any) {
+      console.error('getInventory error:', e);
+      throw new InternalServerErrorException(e.message || 'Database error occurred');
+    }
+  }
+
+  async getRequests(tenantId: string) {
+    try {
+      const sessions = await this.executeSql(
+        `SELECT s.id, s.subject_name, s.session_date, s.start_time, s.end_time, s.teacher_id, s.class_section_id, s.is_mandatory
+         FROM lab_sessions s
+         WHERE s.tenant_id = $1::uuid`,
+        [tenantId]
+      );
+
+      const teacherIds = [...new Set(sessions.rows.map(s => s.teacher_id).filter(Boolean))];
+      const classIds = [...new Set(sessions.rows.map(s => s.class_section_id).filter(Boolean))];
+
+      let teachersMap: Record<string, string> = {};
+      let classesMap: Record<string, string> = {};
+
+      if (teacherIds.length > 0) {
+        const teachers = await this.executeSql(
+          `SELECT id, "firstName", "lastName" FROM users WHERE id = ANY($1::uuid[])`,
+          [teacherIds]
+        );
+        for (const t of teachers.rows) {
+          teachersMap[t.id] = `${t.firstName} ${t.lastName}`;
+        }
+      }
+
+      if (classIds.length > 0) {
+        const classes = await this.executeSql(
+          `SELECT id, name FROM classes WHERE id = ANY($1::uuid[])`,
+          [classIds]
+        );
+        for (const c of classes.rows) {
+          classesMap[c.id] = c.name;
+        }
+      }
+
+      return sessions.rows.map(s => ({
+        id: s.id,
+        teacher: teachersMap[s.teacher_id] || 'Unknown Teacher',
+        className: classesMap[s.class_section_id] || 'Unknown Class',
+        subject: s.subject_name || 'Science',
+        practical: `${s.subject_name || 'Lab'} Session`,
+        requestedFor: `${s.session_date} ${s.start_time}`,
+        status: s.is_mandatory ? 'Requested' : 'Prepared',
+        teacherAlerted: false
+      }));
+    } catch (e: any) {
+      console.error('getRequests error:', e);
+      throw new InternalServerErrorException(e.message || 'Database error occurred');
+    }
+  }
+
+  async getIssues(tenantId: string) {
+    try {
+      const eqUsages = await this.executeSql(
+        `SELECT u.id, u.equipment_id, u.quantity_used, u.condition_after_use, u.session_id
+         FROM lab_session_equipment_usage u
+         WHERE u.tenant_id = $1::uuid`,
+        [tenantId]
+      );
+
+      const chemUsages = await this.executeSql(
+        `SELECT u.id, u.chemical_id, u.quantity_used, u.session_id
+         FROM lab_session_chemical_usage u
+         WHERE u.tenant_id = $1::uuid`,
+        [tenantId]
+      );
+
+      const sessionIds = [
+        ...new Set([
+          ...eqUsages.rows.map(u => u.session_id),
+          ...chemUsages.rows.map(u => u.session_id)
+        ].filter(Boolean))
+      ];
+
+      let sessionsMap: Record<string, { teacher: string; className: string }> = {};
+      if (sessionIds.length > 0) {
+        const sessions = await this.executeSql(
+          `SELECT s.id, s.teacher_id, s.class_section_id FROM lab_sessions s WHERE s.id = ANY($1::uuid[])`,
+          [sessionIds]
+        );
+        const teacherIds = [...new Set(sessions.rows.map(s => s.teacher_id).filter(Boolean))];
+        const classIds = [...new Set(sessions.rows.map(s => s.class_section_id).filter(Boolean))];
+
+        let teachersMap: Record<string, string> = {};
+        let classesMap: Record<string, string> = {};
+
+        if (teacherIds.length > 0) {
+          const teachers = await this.executeSql(
+            `SELECT id, "firstName", "lastName" FROM users WHERE id = ANY($1::uuid[])`,
+            [teacherIds]
+          );
+          for (const t of teachers.rows) {
+            teachersMap[t.id] = `${t.firstName} ${t.lastName}`;
+          }
+        }
+        if (classIds.length > 0) {
+          const classes = await this.executeSql(
+            `SELECT id, name FROM classes WHERE id = ANY($1::uuid[])`,
+            [classIds]
+          );
+          for (const c of classes.rows) {
+            classesMap[c.id] = c.name;
+          }
+        }
+
+        for (const s of sessions.rows) {
+          sessionsMap[s.id] = {
+            teacher: teachersMap[s.teacher_id] || 'Unknown Teacher',
+            className: classesMap[s.class_section_id] || 'Unknown Class'
+          };
+        }
+      }
+
+      const eqIds = [...new Set(eqUsages.rows.map(u => u.equipment_id).filter(Boolean))];
+      const chemIds = [...new Set(chemUsages.rows.map(u => u.chemical_id).filter(Boolean))];
+
+      let eqMap: Record<string, string> = {};
+      let chemMap: Record<string, string> = {};
+
+      if (eqIds.length > 0) {
+        const equipments = await this.executeSql(
+          `SELECT id, name FROM lab_equipment WHERE id = ANY($1::uuid[])`,
+          [eqIds]
+        );
+        for (const e of equipments.rows) {
+          eqMap[e.id] = e.name;
+        }
+      }
+
+      if (chemIds.length > 0) {
+        const chemicals = await this.executeSql(
+          `SELECT id, name FROM chemical_items WHERE id = ANY($1::uuid[])`,
+          [chemIds]
+        );
+        for (const c of chemicals.rows) {
+          chemMap[c.id] = c.name;
+        }
+      }
+
+      const list: any[] = [];
+      for (const eq of eqUsages.rows) {
+        const sInfo = sessionsMap[eq.session_id] || { teacher: 'Unknown Teacher', className: 'Unknown Class' };
+        list.push({
+          id: eq.id,
+          item: eqMap[eq.equipment_id] || 'Lab Equipment',
+          teacher: sInfo.teacher,
+          className: sInfo.className,
+          quantity: Number(eq.quantity_used),
+          status: eq.condition_after_use === 'BROKEN' ? 'Broken' : 'Issued',
+          note: `Condition after use: ${eq.condition_after_use || 'OK'}`
+        });
+      }
+
+      for (const chem of chemUsages.rows) {
+        const sInfo = sessionsMap[chem.session_id] || { teacher: 'Unknown Teacher', className: 'Unknown Class' };
+        list.push({
+          id: chem.id,
+          item: chemMap[chem.chemical_id] || 'Chemical Item',
+          teacher: sInfo.teacher,
+          className: sInfo.className,
+          quantity: Number(chem.quantity_used),
+          status: 'Issued',
+          note: 'Chemical dispensed'
+        });
+      }
+
+      return list;
+    } catch (e: any) {
+      console.error('getIssues error:', e);
+      throw new InternalServerErrorException(e.message || 'Database error occurred');
+    }
   }
 }

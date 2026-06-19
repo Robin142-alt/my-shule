@@ -26,6 +26,10 @@ export class DeputyCommandController {
   @Permissions('deputy:write')
   notifyParent(@Param('id') id: string) { return this.deputyService.notifyParent(id); }
 
+  @Post('attendance/follow-up')
+  @Permissions('deputy:write')
+  createFollowUpList(@Body() dto: any) { return this.deputyService.createFollowUpList(dto); }
+
   @Get('discipline')
   @Permissions('deputy:read')
   getDiscipline() { return this.deputyService.getDiscipline(); }
@@ -58,6 +62,10 @@ export class DeputyCommandController {
   @Permissions('deputy:write')
   requestDutyReport(@Param('id') id: string) { return this.deputyService.requestDutyReport(id); }
 
+  @Post('staff-duty/roster')
+  @Permissions('deputy:write')
+  manageDutyRoster(@Body() dto: any) { return this.deputyService.manageDutyRoster(dto); }
+
   @Get('teaching')
   @Permissions('deputy:read')
   getTeaching() { return this.deputyService.getTeaching(); }
@@ -78,6 +86,10 @@ export class DeputyCommandController {
   @Permissions('deputy:write')
   assignReliefTeacher(@Param('id') id: string, @Body('teacherName') teacherName: string) { return this.deputyService.assignReliefTeacher(id, teacherName); }
 
+  @Post('timetable/auto-assign')
+  @Permissions('deputy:write')
+  autoAssignRelief() { return this.deputyService.autoAssignRelief(); }
+
   @Get('academics')
   @Permissions('deputy:read')
   getAcademics() { return this.deputyService.getAcademics(); }
@@ -85,6 +97,10 @@ export class DeputyCommandController {
   @Post('academics/:id/message-hod')
   @Permissions('deputy:write')
   messageHOD(@Param('id') id: string) { return this.deputyService.messageHOD(id); }
+
+  @Post('academics/intervention')
+  @Permissions('deputy:write')
+  createIntervention(@Body() dto: any) { return this.deputyService.createIntervention(dto); }
 
   @Get('exams')
   @Permissions('deputy:read')
@@ -97,6 +113,10 @@ export class DeputyCommandController {
   @Get('classes')
   @Permissions('deputy:read')
   getClasses() { return this.deputyService.getClasses(); }
+
+  @Post('classes/streams')
+  @Permissions('deputy:write')
+  manageStreams(@Body() dto: any) { return this.deputyService.manageStreams(dto); }
 
   @Get('approvals')
   @Permissions('deputy:read')

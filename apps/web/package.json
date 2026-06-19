@@ -7,7 +7,7 @@
   },
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "node clean-build.js && next build",
     "start": "next start",
     "lint": "eslint src tests jest.config.ts jest.setup.ts next.config.ts playwright.config.ts postcss.config.mjs",
     "test:design": "jest --config jest.config.ts --runInBand",

@@ -1,4 +1,5 @@
 // @ts-nocheck
+
 "use client";
 
 import { useState } from "react";
@@ -22,7 +23,7 @@ export function AcademicsWorkspace() {
   const handleMarkDone = async (id: number) => {
     try {
       setIsSubmitting(true);
-      const res = await requestDashboardApi("/api/student-portal/assignments/mark-done", {
+      const res: any = await requestDashboardApi("/api/student-portal/assignments/mark-done", {
         method: "POST",
         body: JSON.stringify({ id, status: 'completed' })
       });

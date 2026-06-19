@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 
 interface ReportCardGeneratorProps {
   tenantId?: string;
@@ -41,7 +42,7 @@ export function ReportCardGenerator({ tenantId, examSeriesId }: ReportCardGenera
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["exam-readiness", tenantId, examSeriesId] });
-      alert("Report cards generated and exam series published successfully!");
+      toast.success("Report cards generated and exam series published successfully!");
     },
     onError: (err: any) => {
       setGenerateError(err.message);

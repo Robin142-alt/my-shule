@@ -4,6 +4,8 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
+import { toast } from "sonner";
+import { Card } from "@/components/ui/card";
 
 interface MarksEntryTableProps {
   tenantId?: string;
@@ -63,24 +65,24 @@ export function MarksEntryTable({
       setEditScore("");
     },
     onError: (err: any) => {
-      alert(`Error saving mark: ${err.message}`);
+      toast.error(`Error saving mark: ${err.message}`);
     }
   });
 
   const handleSave = (studentId: string) => {
     const score = Number(editScore);
     if (isNaN(score) || score < 0) {
-      alert("Please enter a valid positive number for the score.");
+      toast.error("Please enter a valid positive number for the score.");
       return;
     }
     enterMarkMutation.mutate({ studentId, score });
   };
 
   return (
-    <div className="space-y-4 bg-white p-4 rounded shadow">
-      <h3 className="font-semibold text-lg">Marks Entry</h3>
+    <Card className="p-5 space-y-4">
+      <h3 className="font-semibold text-lg text-foreground">Marks Entry</h3>
       {marksQuery.isLoading ? (
-        <div>Loading marks...</div>
+        <div className="h-32 flex items-center justify-center border rounded-[var(--radius)]">Loading marks...</div>
       ) : (
         <DataTable
           columns={[
@@ -96,7 +98,7 @@ export function MarksEntryTable({
                         type="number" 
                         value={editScore}
                         onChange={(e) => setEditScore(e.target.value)}
-                        className="border rounded px-2 py-1 w-20"
+                        className="input-base w-20"
                       />
                       <Button size="sm" onClick={() => handleSave(row.student_id)} disabled={enterMarkMutation.isPending}>Save</Button>
                       <Button size="sm" variant="ghost" onClick={() => setEditingStudentId(null)}>Cancel</Button>
@@ -133,6 +135,6 @@ export function MarksEntryTable({
           getRowKey={(row: any) => row.id || row.student_id}
         />
       )}
-    </div>
+    </Card>
   );
 }

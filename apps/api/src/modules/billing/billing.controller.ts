@@ -319,4 +319,20 @@ export class BillingController {
   ): Promise<InvoiceResponseDto> {
     return this.billingMpesaService.createInvoicePaymentIntent(invoiceId, dto);
   }
+
+  @Get('student-balances/csv')
+  async getStudentBalancesCsv(@Query() query: any) {
+    // For now return raw JSON from listStudentBalances until export logic is fully written
+    return this.billingService.listStudentBalances(query);
+  }
+
+  @Get('reconciliation/csv')
+  async getReconciliationCsv(@Query() query: any) {
+    return this.billingService.exportFinanceReconciliationCsv(query);
+  }
+
+  @Get('waivers')
+  async getWaivers() {
+    return this.billingService.getWaivers();
+  }
 }

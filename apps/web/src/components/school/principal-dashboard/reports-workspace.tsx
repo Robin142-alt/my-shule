@@ -2,6 +2,7 @@
 
 import { Card } from "@/components/ui/card";
 import { AlertCircle, BarChart3, FileText, Download, Star, Plus, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 import { requestDashboardApi } from "@/lib/dashboard/api-client";
 import { useState } from "react";
@@ -39,7 +40,7 @@ export function PrincipalReportsWorkspace() {
       setIsCategoryModalOpen(false);
       refetch();
     } catch (err: any) {
-      alert(err.message || "Failed to create category");
+      toast.error(err.message || "Failed to create category");
     } finally {
       setIsSubmittingCat(false);
     }
@@ -57,7 +58,7 @@ export function PrincipalReportsWorkspace() {
       setIsScheduleModalOpen(false);
       refetch();
     } catch (err: any) {
-      alert(err.message || "Failed to schedule report");
+      toast.error(err.message || "Failed to schedule report");
     } finally {
       setIsSubmittingSched(false);
     }

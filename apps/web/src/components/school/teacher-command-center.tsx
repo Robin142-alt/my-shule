@@ -20,6 +20,17 @@ import { ClassesWorkspace } from "./teacher-dashboard/classes-workspace";
 import { ExamsMarksWorkspace } from "./teacher-dashboard/exams-marks-workspace";
 import { LessonLogWorkspace } from "./teacher-dashboard/lesson-log-workspace";
 import { ParentCommunicationWorkspace } from "./teacher-dashboard/parent-communication-workspace";
+import { TimetableWorkspace } from "./teacher-dashboard/timetable-workspace";
+import { SyllabusCoverageWorkspace } from "./teacher-dashboard/syllabus-coverage-workspace";
+import { LearnerProgressWorkspace } from "./teacher-dashboard/learner-progress-workspace";
+import { TeachingResourcesWorkspace } from "./teacher-dashboard/teaching-resources-workspace";
+import { StoreRequestsWorkspace } from "./teacher-dashboard/store-requests-workspace";
+import { ReportsDownloadsWorkspace } from "./teacher-dashboard/reports-downloads-workspace";
+import { NotificationsWorkspace } from "./teacher-dashboard/notifications-workspace";
+import { MyProfileWorkspace } from "./teacher-dashboard/my-profile-workspace";
+import { ClassTeacherWorkspace } from "./teacher-dashboard/class-teacher-workspace";
+import { ClubWorkspace } from "./teacher-dashboard/club-workspace";
+import { InvigilationWorkspace } from "./teacher-dashboard/invigilation-workspace";
 
 export function TeacherCommandCenter({ activeSection, routeMode }: { activeSection?: string; routeMode?: "hosted" | "public" } = {}) {
   const [activeViewState, setActiveViewState] = useState<TeacherView>(
@@ -60,14 +71,28 @@ export function TeacherCommandCenter({ activeSection, routeMode }: { activeSecti
           {activeView === "assessments-cats" && <AssessmentsCatsWorkspace />}
           {activeView === "exams-marks" && <ExamsMarksWorkspace onStartAction={handleStartAction} />}
           {activeView === "parent-communication" && <ParentCommunicationWorkspace onStartAction={handleStartAction} />}
+          {activeView === "timetable" && <TimetableWorkspace />}
+          {activeView === "syllabus-coverage" && <SyllabusCoverageWorkspace />}
+          {activeView === "learner-progress" && <LearnerProgressWorkspace />}
+          {activeView === "teaching-resources" && <TeachingResourcesWorkspace />}
+          {activeView === "store-requests" && <StoreRequestsWorkspace />}
+          {activeView === "reports" && <ReportsDownloadsWorkspace />}
+          {activeView === "notifications" && <NotificationsWorkspace />}
+          {activeView === "profile" && <MyProfileWorkspace />}
+          {activeView === "class-teacher" && <ClassTeacherWorkspace />}
+          {activeView === "club" && <ClubWorkspace />}
+          {activeView === "invigilation" && <InvigilationWorkspace />}
           {/* Fallback for other workspaces */}
           {![
             "overview", "attendance", "assignments", "discipline-welfare", "classes",
-            "lesson-log", "assessments-cats", "exams-marks", "parent-communication"
+            "lesson-log", "assessments-cats", "exams-marks", "parent-communication",
+            "timetable", "syllabus-coverage", "learner-progress", "teaching-resources",
+            "store-requests", "reports", "notifications", "profile", "class-teacher",
+            "club", "invigilation"
           ].includes(activeView) && (
             <div className="rounded-xl bg-white border border-[#D8E0EC] p-12 text-center text-[#64748B]">
-              <p className="font-bold text-[#071D49] text-lg">Workspace under development</p>
-              <p className="mt-2 text-sm">The {activeView} workspace is currently being built.</p>
+              <p className="font-bold text-[#071D49] text-lg">Workspace Not Found</p>
+              <p className="mt-2 text-sm">The requested workspace '{activeView}' does not exist or is currently unavailable.</p>
             </div>
           )}
         </div>

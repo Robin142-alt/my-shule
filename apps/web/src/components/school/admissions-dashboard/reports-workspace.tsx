@@ -1,148 +1,63 @@
 "use client";
+import { BarChart3 } from "lucide-react";
+import { useSchoolQuery } from "@/lib/data/school-hooks";
 
-import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Download, FileText, FileSpreadsheet, Printer, Users, UserPlus, UserCheck, Loader2 } from "lucide-react";
-import { useState } from "react";
-import { requestDashboardApi } from "@/lib/dashboard/api-client";
+type ReportsData = {
+  metrics: Record<string, number>;
+  items: any[];
+};
 
-export function AdmissionsReportsWorkspace({ dataset }: { dataset?: any }) {
-  const [isGenerating, setIsGenerating] = useState<string | null>(null);
-
-  const handleDownload = async (type: string) => {
-    setIsGenerating(type);
-    try {
-      await requestDashboardApi('/admissions/reports', {
-        method: 'POST',
-        body: JSON.stringify({ type }),
-      });
-      // Optionally handle the download file response here
-    } catch (error) {
-      console.error("Failed to generate report:", error);
-    } finally {
-      setIsGenerating(null);
-    }
-  };
+export function ReportsWorkspace() {
+  const { data, isLoading } = useSchoolQuery<ReportsData>("/admin-command/admissions/reports");
+  const items = data?.items || [];
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
+    <section className="rounded-2xl border border-[#D8E0EC] bg-white p-5 shadow-[0_18px_50px_rgba(7,29,73,0.08)]">
+      <div className="mb-4 flex min-w-0 gap-3">
+        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#EEF5FF] text-[#1D4ED8]">
+          <BarChart3 className="h-5 w-5" aria-hidden="true" />
+        </span>
         <div>
-          <h2 className="text-2xl font-bold text-white">Admissions Reports</h2>
-          <p className="text-white/60 text-sm">Analytics and exportable data for the current admission cycle</p>
+          <h2 className="text-xl font-black tracking-[-0.01em] text-[#071D49]">Admissions Reports</h2>
+          <p className="mt-1 text-sm leading-6 text-[#64748B]">Generate admission reports.</p>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="border border-white/10 bg-white/5 p-6 flex items-center gap-4">
-          <div className="p-3 bg-blue-500/10 rounded-xl">
-            <Users className="h-6 w-6 text-blue-400" />
-          </div>
-          <div>
-            <div className="text-sm font-semibold text-white/70">Total Applications</div>
-            <div className="text-2xl font-black text-white">452</div>
-          </div>
-        </Card>
-        <Card className="border border-white/10 bg-white/5 p-6 flex items-center gap-4">
-          <div className="p-3 bg-purple-500/10 rounded-xl">
-            <UserPlus className="h-6 w-6 text-purple-400" />
-          </div>
-          <div>
-            <div className="text-sm font-semibold text-white/70">Pending Interviews</div>
-            <div className="text-2xl font-black text-white">128</div>
-          </div>
-        </Card>
-        <Card className="border border-white/10 bg-white/5 p-6 flex items-center gap-4">
-          <div className="p-3 bg-green-500/10 rounded-xl">
-            <UserCheck className="h-6 w-6 text-green-400" />
-          </div>
-          <div>
-            <div className="text-sm font-semibold text-white/70">Fully Enrolled</div>
-            <div className="text-2xl font-black text-white">84</div>
-          </div>
-        </Card>
+      <div className="grid gap-4 md:grid-cols-1 mb-6">
+        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
+          <div className="text-sm font-semibold text-[#64748B]">Available Reports</div>
+          <div className="mt-1 text-lg font-black text-[#071D49]">{isLoading ? "..." : data?.metrics?.available ?? 0}</div>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card className="border border-white/10 bg-white/5 p-6">
-          <h3 className="text-lg font-bold text-white mb-6">Standard Reports</h3>
-          <div className="space-y-3">
-            <div className="flex items-center justify-between p-3 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 transition-colors">
-              <div className="flex items-center gap-3">
-                <FileText className="h-5 w-5 text-white/50" />
-                <div>
-                  <div className="text-sm font-medium text-white">Master Applicants List</div>
-                  <div className="text-xs text-white/50">PDF format, sorted by grade</div>
-                </div>
-              </div>
-              <Button size="sm" variant="ghost" onClick={() => handleDownload("Master List PDF")} disabled={isGenerating === "Master List PDF"}>
-                {isGenerating === "Master List PDF" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-              </Button>
-            </div>
-            
-            <div className="flex items-center justify-between p-3 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 transition-colors">
-              <div className="flex items-center gap-3">
-                <FileSpreadsheet className="h-5 w-5 text-green-400/50" />
-                <div>
-                  <div className="text-sm font-medium text-white">Interview Schedule</div>
-                  <div className="text-xs text-white/50">Excel format, includes contact info</div>
-                </div>
-              </div>
-              <Button size="sm" variant="ghost" onClick={() => handleDownload("Interview Schedule Excel")} disabled={isGenerating === "Interview Schedule Excel"}>
-                {isGenerating === "Interview Schedule Excel" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-              </Button>
-            </div>
-
-            <div className="flex items-center justify-between p-3 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 transition-colors">
-              <div className="flex items-center gap-3">
-                <Printer className="h-5 w-5 text-purple-400/50" />
-                <div>
-                  <div className="text-sm font-medium text-white">Admission Letters (Bulk)</div>
-                  <div className="text-xs text-white/50">Print-ready PDF for accepted students</div>
-                </div>
-              </div>
-              <Button size="sm" variant="ghost" onClick={() => handleDownload("Admission Letters Print")} disabled={isGenerating === "Admission Letters Print"}>
-                {isGenerating === "Admission Letters Print" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-              </Button>
-            </div>
-          </div>
-        </Card>
-
-        <Card className="border border-white/10 bg-white/5 p-6 flex flex-col">
-          <h3 className="text-lg font-bold text-white mb-6">Demographic Summary</h3>
-          <div className="flex-1 flex items-center justify-center">
-            <div className="w-full max-w-sm space-y-4">
-              <div>
-                <div className="flex justify-between text-sm mb-1">
-                  <span className="text-white/70">Form 1 Entries</span>
-                  <span className="text-white font-medium">65%</span>
-                </div>
-                <div className="w-full bg-white/10 rounded-full h-2">
-                  <div className="bg-blue-500 h-2 rounded-full" style={{ width: "65%" }}></div>
-                </div>
-              </div>
-              <div>
-                <div className="flex justify-between text-sm mb-1">
-                  <span className="text-white/70">Form 2 Transfers</span>
-                  <span className="text-white font-medium">25%</span>
-                </div>
-                <div className="w-full bg-white/10 rounded-full h-2">
-                  <div className="bg-purple-500 h-2 rounded-full" style={{ width: "25%" }}></div>
-                </div>
-              </div>
-              <div>
-                <div className="flex justify-between text-sm mb-1">
-                  <span className="text-white/70">Other Grades</span>
-                  <span className="text-white font-medium">10%</span>
-                </div>
-                <div className="w-full bg-white/10 rounded-full h-2">
-                  <div className="bg-green-500 h-2 rounded-full" style={{ width: "10%" }}></div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </Card>
+      <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
+        <table className="w-full text-sm text-left whitespace-nowrap">
+          <thead className="bg-[#F8FAFC] text-[#071D49]">
+            <tr>
+              <th className="px-4 py-3 font-bold">Title</th>
+              <th className="px-4 py-3 font-bold">Type</th>
+              <th className="px-4 py-3 font-bold">Generated</th>
+              <th className="px-4 py-3 font-bold">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {isLoading ? (
+              <tr><td colSpan={4} className="px-4 py-8 text-center text-[#64748B]">Loading...</td></tr>
+            ) : items.length === 0 ? (
+              <tr><td colSpan={4} className="px-4 py-8 text-center text-[#64748B]">No records found. Create the first entry to get started.</td></tr>
+            ) : (
+              items.map((row: any, i: number) => (
+                <tr key={row.id || i} className="border-t border-[#D8E0EC] hover:bg-[#F8FAFC]">
+                  <td className="px-4 py-3 text-[#64748B]">{row.title}</td>
+                  <td className="px-4 py-3 text-[#64748B]">{row.type}</td>
+                  <td className="px-4 py-3 text-[#64748B]">{row.generated_at}</td>
+                  <td className="px-4 py-3"><span className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-bold whitespace-nowrap">{row.status}</span></td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
       </div>
-    </div>
+    </section>
   );
 }

@@ -1,10 +1,11 @@
 "use client";
+import { useState } from "react";
 import { CalendarClock } from "lucide-react";
 import { Panel, StatusChip, Tone } from "./shared";
 import { useSchoolQuery, useSchoolMutation } from "@/lib/data/school-hooks";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { assignReliefTeacher } from "./api-client";
+import { assignReliefTeacher, autoAssignRelief } from "./api-client";
 
 export type ReliefLesson = {
   id: string;
@@ -25,7 +26,8 @@ type TimetableData = {
 
 export function DeputyTimetableReliefWorkspace() {
   const queryClient = useQueryClient();
-  const { data, isLoading } = useSchoolQuery<TimetableData>('/admin-command/deputy/timetable');
+  const { data, isLoading, refetch } = useSchoolQuery<TimetableData>('/admin-command/deputy/timetable');
+  const [isAutoAssigning, setIsAutoAssigning] = useState(false);
 
   const assignMutation = useSchoolMutation<
     { id: string; teacherName: string },
@@ -53,6 +55,19 @@ export function DeputyTimetableReliefWorkspace() {
     }
   };
 
+  const handleAutoAssign = async () => {
+    try {
+      setIsAutoAssigning(true);
+      await autoAssignRelief();
+      toast.success("Auto-assignment complete. Free teachers have been assigned to needed lessons.");
+      refetch();
+    } catch (e: any) {
+      toast.error("Failed to run auto-assignment algorithm.");
+    } finally {
+      setIsAutoAssigning(false);
+    }
+  };
+
   const getStatusTone = (st: string): Tone => {
     if (st === "Needed") return "danger";
     if (st === "Assigned") return "warning";
@@ -61,7 +76,13 @@ export function DeputyTimetableReliefWorkspace() {
 
   return (
     <Panel title="Timetable & Relief Lessons" description="Lesson disruptions, absences, and relief coverage." icon={CalendarClock} actions={
-      <button onClick={() => toast.info("Auto-assign algorithm coming soon")} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white hover:bg-blue-900 transition">Auto-Assign Relief</button>
+      <button 
+        onClick={handleAutoAssign} 
+        disabled={isAutoAssigning}
+        className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white hover:bg-blue-900 transition disabled:opacity-50"
+      >
+        {isAutoAssigning ? "Assigning..." : "Auto-Assign Relief"}
+      </button>
     }>
       <div className="grid gap-4 md:grid-cols-2 mb-6">
         <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">

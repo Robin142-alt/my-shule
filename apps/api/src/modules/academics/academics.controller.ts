@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Query, Param, Patch, Delete } from '@nestjs/common';
+import { Body, Controller, Get, Post, Query, Param, Patch, Delete, UnauthorizedException, InternalServerErrorException } from '@nestjs/common';
 
 import { Permissions } from '../../auth/decorators/permissions.decorator';
 import { RequiresModule } from '../module-access/module-access.decorator';
@@ -364,5 +364,47 @@ export class AcademicsController {
   @Permissions('academics:write')
   archiveReportCardSetting(@Param('id') id: string) {
     return this.academicsService.archiveReportCardSetting(id);
+  }
+
+  @Get('years')
+  @Permissions('academics:read')
+  getYears() {
+    return this.academicsService.listAcademicYears();
+  }
+
+  @Get('terms')
+  @Permissions('academics:read')
+  getTerms() {
+    return this.academicsService.listAcademicTerms();
+  }
+
+  @Get('assignments')
+  @Permissions('academics:read')
+  getAssignments() {
+    return this.academicsService.getMyAssignments();
+  }
+
+  @Get('lesson-logs')
+  @Permissions('academics:read')
+  getLessonLogs() {
+    return this.academicsService.getMyLessonLogs();
+  }
+
+  @Get('communications')
+  @Permissions('academics:read')
+  async getCommunications() {
+    const tenantId = (this.academicsService as any).requestContext.getStore()?.tenant_id;
+    if (!tenantId) throw new UnauthorizedException('Tenant ID required');
+    try {
+      const items = await (this.academicsService as any).repository.prisma.communicationBroadcast.findMany({
+        where: { schoolId: tenantId },
+        orderBy: { createdAt: 'desc' },
+        take: 50,
+      });
+      return { items };
+    } catch (e: any) {
+      console.error('academics.controller error:', e);
+      throw new InternalServerErrorException(e.message);
+    }
   }
 }

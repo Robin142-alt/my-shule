@@ -1,111 +1,71 @@
 "use client";
+import { PackageOpen } from "lucide-react";
+import { useSchoolQuery } from "@/lib/data/school-hooks";
 
-import { useState } from "react";
-import { usePermissions } from "@/components/providers/permission-context";
-import { Button } from "@/components/ui/button";
-import { Modal } from "@/components/ui/modal";
-function Panel({ title, description, children, actions }: { title: string; description?: string; children: React.ReactNode; actions?: React.ReactNode }) {
-  return (
-    <div className="rounded-xl border bg-white shadow-sm overflow-hidden mb-6">
-      <div className="border-b bg-gray-50/50 p-4 flex justify-between items-start">
-        <div>
-          <h2 className="text-lg font-semibold text-[#071D49]">{title}</h2>
-          {description && <p className="text-sm text-gray-500 mt-1">{description}</p>}
-        </div>
-        {actions && <div>{actions}</div>}
-      </div>
-      <div className="p-4">{children}</div>
-    </div>
-  );
-}
-
-import { requestDashboardApi } from "@/lib/dashboard/api-client";
-import { toast } from "sonner";
-
-export function IssueItemModal({ onClose }: { onClose: () => void }) {
-  const [submitting, setSubmitting] = useState(false);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const form = e.target as HTMLFormElement;
-    const formData = new FormData(form);
-    const itemName = formData.get("itemName") as string;
-    const quantity = formData.get("quantity") as string;
-    const department = formData.get("department") as string;
-
-    setSubmitting(true);
-    try {
-      await requestDashboardApi("/api/admin-command/inventory/issue", {
-        method: "POST",
-        body: JSON.stringify({
-          itemName,
-          quantity: Number(quantity),
-          department,
-        }),
-      });
-      toast.success("Item issued successfully");
-      onClose();
-    } catch (error) {
-      toast.error("Failed to issue item");
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  return (
-    <Modal title="Issue Item" open={true} onClose={onClose} size="md">
-      <form onSubmit={handleSubmit} className="p-6 space-y-4">
-        <div>
-          <label className="block text-sm font-bold text-[#071D49] mb-1">Item Name</label>
-          <select name="itemName" required className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]">
-            <option value="">Select item...</option>
-            <option value="chalk">White Chalk (Boxes)</option>
-            <option value="paper">A4 Paper (Reams)</option>
-            <option value="sugar">Sugar (Kg)</option>
-          </select>
-        </div>
-        <div>
-          <label className="block text-sm font-bold text-[#071D49] mb-1">Quantity to Issue</label>
-          <input name="quantity" required type="number" min="1" className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="0" />
-        </div>
-        <div>
-          <label className="block text-sm font-bold text-[#071D49] mb-1">Issued To / Department</label>
-          <input name="department" required type="text" className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="e.g. Science Department" />
-        </div>
-        <div className="mt-6 flex justify-end gap-3 pt-4 border-t border-[#D8E0EC]">
-          <button type="button" onClick={onClose} className="rounded-xl px-4 py-2 text-sm font-bold text-[#64748B]">Cancel</button>
-          <button disabled={submitting} type="submit" className="rounded-xl bg-[#071D49] px-6 py-2 text-sm font-black text-white">
-            {submitting ? "Processing..." : "Issue Item"}
-          </button>
-        </div>
-      </form>
-    </Modal>
-  );
-}
+type StockIssueData = {
+  metrics: Record<string, number>;
+  items: any[];
+};
 
 export function StockIssueWorkspace() {
-  const { hasPermission } = usePermissions();
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const { data, isLoading } = useSchoolQuery<StockIssueData>("/admin-command/storekeeper/stock-issue");
+  const items = data?.items || [];
 
   return (
-    <div className="space-y-6 max-w-5xl">
-      <Panel 
-        title="Issue Stock"
-        description="Fulfill requisitions and track outgoing materials."
-        actions={
-          hasPermission('inventory:write') ? (
-            <Button onClick={() => setIsModalOpen(true)}>Issue Item</Button>
-          ) : (
-            <span className="text-xs font-bold text-[#64748B]">Restricted</span>
-          )
-        }
-      >
-        <div className="rounded-2xl border border-[#D8E0EC] bg-white p-6 shadow-sm text-center">
-          <p className="text-[#64748B] text-sm">No recent items issued.</p>
+    <section className="rounded-2xl border border-[#D8E0EC] bg-white p-5 shadow-[0_18px_50px_rgba(7,29,73,0.08)]">
+      <div className="mb-4 flex min-w-0 gap-3">
+        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#EEF5FF] text-[#1D4ED8]">
+          <PackageOpen className="h-5 w-5" aria-hidden="true" />
+        </span>
+        <div>
+          <h2 className="text-xl font-black tracking-[-0.01em] text-[#071D49]">Stock Issue</h2>
+          <p className="mt-1 text-sm leading-6 text-[#64748B]">Issue stock to departments and staff.</p>
         </div>
-      </Panel>
+      </div>
 
-      {isModalOpen && <IssueItemModal onClose={() => setIsModalOpen(false)} />}
-    </div>
+      <div className="grid gap-4 md:grid-cols-2 mb-6">
+        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
+          <div className="text-sm font-semibold text-[#64748B]">Issued Today</div>
+          <div className="mt-1 text-lg font-black text-[#071D49]">{isLoading ? "..." : data?.metrics?.issued_today ?? 0}</div>
+        </div>
+        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
+          <div className="text-sm font-semibold text-[#64748B]">Pending Requests</div>
+          <div className="mt-1 text-lg font-black text-[#071D49]">{isLoading ? "..." : data?.metrics?.pending_requests ?? 0}</div>
+        </div>
+      </div>
+
+      <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
+        <table className="w-full text-sm text-left whitespace-nowrap">
+          <thead className="bg-[#F8FAFC] text-[#071D49]">
+            <tr>
+              <th className="px-4 py-3 font-bold">Item</th>
+              <th className="px-4 py-3 font-bold">Quantity</th>
+              <th className="px-4 py-3 font-bold">Issued To</th>
+              <th className="px-4 py-3 font-bold">Department</th>
+              <th className="px-4 py-3 font-bold">Date</th>
+              <th className="px-4 py-3 font-bold">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {isLoading ? (
+              <tr><td colSpan={6} className="px-4 py-8 text-center text-[#64748B]">Loading...</td></tr>
+            ) : items.length === 0 ? (
+              <tr><td colSpan={6} className="px-4 py-8 text-center text-[#64748B]">No records found. Create the first entry to get started.</td></tr>
+            ) : (
+              items.map((row: any, i: number) => (
+                <tr key={row.id || i} className="border-t border-[#D8E0EC] hover:bg-[#F8FAFC]">
+                  <td className="px-4 py-3 text-[#64748B]">{row.item_name}</td>
+                  <td className="px-4 py-3 text-[#64748B]">{row.quantity}</td>
+                  <td className="px-4 py-3 text-[#64748B]">{row.issued_to}</td>
+                  <td className="px-4 py-3 text-[#64748B]">{row.department}</td>
+                  <td className="px-4 py-3 text-[#64748B]">{row.date}</td>
+                  <td className="px-4 py-3"><span className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-bold whitespace-nowrap">{row.status}</span></td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+    </section>
   );
 }

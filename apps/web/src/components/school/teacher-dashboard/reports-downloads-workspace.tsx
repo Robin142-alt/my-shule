@@ -1,22 +1,48 @@
-import { FileText } from "lucide-react";
+import { Download } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import { Panel, RecordTable } from "./shared-components";
-import { TeacherAction, TeacherView } from "./types";
+import { useLiveTenantSession } from "@/hooks/use-live-tenant-session";
+import { requestDashboardApi } from "@/lib/dashboard/api-client";
 
-export function ReportsDownloadsWorkspace({
-  onStartAction,
-}: {
-  onStartAction: (action: TeacherAction, view: TeacherView, message: string) => void;
-}) {
+export function ReportsDownloadsWorkspace() {
+  const liveSession = useLiveTenantSession("school");
+
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ["teacher-reports-downloads", liveSession.session?.tenantId],
+    queryFn: () => requestDashboardApi<any>("/admin-command/teacher/reports", {
+      tenantId: liveSession.session!.tenantId,
+      accessToken: (liveSession.session as any)?.accessToken,
+    }),
+    enabled: !!liveSession.session,
+  });
+
+  const stats = data?.metrics || {};
+  const rows = (data?.items || []).map((c: any) => [
+      c.title,
+      c.type,
+      c.generated_at,
+      c.status
+  ]);
+
   return (
-    <Panel title="Reports & Downloads" description="Generate and download class lists, mark sheets, and subject reports." icon={FileText}>
-      <div className="mb-4">
-        <button type="button" onClick={() => onStartAction("report", "reports", "Generate report options ready.")} className="rounded-xl bg-[#071D49] px-4 py-2 text-sm font-black text-white">Generate Report</button>
+    <Panel title="Reports & Downloads" description="Access and download available reports." icon={Download}>
+      <div className="grid gap-3 sm:grid-cols-1 mb-4">
+        <article className="rounded-xl border border-[#D8E0EC] bg-white p-3">
+          <p className="text-xs font-bold uppercase text-[#64748B]">Available Reports</p>
+          <p className="text-2xl font-black text-[#071D49]">{isLoading ? "..." : stats?.available ?? 0}</p>
+        </article>
       </div>
-      <RecordTable
-        columns={["Report Name", "Category", "Class", "Subject", "Generated At", "Actions"]}
-        rows={[]}
-        emptyState="No reports generated recently."
-      />
+      {isError ? (
+        <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-red-800">
+          Failed to load data. Please retry.
+        </div>
+      ) : (
+        <RecordTable
+          columns={["Title","Type","Generated","Status"]}
+          rows={rows}
+          emptyState={isLoading ? "Loading..." : "No records found. Create the first entry to get started."}
+        />
+      )}
     </Panel>
   );
 }

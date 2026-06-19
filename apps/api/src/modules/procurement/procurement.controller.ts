@@ -1,4 +1,6 @@
 import { Body, Controller, Get, Param, Patch, Post } from '@nestjs/common';
+import { PrismaService } from '../../database/prisma.service';
+import { RequestContextService } from '../../common/request-context/request-context.service';
 
 import { Permissions } from '../../auth/decorators/permissions.decorator';
 import { RequiresModule } from '../module-access/module-access.decorator';
@@ -14,7 +16,11 @@ import { ProcurementService } from './procurement.service';
 @Controller('procurement')
 @RequiresModule('procurement')
 export class ProcurementController {
-  constructor(private readonly procurementService: ProcurementService) {}
+  constructor(
+    private readonly procurementService: ProcurementService,
+    private readonly prisma: PrismaService,
+    private readonly requestContext: RequestContextService
+  ) {}
 
   @Get('dashboard')
   @Permissions('procurement:read')
@@ -56,5 +62,18 @@ export class ProcurementController {
     @Body() dto: AttachSupplierInvoiceDto,
   ) {
     return this.procurementService.attachInvoice(purchaseOrderId, dto);
+  }
+
+  @Get('purchase-orders')
+  @Permissions('procurement:read')
+  async getPurchaseOrders() {
+    const tenantId = this.requestContext.requireStore().tenant_id;
+    if (!tenantId) throw new Error('Tenant ID required');
+    const items = await this.prisma.purchaseOrder.findMany({
+      where: { schoolId: tenantId as string },
+      orderBy: { createdAt: 'desc' },
+      take: 100
+    });
+    return { items };
   }
 }

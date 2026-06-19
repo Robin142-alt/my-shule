@@ -1,31 +1,46 @@
-import { Settings } from "lucide-react";
-import { Panel } from "./shared-components";
+import { User } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { Panel, RecordTable } from "./shared-components";
+import { useLiveTenantSession } from "@/hooks/use-live-tenant-session";
+import { requestDashboardApi } from "@/lib/dashboard/api-client";
 
 export function MyProfileWorkspace() {
+  const liveSession = useLiveTenantSession("school");
+
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ["teacher-my-profile", liveSession.session?.tenantId],
+    queryFn: () => requestDashboardApi<any>("/admin-command/teacher/profile", {
+      tenantId: liveSession.session!.tenantId,
+      accessToken: (liveSession.session as any)?.accessToken,
+    }),
+    enabled: !!liveSession.session,
+  });
+
+  const stats = data?.metrics || {};
+  const rows = (data?.items || []).map((c: any) => [
+      c.field,
+      c.value
+  ]);
+
   return (
-    <Panel title="My Profile" description="View and edit your personal employment profile and preferences." icon={Settings}>
-      <div className="grid gap-6 md:grid-cols-2">
-        <div className="rounded-xl border border-[#D8E0EC] p-4">
-          <h3 className="font-black text-[#071D49] mb-3">Personal Details</h3>
-          <div className="space-y-2">
-            <p className="text-sm"><span className="text-[#64748B] w-24 inline-block">Name:</span> <strong>Mr. Kamau</strong></p>
-            <p className="text-sm"><span className="text-[#64748B] w-24 inline-block">Email:</span> <strong>kamau@myshule.com</strong></p>
-            <p className="text-sm"><span className="text-[#64748B] w-24 inline-block">Phone:</span> <strong>+254 700 000000</strong></p>
-          </div>
-        </div>
-        <div className="rounded-xl border border-[#D8E0EC] p-4">
-          <h3 className="font-black text-[#071D49] mb-3">Staff Details</h3>
-          <div className="space-y-2">
-            <p className="text-sm"><span className="text-[#64748B] w-24 inline-block">Staff No:</span> <strong>T-0042</strong></p>
-            <p className="text-sm"><span className="text-[#64748B] w-24 inline-block">TSC No:</span> <strong>123456</strong></p>
-            <p className="text-sm"><span className="text-[#64748B] w-24 inline-block">Roles:</span> <strong>Teacher</strong></p>
-          </div>
-        </div>
+    <Panel title="My Profile" description="View and update your profile information." icon={User}>
+      <div className="grid gap-3 sm:grid-cols-1 mb-4">
+        <article className="rounded-xl border border-[#D8E0EC] bg-white p-3">
+          <p className="text-xs font-bold uppercase text-[#64748B]">Profile Completion %</p>
+          <p className="text-2xl font-black text-[#071D49]">{isLoading ? "..." : stats?.profile_complete ?? 0}</p>
+        </article>
       </div>
-      <div className="mt-4 flex flex-wrap gap-2">
-        <button type="button" className="rounded-xl bg-[#071D49] px-4 py-2 text-sm font-black text-white">Edit Contact Info</button>
-        <button type="button" className="rounded-xl border border-[#D8E0EC] px-4 py-2 text-sm font-black text-[#071D49] bg-white">Change Password</button>
-      </div>
+      {isError ? (
+        <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-red-800">
+          Failed to load data. Please retry.
+        </div>
+      ) : (
+        <RecordTable
+          columns={["Field","Value"]}
+          rows={rows}
+          emptyState={isLoading ? "Loading..." : "No records found. Create the first entry to get started."}
+        />
+      )}
     </Panel>
   );
 }

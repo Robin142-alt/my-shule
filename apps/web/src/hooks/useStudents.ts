@@ -32,7 +32,7 @@ export function useStudentGuardians(studentId: string | null) {
 }
 
 export function useAdmitStudent() {
-  return useSchoolMutation<Student, Omit<Student, "id" | "school_id">>("/api/students/admit");
+  return useSchoolMutation<Student, Omit<Student, "id" | "school_id">>("/api/students");
 }
 
 export function useUpdateStudent(studentId: string) {

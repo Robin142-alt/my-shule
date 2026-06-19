@@ -33,6 +33,8 @@ import { AuthService } from './auth.service';
 import { AuthRequestMetadata } from './auth.interfaces';
 import { TenantInvitationsService } from './tenant-invitations.service';
 
+import { SessionService } from './session.service';
+
 @Controller('auth')
 export class AuthController {
   constructor(
@@ -41,6 +43,7 @@ export class AuthController {
     private readonly authEmailVerificationService: AuthEmailVerificationService,
     private readonly authInvitationService: AuthInvitationService,
     private readonly tenantInvitationsService: TenantInvitationsService,
+    private readonly sessionService: SessionService,
   ) {}
 
   @Public()
@@ -182,6 +185,52 @@ export class AuthController {
   @Permissions('auth:read')
   async me(): Promise<MeResponseDto> {
     return this.authService.me();
+  }
+
+  @Get('sessions')
+  @Permissions('auth:read')
+  async getSessions(@Req() request: Request) {
+    const userId = (request as any).user?.sub || (request as any).user?.user_id;
+    if (!userId) return [];
+    
+    const sessions = await this.sessionService.listUserSessions(userId);
+    const currentSessionId = (request as any).user?.session_id;
+
+    return sessions.map(session => ({
+      id: session.session_id,
+      device: session.device_label || 'Unknown Device',
+      ip: session.ip_address || 'Unknown IP',
+      lastSeen: session.updated_at,
+      status: session.session_id === currentSessionId ? 'Current' : 'Active'
+    }));
+  }
+
+  @Post('sessions/revoke')
+  @Permissions('auth:write')
+  async revokeSession(@Body() body: { sessionId: string }) {
+    if (!body?.sessionId) {
+      return { success: false };
+    }
+    await this.sessionService.invalidateSession(body.sessionId);
+    return { success: true };
+  }
+
+  @Post('sessions/revoke-all')
+  @Permissions('auth:write')
+  async revokeAllSessions(@Req() request: Request) {
+    const userId = (request as any).user?.sub || (request as any).user?.user_id;
+    const currentSessionId = (request as any).user?.session_id;
+
+    if (!userId) return { success: false };
+
+    // Invalidate all sessions except the current one
+    const sessions = await this.sessionService.listUserSessions(userId);
+    for (const session of sessions) {
+      if (session.session_id !== currentSessionId) {
+        await this.sessionService.invalidateSession(session.session_id);
+      }
+    }
+    return { success: true };
   }
 
   private buildRequestMetadata(request: Request): AuthRequestMetadata {

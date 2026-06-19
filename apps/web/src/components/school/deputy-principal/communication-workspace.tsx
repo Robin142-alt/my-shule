@@ -12,6 +12,7 @@ export type CommMessage = {
   created_at: string;
   recipient_phone: string;
   status: "Sent" | "Failed";
+  content?: string;
 };
 
 export function DeputyCommunicationWorkspace() {
@@ -20,6 +21,8 @@ export function DeputyCommunicationWorkspace() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { data: smsData, isLoading, refetch } = useSchoolQuery<{ data: CommMessage[] }>('/api/communication/sms');
   const messages = smsData?.data || [];
+
+  const [viewingMessage, setViewingMessage] = useState<CommMessage | null>(null);
 
   const handleSend = async () => {
     try {
@@ -70,7 +73,7 @@ export function DeputyCommunicationWorkspace() {
                   <td className="px-4 py-3 text-[#64748B]">Notice</td>
                   <td className="px-4 py-3"><StatusChip label={msg.status} tone={msg.status === "Sent" ? "success" : "neutral"} /></td>
                   <td className="px-4 py-3 text-right">
-                    <button onClick={() => toast.info("Viewing message details...")} className="text-blue-600 hover:underline font-semibold text-xs">View</button>
+                    <button onClick={() => setViewingMessage(msg)} className="text-blue-600 hover:underline font-semibold text-xs">View</button>
                   </td>
                 </tr>
               ))
@@ -102,6 +105,30 @@ export function DeputyCommunicationWorkspace() {
           </div>
         </div>
       </Modal>
+
+      {viewingMessage && (
+        <Modal open={true} onClose={() => setViewingMessage(null)} title="Message Details" footer={
+          <button onClick={() => setViewingMessage(null)} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white hover:bg-blue-900 transition">Close</button>
+        }>
+          <div className="space-y-4">
+            <div>
+              <span className="text-xs font-bold text-[#64748B] uppercase">Sent To</span>
+              <div className="font-semibold text-[#071D49]">{viewingMessage.recipient_phone}</div>
+            </div>
+            <div>
+              <span className="text-xs font-bold text-[#64748B] uppercase">Date & Time</span>
+              <div className="text-[#334155]">{new Date(viewingMessage.created_at).toLocaleString()}</div>
+            </div>
+            <div>
+              <span className="text-xs font-bold text-[#64748B] uppercase">Status</span>
+              <div className="mt-1"><StatusChip label={viewingMessage.status} tone={viewingMessage.status === "Sent" ? "success" : "neutral"} /></div>
+            </div>
+            <div className="rounded-lg bg-slate-50 p-4 border border-slate-200">
+              <p className="text-sm text-slate-800 whitespace-pre-wrap">{viewingMessage.content || "No content provided by gateway."}</p>
+            </div>
+          </div>
+        </Modal>
+      )}
     </Panel>
   );
 }

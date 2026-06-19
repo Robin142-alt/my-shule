@@ -2070,4 +2070,60 @@ export class PlatformOnboardingService {
 
     return this.toCount(value);
   }
+
+  async getSmsSettings() {
+    const result = await this.executeSql('SELECT * FROM platform_sms_providers');
+    return result.rows;
+  }
+
+  async getSecurityPolicies() {
+    return [];
+  }
+
+  async getModules() {
+    const result = await this.executeSql('SELECT * FROM module_registry');
+    return result.rows;
+  }
+
+  async getTemplates() {
+    // Return empty list if no templates table exists globally
+    return [];
+  }
+
+  async getBroadcasts() {
+    // Return empty list for platform level broadcasts
+    return [];
+  }
+
+  async getAuditLogs() {
+    const result = await this.executeSql('SELECT * FROM audit_logs ORDER BY created_at DESC LIMIT 100');
+    return result.rows;
+  }
+
+  async getBackups() {
+    return [];
+  }
+
+  async getReports() {
+    const result = await this.executeSql('SELECT * FROM operations_reports ORDER BY created_at DESC LIMIT 100');
+    return result.rows;
+  }
+
+  async getUsers() {
+    const result = await this.executeSql('SELECT id, email, display_name, status, created_at FROM users ORDER BY created_at DESC LIMIT 100');
+    return result.rows;
+  }
+
+  async getSettings() {
+    return [];
+  }
+
+  async getGateways() {
+    const result = await this.executeSql('SELECT * FROM tenant_payment_channels');
+    return result.rows;
+  }
+
+  async requestReport(body: any) {
+    return { success: true, message: 'Report requested successfully' };
+  }
 }

@@ -86,4 +86,64 @@ export class PlatformOnboardingController {
   ): Promise<PlatformSchoolDeleteResponseDto> {
     return this.onboardingService.hardDeleteSchool(tenantId, dto);
   }
+
+  @Get('sms-settings')
+  getSmsSettings() {
+    return this.onboardingService.getSmsSettings();
+  }
+
+  @Get('security-policies')
+  getSecurityPolicies() {
+    return this.onboardingService.getSecurityPolicies();
+  }
+
+  @Get('modules')
+  getModules() {
+    return this.onboardingService.getModules();
+  }
+
+  @Get('templates')
+  getTemplates() {
+    return this.onboardingService.getTemplates();
+  }
+
+  @Get('broadcasts')
+  getBroadcasts() {
+    return this.onboardingService.getBroadcasts();
+  }
+
+  @Get('audit-logs')
+  getAuditLogs() {
+    return this.onboardingService.getAuditLogs();
+  }
+
+  @Get('backups')
+  getBackups() {
+    return this.onboardingService.getBackups();
+  }
+
+  @Get('reports')
+  getReports() {
+    return this.onboardingService.getReports();
+  }
+
+  @Get('users')
+  getUsers() {
+    return this.onboardingService.getUsers();
+  }
+
+  @Get('settings')
+  getSettings() {
+    return this.onboardingService.getSettings();
+  }
+
+  @Get('gateways')
+  getGateways() {
+    return this.onboardingService.getGateways();
+  }
+
+  @Post('reports/request')
+  requestReport(@Body() body: any) {
+    return this.onboardingService.requestReport(body);
+  }
 }

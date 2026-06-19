@@ -1400,6 +1400,112 @@ export class ExamsService {
     return { success: true, data };
   }
 
+  async getConfiguration() {
+    const tenantId = this.requireTenantId();
+    const res = await this.repository.executeSql(
+      `SELECT * FROM exam_series WHERE tenant_id = $1 ORDER BY created_at DESC`,
+      [tenantId]
+    );
+    return { items: res.rows };
+  }
+
+  async getDrafts() {
+    const tenantId = this.requireTenantId();
+    const res = await this.repository.executeSql(
+      `SELECT * FROM exam_series WHERE tenant_id = $1 AND status = 'draft' ORDER BY created_at DESC`,
+      [tenantId]
+    );
+    return { items: res.rows };
+  }
+
+  async getAlignment() {
+    const tenantId = this.requireTenantId();
+    const res = await this.repository.executeSql(
+      `SELECT * FROM exam_series WHERE tenant_id = $1 ORDER BY created_at DESC`,
+      [tenantId]
+    );
+    return { items: res.rows };
+  }
+
+  async getReview() {
+    const tenantId = this.requireTenantId();
+    const res = await this.repository.executeSql(
+      `SELECT * FROM exam_series WHERE tenant_id = $1 ORDER BY created_at DESC`,
+      [tenantId]
+    );
+    return { items: res.rows };
+  }
+
+  async getLifecycle() {
+    const tenantId = this.requireTenantId();
+    const res = await this.repository.executeSql(
+      `SELECT * FROM exam_series WHERE tenant_id = $1 ORDER BY created_at DESC`,
+      [tenantId]
+    );
+    return { items: res.rows };
+  }
+
+  async saveDraft(dto: any) {
+    const tenantId = this.requireTenantId();
+    const userId = this.requireUserId();
+    const name = dto.name || dto.examName || 'Draft Exam';
+    const termId = dto.termId || dto.academic_term_id || '00000000-0000-0000-0000-000000000000';
+    let res;
+    if (dto.id) {
+      res = await this.repository.executeSql(
+        `UPDATE exam_series SET name = $2, academic_term_id = $3::uuid, status = 'draft', updated_at = NOW() WHERE tenant_id = $1 AND id = $4::uuid RETURNING *`,
+        [tenantId, name, termId, dto.id]
+      );
+    } else {
+      res = await this.repository.executeSql(
+        `INSERT INTO exam_series (tenant_id, academic_term_id, name, status, starts_on, ends_on, created_by_user_id)
+         VALUES ($1, $2::uuid, $3, 'draft', NOW(), NOW(), $4::uuid) RETURNING *`,
+        [tenantId, termId, name, userId]
+      );
+    }
+    return { success: true, message: 'Draft saved', data: res.rows[0] };
+  }
+
+  async alignExam(dto: any) {
+    const tenantId = this.requireTenantId();
+    const id = dto.id || dto.exam_series_id;
+    if (!id) {
+      throw new BadRequestException('Exam series ID is required');
+    }
+    const res = await this.repository.executeSql(
+      `UPDATE exam_series SET status = 'aligned', name = COALESCE($3, name), updated_at = NOW() WHERE tenant_id = $1 AND id = $2::uuid RETURNING *`,
+      [tenantId, id, dto.name || null]
+    );
+    return { success: true, message: 'Alignment updated', data: res.rows[0] };
+  }
+
+  async reviewExam(dto: any) {
+    const tenantId = this.requireTenantId();
+    const id = dto.id || dto.exam_series_id;
+    if (!id) {
+      throw new BadRequestException('Exam series ID is required');
+    }
+    const res = await this.repository.executeSql(
+      `UPDATE exam_series SET status = 'reviewed', updated_at = NOW() WHERE tenant_id = $1 AND id = $2::uuid RETURNING *`,
+      [tenantId, id]
+    );
+    return { success: true, message: 'Review completed', data: res.rows[0] };
+  }
+
+  async updateLifecycle(dto: any) {
+    const tenantId = this.requireTenantId();
+    const id = dto.id || dto.exam_series_id;
+    if (!id) {
+      throw new BadRequestException('Exam series ID is required');
+    }
+    const status = dto.status || 'active';
+    const res = await this.repository.executeSql(
+      `UPDATE exam_series SET status = $3, updated_at = NOW() WHERE tenant_id = $1 AND id = $2::uuid RETURNING *`,
+      [tenantId, id, status]
+    );
+    return { success: true, message: 'Lifecycle updated', data: res.rows[0] };
+  }
+
 }
 
 function signParentReportCardDownloadToken(
@@ -1488,113 +1594,4 @@ function safeEqual(left: string, right: string): boolean {
   const rightBuffer = Buffer.from(right);
 
   return leftBuffer.length === rightBuffer.length && timingSafeEqual(leftBuffer, rightBuffer);
-
-  // --- CBC Assessment & Mark Workflow ---
-  async enterCBCAssessment(dto: any) {
-    const store = (this as any).requestContext?.getStore();
-    const schoolId = store?.schoolId;
-    if (!schoolId) throw new Error('No school context');
-
-    return this.prisma.cBCAssessmentEntry.create({
-      data: {
-        schoolId,
-        examCycleId: dto.examCycleId,
-        studentId: dto.studentId,
-        classId: dto.classId,
-        streamId: dto.streamId,
-        strandId: dto.strandId,
-        subStrandId: dto.subStrandId,
-        teacherUserId: dto.teacherUserId,
-        level: dto.level,
-        descriptor: dto.descriptor,
-        comment: dto.comment,
-        status: 'DRAFT',
-      }
-    });
-  }
-
-  async submitMarks(dto: any) {
-    const store = (this as any).requestContext?.getStore();
-    const schoolId = store?.schoolId;
-    if (!schoolId) throw new Error('No school context');
-
-    // Ensure teacher has assignment before submitting
-    const assignment = await this.prisma.teacherSubjectAssignment.findFirst({
-      where: { schoolId, teacherUserId: dto.teacherUserId, subjectId: dto.subjectId }
-    });
-    if (!assignment) throw new Error('Not authorized to submit marks for this subject');
-
-    // Update draft marks
-    await this.prisma.marksEntry.updateMany({
-      where: { schoolId, examCycleId: dto.examCycleId, subjectId: dto.subjectId, teacherUserId: dto.teacherUserId },
-      data: { status: 'SUBMITTED' }
-    });
-
-    return this.prisma.markSubmission.create({
-      data: {
-        schoolId,
-        examCycleId: dto.examCycleId,
-        subjectId: dto.subjectId,
-        teacherUserId: dto.teacherUserId,
-        status: 'SUBMITTED',
-      }
-    });
-  }
-
-  async reviewMarks(dto: any) {
-    const store = (this as any).requestContext?.getStore();
-    const schoolId = store?.schoolId;
-    if (!schoolId) throw new Error('No school context');
-
-    const submission = await this.prisma.markSubmission.findUnique({ where: { id: dto.markSubmissionId } });
-    if (!submission) throw new Error('Submission not found');
-
-    const newStatus = dto.approved ? 'APPROVED' : 'RETURNED';
-
-    await this.prisma.markSubmission.update({
-      where: { id: dto.markSubmissionId },
-      data: { status: newStatus }
-    });
-
-    if (submission.subjectId) {
-       await this.prisma.marksEntry.updateMany({
-        where: { schoolId, examCycleId: submission.examCycleId, subjectId: submission.subjectId },
-        data: { status: newStatus }
-      });
-    }
-
-    return this.prisma.hODReview.create({
-      data: {
-        schoolId,
-        markSubmissionId: dto.markSubmissionId,
-        hodUserId: dto.hodUserId,
-        status: newStatus,
-        reason: dto.reason,
-      }
-    });
-  }
-
-  async checkExamReadiness(dto: any) {
-    const store = (this as any).requestContext?.getStore();
-    const schoolId = store?.schoolId;
-    if (!schoolId) throw new Error('No school context');
-
-    // Mock readiness logic
-    const submissions = await this.prisma.markSubmission.findMany({
-      where: { schoolId, examCycleId: dto.examCycleId }
-    });
-    
-    const unapproved = submissions.filter((s: any) => s.status !== 'APPROVED');
-    const isReady = unapproved.length === 0;
-
-    return this.prisma.examReadinessCheck.create({
-      data: {
-        schoolId,
-        examCycleId: dto.examCycleId,
-        checkedByUserId: dto.checkedByUserId,
-        isReady,
-        details: isReady ? 'All marks approved' : 'Pending HOD approvals',
-      }
-    });
-  }
 }

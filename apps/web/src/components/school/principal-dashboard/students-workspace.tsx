@@ -101,7 +101,7 @@ export function PrincipalStudentsWorkspace() {
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xl font-bold text-white">Recent Admissions</h2>
             {hasPermission('school_admissions:write') && (
-              <Button size="sm" variant="outline" className="text-xs bg-blue-500/20 text-blue-400 border-blue-500/20 hover:bg-blue-500/30">
+              <Button size="sm" variant="outline" className="text-xs bg-cyan-500/20 text-cyan-400 border-cyan-500/20 hover:bg-cyan-500/30">
                 <Plus className="h-3 w-3 mr-1" />
                 Admit New
               </Button>

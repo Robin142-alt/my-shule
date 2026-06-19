@@ -226,4 +226,5 @@ export class HrController {
   listDisciplinaryRecords(@Query('staff_profile_id') staffProfileId?: string) {
     return this.hrService.listDisciplinaryRecords(staffProfileId);
   }
+
 }

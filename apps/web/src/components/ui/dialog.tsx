@@ -139,7 +139,7 @@ export function DialogContent({
           size="icon"
           aria-label="Close dialog"
           onClick={() => onOpenChange(false)}
-          className="absolute right-[calc(50%-18rem)] top-[calc(10vh+0.75rem)] h-8 w-8 text-slate-500 hover:text-slate-900"
+          className="absolute right-[calc(50%-18rem)] top-[calc(10vh+0.75rem)] h-8 w-8 text-muted hover:text-foreground"
         >
           <X className="h-4 w-4" />
         </Button>
@@ -173,7 +173,7 @@ export function DialogDescription({
 }: HTMLAttributes<HTMLParagraphElement>) {
   const { descriptionId } = useDialogContext("DialogDescription");
   return (
-    <p id={descriptionId} className={`text-sm text-muted-foreground ${className}`} {...props}>
+    <p id={descriptionId} className={`text-sm text-muted ${className}`} {...props}>
       {children}
     </p>
   );

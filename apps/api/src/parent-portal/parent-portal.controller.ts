@@ -1,10 +1,34 @@
-import { Controller, Get, Post, Param, Body, UseGuards, Req, Query } from '@nestjs/common';
+import { Controller, Get, Query } from '@nestjs/common';
 import { ParentPortalService } from './parent-portal.service';
 import { Permissions } from '../auth/decorators/permissions.decorator';
 
-@Controller('api/parent')
+@Controller('parent')
 export class ParentPortalController {
   constructor(private readonly service: ParentPortalService) {}
+
+  @Get('overview')
+  @Permissions('portal:read')
+  getOverview() {
+    return this.service.getOverview();
+  }
+
+  @Get('academics')
+  @Permissions('portal:read')
+  getAcademics() {
+    return this.service.getAcademics();
+  }
+
+  @Get('finance')
+  @Permissions('portal:read')
+  getFinance() {
+    return this.service.getFinance();
+  }
+
+  @Get('communication')
+  @Permissions('portal:read')
+  getCommunication() {
+    return this.service.getCommunication();
+  }
 
   @Get('dashboard')
   @Permissions('portal:read')
@@ -17,10 +41,5 @@ export class ParentPortalController {
   getChildren() {
     return this.service.getChildren();
   }
-
-  @Get(':module/:studentId')
-  @Permissions('portal:read')
-  getModuleData(@Param('module') module: string, @Param('studentId') studentId: string) {
-    return this.service.getModuleData(module, studentId);
-  }
 }
+

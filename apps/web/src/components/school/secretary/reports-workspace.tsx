@@ -1,7 +1,154 @@
 "use client";
+import { useState } from "react";
+import { BarChart3, Download, FileSpreadsheet, Calendar } from "lucide-react";
+import { toast } from "sonner";
+import { Panel, StatusChip, Tone } from "./shared";
+import { useSchoolQuery } from "@/lib/data/school-hooks";
+import { generateSecretaryReport, downloadReport } from "./api-client";
 
-import { DocxOperationalWorkspace } from "@/components/school/docx-operational-workspace";
+type ReportRecord = {
+  id: string;
+  title: string;
+  type: string;
+  period: string;
+  generated_by: string;
+  generated_at: string;
+  status: string;
+  file_format: string;
+};
+
+type ReportsData = {
+  metrics: {
+    total_reports: number;
+    this_month: number;
+    pending: number;
+    available: number;
+  };
+  reports: ReportRecord[];
+};
 
 export function ReportsWorkspace() {
-  return <DocxOperationalWorkspace moduleId="reports" />;
+  const { data, isLoading, refetch } = useSchoolQuery<ReportsData>('/admin-command/secretary/reports');
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [actionId, setActionId] = useState<string | null>(null);
+
+  const reports = data?.reports || [];
+  const metrics = data?.metrics;
+
+  const getStatusTone = (status: string): Tone => {
+    switch (status) {
+      case "Ready": return "success";
+      case "Generating": return "info";
+      case "Failed": return "danger";
+      case "Expired": return "neutral";
+      default: return "neutral";
+    }
+  };
+
+  const handleGenerate = async (type: string) => {
+    setIsGenerating(true);
+    try {
+      await generateSecretaryReport({ type, period: "current_month" });
+      toast.success(`${type} report generation started.`);
+      refetch();
+    } catch {
+      toast.error("Failed to generate report.");
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const handleDownload = async (id: string) => {
+    setActionId(id);
+    try {
+      await downloadReport(id);
+      toast.success("Report download started.");
+    } catch {
+      toast.error("Failed to download report.");
+    } finally {
+      setActionId(null);
+    }
+  };
+
+  return (
+    <Panel
+      title="Reports"
+      description="Generate and download front office reports: visitor logs, call summaries, appointment records."
+      icon={BarChart3}
+      actions={
+        <div className="flex gap-2 flex-wrap">
+          <button disabled={isGenerating} onClick={() => handleGenerate("Visitor Log")} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-bold text-white hover:bg-blue-900 disabled:opacity-50">
+            Visitor Report
+          </button>
+          <button disabled={isGenerating} onClick={() => handleGenerate("Call Summary")} className="rounded-lg border border-[#D8E0EC] bg-white px-4 py-2 text-sm font-bold text-[#071D49] hover:bg-[#F8FAFC] disabled:opacity-50">
+            Call Summary
+          </button>
+        </div>
+      }
+    >
+      {/* Metrics */}
+      <div className="grid gap-4 md:grid-cols-4 mb-6">
+        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
+          <div className="flex items-center gap-2 text-sm font-semibold text-[#64748B]"><FileSpreadsheet className="w-4 h-4" /> Total Reports</div>
+          <div className="mt-1 text-2xl font-black text-[#071D49]">{isLoading ? "..." : metrics?.total_reports || 0}</div>
+        </div>
+        <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
+          <div className="flex items-center gap-2 text-sm font-semibold text-blue-700"><Calendar className="w-4 h-4" /> This Month</div>
+          <div className="mt-1 text-2xl font-black text-blue-700">{isLoading ? "..." : metrics?.this_month || 0}</div>
+        </div>
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+          <div className="text-sm font-semibold text-amber-700">Pending</div>
+          <div className="mt-1 text-2xl font-black text-amber-700">{isLoading ? "..." : metrics?.pending || 0}</div>
+        </div>
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+          <div className="text-sm font-semibold text-emerald-700">Available</div>
+          <div className="mt-1 text-2xl font-black text-emerald-700">{isLoading ? "..." : metrics?.available || 0}</div>
+        </div>
+      </div>
+
+      {/* Reports Table */}
+      <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
+        <table className="w-full text-sm text-left whitespace-nowrap">
+          <thead className="bg-[#F8FAFC] text-[#071D49]">
+            <tr>
+              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Title</th>
+              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Type</th>
+              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Period</th>
+              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Generated By</th>
+              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Date</th>
+              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Format</th>
+              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Status</th>
+              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC] text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-[#D8E0EC]">
+            {isLoading ? (
+              <tr><td colSpan={8} className="px-4 py-8 text-center text-[#64748B]">Loading reports...</td></tr>
+            ) : reports.length === 0 ? (
+              <tr><td colSpan={8} className="px-4 py-8 text-center text-[#64748B]">No reports generated yet. Use the buttons above to generate visitor logs, call summaries, or appointment reports.</td></tr>
+            ) : (
+              reports.map((r) => (
+                <tr key={r.id} className="hover:bg-[#F8FAFC]">
+                  <td className="px-4 py-3 font-medium text-[#071D49]">{r.title}</td>
+                  <td className="px-4 py-3 text-[#64748B]">{r.type}</td>
+                  <td className="px-4 py-3 text-[#64748B]">{r.period}</td>
+                  <td className="px-4 py-3 text-[#64748B]">{r.generated_by}</td>
+                  <td className="px-4 py-3 text-[#64748B]">{r.generated_at}</td>
+                  <td className="px-4 py-3 text-[#64748B] uppercase text-xs font-mono">{r.file_format}</td>
+                  <td className="px-4 py-3"><StatusChip label={r.status} tone={getStatusTone(r.status)} /></td>
+                  <td className="px-4 py-3 text-right">
+                    {r.status === "Ready" && (
+                      <button disabled={actionId === r.id} onClick={() => handleDownload(r.id)} className="inline-flex items-center gap-1 rounded-lg bg-[#071D49] px-3 py-1.5 text-xs font-bold text-white hover:bg-blue-900 disabled:opacity-50">
+                        <Download className="w-3 h-3" /> Download
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+    </Panel>
+  );
 }

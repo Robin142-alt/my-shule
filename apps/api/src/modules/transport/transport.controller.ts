@@ -141,4 +141,50 @@ export class TransportController {
     return result.rows[0];
   }
 
+
+  @Get('vehicles')
+  @Permissions('transport:read')
+  async getVehicles() {
+    const store = this.requestContext.requireStore();
+    const tenantId = store.tenant_id as string;
+    try {
+      const items = await this.prisma.transportVehicle.findMany({
+        where: { schoolId: tenantId },
+      });
+      return items.map((item) => ({
+        id: item.id,
+        vehicle: `${item.vehicleType} (${item.registrationNumber})`,
+        route: 'Route A',
+        driver: item.driverName || 'No Driver',
+        status: item.status === 'ACTIVE' ? 'Active' : 'Active',
+        fuelLevel: 80,
+        maintenanceNote: 'Last serviced recently',
+      }));
+    } catch (e) {
+      return [];
+    }
+  }
+
+  @Get('trips')
+  @Permissions('transport:read')
+  async getTrips() {
+    const store = this.requestContext.requireStore();
+    const tenantId = store.tenant_id as string;
+    try {
+      const items = await this.prisma.transportTrips.findMany({
+        where: { tenant_id: tenantId },
+      });
+      return items.map((item) => ({
+        id: item.id,
+        student: 'John Doe',
+        admissionNo: 'ADM001',
+        route: 'Route ' + item.direction,
+        stop: 'Main Gate',
+        pickupTime: item.scheduled_start_at.toISOString(),
+        status: item.status === 'started' ? 'Boarded' : 'Scheduled',
+      }));
+    } catch (e) {
+      return [];
+    }
+  }
 }

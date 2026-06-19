@@ -1,0 +1,2211 @@
+{
+  "summary": {
+    "total": 319,
+    "withTenant": 313,
+    "indexed": 130,
+    "lackingIndex": 183,
+    "noTenant": 0
+  },
+  "lackingIndex": [
+    {
+      "model": "AcademicAuditLog",
+      "tenantField": "schoolId",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "AcademicAssignment",
+      "tenantField": "schoolId",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "AcademicResource",
+      "tenantField": "schoolId",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "LessonLog",
+      "tenantField": "schoolId",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "ClassTeacherAssignment",
+      "tenantField": "schoolId",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "ReportCardSetting",
+      "tenantField": "schoolId",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "OffenseCategory",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "DisciplineIncident",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "LegacyDisciplineAction",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "DisciplineComment",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "DisciplineAttachment",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "BehaviorPoint",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "DisciplineNotification",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "ParentAcknowledgement",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "DisciplineAuditLog",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "CounsellingReferral",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "LegacyCounsellingSession",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "CounsellingNote",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "BehaviorImprovementPlan",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "BehaviorImprovementPlanStep",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "ExamSeries",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "ExamAssessments",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "ExamAssessmentComponents",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "ExamSubjectWeightings",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "ExamMarkEntryWindows",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "ExamMarks",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "ExamMarkVersions",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "StudentReportCards",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "ReportCardArtifacts",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "ReportCardGenerationBatches",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "ExamMarkAuditLogs",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "StudentReportCardAuditLogs",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "ExamTimetableSlots",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "ExamInvigilators",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "ExamAttendanceRecords",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "ExamStudentCases",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "ExamGradeBoundaries",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "ExamGradingPolicies",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "EventConsumerRuns",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "OutboxEvents",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "Tasks",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "PrincipalDashboardSnapshots",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "AdminIncidents",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "Announcements",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "MeetingMinutes",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "AdmissionsApplications",
+      "tenantField": "school_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "BillingNotifications",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "StudentFeePaymentAllocations",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "StudentFeeCredits",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "ManualFeePayments",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "ManualFeePaymentAllocations",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "Subscriptions",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "UsageRecords",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "BiometricDevices",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "BiometricIdentities",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "BiometricEvents",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "AttendanceRules",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "TeacherAttendanceLogs",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "BoardingReferrals",
+      "tenantField": "school_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "AcademicsAttendance",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "ClinicMedicines",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "ClinicMedicineBatches",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "ClinicVisits",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "ClinicMedicineDispenses",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "ClinicProcurementRecommendations",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "ClinicAlerts",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "ClinicAuditLogs",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "ClinicStockMovements",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "CommunicationSmsOutbox",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "ConsentRecords",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "DataSubjectRequests",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "TenantFinanceSummary",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "FinanceTasks",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "FinanceFeeCategories",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "StudentInvoices",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "TenantPendingWaivers",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "StaffContracts",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "StaffLeaveRequests",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "StaffAuditLogs",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "SchoolIntegrations",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "IntegrationLogs",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "ParentOtpChallenges",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "PlatformSmsProviders",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "SchoolSmsWallets",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "SmsWalletTransactions",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "SmsPurchaseRequests",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "InventoryRequisitions",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "InventoryItemBalances",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "InventoryLocations",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "InventorySuppliers",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "InventoryPurchaseOrders",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "InventoryReservations",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "InventoryRequestBackorders",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "InventoryTransfers",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "InventoryIncidents",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "InventoryStockCountSnapshots",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "IotDevices",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "IotTelemetryReadings",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "IotAlerts",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "IotDeviceCommands",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "IotDeviceCredentials",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "IotGatewayIngestions",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "IotAuditLogs",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "LabDepartments",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "Labs",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "LabSessions",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "LabAttendance",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "LabEquipment",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "ChemicalItems",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "LabSessionEquipmentUsage",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "LabSessionChemicalUsage",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "ChemicalDisposalRequests",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "LibraryReservations",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "LibraryCirculationLedger",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "LmsSubmissions",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "ModuleRegistry",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "SchoolModuleAccess",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "ModulePackages",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "ModulePackageItems",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "ModuleUsageEvents",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "OperationsEmergencies",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "OperationsAlerts",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "OperationsReports",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "CallbackLogs",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "MpesaC2bPayments",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "MpesaVerificationJobs",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "PaymentIntents",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "MpesaCallbackChannels",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "MpesaPayloadVault",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "MpesaPayloadSupportAccessLogs",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "FinanceApprovalRequests",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "MpesaReconciliationBatches",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "MpesaReconciliationDiscrepancies",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "Tenants",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "TenantDomains",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "AuthActionTokens",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "AuthEmailOutbox",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "ProcurementSuppliers",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "ProcurementRequests",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "ProcurementRequestItems",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "ProcurementApprovals",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "PurchaseOrderItems",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "ProcurementBudgetLinks",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "SupplierInvoices",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "ProcurementAuditLogs",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "SecretaryQueueTickets",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "SecurityIncidents",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "SecurityPanicAlerts",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "SupportCategories",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "SupportKbArticles",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "SupportSystemComponents",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "SupportTickets",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "SupportMessages",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "SupportInternalNotes",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "SupportStatusLogs",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "SupportAttachments",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "SupportNotifications",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "SupportStatusSubscriptions",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "SupportStatusUnsubscribeTokens",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "SupportStatusNotificationAttempts",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "SyncCursors",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "SyncDevices",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "SyncOperationLogs",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "TenantFinancialAccounts",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "TenantMpesaConfigs",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "MpesaConfigAuditLogs",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "TenantPaymentChannels",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "TenantBankAccounts",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "TimetableSlots",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "TimetableVersions",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "TimetableAuditLogs",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "TransportRouteStops",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "TransportDrivers",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "TransportManifests",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "TransportManifestStudents",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "TransportTrips",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "TransportTripEvents",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "VehicleServiceLogs",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "TransportAuditLogs",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "VisitorsAppointments",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "VisitorsLogs",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "DashboardTasks",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    },
+    {
+      "model": "WorkflowEvents",
+      "tenantField": "tenant_id",
+      "hasIndex": false,
+      "indexes": []
+    }
+  ],
+  "indexed": [
+    {
+      "model": "SchoolMembership",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@unique([schoolId, userId])",
+        "@@index([schoolId])",
+        "@@index([schoolId, userId])"
+      ]
+    },
+    {
+      "model": "Role",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@index([schoolId])"
+      ]
+    },
+    {
+      "model": "UserRoleAssignment",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@index([schoolId])",
+        "@@index([schoolId, userId])"
+      ]
+    },
+    {
+      "model": "UserPermissionOverride",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@index([schoolId])"
+      ]
+    },
+    {
+      "model": "ApprovalRule",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@index([schoolId])"
+      ]
+    },
+    {
+      "model": "SchoolSetting",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@unique on field schoolId",
+        "@@index([schoolId])"
+      ]
+    },
+    {
+      "model": "SchoolModule",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@unique([schoolId, moduleCode])",
+        "@@index([schoolId])"
+      ]
+    },
+    {
+      "model": "SetupChecklistItem",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@index([schoolId])"
+      ]
+    },
+    {
+      "model": "AcademicYear",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@unique([schoolId, name])",
+        "@@index([schoolId])",
+        "@@index([schoolId, status])"
+      ]
+    },
+    {
+      "model": "Term",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@unique([schoolId, academicYearId, termNumber])",
+        "@@index([schoolId])",
+        "@@index([schoolId, academicYearId])"
+      ]
+    },
+    {
+      "model": "Department",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@index([schoolId])"
+      ]
+    },
+    {
+      "model": "Class",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@unique([schoolId, name])",
+        "@@index([schoolId])"
+      ]
+    },
+    {
+      "model": "Stream",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@unique([schoolId, classId, name])",
+        "@@index([schoolId])",
+        "@@index([schoolId, classId])"
+      ]
+    },
+    {
+      "model": "Subject",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@index([schoolId])"
+      ]
+    },
+    {
+      "model": "ClassSubject",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@unique([schoolId, classId, subjectId])",
+        "@@index([schoolId])"
+      ]
+    },
+    {
+      "model": "TeacherSubjectAssignment",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@index([schoolId])",
+        "@@index([schoolId, teacherUserId])",
+        "@@index([schoolId, classId])"
+      ]
+    },
+    {
+      "model": "Student",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@unique([schoolId, admissionNumber])",
+        "@@unique([schoolId, upiNumber])",
+        "@@unique([schoolId, nemisNumber])",
+        "@@index([schoolId])",
+        "@@index([schoolId, currentClassId])"
+      ]
+    },
+    {
+      "model": "ParentGuardian",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@unique([schoolId, phone])",
+        "@@index([schoolId])"
+      ]
+    },
+    {
+      "model": "StudentGuardian",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@unique([schoolId, studentId, guardianId])",
+        "@@index([schoolId])",
+        "@@index([schoolId, studentId])"
+      ]
+    },
+    {
+      "model": "StudentEnrollment",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@index([schoolId])",
+        "@@index([schoolId, studentId])",
+        "@@index([schoolId, academicYearId])"
+      ]
+    },
+    {
+      "model": "AdmissionApplication",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@index([schoolId])"
+      ]
+    },
+    {
+      "model": "AdmissionDocument",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@index([schoolId])"
+      ]
+    },
+    {
+      "model": "AdmissionInterview",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@index([schoolId])"
+      ]
+    },
+    {
+      "model": "AttendanceSession",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@unique([schoolId, classId, streamId, date, sessionType])",
+        "@@index([schoolId])"
+      ]
+    },
+    {
+      "model": "AttendanceRecord",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@unique([schoolId, attendanceSessionId, studentId])",
+        "@@index([schoolId])",
+        "@@index([schoolId, studentId])"
+      ]
+    },
+    {
+      "model": "ExamCycle",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@index([schoolId])",
+        "@@index([schoolId, academicYearId])"
+      ]
+    },
+    {
+      "model": "ExamSubject",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@index([schoolId])"
+      ]
+    },
+    {
+      "model": "MarksEntry",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@unique([schoolId, examCycleId, studentId, subjectId])",
+        "@@index([schoolId])",
+        "@@index([schoolId, examCycleId])",
+        "@@index([schoolId, studentId])"
+      ]
+    },
+    {
+      "model": "GradingScale",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@index([schoolId])"
+      ]
+    },
+    {
+      "model": "GradingScaleRange",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@index([schoolId])"
+      ]
+    },
+    {
+      "model": "ReportCard",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@unique([schoolId, studentId, academicYearId, termId])",
+        "@@index([schoolId])",
+        "@@index([schoolId, studentId])"
+      ]
+    },
+    {
+      "model": "FeeStructure",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@index([schoolId])"
+      ]
+    },
+    {
+      "model": "FeeItem",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@index([schoolId])"
+      ]
+    },
+    {
+      "model": "StudentFeeAccount",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@index([schoolId])",
+        "@@index([schoolId, studentId, status])"
+      ]
+    },
+    {
+      "model": "Invoice",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@index([schoolId])",
+        "@@index([schoolId, invoiceNumber])",
+        "@@index([schoolId, studentId])"
+      ]
+    },
+    {
+      "model": "InvoiceItem",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@index([schoolId])"
+      ]
+    },
+    {
+      "model": "Payment",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@index([schoolId])"
+      ]
+    },
+    {
+      "model": "Receipt",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@index([schoolId])",
+        "@@index([schoolId, receiptNumber])"
+      ]
+    },
+    {
+      "model": "MpesaTransaction",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@index([schoolId])",
+        "@@index([schoolId, mpesaReceiptNumber])"
+      ]
+    },
+    {
+      "model": "FeeWaiver",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@index([schoolId])"
+      ]
+    },
+    {
+      "model": "SmsLog",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@index([schoolId])"
+      ]
+    },
+    {
+      "model": "CommunicationBroadcast",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@index([schoolId])"
+      ]
+    },
+    {
+      "model": "ApprovalRequest",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@index([schoolId])"
+      ]
+    },
+    {
+      "model": "ApprovalAuditLog",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@index([schoolId])"
+      ]
+    },
+    {
+      "model": "WorkflowTask",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@index([schoolId])"
+      ]
+    },
+    {
+      "model": "DisciplineCase",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@index([schoolId])"
+      ]
+    },
+    {
+      "model": "DisciplineAction",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@index([schoolId])"
+      ]
+    },
+    {
+      "model": "CounsellingCase",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@index([schoolId])"
+      ]
+    },
+    {
+      "model": "CounsellingSession",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@index([schoolId])"
+      ]
+    },
+    {
+      "model": "WelfareConcern",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@index([schoolId])"
+      ]
+    },
+    {
+      "model": "GroupGuidanceSession",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@index([schoolId])"
+      ]
+    },
+    {
+      "model": "CounsellingEscalation",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@index([schoolId])"
+      ]
+    },
+    {
+      "model": "MedicalVisit",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@index([schoolId])"
+      ]
+    },
+    {
+      "model": "MedicineInventory",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@index([schoolId])"
+      ]
+    },
+    {
+      "model": "MedicineDispensingLog",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@index([schoolId])"
+      ]
+    },
+    {
+      "model": "LibraryBook",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@unique([schoolId, barcode])",
+        "@@index([schoolId])"
+      ]
+    },
+    {
+      "model": "LibraryBookCopy",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@index([schoolId])"
+      ]
+    },
+    {
+      "model": "LibraryLoan",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@index([schoolId])"
+      ]
+    },
+    {
+      "model": "LibraryFine",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@index([schoolId])"
+      ]
+    },
+    {
+      "model": "InventoryCategory",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@index([schoolId])"
+      ]
+    },
+    {
+      "model": "InventoryItem",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@index([schoolId])"
+      ]
+    },
+    {
+      "model": "InventoryStockMovement",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@index([schoolId])"
+      ]
+    },
+    {
+      "model": "InventoryRequest",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@index([schoolId])"
+      ]
+    },
+    {
+      "model": "InventoryRequestItem",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@index([schoolId])"
+      ]
+    },
+    {
+      "model": "Supplier",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@index([schoolId])"
+      ]
+    },
+    {
+      "model": "PurchaseRequest",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@index([schoolId])"
+      ]
+    },
+    {
+      "model": "PurchaseOrder",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@index([schoolId])"
+      ]
+    },
+    {
+      "model": "Asset",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@unique([schoolId, assetTag])",
+        "@@unique([schoolId, serialNumber])",
+        "@@index([schoolId])"
+      ]
+    },
+    {
+      "model": "AssetMovement",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@index([schoolId])"
+      ]
+    },
+    {
+      "model": "MaintenanceTicket",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@index([schoolId])"
+      ]
+    },
+    {
+      "model": "ComputerLabPc",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@index([schoolId])"
+      ]
+    },
+    {
+      "model": "ComputerLabSession",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@index([schoolId])"
+      ]
+    },
+    {
+      "model": "ComputerLabUsageLog",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@index([schoolId])"
+      ]
+    },
+    {
+      "model": "BoardingHouse",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@index([schoolId])"
+      ]
+    },
+    {
+      "model": "Dormitory",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@index([schoolId])"
+      ]
+    },
+    {
+      "model": "Bed",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@index([schoolId])"
+      ]
+    },
+    {
+      "model": "BoardingAllocation",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@index([schoolId])"
+      ]
+    },
+    {
+      "model": "BoardingAttendance",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@index([schoolId])"
+      ]
+    },
+    {
+      "model": "TransportRoute",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@index([schoolId])"
+      ]
+    },
+    {
+      "model": "TransportVehicle",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@index([schoolId])"
+      ]
+    },
+    {
+      "model": "StudentTransportAssignment",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@index([schoolId])"
+      ]
+    },
+    {
+      "model": "VehicleFuelLog",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@index([schoolId])"
+      ]
+    },
+    {
+      "model": "Visitor",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@index([schoolId])"
+      ]
+    },
+    {
+      "model": "VisitorLog",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@index([schoolId])"
+      ]
+    },
+    {
+      "model": "GateIncident",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@index([schoolId])"
+      ]
+    },
+    {
+      "model": "TimetablePeriod",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@index([schoolId])"
+      ]
+    },
+    {
+      "model": "ClassTimetableEntry",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@index([schoolId])"
+      ]
+    },
+    {
+      "model": "FrontOfficeTicket",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@index([schoolId])"
+      ]
+    },
+    {
+      "model": "Appointment",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@index([schoolId])"
+      ]
+    },
+    {
+      "model": "DocumentGenerated",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@index([schoolId])"
+      ]
+    },
+    {
+      "model": "AuditLog",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@index([schoolId])",
+        "@@index([schoolId, actorUserId])",
+        "@@index([schoolId, entityType, entityId])",
+        "@@index([schoolId, createdAt])"
+      ]
+    },
+    {
+      "model": "OfflineSyncEvent",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@unique([schoolId, operationId])",
+        "@@index([schoolId])"
+      ]
+    },
+    {
+      "model": "SyncConflict",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@index([schoolId])"
+      ]
+    },
+    {
+      "model": "FileUpload",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@index([schoolId])"
+      ]
+    },
+    {
+      "model": "ImportBatch",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@index([schoolId])"
+      ]
+    },
+    {
+      "model": "ImportRow",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@index([schoolId])"
+      ]
+    },
+    {
+      "model": "SchoolSubscription",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@index([schoolId])"
+      ]
+    },
+    {
+      "model": "SmsCreditWallet",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@index([schoolId])"
+      ]
+    },
+    {
+      "model": "SmsCreditTransaction",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@index([schoolId])"
+      ]
+    },
+    {
+      "model": "SystemJob",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@index([schoolId])"
+      ]
+    },
+    {
+      "model": "SystemHealthLog",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@index([schoolId])"
+      ]
+    },
+    {
+      "model": "LedgerAccount",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@unique([schoolId, code])",
+        "@@index([schoolId])"
+      ]
+    },
+    {
+      "model": "IdempotencyKey",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@unique([schoolId, scope, idempotencyKey])",
+        "@@index([schoolId])"
+      ]
+    },
+    {
+      "model": "LedgerTransaction",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@unique([schoolId, reference])",
+        "@@index([schoolId])"
+      ]
+    },
+    {
+      "model": "LedgerEntry",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@unique([schoolId, transactionId, lineNumber])",
+        "@@index([schoolId])"
+      ]
+    },
+    {
+      "model": "AcademicLevel",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@unique([schoolId, id])",
+        "@@unique([schoolId, orderIndex])",
+        "@@index([schoolId, orderIndex])"
+      ]
+    },
+    {
+      "model": "StudentClassAssignment",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@unique([schoolId, id])"
+      ]
+    },
+    {
+      "model": "ReportCardComment",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@unique([schoolId, id])",
+        "@@index([schoolId, termId, classId])"
+      ]
+    },
+    {
+      "model": "StudentNote",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@unique([schoolId, id])"
+      ]
+    },
+    {
+      "model": "ParentMeeting",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@unique([schoolId, id])"
+      ]
+    },
+    {
+      "model": "ClassRequest",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@unique([schoolId, id])"
+      ]
+    },
+    {
+      "model": "AcademicGradingSystem",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@unique([schoolId, name])"
+      ]
+    },
+    {
+      "model": "AcademicAttendanceSetting",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@unique([schoolId, name])"
+      ]
+    },
+    {
+      "model": "StudentExitRecord",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@index([schoolId])"
+      ]
+    },
+    {
+      "model": "StudentClearance",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@index([schoolId])"
+      ]
+    },
+    {
+      "model": "StudentAuditLog",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@index([schoolId])"
+      ]
+    },
+    {
+      "model": "StudentCommunication",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@index([schoolId])"
+      ]
+    },
+    {
+      "model": "NotificationTemplate",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@index([schoolId])"
+      ]
+    },
+    {
+      "model": "Notification",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@index([schoolId])",
+        "@@index([schoolId, targetUserId, status])",
+        "@@index([schoolId, targetRole, status])",
+        "@@index([schoolId, module, status])"
+      ]
+    },
+    {
+      "model": "NotificationDelivery",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@index([schoolId])"
+      ]
+    },
+    {
+      "model": "NotificationPreference",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@index([schoolId])"
+      ]
+    },
+    {
+      "model": "NotificationRule",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@index([schoolId])"
+      ]
+    },
+    {
+      "model": "HODAssignment",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@index([schoolId])",
+        "@@index([schoolId, teacherUserId])",
+        "@@index([schoolId, departmentId])"
+      ]
+    },
+    {
+      "model": "LearningArea",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@index([schoolId])"
+      ]
+    },
+    {
+      "model": "Strand",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@index([schoolId])"
+      ]
+    },
+    {
+      "model": "SubStrand",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@index([schoolId])"
+      ]
+    },
+    {
+      "model": "CBCAssessmentEntry",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@index([schoolId])",
+        "@@index([schoolId, examCycleId])",
+        "@@index([schoolId, studentId])"
+      ]
+    },
+    {
+      "model": "MarkSubmission",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@index([schoolId])"
+      ]
+    },
+    {
+      "model": "HODReview",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@index([schoolId])"
+      ]
+    },
+    {
+      "model": "ExamReadinessCheck",
+      "tenantField": "schoolId",
+      "hasIndex": true,
+      "indexes": [
+        "@@index([schoolId])"
+      ]
+    }
+  ],
+  "noTenant": []
+}

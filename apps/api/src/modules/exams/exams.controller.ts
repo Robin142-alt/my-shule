@@ -81,25 +81,25 @@ export class ExamsController {
   @Post('draft')
   @Permissions('exams:write')
   saveDraft(@Body() dto: any) {
-    return { success: true, message: 'Draft saved' };
+    return this.examsService.saveDraft(dto);
   }
 
   @Post('alignment')
   @Permissions('exams:write')
   alignExam(@Body() dto: any) {
-    return { success: true, message: 'Alignment updated' };
+    return this.examsService.alignExam(dto);
   }
 
   @Post('review')
   @Permissions('exams:approve')
   reviewExam(@Body() dto: any) {
-    return { success: true, message: 'Review completed' };
+    return this.examsService.reviewExam(dto);
   }
 
   @Post('lifecycle')
   @Permissions('exams:write')
   updateLifecycle(@Body() dto: any) {
-    return { success: true, message: 'Lifecycle updated' };
+    return this.examsService.updateLifecycle(dto);
   }
 
   @Post('report-cards/publish')
@@ -324,28 +324,33 @@ export class ExamsController {
   }
 
 
-  // --- CBC Assessment & Mark Workflow ---
-  @Post('cbc-assessment')
-  @Permissions('academics:write')
-  enterCBCAssessment(@Body() dto: any) {
-    return this.examsService.enterCBCAssessment(dto);
+  @Get('configuration')
+  @Permissions('exams:read')
+  getConfiguration() {
+    return this.examsService.getConfiguration();
   }
 
-  @Post('mark-submissions')
-  @Permissions('academics:write')
-  submitMarks(@Body() dto: any) {
-    return this.examsService.submitMarks(dto);
+  @Get('draft')
+  @Permissions('exams:read')
+  getDrafts() {
+    return this.examsService.getDrafts();
   }
 
-  @Post('hod-reviews')
-  @Permissions('academics:write') // Should be specific to HOD
-  reviewMarks(@Body() dto: any) {
-    return this.examsService.reviewMarks(dto);
+  @Get('alignment')
+  @Permissions('exams:read')
+  getAlignment() {
+    return this.examsService.getAlignment();
   }
 
-  @Post('readiness-checks')
-  @Permissions('academics:write') // Should be Admin/Dean
-  checkExamReadiness(@Body() dto: any) {
-    return this.examsService.checkExamReadiness(dto);
+  @Get('review')
+  @Permissions('exams:read')
+  getReview() {
+    return this.examsService.getReview();
+  }
+
+  @Get('lifecycle')
+  @Permissions('exams:read')
+  getLifecycle() {
+    return this.examsService.getLifecycle();
   }
 }

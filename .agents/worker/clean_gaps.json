@@ -1,0 +1,4238 @@
+{
+  "summary": {
+    "totalMissing": 552,
+    "modulesCount": 57
+  },
+  "modules": {
+    "inventory": [
+      {
+        "method": "POST",
+        "path": "/inventory/damaged-items",
+        "rawPaths": [
+          "/inventory/damaged-items",
+          "/requestDashboardApi(\"/inventory/damaged-items\", {       method: \"POST\",      ..."
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/inventory/stock-requests",
+        "rawPaths": [
+          "/inventory/stock-requests",
+          "/requestDashboardApi(\"/inventory/stock-requests\", {       method: \"POST\",     ..."
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/inventory/stock-returns",
+        "rawPaths": [
+          "/inventory/stock-returns",
+          "/requestDashboardApi(\"/inventory/stock-returns\", {       method: \"POST\",      ..."
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/inventory/stocktake-sessions",
+        "rawPaths": [
+          "/inventory/stocktake-sessions",
+          "/requestDashboardApi(\"/inventory/stocktake-sessions\", {       method: \"POST\", ..."
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/inventory/heatmap",
+        "rawPaths": [
+          "/inventory/heatmap",
+          "/useSchoolQuery<InventoryHeatmap[]>(\"/api/inventory/heatmap\")"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/inventory/insights",
+        "rawPaths": [
+          "/inventory/insights",
+          "/useSchoolQuery<AiInsight[]>(\"/api/inventory/insights\")"
+        ]
+      }
+    ],
+    "notifications": [
+      {
+        "method": "PATCH",
+        "path": "/notifications/read-all",
+        "rawPaths": [
+          "/notifications/read-all"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/notifications/badges",
+        "rawPaths": [
+          "/notifications/badges",
+          "/fetch(\"/api/v1/notifications/badges\", {           headers: { Authorization: \\"
+        ]
+      }
+    ],
+    "payments": [
+      {
+        "method": "POST",
+        "path": "/payments",
+        "rawPaths": [
+          "/payments"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/payments/mpesa/c2b/payments",
+        "rawPaths": [
+          "/payments/mpesa/c2b/payments",
+          "/buildPaymentsApiPath(\"/api/payments/mpesa/c2b/payments\", tenantSlug)",
+          "/fetch(           buildPaymentsApiPath(\"/api/payments/mpesa/c2b/payments\", ten..."
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/payments/mpesa/c2b/payments/:param/reconcile",
+        "rawPaths": [
+          "/payments/mpesa/c2b/payments/:param/reconcile"
+        ]
+      }
+    ],
+    "exams": [
+      {
+        "method": "POST",
+        "path": "/exams/marks/enter",
+        "rawPaths": [
+          "/exams/marks/enter"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/exams/series/publish",
+        "rawPaths": [
+          "/exams/series/publish"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/exams/series/:param/readiness:param",
+        "rawPaths": [
+          "/exams/series/:param/readiness:param"
+        ]
+      }
+    ],
+    "iot:param": [
+      {
+        "method": "GET",
+        "path": "/iot:param",
+        "rawPaths": [
+          "/iot:param"
+        ]
+      }
+    ],
+    "procurement:param": [
+      {
+        "method": "GET",
+        "path": "/procurement:param",
+        "rawPaths": [
+          "/procurement:param"
+        ]
+      }
+    ],
+    "records": [
+      {
+        "method": "POST",
+        "path": "/records",
+        "rawPaths": [
+          "/records"
+        ]
+      },
+      {
+        "method": "PATCH",
+        "path": "/records/:param/status",
+        "rawPaths": [
+          "/records/:param/status"
+        ]
+      }
+    ],
+    "transport:param": [
+      {
+        "method": "GET",
+        "path": "/transport:param",
+        "rawPaths": [
+          "/transport:param"
+        ]
+      }
+    ],
+    "parent": [
+      {
+        "method": "GET",
+        "path": "/parent/overview",
+        "rawPaths": [
+          "/parent/overview",
+          "/useSchoolQuery<any>(\"/api/parent/overview\")"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/parent/academics",
+        "rawPaths": [
+          "/parent/academics",
+          "/useSchoolQuery<any>(\"/api/parent/academics\")"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/parent/finance",
+        "rawPaths": [
+          "/parent/finance",
+          "/useSchoolQuery<any>(\"/api/parent/finance\")"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/parent/communication",
+        "rawPaths": [
+          "/parent/communication",
+          "/useSchoolQuery<any>(\"/api/parent/communication\")"
+        ]
+      }
+    ],
+    "platform": [
+      {
+        "method": "GET",
+        "path": "/platform/sms-settings",
+        "rawPaths": [
+          "/platform/sms-settings",
+          "/fetch(\"/api/platform/sms-settings\")"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/platform/security-policies",
+        "rawPaths": [
+          "/platform/security-policies",
+          "/fetch(\"/api/platform/security-policies\")",
+          "/fetch(\"/api/platform/security-policies\", { method: \"GET\", credentials: \"same-..."
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/platform/templates",
+        "rawPaths": [
+          "/platform/templates",
+          "/fetch(\"/api/platform/templates\", { method: \"GET\", credentials: \"same-origin\",..."
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/platform/broadcasts",
+        "rawPaths": [
+          "/platform/broadcasts",
+          "/fetch(\"/api/platform/broadcasts\", { method: \"GET\", credentials: \"same-origin\"..."
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/platform/audit-logs",
+        "rawPaths": [
+          "/platform/audit-logs",
+          "/fetch(\"/api/platform/audit-logs\", { method: \"GET\", credentials: \"same-origin\"..."
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/platform/backups",
+        "rawPaths": [
+          "/platform/backups",
+          "/fetch(\"/api/platform/backups\", { method: \"GET\", credentials: \"same-origin\", c..."
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/platform/reports",
+        "rawPaths": [
+          "/platform/reports",
+          "/fetch(\"/api/platform/reports\", { method: \"GET\", credentials: \"same-origin\", c..."
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/platform/users",
+        "rawPaths": [
+          "/platform/users",
+          "/fetch(\"/api/platform/users\", { method: \"GET\", credentials: \"same-origin\", cac..."
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/platform/settings",
+        "rawPaths": [
+          "/platform/settings",
+          "/fetch(\"/api/platform/settings\", { method: \"GET\", credentials: \"same-origin\", ..."
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/platform/gateways",
+        "rawPaths": [
+          "/platform/gateways",
+          "/fetch(\"/api/platform/gateways\", { method: \"GET\", credentials: \"same-origin\", ..."
+        ]
+      }
+    ],
+    "admin-command": [
+      {
+        "method": "GET",
+        "path": "/admin-command/accountant/expenses",
+        "rawPaths": [
+          "/admin-command/accountant/expenses",
+          "/useSchoolQuery<ExpensesData>(\"/admin-command/accountant/expenses\")"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/admin/imports",
+        "rawPaths": [
+          "/admin-command/admin/imports",
+          "/useSchoolQuery<ImportsData>(\"/admin-command/admin/imports\")"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/admin/students",
+        "rawPaths": [
+          "/admin-command/admin/students",
+          "/useSchoolQuery<StudentsData>(\"/admin-command/admin/students\")"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/admissions/admissions",
+        "rawPaths": [
+          "/admin-command/admissions/admissions",
+          "/useSchoolQuery<AdmissionsData>('/admin-command/admissions/admissions')"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/admissions/applications",
+        "rawPaths": [
+          "/admin-command/admissions/applications"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/admissions/applications/:param/status",
+        "rawPaths": [
+          "/admin-command/admissions/applications/:param/status"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/admissions/interviews",
+        "rawPaths": [
+          "/admin-command/admissions/interviews"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/admissions/interviews/:param/outcome",
+        "rawPaths": [
+          "/admin-command/admissions/interviews/:param/outcome"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/admissions/documents/:param/verify",
+        "rawPaths": [
+          "/admin-command/admissions/documents/:param/verify"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/admissions/documents/request",
+        "rawPaths": [
+          "/admin-command/admissions/documents/request"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/admissions/class-placement",
+        "rawPaths": [
+          "/admin-command/admissions/class-placement"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/admissions/parent-linking",
+        "rawPaths": [
+          "/admin-command/admissions/parent-linking",
+          "/useSchoolQuery<ParentLinkingData>('/admin-command/admissions/parent-linking')"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/admissions/parent-linking",
+        "rawPaths": [
+          "/admin-command/admissions/parent-linking"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/admissions/parent-linking/:param/invite",
+        "rawPaths": [
+          "/admin-command/admissions/parent-linking/:param/invite"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/admissions/admissions/:param/admit",
+        "rawPaths": [
+          "/admin-command/admissions/admissions/:param/admit"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/admissions/admissions/:param/letter",
+        "rawPaths": [
+          "/admin-command/admissions/admissions/:param/letter"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/admissions/reports/generate",
+        "rawPaths": [
+          "/admin-command/admissions/reports/generate"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/admissions/placement",
+        "rawPaths": [
+          "/admin-command/admissions/placement",
+          "/useSchoolQuery<PlacementData>(\"/admin-command/admissions/placement\")"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/boarding-master/allocation",
+        "rawPaths": [
+          "/admin-command/boarding-master/allocation",
+          "/useSchoolQuery<AllocationData>('/admin-command/boarding-master/allocation')"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/boarding-master/overview",
+        "rawPaths": [
+          "/admin-command/boarding-master/overview",
+          "/useSchoolQuery<OverviewData>('/admin-command/boarding-master/overview')"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/boarding-master/hostels",
+        "rawPaths": [
+          "/admin-command/boarding-master/hostels",
+          "/useSchoolQuery<HostelsData>('/admin-command/boarding-master/hostels')"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/boarding-master/hostels",
+        "rawPaths": [
+          "/admin-command/boarding-master/hostels"
+        ]
+      },
+      {
+        "method": "PUT",
+        "path": "/admin-command/boarding-master/hostels/:param",
+        "rawPaths": [
+          "/admin-command/boarding-master/hostels/:param"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/boarding-master/rooms-beds",
+        "rawPaths": [
+          "/admin-command/boarding-master/rooms-beds",
+          "/useSchoolQuery<RoomsBedsData>('/admin-command/boarding-master/rooms-beds')"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/boarding-master/rooms-beds",
+        "rawPaths": [
+          "/admin-command/boarding-master/rooms-beds"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/boarding-master/rooms-beds/:param/status",
+        "rawPaths": [
+          "/admin-command/boarding-master/rooms-beds/:param/status"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/boarding-master/allocation",
+        "rawPaths": [
+          "/admin-command/boarding-master/allocation"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/boarding-master/allocation/:param/deallocate",
+        "rawPaths": [
+          "/admin-command/boarding-master/allocation/:param/deallocate"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/boarding-master/boarding-attendance",
+        "rawPaths": [
+          "/admin-command/boarding-master/boarding-attendance"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/boarding-master/boarding-attendance",
+        "rawPaths": [
+          "/admin-command/boarding-master/boarding-attendance"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/boarding-master/leave-exit",
+        "rawPaths": [
+          "/admin-command/boarding-master/leave-exit",
+          "/useSchoolQuery<LeaveExitData>('/admin-command/boarding-master/leave-exit')"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/boarding-master/leave-exit",
+        "rawPaths": [
+          "/admin-command/boarding-master/leave-exit"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/boarding-master/leave-exit/:param/approve",
+        "rawPaths": [
+          "/admin-command/boarding-master/leave-exit/:param/approve"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/boarding-master/leave-exit/:param/reject",
+        "rawPaths": [
+          "/admin-command/boarding-master/leave-exit/:param/reject"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/boarding-master/incidents",
+        "rawPaths": [
+          "/admin-command/boarding-master/incidents",
+          "/useSchoolQuery<IncidentsData>('/admin-command/boarding-master/incidents')"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/boarding-master/incidents",
+        "rawPaths": [
+          "/admin-command/boarding-master/incidents"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/boarding-master/incidents/:param/escalate",
+        "rawPaths": [
+          "/admin-command/boarding-master/incidents/:param/escalate"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/boarding-master/incidents/:param/resolve",
+        "rawPaths": [
+          "/admin-command/boarding-master/incidents/:param/resolve"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/boarding-master/reports",
+        "rawPaths": [
+          "/admin-command/boarding-master/reports",
+          "/useSchoolQuery<ReportsData>('/admin-command/boarding-master/reports')"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/boarding-master/reports/generate",
+        "rawPaths": [
+          "/admin-command/boarding-master/reports/generate"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/boarding/assign-bed",
+        "rawPaths": [
+          "/admin-command/boarding/assign-bed",
+          "/requestDashboardApi(\"/api/admin-command/boarding/assign-bed\", {         metho..."
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/boarding/roll-call",
+        "rawPaths": [
+          "/admin-command/boarding/roll-call",
+          "/requestDashboardApi(\"/api/admin-command/boarding/roll-call\", {         method..."
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/boarding/incidents",
+        "rawPaths": [
+          "/admin-command/boarding/incidents",
+          "/requestDashboardApi(\"/api/admin-command/boarding/incidents\", {         method..."
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/class-teacher/overview",
+        "rawPaths": [
+          "/admin-command/class-teacher/overview",
+          "/useSchoolQuery<OverviewData>('/admin-command/class-teacher/overview')"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/class-teacher/my-class",
+        "rawPaths": [
+          "/admin-command/class-teacher/my-class",
+          "/useSchoolQuery<MyClassData>('/admin-command/class-teacher/my-class')"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/class-teacher/attendance-follow-up",
+        "rawPaths": [
+          "/admin-command/class-teacher/attendance-follow-up"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/class-teacher/class-academics",
+        "rawPaths": [
+          "/admin-command/class-teacher/class-academics"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/class-teacher/discipline-follow-up",
+        "rawPaths": [
+          "/admin-command/class-teacher/discipline-follow-up"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/class-teacher/learner-profiles",
+        "rawPaths": [
+          "/admin-command/class-teacher/learner-profiles"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/class-teacher/parent-contacts",
+        "rawPaths": [
+          "/admin-command/class-teacher/parent-contacts"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/class-teacher/report-comments",
+        "rawPaths": [
+          "/admin-command/class-teacher/report-comments"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/class-teacher/reports",
+        "rawPaths": [
+          "/admin-command/class-teacher/reports",
+          "/useSchoolQuery<ReportsData>('/admin-command/class-teacher/reports')"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/class-teacher/welfare-notes",
+        "rawPaths": [
+          "/admin-command/class-teacher/welfare-notes",
+          "/useSchoolQuery<WelfareNotesData>('/admin-command/class-teacher/welfare-notes')"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/class-teacher/attendance-follow-up/:param/notify",
+        "rawPaths": [
+          "/admin-command/class-teacher/attendance-follow-up/:param/notify"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/class-teacher/attendance-follow-up/:param/resolve",
+        "rawPaths": [
+          "/admin-command/class-teacher/attendance-follow-up/:param/resolve"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/class-teacher/discipline-follow-up/:param/follow-up",
+        "rawPaths": [
+          "/admin-command/class-teacher/discipline-follow-up/:param/follow-up"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/class-teacher/discipline-follow-up/:param/escalate",
+        "rawPaths": [
+          "/admin-command/class-teacher/discipline-follow-up/:param/escalate"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/class-teacher/report-comments/:param",
+        "rawPaths": [
+          "/admin-command/class-teacher/report-comments/:param"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/class-teacher/report-comments/submit-all",
+        "rawPaths": [
+          "/admin-command/class-teacher/report-comments/submit-all"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/class-teacher/welfare-notes",
+        "rawPaths": [
+          "/admin-command/class-teacher/welfare-notes"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/class-teacher/welfare-notes/:param/escalate",
+        "rawPaths": [
+          "/admin-command/class-teacher/welfare-notes/:param/escalate"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/class-teacher/parent-contacts/:param/message",
+        "rawPaths": [
+          "/admin-command/class-teacher/parent-contacts/:param/message"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/class-teacher/reports/generate",
+        "rawPaths": [
+          "/admin-command/class-teacher/reports/generate"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/class-teacher/learner-profiles/:param/note",
+        "rawPaths": [
+          "/admin-command/class-teacher/learner-profiles/:param/note"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/dean-academics/academic-interventions",
+        "rawPaths": [
+          "/admin-command/dean-academics/academic-interventions"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/dean-academics/assessments",
+        "rawPaths": [
+          "/admin-command/dean-academics/assessments",
+          "/useSchoolQuery<AssessmentsData>('/admin-command/dean-academics/assessments')"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/dean-academics/curriculum-coverage",
+        "rawPaths": [
+          "/admin-command/dean-academics/curriculum-coverage"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/dean-academics/department-performance",
+        "rawPaths": [
+          "/admin-command/dean-academics/department-performance"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/dean-academics/lesson-logs",
+        "rawPaths": [
+          "/admin-command/dean-academics/lesson-logs",
+          "/useSchoolQuery<LessonLogsData>('/admin-command/dean-academics/lesson-logs')"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/dean-academics/lesson-plans",
+        "rawPaths": [
+          "/admin-command/dean-academics/lesson-plans",
+          "/useSchoolQuery<LessonPlansData>('/admin-command/dean-academics/lesson-plans')"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/dean-academics/overview",
+        "rawPaths": [
+          "/admin-command/dean-academics/overview",
+          "/useSchoolQuery<OverviewData>('/admin-command/dean-academics/overview')"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/dean-academics/reports",
+        "rawPaths": [
+          "/admin-command/dean-academics/reports",
+          "/useSchoolQuery<ReportsData>('/admin-command/dean-academics/reports')"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/dean-academics/teacher-workload",
+        "rawPaths": [
+          "/admin-command/dean-academics/teacher-workload"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/exams/academic-setup-approval",
+        "rawPaths": [
+          "/admin-command/exams/academic-setup-approval"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/exams/readiness",
+        "rawPaths": [
+          "/admin-command/exams/readiness",
+          "/useSchoolQuery<ExamReadinessData>(\"/admin-command/exams/readiness\")"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/exams-manager/analysis",
+        "rawPaths": [
+          "/admin-command/exams-manager/analysis",
+          "/useSchoolQuery<AnalysisData>('/admin-command/exams-manager/analysis')"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/exams-manager/overview",
+        "rawPaths": [
+          "/admin-command/exams-manager/overview",
+          "/useSchoolQuery<OverviewData>('/admin-command/exams-manager/overview')"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/exams-manager/exam-setup",
+        "rawPaths": [
+          "/admin-command/exams-manager/exam-setup",
+          "/useSchoolQuery<ExamSetupData>('/admin-command/exams-manager/exam-setup')"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/exams-manager/exam-timetable",
+        "rawPaths": [
+          "/admin-command/exams-manager/exam-timetable",
+          "/useSchoolQuery<TimetableData>('/admin-command/exams-manager/exam-timetable')"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/exams-manager/marks-entry",
+        "rawPaths": [
+          "/admin-command/exams-manager/marks-entry",
+          "/useSchoolQuery<MarksEntryData>('/admin-command/exams-manager/marks-entry')"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/exams-manager/moderation",
+        "rawPaths": [
+          "/admin-command/exams-manager/moderation",
+          "/useSchoolQuery<ModerationData>('/admin-command/exams-manager/moderation')"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/exams-manager/report-cards",
+        "rawPaths": [
+          "/admin-command/exams-manager/report-cards",
+          "/useSchoolQuery<ReportCardsData>('/admin-command/exams-manager/report-cards')"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/exams-manager/publishing",
+        "rawPaths": [
+          "/admin-command/exams-manager/publishing",
+          "/useSchoolQuery<PublishingData>('/admin-command/exams-manager/publishing')"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/exams-manager/reports",
+        "rawPaths": [
+          "/admin-command/exams-manager/reports",
+          "/useSchoolQuery<ReportsData>('/admin-command/exams-manager/reports')"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/exams-manager/exam-setup",
+        "rawPaths": [
+          "/admin-command/exams-manager/exam-setup"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/exams-manager/exam-timetable",
+        "rawPaths": [
+          "/admin-command/exams-manager/exam-timetable"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/exams-manager/marks-entry",
+        "rawPaths": [
+          "/admin-command/exams-manager/marks-entry"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/exams-manager/marks-entry/:param/lock",
+        "rawPaths": [
+          "/admin-command/exams-manager/marks-entry/:param/lock"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/exams-manager/moderation/:param/approve",
+        "rawPaths": [
+          "/admin-command/exams-manager/moderation/:param/approve"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/exams-manager/moderation/:param/reject",
+        "rawPaths": [
+          "/admin-command/exams-manager/moderation/:param/reject"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/exams-manager/report-cards/:param/generate",
+        "rawPaths": [
+          "/admin-command/exams-manager/report-cards/:param/generate"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/exams-manager/publishing/:param/publish",
+        "rawPaths": [
+          "/admin-command/exams-manager/publishing/:param/publish"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/exams-manager/publishing/:param/unpublish",
+        "rawPaths": [
+          "/admin-command/exams-manager/publishing/:param/unpublish"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/exams-manager/reports/generate",
+        "rawPaths": [
+          "/admin-command/exams-manager/reports/generate"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/guidance-counselling/overview",
+        "rawPaths": [
+          "/admin-command/guidance-counselling/overview",
+          "/useSchoolQuery<OverviewData>('/admin-command/guidance-counselling/overview')"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/guidance-counselling/sessions",
+        "rawPaths": [
+          "/admin-command/guidance-counselling/sessions",
+          "/useSchoolQuery<SessionsData>('/admin-command/guidance-counselling/sessions')"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/guidance-counselling/sessions",
+        "rawPaths": [
+          "/admin-command/guidance-counselling/sessions"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/guidance-counselling/sessions/:param/complete",
+        "rawPaths": [
+          "/admin-command/guidance-counselling/sessions/:param/complete"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/guidance-counselling/follow-ups",
+        "rawPaths": [
+          "/admin-command/guidance-counselling/follow-ups",
+          "/useSchoolQuery<FollowUpsData>('/admin-command/guidance-counselling/follow-ups')"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/guidance-counselling/follow-ups",
+        "rawPaths": [
+          "/admin-command/guidance-counselling/follow-ups"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/guidance-counselling/follow-ups/:param/done",
+        "rawPaths": [
+          "/admin-command/guidance-counselling/follow-ups/:param/done"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/guidance-counselling/referrals",
+        "rawPaths": [
+          "/admin-command/guidance-counselling/referrals",
+          "/useSchoolQuery<ReferralsData>('/admin-command/guidance-counselling/referrals')"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/guidance-counselling/referrals",
+        "rawPaths": [
+          "/admin-command/guidance-counselling/referrals"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/guidance-counselling/referrals/:param/status",
+        "rawPaths": [
+          "/admin-command/guidance-counselling/referrals/:param/status"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/guidance-counselling/parent-engagement",
+        "rawPaths": [
+          "/admin-command/guidance-counselling/parent-engagement"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/guidance-counselling/parent-engagement",
+        "rawPaths": [
+          "/admin-command/guidance-counselling/parent-engagement"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/guidance-counselling/parent-engagement/:param/notify",
+        "rawPaths": [
+          "/admin-command/guidance-counselling/parent-engagement/:param/notify"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/guidance-counselling/welfare-notes",
+        "rawPaths": [
+          "/admin-command/guidance-counselling/welfare-notes"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/guidance-counselling/welfare-notes",
+        "rawPaths": [
+          "/admin-command/guidance-counselling/welfare-notes"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/guidance-counselling/welfare-notes/:param/flag",
+        "rawPaths": [
+          "/admin-command/guidance-counselling/welfare-notes/:param/flag"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/guidance-counselling/reports",
+        "rawPaths": [
+          "/admin-command/guidance-counselling/reports",
+          "/useSchoolQuery<ReportsData>('/admin-command/guidance-counselling/reports')"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/guidance-counselling/reports/generate",
+        "rawPaths": [
+          "/admin-command/guidance-counselling/reports/generate"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/hod/coverage-review",
+        "rawPaths": [
+          "/admin-command/hod/coverage-review",
+          "/useSchoolQuery<CoverageReviewData>('/admin-command/hod/coverage-review')"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/hod/department-teachers",
+        "rawPaths": [
+          "/admin-command/hod/department-teachers",
+          "/useSchoolQuery<DepartmentTeachersData>('/admin-command/hod/department-teachers')"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/hod/lesson-plans",
+        "rawPaths": [
+          "/admin-command/hod/lesson-plans",
+          "/useSchoolQuery<LessonPlansData>('/admin-command/hod/lesson-plans')"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/hod/marks-moderation",
+        "rawPaths": [
+          "/admin-command/hod/marks-moderation",
+          "/useSchoolQuery<MarksModerationData>('/admin-command/hod/marks-moderation')"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/hod/overview",
+        "rawPaths": [
+          "/admin-command/hod/overview",
+          "/useSchoolQuery<OverviewData>('/admin-command/hod/overview')"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/hod/reports",
+        "rawPaths": [
+          "/admin-command/hod/reports",
+          "/useSchoolQuery<ReportsData>('/admin-command/hod/reports')"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/hod/resource-requests",
+        "rawPaths": [
+          "/admin-command/hod/resource-requests",
+          "/useSchoolQuery<ResourceRequestsData>('/admin-command/hod/resource-requests')"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/hod/subject-allocation",
+        "rawPaths": [
+          "/admin-command/hod/subject-allocation",
+          "/useSchoolQuery<SubjectAllocationData>('/admin-command/hod/subject-allocation')"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/hod/department-overview",
+        "rawPaths": [
+          "/admin-command/hod/department-overview",
+          "/useSchoolQuery<DepartmentOverviewData>(\"/admin-command/hod/department-overview\")"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/hod/review-queue",
+        "rawPaths": [
+          "/admin-command/hod/review-queue",
+          "/useSchoolQuery<ReviewQueueData>(\"/admin-command/hod/review-queue\")"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/ict-manager/overview",
+        "rawPaths": [
+          "/admin-command/ict-manager/overview",
+          "/useSchoolQuery<OverviewData>('/admin-command/ict-manager/overview')"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/ict-manager/assets",
+        "rawPaths": [
+          "/admin-command/ict-manager/assets",
+          "/useSchoolQuery<AssetsData>('/admin-command/ict-manager/assets')"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/ict-manager/asset-assignment",
+        "rawPaths": [
+          "/admin-command/ict-manager/asset-assignment"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/ict-manager/loans-returns",
+        "rawPaths": [
+          "/admin-command/ict-manager/loans-returns",
+          "/useSchoolQuery<LoansReturnsData>('/admin-command/ict-manager/loans-returns')"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/ict-manager/maintenance",
+        "rawPaths": [
+          "/admin-command/ict-manager/maintenance",
+          "/useSchoolQuery<MaintenanceData>('/admin-command/ict-manager/maintenance')"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/ict-manager/facilities-issues",
+        "rawPaths": [
+          "/admin-command/ict-manager/facilities-issues"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/ict-manager/reports",
+        "rawPaths": [
+          "/admin-command/ict-manager/reports",
+          "/useSchoolQuery<ReportsData>('/admin-command/ict-manager/reports')"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/ict-manager/assets",
+        "rawPaths": [
+          "/admin-command/ict-manager/assets"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/ict-manager/asset-assignment",
+        "rawPaths": [
+          "/admin-command/ict-manager/asset-assignment"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/ict-manager/asset-assignment/:param/revoke",
+        "rawPaths": [
+          "/admin-command/ict-manager/asset-assignment/:param/revoke"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/ict-manager/loans-returns",
+        "rawPaths": [
+          "/admin-command/ict-manager/loans-returns"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/ict-manager/loans-returns/:param/return",
+        "rawPaths": [
+          "/admin-command/ict-manager/loans-returns/:param/return"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/ict-manager/maintenance",
+        "rawPaths": [
+          "/admin-command/ict-manager/maintenance"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/ict-manager/maintenance/:param/complete",
+        "rawPaths": [
+          "/admin-command/ict-manager/maintenance/:param/complete"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/ict-manager/facilities-issues",
+        "rawPaths": [
+          "/admin-command/ict-manager/facilities-issues"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/ict-manager/facilities-issues/:param/resolve",
+        "rawPaths": [
+          "/admin-command/ict-manager/facilities-issues/:param/resolve"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/ict-manager/reports/generate",
+        "rawPaths": [
+          "/admin-command/ict-manager/reports/generate"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/laboratory-technician/overview",
+        "rawPaths": [
+          "/admin-command/laboratory-technician/overview",
+          "/useSchoolQuery<OverviewData>('/admin-command/laboratory-technician/overview')"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/laboratory-technician/lab-inventory",
+        "rawPaths": [
+          "/admin-command/laboratory-technician/lab-inventory"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/laboratory-technician/chemicals",
+        "rawPaths": [
+          "/admin-command/laboratory-technician/chemicals",
+          "/useSchoolQuery<ChemicalsData>('/admin-command/laboratory-technician/chemicals')"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/laboratory-technician/apparatus-issue",
+        "rawPaths": [
+          "/admin-command/laboratory-technician/apparatus-issue"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/laboratory-technician/lab-timetable",
+        "rawPaths": [
+          "/admin-command/laboratory-technician/lab-timetable"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/laboratory-technician/safety-incidents",
+        "rawPaths": [
+          "/admin-command/laboratory-technician/safety-incidents"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/laboratory-technician/reports",
+        "rawPaths": [
+          "/admin-command/laboratory-technician/reports",
+          "/useSchoolQuery<ReportsData>('/admin-command/laboratory-technician/reports')"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/laboratory-technician/lab-inventory",
+        "rawPaths": [
+          "/admin-command/laboratory-technician/lab-inventory"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/laboratory-technician/chemicals",
+        "rawPaths": [
+          "/admin-command/laboratory-technician/chemicals"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/laboratory-technician/chemicals/:param/dispose",
+        "rawPaths": [
+          "/admin-command/laboratory-technician/chemicals/:param/dispose"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/laboratory-technician/apparatus-issue",
+        "rawPaths": [
+          "/admin-command/laboratory-technician/apparatus-issue"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/laboratory-technician/apparatus-issue/:param/return",
+        "rawPaths": [
+          "/admin-command/laboratory-technician/apparatus-issue/:param/return"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/laboratory-technician/lab-timetable",
+        "rawPaths": [
+          "/admin-command/laboratory-technician/lab-timetable"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/laboratory-technician/safety-incidents",
+        "rawPaths": [
+          "/admin-command/laboratory-technician/safety-incidents"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/laboratory-technician/safety-incidents/:param/resolve",
+        "rawPaths": [
+          "/admin-command/laboratory-technician/safety-incidents/:param/resolve"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/laboratory-technician/reports/generate",
+        "rawPaths": [
+          "/admin-command/laboratory-technician/reports/generate"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/librarian/overview",
+        "rawPaths": [
+          "/admin-command/librarian/overview",
+          "/useSchoolQuery<LibrarianOverviewData>('/admin-command/librarian/overview')"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/librarian/books",
+        "rawPaths": [
+          "/admin-command/librarian/books",
+          "/useSchoolQuery<BooksData>('/admin-command/librarian/books')"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/librarian/borrowers",
+        "rawPaths": [
+          "/admin-command/librarian/borrowers",
+          "/useSchoolQuery<BorrowersData>('/admin-command/librarian/borrowers')"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/librarian/issue-book",
+        "rawPaths": [
+          "/admin-command/librarian/issue-book",
+          "/useSchoolQuery<IssueBookData>('/admin-command/librarian/issue-book')"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/librarian/return-book",
+        "rawPaths": [
+          "/admin-command/librarian/return-book",
+          "/useSchoolQuery<ReturnBookData>('/admin-command/librarian/return-book')"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/librarian/overdue-books",
+        "rawPaths": [
+          "/admin-command/librarian/overdue-books",
+          "/useSchoolQuery<OverdueBooksData>('/admin-command/librarian/overdue-books')"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/librarian/fines-lost-damaged",
+        "rawPaths": [
+          "/admin-command/librarian/fines-lost-damaged",
+          "/useSchoolQuery<FinesData>('/admin-command/librarian/fines-lost-damaged')"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/librarian/reports",
+        "rawPaths": [
+          "/admin-command/librarian/reports",
+          "/useSchoolQuery<ReportsData>('/admin-command/librarian/reports')"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/librarian/books",
+        "rawPaths": [
+          "/admin-command/librarian/books"
+        ]
+      },
+      {
+        "method": "DELETE",
+        "path": "/admin-command/librarian/books/:param",
+        "rawPaths": [
+          "/admin-command/librarian/books/:param"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/librarian/issue-book",
+        "rawPaths": [
+          "/admin-command/librarian/issue-book"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/librarian/return-book",
+        "rawPaths": [
+          "/admin-command/librarian/return-book"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/librarian/overdue-books/:param/remind",
+        "rawPaths": [
+          "/admin-command/librarian/overdue-books/:param/remind"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/librarian/fines-lost-damaged",
+        "rawPaths": [
+          "/admin-command/librarian/fines-lost-damaged"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/librarian/fines-lost-damaged/:param/waive",
+        "rawPaths": [
+          "/admin-command/librarian/fines-lost-damaged/:param/waive"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/librarian/fines-lost-damaged/:param/mark-paid",
+        "rawPaths": [
+          "/admin-command/librarian/fines-lost-damaged/:param/mark-paid"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/librarian/reports/generate",
+        "rawPaths": [
+          "/admin-command/librarian/reports/generate"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/library/return",
+        "rawPaths": [
+          "/admin-command/library/return",
+          "/requestDashboardApi(\"/api/admin-command/library/return\", {         method: \"P..."
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/nurse/overview",
+        "rawPaths": [
+          "/admin-command/nurse/overview",
+          "/useSchoolQuery<NurseOverviewData>('/admin-command/nurse/overview')"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/nurse/visits",
+        "rawPaths": [
+          "/admin-command/nurse/visits",
+          "/useSchoolQuery<VisitsData>('/admin-command/nurse/visits')"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/nurse/sick-bay-queue",
+        "rawPaths": [
+          "/admin-command/nurse/sick-bay-queue",
+          "/useSchoolQuery<SickBayData>('/admin-command/nurse/sick-bay-queue')"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/nurse/medicine-inventory",
+        "rawPaths": [
+          "/admin-command/nurse/medicine-inventory",
+          "/useSchoolQuery<MedicineData>('/admin-command/nurse/medicine-inventory')"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/nurse/dispensing-log",
+        "rawPaths": [
+          "/admin-command/nurse/dispensing-log",
+          "/useSchoolQuery<DispensingData>('/admin-command/nurse/dispensing-log')"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/nurse/parent-notifications",
+        "rawPaths": [
+          "/admin-command/nurse/parent-notifications",
+          "/useSchoolQuery<NotificationsData>('/admin-command/nurse/parent-notifications')"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/nurse/health-reports",
+        "rawPaths": [
+          "/admin-command/nurse/health-reports",
+          "/useSchoolQuery<ReportsData>('/admin-command/nurse/health-reports')"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/nurse/visits",
+        "rawPaths": [
+          "/admin-command/nurse/visits"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/nurse/visits/:param/close",
+        "rawPaths": [
+          "/admin-command/nurse/visits/:param/close"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/nurse/visits/:param/refer",
+        "rawPaths": [
+          "/admin-command/nurse/visits/:param/refer"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/nurse/sick-bay-queue",
+        "rawPaths": [
+          "/admin-command/nurse/sick-bay-queue"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/nurse/sick-bay-queue/:param/discharge",
+        "rawPaths": [
+          "/admin-command/nurse/sick-bay-queue/:param/discharge"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/nurse/medicine-inventory",
+        "rawPaths": [
+          "/admin-command/nurse/medicine-inventory"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/nurse/medicine-inventory/:param/adjust",
+        "rawPaths": [
+          "/admin-command/nurse/medicine-inventory/:param/adjust"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/nurse/dispensing-log",
+        "rawPaths": [
+          "/admin-command/nurse/dispensing-log"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/nurse/parent-notifications",
+        "rawPaths": [
+          "/admin-command/nurse/parent-notifications"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/nurse/parent-notifications/:param/resend",
+        "rawPaths": [
+          "/admin-command/nurse/parent-notifications/:param/resend"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/nurse/health-reports/generate",
+        "rawPaths": [
+          "/admin-command/nurse/health-reports/generate"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/school/operational-blueprint",
+        "rawPaths": [
+          "/admin-command/school/operational-blueprint"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/parent/dashboard",
+        "rawPaths": [
+          "/admin-command/parent/dashboard",
+          "/useSchoolQuery<DashboardData>(\"/admin-command/parent/dashboard\")"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/parent/downloads",
+        "rawPaths": [
+          "/admin-command/parent/downloads",
+          "/useSchoolQuery<DownloadsData>(\"/admin-command/parent/downloads\")"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/parent/health",
+        "rawPaths": [
+          "/admin-command/parent/health",
+          "/useSchoolQuery<HealthData>(\"/admin-command/parent/health\")"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/parent/messages",
+        "rawPaths": [
+          "/admin-command/parent/messages",
+          "/useSchoolQuery<MessagesData>(\"/admin-command/parent/messages\")"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/parent/notifications",
+        "rawPaths": [
+          "/admin-command/parent/notifications",
+          "/useSchoolQuery<NotificationsData>(\"/admin-command/parent/notifications\")"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/principal/classes-streams",
+        "rawPaths": [
+          "/admin-command/principal/classes-streams",
+          "/useSchoolQuery<ClassesStreamsData>('/admin-command/principal/classes-streams')"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/principal/subjects-departments",
+        "rawPaths": [
+          "/admin-command/principal/subjects-departments"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/principal/staff-roles",
+        "rawPaths": [
+          "/admin-command/principal/staff-roles",
+          "/useSchoolQuery<StaffRolesData>('/admin-command/principal/staff-roles')"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/principal/attendance-monitoring",
+        "rawPaths": [
+          "/admin-command/principal/attendance-monitoring",
+          "/useSchoolQuery<AttendanceData>('/admin-command/principal/attendance-monitoring')"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/principal/exams-report-cards",
+        "rawPaths": [
+          "/admin-command/principal/exams-report-cards"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/principal/school-profile",
+        "rawPaths": [
+          "/admin-command/principal/school-profile"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/principal/academic-setup/year",
+        "rawPaths": [
+          "/admin-command/principal/academic-setup/year"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/principal/academic-setup/term",
+        "rawPaths": [
+          "/admin-command/principal/academic-setup/term"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/principal/classes-streams",
+        "rawPaths": [
+          "/admin-command/principal/classes-streams"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/principal/classes-streams/:param/streams",
+        "rawPaths": [
+          "/admin-command/principal/classes-streams/:param/streams"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/principal/subjects-departments/subject",
+        "rawPaths": [
+          "/admin-command/principal/subjects-departments/subject"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/principal/subjects-departments/department",
+        "rawPaths": [
+          "/admin-command/principal/subjects-departments/department"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/principal/staff-roles/invite",
+        "rawPaths": [
+          "/admin-command/principal/staff-roles/invite"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/principal/staff-roles/:param/role",
+        "rawPaths": [
+          "/admin-command/principal/staff-roles/:param/role"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/principal/students/admit",
+        "rawPaths": [
+          "/admin-command/principal/students/admit"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/principal/students/:param/transfer",
+        "rawPaths": [
+          "/admin-command/principal/students/:param/transfer"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/principal/attendance-monitoring/:param/alert",
+        "rawPaths": [
+          "/admin-command/principal/attendance-monitoring/:param/alert"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/principal/discipline/:param/escalate",
+        "rawPaths": [
+          "/admin-command/principal/discipline/:param/escalate"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/principal/discipline/:param/resolve",
+        "rawPaths": [
+          "/admin-command/principal/discipline/:param/resolve"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/principal/exams-report-cards/:param/publish",
+        "rawPaths": [
+          "/admin-command/principal/exams-report-cards/:param/publish"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/principal/exams-report-cards/:param/approve",
+        "rawPaths": [
+          "/admin-command/principal/exams-report-cards/:param/approve"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/principal/finance-overview/:param/approve",
+        "rawPaths": [
+          "/admin-command/principal/finance-overview/:param/approve"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/principal/approvals/:param/action",
+        "rawPaths": [
+          "/admin-command/principal/approvals/:param/action"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/principal/communication/announcement",
+        "rawPaths": [
+          "/admin-command/principal/communication/announcement"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/principal/communication/message",
+        "rawPaths": [
+          "/admin-command/principal/communication/message"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/principal/reports/generate",
+        "rawPaths": [
+          "/admin-command/principal/reports/generate"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/principal/setup-checklist/:param/complete",
+        "rawPaths": [
+          "/admin-command/principal/setup-checklist/:param/complete"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/procurement-officer/overview",
+        "rawPaths": [
+          "/admin-command/procurement-officer/overview",
+          "/useSchoolQuery<OverviewData>('/admin-command/procurement-officer/overview')"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/procurement-officer/suppliers",
+        "rawPaths": [
+          "/admin-command/procurement-officer/suppliers",
+          "/useSchoolQuery<SuppliersData>('/admin-command/procurement-officer/suppliers')"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/procurement-officer/purchase-requests",
+        "rawPaths": [
+          "/admin-command/procurement-officer/purchase-requests"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/procurement-officer/quotations",
+        "rawPaths": [
+          "/admin-command/procurement-officer/quotations",
+          "/useSchoolQuery<QuotationsData>('/admin-command/procurement-officer/quotations')"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/procurement-officer/purchase-orders",
+        "rawPaths": [
+          "/admin-command/procurement-officer/purchase-orders"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/procurement-officer/deliveries",
+        "rawPaths": [
+          "/admin-command/procurement-officer/deliveries",
+          "/useSchoolQuery<DeliveriesData>('/admin-command/procurement-officer/deliveries')"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/procurement-officer/reports",
+        "rawPaths": [
+          "/admin-command/procurement-officer/reports",
+          "/useSchoolQuery<ReportsData>('/admin-command/procurement-officer/reports')"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/procurement-officer/suppliers",
+        "rawPaths": [
+          "/admin-command/procurement-officer/suppliers"
+        ]
+      },
+      {
+        "method": "PUT",
+        "path": "/admin-command/procurement-officer/suppliers/:param",
+        "rawPaths": [
+          "/admin-command/procurement-officer/suppliers/:param"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/procurement-officer/purchase-requests",
+        "rawPaths": [
+          "/admin-command/procurement-officer/purchase-requests"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/procurement-officer/purchase-requests/:param/approve",
+        "rawPaths": [
+          "/admin-command/procurement-officer/purchase-requests/:param/approve"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/procurement-officer/purchase-requests/:param/reject",
+        "rawPaths": [
+          "/admin-command/procurement-officer/purchase-requests/:param/reject"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/procurement-officer/quotations",
+        "rawPaths": [
+          "/admin-command/procurement-officer/quotations"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/procurement-officer/quotations/:param/select",
+        "rawPaths": [
+          "/admin-command/procurement-officer/quotations/:param/select"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/procurement-officer/purchase-orders",
+        "rawPaths": [
+          "/admin-command/procurement-officer/purchase-orders"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/procurement-officer/purchase-orders/:param/approve",
+        "rawPaths": [
+          "/admin-command/procurement-officer/purchase-orders/:param/approve"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/procurement-officer/deliveries",
+        "rawPaths": [
+          "/admin-command/procurement-officer/deliveries"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/procurement-officer/deliveries/:param/confirm",
+        "rawPaths": [
+          "/admin-command/procurement-officer/deliveries/:param/confirm"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/procurement-officer/reports/generate",
+        "rawPaths": [
+          "/admin-command/procurement-officer/reports/generate"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/secretary/overview",
+        "rawPaths": [
+          "/admin-command/secretary/overview",
+          "/useSchoolQuery<OverviewData>('/admin-command/secretary/overview')"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/secretary/reception-queue",
+        "rawPaths": [
+          "/admin-command/secretary/reception-queue",
+          "/useSchoolQuery<QueueData>('/admin-command/secretary/reception-queue')"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/secretary/reception-queue",
+        "rawPaths": [
+          "/admin-command/secretary/reception-queue"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/secretary/reception-queue/:param/call",
+        "rawPaths": [
+          "/admin-command/secretary/reception-queue/:param/call"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/secretary/reception-queue/:param/complete",
+        "rawPaths": [
+          "/admin-command/secretary/reception-queue/:param/complete"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/secretary/visitors",
+        "rawPaths": [
+          "/admin-command/secretary/visitors",
+          "/useSchoolQuery<VisitorsData>('/admin-command/secretary/visitors')"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/secretary/visitors/check-in",
+        "rawPaths": [
+          "/admin-command/secretary/visitors/check-in"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/secretary/visitors/:param/check-out",
+        "rawPaths": [
+          "/admin-command/secretary/visitors/:param/check-out"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/secretary/visitors/:param/print-slip",
+        "rawPaths": [
+          "/admin-command/secretary/visitors/:param/print-slip"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/secretary/appointments",
+        "rawPaths": [
+          "/admin-command/secretary/appointments",
+          "/useSchoolQuery<AppointmentsData>('/admin-command/secretary/appointments')"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/secretary/appointments",
+        "rawPaths": [
+          "/admin-command/secretary/appointments"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/secretary/appointments/:param/cancel",
+        "rawPaths": [
+          "/admin-command/secretary/appointments/:param/cancel"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/secretary/appointments/:param/reschedule",
+        "rawPaths": [
+          "/admin-command/secretary/appointments/:param/reschedule"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/secretary/appointments/:param/confirm",
+        "rawPaths": [
+          "/admin-command/secretary/appointments/:param/confirm"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/secretary/calls-log",
+        "rawPaths": [
+          "/admin-command/secretary/calls-log",
+          "/useSchoolQuery<CallsData>('/admin-command/secretary/calls-log')"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/secretary/calls-log",
+        "rawPaths": [
+          "/admin-command/secretary/calls-log"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/secretary/calls-log/:param/follow-up",
+        "rawPaths": [
+          "/admin-command/secretary/calls-log/:param/follow-up"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/secretary/parent-messages",
+        "rawPaths": [
+          "/admin-command/secretary/parent-messages",
+          "/useSchoolQuery<MessagesData>('/admin-command/secretary/parent-messages')"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/secretary/parent-messages",
+        "rawPaths": [
+          "/admin-command/secretary/parent-messages"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/secretary/parent-messages/:param/read",
+        "rawPaths": [
+          "/admin-command/secretary/parent-messages/:param/read"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/secretary/parent-messages/:param/reply",
+        "rawPaths": [
+          "/admin-command/secretary/parent-messages/:param/reply"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/secretary/letters-documents",
+        "rawPaths": [
+          "/admin-command/secretary/letters-documents",
+          "/useSchoolQuery<DocumentsData>('/admin-command/secretary/letters-documents')"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/secretary/letters-documents",
+        "rawPaths": [
+          "/admin-command/secretary/letters-documents"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/secretary/letters-documents/:param/download",
+        "rawPaths": [
+          "/admin-command/secretary/letters-documents/:param/download"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/secretary/letters-documents/:param/print",
+        "rawPaths": [
+          "/admin-command/secretary/letters-documents/:param/print"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/secretary/student-clearance",
+        "rawPaths": [
+          "/admin-command/secretary/student-clearance",
+          "/useSchoolQuery<ClearanceData>('/admin-command/secretary/student-clearance')"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/secretary/student-clearance",
+        "rawPaths": [
+          "/admin-command/secretary/student-clearance"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/secretary/student-clearance/:param/approve",
+        "rawPaths": [
+          "/admin-command/secretary/student-clearance/:param/approve"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/secretary/student-clearance/:param/complete",
+        "rawPaths": [
+          "/admin-command/secretary/student-clearance/:param/complete"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/secretary/student-clearance/:param/print",
+        "rawPaths": [
+          "/admin-command/secretary/student-clearance/:param/print"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/secretary/reports",
+        "rawPaths": [
+          "/admin-command/secretary/reports",
+          "/useSchoolQuery<ReportsData>('/admin-command/secretary/reports')"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/secretary/reports/generate",
+        "rawPaths": [
+          "/admin-command/secretary/reports/generate"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/secretary/reports/:param/download",
+        "rawPaths": [
+          "/admin-command/secretary/reports/:param/download"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/frontoffice/visitors",
+        "rawPaths": [
+          "/admin-command/frontoffice/visitors"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/frontoffice/appointments",
+        "rawPaths": [
+          "/admin-command/frontoffice/appointments"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/frontoffice/mail",
+        "rawPaths": [
+          "/admin-command/frontoffice/mail"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/security-officer/overview",
+        "rawPaths": [
+          "/admin-command/security-officer/overview",
+          "/useSchoolQuery<OverviewData>('/admin-command/security-officer/overview')"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/security-officer/gate-register",
+        "rawPaths": [
+          "/admin-command/security-officer/gate-register"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/security-officer/gate-register",
+        "rawPaths": [
+          "/admin-command/security-officer/gate-register"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/security-officer/gate-register/:param/exit",
+        "rawPaths": [
+          "/admin-command/security-officer/gate-register/:param/exit"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/security-officer/visitors",
+        "rawPaths": [
+          "/admin-command/security-officer/visitors",
+          "/useSchoolQuery<VisitorsData>('/admin-command/security-officer/visitors')"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/security-officer/visitors/check-in",
+        "rawPaths": [
+          "/admin-command/security-officer/visitors/check-in"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/security-officer/visitors/:param/check-out",
+        "rawPaths": [
+          "/admin-command/security-officer/visitors/:param/check-out"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/security-officer/visitors/:param/flag",
+        "rawPaths": [
+          "/admin-command/security-officer/visitors/:param/flag"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/security-officer/visitors/:param/print-badge",
+        "rawPaths": [
+          "/admin-command/security-officer/visitors/:param/print-badge"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/security-officer/incidents",
+        "rawPaths": [
+          "/admin-command/security-officer/incidents",
+          "/useSchoolQuery<IncidentsData>('/admin-command/security-officer/incidents')"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/security-officer/incidents",
+        "rawPaths": [
+          "/admin-command/security-officer/incidents"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/security-officer/incidents/:param/escalate",
+        "rawPaths": [
+          "/admin-command/security-officer/incidents/:param/escalate"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/security-officer/incidents/:param/resolve",
+        "rawPaths": [
+          "/admin-command/security-officer/incidents/:param/resolve"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/security-officer/staff-movement",
+        "rawPaths": [
+          "/admin-command/security-officer/staff-movement"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/security-officer/staff-movement/departure",
+        "rawPaths": [
+          "/admin-command/security-officer/staff-movement/departure"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/security-officer/staff-movement/:param/return",
+        "rawPaths": [
+          "/admin-command/security-officer/staff-movement/:param/return"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/security-officer/student-exit-passes",
+        "rawPaths": [
+          "/admin-command/security-officer/student-exit-passes"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/security-officer/student-exit-passes/:param/verify",
+        "rawPaths": [
+          "/admin-command/security-officer/student-exit-passes/:param/verify"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/security-officer/student-exit-passes/:param/exit",
+        "rawPaths": [
+          "/admin-command/security-officer/student-exit-passes/:param/exit"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/security-officer/student-exit-passes/:param/return",
+        "rawPaths": [
+          "/admin-command/security-officer/student-exit-passes/:param/return"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/security-officer/student-exit-passes/flag-unauthorized",
+        "rawPaths": [
+          "/admin-command/security-officer/student-exit-passes/flag-unauthorized"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/security-officer/reports",
+        "rawPaths": [
+          "/admin-command/security-officer/reports",
+          "/useSchoolQuery<ReportsData>('/admin-command/security-officer/reports')"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/security-officer/reports/generate",
+        "rawPaths": [
+          "/admin-command/security-officer/reports/generate"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/security-officer/reports/:param/download",
+        "rawPaths": [
+          "/admin-command/security-officer/reports/:param/download"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/storekeeper/overview",
+        "rawPaths": [
+          "/admin-command/storekeeper/overview",
+          "/useSchoolQuery<OverviewData>('/admin-command/storekeeper/overview')"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/storekeeper/items",
+        "rawPaths": [
+          "/admin-command/storekeeper/items",
+          "/useSchoolQuery<ItemsData>('/admin-command/storekeeper/items')"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/storekeeper/low-stock",
+        "rawPaths": [
+          "/admin-command/storekeeper/low-stock",
+          "/useSchoolQuery<LowStockData>('/admin-command/storekeeper/low-stock')"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/storekeeper/damaged-missing",
+        "rawPaths": [
+          "/admin-command/storekeeper/damaged-missing",
+          "/useSchoolQuery<DamagedMissingData>('/admin-command/storekeeper/damaged-missing')"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/storekeeper/stocktake",
+        "rawPaths": [
+          "/admin-command/storekeeper/stocktake",
+          "/useSchoolQuery<StocktakeData>('/admin-command/storekeeper/stocktake')"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/storekeeper/requests",
+        "rawPaths": [
+          "/admin-command/storekeeper/requests",
+          "/useSchoolQuery<RequestsData>('/admin-command/storekeeper/requests')"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/storekeeper/reports",
+        "rawPaths": [
+          "/admin-command/storekeeper/reports",
+          "/useSchoolQuery<ReportsData>('/admin-command/storekeeper/reports')"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/storekeeper/items",
+        "rawPaths": [
+          "/admin-command/storekeeper/items"
+        ]
+      },
+      {
+        "method": "PATCH",
+        "path": "/admin-command/storekeeper/items/:param",
+        "rawPaths": [
+          "/admin-command/storekeeper/items/:param"
+        ]
+      },
+      {
+        "method": "DELETE",
+        "path": "/admin-command/storekeeper/items/:param",
+        "rawPaths": [
+          "/admin-command/storekeeper/items/:param"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/storekeeper/items/receive",
+        "rawPaths": [
+          "/admin-command/storekeeper/items/receive"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/storekeeper/items/issue",
+        "rawPaths": [
+          "/admin-command/storekeeper/items/issue"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/storekeeper/low-stock/:param/reorder",
+        "rawPaths": [
+          "/admin-command/storekeeper/low-stock/:param/reorder"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/storekeeper/damaged-missing",
+        "rawPaths": [
+          "/admin-command/storekeeper/damaged-missing"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/storekeeper/damaged-missing/:param/write-off",
+        "rawPaths": [
+          "/admin-command/storekeeper/damaged-missing/:param/write-off"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/storekeeper/stocktake",
+        "rawPaths": [
+          "/admin-command/storekeeper/stocktake"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/storekeeper/stocktake/:param/submit",
+        "rawPaths": [
+          "/admin-command/storekeeper/stocktake/:param/submit"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/storekeeper/stocktake/:param/finalize",
+        "rawPaths": [
+          "/admin-command/storekeeper/stocktake/:param/finalize"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/storekeeper/requests/:param/approve",
+        "rawPaths": [
+          "/admin-command/storekeeper/requests/:param/approve"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/storekeeper/requests/:param/reject",
+        "rawPaths": [
+          "/admin-command/storekeeper/requests/:param/reject"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/storekeeper/requests/:param/fulfill",
+        "rawPaths": [
+          "/admin-command/storekeeper/requests/:param/fulfill"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/storekeeper/reports/generate",
+        "rawPaths": [
+          "/admin-command/storekeeper/reports/generate"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/storekeeper/reports/:param/download",
+        "rawPaths": [
+          "/admin-command/storekeeper/reports/:param/download"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/storekeeper/stock-in",
+        "rawPaths": [
+          "/admin-command/storekeeper/stock-in",
+          "/useSchoolQuery<StockInData>(\"/admin-command/storekeeper/stock-in\")"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/storekeeper/stock-issue",
+        "rawPaths": [
+          "/admin-command/storekeeper/stock-issue",
+          "/useSchoolQuery<StockIssueData>(\"/admin-command/storekeeper/stock-issue\")"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/student/dashboard",
+        "rawPaths": [
+          "/admin-command/student/dashboard",
+          "/useSchoolQuery<DashboardData>(\"/admin-command/student/dashboard\")"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/student/downloads",
+        "rawPaths": [
+          "/admin-command/student/downloads",
+          "/useSchoolQuery<DownloadsData>(\"/admin-command/student/downloads\")"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/student/messages",
+        "rawPaths": [
+          "/admin-command/student/messages",
+          "/useSchoolQuery<MessagesData>(\"/admin-command/student/messages\")"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/student/notifications",
+        "rawPaths": [
+          "/admin-command/student/notifications",
+          "/useSchoolQuery<NotificationsData>(\"/admin-command/student/notifications\")"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/teacher/lesson-plans",
+        "rawPaths": [
+          "/admin-command/teacher/lesson-plans",
+          "/useSchoolQuery<LessonPlansData>(\"/admin-command/teacher/lesson-plans\")"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/teacher/messages",
+        "rawPaths": [
+          "/admin-command/teacher/messages",
+          "/useSchoolQuery<MessagesData>(\"/admin-command/teacher/messages\")"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/teacher/reports",
+        "rawPaths": [
+          "/admin-command/teacher/reports",
+          "/requestDashboardApi<any>(\"/admin-command/teacher/reports\", {       tenantId: ...",
+          "/useSchoolQuery<ReportsData>(\"/admin-command/teacher/reports\")"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/teacher/resource-requests",
+        "rawPaths": [
+          "/admin-command/teacher/resource-requests",
+          "/useSchoolQuery<ResourceRequestsData>(\"/admin-command/teacher/resource-requests\")"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/teacher/student-notes",
+        "rawPaths": [
+          "/admin-command/teacher/student-notes",
+          "/useSchoolQuery<StudentNotesData>(\"/admin-command/teacher/student-notes\")"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/teacher/attendance",
+        "rawPaths": [
+          "/admin-command/teacher/attendance",
+          "/useSchoolQuery<TeacherAttendanceData>(\"/admin-command/teacher/attendance\")"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/teacher/utilities",
+        "rawPaths": [
+          "/admin-command/teacher/utilities",
+          "/useSchoolQuery<UtilitiesData>(\"/admin-command/teacher/utilities\")"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/teacher/academic-setup",
+        "rawPaths": [
+          "/admin-command/teacher/academic-setup",
+          "/requestDashboardApi<any>(\"/admin-command/teacher/academic-setup\", {       ten..."
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/teacher/cbc-assessments",
+        "rawPaths": [
+          "/admin-command/teacher/cbc-assessments",
+          "/requestDashboardApi<any>(\"/admin-command/teacher/cbc-assessments\", {       te..."
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/teacher/clubs",
+        "rawPaths": [
+          "/admin-command/teacher/clubs",
+          "/requestDashboardApi<any>(\"/admin-command/teacher/clubs\", {       tenantId: li..."
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/teacher/invigilation",
+        "rawPaths": [
+          "/admin-command/teacher/invigilation",
+          "/requestDashboardApi<any>(\"/admin-command/teacher/invigilation\", {       tenan..."
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/teacher/learner-progress",
+        "rawPaths": [
+          "/admin-command/teacher/learner-progress",
+          "/requestDashboardApi<any>(\"/admin-command/teacher/learner-progress\", {       t..."
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/teacher/mark-entry",
+        "rawPaths": [
+          "/admin-command/teacher/mark-entry",
+          "/requestDashboardApi<any>(\"/admin-command/teacher/mark-entry\", {       tenantI..."
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/teacher/profile",
+        "rawPaths": [
+          "/admin-command/teacher/profile",
+          "/requestDashboardApi<any>(\"/admin-command/teacher/profile\", {       tenantId: ..."
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/teacher/notifications",
+        "rawPaths": [
+          "/admin-command/teacher/notifications",
+          "/requestDashboardApi<any>(\"/admin-command/teacher/notifications\", {       tena..."
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/teacher/store-requests",
+        "rawPaths": [
+          "/admin-command/teacher/store-requests",
+          "/requestDashboardApi<any>(\"/admin-command/teacher/store-requests\", {       ten..."
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/teacher/subject-allocations",
+        "rawPaths": [
+          "/admin-command/teacher/subject-allocations",
+          "/requestDashboardApi<any>(\"/admin-command/teacher/subject-allocations\", {     ..."
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/teacher/syllabus-coverage",
+        "rawPaths": [
+          "/admin-command/teacher/syllabus-coverage",
+          "/requestDashboardApi<any>(\"/admin-command/teacher/syllabus-coverage\", {       ..."
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/teacher/resources",
+        "rawPaths": [
+          "/admin-command/teacher/resources",
+          "/requestDashboardApi<any>(\"/admin-command/teacher/resources\", {       tenantId..."
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/transport-manager/overview",
+        "rawPaths": [
+          "/admin-command/transport-manager/overview",
+          "/useSchoolQuery<OverviewData>('/admin-command/transport-manager/overview')"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/transport-manager/vehicles",
+        "rawPaths": [
+          "/admin-command/transport-manager/vehicles",
+          "/useSchoolQuery<VehiclesData>('/admin-command/transport-manager/vehicles')"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/transport-manager/drivers",
+        "rawPaths": [
+          "/admin-command/transport-manager/drivers",
+          "/useSchoolQuery<DriversData>('/admin-command/transport-manager/drivers')"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/transport-manager/routes",
+        "rawPaths": [
+          "/admin-command/transport-manager/routes",
+          "/useSchoolQuery<RoutesData>('/admin-command/transport-manager/routes')"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/transport-manager/trips",
+        "rawPaths": [
+          "/admin-command/transport-manager/trips",
+          "/useSchoolQuery<TripsData>('/admin-command/transport-manager/trips')"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/transport-manager/fuel-maintenance",
+        "rawPaths": [
+          "/admin-command/transport-manager/fuel-maintenance"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/transport-manager/student-transport-list",
+        "rawPaths": [
+          "/admin-command/transport-manager/student-transport-list"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin-command/transport-manager/reports",
+        "rawPaths": [
+          "/admin-command/transport-manager/reports",
+          "/useSchoolQuery<ReportsData>('/admin-command/transport-manager/reports')"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/transport-manager/vehicles",
+        "rawPaths": [
+          "/admin-command/transport-manager/vehicles"
+        ]
+      },
+      {
+        "method": "PATCH",
+        "path": "/admin-command/transport-manager/vehicles/:param",
+        "rawPaths": [
+          "/admin-command/transport-manager/vehicles/:param"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/transport-manager/vehicles/:param/decommission",
+        "rawPaths": [
+          "/admin-command/transport-manager/vehicles/:param/decommission"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/transport-manager/drivers",
+        "rawPaths": [
+          "/admin-command/transport-manager/drivers"
+        ]
+      },
+      {
+        "method": "PATCH",
+        "path": "/admin-command/transport-manager/drivers/:param",
+        "rawPaths": [
+          "/admin-command/transport-manager/drivers/:param"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/transport-manager/drivers/:param/suspend",
+        "rawPaths": [
+          "/admin-command/transport-manager/drivers/:param/suspend"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/transport-manager/routes",
+        "rawPaths": [
+          "/admin-command/transport-manager/routes"
+        ]
+      },
+      {
+        "method": "PATCH",
+        "path": "/admin-command/transport-manager/routes/:param",
+        "rawPaths": [
+          "/admin-command/transport-manager/routes/:param"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/transport-manager/routes/:param/assign-vehicle",
+        "rawPaths": [
+          "/admin-command/transport-manager/routes/:param/assign-vehicle"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/transport-manager/trips",
+        "rawPaths": [
+          "/admin-command/transport-manager/trips"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/transport-manager/trips/:param/complete",
+        "rawPaths": [
+          "/admin-command/transport-manager/trips/:param/complete"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/transport-manager/fuel-maintenance/fuel",
+        "rawPaths": [
+          "/admin-command/transport-manager/fuel-maintenance/fuel"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/transport-manager/fuel-maintenance/maintenance",
+        "rawPaths": [
+          "/admin-command/transport-manager/fuel-maintenance/maintenance"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/transport-manager/student-transport-list",
+        "rawPaths": [
+          "/admin-command/transport-manager/student-transport-list"
+        ]
+      },
+      {
+        "method": "DELETE",
+        "path": "/admin-command/transport-manager/student-transport-list/:param",
+        "rawPaths": [
+          "/admin-command/transport-manager/student-transport-list/:param"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admin-command/transport-manager/reports/generate",
+        "rawPaths": [
+          "/admin-command/transport-manager/reports/generate"
+        ]
+      }
+    ],
+    "billing": [
+      {
+        "method": "POST",
+        "path": "/billing/manual-fee-payments/:param/:param",
+        "rawPaths": [
+          "/billing/manual-fee-payments/:param/:param"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/billing/waivers",
+        "rawPaths": [
+          "/billing/waivers"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/billing/waivers",
+        "rawPaths": [
+          "/billing/waivers"
+        ]
+      }
+    ],
+    "academic": [
+      {
+        "method": "POST",
+        "path": "/academic/communications",
+        "rawPaths": [
+          "/academic/communications",
+          "/requestDashboardApi(\"/api/academic/communications\", { method: \"POST\", body: J..."
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/academic/dean/lock-batch",
+        "rawPaths": [
+          "/academic/dean/lock-batch"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/academic/dean/action",
+        "rawPaths": [
+          "/academic/dean/action"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/academic/exams-manager/import-marks",
+        "rawPaths": [
+          "/academic/exams-manager/import-marks",
+          "/requestDashboardApi(\"/api/academic/exams-manager/import-marks\", {            ..."
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/academic/exams-manager/export-marks",
+        "rawPaths": [
+          "/academic/exams-manager/export-marks",
+          "/requestDashboardApi(\"/api/academic/exams-manager/export-marks\", {            ..."
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/academic/exams-manager/zeraki-sync",
+        "rawPaths": [
+          "/academic/exams-manager/zeraki-sync",
+          "/requestDashboardApi(\"/api/academic/exams-manager/zeraki-sync\", {             ..."
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/academic/grade-master/compile",
+        "rawPaths": [
+          "/academic/grade-master/compile",
+          "/requestDashboardApi(\"/api/academic/grade-master/compile\", { method: \"POST\", b..."
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/academic/grade-master/comment",
+        "rawPaths": [
+          "/academic/grade-master/comment",
+          "/requestDashboardApi(\"/api/academic/grade-master/comment\", { method: \"POST\", b..."
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/academic/hod/requests",
+        "rawPaths": [
+          "/academic/hod/requests",
+          "/requestDashboardApi(\"/api/academic/hod/requests\", {         method: \"POST\",  ..."
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/academic/hod/subject-allocation",
+        "rawPaths": [
+          "/academic/hod/subject-allocation",
+          "/requestDashboardApi(\"/api/academic/hod/subject-allocation\", {         method:..."
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/academic/hod/department-meetings",
+        "rawPaths": [
+          "/academic/hod/department-meetings",
+          "/requestDashboardApi(\"/api/academic/hod/department-meetings\", {         method..."
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/academic/marks/enter",
+        "rawPaths": [
+          "/academic/marks/enter"
+        ]
+      }
+    ],
+    "discipline": [
+      {
+        "method": "GET",
+        "path": "/discipline/actions-interventions",
+        "rawPaths": [
+          "/discipline/actions-interventions",
+          "/useSchoolQuery<any[]>(\"/discipline/actions-interventions\")"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/discipline/actions-sanctions",
+        "rawPaths": [
+          "/discipline/actions-sanctions",
+          "/useSchoolQuery<any[]>(\"/discipline/actions-sanctions\")"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/discipline/audit-trail",
+        "rawPaths": [
+          "/discipline/audit-trail",
+          "/useSchoolQuery<any[]>(\"/discipline/audit-trail\")"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/discipline/cases",
+        "rawPaths": [
+          "/discipline/cases",
+          "/useSchoolQuery<any[]>(\"/discipline/cases\")"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/discipline/class-house-monitoring",
+        "rawPaths": [
+          "/discipline/class-house-monitoring",
+          "/useSchoolQuery<any[]>(\"/discipline/class-house-monitoring\")"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/discipline/counselling-referrals",
+        "rawPaths": [
+          "/discipline/counselling-referrals",
+          "/useSchoolQuery<any[]>(\"/discipline/counselling-referrals\")"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/discipline/detention-programs",
+        "rawPaths": [
+          "/discipline/detention-programs",
+          "/useSchoolQuery<any[]>(\"/discipline/detention-programs\")"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/discipline/incident-log",
+        "rawPaths": [
+          "/discipline/incident-log",
+          "/useSchoolQuery<any[]>(\"/discipline/incident-log\")"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/discipline/incident-register",
+        "rawPaths": [
+          "/discipline/incident-register",
+          "/useSchoolQuery<any[]>(\"/discipline/incident-register\")"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/discipline/investigations",
+        "rawPaths": [
+          "/discipline/investigations",
+          "/useSchoolQuery<any[]>(\"/discipline/investigations\")"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/discipline/log-incident",
+        "rawPaths": [
+          "/discipline/log-incident",
+          "/useSchoolQuery<any[]>(\"/discipline/log-incident\")"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/discipline/overview",
+        "rawPaths": [
+          "/discipline/overview",
+          "/useSchoolQuery<any[]>(\"/discipline/overview\")"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/discipline/parent-communication",
+        "rawPaths": [
+          "/discipline/parent-communication",
+          "/useSchoolQuery<any[]>(\"/discipline/parent-communication\")"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/discipline/parent-summons",
+        "rawPaths": [
+          "/discipline/parent-summons",
+          "/useSchoolQuery<any[]>(\"/discipline/parent-summons\")"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/discipline/report-intake",
+        "rawPaths": [
+          "/discipline/report-intake",
+          "/useSchoolQuery<any[]>(\"/discipline/report-intake\")"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/discipline/reports-downloads",
+        "rawPaths": [
+          "/discipline/reports-downloads",
+          "/useSchoolQuery<any[]>(\"/discipline/reports-downloads\")"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/discipline/reports",
+        "rawPaths": [
+          "/discipline/reports",
+          "/useSchoolQuery<any[]>(\"/discipline/reports\")"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/discipline/serious-cases-approvals",
+        "rawPaths": [
+          "/discipline/serious-cases-approvals",
+          "/useSchoolQuery<any[]>(\"/discipline/serious-cases-approvals\")"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/discipline/settings",
+        "rawPaths": [
+          "/discipline/settings",
+          "/useSchoolQuery<any[]>(\"/discipline/settings\")"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/discipline/student-conduct-profiles",
+        "rawPaths": [
+          "/discipline/student-conduct-profiles",
+          "/useSchoolQuery<any[]>(\"/discipline/student-conduct-profiles\")"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/discipline/templates-rules",
+        "rawPaths": [
+          "/discipline/templates-rules",
+          "/useSchoolQuery<any[]>(\"/discipline/templates-rules\")"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/discipline/triage-queue",
+        "rawPaths": [
+          "/discipline/triage-queue",
+          "/useSchoolQuery<any[]>(\"/discipline/triage-queue\")"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/discipline/students/me/behavior-score",
+        "rawPaths": [
+          "/discipline/students/me/behavior-score",
+          "/useSchoolQuery('/api/discipline/students/me/behavior-score')"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/discipline/cases",
+        "rawPaths": [
+          "/discipline/cases"
+        ]
+      },
+      {
+        "method": "PATCH",
+        "path": "/discipline/cases/:param",
+        "rawPaths": [
+          "/discipline/cases/:param"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/discipline/:param:param",
+        "rawPaths": [
+          "/discipline/:param:param"
+        ]
+      }
+    ],
+    "assets": [
+      {
+        "method": "GET",
+        "path": "/assets",
+        "rawPaths": [
+          "/assets",
+          "/useSchoolQuery<any>(\"/api/assets\")"
+        ]
+      }
+    ],
+    "labs": [
+      {
+        "method": "GET",
+        "path": "/labs/dashboard",
+        "rawPaths": [
+          "/labs/dashboard",
+          "/useSchoolQuery<any>(\"/api/labs/dashboard\")"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/labs/inventory",
+        "rawPaths": [
+          "/labs/inventory",
+          "/useSchoolQuery<LabInventoryRecord[]>(\"/api/labs/inventory\")"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/labs/requests",
+        "rawPaths": [
+          "/labs/requests",
+          "/useSchoolQuery<LabPracticalRequestRecord[]>(\"/api/labs/requests\")"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/labs/issues",
+        "rawPaths": [
+          "/labs/issues",
+          "/useSchoolQuery<LabIssueRecord[]>(\"/api/labs/issues\")"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/labs/inventory",
+        "rawPaths": [
+          "/labs/inventory",
+          "/useSchoolMutation(\"/api/labs/inventory\")"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/labs/requests",
+        "rawPaths": [
+          "/labs/requests",
+          "/useSchoolMutation(\"/api/labs/requests\")"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/labs/issues",
+        "rawPaths": [
+          "/labs/issues",
+          "/useSchoolMutation(\"/api/labs/issues\")"
+        ]
+      }
+    ],
+    "parent-portal": [
+      {
+        "method": "POST",
+        "path": "/parent-portal/behavior/acknowledge",
+        "rawPaths": [
+          "/parent-portal/behavior/acknowledge"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/parent-portal/fees/pay",
+        "rawPaths": [
+          "/parent-portal/fees/pay"
+        ]
+      }
+    ],
+    "clinic": [
+      {
+        "method": "GET",
+        "path": "/clinic/parent/students/me/history",
+        "rawPaths": [
+          "/clinic/parent/students/me/history"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/clinic/medicines/stock",
+        "rawPaths": [
+          "/clinic/medicines/stock",
+          "/useSchoolQuery<MedicineStockRecord[]>(\"/api/clinic/medicines/stock\")"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/clinic/medicines/stock",
+        "rawPaths": [
+          "/clinic/medicines/stock",
+          "/useSchoolMutation(\"/api/clinic/medicines/stock\")"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/clinic/analytics/principal:param",
+        "rawPaths": [
+          "/clinic/analytics/principal:param"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/clinic/medicines:param",
+        "rawPaths": [
+          "/clinic/medicines:param"
+        ]
+      }
+    ],
+    "admissions": [
+      {
+        "method": "POST",
+        "path": "/admissions/applications/:param/approve",
+        "rawPaths": [
+          "/admissions/applications/:param/approve"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admissions/quick-actions",
+        "rawPaths": [
+          "/admissions/quick-actions",
+          "/requestDashboardApi(\"/api/admissions/quick-actions\", {         method: \"POST\"..."
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admissions/applicants",
+        "rawPaths": [
+          "/admissions/applicants",
+          "/useSchoolQuery<AdmissionApplicantRecord[]>(\"/api/admissions/applicants\")"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/admissions/applicants",
+        "rawPaths": [
+          "/admissions/applicants",
+          "/useSchoolMutation(\"/api/admissions/applicants\")"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admissions",
+        "rawPaths": [
+          "/admissions",
+          "/useSchoolQuery<any[]>(\"/api/admissions\")"
+        ]
+      }
+    ],
+    "library": [
+      {
+        "method": "GET",
+        "path": "/library/books",
+        "rawPaths": [
+          "/library/books",
+          "/useSchoolQuery<LibraryBookRecord[]>(\"/api/library/books\")"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/library/loans",
+        "rawPaths": [
+          "/library/loans",
+          "/useSchoolQuery<LibraryLoanRecord[]>(\"/api/library/loans\")"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/library/books",
+        "rawPaths": [
+          "/library/books",
+          "/useSchoolMutation(\"/api/library/books\")"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/library/loans:param",
+        "rawPaths": [
+          "/library/loans:param"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/library/issue",
+        "rawPaths": [
+          "/library/issue"
+        ]
+      },
+      {
+        "method": "PATCH",
+        "path": "/library/loans/:param",
+        "rawPaths": [
+          "/library/loans/:param"
+        ]
+      }
+    ],
+    "boarding": [
+      {
+        "method": "GET",
+        "path": "/boarding/roll-calls",
+        "rawPaths": [
+          "/boarding/roll-calls",
+          "/useSchoolQuery<BoardingRollCallRecord[]>(\"/api/boarding/roll-calls\")"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/boarding/exeats",
+        "rawPaths": [
+          "/boarding/exeats",
+          "/useSchoolQuery<ExeatRequestRecord[]>(\"/api/boarding/exeats\")"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/boarding/roll-calls",
+        "rawPaths": [
+          "/boarding/roll-calls",
+          "/useSchoolMutation(\"/api/boarding/roll-calls\")"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/boarding/exeats",
+        "rawPaths": [
+          "/boarding/exeats",
+          "/useSchoolMutation(\"/api/boarding/exeats\")"
+        ]
+      }
+    ],
+    "transport": [
+      {
+        "method": "GET",
+        "path": "/transport/vehicles",
+        "rawPaths": [
+          "/transport/vehicles",
+          "/useSchoolQuery<TransportVehicleRecord[]>(\"/api/transport/vehicles\")"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/transport/trips",
+        "rawPaths": [
+          "/transport/trips",
+          "/useSchoolQuery<TransportTripRecord[]>(\"/api/transport/trips\")"
+        ]
+      }
+    ],
+    "finance": [
+      {
+        "method": "GET",
+        "path": "/finance/balances",
+        "rawPaths": [
+          "/finance/balances",
+          "/useSchoolQuery<FeeBalanceRecord[]>(\"/api/finance/balances\")"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/finance/payments",
+        "rawPaths": [
+          "/finance/payments",
+          "/useSchoolQuery<FeePaymentRecord[]>(\"/api/finance/payments\")"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/finance/balances",
+        "rawPaths": [
+          "/finance/balances",
+          "/useSchoolMutation(\"/api/finance/balances\")"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/finance/payments",
+        "rawPaths": [
+          "/finance/payments",
+          "/useSchoolMutation(\"/api/finance/payments\")"
+        ]
+      }
+    ],
+    "secretary": [
+      {
+        "method": "GET",
+        "path": "/secretary/visitors",
+        "rawPaths": [
+          "/secretary/visitors",
+          "/useSchoolQuery<SecretaryVisitorRecord[]>(\"/api/secretary/visitors\")"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/secretary/inquiries",
+        "rawPaths": [
+          "/secretary/inquiries",
+          "/useSchoolQuery<SecretaryInquiryRecord[]>(\"/api/secretary/inquiries\")"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/secretary/inquiries",
+        "rawPaths": [
+          "/secretary/inquiries",
+          "/useSchoolMutation(\"/api/secretary/inquiries\")"
+        ]
+      }
+    ],
+    "support": [
+      {
+        "method": "GET",
+        "path": "/support/discipline",
+        "rawPaths": [
+          "/support/discipline",
+          "/useSchoolQuery<DisciplineCaseRecord[]>(\"/api/support/discipline\")"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/support/counselling",
+        "rawPaths": [
+          "/support/counselling",
+          "/useSchoolQuery<CounsellingSessionRecord[]>(\"/api/support/counselling\")"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/support/discipline",
+        "rawPaths": [
+          "/support/discipline",
+          "/useSchoolMutation(\"/api/support/discipline\")"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/support/counselling",
+        "rawPaths": [
+          "/support/counselling",
+          "/useSchoolMutation(\"/api/support/counselling\")"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/support/admin/notifications/dead-letter/:param/retry",
+        "rawPaths": [
+          "/support/admin/notifications/dead-letter/:param/retry"
+        ]
+      }
+    ],
+    "school": [
+      {
+        "method": "GET",
+        "path": "/school/modules/me",
+        "rawPaths": [
+          "/school/modules/me",
+          "/fetch(\"/api/school/modules/me\", {           method: \"GET\",           credenti...",
+          "/requestDashboardApi<unknown>(\"/school/modules/me\", {       tenantId: input.te..."
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/school/settings",
+        "rawPaths": [
+          "/school/settings",
+          "/useSchoolQuery<any[]>(\"/api/school/settings\")"
+        ]
+      }
+    ],
+    "communication": [
+      {
+        "method": "GET",
+        "path": "/communication/summary",
+        "rawPaths": [
+          "/communication/summary",
+          "/useSchoolQuery<any[]>(\"/api/communication/summary\")"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/communication/messages",
+        "rawPaths": [
+          "/communication/messages",
+          "/useSchoolQuery<any[]>(\"/api/communication/messages\")"
+        ]
+      }
+    ],
+    "operations": [
+      {
+        "method": "GET",
+        "path": "/operations/reports",
+        "rawPaths": [
+          "/operations/reports",
+          "/useSchoolQuery<any[]>(\"/api/operations/reports\")"
+        ]
+      }
+    ],
+    "auth": [
+      {
+        "method": "GET",
+        "path": "/auth/sessions",
+        "rawPaths": [
+          "/auth/sessions",
+          "/useSchoolQuery<SessionRow[]>(\"/api/auth/sessions\")"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/auth/sessions/revoke",
+        "rawPaths": [
+          "/auth/sessions/revoke",
+          "/useSchoolMutation(\"/api/auth/sessions/revoke\")"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/auth/csrf",
+        "rawPaths": [
+          "/auth/csrf",
+          "/fetch(\"/api/auth/csrf\", {       method: \"GET\",       credentials: \"same-origi..."
+        ]
+      }
+    ],
+    "student-portal": [
+      {
+        "method": "POST",
+        "path": "/student-portal/assignments/mark-done",
+        "rawPaths": [
+          "/student-portal/assignments/mark-done",
+          "/requestDashboardApi(\"/api/student-portal/assignments/mark-done\", {         me..."
+        ]
+      }
+    ],
+    "student": [
+      {
+        "method": "GET",
+        "path": "/student/dashboard",
+        "rawPaths": [
+          "/student/dashboard",
+          "/useSchoolQuery<any>(\"/api/student/dashboard\")"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/student/overview",
+        "rawPaths": [
+          "/student/overview",
+          "/useSchoolQuery<any>(\"/api/student/overview\")"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/student/academics",
+        "rawPaths": [
+          "/student/academics",
+          "/useSchoolQuery<any>(\"/api/student/academics\")"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/student/attendance",
+        "rawPaths": [
+          "/student/attendance",
+          "/useSchoolQuery<any>(\"/api/student/attendance\")"
+        ]
+      }
+    ],
+    "students": [
+      {
+        "method": "GET",
+        "path": "/students/:param/attendance",
+        "rawPaths": [
+          "/students/:param/attendance"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/students/:param/discipline",
+        "rawPaths": [
+          "/students/:param/discipline"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/students/:param/fees",
+        "rawPaths": [
+          "/students/:param/fees"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/students/:param/health",
+        "rawPaths": [
+          "/students/:param/health"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/students/:param/library",
+        "rawPaths": [
+          "/students/:param/library"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/students/:param/guardians",
+        "rawPaths": [
+          "/students/:param/guardians"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/students/admit",
+        "rawPaths": [
+          "/students/admit"
+        ]
+      }
+    ],
+    "attendance:param": [
+      {
+        "method": "GET",
+        "path": "/attendance:param",
+        "rawPaths": [
+          "/attendance:param"
+        ]
+      }
+    ],
+    "attendance": [
+      {
+        "method": "POST",
+        "path": "/attendance/mark",
+        "rawPaths": [
+          "/attendance/mark"
+        ]
+      }
+    ],
+    "discipline:param": [
+      {
+        "method": "GET",
+        "path": "/discipline:param",
+        "rawPaths": [
+          "/discipline:param"
+        ]
+      }
+    ],
+    "fees:param": [
+      {
+        "method": "GET",
+        "path": "/fees:param",
+        "rawPaths": [
+          "/fees:param"
+        ]
+      }
+    ],
+    "fees": [
+      {
+        "method": "GET",
+        "path": "/fees/summary",
+        "rawPaths": [
+          "/fees/summary"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/fees/payments",
+        "rawPaths": [
+          "/fees/payments"
+        ]
+      }
+    ],
+    "health:param": [
+      {
+        "method": "GET",
+        "path": "/health:param",
+        "rawPaths": [
+          "/health:param"
+        ]
+      }
+    ],
+    "health": [
+      {
+        "method": "POST",
+        "path": "/health/visits",
+        "rawPaths": [
+          "/health/visits"
+        ]
+      }
+    ],
+    "students:param": [
+      {
+        "method": "GET",
+        "path": "/students:param",
+        "rawPaths": [
+          "/students:param"
+        ]
+      }
+    ],
+    "approvals": [
+      {
+        "method": "PATCH",
+        "path": "/approvals/my-requests",
+        "rawPaths": [
+          "/approvals/my-requests"
+        ]
+      }
+    ],
+    "api:param": [
+      {
+        "method": "GET",
+        "path": "/api:param",
+        "rawPaths": [
+          "/api:param"
+        ]
+      }
+    ],
+    "test-route": [
+      {
+        "method": "GET",
+        "path": "/test-route",
+        "rawPaths": [
+          "/test-route",
+          "/useSchoolQuery(\"/test-route\")",
+          "/useSchoolQuery(\"/test-route\", { tenantId: \"explicit-tenant\" })"
+        ]
+      }
+    ],
+    "test-mutation": [
+      {
+        "method": "POST",
+        "path": "/test-mutation",
+        "rawPaths": [
+          "/test-mutation",
+          "/useSchoolMutation(\"/test-mutation\")"
+        ]
+      }
+    ],
+    "counselling": [
+      {
+        "method": "GET",
+        "path": "/counselling/:param:param",
+        "rawPaths": [
+          "/counselling/:param:param"
+        ]
+      }
+    ],
+    "portals": [
+      {
+        "method": "GET",
+        "path": "/portals/parent/children",
+        "rawPaths": [
+          "/portals/parent/children",
+          "/useSchoolQuery<LinkedChild[]>(\"/api/portals/parent/children\")"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/portals/fees/history:param",
+        "rawPaths": [
+          "/portals/fees/history:param"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/portals/reports:param",
+        "rawPaths": [
+          "/portals/reports:param"
+        ]
+      }
+    ],
+    "academics": [
+      {
+        "method": "GET",
+        "path": "/academics/dean-dataset",
+        "rawPaths": [
+          "/academics/dean-dataset"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/academics/subjects:param",
+        "rawPaths": [
+          "/academics/subjects:param"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/academics/terms:param",
+        "rawPaths": [
+          "/academics/terms:param"
+        ]
+      }
+    ],
+    "support:param": [
+      {
+        "method": "GET",
+        "path": "/support:param",
+        "rawPaths": [
+          "/support:param"
+        ]
+      }
+    ],
+    ":param": [
+      {
+        "method": "GET",
+        "path": "/:param/dashboard",
+        "rawPaths": [
+          "/:param/dashboard"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/:param/records",
+        "rawPaths": [
+          "/:param/records"
+        ]
+      },
+      {
+        "method": "PATCH",
+        "path": "/:param/records/:param/status",
+        "rawPaths": [
+          "/:param/records/:param/status"
+        ]
+      }
+    ],
+    "buildBillingApiPath": [
+      {
+        "method": "GET",
+        "path": "/buildBillingApiPath",
+        "rawPaths": [
+          "/buildBillingApiPath(\"/api/billing/finance-activity",
+          "/buildBillingApiPath("
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/buildBillingApiPath",
+        "rawPaths": [
+          "/buildBillingApiPath("
+        ]
+      }
+    ],
+    "buildPaymentsApiPath": [
+      {
+        "method": "GET",
+        "path": "/buildPaymentsApiPath",
+        "rawPaths": [
+          "/buildPaymentsApiPath(\"/api/payments/mpesa/c2b/payments"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/buildPaymentsApiPath",
+        "rawPaths": [
+          "/buildPaymentsApiPath("
+        ]
+      }
+    ],
+    "endpoint": [
+      {
+        "method": "GET",
+        "path": "/endpoint",
+        "rawPaths": [
+          "/endpoint"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/endpoint",
+        "rawPaths": [
+          "/endpoint"
+        ]
+      }
+    ],
+    "studentId": [
+      {
+        "method": "GET",
+        "path": "/studentId",
+        "rawPaths": [
+          "/studentId "
+        ]
+      }
+    ],
+    "support:param:param:param": [
+      {
+        "method": "GET",
+        "path": "/support:param:param:param",
+        "rawPaths": [
+          "/support:param:param:param"
+        ]
+      }
+    ],
+    "useSchoolMutation": [
+      {
+        "method": "POST",
+        "path": "/useSchoolMutation",
+        "rawPaths": [
+          "/useSchoolMutation((id: string) => \\",
+          "/useSchoolMutation<{ id: string }, { id: string }>(     ({ id }) => \\"
+        ]
+      },
+      {
+        "method": "PATCH",
+        "path": "/useSchoolMutation",
+        "rawPaths": [
+          "/useSchoolMutation<DisciplineCase, Partial<DisciplineCase>>(     \\",
+          "/useSchoolMutation<Student, Partial<Student>>(     \\"
+        ]
+      }
+    ],
+    "requestDashboardApi": [
+      {
+        "method": "POST",
+        "path": "/requestDashboardApi",
+        "rawPaths": [
+          "/requestDashboardApi(\\",
+          "/requestDashboardApi<Student>(\\"
+        ]
+      },
+      {
+        "method": "DELETE",
+        "path": "/requestDashboardApi",
+        "rawPaths": [
+          "/requestDashboardApi(\\"
+        ]
+      },
+      {
+        "method": "PATCH",
+        "path": "/requestDashboardApi",
+        "rawPaths": [
+          "/requestDashboardApi<Student>(\\"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/requestDashboardApi",
+        "rawPaths": [
+          "/requestDashboardApi<Student[]>(\\",
+          "/requestDashboardApi<Student>(\\"
+        ]
+      }
+    ],
+    "school_id": [
+      {
+        "method": "POST",
+        "path": "/school_id",
+        "rawPaths": [
+          "/school_id"
+        ]
+      }
+    ]
+  }
+}

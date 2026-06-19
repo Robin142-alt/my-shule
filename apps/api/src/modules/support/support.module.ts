@@ -9,9 +9,10 @@ import { SupportSchemaService } from './support-schema.service';
 import { SupportService } from './support.service';
 import { SupportSlaMonitoringService } from './support-sla-monitoring.service';
 import { SupportStatusSubscriptionService } from './support-status-subscription.service';
+import { DisciplineModule } from '../discipline/discipline.module';
 
 @Module({
-  imports: [IntegrationsModule],
+  imports: [IntegrationsModule, DisciplineModule],
   controllers: [SupportController],
   providers: [
     SupportSchemaService,

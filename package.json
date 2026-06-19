@@ -142,6 +142,7 @@
     "class-validator": "^0.14.1",
     "exceljs": "^4.4.0",
     "express": "^5.2.1",
+    "helmet": "^8.2.0",
     "ioredis": "^5.4.1",
     "pdfkit": "^0.18.0",
     "pg": "^8.13.1",

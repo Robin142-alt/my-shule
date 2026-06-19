@@ -150,6 +150,7 @@ export function InvoicesWorkspace({
   const [selectedBulkStudentIds, setSelectedBulkStudentIds] = useState<Set<string>>(() => new Set());
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [showBulkModal, setShowBulkModal] = useState(false);
   const [invoiceDraft, setInvoiceDraft] = useState({ studentId: "", studentName: "", amount: "", dueAt: "" });
   const [selectedInvoiceLearner, setSelectedInvoiceLearner] = useState<LearnerLookupItem | null>(null);
   const [paymentDraft, setPaymentDraft] = useState({
@@ -935,7 +936,7 @@ export function InvoicesWorkspace({
         actions={
           hasPermission('finance:write') ? (
             <div className="flex flex-wrap items-center gap-3">
-              <Button variant="outline" onClick={() => {}}>Bulk invoicing</Button>
+              <Button variant="outline" onClick={() => setShowBulkModal(true)}>Bulk invoicing</Button>
               <Button onClick={openInvoiceModal}>Generate invoice</Button>
             </div>
           ) : (
@@ -1344,14 +1345,24 @@ export function InvoicesWorkspace({
         </div>
         </div>
       </Modal>
+      <Modal
+        open={showBulkModal}
+        title="Bulk invoicing"
+        description="Configuration status"
+        onClose={() => setShowBulkModal(false)}
+        footer={
+          <Button variant="secondary" onClick={() => setShowBulkModal(false)}>
+            Close
+          </Button>
+        }
+      >
+        <div className="space-y-4 py-2">
+          <p className="text-sm text-foreground">
+            Bulk invoicing is not yet configured for direct execution. Please configure fee structures first.
+          </p>
+        </div>
+      </Modal>
     </div>
   );
 }
-
-
-
-
-
-
-
 

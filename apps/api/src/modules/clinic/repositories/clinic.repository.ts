@@ -692,7 +692,7 @@ export class ClinicRepository {
         input.resource_id ?? null,
         JSON.stringify(input.metadata ?? {}),
       ],
-    ).catch(() => undefined);
+    ).catch((err) => { console.error('appendAuditLog error:', err); return undefined; });
   }
 
   private async insertStockMovement(input: Record<string, unknown>) {

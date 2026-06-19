@@ -8,6 +8,31 @@ import {
 } from "@/lib/auth/experience-routing";
 import { REFRESH_COOKIE } from "@/lib/auth/session-cookies";
 
+function applySecurityHeaders(response: NextResponse) {
+  response.headers.set('X-Frame-Options', 'DENY');
+  response.headers.set('X-Content-Type-Options', 'nosniff');
+  response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+  
+  const csp = `
+    default-src 'self';
+    script-src 'self' 'unsafe-eval' 'unsafe-inline';
+    style-src 'self' 'unsafe-inline';
+    img-src 'self' blob: data:;
+    font-src 'self';
+    object-src 'none';
+    base-uri 'self';
+    form-action 'self';
+    frame-ancestors 'none';
+    upgrade-insecure-requests;
+  `.replace(/\s{2,}/g, ' ').trim();
+  
+  if (process.env.NODE_ENV === 'production') {
+    response.headers.set('Content-Security-Policy', csp);
+    response.headers.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  }
+  return response;
+}
+
 export function proxy(request: NextRequest) {
   const decision = evaluateExperienceRouting({
     host:
@@ -26,7 +51,7 @@ export function proxy(request: NextRequest) {
   });
 
   if (decision.action === "redirect") {
-    return NextResponse.redirect(new URL(decision.location, request.url));
+    return applySecurityHeaders(NextResponse.redirect(new URL(decision.location, request.url)));
   }
 
   const requestHeaders = new Headers(request.headers);
@@ -39,18 +64,18 @@ export function proxy(request: NextRequest) {
     const rewriteUrl = request.nextUrl.clone();
     rewriteUrl.pathname = decision.rewrittenPath;
 
-    return NextResponse.rewrite(rewriteUrl, {
+    return applySecurityHeaders(NextResponse.rewrite(rewriteUrl, {
       request: {
         headers: requestHeaders,
       },
-    });
+    }));
   }
 
-  return NextResponse.next({
+  return applySecurityHeaders(NextResponse.next({
     request: {
       headers: requestHeaders,
     },
-  });
+  }));
 }
 
 export const config = {

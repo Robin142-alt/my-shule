@@ -98,4 +98,46 @@ export class LibraryController {
     return this.libraryService.getNotices();
   }
 
+
+  @Post('scan-issue')
+  @Permissions('library:write')
+  scanIssue(@Body() body: any) {
+    return this.libraryService.issueByScan(body);
+  }
+
+  @Post('scan-return')
+  @Permissions('library:write')
+  scanReturn(@Body() body: any) {
+    return this.libraryService.returnByScan(body);
+  }
+
+  @Get('books')
+  @Permissions('library:read')
+  getBooks() {
+    return this.libraryService.listCatalogItems();
+  }
+
+  @Get('loans')
+  @Permissions('library:read')
+  getLoans() {
+    return this.libraryService.listCirculation({});
+  }
+
+  @Post('issue')
+  @Permissions('library:write')
+  issueBook(@Body() body: any) {
+    return this.libraryService.issueCopy(body);
+  }
+
+  @Get('borrowings')
+  @Permissions('library:read')
+  getBorrowings() {
+    return this.libraryService.listCirculation({});
+  }
+
+  @Get('returns')
+  @Permissions('library:read')
+  getReturns() {
+    return this.libraryService.getReturns();
+  }
 }

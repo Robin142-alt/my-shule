@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { LayoutDashboard, Users, UserX, UserCheck, AlertTriangle, ShieldAlert } from "lucide-react";
+import { toast } from "sonner";
 import { Panel, StatusChip, Tone } from "./shared";
 import { readSchoolData, subscribeToSchoolDataUpdates, updateSchoolRecord, createNotification } from "@/lib/school/school-operational-store";
 
@@ -33,9 +34,9 @@ export function DeputyOverviewWorkspace() {
     setIsSubmitting(true);
     try {
       await new Promise(res => setTimeout(res, 500));
-      alert("Morning Review Started successfully!");
+      toast.success("Morning Review Started successfully!");
     } catch (e) {
-      alert("Failed to start Morning Review.");
+      toast.error("Failed to start Morning Review.");
     } finally {
       setIsSubmitting(false);
     }

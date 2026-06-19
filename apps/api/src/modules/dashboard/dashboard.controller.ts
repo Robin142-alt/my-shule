@@ -1,9 +1,10 @@
-import { Controller, Get, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Query, UseGuards, InternalServerErrorException } from '@nestjs/common';
 import { DashboardService } from './dashboard.service';
 import { DashboardLayoutDto } from './dashboard.dto';
 import { JwtAuthGuard } from '../../guards/jwt-auth.guard';
 import { RbacGuard } from '../../guards/rbac.guard';
 import { RequestContextService } from '../../common/request-context/request-context.service';
+import { PrismaService } from '../../database/prisma.service';
 
 @UseGuards(JwtAuthGuard, RbacGuard)
 @Controller('dashboard')
@@ -11,6 +12,7 @@ export class DashboardController {
   constructor(
     private readonly dashboardService: DashboardService,
     private readonly requestContext: RequestContextService,
+    private readonly prisma: PrismaService,
   ) {}
 
   @Get('layout')
@@ -71,5 +73,25 @@ export class DashboardController {
   async getStudentAttendance() {
     const store = this.requestContext.requireStore();
     return this.dashboardService.getStudentAttendance(store.tenant_id!, store.user_id!);
+  }
+
+  @Get('summary')
+  async getSummary() {
+    const tenantId = this.requestContext.requireStore().tenant_id;
+    if (!tenantId) {
+      return { students: 0, staff: 0, classes: 0 };
+    }
+
+    try {
+      const [students, staff, classes] = await Promise.all([
+        this.prisma.student.count({ where: { schoolId: tenantId } }).catch(() => 0),
+        this.prisma.schoolMembership.count({ where: { schoolId: tenantId } }).catch(() => 0),
+        this.prisma.class.count({ where: { schoolId: tenantId } }).catch(() => 0),
+      ]);
+      return { students, staff, classes };
+    } catch (error: any) {
+      console.error('getSummary error:', error);
+      throw new InternalServerErrorException(error.message || 'Database error occurred');
+    }
   }
 }

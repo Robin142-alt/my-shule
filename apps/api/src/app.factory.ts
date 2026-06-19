@@ -4,9 +4,11 @@ import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { AbstractHttpAdapter } from '@nestjs/core/adapters/http-adapter';
 
+import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { resolveCorsOriginPolicy } from './app-cors-policy';
 import { StructuredLoggerService } from './modules/observability/structured-logger.service';
+import { GlobalExceptionFilter } from './common/filters/global-exception.filter';
 
 export const createApp = async (
   adapter?: AbstractHttpAdapter,
@@ -25,6 +27,9 @@ export const createApp = async (
 
   const logger = app.get(StructuredLoggerService);
   app.useLogger(logger);
+  
+  app.use(helmet());
+  
   const configService = app.get(ConfigService);
 
   const corsEnabled = configService.get<boolean>('app.corsEnabled') ?? true;
@@ -64,6 +69,8 @@ export const createApp = async (
       forbidNonWhitelisted: true,
     }),
   );
+
+  app.useGlobalFilters(new GlobalExceptionFilter(logger));
 
   app.setGlobalPrefix(configService.get<string>('app.globalPrefix') ?? '');
 

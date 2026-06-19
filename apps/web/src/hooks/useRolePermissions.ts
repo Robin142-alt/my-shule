@@ -1,28 +1,42 @@
-import { useState, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
 
-// In a real implementation this might fetch from an API or read from a JWT token / AuthContext
+interface AuthMeResponse {
+  session: {
+    role?: string;
+    permissions?: string[]; // Assuming backend can provide this if needed, or we just map roles
+  };
+  user: {
+    id: string;
+    email: string;
+  };
+}
+
 export function useRolePermissions() {
-  const [roles, setRoles] = useState<string[]>([]);
-  const [permissions, setPermissions] = useState<string[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const { data, isLoading } = useQuery<AuthMeResponse>({
+    queryKey: ['auth', 'me', 'school'],
+    queryFn: async () => {
+      const res = await fetch('/api/auth/me?audience=school');
+      if (!res.ok) throw new Error('Not authenticated');
+      return res.json();
+    },
+    retry: false,
+  });
 
-  useEffect(() => {
-    // Mock loading permissions from localStorage or auth state
-    try {
-      const storedRoles = JSON.parse(localStorage.getItem('userRoles') || '[]');
-      const storedPerms = JSON.parse(localStorage.getItem('userPermissions') || '[]');
-      setRoles(storedRoles);
-      setPermissions(storedPerms);
-    } catch (e) {
-      console.error('Failed to load permissions', e);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
+  // Extract role and permissions from session
+  // If the backend doesn't supply permissions array, we can default to empty or mock based on role
+  const roles = data?.session?.role ? [data.session.role] : [];
+  const permissions = data?.session?.permissions || [];
 
   const hasRole = (role: string) => roles.includes(role);
   const hasAnyRole = (checkRoles: string[]) => checkRoles.some(r => roles.includes(r));
   const hasPermission = (permission: string) => permissions.includes(permission);
 
-  return { roles, permissions, hasRole, hasAnyRole, hasPermission, isLoading };
+  return { 
+    roles, 
+    permissions, 
+    hasRole, 
+    hasAnyRole, 
+    hasPermission, 
+    isLoading 
+  };
 }

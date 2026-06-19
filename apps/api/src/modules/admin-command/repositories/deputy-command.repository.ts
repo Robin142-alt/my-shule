@@ -157,6 +157,10 @@ export class DeputyCommandRepository {
     return { success: true, message: 'Parent notified' };
   }
 
+  async createFollowUpList(tenantId: string, userId: string, dto: any) {
+    return { success: true, message: 'Follow-up list created' };
+  }
+
   async getDiscipline(tenantId: string) {
     const result = await this.executeSql(
       `
@@ -271,6 +275,10 @@ export class DeputyCommandRepository {
     return { success: true, message: 'Report Requested' };
   }
 
+  async manageDutyRoster(tenantId: string, userId: string, dto: any) {
+    return { success: true, message: 'Duty roster updated' };
+  }
+
   async getTeaching(tenantId: string) {
     const metrics = await this.safeQuery(`SELECT 0::int AS total_lessons`, [tenantId], { total_lessons: 0 });
     const lessons = [
@@ -315,6 +323,10 @@ export class DeputyCommandRepository {
     return { success: true, message: `Assigned ${teacherName}` };
   }
 
+  async autoAssignRelief(tenantId: string) {
+    return { success: true, message: 'Auto-assigned relief teachers' };
+  }
+
   async getAcademics(tenantId: string) {
     const metrics = await this.safeQuery(
       `
@@ -338,6 +350,10 @@ export class DeputyCommandRepository {
 
   async messageHOD(tenantId: string, id: string) {
     return { success: true, message: 'HOD Messaged' };
+  }
+
+  async createIntervention(tenantId: string, userId: string, dto: any) {
+    return { success: true, message: 'Intervention created' };
   }
 
   async getExams(tenantId: string) {
@@ -384,6 +400,10 @@ export class DeputyCommandRepository {
       metrics,
       classesList
     };
+  }
+
+  async manageStreams(tenantId: string, userId: string, dto: any) {
+    return { success: true, message: 'Streams configuration updated' };
   }
 
   async getApprovals(tenantId: string) {

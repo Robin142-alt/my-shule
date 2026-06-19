@@ -269,4 +269,37 @@ export class InventoryController {
   exportReport(@Param('reportId') reportId: string) {
     return this.inventoryService.exportReportCsv(reportId);
   }
+
+  @Get('heatmap')
+  @Permissions('inventory:read')
+  getHeatmap() {
+    // Analytics stub - return empty array until implemented
+    return { metrics: {}, items: [] };
+  }
+
+  @Get('insights')
+  @Permissions('inventory:read')
+  getInsights() {
+    // Analytics stub - return empty array until implemented
+    return { metrics: {}, items: [] };
+  }
+
+  @Get('requisitions')
+  @Permissions('inventory:read')
+  getRequisitions(@Query() query: any) {
+    // Requisitions are a type of request, or handled by listRequests
+    return this.inventoryService.listRequests(query);
+  }
+
+  @Get('stock-issues')
+  @Permissions('inventory:read')
+  getStockIssues(@Query() query: any) {
+    return this.inventoryService.listStockMovements({ ...query, type: 'issue' });
+  }
+
+  @Get('stock-receipts')
+  @Permissions('inventory:read')
+  getStockReceipts(@Query() query: any) {
+    return this.inventoryService.listStockMovements({ ...query, type: 'receipt' });
+  }
 }

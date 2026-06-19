@@ -1,9 +1,10 @@
 // @ts-nocheck
-import { buildBillingApiPath } from "@/lib/data/billing-api";
+
+import { buildBillingApiPath } from "@/lib/data/school-api-config";
 import Link from "next/link";
 "use client";
 
-import { useState, useEffect, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
 import { Modal } from "@/components/ui/modal";
@@ -254,4 +255,4 @@ export function SchoolStudentsPage({
       </Modal>
     </div>
   );
-}
+}

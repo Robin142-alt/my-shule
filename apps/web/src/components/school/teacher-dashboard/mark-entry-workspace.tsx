@@ -1,45 +1,54 @@
-"use client";
+import { Edit3 } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { Panel, RecordTable } from "./shared-components";
+import { useLiveTenantSession } from "@/hooks/use-live-tenant-session";
+import { requestDashboardApi } from "@/lib/dashboard/api-client";
 
-import { Card } from "@/components/ui/card";
-import { AlertCircle } from "lucide-react";
-import { OpsTable, type OpsTableColumn } from "@/components/modules/shared/ops-table";
-import { StatusPill } from "@/components/ui/status-pill";
-import { Button } from "@/components/ui/button";
+export function MarkEntryWorkspace() {
+  const liveSession = useLiveTenantSession("school");
 
-export function TeacherMarkEntryWorkspace({ dataset }: { dataset?: any }) {
-  const data = dataset?.marks || [];
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ["teacher-mark-entry", liveSession.session?.tenantId],
+    queryFn: () => requestDashboardApi<any>("/admin-command/teacher/mark-entry", {
+      tenantId: liveSession.session!.tenantId,
+      accessToken: (liveSession.session as any)?.accessToken,
+    }),
+    enabled: !!liveSession.session,
+  });
 
-  const columns: OpsTableColumn<any>[] = [
-
-    { id: "student", header: "Student", render: (row) => row.studentName },
-    { id: "subject", header: "Subject", render: (row) => row.subjectName },
-    { id: "mark", header: "Mark", render: (row) => row.marksObtained },
-    { id: "status", header: "Status", render: (row) => <StatusPill label={row.status} tone={row.status === 'APPROVED' ? 'ok' : 'warning'} /> },
-    { id: "action", header: "Action", render: (row) => <Button variant="link">Edit</Button> }
-
-  ];
+  const stats = data?.metrics || {};
+  const rows = (data?.items || []).map((c: any) => [
+      c.exam,
+      c.subject,
+      c.class_name,
+      c.total_marks,
+      c.entered,
+      c.status
+  ]);
 
   return (
-    <div className="space-y-6">
-      <div className="grid gap-4 md:grid-cols-4">
-        <Card className="border border-white/10 bg-white/5 p-5">
-          <div className="text-sm font-semibold text-white/70">Total Mark Entry (8-4-4)</div>
-          <div className="mt-2 text-2xl font-black text-white">{data.length}</div>
-        </Card>
+    <Panel title="Mark Entry" description="Enter and submit marks for assessments." icon={Edit3}>
+      <div className="grid gap-3 sm:grid-cols-2 mb-4">
+        <article className="rounded-xl border border-[#D8E0EC] bg-white p-3">
+          <p className="text-xs font-bold uppercase text-[#64748B]">Pending Entry</p>
+          <p className="text-2xl font-black text-[#071D49]">{isLoading ? "..." : stats?.pending ?? 0}</p>
+        </article>
+        <article className="rounded-xl border border-[#D8E0EC] bg-white p-3">
+          <p className="text-xs font-bold uppercase text-[#64748B]">Submitted</p>
+          <p className="text-2xl font-black text-[#071D49]">{isLoading ? "..." : stats?.submitted ?? 0}</p>
+        </article>
       </div>
-
-      <div className="flex justify-end gap-2">
-        <Button variant="outline" size="sm">Refresh</Button>
-        <Button size="sm">Add New</Button>
-      </div>
-
-      <OpsTable
-        title="Mark Entry (8-4-4)"
-        subtitle="Interface for numeric marks."
-        rows={data}
-        columns={columns}
-        loading={false}
-      />
-    </div>
+      {isError ? (
+        <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-red-800">
+          Failed to load data. Please retry.
+        </div>
+      ) : (
+        <RecordTable
+          columns={["Exam","Subject","Class","Total Marks","Entered","Status"]}
+          rows={rows}
+          emptyState={isLoading ? "Loading..." : "No records found. Create the first entry to get started."}
+        />
+      )}
+    </Panel>
   );
 }

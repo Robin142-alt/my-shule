@@ -1,44 +1,53 @@
-"use client";
+import { Settings } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { Panel, RecordTable } from "./shared-components";
+import { useLiveTenantSession } from "@/hooks/use-live-tenant-session";
+import { requestDashboardApi } from "@/lib/dashboard/api-client";
 
-import { Card } from "@/components/ui/card";
-import { AlertCircle } from "lucide-react";
-import { OpsTable, type OpsTableColumn } from "@/components/modules/shared/ops-table";
-import { StatusPill } from "@/components/ui/status-pill";
-import { Button } from "@/components/ui/button";
+export function AcademicSetupWorkspace() {
+  const liveSession = useLiveTenantSession("school");
 
-export function TeacherAcademicSetupWorkspace({ dataset }: { dataset?: any }) {
-  const data = dataset?.setups || [];
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ["teacher-academic-setup", liveSession.session?.tenantId],
+    queryFn: () => requestDashboardApi<any>("/admin-command/teacher/academic-setup", {
+      tenantId: liveSession.session!.tenantId,
+      accessToken: (liveSession.session as any)?.accessToken,
+    }),
+    enabled: !!liveSession.session,
+  });
 
-  const columns: OpsTableColumn<any>[] = [
-
-    { id: "subject", header: "Subject/Learning Area", render: (row) => row.subjectName },
-    { id: "class", header: "Class", render: (row) => row.className },
-    { id: "curriculum", header: "Curriculum", render: (row) => row.curriculumType },
-    { id: "status", header: "Status", render: (row) => <StatusPill label={row.status || 'Pending'} tone={row.status === 'Approved' ? 'ok' : 'warning'} /> }
-
-  ];
+  const stats = data?.metrics || {};
+  const rows = (data?.items || []).map((c: any) => [
+      c.subject,
+      c.class_name,
+      c.stream,
+      c.lessons_per_week,
+      c.status
+  ]);
 
   return (
-    <div className="space-y-6">
-      <div className="grid gap-4 md:grid-cols-4">
-        <Card className="border border-white/10 bg-white/5 p-5">
-          <div className="text-sm font-semibold text-white/70">Total Academic Setup</div>
-          <div className="mt-2 text-2xl font-black text-white">{data.length}</div>
-        </Card>
+    <Panel title="Academic Setup" description="View your academic setup for the current term." icon={Settings}>
+      <div className="grid gap-3 sm:grid-cols-2 mb-4">
+        <article className="rounded-xl border border-[#D8E0EC] bg-white p-3">
+          <p className="text-xs font-bold uppercase text-[#64748B]">Subjects</p>
+          <p className="text-2xl font-black text-[#071D49]">{isLoading ? "..." : stats?.subjects ?? 0}</p>
+        </article>
+        <article className="rounded-xl border border-[#D8E0EC] bg-white p-3">
+          <p className="text-xs font-bold uppercase text-[#64748B]">Classes</p>
+          <p className="text-2xl font-black text-[#071D49]">{isLoading ? "..." : stats?.classes ?? 0}</p>
+        </article>
       </div>
-
-      <div className="flex justify-end gap-2">
-        <Button variant="outline" size="sm">Refresh</Button>
-        <Button size="sm">Add New</Button>
-      </div>
-
-      <OpsTable
-        title="Academic Setup"
-        subtitle="Request or define subjects, classes, and streams."
-        rows={data}
-        columns={columns}
-        loading={false}
-      />
-    </div>
+      {isError ? (
+        <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-red-800">
+          Failed to load data. Please retry.
+        </div>
+      ) : (
+        <RecordTable
+          columns={["Subject","Class","Stream","Lessons/Week","Status"]}
+          rows={rows}
+          emptyState={isLoading ? "Loading..." : "No records found. Create the first entry to get started."}
+        />
+      )}
+    </Panel>
   );
 }

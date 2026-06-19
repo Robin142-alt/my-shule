@@ -89,16 +89,16 @@ export function GovernedButton({
       variant={finalVariant}
       onClick={handleClick}
       disabled={isLocked || props.disabled}
-      className={`${props.className || ''} ${isCurrentlyDegraded ? 'ring-2 ring-yellow-500 ring-offset-1 border-yellow-500 bg-yellow-50 text-yellow-900 hover:bg-yellow-100' : ''}`}
+      className={`${props.className || ''} ${isCurrentlyDegraded ? 'ring-2 ring-warning/50 ring-offset-1 border-warning bg-warning-soft text-warning hover:bg-warning-soft/80' : ''}`}
       {...props}
     >
       {isCurrentlyLoading && <Loader2 className="w-4 h-4 animate-spin" />}
-      {isLocked && <Lock className="w-4 h-4 text-slate-400" />}
-      {isCurrentlyDegraded && <AlertTriangle className="w-4 h-4 text-yellow-600" />}
+      {isLocked && <Lock className="w-4 h-4 text-muted-strong" />}
+      {isCurrentlyDegraded && <AlertTriangle className="w-4 h-4 text-warning" />}
       {isCurrentlyFailed && <XCircle className="w-4 h-4 text-white" />}
       
       {/* Label wrapping */}
-      <span className={isLocked ? 'text-slate-400' : ''}>
+      <span className={isLocked ? 'text-muted-strong' : ''}>
         {isLocked ? `Locked (${requiredCapability})` : children}
       </span>
     </Button>

@@ -1,104 +1,56 @@
-import { Controller, Get, Post, Patch, Param, Body, UseGuards, Request } from '@nestjs/common';
-import { GradeMasterService } from './grade-master.service';
+import { Controller, Get, UseGuards, InternalServerErrorException } from '@nestjs/common';
+import { JwtAuthGuard } from '../../guards/jwt-auth.guard';
+import { RbacGuard } from '../../guards/rbac.guard';
 import { Permissions } from '../../auth/decorators/permissions.decorator';
+import { RequiresModule } from '../module-access/module-access.decorator';
+import { PrismaService } from '../../database/prisma.service';
+import { RequestContextService } from '../../common/request-context/request-context.service';
 
-@Controller('api/grade-master')
+@Controller('grade-master')
+@UseGuards(JwtAuthGuard, RbacGuard)
+@RequiresModule('academics')
 export class GradeMasterController {
-  constructor(private readonly gradeMasterService: GradeMasterService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly requestContext: RequestContextService,
+  ) {}
 
   @Get('overview')
-  @Permissions('grade_master:read')
-  getOverview() {
-    return this.gradeMasterService.getOverview('tenant-1', 'school-1', 'grade-1');
-  }
+  @Permissions('academics:read')
+  async getOverview() {
+    const store = this.requestContext.requireStore();
+    const tenantId = store.tenant_id;
+    if (!tenantId) {
+      return { totalReportCards: 0, averageScore: 0, passedCount: 0 };
+    }
 
-  @Get('learners')
-  @Permissions('grade_master:read')
-  getLearners() {
-    return this.gradeMasterService.getLearners('tenant-1', 'school-1', 'grade-1');
-  }
+    try {
+      const reportCards = await this.prisma.reportCard.findMany({
+        where: { schoolId: tenantId }
+      });
 
-  @Get('streams')
-  @Permissions('grade_master:read')
-  getStreams() {
-    return this.gradeMasterService.getStreams('tenant-1', 'school-1', 'grade-1');
-  }
+      const total = reportCards.length;
+      let sum = 0;
+      let passed = 0;
 
-  @Get('attendance')
-  @Permissions('grade_master:read')
-  getAttendance() {
-    return this.gradeMasterService.getAttendance('tenant-1', 'school-1', 'grade-1');
-  }
+      for (const rc of reportCards) {
+        const avgScore = (rc as any).averageMark || (rc as any).meanScore || (rc as any).gpa || 0;
+        sum += Number(avgScore);
+        if (avgScore >= 50) passed++;
+      }
 
-  @Get('academics')
-  @Permissions('grade_master:read')
-  getAcademics() {
-    return this.gradeMasterService.getAcademics('tenant-1', 'school-1', 'grade-1');
-  }
+      const averageScore = total > 0 ? sum / total : 0;
 
-  @Get('report-readiness')
-  @Permissions('grade_master:read')
-  getReportReadiness() {
-    return this.gradeMasterService.getReportReadiness('tenant-1', 'school-1', 'grade-1');
-  }
-
-  @Get('discipline')
-  @Permissions('grade_master:read')
-  getDiscipline() {
-    return this.gradeMasterService.getDiscipline('tenant-1', 'school-1', 'grade-1');
-  }
-
-  @Get('welfare')
-  @Permissions('grade_master:read')
-  getWelfare() {
-    return this.gradeMasterService.getWelfare('tenant-1', 'school-1', 'grade-1');
-  }
-
-  @Get('fees-watchlist')
-  @Permissions('grade_master:read')
-  getFeesWatchlist() {
-    return this.gradeMasterService.getFeesWatchlist('tenant-1', 'school-1', 'grade-1');
-  }
-
-  @Get('communications')
-  @Permissions('grade_master:read')
-  getCommunications() {
-    return this.gradeMasterService.getCommunications('tenant-1', 'school-1', 'grade-1');
-  }
-
-  @Get('meetings')
-  @Permissions('grade_master:read')
-  getMeetings() {
-    return this.gradeMasterService.getMeetings('tenant-1', 'school-1', 'grade-1');
-  }
-
-  @Get('requests')
-  @Permissions('grade_master:read')
-  getRequests() {
-    return this.gradeMasterService.getRequests('tenant-1', 'school-1', 'grade-1');
-  }
-
-  @Get('reports')
-  @Permissions('grade_master:read')
-  getReports() {
-    return this.gradeMasterService.getReports('tenant-1', 'school-1', 'grade-1');
-  }
-
-  @Get('notifications')
-  @Permissions('grade_master:read')
-  getNotifications() {
-    return this.gradeMasterService.getNotifications('tenant-1', 'school-1', 'grade-1');
-  }
-
-  @Post('notes')
-  @Permissions('grade_master:write')
-  createNote() {
-    return { success: true };
-  }
-
-  @Post('academic-interventions')
-  @Permissions('grade_master:write')
-  createIntervention() {
-    return { success: true };
+      return {
+        totalReportCards: total,
+        averageScore: Math.round(averageScore * 100) / 100,
+        passedCount: passed,
+        failedCount: total - passed
+      };
+    } catch (e: any) {
+      console.error('getOverview error:', e);
+      throw new InternalServerErrorException(e.message || 'Database error occurred');
+    }
   }
 }
+

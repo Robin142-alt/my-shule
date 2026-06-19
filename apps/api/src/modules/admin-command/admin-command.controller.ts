@@ -141,13 +141,7 @@ export class AdminCommandController {
     @Param('type') type: string,
     @UploadedFile() file: any,
   ) {
-    // Basic implementation to satisfy the frontend UI 
-    // and remove demo simulation data
-    return {
-      success: true,
-      message: `Bulk import for ${type} successful`,
-      rowsProcessed: 10,
-    };
+    return this.adminCommandService.bulkImport(type, file);
   }
 
   @Get('principal/setup-checklist')
@@ -193,14 +187,13 @@ export class AdminCommandController {
   @Post('finance/fee-categories')
   @Permissions('finance:write')
   async createFeeCategory(@Body() dto: any) {
-    return { success: true, message: 'Fee category created' };
+    return this.adminCommandService.createFeeCategory(dto);
   }
 
   @Post('reports/categories')
   @Permissions('reports:write')
   async createReportCategory(@Body() dto: any) {
-    // Just a placeholder to act as a mock category creation for now since categories might be static or stored elsewhere
-    return { success: true, message: 'Report category created' };
+    return this.adminCommandService.createReportCategory(dto);
   }
 
   @Post('reports/schedule')
@@ -237,7 +230,7 @@ export class AdminCommandController {
   @Post('exams/cycles')
   @Permissions('exams:write')
   async createExamCycle(@Body() dto: { name: string; academicYearId: string; termId: string; examType: any }) {
-    return { success: true, message: 'Exam cycle created' };
+    return this.adminCommandService.createExamCycle(dto);
   }
 
   @Post('discipline/incidents')
@@ -273,14 +266,14 @@ export class AdminCommandController {
   @Post('academics/department-meetings')
   @Permissions('academics:write')
   async logDepartmentMeeting(@Body() dto: any) {
-    return { success: true, message: 'Department meeting logged successfully' };
+    return this.adminCommandService.logDepartmentMeeting(dto);
   }
 
   @Post('communication/announcement')
   @RequiresModule('admin_command_centers')
   @Permissions('school_sms:send')
   createSchoolAnnouncement(@Body() body: any) {
-    return { success: true, message: 'Announcement created successfully' };
+    return this.adminCommandService.createSchoolAnnouncement(body);
   }
 
   // --- Finance & Admin Endpoints (Phase 4) ---
@@ -289,70 +282,70 @@ export class AdminCommandController {
   @RequiresModule('admin_command_centers')
   @Permissions('finance:write')
   generateInvoice(@Body() body: any) {
-    return { success: true, message: 'Invoice generated successfully' };
+    return this.adminCommandService.generateInvoice(body);
   }
 
   @Post('finance/payment')
   @RequiresModule('admin_command_centers')
   @Permissions('finance:write')
   recordPayment(@Body() body: any) {
-    return { success: true, message: 'Payment recorded successfully' };
+    return this.adminCommandService.recordPayment(body);
   }
 
   @Post('finance/expense')
   @RequiresModule('admin_command_centers')
   @Permissions('finance:write')
   addExpense(@Body() body: any) {
-    return { success: true, message: 'Expense added successfully' };
+    return this.adminCommandService.addExpense(body);
   }
 
   @Post('frontoffice/visitor')
   @RequiresModule('admin_command_centers')
   @Permissions('frontoffice:write')
   logVisitor(@Body() body: any) {
-    return { success: true, message: 'Visitor logged successfully' };
+    return this.adminCommandService.logVisitor(body);
   }
 
   @Post('frontoffice/appointment')
   @RequiresModule('admin_command_centers')
   @Permissions('frontoffice:write')
   scheduleAppointment(@Body() body: any) {
-    return { success: true, message: 'Appointment scheduled successfully' };
+    return this.adminCommandService.scheduleAppointment(body);
   }
 
   @Post('frontoffice/dispatch')
   @RequiresModule('admin_command_centers')
   @Permissions('frontoffice:write')
   recordDispatch(@Body() body: any) {
-    return { success: true, message: 'Dispatch recorded successfully' };
+    return this.adminCommandService.recordDispatch(body);
   }
 
   @Post('inventory/receive')
   @RequiresModule('admin_command_centers')
   @Permissions('inventory:write')
   receiveStock(@Body() body: any) {
-    return { success: true, message: 'Stock received successfully' };
+    return this.adminCommandService.receiveStock(body);
   }
 
   @Post('inventory/issue')
   @RequiresModule('admin_command_centers')
   @Permissions('inventory:write')
   issueItem(@Body() body: any) {
-    return { success: true, message: 'Item issued successfully' };
+    return this.adminCommandService.issueItem(body);
   }
 
   @Post('transport/route')
   @RequiresModule('admin_command_centers')
   @Permissions('transport:write')
   assignRoute(@Body() body: any) {
-    return { success: true, message: 'Route assigned successfully' };
+    return this.adminCommandService.assignRoute(body);
   }
 
   @Post('transport/maintenance')
   @RequiresModule('admin_command_centers')
   @Permissions('transport:write')
   logMaintenance(@Body() body: any) {
-    return { success: true, message: 'Maintenance logged successfully' };
+    return this.adminCommandService.logMaintenance(body);
   }
 
   // --- Auxiliary Endpoints (Phase 5) ---
@@ -361,45 +354,45 @@ export class AdminCommandController {
   @RequiresModule('admin_command_centers')
   @Permissions('library:write')
   issueBook(@Body() body: any) {
-    return { success: true, message: 'Book issued successfully' };
+    return this.adminCommandService.issueBook(body);
   }
 
   @Post('library/add')
   @RequiresModule('admin_command_centers')
   @Permissions('library:write')
   addBook(@Body() body: any) {
-    return { success: true, message: 'Book added to catalog successfully' };
+    return this.adminCommandService.addBook(body);
   }
 
   @Post('clinic/visit')
   @RequiresModule('admin_command_centers')
   @Permissions('clinic:write')
   logClinicVisit(@Body() body: any) {
-    return { success: true, message: 'Clinic visit logged successfully' };
+    return this.adminCommandService.logClinicVisit(body);
   }
 
   @Post('academics/teacher-assignments')
   @Permissions('academics:write')
   async assignTeacherDuties(@Body() dto: any) {
-    return { success: true, message: 'Teacher assignment created successfully' };
+    return this.adminCommandService.assignTeacherDuties(dto);
   }
 
   @Post('exams/marks/lock')
   @Permissions('exams:write')
   async lockMarksBatch(@Body() dto: any) {
-    return { success: true, message: 'Marks batch approved and locked' };
+    return this.adminCommandService.lockMarksBatch(dto);
   }
 
   @Post('exams/marks/return')
   @Permissions('exams:write')
   async returnMarksBatch(@Body() dto: any) {
-    return { success: true, message: 'Marks batch returned for correction' };
+    return this.adminCommandService.returnMarksBatch(dto);
   }
 
   @Post('academics/interventions')
   @Permissions('academics:write')
   async assignIntervention(@Body() dto: any) {
-    return { success: true, message: 'Academic intervention assigned' };
+    return this.adminCommandService.assignIntervention(dto);
   }
 
   @Post('meeting-minutes')
@@ -416,5 +409,59 @@ export class AdminCommandController {
     @UploadedFile() file: UploadFileMetadata,
   ) {
     return this.adminCommandService.uploadSchoolLogo(file);
+  }
+
+  @Post('boarding/assign-bed')
+  @Permissions('boarding:manage')
+  assignBed(@Body() body: any) {
+    return this.adminCommandService.assignBed(body);
+  }
+
+  @Post('boarding/roll-call')
+  @Permissions('boarding:write')
+  submitRollCall(@Body() body: any) {
+    return this.adminCommandService.submitRollCall(body);
+  }
+
+  @Get('boarding/incidents')
+  @Permissions('boarding:read')
+  getBoardingIncidents() {
+    return this.adminCommandService.getBoardingIncidents();
+  }
+
+  @Post('library/return')
+  @Permissions('library:write')
+  libraryReturn(@Body() body: any) {
+    return this.adminCommandService.libraryReturn(body);
+  }
+
+  @Get('frontoffice/visitors')
+  @Permissions('frontoffice:read')
+  getFrontofficeVisitors() {
+    return this.adminCommandService.getFrontofficeVisitors();
+  }
+
+  @Get('frontoffice/appointments')
+  @Permissions('frontoffice:read')
+  getFrontofficeAppointments() {
+    return this.adminCommandService.getFrontofficeAppointments();
+  }
+
+  @Get('frontoffice/mail')
+  @Permissions('frontoffice:read')
+  getFrontofficeMail() {
+    return this.adminCommandService.getFrontofficeMail();
+  }
+
+  @Get('transport/route')
+  @Permissions('transport:read')
+  getTransportRoute() {
+    return this.adminCommandService.getTransportRoute();
+  }
+
+  @Get('transport/maintenance')
+  @Permissions('transport:read')
+  getTransportMaintenance() {
+    return this.adminCommandService.getTransportMaintenance();
   }
 }

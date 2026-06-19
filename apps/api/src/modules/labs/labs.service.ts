@@ -270,6 +270,26 @@ export class LabsService {
     return value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
   }
 
+  async getDashboard() {
+    const tenantId = this.requireTenantId();
+    return this.labsRepository.getDashboard(tenantId);
+  }
+
+  async getInventory() {
+    const tenantId = this.requireTenantId();
+    return this.labsRepository.getInventory(tenantId);
+  }
+
+  async getRequests() {
+    const tenantId = this.requireTenantId();
+    return this.labsRepository.getRequests(tenantId);
+  }
+
+  async getIssues() {
+    const tenantId = this.requireTenantId();
+    return this.labsRepository.getIssues(tenantId);
+  }
+
   private requireTenantId(): string {
     const tenantId = this.requestContext.getStore()?.tenant_id;
 

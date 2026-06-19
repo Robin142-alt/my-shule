@@ -1,4 +1,5 @@
 // @ts-nocheck
+
 "use client";
 
 import { Award, AlertTriangle, MessageSquare, TrendingUp } from "lucide-react";

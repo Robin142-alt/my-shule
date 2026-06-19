@@ -500,4 +500,29 @@ export class FinanceController {
     
     return result.rows[0];
   }
+
+  @Get('balances')
+  @Permissions('finance:read')
+  async getBalances() {
+    const tenantId = this.requestContext.requireStore().tenant_id;
+    const result = await this.db.query(
+      `SELECT student_id, SUM(balance_minor) as total_balance 
+       FROM student_invoices 
+       WHERE tenant_id = $1 AND status = 'open' 
+       GROUP BY student_id`,
+      [tenantId]
+    );
+    return { items: result.rows };
+  }
+
+  @Get('payments')
+  @Permissions('finance:read')
+  async getPayments() {
+    const tenantId = this.requestContext.requireStore().tenant_id;
+    const result = await this.db.query(
+      `SELECT * FROM manual_fee_payments WHERE tenant_id = $1 ORDER BY created_at DESC LIMIT 100`,
+      [tenantId]
+    );
+    return { items: result.rows };
+  }
 }

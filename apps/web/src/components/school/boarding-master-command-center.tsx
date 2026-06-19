@@ -334,13 +334,18 @@ function BedsWorkspace() {
   const handleAssignBed = async (studentId?: string, bedId?: string) => {
     setIsSubmitting(true);
     try {
-      const res = await requestDashboardApi("/api/admin-command/boarding/assign-bed", {
+      await requestDashboardApi("/api/admin-command/boarding/assign-bed", {
         method: "POST",
         body: JSON.stringify({ student_id: studentId || "auto", bed_id: bedId || "auto" }),
       });
-      if (!res.ok) throw new Error("Failed to assign bed");
       toast.success("Bed assigned successfully");
-      publishSchoolOperationalEvent("dashboard.refresh");
+      publishSchoolOperationalEvent({
+        type: "boarding.bed_assigned",
+        module: "boarding",
+        actorRole: "boarding_master",
+        title: "Bed Assigned",
+        body: "A bed has been assigned to a student.",
+      });
     } catch (e: any) {
       toast.error(e.message || "Failed to assign bed");
     } finally {
@@ -381,13 +386,18 @@ function RollCallWorkspace() {
   const handleRollCall = async (studentId?: string) => {
     setIsSubmitting(true);
     try {
-      const res = await requestDashboardApi("/api/admin-command/boarding/roll-call", {
+      await requestDashboardApi("/api/admin-command/boarding/roll-call", {
         method: "POST",
         body: JSON.stringify(studentId ? { student_id: studentId, status: "present" } : { action: "start_roll_call" }),
       });
-      if (!res.ok) throw new Error("Failed to process roll call");
       toast.success(studentId ? "Roll call marked" : "Roll call started");
-      publishSchoolOperationalEvent("dashboard.refresh");
+      publishSchoolOperationalEvent({
+        type: "boarding.roll_call",
+        module: "boarding",
+        actorRole: "boarding_master",
+        title: "Roll Call Processed",
+        body: studentId ? "Roll call marked for student." : "Roll call started.",
+      });
     } catch (e: any) {
       toast.error(e.message || "Failed to process roll call");
     } finally {
@@ -471,13 +481,18 @@ function IncidentsWorkspace() {
   const handleLogIncident = async (incidentId?: string) => {
     setIsSubmitting(true);
     try {
-      const res = await requestDashboardApi("/api/admin-command/boarding/incidents", {
+      await requestDashboardApi("/api/admin-command/boarding/incidents", {
         method: "POST",
         body: JSON.stringify(incidentId ? { action: "escalate", incident_id: incidentId } : { action: "log_incident", type: "noise" }),
       });
-      if (!res.ok) throw new Error("Failed to process incident");
       toast.success(incidentId ? "Incident escalated" : "Incident logged");
-      publishSchoolOperationalEvent("dashboard.refresh");
+      publishSchoolOperationalEvent({
+        type: "boarding.incident_logged",
+        module: "boarding",
+        actorRole: "boarding_master",
+        title: incidentId ? "Incident Escalated" : "Incident Logged",
+        body: incidentId ? "A boarding incident was escalated." : "A new boarding incident was logged.",
+      });
     } catch (e: any) {
       toast.error(e.message || "Failed to process incident");
     } finally {

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { FileText, Download, PieChart, TrendingUp, Users, Banknote } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
@@ -22,7 +23,7 @@ export function ReportsWorkspace() {
 
   const handleDownload = async (reportId: string) => {
     // In reality, this would fetch a blob and trigger browser download
-    alert(`Generating report: ${reportId}. The download will begin shortly.`);
+    toast.info(`Generating report: ${reportId}. The download will begin shortly.`);
   };
 
   const filteredReports = activeCategory === "all" ? standardReports : standardReports.filter(r => r.category === activeCategory);

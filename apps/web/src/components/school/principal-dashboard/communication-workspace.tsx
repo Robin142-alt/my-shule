@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { AlertCircle, MessageSquare, Send, Plus, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
@@ -96,7 +97,7 @@ export function PrincipalCommunicationWorkspace() {
       await requestDashboardApi(`/admin-command/communication-templates/${id}`, { method: "DELETE" });
       refetch();
     } catch (err: any) {
-      alert(err.message || "Failed to archive template");
+      toast.error(err.message || "Failed to archive template");
     }
   };
 

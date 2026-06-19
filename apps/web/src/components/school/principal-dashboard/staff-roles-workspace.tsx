@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { AlertCircle, UserPlus, Users, Plus, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
@@ -99,7 +100,7 @@ export function PrincipalStaffRolesWorkspace() {
       await requestDashboardApi(`/academics/class-teachers/${id}`, { method: "DELETE" });
       refetch();
     } catch (err: any) {
-      alert(err.message || "Failed to archive class teacher");
+      toast.error(err.message || "Failed to archive class teacher");
     }
   };
 
@@ -240,12 +241,12 @@ export function PrincipalStaffRolesWorkspace() {
             </div>
           )}
           <div className="space-y-2">
-            <label className="text-sm font-medium">Teacher User ID (UUID)</label>
-            <input name="teacher_user_id" required className="w-full border rounded p-2 text-sm" placeholder="e.g. 123e4567-e89b-12d3-a456-426614174000" />
+            <label className="text-sm font-semibold text-foreground">Teacher User ID (UUID)</label>
+            <input name="teacher_user_id" required className="input-base" placeholder="e.g. 123e4567-e89b-12d3-a456-426614174000" />
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-medium">Academic Term</label>
-            <select name="academic_term_id" required className="w-full border rounded p-2 text-sm bg-white text-black">
+            <label className="text-sm font-semibold text-foreground">Academic Term</label>
+            <select name="academic_term_id" required className="input-base">
               <option value="">Select Term...</option>
               {termsData?.map(term => (
                 <option key={term.id} value={term.id}>{term.name}</option>
@@ -253,8 +254,8 @@ export function PrincipalStaffRolesWorkspace() {
             </select>
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-medium">Class Section</label>
-            <select name="class_section_id" required className="w-full border rounded p-2 text-sm bg-white text-black">
+            <label className="text-sm font-semibold text-foreground">Class Section</label>
+            <select name="class_section_id" required className="input-base">
               <option value="">Select Class Section...</option>
               {classesData?.map(c => (
                 <option key={c.id} value={c.id}>{c.name}</option>
@@ -262,8 +263,8 @@ export function PrincipalStaffRolesWorkspace() {
             </select>
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-medium">Subject</label>
-            <select name="subject_id" required className="w-full border rounded p-2 text-sm bg-white text-black">
+            <label className="text-sm font-semibold text-foreground">Subject</label>
+            <select name="subject_id" required className="input-base">
               <option value="">Select Subject...</option>
               {subjectsData?.map(s => (
                 <option key={s.id} value={s.id}>{s.name}</option>
@@ -287,12 +288,12 @@ export function PrincipalStaffRolesWorkspace() {
             </div>
           )}
           <div className="space-y-2">
-            <label className="text-sm font-medium">Teacher User ID (UUID)</label>
-            <input name="teacher_user_id" required className="w-full border rounded p-2 text-sm" placeholder="e.g. 123e4567-e89b-12d3-a456-426614174000" />
+            <label className="text-sm font-semibold text-foreground">Teacher User ID (UUID)</label>
+            <input name="teacher_user_id" required className="input-base" placeholder="e.g. 123e4567-e89b-12d3-a456-426614174000" />
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-medium">Academic Year</label>
-            <select name="academic_year_id" required className="w-full border rounded p-2 text-sm bg-white text-black">
+            <label className="text-sm font-semibold text-foreground">Academic Year</label>
+            <select name="academic_year_id" required className="input-base">
               <option value="">Select Academic Year...</option>
               {yearsData?.map(year => (
                 <option key={year.id} value={year.id}>{year.name}</option>
@@ -300,8 +301,8 @@ export function PrincipalStaffRolesWorkspace() {
             </select>
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-medium">Class Section</label>
-            <select name="class_section_id" required className="w-full border rounded p-2 text-sm bg-white text-black">
+            <label className="text-sm font-semibold text-foreground">Class Section</label>
+            <select name="class_section_id" required className="input-base">
               <option value="">Select Class Section...</option>
               {classesData?.map(c => (
                 <option key={c.id} value={c.id}>{c.name}</option>

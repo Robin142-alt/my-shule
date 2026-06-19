@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import { Activity } from "lucide-react";
+import { toast } from "sonner";
 import { Panel, StatusChip, Tone } from "./shared";
 import { Modal } from "@/components/ui/modal";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
@@ -48,12 +49,12 @@ export function DeputyDailyOperationsWorkspace() {
         area: formData.area,
         issue: formData.issue
       });
-      alert("Operation Note created successfully.");
+      toast.success("Operation Note created successfully.");
       setShowModal(false);
       setFormData({ area: "", issue: "" });
       refetch();
     } catch (error) {
-      alert("Failed to create Operation Note.");
+      toast.error("Failed to create Operation Note.");
     } finally {
       setIsSubmitting(false);
     }

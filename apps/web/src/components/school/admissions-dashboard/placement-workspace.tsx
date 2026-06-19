@@ -1,43 +1,69 @@
 "use client";
+import { LayoutGrid } from "lucide-react";
+import { useSchoolQuery } from "@/lib/data/school-hooks";
 
-import { Card } from "@/components/ui/card";
-import { AlertCircle } from "lucide-react";
-import { OpsTable, type OpsTableColumn } from "@/components/modules/shared/ops-table";
-import { StatusPill } from "@/components/ui/status-pill";
+type PlacementData = {
+  metrics: Record<string, number>;
+  items: any[];
+};
 
-export function AdmissionsPlacementWorkspace({ dataset }: { dataset?: any }) {
-  const data = dataset?.allocations || [];
-
-  const columns: OpsTableColumn<any>[] = [
-
-    { id: "application", header: "Application ID", render: (row) => row.applicationId },
-    { id: "class", header: "Class", render: (row) => row.assignedClass },
-    { id: "stream", header: "Stream", render: (row) => row.assignedStream },
-    { id: "status", header: "Status", render: (row) => <StatusPill label={row.status} tone={row.status === "confirmed" ? "ok" : "warning"} /> }
-
-  ];
+export function PlacementWorkspace() {
+  const { data, isLoading } = useSchoolQuery<PlacementData>("/admin-command/admissions/placement");
+  const items = data?.items || [];
 
   return (
-    <div className="space-y-6">
-      <div className="grid gap-4 md:grid-cols-4">
-        <Card className="border border-white/10 bg-white/5 p-5">
-          <div className="text-sm font-semibold text-white/70">Total Class Allocations</div>
-          <div className="mt-2 text-2xl font-black text-white">{data.length}</div>
-        </Card>
+    <section className="rounded-2xl border border-[#D8E0EC] bg-white p-5 shadow-[0_18px_50px_rgba(7,29,73,0.08)]">
+      <div className="mb-4 flex min-w-0 gap-3">
+        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#EEF5FF] text-[#1D4ED8]">
+          <LayoutGrid className="h-5 w-5" aria-hidden="true" />
+        </span>
+        <div>
+          <h2 className="text-xl font-black tracking-[-0.01em] text-[#071D49]">Class Placement</h2>
+          <p className="mt-1 text-sm leading-6 text-[#64748B]">Assign admitted students to classes.</p>
+        </div>
       </div>
 
-      <OpsTable
-        title="Class Allocations"
-        subtitle="Class and stream allocation for new students."
-        rows={data}
-        columns={columns}
-        loading={false}
-        getRowId={(row) => row.id}
-        totalRows={data.length}
-        page={1}
-        pageSize={10}
-        onPageChange={() => {}}
-      />
-    </div>
+      <div className="grid gap-4 md:grid-cols-2 mb-6">
+        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
+          <div className="text-sm font-semibold text-[#64748B]">Placed</div>
+          <div className="mt-1 text-lg font-black text-[#071D49]">{isLoading ? "..." : data?.metrics?.placed ?? 0}</div>
+        </div>
+        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
+          <div className="text-sm font-semibold text-[#64748B]">Unplaced</div>
+          <div className="mt-1 text-lg font-black text-[#071D49]">{isLoading ? "..." : data?.metrics?.unplaced ?? 0}</div>
+        </div>
+      </div>
+
+      <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
+        <table className="w-full text-sm text-left whitespace-nowrap">
+          <thead className="bg-[#F8FAFC] text-[#071D49]">
+            <tr>
+              <th className="px-4 py-3 font-bold">Student</th>
+              <th className="px-4 py-3 font-bold">Admitted Class</th>
+              <th className="px-4 py-3 font-bold">Stream</th>
+              <th className="px-4 py-3 font-bold">Placed By</th>
+              <th className="px-4 py-3 font-bold">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {isLoading ? (
+              <tr><td colSpan={5} className="px-4 py-8 text-center text-[#64748B]">Loading...</td></tr>
+            ) : items.length === 0 ? (
+              <tr><td colSpan={5} className="px-4 py-8 text-center text-[#64748B]">No records found. Create the first entry to get started.</td></tr>
+            ) : (
+              items.map((row: any, i: number) => (
+                <tr key={row.id || i} className="border-t border-[#D8E0EC] hover:bg-[#F8FAFC]">
+                  <td className="px-4 py-3 text-[#64748B]">{row.student_name}</td>
+                  <td className="px-4 py-3 text-[#64748B]">{row.class_name}</td>
+                  <td className="px-4 py-3 text-[#64748B]">{row.stream}</td>
+                  <td className="px-4 py-3 text-[#64748B]">{row.placed_by}</td>
+                  <td className="px-4 py-3"><span className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-bold whitespace-nowrap">{row.status}</span></td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+    </section>
   );
 }

@@ -1,44 +1,69 @@
 "use client";
+import { CheckCircle } from "lucide-react";
+import { useSchoolQuery } from "@/lib/data/school-hooks";
 
-import { Card } from "@/components/ui/card";
-import { AlertCircle } from "lucide-react";
-import { OpsTable, type OpsTableColumn } from "@/components/modules/shared/ops-table";
-import { StatusPill } from "@/components/ui/status-pill";
-import { Button } from "@/components/ui/button";
+type AcademicSetupApprovalData = {
+  metrics: Record<string, number>;
+  items: any[];
+};
 
-export function ExamsAcademicSetupApprovalWorkspace({ dataset }: { dataset?: any }) {
-  const data = dataset?.approvals || [];
-
-  const columns: OpsTableColumn<any>[] = [
-
-    { id: "request", header: "Request", render: (row) => row.requestName },
-    { id: "teacher", header: "Teacher", render: (row) => row.teacherName },
-    { id: "date", header: "Date", render: (row) => row.date },
-    { id: "action", header: "Action", render: (row) => <Button variant="link">Review</Button> }
-
-  ];
+export function AcademicSetupApprovalWorkspace() {
+  const { data, isLoading } = useSchoolQuery<AcademicSetupApprovalData>("/admin-command/exams/academic-setup-approval");
+  const items = data?.items || [];
 
   return (
-    <div className="space-y-6">
-      <div className="grid gap-4 md:grid-cols-4">
-        <Card className="border border-white/10 bg-white/5 p-5">
-          <div className="text-sm font-semibold text-white/70">Total Setup Approvals</div>
-          <div className="mt-2 text-2xl font-black text-white">{data.length}</div>
-        </Card>
+    <section className="rounded-2xl border border-[#D8E0EC] bg-white p-5 shadow-[0_18px_50px_rgba(7,29,73,0.08)]">
+      <div className="mb-4 flex min-w-0 gap-3">
+        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#EEF5FF] text-[#1D4ED8]">
+          <CheckCircle className="h-5 w-5" aria-hidden="true" />
+        </span>
+        <div>
+          <h2 className="text-xl font-black tracking-[-0.01em] text-[#071D49]">Academic Setup Approval</h2>
+          <p className="mt-1 text-sm leading-6 text-[#64748B]">Approve or review academic setup configurations.</p>
+        </div>
       </div>
 
-      <div className="flex justify-end gap-2">
-        <Button variant="outline" size="sm">Refresh</Button>
-        <Button size="sm">Add New</Button>
+      <div className="grid gap-4 md:grid-cols-2 mb-6">
+        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
+          <div className="text-sm font-semibold text-[#64748B]">Pending Approval</div>
+          <div className="mt-1 text-lg font-black text-[#071D49]">{isLoading ? "..." : data?.metrics?.pending ?? 0}</div>
+        </div>
+        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
+          <div className="text-sm font-semibold text-[#64748B]">Approved</div>
+          <div className="mt-1 text-lg font-black text-[#071D49]">{isLoading ? "..." : data?.metrics?.approved ?? 0}</div>
+        </div>
       </div>
 
-      <OpsTable
-        title="Setup Approvals"
-        subtitle="Approve teacher setups, lock official subject lists."
-        rows={data}
-        columns={columns}
-        loading={false}
-      />
-    </div>
+      <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
+        <table className="w-full text-sm text-left whitespace-nowrap">
+          <thead className="bg-[#F8FAFC] text-[#071D49]">
+            <tr>
+              <th className="px-4 py-3 font-bold">Item</th>
+              <th className="px-4 py-3 font-bold">Type</th>
+              <th className="px-4 py-3 font-bold">Submitted By</th>
+              <th className="px-4 py-3 font-bold">Date</th>
+              <th className="px-4 py-3 font-bold">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {isLoading ? (
+              <tr><td colSpan={5} className="px-4 py-8 text-center text-[#64748B]">Loading...</td></tr>
+            ) : items.length === 0 ? (
+              <tr><td colSpan={5} className="px-4 py-8 text-center text-[#64748B]">No records found. Create the first entry to get started.</td></tr>
+            ) : (
+              items.map((row: any, i: number) => (
+                <tr key={row.id || i} className="border-t border-[#D8E0EC] hover:bg-[#F8FAFC]">
+                  <td className="px-4 py-3 text-[#64748B]">{row.item}</td>
+                  <td className="px-4 py-3 text-[#64748B]">{row.type}</td>
+                  <td className="px-4 py-3 text-[#64748B]">{row.submitted_by}</td>
+                  <td className="px-4 py-3 text-[#64748B]">{row.date}</td>
+                  <td className="px-4 py-3"><span className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-bold whitespace-nowrap">{row.status}</span></td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+    </section>
   );
 }

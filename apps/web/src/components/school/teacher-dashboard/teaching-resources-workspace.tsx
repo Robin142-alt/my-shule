@@ -1,23 +1,53 @@
 import { FolderOpen } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import { Panel, RecordTable } from "./shared-components";
-import { TeacherAction, TeacherView } from "./types";
+import { useLiveTenantSession } from "@/hooks/use-live-tenant-session";
+import { requestDashboardApi } from "@/lib/dashboard/api-client";
 
-export function TeachingResourcesWorkspace({
-  onStartAction,
-}: {
-  onStartAction: (action: TeacherAction, view: TeacherView, message: string) => void;
-}) {
+export function TeachingResourcesWorkspace() {
+  const liveSession = useLiveTenantSession("school");
+
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ["teacher-teaching-resources", liveSession.session?.tenantId],
+    queryFn: () => requestDashboardApi<any>("/admin-command/teacher/resources", {
+      tenantId: liveSession.session!.tenantId,
+      accessToken: (liveSession.session as any)?.accessToken,
+    }),
+    enabled: !!liveSession.session,
+  });
+
+  const stats = data?.metrics || {};
+  const rows = (data?.items || []).map((c: any) => [
+      c.title,
+      c.subject,
+      c.type,
+      c.uploaded_at,
+      c.status
+  ]);
+
   return (
-    <Panel title="Teaching Resources" description="Manage schemes of work, notes, and worksheets." icon={FolderOpen}>
-      <div className="mb-4 flex flex-wrap gap-2">
-        <button type="button" onClick={() => onStartAction("resource", "teaching-resources", "Upload resource form ready.")} className="rounded-xl bg-[#071D49] px-4 py-2 text-sm font-black text-white">Upload Resource</button>
-        <button type="button" className="rounded-xl border border-[#D8E0EC] px-4 py-2 text-sm font-black text-[#071D49] bg-white">Import from Bank</button>
+    <Panel title="Teaching Resources" description="Access and manage teaching materials and resources." icon={FolderOpen}>
+      <div className="grid gap-3 sm:grid-cols-2 mb-4">
+        <article className="rounded-xl border border-[#D8E0EC] bg-white p-3">
+          <p className="text-xs font-bold uppercase text-[#64748B]">Total Resources</p>
+          <p className="text-2xl font-black text-[#071D49]">{isLoading ? "..." : stats?.total ?? 0}</p>
+        </article>
+        <article className="rounded-xl border border-[#D8E0EC] bg-white p-3">
+          <p className="text-xs font-bold uppercase text-[#64748B]">Shared</p>
+          <p className="text-2xl font-black text-[#071D49]">{isLoading ? "..." : stats?.shared ?? 0}</p>
+        </article>
       </div>
-      <RecordTable
-        columns={["Title", "Class", "Subject", "Type", "Visibility", "Status", "Actions"]}
-        rows={[]}
-        emptyState="No teaching resources uploaded yet."
-      />
+      {isError ? (
+        <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-red-800">
+          Failed to load data. Please retry.
+        </div>
+      ) : (
+        <RecordTable
+          columns={["Title","Subject","Type","Uploaded","Status"]}
+          rows={rows}
+          emptyState={isLoading ? "Loading..." : "No records found. Create the first entry to get started."}
+        />
+      )}
     </Panel>
   );
 }

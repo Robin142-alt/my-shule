@@ -33,4 +33,10 @@ export class TimetableController {
   getMySchedule(@Query() query: Record<string, string | undefined>) {
     return this.timetableService.getMySchedule(query);
   }
+
+  @Get('dashboard')
+  @Permissions('timetable:read')
+  getTimetableDashboard() {
+    return this.timetableService.getTimetableDashboard();
+  }
 }

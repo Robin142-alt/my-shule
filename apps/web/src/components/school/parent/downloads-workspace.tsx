@@ -1,49 +1,65 @@
 "use client";
+import { Download } from "lucide-react";
+import { useSchoolQuery } from "@/lib/data/school-hooks";
 
-import { Download, File, FolderOpen } from "lucide-react";
-import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+type DownloadsData = {
+  metrics: Record<string, number>;
+  items: any[];
+};
 
 export function DownloadsWorkspace() {
-  const documents = [
-    { id: 1, name: "Term 2 Newsletter 2026", type: "PDF", size: "2.4 MB", date: "May 5, 2026" },
-    { id: 2, name: "Revised School Calendar", type: "PDF", size: "1.1 MB", date: "April 20, 2026" },
-    { id: 3, name: "Fee Structure (2026-2027)", type: "PDF", size: "0.8 MB", date: "March 15, 2026" },
-  ];
+  const { data, isLoading } = useSchoolQuery<DownloadsData>("/admin-command/parent/downloads");
+  const items = data?.items || [];
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <section className="rounded-2xl border border-[#D8E0EC] bg-white p-5 shadow-[0_18px_50px_rgba(7,29,73,0.08)]">
+      <div className="mb-4 flex min-w-0 gap-3">
+        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#EEF5FF] text-[#1D4ED8]">
+          <Download className="h-5 w-5" aria-hidden="true" />
+        </span>
         <div>
-          <h2 className="text-2xl font-semibold text-slate-900 tracking-tight">Downloads & Documents</h2>
-          <p className="text-sm text-slate-500 mt-1">Access official school letters, term dates, and policy documents.</p>
+          <h2 className="text-xl font-black tracking-[-0.01em] text-[#071D49]">Downloads</h2>
+          <p className="mt-1 text-sm leading-6 text-[#64748B]">Download report cards, receipts, and documents.</p>
         </div>
       </div>
 
-      <Card className="border border-slate-200 overflow-hidden">
-        <div className="p-4 border-b border-slate-100 flex items-center gap-2 bg-slate-50/50">
-          <FolderOpen className="w-4 h-4 text-slate-500" />
-          <h3 className="font-medium text-slate-900">General Documents</h3>
+      <div className="grid gap-4 md:grid-cols-1 mb-6">
+        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
+          <div className="text-sm font-semibold text-[#64748B]">Available Documents</div>
+          <div className="mt-1 text-lg font-black text-[#071D49]">{isLoading ? "..." : data?.metrics?.available ?? 0}</div>
         </div>
-        <div className="divide-y divide-slate-100">
-          {documents.map(doc => (
-            <div key={doc.id} className="p-4 flex items-center justify-between hover:bg-slate-50/50 transition-colors">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-slate-100 rounded">
-                  <File className="w-5 h-5 text-slate-500" />
-                </div>
-                <div>
-                  <h4 className="font-medium text-slate-900">{doc.name}</h4>
-                  <p className="text-xs text-slate-500">{doc.type} • {doc.size} • Uploaded {doc.date}</p>
-                </div>
-              </div>
-              <Button variant="ghost" size="sm" className="gap-2 text-blue-600 hover:text-blue-700 hover:bg-blue-50">
-                <Download className="w-4 h-4" /> Download
-              </Button>
-            </div>
-          ))}
-        </div>
-      </Card>
-    </div>
+      </div>
+
+      <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
+        <table className="w-full text-sm text-left whitespace-nowrap">
+          <thead className="bg-[#F8FAFC] text-[#071D49]">
+            <tr>
+              <th className="px-4 py-3 font-bold">Document</th>
+              <th className="px-4 py-3 font-bold">Child</th>
+              <th className="px-4 py-3 font-bold">Term</th>
+              <th className="px-4 py-3 font-bold">Date</th>
+              <th className="px-4 py-3 font-bold">Type</th>
+            </tr>
+          </thead>
+          <tbody>
+            {isLoading ? (
+              <tr><td colSpan={5} className="px-4 py-8 text-center text-[#64748B]">Loading...</td></tr>
+            ) : items.length === 0 ? (
+              <tr><td colSpan={5} className="px-4 py-8 text-center text-[#64748B]">No records found. Create the first entry to get started.</td></tr>
+            ) : (
+              items.map((row: any, i: number) => (
+                <tr key={row.id || i} className="border-t border-[#D8E0EC] hover:bg-[#F8FAFC]">
+                  <td className="px-4 py-3 text-[#64748B]">{row.document_name}</td>
+                  <td className="px-4 py-3 text-[#64748B]">{row.child_name}</td>
+                  <td className="px-4 py-3 text-[#64748B]">{row.term}</td>
+                  <td className="px-4 py-3 text-[#64748B]">{row.date}</td>
+                  <td className="px-4 py-3 text-[#64748B]">{row.type}</td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+    </section>
   );
 }

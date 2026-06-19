@@ -89,4 +89,11 @@ export class StudentsController {
     const store = this.requestContext.requireStore();
     return this.studentsService.listGuardians(store.tenant_id as string);
   }
+
+  @Get(':studentId/guardians')
+  @Permissions('students:read')
+  async getStudentGuardians(@Param('studentId', new ParseUUIDPipe()) studentId: string) {
+    const store = this.requestContext.requireStore();
+    return this.studentsService.listGuardians(store.tenant_id as string);
+  }
 }

@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { Card } from "@/components/ui/card";
-import { AlertCircle, BookOpen, Users2, Plus, Loader2 } from "lucide-react";
+import { AlertCircle, BookOpen, Layers, Plus, Loader2, Users2 } from "lucide-react";
+import { toast } from "sonner";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
@@ -63,7 +64,7 @@ export function PrincipalSubjectsDepartmentsWorkspace() {
       await requestDashboardApi(`/academics/subjects/${id}`, { method: "DELETE" });
       refetch();
     } catch (err: any) {
-      alert(err.message || "Failed to archive subject");
+      toast.error(err.message || "Failed to archive subject");
     }
   };
 
@@ -117,7 +118,7 @@ export function PrincipalSubjectsDepartmentsWorkspace() {
       await requestDashboardApi(`/academics/departments/${id}`, { method: "DELETE" });
       refetch();
     } catch (err: any) {
-      alert(err.message || "Failed to archive department");
+      toast.error(err.message || "Failed to archive department");
     }
   };
 

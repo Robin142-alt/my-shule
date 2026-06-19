@@ -1,4 +1,4 @@
-import { Body, Controller, Param, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, InternalServerErrorException } from '@nestjs/common';
 
 import { Permissions } from '../../auth/decorators/permissions.decorator';
 import { RequiresModule } from '../module-access/module-access.decorator';
@@ -106,5 +106,29 @@ export class LabsController {
   @Permissions('labs:write')
   completeLabSession(@Param('sessionId') sessionId: string) {
     return this.labsService.completeLabSession(sessionId);
+  }
+
+  @Get('dashboard')
+  @Permissions('labs:read')
+  getDashboard() {
+    return this.labsService.getDashboard();
+  }
+
+  @Get('inventory')
+  @Permissions('labs:read')
+  getInventory() {
+    return this.labsService.getInventory();
+  }
+
+  @Get('requests')
+  @Permissions('labs:read')
+  getRequests() {
+    return this.labsService.getRequests();
+  }
+
+  @Get('issues')
+  @Permissions('labs:read')
+  getIssues() {
+    return this.labsService.getIssues();
   }
 }

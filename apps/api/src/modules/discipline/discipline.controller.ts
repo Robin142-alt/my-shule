@@ -15,6 +15,8 @@ import {
   Query,
   UploadedFile,
   UseInterceptors,
+  InternalServerErrorException,
+  NotImplementedException,
 } from '@nestjs/common';
 
 import { Permissions } from '../../auth/decorators/permissions.decorator';
@@ -286,4 +288,23 @@ export class DisciplineController {
     return result.rows[0];
   }
 
+
+  @Get('cases')
+  @Permissions('discipline:read')
+  async getCases() {
+    const store = this.requestContext.requireStore();
+    const tenantId = store.tenant_id;
+    if (!tenantId) return [];
+
+    try {
+      const result = await this.executeSql(
+        `SELECT * FROM discipline_incidents WHERE school_id = $1::uuid`,
+        [tenantId]
+      );
+      return result.rows;
+    } catch (e: any) {
+      console.error('getCases error:', e);
+      throw new InternalServerErrorException(e.message || 'Database error occurred');
+    }
+  }
 }

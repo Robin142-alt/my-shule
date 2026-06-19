@@ -1,4 +1,4 @@
-// @ts-nocheck
+
 "use client";
 
 import React from "react";
@@ -51,7 +51,7 @@ export function DashboardEngine({ role }: DashboardEngineProps) {
 
   if (error || !data) {
     return (
-      <Alert variant="destructive">
+      <Alert className="border-red-500/50 bg-red-500/10 text-red-500">
         <AlertCircle className="h-4 w-4" />
         <AlertTitle>Widget Registry Failed</AlertTitle>
         <AlertDescription>
@@ -129,7 +129,7 @@ function WidgetRenderer({ widget }: { widget: ResolvedWidgetDefinition }) {
         )}
         
         {state === "FAILED" && (
-          <Alert variant="destructive" className="mt-4 bg-red-500/10 border-red-500/20 text-red-400">
+          <Alert className="mt-4 bg-red-500/10 border-red-500/20 text-red-400">
             <AlertCircle className="h-4 w-4" />
             <AlertTitle>Widget Failed</AlertTitle>
             <AlertDescription className="flex flex-col gap-2">

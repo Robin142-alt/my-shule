@@ -6,20 +6,24 @@ import { EventsModule } from '../events/events.module';
 import { SyncModule } from '../sync/sync.module';
 import { AttendanceService } from './attendance.service';
 import { StudentsController } from './students.controller';
+import { StudentController } from './student-portal.controller';
+import { StudentPortalActionsController } from './student-portal-actions.controller';
 import { StudentsSchemaService } from './students-schema.service';
 import { StudentsService } from './students.service';
+import { StudentPortalService } from './student-portal.service';
 import { StudentsRepository } from './repositories/students.repository';
 
 @Module({
   imports: [EventsModule, BillingModule, SyncModule],
-  controllers: [StudentsController],
+  controllers: [StudentsController, StudentController, StudentPortalActionsController],
   providers: [
     StudentsWidgetProvider,
     StudentsSchemaService,
     StudentsService,
+    StudentPortalService,
     AttendanceService,
     StudentsRepository,
   ],
-  exports: [StudentsSchemaService, StudentsService, AttendanceService, StudentsRepository],
+  exports: [StudentsSchemaService, StudentsService, StudentPortalService, AttendanceService, StudentsRepository],
 })
 export class StudentsModule {}

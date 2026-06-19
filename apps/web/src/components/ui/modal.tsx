@@ -163,13 +163,13 @@ export function Modal({
             size="icon"
             aria-label="Close dialog"
             onClick={onClose}
-            className="shrink-0 -mr-1 -mt-0.5 h-8 w-8 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 hover:rotate-90 transition-all duration-200"
+            className="shrink-0 -mr-1 -mt-0.5 h-8 w-8 rounded-full text-muted hover:text-foreground hover:bg-surface-strong hover:rotate-90 transition-all duration-200"
           >
             <X className="h-4 w-4" />
           </Button>
         </div>
         <div className="px-5 py-5 custom-scrollbar max-h-[60vh] overflow-y-auto">{children}</div>
-        <div className="flex flex-wrap items-center justify-end gap-3 rounded-b-[var(--radius-lg)] border-t border-slate-100 bg-slate-50/50 px-5 py-4 backdrop-blur-sm">
+        <div className="flex flex-wrap items-center justify-end gap-3 rounded-b-[var(--radius-lg)] border-t border-border bg-surface px-5 py-4 backdrop-blur-sm">
           {footer || (
             <Button variant="outline" onClick={onClose} className="px-4">
               Close

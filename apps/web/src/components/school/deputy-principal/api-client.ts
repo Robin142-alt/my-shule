@@ -116,3 +116,22 @@ export async function assignRole(data: any) {
   return requestDashboardApi('/admin-command/deputy/staff/assign-role', { method: 'POST', body: data });
 }
 
+export async function createFollowUpList(data: any) {
+  return requestDashboardApi('/admin-command/deputy/attendance/follow-up', { method: 'POST', body: data });
+}
+
+export async function manageDutyRoster(data: any) {
+  return requestDashboardApi('/admin-command/deputy/staff-duty/roster', { method: 'POST', body: data });
+}
+
+export async function autoAssignRelief() {
+  return requestDashboardApi('/admin-command/deputy/timetable/auto-assign', { method: 'POST' });
+}
+
+export async function createIntervention(data: any) {
+  return requestDashboardApi('/admin-command/deputy/academics/intervention', { method: 'POST', body: data });
+}
+
+export async function manageStreams(data: any) {
+  return requestDashboardApi('/admin-command/deputy/classes/streams', { method: 'POST', body: data });
+}

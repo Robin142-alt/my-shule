@@ -1,45 +1,54 @@
-"use client";
+import { ClipboardCheck } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { Panel, RecordTable } from "./shared-components";
+import { useLiveTenantSession } from "@/hooks/use-live-tenant-session";
+import { requestDashboardApi } from "@/lib/dashboard/api-client";
 
-import { Card } from "@/components/ui/card";
-import { AlertCircle } from "lucide-react";
-import { OpsTable, type OpsTableColumn } from "@/components/modules/shared/ops-table";
-import { StatusPill } from "@/components/ui/status-pill";
-import { Button } from "@/components/ui/button";
+export function CbcAssessmentWorkspace() {
+  const liveSession = useLiveTenantSession("school");
 
-export function TeacherCBCAssessmentWorkspace({ dataset }: { dataset?: any }) {
-  const data = dataset?.cbc || [];
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ["teacher-cbc-assessment", liveSession.session?.tenantId],
+    queryFn: () => requestDashboardApi<any>("/admin-command/teacher/cbc-assessments", {
+      tenantId: liveSession.session!.tenantId,
+      accessToken: (liveSession.session as any)?.accessToken,
+    }),
+    enabled: !!liveSession.session,
+  });
 
-  const columns: OpsTableColumn<any>[] = [
-
-    { id: "student", header: "Student", render: (row) => row.studentName },
-    { id: "strand", header: "Strand", render: (row) => row.strandName },
-    { id: "level", header: "Level", render: (row) => row.level },
-    { id: "status", header: "Status", render: (row) => <StatusPill label={row.status} tone="info" /> },
-    { id: "action", header: "Action", render: (row) => <Button variant="link">Assess</Button> }
-
-  ];
+  const stats = data?.metrics || {};
+  const rows = (data?.items || []).map((c: any) => [
+      c.learner,
+      c.class_name,
+      c.subject,
+      c.strand,
+      c.score,
+      c.status
+  ]);
 
   return (
-    <div className="space-y-6">
-      <div className="grid gap-4 md:grid-cols-4">
-        <Card className="border border-white/10 bg-white/5 p-5">
-          <div className="text-sm font-semibold text-white/70">Total CBC Assessment Entry</div>
-          <div className="mt-2 text-2xl font-black text-white">{data.length}</div>
-        </Card>
+    <Panel title="CBC Assessment" description="Manage competency-based curriculum assessments." icon={ClipboardCheck}>
+      <div className="grid gap-3 sm:grid-cols-2 mb-4">
+        <article className="rounded-xl border border-[#D8E0EC] bg-white p-3">
+          <p className="text-xs font-bold uppercase text-[#64748B]">Pending Assessment</p>
+          <p className="text-2xl font-black text-[#071D49]">{isLoading ? "..." : stats?.pending ?? 0}</p>
+        </article>
+        <article className="rounded-xl border border-[#D8E0EC] bg-white p-3">
+          <p className="text-xs font-bold uppercase text-[#64748B]">Completed</p>
+          <p className="text-2xl font-black text-[#071D49]">{isLoading ? "..." : stats?.completed ?? 0}</p>
+        </article>
       </div>
-
-      <div className="flex justify-end gap-2">
-        <Button variant="outline" size="sm">Refresh</Button>
-        <Button size="sm">Add New</Button>
-      </div>
-
-      <OpsTable
-        title="CBC Assessment Entry"
-        subtitle="Interface for rubric descriptors and comments."
-        rows={data}
-        columns={columns}
-        loading={false}
-      />
-    </div>
+      {isError ? (
+        <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-red-800">
+          Failed to load data. Please retry.
+        </div>
+      ) : (
+        <RecordTable
+          columns={["Learner","Class","Subject","Strand","Score","Status"]}
+          rows={rows}
+          emptyState={isLoading ? "Loading..." : "No records found. Create the first entry to get started."}
+        />
+      )}
+    </Panel>
   );
 }

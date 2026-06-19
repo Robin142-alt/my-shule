@@ -35,8 +35,8 @@ export function DocxOperationalWorkspace({ moduleId }: { moduleId: string }) {
   }
 
   // Create an aggressive fallback mapping so UI isn't completely empty if definitions lack tables
-  const hasTables = docxContract.tables && docxContract.tables.length > 0;
-  const hasForms = docxContract.forms && docxContract.forms.length > 0;
+  const hasTables = (docxContract as any).tables && (docxContract as any).tables.length > 0;
+  const hasForms = (docxContract as any).forms && (docxContract as any).forms.length > 0;
 
   async function handleAction(action: string, context: { scope: string; rowId?: string }) {
     try {

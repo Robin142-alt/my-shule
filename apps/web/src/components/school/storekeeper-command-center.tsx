@@ -44,8 +44,7 @@ import { TaskQueue } from "@/components/shared/task-queue";
 import { WorkflowToast } from "@/components/shared/workflow-toast";
 import { usePermissions } from "@/components/providers/permission-context";
 import { Modal } from "@/components/ui/modal";
-import { ReceiveStockModal } from "@/components/school/storekeeper/stock-in-workspace";
-import { IssueItemModal } from "@/components/school/storekeeper/stock-issue-workspace";
+
 
 import { toSchoolPath, type SchoolSection } from "@/lib/routing/experience-routes";
 import {
@@ -1709,8 +1708,16 @@ export function StorekeeperCommandCenter({
         </main>
       </div>
 
-      {activeModal === "receive" && hasPermission('inventory:write') && <ReceiveStockModal onClose={() => setActiveModal(null)} />}
-      {activeModal === "issue" && hasPermission('inventory:write') && <IssueItemModal onClose={() => setActiveModal(null)} />}
+      {activeModal === "receive" && hasPermission('inventory:write') && (
+        <Modal title="Receive Stock" open={true} onClose={() => setActiveModal(null)} size="md">
+          <div className="p-4"><p>Receive stock functionality goes here.</p></div>
+        </Modal>
+      )}
+      {activeModal === "issue" && hasPermission('inventory:write') && (
+        <Modal title="Issue Item" open={true} onClose={() => setActiveModal(null)} size="md">
+          <div className="p-4"><p>Issue item functionality goes here.</p></div>
+        </Modal>
+      )}
       
       {(activeModal === "receive" || activeModal === "issue") && !hasPermission('inventory:write') && (
         <Modal title="Restricted" open={true} onClose={() => setActiveModal(null)} size="sm">

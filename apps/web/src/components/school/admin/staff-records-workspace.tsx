@@ -7,6 +7,7 @@ import { StatusPill } from "@/components/ui/status-pill";
 import { useSchoolQuery, useSchoolMutation } from "@/lib/data/school-hooks";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
+import { toast } from "sonner";
 
 export function StaffRecordsWorkspace() {
   const [activeTab, setActiveTab] = useState<"directory" | "attendance" | "leave" | "structure" | "payroll" | "performance">("directory");
@@ -106,7 +107,7 @@ export function StaffRecordsWorkspace() {
         handleUpdateLeaveStatus(id, status, true);
         return;
       }
-      alert(e.message || "An error occurred");
+      toast.error(e.message || "An error occurred");
     }
     refetchLeave();
   };
@@ -178,8 +179,9 @@ export function StaffRecordsWorkspace() {
       });
       setGeneratePayslipStaffId("");
       refetchPayslips();
+      toast.success("Payslip generated successfully");
     } catch (e: any) {
-      alert(e.message || "Failed to generate payslip");
+      toast.error(e.message || "Failed to generate payslip");
     }
   };
 

@@ -1,9 +1,10 @@
 "use client";
 import { useState } from "react";
 import { UserRoundCheck, Search } from "lucide-react";
+import { toast } from "sonner";
 import { Panel, StatusChip, Tone } from "./shared";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
-import { notifyParentAttendance } from "./api-client";
+import { notifyParentAttendance, createFollowUpList } from "./api-client";
 
 export type AttendanceRecord = {
   id: string;
@@ -25,6 +26,9 @@ type AttendanceData = {
 export function DeputyAttendanceWorkspace() {
   const [isSubmittingId, setIsSubmittingId] = useState<string | null>(null);
   const { data, isLoading, refetch } = useSchoolQuery<AttendanceData>('/admin-command/deputy/attendance');
+  const [showFollowUpModal, setShowFollowUpModal] = useState(false);
+  const [isSubmittingFollowUp, setIsSubmittingFollowUp] = useState(false);
+  const [followUpData, setFollowUpData] = useState({ listName: '', dateRange: 'This Week', assignedTo: '' });
 
   const records = data?.records || [];
 
@@ -32,12 +36,28 @@ export function DeputyAttendanceWorkspace() {
     setIsSubmittingId(id);
     try {
       await notifyParentAttendance(id);
-      alert(`Parent of ${studentName} has been notified.`);
+      toast.success(`Parent of ${studentName} has been notified.`);
       refetch();
     } catch (e) {
-      alert("Failed to notify parent");
+      toast.error("Failed to notify parent");
     } finally {
       setIsSubmittingId(null);
+    }
+  };
+
+  const handleCreateFollowUp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmittingFollowUp(true);
+    try {
+      await createFollowUpList(followUpData);
+      toast.success("Follow-up list created successfully");
+      setShowFollowUpModal(false);
+      setFollowUpData({ listName: '', dateRange: 'This Week', assignedTo: '' });
+      refetch();
+    } catch (error) {
+      toast.error("Failed to create follow-up list");
+    } finally {
+      setIsSubmittingFollowUp(false);
     }
   };
 
@@ -54,67 +74,101 @@ export function DeputyAttendanceWorkspace() {
   };
 
   return (
-    <Panel title="Attendance & Punctuality" description="Follow up missing records, repeated absenteeism, and lateness." icon={UserRoundCheck} actions={
-      <div className="flex gap-2">
-        <button className="rounded-lg border border-[#D8E0EC] px-4 py-2 text-sm font-bold text-[#071D49]">Remind Unmarked</button>
-        <button onClick={() => alert("Creating custom follow-up list...")} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white hover:bg-blue-900 transition">Create Follow-Up</button>
-      </div>
-    }>
-      <div className="flex flex-col sm:flex-row gap-3 mb-4">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-2.5 h-4 w-4 text-[#64748B]" />
-          <input type="text" placeholder="Search student or admission no..." className="w-full rounded-xl border border-[#D8E0EC] py-2 pl-9 pr-3 text-sm focus:border-[#071D49] focus:outline-none" />
+    <>
+      <Panel title="Attendance & Punctuality" description="Follow up missing records, repeated absenteeism, and lateness." icon={UserRoundCheck} actions={
+        <div className="flex gap-2">
+          <button className="rounded-lg border border-[#D8E0EC] px-4 py-2 text-sm font-bold text-[#071D49]">Remind Unmarked</button>
+          <button onClick={() => setShowFollowUpModal(true)} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white hover:bg-blue-900 transition">Create Follow-Up</button>
         </div>
-      </div>
-      <div className="grid gap-4 md:grid-cols-2 mb-6">
-        <div className="rounded-xl border border-rose-200 bg-rose-50 p-4">
-          <div className="text-sm font-semibold text-rose-700">Absent Today</div>
-          <div className="mt-1 text-lg font-black text-rose-700">{isLoading ? "..." : data?.metrics?.absent_students || 0}</div>
+      }>
+        <div className="flex flex-col sm:flex-row gap-3 mb-4">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-2.5 h-4 w-4 text-[#64748B]" />
+            <input type="text" placeholder="Search student or admission no..." className="w-full rounded-xl border border-[#D8E0EC] py-2 pl-9 pr-3 text-sm focus:border-[#071D49] focus:outline-none" />
+          </div>
         </div>
-        <div className="rounded-xl border border-orange-200 bg-orange-50 p-4">
-          <div className="text-sm font-semibold text-orange-700">Late Today</div>
-          <div className="mt-1 text-lg font-black text-orange-700">{isLoading ? "..." : data?.metrics?.late_students || 0}</div>
+        <div className="grid gap-4 md:grid-cols-2 mb-6">
+          <div className="rounded-xl border border-rose-200 bg-rose-50 p-4">
+            <div className="text-sm font-semibold text-rose-700">Absent Today</div>
+            <div className="mt-1 text-lg font-black text-rose-700">{isLoading ? "..." : data?.metrics?.absent_students || 0}</div>
+          </div>
+          <div className="rounded-xl border border-orange-200 bg-orange-50 p-4">
+            <div className="text-sm font-semibold text-orange-700">Late Today</div>
+            <div className="mt-1 text-lg font-black text-orange-700">{isLoading ? "..." : data?.metrics?.late_students || 0}</div>
+          </div>
         </div>
-      </div>
-      <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
-        <table className="w-full text-sm text-left whitespace-nowrap">
-          <thead className="bg-[#F8FAFC] text-[#071D49]">
-            <tr>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Student</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Class</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Status</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Reason</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Parent Notified</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC] text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-[#D8E0EC]">
-            {records.length === 0 ? (
+        <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
+          <table className="w-full text-sm text-left whitespace-nowrap">
+            <thead className="bg-[#F8FAFC] text-[#071D49]">
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-[#64748B]">No recent attendance records found.</td>
+                <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Student</th>
+                <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Class</th>
+                <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Status</th>
+                <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Reason</th>
+                <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Parent Notified</th>
+                <th className="px-4 py-3 font-bold border-b border-[#D8E0EC] text-right">Actions</th>
               </tr>
-            ) : (
-              records.map((rec) => (
-                <tr key={rec.id} className="hover:bg-[#F8FAFC]">
-                  <td className="px-4 py-3 font-semibold text-[#071D49]">{rec.studentName}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{rec.className}</td>
-                  <td className="px-4 py-3"><StatusChip label={rec.status} tone={getStatusTone(rec.status)} /></td>
-                  <td className="px-4 py-3 text-[#64748B]">{rec.reason}</td>
-                  <td className="px-4 py-3"><StatusChip label={rec.parentNotified} tone={getNotifiedTone(rec.parentNotified)} /></td>
-                  <td className="px-4 py-3 text-right">
-                    {rec.parentNotified === "Pending" && (
-                      <button disabled={isSubmittingId === rec.id} onClick={() => handleNotifyParent(rec.id, rec.studentName)} className="text-blue-600 hover:underline font-semibold text-xs mr-3 disabled:opacity-50 disabled:no-underline">
-                        {isSubmittingId === rec.id ? "Notifying..." : "Contact Parent"}
-                      </button>
-                    )}
-                    <button className="text-blue-600 hover:underline font-semibold text-xs">Follow Up</button>
-                  </td>
+            </thead>
+            <tbody className="divide-y divide-[#D8E0EC]">
+              {records.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="px-4 py-8 text-center text-[#64748B]">No recent attendance records found.</td>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
-    </Panel>
+              ) : (
+                records.map((rec) => (
+                  <tr key={rec.id} className="hover:bg-[#F8FAFC]">
+                    <td className="px-4 py-3 font-semibold text-[#071D49]">{rec.studentName}</td>
+                    <td className="px-4 py-3 text-[#64748B]">{rec.className}</td>
+                    <td className="px-4 py-3"><StatusChip label={rec.status} tone={getStatusTone(rec.status)} /></td>
+                    <td className="px-4 py-3 text-[#64748B]">{rec.reason}</td>
+                    <td className="px-4 py-3"><StatusChip label={rec.parentNotified} tone={getNotifiedTone(rec.parentNotified)} /></td>
+                    <td className="px-4 py-3 text-right">
+                      {rec.parentNotified === "Pending" && (
+                        <button disabled={isSubmittingId === rec.id} onClick={() => handleNotifyParent(rec.id, rec.studentName)} className="text-blue-600 hover:underline font-semibold text-xs mr-3 disabled:opacity-50 disabled:no-underline">
+                          {isSubmittingId === rec.id ? "Notifying..." : "Contact Parent"}
+                        </button>
+                      )}
+                      <button className="text-blue-600 hover:underline font-semibold text-xs">Follow Up</button>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </Panel>
+
+      {showFollowUpModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+            <h2 className="mb-4 text-xl font-bold text-[#071D49]">Create Follow-Up List</h2>
+            <form onSubmit={handleCreateFollowUp} className="space-y-4">
+              <div>
+                <label className="mb-1 block text-sm font-semibold text-[#64748B]">List Name</label>
+                <input required type="text" value={followUpData.listName} onChange={e => setFollowUpData({ ...followUpData, listName: e.target.value })} className="w-full rounded-lg border border-[#D8E0EC] px-3 py-2 outline-none focus:border-[#071D49]" placeholder="e.g. Chronic Absenteeism - Form 3" />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-semibold text-[#64748B]">Date Range</label>
+                <select value={followUpData.dateRange} onChange={e => setFollowUpData({ ...followUpData, dateRange: e.target.value })} className="w-full rounded-lg border border-[#D8E0EC] px-3 py-2 outline-none focus:border-[#071D49]">
+                  <option value="This Week">This Week</option>
+                  <option value="Last Week">Last Week</option>
+                  <option value="This Month">This Month</option>
+                </select>
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-semibold text-[#64748B]">Assigned To</label>
+                <input required type="text" value={followUpData.assignedTo} onChange={e => setFollowUpData({ ...followUpData, assignedTo: e.target.value })} className="w-full rounded-lg border border-[#D8E0EC] px-3 py-2 outline-none focus:border-[#071D49]" placeholder="e.g. Guidance Counsellor" />
+              </div>
+              <div className="flex justify-end gap-3 pt-4 border-t border-[#D8E0EC]">
+                <button type="button" onClick={() => setShowFollowUpModal(false)} className="rounded-lg px-4 py-2 text-sm font-bold text-[#64748B] hover:bg-[#F8FAFC]">Cancel</button>
+                <button type="submit" disabled={isSubmittingFollowUp} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-bold text-white hover:bg-blue-900 disabled:opacity-50">
+                  {isSubmittingFollowUp ? "Creating..." : "Create List"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </>
   );
 }

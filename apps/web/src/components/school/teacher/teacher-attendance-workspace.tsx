@@ -1,74 +1,67 @@
 "use client";
+import { Clock } from "lucide-react";
+import { useSchoolQuery } from "@/lib/data/school-hooks";
 
-import { useState } from "react";
-import { Fingerprint, CheckCircle, Clock } from "lucide-react";
-import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+type TeacherAttendanceData = {
+  metrics: Record<string, number>;
+  items: any[];
+};
 
 export function TeacherAttendanceWorkspace() {
-  const [checkedIn, setCheckedIn] = useState(false);
-  const currentTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
-  const history = [
-    { date: "Yesterday", status: "Present", time: "07:45 AM" },
-    { date: "Wednesday", status: "Present", time: "07:50 AM" },
-    { date: "Tuesday", status: "Absent", time: "-" },
-    { date: "Monday", status: "Present", time: "07:40 AM" },
-  ];
+  const { data, isLoading } = useSchoolQuery<TeacherAttendanceData>("/admin-command/teacher/attendance");
+  const items = data?.items || [];
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <section className="rounded-2xl border border-[#D8E0EC] bg-white p-5 shadow-[0_18px_50px_rgba(7,29,73,0.08)]">
+      <div className="mb-4 flex min-w-0 gap-3">
+        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#EEF5FF] text-[#1D4ED8]">
+          <Clock className="h-5 w-5" aria-hidden="true" />
+        </span>
         <div>
-          <h2 className="text-2xl font-semibold text-slate-900 tracking-tight">My Attendance</h2>
-          <p className="text-sm text-slate-500 mt-1">Clock in for the day and view your attendance history.</p>
+          <h2 className="text-xl font-black tracking-[-0.01em] text-[#071D49]">My Attendance</h2>
+          <p className="mt-1 text-sm leading-6 text-[#64748B]">View your own attendance record.</p>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <Card className="p-8 border border-slate-200 flex flex-col items-center justify-center text-center">
-          <div className="w-20 h-20 bg-blue-50 rounded-full flex items-center justify-center mb-6">
-            <Fingerprint className="w-10 h-10 text-blue-600" />
-          </div>
-          <h3 className="text-xl font-semibold text-slate-900 mb-2">Daily Check-In</h3>
-          <p className="text-sm text-slate-500 mb-8">Current Time: <span className="font-medium text-slate-900">{currentTime}</span></p>
-          
-          {checkedIn ? (
-            <div className="flex flex-col items-center">
-              <CheckCircle className="w-8 h-8 text-emerald-500 mb-2" />
-              <p className="font-medium text-emerald-700">You are checked in for today.</p>
-              <p className="text-xs text-slate-500 mt-1">Clocked in at {currentTime}</p>
-            </div>
-          ) : (
-            <Button size="lg" className="w-full max-w-xs" onClick={() => setCheckedIn(true)}>
-              Clock In Now
-            </Button>
-          )}
-        </Card>
-
-        <Card className="border border-slate-200 overflow-hidden">
-          <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-            <h3 className="font-medium text-slate-900 flex items-center gap-2">
-              <Clock className="w-4 h-4 text-slate-500" />
-              Recent History
-            </h3>
-          </div>
-          <div className="divide-y divide-slate-100">
-            {history.map((record, i) => (
-              <div key={i} className="p-4 flex items-center justify-between">
-                <div>
-                  <div className="font-medium text-slate-900">{record.date}</div>
-                  <div className="text-xs text-slate-500">Clock in: {record.time}</div>
-                </div>
-                <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium
-                  ${record.status === 'Present' ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}`}>
-                  {record.status}
-                </span>
-              </div>
-            ))}
-          </div>
-        </Card>
+      <div className="grid gap-4 md:grid-cols-2 mb-6">
+        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
+          <div className="text-sm font-semibold text-[#64748B]">Present Days</div>
+          <div className="mt-1 text-lg font-black text-[#071D49]">{isLoading ? "..." : data?.metrics?.present_days ?? 0}</div>
+        </div>
+        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
+          <div className="text-sm font-semibold text-[#64748B]">Absent</div>
+          <div className="mt-1 text-lg font-black text-[#071D49]">{isLoading ? "..." : data?.metrics?.absent ?? 0}</div>
+        </div>
       </div>
-    </div>
+
+      <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
+        <table className="w-full text-sm text-left whitespace-nowrap">
+          <thead className="bg-[#F8FAFC] text-[#071D49]">
+            <tr>
+              <th className="px-4 py-3 font-bold">Date</th>
+              <th className="px-4 py-3 font-bold">Check In</th>
+              <th className="px-4 py-3 font-bold">Check Out</th>
+              <th className="px-4 py-3 font-bold">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {isLoading ? (
+              <tr><td colSpan={4} className="px-4 py-8 text-center text-[#64748B]">Loading...</td></tr>
+            ) : items.length === 0 ? (
+              <tr><td colSpan={4} className="px-4 py-8 text-center text-[#64748B]">No records found. Create the first entry to get started.</td></tr>
+            ) : (
+              items.map((row: any, i: number) => (
+                <tr key={row.id || i} className="border-t border-[#D8E0EC] hover:bg-[#F8FAFC]">
+                  <td className="px-4 py-3 text-[#64748B]">{row.date}</td>
+                  <td className="px-4 py-3 text-[#64748B]">{row.check_in}</td>
+                  <td className="px-4 py-3 text-[#64748B]">{row.check_out}</td>
+                  <td className="px-4 py-3"><span className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-bold whitespace-nowrap">{row.status}</span></td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+    </section>
   );
 }

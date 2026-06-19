@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { toast } from 'sonner';
 import { ApprovalRequest, ApprovalsApi } from '@/lib/client/approvals-api';
 
 interface ApprovalDetailDrawerProps {
@@ -24,7 +25,7 @@ export function ApprovalDetailDrawer({ request, isOpen, onClose, onProcessed }: 
       onClose();
     } catch (error) {
       console.error(error);
-      alert(`Failed to ${action} request`);
+      toast.error(`Failed to ${action.toLowerCase()} request`);
     } finally {
       setIsProcessing(false);
     }

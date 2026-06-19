@@ -1,44 +1,53 @@
-"use client";
+import { LayoutGrid } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { Panel, RecordTable } from "./shared-components";
+import { useLiveTenantSession } from "@/hooks/use-live-tenant-session";
+import { requestDashboardApi } from "@/lib/dashboard/api-client";
 
-import { Card } from "@/components/ui/card";
-import { AlertCircle } from "lucide-react";
-import { OpsTable, type OpsTableColumn } from "@/components/modules/shared/ops-table";
-import { StatusPill } from "@/components/ui/status-pill";
-import { Button } from "@/components/ui/button";
+export function SubjectAllocationsWorkspace() {
+  const liveSession = useLiveTenantSession("school");
 
-export function TeacherSubjectAllocationsWorkspace({ dataset }: { dataset?: any }) {
-  const data = dataset?.allocations || [];
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ["teacher-subject-allocations", liveSession.session?.tenantId],
+    queryFn: () => requestDashboardApi<any>("/admin-command/teacher/subject-allocations", {
+      tenantId: liveSession.session!.tenantId,
+      accessToken: (liveSession.session as any)?.accessToken,
+    }),
+    enabled: !!liveSession.session,
+  });
 
-  const columns: OpsTableColumn<any>[] = [
-
-    { id: "subject", header: "Subject", render: (row) => row.subjectName },
-    { id: "class", header: "Class", render: (row) => row.className },
-    { id: "role", header: "Role", render: (row) => row.role },
-    { id: "canEnterMarks", header: "Mark Entry", render: (row) => <StatusPill label={row.canEnterMarks ? 'Allowed' : 'Restricted'} tone={row.canEnterMarks ? 'ok' : 'critical'} /> }
-
-  ];
+  const stats = data?.metrics || {};
+  const rows = (data?.items || []).map((c: any) => [
+      c.subject,
+      c.class_name,
+      c.stream,
+      c.lessons_per_week,
+      c.status
+  ]);
 
   return (
-    <div className="space-y-6">
-      <div className="grid gap-4 md:grid-cols-4">
-        <Card className="border border-white/10 bg-white/5 p-5">
-          <div className="text-sm font-semibold text-white/70">Total Subject Allocations</div>
-          <div className="mt-2 text-2xl font-black text-white">{data.length}</div>
-        </Card>
+    <Panel title="Subject Allocations" description="View your subject and class allocations." icon={LayoutGrid}>
+      <div className="grid gap-3 sm:grid-cols-2 mb-4">
+        <article className="rounded-xl border border-[#D8E0EC] bg-white p-3">
+          <p className="text-xs font-bold uppercase text-[#64748B]">Total Subjects</p>
+          <p className="text-2xl font-black text-[#071D49]">{isLoading ? "..." : stats?.total_subjects ?? 0}</p>
+        </article>
+        <article className="rounded-xl border border-[#D8E0EC] bg-white p-3">
+          <p className="text-xs font-bold uppercase text-[#64748B]">Total Lessons/Week</p>
+          <p className="text-2xl font-black text-[#071D49]">{isLoading ? "..." : stats?.total_lessons ?? 0}</p>
+        </article>
       </div>
-
-      <div className="flex justify-end gap-2">
-        <Button variant="outline" size="sm">Refresh</Button>
-        <Button size="sm">Add New</Button>
-      </div>
-
-      <OpsTable
-        title="Subject Allocations"
-        subtitle="View assigned classes and roles."
-        rows={data}
-        columns={columns}
-        loading={false}
-      />
-    </div>
+      {isError ? (
+        <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-red-800">
+          Failed to load data. Please retry.
+        </div>
+      ) : (
+        <RecordTable
+          columns={["Subject","Class","Stream","Lessons/Week","Status"]}
+          rows={rows}
+          emptyState={isLoading ? "Loading..." : "No records found. Create the first entry to get started."}
+        />
+      )}
+    </Panel>
   );
 }

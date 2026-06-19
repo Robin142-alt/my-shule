@@ -1,19 +1,24 @@
-import { Body, Controller, Get, Param, Post } from '@nestjs/common';
-
+import { Body, Controller, Get, Param, Post, UseGuards, InternalServerErrorException } from '@nestjs/common';
+import { JwtAuthGuard } from '../../guards/jwt-auth.guard';
+import { RbacGuard } from '../../guards/rbac.guard';
 import { Permissions } from '../../auth/decorators/permissions.decorator';
+import { RequiresModule } from '../module-access/module-access.decorator';
 import { RequestContextService } from '../../common/request-context/request-context.service';
-import { ApprovalChainService } from './approval-chain.service';
+import { PrismaService } from '../../database/prisma.service';
 import {
-  OperationalActionDispatchRequest,
   OperationalWorkflowDispatcherService,
+  OperationalActionDispatchRequest,
 } from './operational-workflow-dispatcher.service';
+import { ApprovalChainService } from './approval-chain.service';
 
+@UseGuards(JwtAuthGuard, RbacGuard)
 @Controller('operational-workflows')
 export class OperationalWorkflowDispatcherController {
   constructor(
     private readonly operationalWorkflowDispatcher: OperationalWorkflowDispatcherService,
-    private readonly approvalChainService: ApprovalChainService,
     private readonly requestContext: RequestContextService,
+    private readonly approvalChainService: ApprovalChainService,
+    private readonly prisma: PrismaService,
   ) {}
 
   @Get('principal/catalog')
@@ -87,5 +92,33 @@ export class OperationalWorkflowDispatcherController {
         },
       }
     );
+  }
+
+  @Get('offline-sync')
+  @Permissions('platform:operational-execute')
+  async getOfflineSync() {
+    const store = this.requestContext.requireStore();
+    const tenantId = store.tenant_id;
+    if (!tenantId) {
+      return { pending: 0, synced: 0, failed: 0, conflicts: 0, status: 'operational' };
+    }
+
+    try {
+      const result = await this.prisma.$queryRawUnsafe<any[]>(
+        `SELECT COUNT(*)::int as count FROM sync_operation_logs WHERE tenant_id = $1::uuid`,
+        tenantId
+      );
+      const syncedCount = result[0]?.count ?? 0;
+      return {
+        pending: 0,
+        synced: syncedCount,
+        failed: 0,
+        conflicts: 0,
+        status: 'operational',
+      };
+    } catch (e: any) {
+      console.error('getOfflineSync error:', e);
+      throw new InternalServerErrorException(e.message || 'Database error occurred');
+    }
   }
 }

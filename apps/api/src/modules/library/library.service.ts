@@ -1,5 +1,5 @@
 import { SchoolOperationalEventsService } from '../events/school-operational-events.service';
-import { BadRequestException, Injectable, Optional, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, Injectable, Optional, UnauthorizedException, InternalServerErrorException } from '@nestjs/common';
 
 import { PrismaService } from '../../database/prisma.service';
 import { RequestContextService } from '../../common/request-context/request-context.service';
@@ -455,26 +455,60 @@ export class LibraryService {
   }
 
   async getDepartments() {
-    return []; // Future implementation: return this.prisma.department.findMany()
+    const tenantId = this.requireTenantId();
+    if (!this.prisma?.department) throw new InternalServerErrorException('Prisma is not available');
+    const items = await this.prisma.department.findMany({
+      where: { schoolId: tenantId }
+    });
+    return { items };
   }
 
   async getVisits() {
-    // return this.prisma.libraryVisit.findMany({ orderBy: { createdAt: 'desc' }, take: 20 });
-    return [];
+    const tenantId = this.requireTenantId();
+    if (!this.prisma?.libraryCirculationLedger) throw new InternalServerErrorException('Prisma is not available');
+    const items = await this.prisma.libraryCirculationLedger.findMany({ 
+      where: { tenant_id: tenantId },
+      orderBy: { created_at: 'desc' },
+      take: 20
+    });
+    return { items };
   }
 
   async getRequests() {
-    // return this.prisma.libraryRequest.findMany({ orderBy: { createdAt: 'desc' }, take: 20 });
-    return [];
+    const tenantId = this.requireTenantId();
+    if (!this.prisma?.libraryReservations) throw new InternalServerErrorException('Prisma is not available');
+    const items = await this.prisma.libraryReservations.findMany({ 
+      where: { tenant_id: tenantId },
+      orderBy: { created_at: 'desc' },
+      take: 20
+    });
+    return { items };
   }
 
   async getReports() {
-    return [];
+    const tenantId = this.requireTenantId();
+    if (!this.prisma?.operationsReports) throw new InternalServerErrorException('Prisma is not available');
+    const items = await this.prisma.operationsReports.findMany({
+      where: { tenant_id: tenantId, title: { contains: 'Library' } },
+      orderBy: { created_at: 'desc' },
+      take: 20
+    });
+    return { items };
   }
 
   async getNotices() {
-    // return this.prisma.libraryNotice.findMany({ orderBy: { createdAt: 'desc' }, take: 20 });
-    return [];
+    const tenantId = this.requireTenantId();
+    if (!this.prisma?.notification) throw new InternalServerErrorException('Prisma is not available');
+    const items = await this.prisma.notification.findMany({
+      where: { schoolId: tenantId, module: 'library' },
+      orderBy: { createdAt: 'desc' },
+      take: 20
+    });
+    return { items };
+  }
+
+  async getReturns() {
+    return this.listCirculation({ action: 'return' });
   }
 
 }

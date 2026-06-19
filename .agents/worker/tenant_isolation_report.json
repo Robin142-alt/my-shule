@@ -1,0 +1,1155 @@
+{
+  "summary": {
+    "totalModels": 317,
+    "withoutTenantCount": 6,
+    "withTenantButNotIndexedCount": 187
+  },
+  "modelsWithoutTenant": [
+    "User",
+    "School",
+    "Permission",
+    "RolePermission",
+    "ModulePermission",
+    "SubscriptionPlan"
+  ],
+  "modelsWithTenantButNotIndexed": [
+    {
+      "name": "Student",
+      "fields": [
+        "schoolId"
+      ]
+    },
+    {
+      "name": "LedgerAccount",
+      "fields": [
+        "schoolId"
+      ]
+    },
+    {
+      "name": "LedgerTransaction",
+      "fields": [
+        "schoolId"
+      ]
+    },
+    {
+      "name": "LedgerEntry",
+      "fields": [
+        "schoolId"
+      ]
+    },
+    {
+      "name": "AcademicAuditLog",
+      "fields": [
+        "schoolId"
+      ]
+    },
+    {
+      "name": "AcademicAssignment",
+      "fields": [
+        "schoolId"
+      ]
+    },
+    {
+      "name": "AcademicResource",
+      "fields": [
+        "schoolId"
+      ]
+    },
+    {
+      "name": "LessonLog",
+      "fields": [
+        "schoolId"
+      ]
+    },
+    {
+      "name": "ClassTeacherAssignment",
+      "fields": [
+        "schoolId"
+      ]
+    },
+    {
+      "name": "ReportCardSetting",
+      "fields": [
+        "schoolId"
+      ]
+    },
+    {
+      "name": "OffenseCategory",
+      "fields": [
+        "tenant_id",
+        "school_id"
+      ]
+    },
+    {
+      "name": "DisciplineIncident",
+      "fields": [
+        "tenant_id",
+        "school_id"
+      ]
+    },
+    {
+      "name": "LegacyDisciplineAction",
+      "fields": [
+        "tenant_id",
+        "school_id"
+      ]
+    },
+    {
+      "name": "DisciplineComment",
+      "fields": [
+        "tenant_id",
+        "school_id"
+      ]
+    },
+    {
+      "name": "DisciplineAttachment",
+      "fields": [
+        "tenant_id",
+        "school_id"
+      ]
+    },
+    {
+      "name": "BehaviorPoint",
+      "fields": [
+        "tenant_id",
+        "school_id"
+      ]
+    },
+    {
+      "name": "DisciplineNotification",
+      "fields": [
+        "tenant_id",
+        "school_id"
+      ]
+    },
+    {
+      "name": "ParentAcknowledgement",
+      "fields": [
+        "tenant_id",
+        "school_id"
+      ]
+    },
+    {
+      "name": "DisciplineAuditLog",
+      "fields": [
+        "tenant_id",
+        "school_id"
+      ]
+    },
+    {
+      "name": "CounsellingReferral",
+      "fields": [
+        "tenant_id",
+        "school_id"
+      ]
+    },
+    {
+      "name": "LegacyCounsellingSession",
+      "fields": [
+        "tenant_id",
+        "school_id"
+      ]
+    },
+    {
+      "name": "CounsellingNote",
+      "fields": [
+        "tenant_id",
+        "school_id"
+      ]
+    },
+    {
+      "name": "BehaviorImprovementPlan",
+      "fields": [
+        "tenant_id",
+        "school_id"
+      ]
+    },
+    {
+      "name": "BehaviorImprovementPlanStep",
+      "fields": [
+        "tenant_id",
+        "school_id"
+      ]
+    },
+    {
+      "name": "ExamSeries",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "ExamAssessments",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "ExamAssessmentComponents",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "ExamSubjectWeightings",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "ExamMarkEntryWindows",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "ExamMarks",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "ExamMarkVersions",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "StudentReportCards",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "ReportCardArtifacts",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "ReportCardGenerationBatches",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "ExamMarkAuditLogs",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "StudentReportCardAuditLogs",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "ExamTimetableSlots",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "ExamInvigilators",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "ExamAttendanceRecords",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "ExamStudentCases",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "ExamGradeBoundaries",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "ExamGradingPolicies",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "EventConsumerRuns",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "OutboxEvents",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "Tasks",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "PrincipalDashboardSnapshots",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "AdminIncidents",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "Announcements",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "MeetingMinutes",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "AdmissionsApplications",
+      "fields": [
+        "school_id",
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "BillingNotifications",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "StudentFeePaymentAllocations",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "StudentFeeCredits",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "ManualFeePayments",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "ManualFeePaymentAllocations",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "Subscriptions",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "UsageRecords",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "BiometricDevices",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "BiometricIdentities",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "BiometricEvents",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "AttendanceRules",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "TeacherAttendanceLogs",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "BoardingReferrals",
+      "fields": [
+        "school_id",
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "AcademicsAttendance",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "ClinicMedicines",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "ClinicMedicineBatches",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "ClinicVisits",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "ClinicMedicineDispenses",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "ClinicProcurementRecommendations",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "ClinicAlerts",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "ClinicAuditLogs",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "ClinicStockMovements",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "CommunicationSmsOutbox",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "ConsentRecords",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "DataSubjectRequests",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "TenantFinanceSummary",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "FinanceTasks",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "FinanceFeeCategories",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "StudentInvoices",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "TenantPendingWaivers",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "StaffContracts",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "StaffLeaveRequests",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "StaffAuditLogs",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "SchoolIntegrations",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "IntegrationLogs",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "ParentOtpChallenges",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "PlatformSmsProviders",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "SchoolSmsWallets",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "SmsWalletTransactions",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "SmsPurchaseRequests",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "InventoryRequisitions",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "InventoryItemBalances",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "InventoryLocations",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "InventorySuppliers",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "InventoryPurchaseOrders",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "InventoryReservations",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "InventoryRequestBackorders",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "InventoryTransfers",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "InventoryIncidents",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "InventoryStockCountSnapshots",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "IotDevices",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "IotTelemetryReadings",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "IotAlerts",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "IotDeviceCommands",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "IotDeviceCredentials",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "IotGatewayIngestions",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "IotAuditLogs",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "LabDepartments",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "Labs",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "LabSessions",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "LabAttendance",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "LabEquipment",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "ChemicalItems",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "LabSessionEquipmentUsage",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "LabSessionChemicalUsage",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "ChemicalDisposalRequests",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "LibraryReservations",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "LibraryCirculationLedger",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "LmsSubmissions",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "ModuleRegistry",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "SchoolModuleAccess",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "ModulePackageItems",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "ModuleUsageEvents",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "OperationsEmergencies",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "OperationsAlerts",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "OperationsReports",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "CallbackLogs",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "MpesaC2bPayments",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "MpesaVerificationJobs",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "PaymentIntents",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "MpesaCallbackChannels",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "MpesaPayloadVault",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "MpesaPayloadSupportAccessLogs",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "FinanceApprovalRequests",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "MpesaReconciliationBatches",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "MpesaReconciliationDiscrepancies",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "Tenants",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "TenantDomains",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "AuthActionTokens",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "AuthEmailOutbox",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "ProcurementSuppliers",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "ProcurementRequests",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "ProcurementRequestItems",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "ProcurementApprovals",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "PurchaseOrderItems",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "ProcurementBudgetLinks",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "SupplierInvoices",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "ProcurementAuditLogs",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "SecretaryQueueTickets",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "SecurityIncidents",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "SecurityPanicAlerts",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "SupportCategories",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "SupportKbArticles",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "SupportSystemComponents",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "SupportTickets",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "SupportMessages",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "SupportInternalNotes",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "SupportStatusLogs",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "SupportAttachments",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "SupportNotifications",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "SupportStatusSubscriptions",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "SupportStatusUnsubscribeTokens",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "SupportStatusNotificationAttempts",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "SyncCursors",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "SyncDevices",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "SyncOperationLogs",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "TenantFinancialAccounts",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "TenantMpesaConfigs",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "MpesaConfigAuditLogs",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "TenantPaymentChannels",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "TenantBankAccounts",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "TimetableSlots",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "TimetableVersions",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "TimetableAuditLogs",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "TransportRouteStops",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "TransportDrivers",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "TransportManifests",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "TransportManifestStudents",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "TransportTrips",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "TransportTripEvents",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "VehicleServiceLogs",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "TransportAuditLogs",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "VisitorsAppointments",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "VisitorsLogs",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "StudentAuditLog",
+      "fields": [
+        "schoolId"
+      ]
+    },
+    {
+      "name": "DashboardTasks",
+      "fields": [
+        "tenant_id"
+      ]
+    },
+    {
+      "name": "WorkflowEvents",
+      "fields": [
+        "tenant_id"
+      ]
+    }
+  ]
+}

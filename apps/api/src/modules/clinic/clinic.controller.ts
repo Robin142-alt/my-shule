@@ -123,4 +123,16 @@ export class ClinicController {
   addToQueue(@Body() dto: Record<string, any>) {
     return this.clinicService.addToQueue(dto);
   }
+
+  @Get('parent/students/me/history')
+  @Permissions('portal:read_own_children')
+  getParentStudentHistory() {
+    return this.clinicService.getParentStudentHistory();
+  }
+
+  @Get('medicines/stock')
+  @Permissions('clinic:read')
+  getMedicinesStock() {
+    return this.clinicService.getMedicinesStock();
+  }
 }

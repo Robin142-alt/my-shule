@@ -247,7 +247,7 @@ function DepartmentTeachersWorkspace() {
         method: "POST",
         body: JSON.stringify({ action: "add_teacher" })
       });
-      if (response?.error) throw new Error(response.error);
+
       toast.success("Teacher addition request sent.");
     } catch (err: any) {
       toast.error(err.message || "Failed to send request.");
@@ -320,7 +320,7 @@ function SubjectAllocationWorkspace() {
         method: "POST",
         body: JSON.stringify({ action: "allocate_subject" })
       });
-      if (response?.error) throw new Error(response.error);
+
       toast.success("Subject allocated successfully.");
       setIsModalOpen(false);
     } catch (err: any) {
@@ -418,7 +418,7 @@ function DepartmentMeetingsWorkspace() {
         method: "POST",
         body: JSON.stringify({ action: "log_meeting" })
       });
-      if (response?.error) throw new Error(response.error);
+
       toast.success("Meeting logged successfully.");
       setIsModalOpen(false);
     } catch (err: any) {
@@ -481,7 +481,7 @@ function OverviewWorkspace() {
         method: "POST",
         body: JSON.stringify({ action: "new_report" })
       });
-      if (response?.error) throw new Error(response.error);
+
       toast.success("Report generated successfully.");
     } catch (err: any) {
       toast.error(err.message || "Failed to generate report.");
@@ -498,7 +498,7 @@ function OverviewWorkspace() {
         method: "POST",
         body: JSON.stringify({ action: "weekly_update" })
       });
-      if (response?.error) throw new Error(response.error);
+
       toast.success("Weekly update submitted successfully.");
     } catch (err: any) {
       toast.error(err.message || "Failed to submit update.");

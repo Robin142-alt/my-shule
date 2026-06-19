@@ -1,0 +1,9139 @@
+# Placeholder Workspaces Analysis Report
+
+## Summary
+- **Total Workspace Files Scanned**: 300
+- **Placeholder Workspaces Identified (rendering `DocxOperationalWorkspace`)**: 143
+
+This report compiles all workspace files under `apps/web/src/components/school` that act as placeholders by rendering `DocxOperationalWorkspace`. It groups them by role directory, evaluates if they are defined in `generated-workspace-definitions.ts`, and checks for corresponding backend references in `apps/api/src`.
+
+---
+
+## Detailed Findings by Role
+
+### Role: `admissions`
+
+| File Name | Module ID | Definition Status | Backend Status | Refs |
+| :--- | :--- | :--- | :--- | :--- |
+| `admissions-workspace.tsx` | `admissions` | ✅ Found (Admissions) | ✅ Referenced (412 refs) | `app.module.ts`, `auth.constants.ts`, `auth.test.ts`... |
+| `applications-workspace.tsx` | `applications` | ✅ Found (Applications) | ✅ Referenced (126 refs) | `auth.constants.ts`, `report-csv-artifact.test.ts`, `schema.sql`... |
+| `class-placement-workspace.tsx` | `class-placement` | ❌ Missing | ✅ Referenced (1 refs) | `admissions-command.controller.ts` |
+| `documents-workspace.tsx` | `documents` | ❌ Missing | ✅ Referenced (105 refs) | `auth.constants.ts`, `role-governance-policy.ts`, `workflow-runtime-contract.ts`... |
+| `interviews-workspace.tsx` | `interviews` | ❌ Missing | ✅ Referenced (26 refs) | `admissions-command.controller.ts`, `admissions-command.repository.ts`, `admissions-schema.service.ts`... |
+| `overview-workspace.tsx` | `overview` | ✅ Found (Overview) | ✅ Referenced (106 refs) | `billing-feature.middleware.test.ts`, `admin-command.controller.ts`, `admissions-command.controller.ts`... |
+| `parent-linking-workspace.tsx` | `parent-linking` | ❌ Missing | ❌ Missing | None |
+| `reports-workspace.tsx` | `reports` | ✅ Found (Reports) | ✅ Referenced (371 refs) | `auth-email.service.test.ts`, `auth.constants.ts`, `monitoring-service-account.service.ts`... |
+
+#### Backend Reference Details for `admissions`:
+- **`admissions-workspace.tsx` (`admissions`)**:
+  - `apps/api/src/app.module.ts`:
+    - Line 39: `import { AdmissionsModule } from './modules/admissions/admissions.module';`
+  - `apps/api/src/auth/auth.constants.ts`:
+    - Line 39: `export const DEFAULT_ROLE_ADMISSIONS_OFFICER = 'admissions_officer';`
+    - Line 90: `{ resource: 'admissions', action: 'read', description: 'View admissions workflows' },`
+  - `apps/api/src/auth/auth.test.ts`:
+    - Line 127: `'admissions_officer',`
+  - `apps/api/src/auth/dto/tenant-invitation.dto.ts`:
+    - Line 27: `'admissions_officer',`
+  - `apps/api/src/auth/identity-blueprint.test.ts`:
+    - Line 45: `assert.equal(normalizeBlueprintRole('Admissions Officer'), 'admissions_officer');`
+  - `apps/api/src/auth/identity-blueprint.ts`:
+    - Line 51: `'admissions_officer',`
+    - Line 100: `admissions: 'admissions_officer',`
+  - `apps/api/src/auth/monitoring-service-account.service.ts`:
+    - Line 13: `'admissions:read',`
+  - `apps/api/src/auth/role-governance-policy.ts`:
+    - Line 79: `'admissions_officer',`
+    - Line 107: `admissions_officer: ['admissions'],`
+  - `apps/api/src/auth/tenant-invitations.service.ts`:
+    - Line 38: `admissions_officer: 40,`
+  - `apps/api/src/common/cache/cache-invalidation-rules.ts`:
+    - Line 20: `module: 'admissions',`
+    - Line 22: `namespaces: ['admissions:list', 'students:lookup', 'dashboard:principal'],`
+  - `apps/api/src/common/platform-governance/workflow-runtime-contract.ts`:
+    - Line 368: `queueItem('queue-admissions', 'admissions-workflow-1', 'admissions-review', 'application-batch-1', [`
+  - `apps/api/src/common/reports/report-csv-artifact.test.ts`:
+    - Line 11: `filename: 'admissions-applications.csv',`
+    - Line 22: `assert.equal(artifact.filename, 'admissions-applications.csv');`
+  - `apps/api/src/common/reports/report-export-queue.ts`:
+    - Line 36: `admissions: 'admissions',`
+  - `apps/api/src/common/uploads/database-file-storage.service.test.ts`:
+    - Line 176: `storagePath: 'tenant/tenant-a/admissions/birth-certificate.pdf',`
+    - Line 181: `metadata: { domain: 'admissions' },`
+  - `apps/api/src/database/schema.sql`:
+    - Line 2947: `CREATE TABLE IF NOT EXISTS admissions_applications (`
+    - Line 2958: `ALTER TABLE admissions_applications ENABLE ROW LEVEL SECURITY;`
+  - `apps/api/src/database/tenant-database-policy.ts`:
+    - Line 80: `admissions: ['admission_applications', 'admission_workflow_steps'],`
+  - `apps/api/src/modules/admin-command/admin-command.module.ts`:
+    - Line 8: `import { AdmissionsCommandController } from './admissions-command.controller';`
+    - Line 9: `import { AdmissionsCommandService } from './admissions-command.service';`
+  - `apps/api/src/modules/admin-command/admissions-command.controller.ts`:
+    - Line 3: `import { AdmissionsCommandService } from './admissions-command.service';`
+    - Line 5: `@Controller('admin-command/admissions')`
+  - `apps/api/src/modules/admin-command/admissions-command.service.ts`:
+    - Line 3: `import { AdmissionsCommandRepository } from './repositories/admissions-command.repository';`
+    - Line 11: `private readonly admissionsRepository: AdmissionsCommandRepository`
+  - `apps/api/src/modules/admin-command/repositories/admissions-command.repository.ts`:
+    - Line 192: `const readmissions = await this.executeSql(tenantId, `SELECT COUNT(*) as count FROM student_transfer_records WHERE tenant_id = $1 AND transfer_type = 'readmission'`, [tenantId]);`
+    - Line 197: `readmissions: Number(readmissions.rows[0]?.count || 0),`
+  - `apps/api/src/modules/admissions/admissions.controller.ts`:
+    - Line 35: `import { ListAdmissionsQueryDto } from './dto/list-admissions-query.dto';`
+    - Line 45: `import { AdmissionsService } from './admissions.service';`
+  - `apps/api/src/modules/admissions/admissions.module.ts`:
+    - Line 9: `import { AdmissionsController } from './admissions.controller';`
+    - Line 10: `import { AdmissionsSchemaService } from './admissions-schema.service';`
+  - `apps/api/src/modules/admissions/admissions.repository.test.ts`:
+    - Line 4: `import { AdmissionsSchemaService } from './admissions-schema.service';`
+    - Line 5: `import { AdmissionsRepository } from './repositories/admissions.repository';`
+  - `apps/api/src/modules/admissions/admissions.service.ts`:
+    - Line 31: `import { ListAdmissionsQueryDto } from './dto/list-admissions-query.dto';`
+    - Line 41: `import { AdmissionsRepository } from './repositories/admissions.repository';`
+  - `apps/api/src/modules/admissions/admissions.test.ts`:
+    - Line 8: `import { AdmissionsSchemaService } from './admissions-schema.service';`
+    - Line 9: `import { AdmissionsService } from './admissions.service';`
+  - `apps/api/src/modules/compliance/data-protection-policy.ts`:
+    - Line 28: `| 'admissions'`
+    - Line 114: `'admissions',`
+  - `apps/api/src/modules/events/event-publisher.service.ts`:
+    - Line 195: `): Promise<DomainEvent<'admissions.cleared'>> {`
+    - Line 197: `event_key: `admissions.cleared:${payload.applicant_id}`,`
+  - `apps/api/src/modules/events/events.types.ts`:
+    - Line 31: `| 'admissions.cleared'`
+    - Line 370: `'admissions.cleared': AdmissionsClearedPayload;`
+  - `apps/api/src/modules/implementation300/blueprint-registry.ts`:
+    - Line 29: `| 'admissions'`
+    - Line 418: `moduleDefinition('admissions', 'Admissions', ['applications', 'workflow', 'interviews', 'exams', 'approvals', 'letters'], [`
+  - `apps/api/src/modules/module-access/module-access.constants.ts`:
+    - Line 26: `code: 'admissions',`
+    - Line 30: `route_segment: 'admissions',`
+  - `apps/api/src/scripts/audit-coverage-review.test.ts`:
+    - Line 13: `AUDIT_COVERAGE_REQUIREMENTS.some((requirement) => requirement.id === 'admissions-academic-events'),`
+  - `apps/api/src/scripts/audit-coverage-review.ts`:
+    - Line 93: `id: 'admissions-academic-events',`
+    - Line 94: `module: 'admissions',`
+  - `apps/api/src/scripts/base-onboarding-seed.ts`:
+    - Line 11: `'admissions',`
+    - Line 246: `{ moduleCode: 'admissions', table: 'admission_applications', tenantScoped: true },`
+  - `apps/api/src/scripts/core-api-load.test.ts`:
+    - Line 15: `assert.ok(workloadIds.includes('admissions-report-export'));`
+  - `apps/api/src/scripts/core-api-load.ts`:
+    - Line 120: `id: 'admissions-summary',`
+    - Line 122: `path: '/admissions/summary',`
+  - `apps/api/src/scripts/generate-pilot-school-fixture.ts`:
+    - Line 31: `'admissions',`
+  - `apps/api/src/scripts/generate-production-scorecard.test.ts`:
+    - Line 13: `"admissions",`
+  - `apps/api/src/scripts/high-volume-workflow-load.test.ts`:
+    - Line 16: `'admissions-lists',`
+  - `apps/api/src/scripts/high-volume-workflow-load.ts`:
+    - Line 16: `{ id: 'admissions-lists', method: 'GET', path: '/admissions/applications', targetP95Ms: 700 },`
+  - `apps/api/src/scripts/implementation100-certification.test.ts`:
+    - Line 61: `'apps/api/src/modules/admissions/repositories/admissions.repository.ts': 'FROM admission_applications LEFT JOIN admission_documents FROM student_academic_enrollments',`
+    - Line 66: `for (const moduleCode of ['students', 'finance', 'discipline', 'admissions', 'principal_dashboard']) {`
+  - `apps/api/src/scripts/implementation100-certification.ts`:
+    - Line 61: `moduleEvidence('admissions', 'Admissions', 'apps/web/src/components/modules/admissions/admissions-module-screen.tsx', ['AdmissionsModuleScreen'], 'apps/web/src/app/api/admissions/[...path]/route.ts', ['proxySchoolApiRequest', '/admissions'], 'apps/api/src/modules/admissions/admissions.controller.ts', ['AdmissionsController'], 'apps/api/src/modules/admissions/repositories/admissions.repository.ts', ['admission_applications', 'student_academic_enrollments'], 'apps/api/src/modules/admissions/admissions.test.ts', ['admissions']),`
+  - `apps/api/src/scripts/kisumu-boys-demo-seed.ts`:
+    - Line 10: `'admissions',`
+    - Line 245: `{ moduleCode: 'admissions', table: 'admission_applications', tenantScoped: true },`
+  - `apps/api/src/scripts/module-access-certification.test.ts`:
+    - Line 11: `'apps/api/src/modules/admissions/admissions.controller.ts': '@Controller(\'admissions\') @RequiresModule(\'admissions\')',`
+    - Line 39: `'apps/api/src/modules/module-access/module-access.constants.ts': 'MODULE_REGISTRY_SEED students admissions academics finance exams discipline timetable lab_management teacher_biometric_attendance parent_portal inventory library transport communication_sms reports staff admin_command_centers principal_dashboard clinic_health procurement hostel boarding cbt_exams lms ai_insights visitor_management asset_tracking iot permission_scopes',`
+  - `apps/api/src/scripts/module-access-certification.ts`:
+    - Line 49: `backendRoute('admissions', 'Admissions routes require the admissions module', 'apps/api/src/modules/admissions/admissions.controller.ts', 'admissions'),`
+    - Line 82: `frontendRoute('admissions', 'admissions'),`
+  - `apps/api/src/scripts/query-plan-review.test.ts`:
+    - Line 21: `assert.ok(reviewIds.includes('admissions-application-search'));`
+  - `apps/api/src/scripts/query-plan-review.ts`:
+    - Line 65: `id: 'admissions-application-search',`
+    - Line 66: `description: 'Admissions application search should use the admissions full-text index.',`
+  - `apps/api/src/scripts/release-readiness-gate.test.ts`:
+    - Line 13: `"admissions",`
+    - Line 689: `'apps/api/src/modules/admissions/admissions.controller.ts': ``
+  - `apps/api/src/scripts/release-readiness-gate.ts`:
+    - Line 75: `'admissions',`
+    - Line 100: `'admissions-report-export',`
+  - `apps/api/src/scripts/synthetic-journey-monitor.ts`:
+    - Line 181: `id: 'admissions-summary',`
+    - Line 184: `path: '/admissions/summary',`
+- **`applications-workspace.tsx` (`applications`)**:
+  - `apps/api/src/auth/auth.constants.ts`:
+    - Line 732: `description: 'Admissions inquiries, applications, document checks, onboarding, and parent handoff access',`
+  - `apps/api/src/common/reports/report-csv-artifact.test.ts`:
+    - Line 9: `reportId: 'applications',`
+    - Line 11: `filename: 'admissions-applications.csv',`
+  - `apps/api/src/database/schema.sql`:
+    - Line 2947: `CREATE TABLE IF NOT EXISTS admissions_applications (`
+    - Line 2958: `ALTER TABLE admissions_applications ENABLE ROW LEVEL SECURITY;`
+  - `apps/api/src/database/tenant-database-policy.ts`:
+    - Line 80: `admissions: ['admission_applications', 'admission_workflow_steps'],`
+  - `apps/api/src/modules/admin-command/admissions-command.controller.ts`:
+    - Line 17: `@Get('applications')`
+    - Line 86: `applications,`
+  - `apps/api/src/modules/admin-command/repositories/admissions-command.repository.ts`:
+    - Line 18: `const applicationsPending = await this.executeSql(tenantId, `SELECT COUNT(*) as count FROM admission_applications WHERE tenant_id = $1 AND status = 'pending'`, [tenantId]);`
+    - Line 24: `(SELECT id::text, 'Application Submitted' as action, full_name as applicant, created_at as time FROM admission_applications WHERE tenant_id = $1)`
+  - `apps/api/src/modules/admissions/admissions-schema.service.ts`:
+    - Line 55: `CREATE TABLE IF NOT EXISTS admission_applications (`
+    - Line 84: `CONSTRAINT uq_admission_applications_tenant_id_id UNIQUE (tenant_id, id),`
+  - `apps/api/src/modules/admissions/admissions.controller.ts`:
+    - Line 94: `@Get('applications')`
+    - Line 101: `@Post('applications/:id/enrol')`
+  - `apps/api/src/modules/admissions/admissions.service.ts`:
+    - Line 97: `'applications',`
+    - Line 99: `id: 'applications',`
+  - `apps/api/src/modules/admissions/admissions.test.ts`:
+    - Line 47: `assert.match(schemaSql, /CREATE INDEX IF NOT EXISTS ix_admission_applications_search_vector/);`
+    - Line 48: `assert.match(schemaSql, /ON admission_applications\s+USING GIN/);`
+  - `apps/api/src/modules/admissions/repositories/admissions.repository.ts`:
+    - Line 56: `FROM admission_applications`
+    - Line 64: `FROM admission_applications`
+  - `apps/api/src/modules/implementation300/blueprint-registry.ts`:
+    - Line 418: `moduleDefinition('admissions', 'Admissions', ['applications', 'workflow', 'interviews', 'exams', 'approvals', 'letters'], [`
+  - `apps/api/src/modules/operations/consumers/export-applications.consumer.ts`:
+    - Line 6: `readonly name = 'export-applications.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'export-applications' && event.payload.action_id !== 'export-applications') {`
+  - `apps/api/src/modules/operations/consumers/import-applications.consumer.ts`:
+    - Line 6: `readonly name = 'import-applications.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'import-applications' && event.payload.action_id !== 'import-applications') {`
+  - `apps/api/src/modules/operations/consumers/index.ts`:
+    - Line 238: `export { ExportApplicationsConsumer } from './export-applications.consumer';`
+    - Line 308: `export { ImportApplicationsConsumer } from './import-applications.consumer';`
+  - `apps/api/src/scripts/base-onboarding-seed.ts`:
+    - Line 246: `{ moduleCode: 'admissions', table: 'admission_applications', tenantScoped: true },`
+  - `apps/api/src/scripts/core-api-load.ts`:
+    - Line 131: `path: '/admissions/reports/applications/export',`
+  - `apps/api/src/scripts/high-volume-workflow-load.ts`:
+    - Line 16: `{ id: 'admissions-lists', method: 'GET', path: '/admissions/applications', targetP95Ms: 700 },`
+  - `apps/api/src/scripts/implementation100-certification.test.ts`:
+    - Line 61: `'apps/api/src/modules/admissions/repositories/admissions.repository.ts': 'FROM admission_applications LEFT JOIN admission_documents FROM student_academic_enrollments',`
+  - `apps/api/src/scripts/implementation100-certification.ts`:
+    - Line 61: `moduleEvidence('admissions', 'Admissions', 'apps/web/src/components/modules/admissions/admissions-module-screen.tsx', ['AdmissionsModuleScreen'], 'apps/web/src/app/api/admissions/[...path]/route.ts', ['proxySchoolApiRequest', '/admissions'], 'apps/api/src/modules/admissions/admissions.controller.ts', ['AdmissionsController'], 'apps/api/src/modules/admissions/repositories/admissions.repository.ts', ['admission_applications', 'student_academic_enrollments'], 'apps/api/src/modules/admissions/admissions.test.ts', ['admissions']),`
+  - `apps/api/src/scripts/kisumu-boys-demo-seed.ts`:
+    - Line 245: `{ moduleCode: 'admissions', table: 'admission_applications', tenantScoped: true },`
+    - Line 1263: `await writer.upsert('admission_applications', { id: admissionApplicationId, tenant_id: tenantId, application_number: 'KB-ADM-DEMO-001', full_name: 'Moses Onyango', date_of_birth: '2012-03-14', gender: 'male', birth_certificate_number: 'KBDEMOBC001', nationality: 'Kenyan', class_applying: 'Form 1', parent_name: 'Grace Onyango', parent_phone: '+254722100001', relationship: 'mother', status: 'under_review' });`
+  - `apps/api/src/scripts/query-plan-review-local-fixture.ts`:
+    - Line 49: `name: 'admission_applications',`
+    - Line 51: `CREATE TABLE IF NOT EXISTS admission_applications (`
+  - `apps/api/src/scripts/query-plan-review.test.ts`:
+    - Line 203: `'admission_applications',`
+  - `apps/api/src/scripts/query-plan-review.ts`:
+    - Line 69: `FROM admission_applications`
+    - Line 85: `protectedTables: ['admission_applications'],`
+  - `apps/api/src/scripts/synthetic-journey-monitor.ts`:
+    - Line 286: `path: '/admissions/reports/applications/export',`
+- **`class-placement-workspace.tsx` (`class-placement`)**:
+  - `apps/api/src/modules/admin-command/admissions-command.controller.ts`:
+    - Line 45: `@Get('class-placement')`
+- **`documents-workspace.tsx` (`documents`)**:
+  - `apps/api/src/auth/auth.constants.ts`:
+    - Line 76: `{ resource: 'hr', action: 'write', description: 'Manage staff profiles, contracts, leave, and documents' },`
+    - Line 92: `{ resource: 'documents', action: 'read', description: 'View document records' },`
+  - `apps/api/src/auth/role-governance-policy.ts`:
+    - Line 130: `secretary: ['secretary:read', 'secretary:write', 'admissions:read', 'documents:write', 'school_sms:send'],`
+  - `apps/api/src/common/platform-governance/workflow-runtime-contract.ts`:
+    - Line 370: `'request-documents',`
+  - `apps/api/src/database/schema.sql`:
+    - Line 3813: `CREATE TABLE IF NOT EXISTS office_documents (`
+    - Line 3825: `ALTER TABLE office_documents ENABLE ROW LEVEL SECURITY;`
+  - `apps/api/src/database/tenant-database-policy.ts`:
+    - Line 94: `staff: ['staff_profiles', 'staff_leave_requests', 'staff_documents'],`
+  - `apps/api/src/modules/admin-command/admissions-command.controller.ts`:
+    - Line 25: `@Get('documents')`
+    - Line 88: `documents,`
+  - `apps/api/src/modules/admin-command/repositories/admissions-command.repository.ts`:
+    - Line 19: `const documentsMissing = await this.executeSql(tenantId, `SELECT COUNT(*) as count FROM admission_documents WHERE tenant_id = $1 AND verification_status = 'pending'`, [tenantId]);`
+    - Line 33: `documentsMissing: Number(documentsMissing.rows[0]?.count || 0),`
+  - `apps/api/src/modules/admissions/admissions-schema.service.ts`:
+    - Line 90: `CREATE TABLE IF NOT EXISTS admission_documents (`
+    - Line 106: `CONSTRAINT uq_admission_documents_tenant_id_id UNIQUE (tenant_id, id),`
+  - `apps/api/src/modules/admissions/admissions.controller.ts`:
+    - Line 122: `@Post('applications/:applicationId/documents')`
+    - Line 123: `@Permissions('documents:write')`
+  - `apps/api/src/modules/admissions/admissions.repository.test.ts`:
+    - Line 31: `const missingDocumentsQuery = queries.find((sql) => sql.includes('COUNT(document.id)::int AS uploaded_documents'));`
+  - `apps/api/src/modules/admissions/admissions.service.ts`:
+    - Line 117: `'documents',`
+    - Line 119: `id: 'documents',`
+  - `apps/api/src/modules/admissions/admissions.test.ts`:
+    - Line 132: `permissions: ['admissions:*', 'students:*', 'documents:*'],`
+    - Line 239: `observed.documents = options;`
+  - `apps/api/src/modules/admissions/repositories/admissions.repository.ts`:
+    - Line 76: `COUNT(document.id)::int AS uploaded_documents`
+    - Line 78: `LEFT JOIN admission_documents document`
+  - `apps/api/src/modules/class-teacher/class-teacher.controller.ts`:
+    - Line 338: `@Get('documents')`
+  - `apps/api/src/modules/discipline/discipline-schema.service.ts`:
+    - Line 22: `'discipline_generated_documents',`
+    - Line 447: `CREATE TABLE IF NOT EXISTS discipline_generated_documents (`
+  - `apps/api/src/modules/discipline/discipline.controller.ts`:
+    - Line 256: `@Post('incidents/:incidentId/documents')`
+  - `apps/api/src/modules/hr/hr-schema.service.ts`:
+    - Line 12: `'staff_documents',`
+    - Line 127: `CREATE TABLE IF NOT EXISTS staff_documents (`
+  - `apps/api/src/modules/hr/hr.controller.ts`:
+    - Line 116: `@Post('documents')`
+    - Line 122: `@Get('documents/:staffId')`
+  - `apps/api/src/modules/hr/repositories/hr.repository.ts`:
+    - Line 481: `INSERT INTO staff_documents (`
+    - Line 504: `FROM staff_documents`
+  - `apps/api/src/modules/implementation300/blueprint-registry.ts`:
+    - Line 414: `moduleDefinition('students', 'Student Management', ['biodata', 'guardians', 'documents', 'lifecycle', 'analytics', 'nemis-hooks'], [`
+  - `apps/api/src/modules/module-access/module-access.constants.ts`:
+    - Line 154: `description: 'Staff profiles, contracts, leave, documents, duty ownership, and payroll summaries.',`
+  - `apps/api/src/modules/operations/consumers/index.ts`:
+    - Line 401: `export { OpenDocumentsConsumer } from './open-documents.consumer';`
+    - Line 663: `export { UploadDocumentsConsumer } from './upload-documents.consumer';`
+  - `apps/api/src/modules/operations/consumers/open-documents.consumer.ts`:
+    - Line 6: `readonly name = 'open-documents.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'open-documents' && event.payload.action_id !== 'open-documents') {`
+  - `apps/api/src/modules/operations/consumers/upload-documents.consumer.ts`:
+    - Line 6: `readonly name = 'upload-documents.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'upload-documents' && event.payload.action_id !== 'upload-documents') {`
+  - `apps/api/src/modules/operations/consumers/verify-documents.consumer.ts`:
+    - Line 6: `readonly name = 'verify-documents.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'verify-documents' && event.payload.action_id !== 'verify-documents') {`
+  - `apps/api/src/modules/secretary/secretary.controller.ts`:
+    - Line 54: `@Get('documents')`
+  - `apps/api/src/modules/secretary/secretary.service.ts`:
+    - Line 78: ``SELECT * FROM office_documents WHERE tenant_id = $1 ORDER BY created_at DESC`,`
+  - `apps/api/src/modules/security/data-classification-registry.service.ts`:
+    - Line 66: `{ column: 'admission_documents.identity_document_number', classification: 'sensitive_child_data', encryption: 'column', redaction: 'mask' },`
+  - `apps/api/src/scripts/implementation100-certification.test.ts`:
+    - Line 61: `'apps/api/src/modules/admissions/repositories/admissions.repository.ts': 'FROM admission_applications LEFT JOIN admission_documents FROM student_academic_enrollments',`
+  - `apps/api/src/scripts/implementation30-certification.ts`:
+    - Line 121: `check('env-example-callback-trust-mode', 'Default env template documents the M-Pesa callback trust mode', '.env.example', /MPESA_CALLBACK_TRUST_MODE=edge_signed/),`
+    - Line 123: `check('env-example-transaction-status-credential', 'Default env template documents the Daraja transaction-status security credential placeholder', '.env.example', /MPESA_TRANSACTION_STATUS_SECURITY_CREDENTIAL=replace-with-daraja-transaction-status-security-credential/),`
+  - `apps/api/src/scripts/module-certification.ts`:
+    - Line 105: `workflow('reports-and-documents', 'Reports, documents, and confidential export safety', [`
+- **`interviews-workspace.tsx` (`interviews`)**:
+  - `apps/api/src/modules/admin-command/admissions-command.controller.ts`:
+    - Line 29: `@Get('interviews')`
+    - Line 89: `interviews,`
+  - `apps/api/src/modules/admin-command/repositories/admissions-command.repository.ts`:
+    - Line 20: `const interviewsScheduled = await this.executeSql(tenantId, `SELECT COUNT(*) as count FROM admission_interviews WHERE tenant_id = $1 AND status = 'scheduled'`, [tenantId]);`
+    - Line 26: `(SELECT id::text, 'Interview Scheduled' as action, '' as applicant, created_at as time FROM admission_interviews WHERE tenant_id = $1)`
+  - `apps/api/src/modules/admissions/admissions-schema.service.ts`:
+    - Line 486: `CREATE TABLE IF NOT EXISTS admission_interviews (`
+    - Line 505: `CONSTRAINT uq_admission_interviews_tenant_id_id UNIQUE (tenant_id, id),`
+  - `apps/api/src/modules/admissions/admissions.controller.ts`:
+    - Line 307: `@Post('interviews')`
+  - `apps/api/src/modules/implementation300/blueprint-registry.ts`:
+    - Line 418: `moduleDefinition('admissions', 'Admissions', ['applications', 'workflow', 'interviews', 'exams', 'approvals', 'letters'], [`
+  - `apps/api/src/modules/operations/consumers/index.ts`:
+    - Line 573: `export { ScheduleInterviewsConsumer } from './schedule-interviews.consumer';`
+  - `apps/api/src/modules/operations/consumers/schedule-interviews.consumer.ts`:
+    - Line 6: `readonly name = 'schedule-interviews.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'schedule-interviews' && event.payload.action_id !== 'schedule-interviews') {`
+- **`overview-workspace.tsx` (`overview`)**:
+  - `apps/api/src/middleware/billing-feature.middleware.test.ts`:
+    - Line 75: `await requestContext.run(createContext('/admin-command/principal/overview'), async () => {`
+    - Line 78: `path: '/admin-command/principal/overview',`
+  - `apps/api/src/modules/admin-command/admin-command.controller.ts`:
+    - Line 33: `@Get('principal/finance-overview')`
+    - Line 103: `@Get('principal/overview')`
+  - `apps/api/src/modules/admin-command/admissions-command.controller.ts`:
+    - Line 9: `@Get('overview')`
+    - Line 84: `overview,`
+  - `apps/api/src/modules/admin-command/deputy-command.controller.ts`:
+    - Line 9: `@Get('overview')`
+  - `apps/api/src/modules/admin-command/principal-insights.providers.ts`:
+    - Line 6: `id: 'school_overview',`
+    - Line 8: `category: 'overview',`
+  - `apps/api/src/modules/admin-command/principal-insights.service.ts`:
+    - Line 164: `const overview = await this.repository.getPrincipalOverviewSnapshot(tenantId);`
+    - Line 190: `overview,`
+  - `apps/api/src/modules/admin-command/principal-insights.types.ts`:
+    - Line 54: `overview: PrincipalOverviewPanel;`
+  - `apps/api/src/modules/admin-command/repositories/admin-command.repository.ts`:
+    - Line 1221: `defaultView: "overview"`
+  - `apps/api/src/modules/billing/billing-access.service.ts`:
+    - Line 59: `const { subscription, overview } =`
+    - Line 61: `const access = this.buildAccessState(subscription, overview);`
+  - `apps/api/src/modules/billing/billing-lifecycle.service.ts`:
+    - Line 60: `overview: SubscriptionLifecycleOverview | null;`
+    - Line 69: `overview: null,`
+  - `apps/api/src/modules/billing/billing-notification.service.ts`:
+    - Line 18: `overview: SubscriptionLifecycleOverview,`
+    - Line 20: `const descriptors = this.buildDescriptors(subscription, overview);`
+  - `apps/api/src/modules/billing/billing.service.ts`:
+    - Line 281: `if (!lifecycle.subscription || !lifecycle.overview) {`
+    - Line 285: `return this.mapSubscription(lifecycle.subscription, lifecycle.overview);`
+  - `apps/api/src/modules/billing/billing.test.ts`:
+    - Line 129: `overview: null,`
+    - Line 877: `ensureCurrentLifecycle: async () => ({ subscription: null, overview: null }),`
+  - `apps/api/src/modules/class-teacher/class-teacher.controller.ts`:
+    - Line 20: `@Get('overview')`
+    - Line 30: `@Get('dashboard-overview')`
+  - `apps/api/src/modules/dashboard/dashboard.controller.ts`:
+    - Line 34: `@Get('parent/overview')`
+    - Line 58: `@Get('student/overview')`
+  - `apps/api/src/modules/discipline/discipline.controller.ts`:
+    - Line 244: `@Get('analytics/overview')`
+  - `apps/api/src/modules/finance/finance.controller.ts`:
+    - Line 306: `@Get('accounts-overview')`
+  - `apps/api/src/modules/grade-master/grade-master.controller.ts`:
+    - Line 9: `@Get('overview')`
+  - `apps/api/src/modules/operations/consumers/export-overview.consumer.ts`:
+    - Line 6: `readonly name = 'export-overview.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'export-overview' && event.payload.action_id !== 'export-overview') {`
+  - `apps/api/src/modules/operations/consumers/index.ts`:
+    - Line 262: `export { ExportOverviewConsumer } from './export-overview.consumer';`
+  - `apps/api/src/modules/platform/platform-onboarding.service.test.ts`:
+    - Line 665: `test('PlatformOnboardingService summarizes tenants in product for the Super Admin overview', async () => {`
+  - `apps/api/src/scripts/core-api-load.ts`:
+    - Line 203: `path: '/discipline/analytics/overview',`
+  - `apps/api/src/scripts/high-volume-workflow-load.ts`:
+    - Line 29: `{ id: 'discipline-analytics', method: 'GET', path: '/discipline/analytics/overview', targetP95Ms: 800 },`
+- **`parent-linking-workspace.tsx` (`parent-linking`)**: No backend references found in `apps/api/src`.
+- **`reports-workspace.tsx` (`reports`)**:
+  - `apps/api/src/auth/auth-email.service.test.ts`:
+    - Line 6: `test('AuthEmailService reports transactional email as missing without secrets', () => {`
+    - Line 20: `test('AuthEmailService reports transactional email as configured without exposing secrets', () => {`
+  - `apps/api/src/auth/auth.constants.ts`:
+    - Line 59: `{ resource: 'reports', action: 'read', description: 'View generated report export jobs and snapshots' },`
+    - Line 108: `{ resource: 'discipline', action: 'reports', description: 'Export discipline reports and analytics' },`
+  - `apps/api/src/auth/monitoring-service-account.service.ts`:
+    - Line 16: `'reports:read',`
+  - `apps/api/src/auth/role-governance-policy.ts`:
+    - Line 125: `platform_support: ['support:view', 'support:manage', 'reports:read'],`
+    - Line 126: `finance_admin: ['billing:read', 'billing:write', 'reports:read'],`
+  - `apps/api/src/common/auto-repair/auto-repair-agent.test.ts`:
+    - Line 474: `operationalIntent: 'Bursar can act on finance exceptions, not browse static trend reports',`
+    - Line 706: `test('AutoRepairAgent reports dashboard repair patch intelligence for KPI-only dashboards', () => {`
+  - `apps/api/src/common/auto-repair/auto-repair-deployment.test.ts`:
+    - Line 43: `test('AutoRepairService reports deployed runtime readiness and keeps the full widget state contract', () => {`
+  - `apps/api/src/common/common.module.ts`:
+    - Line 12: `import { ReportExportQueueService } from './reports/report-export-queue';`
+    - Line 13: `import { ReportExportJobsController } from './reports/report-export-jobs.controller';`
+  - `apps/api/src/common/reports/report-artifact-storage.service.test.ts`:
+    - Line 18: `retention_policy: 'reports',`
+    - Line 48: `assert.equal(savedInputs[0].storagePath, `tenant/tenant-a/reports/billing/invoices/${'b'.repeat(64)}.pdf`);`
+  - `apps/api/src/common/reports/report-artifact-storage.service.ts`:
+    - Line 40: `retentionPolicy: 'reports',`
+    - Line 73: `return `tenant/${input.tenantId}/reports/${module}/${reportId}/${input.artifact.checksumSha256}.${extension}`;`
+  - `apps/api/src/common/reports/report-export-jobs.controller.ts`:
+    - Line 7: `@Controller('reports')`
+    - Line 8: `@RequiresModule('reports')`
+  - `apps/api/src/common/reports/report-export-queue.ts`:
+    - Line 52: `reports: 'reports',`
+  - `apps/api/src/common/reports/report-export.worker.test.ts`:
+    - Line 25: `storage_path: 'tenant/tenant-a/reports/exams/exam-results/artifact.pdf',`
+    - Line 80: `storage_path: 'tenant/tenant-a/reports/exams/exam-results/artifact.pdf',`
+  - `apps/api/src/common/reports/report-snapshot.repository.test.ts`:
+    - Line 95: `assert.deepEqual(Reflect.getMetadata(PERMISSIONS_KEY, handler), ['reports:read']);`
+  - `apps/api/src/common/uploads/database-file-storage.service.test.ts`:
+    - Line 685: `test('S3CompatibleObjectStorageService reports failed object deletes as unavailable', async () => {`
+  - `apps/api/src/common/uploads/upload-policy.test.ts`:
+    - Line 252: `test('runProviderMalwareScan returns unsafe verdicts when the provider reports infection', async () => {`
+  - `apps/api/src/database/batch4_schemas.sql`:
+    - Line 71: `CREATE TABLE IF NOT EXISTS operations_reports (`
+    - Line 80: `CONSTRAINT ck_operations_reports_tenant CHECK (tenant_id <> 'global')`
+  - `apps/api/src/database/schema.sql`:
+    - Line 2755: `CREATE TABLE IF NOT EXISTS operations_reports (`
+    - Line 2764: `CONSTRAINT ck_operations_reports_tenant CHECK (tenant_id <> 'global')`
+  - `apps/api/src/database/tenant-database-policy.ts`:
+    - Line 93: `reports: ['report_export_jobs', 'report_snapshots'],`
+  - `apps/api/src/modules/admin-command/admin-command.controller.ts`:
+    - Line 124: `@Get('principal/reports')`
+    - Line 126: `@Permissions('principal:read', 'reports:read')`
+  - `apps/api/src/modules/admin-command/admissions-command.controller.ts`:
+    - Line 69: `@Get('reports')`
+    - Line 99: `reports,`
+  - `apps/api/src/modules/admin-command/deputy-command.controller.ts`:
+    - Line 133: `@Get('reports')`
+    - Line 137: `@Post('reports/generate')`
+  - `apps/api/src/modules/admin-command/principal-insights.providers.ts`:
+    - Line 16: `reports: ['school-overview', 'population-trend'],`
+    - Line 31: `reports: ['academic-summary', 'cbc-cbe-competency-progress'],`
+  - `apps/api/src/modules/admin-command/principal-insights.service.ts`:
+    - Line 184: `const reportExports = Array.from(new Set(sections.flatMap((section) => section.reports)));`
+    - Line 273: `reports: [...provider.reports],`
+  - `apps/api/src/modules/admin-command/principal-insights.types.ts`:
+    - Line 34: `reports: string[];`
+    - Line 81: `reports: string[];`
+  - `apps/api/src/modules/admin-command/repositories/admin-command.repository.ts`:
+    - Line 846: `reportsPending: summaryResult.rows[0]?.pending_reviews || 0,`
+    - Line 1479: ``INSERT INTO operations_reports (content, prepared_by, tenant_id, title, updated_at) VALUES ($1, $2, $3, $4, NOW())`,`
+  - `apps/api/src/modules/admin-command/repositories/deputy-command.repository.ts`:
+    - Line 449: `0::int AS generated_reports`
+    - Line 452: `{ generated_reports: 0 }`
+  - `apps/api/src/modules/admissions/admissions.controller.ts`:
+    - Line 33: `} from '../../common/reports/report-export-queue';`
+    - Line 217: `@Post('reports/:reportId/export-jobs')`
+  - `apps/api/src/modules/admissions/admissions.service.ts`:
+    - Line 22: `} from '../../common/reports/report-csv-artifact';`
+  - `apps/api/src/modules/admissions/admissions.test.ts`:
+    - Line 197: `path: '/admissions/reports/applications/export',`
+    - Line 350: `path: '/admissions/reports/unknown/export',`
+  - `apps/api/src/modules/billing/billing.controller.ts`:
+    - Line 15: `} from '../../common/reports/report-export-queue';`
+    - Line 214: `@Post('reports/:reportId/export-jobs')`
+  - `apps/api/src/modules/billing/billing.service.ts`:
+    - Line 14: `} from '../../common/reports/report-csv-artifact';`
+  - `apps/api/src/modules/billing/billing.test.ts`:
+    - Line 2245: `path: '/billing/reports/invoices/export',`
+    - Line 2297: `path: '/billing/reports/unknown/export',`
+  - `apps/api/src/modules/biometric-attendance/biometric-attendance.controller.ts`:
+    - Line 52: `@Get('reports/monthly')`
+  - `apps/api/src/modules/class-teacher/class-teacher.controller.ts`:
+    - Line 358: `@Get('reports')`
+  - `apps/api/src/modules/clinic/clinic.controller.ts`:
+    - Line 62: `@Permissions('clinic:reports')`
+  - `apps/api/src/modules/clinic/clinic.service.ts`:
+    - Line 171: `this.assertPermission('clinic:reports');`
+  - `apps/api/src/modules/clinic/clinic.test.ts`:
+    - Line 58: `assert.deepEqual(Reflect.getMetadata(PERMISSIONS_KEY, analyticsHandler), ['clinic:reports']);`
+  - `apps/api/src/modules/compliance/compliance-schema.service.ts`:
+    - Line 127: `CREATE TABLE IF NOT EXISTS breach_response_reports (`
+    - Line 141: `CONSTRAINT ck_breach_response_reports_severity CHECK (severity IN ('low', 'medium', 'high', 'critical')),`
+  - `apps/api/src/modules/compliance/compliance.controller.ts`:
+    - Line 81: `@Get('breach-response-reports/:reportId/export')`
+  - `apps/api/src/modules/compliance/compliance.service.ts`:
+    - Line 351: `FROM breach_response_reports`
+  - `apps/api/src/modules/compliance/compliance.test.ts`:
+    - Line 33: `assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS breach_response_reports/);`
+    - Line 36: `assert.match(schemaSql, /ALTER TABLE breach_response_reports FORCE ROW LEVEL SECURITY/);`
+  - `apps/api/src/modules/counselling/counselling.controller.ts`:
+    - Line 87: `@Get('reports')`
+  - `apps/api/src/modules/discipline/discipline.controller.ts`:
+    - Line 245: `@Permissions('discipline:reports')`
+    - Line 250: `@Post('reports/export')`
+  - `apps/api/src/modules/discipline/discipline.service.ts`:
+    - Line 636: `this.assertPermission('discipline:reports');`
+    - Line 648: `this.assertPermission('discipline:reports');`
+  - `apps/api/src/modules/discipline/discipline.test.ts`:
+    - Line 65: `'discipline:reports',`
+    - Line 597: `permissions: ['discipline:reports'],`
+  - `apps/api/src/modules/exams/consumers/download-reports.consumer.ts`:
+    - Line 6: `readonly name = 'download-reports.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'download-reports' && event.payload.action_id !== 'download-reports') {`
+  - `apps/api/src/modules/exams/consumers/index.ts`:
+    - Line 10: `export { DownloadReportsConsumer } from './download-reports.consumer';`
+  - `apps/api/src/modules/exams/exams.test.ts`:
+    - Line 648: `test('ExamsService reports duplicate and unauthorized rows during bulk mark upload preview', async () => {`
+  - `apps/api/src/modules/exams/repositories/exams.repository.ts`:
+    - Line 1481: `(SELECT COUNT(*) FROM student_report_cards WHERE tenant_id = $1 AND status = 'published') AS published_reports,`
+  - `apps/api/src/modules/exams/services/report-card-pdf-artifact.ts`:
+    - Line 3: `import { normalizeReportFilename, normalizeReportGeneratedAt, type ReportArtifact } from '../../../common/reports/report-artifact';`
+  - `apps/api/src/modules/exams/services/report-card-template.service.ts`:
+    - Line 3: `import type { ReportArtifactInput, ReportArtifactValue } from '../../../common/reports/report-artifact';`
+  - `apps/api/src/modules/grade-master/grade-master.controller.ts`:
+    - Line 81: `@Get('reports')`
+  - `apps/api/src/modules/grade-master/grade-master.service.ts`:
+    - Line 16: `reportsNotReady: 12,`
+  - `apps/api/src/modules/health/health.controller.test.ts`:
+    - Line 297: `test('HealthController readiness reports optional Redis degradation without throwing', async () => {`
+  - `apps/api/src/modules/implementation300/api-category-policy.ts`:
+    - Line 45: `api('analytics_engine', 'internal', 'reports', ['/api/internal/analytics'], 'internal_service', true, true, 600),`
+  - `apps/api/src/modules/implementation300/blueprint-registry.ts`:
+    - Line 42: `| 'reports'`
+    - Line 437: `moduleDefinition('exams', 'Exams and Results', ['setup', 'grading', 'cbc-assessment', 'moderation', 'reports', 'analytics'], [`
+  - `apps/api/src/modules/implementation300/development-phase-policy.test.ts`:
+    - Line 24: `'reports',`
+    - Line 31: `completedModules: ['authentication', 'tenant_management', 'students', 'finance', 'exams', 'communication_sms', 'reports', 'inventory'],`
+  - `apps/api/src/modules/implementation300/development-phase-policy.ts`:
+    - Line 59: `'reports',`
+    - Line 61: `capabilities: ['tenant_onboarding', 'billing', 'exam_results', 'communication', 'reports'],`
+  - `apps/api/src/modules/integrations/integrations.test.ts`:
+    - Line 202: `test('SmsDispatchService reports missing credential fields without exposing secrets', async () => {`
+  - `apps/api/src/modules/inventory/inventory.controller.ts`:
+    - Line 7: `} from '../../common/reports/report-export-queue';`
+    - Line 246: `@Get('reports')`
+  - `apps/api/src/modules/inventory/inventory.service.ts`:
+    - Line 13: `} from '../../common/reports/report-csv-artifact';`
+    - Line 93: `rows: (reports: InventoryReportsPayload) => ReportCsvValue[][];`
+  - `apps/api/src/modules/inventory/inventory.test.ts`:
+    - Line 2222: `path: '/inventory/reports/stock-valuation/export',`
+    - Line 2250: `throw new Error('reports should not be loaded for an unknown export');`
+  - `apps/api/src/modules/inventory/repositories/inventory.repository.test.ts`:
+    - Line 971: `const reports = await repository.buildReports('tenant-a');`
+    - Line 978: `assert.deepEqual(reports.stock_reconciliation, [`
+  - `apps/api/src/modules/library/library.controller.ts`:
+    - Line 89: `@Get('reports')`
+  - `apps/api/src/modules/mobile/mobile-app-policy.test.ts`:
+    - Line 44: `enabledModules: ['principal_dashboard', 'finance', 'reports'],`
+    - Line 79: `capabilities: ['fees', 'communication', 'reports', 'results'],`
+  - `apps/api/src/modules/mobile/mobile-app-policy.ts`:
+    - Line 9: `| 'reports'`
+    - Line 19: `export type MobileOfflineCapability = 'attendance' | 'mark_entry' | 'assignments' | 'fees' | 'communication' | 'reports' | 'results';`
+  - `apps/api/src/modules/module-access/module-access.constants.ts`:
+    - Line 55: `description: 'Assessments, marks, reports, academic analytics, CBT hooks, and result publishing.',`
+    - Line 67: `permission_scopes: ['discipline:read', 'discipline:write', 'discipline:manage', 'discipline:reports'],`
+  - `apps/api/src/modules/module-access/module-access.test.ts`:
+    - Line 13: `import { ReportExportJobsController } from '../../common/reports/report-export-jobs.controller';`
+    - Line 38: `'reports',`
+  - `apps/api/src/modules/operations/consumers/index.ts`:
+    - Line 505: `export { ReportsConsumer } from './reports.consumer';`
+    - Line 516: `export { RequestReportsConsumer } from './request-reports.consumer';`
+  - `apps/api/src/modules/operations/consumers/reports.consumer.ts`:
+    - Line 6: `readonly name = 'reports.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'reports' && event.payload.action_id !== 'reports') {`
+  - `apps/api/src/modules/operations/consumers/request-reports.consumer.ts`:
+    - Line 6: `readonly name = 'request-reports.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'request-reports' && event.payload.action_id !== 'request-reports') {`
+  - `apps/api/src/modules/operations/consumers/view-reports.consumer.ts`:
+    - Line 6: `readonly name = 'view-reports.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'view-reports' && event.payload.action_id !== 'view-reports') {`
+  - `apps/api/src/modules/operations/operations.service.ts`:
+    - Line 69: ``INSERT INTO operations_reports (tenant_id, title, content, prepared_by)`
+  - `apps/api/src/modules/payments/payments.test.ts`:
+    - Line 3482: `test('MpesaReconciliationService reports missing callbacks, duplicates, amount mismatches, wrong references, and late provider status', async () => {`
+    - Line 4016: `result.reports.map((report) => report.payment_channel_id),`
+  - `apps/api/src/modules/payments/payments.types.ts`:
+    - Line 297: `reports: MpesaReconciliationReport[];`
+    - Line 305: `reports: MpesaReconciliationReport[];`
+  - `apps/api/src/modules/payments/services/mpesa-reconciliation.service.ts`:
+    - Line 446: `const reports: MpesaReconciliationReport[] = [];`
+    - Line 449: `reports.push(`
+  - `apps/api/src/modules/platform/platform-onboarding.service.test.ts`:
+    - Line 470: `test('PlatformOnboardingService reports Resend testing mode as blocked instead of encouraging repeated resends', async () => {`
+  - `apps/api/src/modules/support/support-notification-delivery.service.test.ts`:
+    - Line 12: `test('SupportNotificationDeliveryService reports provider readiness without exposing secrets', async () => {`
+    - Line 97: `test('SupportNotificationDeliveryService reports precise missing provider status for dashboard-managed SMS', async () => {`
+  - `apps/api/src/scripts/audit-coverage-review.test.ts`:
+    - Line 49: `test('runAuditCoverageReview reports missing evidence by file and pattern', () => {`
+  - `apps/api/src/scripts/base-onboarding-seed.ts`:
+    - Line 30: `'reports',`
+    - Line 362: `{ moduleCode: 'reports', table: 'report_snapshots', tenantScoped: true },`
+  - `apps/api/src/scripts/core-api-load.test.ts`:
+    - Line 33: `assert.equal(inventoryExport.url, 'http://127.0.0.1:3000/inventory/reports/stock-valuation/export');`
+  - `apps/api/src/scripts/core-api-load.ts`:
+    - Line 131: `path: '/admissions/reports/applications/export',`
+    - Line 147: `id: 'inventory-reports',`
+  - `apps/api/src/scripts/enable-admin-modules.ts`:
+    - Line 47: `'Module-aware executive KPIs, alerts, analytics, trends, and reports for the Principal.',`
+  - `apps/api/src/scripts/generate-production-scorecard.test.ts`:
+    - Line 22: `"reports",`
+  - `apps/api/src/scripts/generate-production-scorecard.ts`:
+    - Line 150: `remediation: 'Add the tenant isolation audit runner and require it in CI for finance, support, library, discipline, reports, and files.',`
+    - Line 183: `evidenceLine(/missing_provider/.test(supportNotificationSource), 'support notification health reports precise missing provider state'),`
+  - `apps/api/src/scripts/high-volume-workflow-load.test.ts`:
+    - Line 18: `'billing-invoice-reports',`
+  - `apps/api/src/scripts/high-volume-workflow-load.ts`:
+    - Line 18: `{ id: 'billing-invoice-reports', method: 'GET', path: '/billing/reports/invoices/export', targetP95Ms: 900 },`
+    - Line 31: `{ id: 'report-export-jobs', method: 'GET', path: '/reports/export-jobs', targetP95Ms: 800 },`
+  - `apps/api/src/scripts/implementation100-certification.ts`:
+    - Line 74: `moduleEvidence('reports', 'Reports', 'apps/web/src/components/school/school-pages.tsx', ['Reports'], 'apps/web/src/app/api/reports/[...path]/route.ts', ['proxySchoolApiRequest', '/reports'], 'apps/api/src/common/reports/report-export-jobs.controller.ts', ['ReportExportJobsController'], 'apps/api/src/common/reports/report-snapshot-schema.service.ts', ['report_snapshots'], 'apps/api/src/common/reports/report-export-queue.test.ts', ['report']),`
+  - `apps/api/src/scripts/implementation20-certification.test.ts`:
+    - Line 30: `'apps/api/src/modules/biometric-attendance/biometric-attendance.controller.ts': 'live-feed reports/monthly',`
+    - Line 37: `'apps/web/src/app/api/reports/[...path]/route.ts': 'proxySchoolApiRequest "/reports"',`
+  - `apps/api/src/scripts/implementation20-certification.ts`:
+    - Line 72: `check('biometric-live-reports', 'Biometric API exposes live feed and monthly reports', 'apps/api/src/modules/biometric-attendance/biometric-attendance.controller.ts', /live-feed[\s\S]+reports\/monthly/),`
+    - Line 84: `check('reports-web-proxy', 'Web app proxies reports requests to the API', 'apps/web/src/app/api/reports/[...path]/route.ts', /proxySchoolApiRequest[\s\S]+"\/reports"/),`
+  - `apps/api/src/scripts/implementation21-certification.test.ts`:
+    - Line 10: `'apps/api/src/modules/admin-command/principal-insights.providers.ts': 'finance summary_only lab_management communication_sms clinic_health permission_required: \'clinic:reports\' summary_only medicine_consumption_cost_minor wastage_due_to_expiry_minor emergency_supply_ready_rate most_used_medicine ai_insights fee_default_risk_alerts medicine_shortage_predictions attendance_irregularities budget_overrun_alerts performance_decline_warnings',`
+    - Line 29: `'apps/api/src/modules/clinic/clinic.controller.ts': 'clinic:inventory clinic:dispense clinic:reports portal:read_own_children',`
+  - `apps/api/src/scripts/implementation21-certification.ts`:
+    - Line 76: `check('clinic-api-permissions', 'Clinic controller separates inventory, dispensing, reports, and parent history permissions', 'apps/api/src/modules/clinic/clinic.controller.ts', /clinic:inventory[\s\S]+clinic:dispense[\s\S]+clinic:reports[\s\S]+portal:read_own_children/),`
+    - Line 92: `check('principal-no-confidential-notes', 'Principal insights use clinic reports, not confidential permissions', 'apps/api/src/modules/admin-command/principal-insights.providers.ts', /permission_required:\s+'clinic:reports'[\s\S]+summary_only/),`
+  - `apps/api/src/scripts/implementation30-certification.test.ts`:
+    - Line 59: `'apps/api/src/modules/payments/payments.test.ts': 'provider_verification_required exports only redacted payloads redacts C2B API payment responses for legacy raw rows assert.notEqual creates callback channels with hashed secrets builds high-entropy STK and C2B callback URLs high-entropy channel-secret routes creates M-PESA verification jobs verificationJobInput duplicate M-PESA identifiers MpesaTransactionStatusService verifies STK callback status classifies verified C2B payments without ledger enqueue accepts unsigned direct Daraja callbacks rejects unsigned callbacks in edge-signed mode accepts unsigned validation callbacks in direct Daraja mode PaymentsSchemaService creates reconciliation batches MpesaReconciliationService reports missing callbacks, duplicates, amount mismatches, wrong references, and late provider status runs daily reconciliation for every active tenant payment channel generates on-demand date-range reports lists accountant review items without raw M-PESA payload leakage requires two distinct approvers before resolving reversal requests exposes accountant review and finance approval endpoints',`
+    - Line 65: `'apps/api/src/modules/compliance/compliance-schema.service.ts': 'data_subject_requests access_request correction_request deletion_anonymization_request export_request objection_request data_retention_schedules child_data_dpia_records students payments sync_offline breach_response_reports FORCE ROW LEVEL SECURITY',`
+  - `apps/api/src/scripts/implementation30-certification.ts`:
+    - Line 95: `check('mpesa-reconciliation-processor', 'M-Pesa reconciliation service runs daily and date-range reports, persists batches, and classifies mismatch states', 'apps/api/src/modules/payments/services/mpesa-reconciliation.service.ts', /(?=.*generateDailyReport)(?=.*generateDateRangeReport)(?=.*runDailyProcessor)(?=.*reconciliation_state)(?=.*provider_received)(?=.*amount_mismatch)(?=.*duplicate_provider_receipt)(?=.*missing_provider_record)(?=.*verified_unmatched)(?=.*manual_review_required)(?=.*INSERT INTO mpesa_reconciliation_batches)(?=.*INSERT INTO mpesa_reconciliation_discrepancies)/s),`
+    - Line 100: `check('mpesa-reconciliation-tests', 'Payments tests cover reconciliation schema, missing callbacks, duplicates, amount mismatch, wrong references, late provider status, daily processor, and range reports', 'apps/api/src/modules/payments/payments.test.ts', /(?=.*PaymentsSchemaService creates reconciliation batches)(?=.*MpesaReconciliationService reports missing callbacks, duplicates, amount mismatches, wrong references, and late provider status)(?=.*runs daily reconciliation for every active tenant payment channel)(?=.*generates on-demand date-range reports)/s),`
+  - `apps/api/src/scripts/implementation30-load-profile.test.ts`:
+    - Line 35: `'apps/api/src/common/reports/report-export-queue.ts': 'shouldQueueReportExport DEFAULT_SYNC_EXPORT_ROW_LIMIT REPORT_EXPORT_JOB_OPTIONS attempts backoff estimated_rows',`
+    - Line 63: `'apps/api/src/common/reports/report-export-queue.ts': 'shouldQueueReportExport DEFAULT_SYNC_EXPORT_ROW_LIMIT REPORT_EXPORT_JOB_OPTIONS attempts backoff estimated_rows',`
+  - `apps/api/src/scripts/implementation30-load-profile.ts`:
+    - Line 181: `'apps/api/src/common/reports/report-export-queue.ts',`
+  - `apps/api/src/scripts/kisumu-boys-demo-seed.ts`:
+    - Line 29: `'reports',`
+    - Line 361: `{ moduleCode: 'reports', table: 'report_snapshots', tenantScoped: true },`
+  - `apps/api/src/scripts/module-access-certification.test.ts`:
+    - Line 28: `'apps/api/src/common/reports/report-export-jobs.controller.ts': '@Controller(\'reports\') @RequiresModule(\'reports\')',`
+    - Line 39: `'apps/api/src/modules/module-access/module-access.constants.ts': 'MODULE_REGISTRY_SEED students admissions academics finance exams discipline timetable lab_management teacher_biometric_attendance parent_portal inventory library transport communication_sms reports staff admin_command_centers principal_dashboard clinic_health procurement hostel boarding cbt_exams lms ai_insights visitor_management asset_tracking iot permission_scopes',`
+  - `apps/api/src/scripts/module-access-certification.ts`:
+    - Line 67: `backendRoute('reports', 'Report export job routes require the reports module', 'apps/api/src/common/reports/report-export-jobs.controller.ts', 'reports'),`
+    - Line 88: `frontendRoute('reports', 'reports'),`
+  - `apps/api/src/scripts/module-certification.test.ts`:
+    - Line 24: `'apps/web/src/lib/discipline/discipline-live.ts': 'acknowledgeDisciplineIncident exportDisciplineReport reports',`
+  - `apps/api/src/scripts/module-certification.ts`:
+    - Line 105: `workflow('reports-and-documents', 'Reports, documents, and confidential export safety', [`
+    - Line 106: `check('discipline-report-api', 'Discipline reports are exposed through API', 'apps/web/src/lib/discipline/discipline-live.ts', /exportDisciplineReport|reports/),`
+  - `apps/api/src/scripts/release-readiness-gate.test.ts`:
+    - Line 20: `"reports",`
+    - Line 49: `'dist/apps/api/src/common/reports/report-excel-artifact.test.js',`
+  - `apps/api/src/scripts/release-readiness-gate.ts`:
+    - Line 27: `} from '../common/reports/report-export-queue';`
+    - Line 31: `} from '../common/reports/report-snapshot-manifest';`
+  - `apps/api/src/scripts/run-pilot-certification.test.ts`:
+    - Line 75: `'apps/api/src/common/reports/report-export-queue.ts': 'validateReportExportJobPayload queue',`
+  - `apps/api/src/scripts/run-pilot-certification.ts`:
+    - Line 167: `check('report-export', 'Report export queue exists', 'apps/api/src/common/reports/report-export-queue.ts', /validateReportExportJobPayload|queue/i),`
+  - `apps/api/src/scripts/synthetic-journey-monitor.ts`:
+    - Line 286: `path: '/admissions/reports/applications/export',`
+    - Line 295: `path: '/inventory/reports/stock-valuation/export',`
+  - `apps/api/src/scripts/tenant-isolation-audit.test.ts`:
+    - Line 144: `'apps/api/src/common/reports/report-export-queue.ts': 'attendance',`
+  - `apps/api/src/scripts/tenant-isolation-audit.ts`:
+    - Line 59: `check('reports-block-retired-attendance', 'Report exports block retired attendance data', 'apps/api/src/common/reports/report-export-queue.ts', /attendance/i, 'high'),`
+
+---
+
+### Role: `boarding-master`
+
+| File Name | Module ID | Definition Status | Backend Status | Refs |
+| :--- | :--- | :--- | :--- | :--- |
+| `allocation-workspace.tsx` | `allocation` | ❌ Missing | ✅ Referenced (267 refs) | `auth.constants.ts`, `schema.sql`, `tenant-database-policy.ts`... |
+| `boarding-attendance-workspace.tsx` | `boarding-attendance` | ✅ Found (Boarding Attendance) | ❌ Missing | None |
+| `hostels-workspace.tsx` | `hostels` | ❌ Missing | ✅ Referenced (8 refs) | `schema.sql`, `hostel-schema.service.ts`, `hostel.test.ts`... |
+| `incidents-workspace.tsx` | `incidents` | ❌ Missing | ✅ Referenced (271 refs) | `auth.constants.ts`, `operational-execution-contract.ts`, `batch4_schemas.sql`... |
+| `leave-exit-workspace.tsx` | `leave-exit` | ✅ Found (Leave/Exit) | ❌ Missing | None |
+| `overview-workspace.tsx` | `overview` | ✅ Found (Overview) | ✅ Referenced (106 refs) | `billing-feature.middleware.test.ts`, `admin-command.controller.ts`, `admissions-command.controller.ts`... |
+| `reports-workspace.tsx` | `reports` | ✅ Found (Reports) | ✅ Referenced (371 refs) | `auth-email.service.test.ts`, `auth.constants.ts`, `monitoring-service-account.service.ts`... |
+| `rooms-beds-workspace.tsx` | `rooms-beds` | ✅ Found (Rooms & Beds) | ❌ Missing | None |
+
+#### Backend Reference Details for `boarding-master`:
+- **`allocation-workspace.tsx` (`allocation`)**:
+  - `apps/api/src/auth/auth.constants.ts`:
+    - Line 698: `description: 'Fleet, routes, drivers, student allocation, GPS, fuel, and transport compliance access',`
+  - `apps/api/src/database/schema.sql`:
+    - Line 1450: `CREATE TABLE manual_fee_payment_allocations (`
+    - Line 1456: `allocation_type text NOT NULL,`
+  - `apps/api/src/database/tenant-database-policy.ts`:
+    - Line 99: `hostel: ['hostel_beds', 'hostel_allocations', 'hostel_inspections'],`
+  - `apps/api/src/modules/academics/curriculum-policy.test.ts`:
+    - Line 85: `'Configure teacher allocations before go-live.',`
+  - `apps/api/src/modules/academics/curriculum-policy.ts`:
+    - Line 99: `actions.push('Configure teacher allocations before go-live.');`
+  - `apps/api/src/modules/admin-command/repositories/admissions-command.repository.ts`:
+    - Line 168: `const placed = await this.executeSql(tenantId, `SELECT COUNT(*) as count FROM student_allocations WHERE tenant_id = $1 AND class_name IS NOT NULL`, [tenantId]);`
+    - Line 169: `const unplaced = await this.executeSql(tenantId, `SELECT COUNT(*) as count FROM students WHERE tenant_id = $1 AND id NOT IN (SELECT student_id FROM student_allocations WHERE tenant_id = $1 AND is_current = TRUE)`, [tenantId]);`
+  - `apps/api/src/modules/admissions/admissions-schema.service.ts`:
+    - Line 117: `CREATE TABLE IF NOT EXISTS student_allocations (`
+    - Line 130: `CONSTRAINT uq_student_allocations_tenant_id_id UNIQUE (tenant_id, id),`
+  - `apps/api/src/modules/admissions/admissions.controller.ts`:
+    - Line 190: `@Get('allocations')`
+    - Line 196: `@Post('allocations/:studentId')`
+  - `apps/api/src/modules/admissions/admissions.service.ts`:
+    - Line 137: `'allocations',`
+    - Line 139: `id: 'allocations',`
+  - `apps/api/src/modules/admissions/admissions.test.ts`:
+    - Line 243: `observed.allocations = options;`
+    - Line 284: `assert.deepEqual(observed.allocations, { search: undefined, limit: 50, offset: 0 });`
+  - `apps/api/src/modules/admissions/repositories/admissions.repository.ts`:
+    - Line 618: `UPDATE student_allocations`
+    - Line 628: `INSERT INTO student_allocations (`
+  - `apps/api/src/modules/billing/billing-schema.service.ts`:
+    - Line 205: `CREATE TABLE IF NOT EXISTS student_fee_payment_allocations (`
+    - Line 217: `CONSTRAINT uq_student_fee_payment_allocations_tenant_id_id UNIQUE (tenant_id, id),`
+  - `apps/api/src/modules/billing/billing.module.ts`:
+    - Line 14: `import { StudentFeePaymentAllocationService } from './student-fee-payment-allocation.service';`
+  - `apps/api/src/modules/billing/billing.service.ts`:
+    - Line 68: `} from './student-fee-payment-allocation.service';`
+  - `apps/api/src/modules/billing/billing.test.ts`:
+    - Line 15: `import { StudentFeePaymentAllocationService } from './student-fee-payment-allocation.service';`
+    - Line 486: `test('BillingService delegates completed student-fee payment intents to the allocation service', async () => {`
+  - `apps/api/src/modules/billing/entities/manual-fee-payment.entity.ts`:
+    - Line 55: `allocation_type: ManualFeePaymentAllocationType;`
+  - `apps/api/src/modules/billing/manual-fee-payment.service.ts`:
+    - Line 241: `const allocations = await this.manualFeePaymentsRepository.listAllocations(`
+    - Line 246: `for (const allocation of allocations) {`
+  - `apps/api/src/modules/billing/repositories/fee-structures.repository.ts`:
+    - Line 263: `? 'AND lower(allocation.stream_name) = lower($3)'`
+    - Line 276: `allocation.class_name AS grade_level,`
+  - `apps/api/src/modules/billing/repositories/invoices.repository.ts`:
+    - Line 587: `FROM student_fee_payment_allocations`
+    - Line 878: `INSERT INTO student_fee_payment_allocations (`
+  - `apps/api/src/modules/billing/repositories/manual-fee-payments.repository.ts`:
+    - Line 50: `allocation_type: ManualFeePaymentAllocationType;`
+    - Line 738: `allocation_type: ManualFeePaymentAllocationType;`
+  - `apps/api/src/modules/billing/student-fee-payment-allocation.service.test.ts`:
+    - Line 6: `import { StudentFeePaymentAllocationService } from './student-fee-payment-allocation.service';`
+    - Line 39: `calls.push(`allocation:${input.amountMinor}`);`
+  - `apps/api/src/modules/billing/student-fee-payment-allocation.service.ts`:
+    - Line 21: `invoice_allocations: Array<{`
+    - Line 41: `throw new BadRequestException('Payment intent tenant does not match allocation tenant');`
+  - `apps/api/src/modules/exams/exams.test.ts`:
+    - Line 1356: `test('ExamsService enforces strict Mark Entry permission rules based on teacher allocation', async () => {`
+    - Line 1360: `findTeacherAssignment: async () => null, // No allocation found`
+  - `apps/api/src/modules/hostel/hostel-schema.service.ts`:
+    - Line 9: `'hostel_allocations',`
+    - Line 62: `CREATE TABLE IF NOT EXISTS hostel_allocations (`
+  - `apps/api/src/modules/hostel/hostel.test.ts`:
+    - Line 17: `for (const table of ['hostels', 'hostel_rooms', 'hostel_allocations', 'hostel_issues', 'hostel_meal_consumption']) {`
+  - `apps/api/src/modules/module-access/module-access.repository.ts`:
+    - Line 334: `'superadmin_bulk_allocation'`
+  - `apps/api/src/modules/module-access/module-access.test.ts`:
+    - Line 22: `test('module registry seed contains required tenant allocation modules', () => {`
+    - Line 124: `test('platform module allocation routes require platform owner role', () => {`
+  - `apps/api/src/modules/operations/consumers/export-allocation.consumer.ts`:
+    - Line 6: `readonly name = 'export-allocation.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'export-allocation' && event.payload.action_id !== 'export-allocation') {`
+  - `apps/api/src/modules/operations/consumers/index.ts`:
+    - Line 236: `export { ExportAllocationConsumer } from './export-allocation.consumer';`
+  - `apps/api/src/modules/payments/payments.module.ts`:
+    - Line 34: `import { PaymentAllocationService } from './services/payment-allocation.service';`
+  - `apps/api/src/modules/payments/payments.test.ts`:
+    - Line 816: `test('MpesaC2bService records matched direct Paybill callbacks for verification before allocation', async () => {`
+    - Line 1168: `throw new Error('Duplicate C2B payment must not resolve allocation targets again');`
+  - `apps/api/src/modules/payments/services/payment-allocation.service.ts`:
+    - Line 81: `last_payment_allocation: {`
+  - `apps/api/src/scripts/audit-coverage-review.ts`:
+    - Line 174: `id: 'student-fee-allocation-audit',`
+    - Line 176: `description: 'Student fee payment allocation is idempotent and append-only.',`
+  - `apps/api/src/scripts/base-onboarding-seed.ts`:
+    - Line 242: `{ moduleCode: 'finance', table: 'manual_fee_payment_allocations', tenantScoped: true },`
+    - Line 247: `{ moduleCode: 'admissions', table: 'student_allocations', tenantScoped: true },`
+  - `apps/api/src/scripts/implementation20-certification.test.ts`:
+    - Line 55: `test('Implementation 20 certification fails when module allocation evidence is missing', () => {`
+  - `apps/api/src/scripts/implementation20-certification.ts`:
+    - Line 43: `area('module-allocation', 'Superadmin module allocation and runtime enforcement', [`
+    - Line 48: `check('platform-ui', 'Superadmin UI exposes module allocation editing', 'apps/web/src/components/platform/superadmin-pages.tsx', /ModuleAllocationEditor[\s\S]+Save module access/),`
+  - `apps/api/src/scripts/implementation30-certification.ts`:
+    - Line 43: `area('mpesa-callback-integrity', 'M-Pesa callback trust, verification, and allocation safety', [`
+    - Line 52: `check('c2b-transaction-status-service', 'M-Pesa transaction-status service queries Daraja C2B transaction status before direct Paybill allocation', 'apps/api/src/modules/payments/services/mpesa-transaction-status.service.ts', /verifyC2bTransactionStatus[\s\S]+\/mpesa\/transactionstatus\/v1\/query[\s\S]+TransactionStatusQuery[\s\S]+provider_verified/),`
+  - `apps/api/src/scripts/kisumu-boys-demo-seed.ts`:
+    - Line 241: `{ moduleCode: 'finance', table: 'manual_fee_payment_allocations', tenantScoped: true },`
+    - Line 246: `{ moduleCode: 'admissions', table: 'student_allocations', tenantScoped: true },`
+  - `apps/api/src/scripts/module-access-certification.test.ts`:
+    - Line 49: `'apps/api/src/modules/module-access/module-access.test.ts': 'module registry seed contains required tenant allocation modules ModuleAccessGuard rejects disabled tenant modules gracefully production school controllers declare module access metadata trial_ends_at expires_at billing_plan_code module_packages',`
+  - `apps/api/src/scripts/module-access-certification.ts`:
+    - Line 128: `/(?=.*module registry seed contains required tenant allocation modules)(?=.*production school controllers declare module access metadata)/s,`
+  - `apps/api/src/scripts/module-certification.test.ts`:
+    - Line 14: `'apps/api/src/modules/payments/services/payment-allocation.service.ts': 'invoice_id allocated',`
+  - `apps/api/src/scripts/module-certification.ts`:
+    - Line 59: `check('payment-allocation', 'Payment allocation links payments to invoices', 'apps/api/src/modules/payments/services/payment-allocation.service.ts', /invoice_id|allocated/),`
+  - `apps/api/src/scripts/query-plan-review-local-fixture.ts`:
+    - Line 163: `name: 'student_fee_payment_allocations',`
+    - Line 165: `CREATE TABLE IF NOT EXISTS student_fee_payment_allocations (`
+  - `apps/api/src/scripts/query-plan-review.test.ts`:
+    - Line 25: `assert.ok(reviewIds.includes('student-fee-allocation-history'));`
+    - Line 207: `'student_fee_payment_allocations',`
+  - `apps/api/src/scripts/query-plan-review.ts`:
+    - Line 143: `id: 'student-fee-allocation-history',`
+    - Line 144: `description: 'Student fee allocation history should use the tenant/student allocation index.',`
+  - `apps/api/src/scripts/release-readiness-gate.test.ts`:
+    - Line 84: `'dist/apps/api/src/modules/billing/student-fee-payment-allocation.service.test.js',`
+  - `apps/api/src/scripts/release-readiness-gate.ts`:
+    - Line 110: `'student-fee-allocation-history',`
+    - Line 225: `'student-fee-payment-allocation.service.test.js',`
+- **`boarding-attendance-workspace.tsx` (`boarding-attendance`)**: No backend references found in `apps/api/src`.
+- **`hostels-workspace.tsx` (`hostels`)**:
+  - `apps/api/src/database/schema.sql`:
+    - Line 3918: `CREATE TABLE IF NOT EXISTS boarding_hostels (`
+    - Line 3933: `hostel_id UUID NOT NULL REFERENCES boarding_hostels(id) ON DELETE CASCADE,`
+  - `apps/api/src/modules/hostel/hostel-schema.service.ts`:
+    - Line 7: `'hostels',`
+    - Line 47: `mainTable: 'hostels',`
+  - `apps/api/src/modules/hostel/hostel.test.ts`:
+    - Line 17: `for (const table of ['hostels', 'hostel_rooms', 'hostel_allocations', 'hostel_issues', 'hostel_meal_consumption']) {`
+  - `apps/api/src/modules/hostel/repositories/hostel.repository.ts`:
+    - Line 10: `mainTable: 'hostels',`
+  - `apps/api/src/scripts/implementation100-certification.ts`:
+    - Line 80: `moduleEvidence('hostel', 'Hostel', 'apps/web/src/components/modules/hostel/hostel-module-screen.tsx', ['HostelModuleScreen'], 'apps/web/src/app/api/hostel/[...path]/route.ts', ['proxySchoolApiRequest', '/hostel'], 'apps/api/src/modules/hostel/hostel.controller.ts', ['HostelController'], 'apps/api/src/modules/hostel/hostel-schema.service.ts', ['hostels'], 'apps/api/src/modules/hostel/hostel.test.ts', ['hostel']),`
+- **`incidents-workspace.tsx` (`incidents`)**:
+  - `apps/api/src/auth/auth.constants.ts`:
+    - Line 104: `{ resource: 'discipline', action: 'read', description: 'View permitted discipline incidents, actions, and behavior summaries' },`
+    - Line 105: `{ resource: 'discipline', action: 'write', description: 'Report discipline incidents, add evidence, and record permitted discipline updates' },`
+  - `apps/api/src/common/platform-governance/operational-execution-contract.ts`:
+    - Line 254: `form('incident.escalation-form', 'schemas/incidents/escalation.json', 'workflows.incident.escalate', [`
+  - `apps/api/src/database/batch4_schemas.sql`:
+    - Line 83: `CREATE TABLE IF NOT EXISTS security_incidents (`
+    - Line 94: `CONSTRAINT ck_security_incidents_tenant CHECK (tenant_id <> 'global')`
+  - `apps/api/src/database/migrations/003_discipline_schema.sql`:
+    - Line 2: `-- Description: Creates the admin_incidents table for discipline tracking`
+    - Line 4: `CREATE TABLE IF NOT EXISTS admin_incidents (`
+  - `apps/api/src/database/schema.sql`:
+    - Line 2767: `CREATE TABLE IF NOT EXISTS security_incidents (`
+    - Line 2778: `CONSTRAINT ck_security_incidents_tenant CHECK (tenant_id <> 'global')`
+  - `apps/api/src/database/tenant-database-policy.ts`:
+    - Line 84: `discipline: ['discipline_incidents', 'discipline_actions', 'counselling_sessions'],`
+  - `apps/api/src/modules/admin-command/admin-command-schema.service.ts`:
+    - Line 6: `'admin_incidents',`
+    - Line 48: `CREATE TABLE IF NOT EXISTS admin_incidents (`
+  - `apps/api/src/modules/admin-command/admin-command.controller.ts`:
+    - Line 212: `@Post('incidents')`
+    - Line 243: `@Post('discipline/incidents')`
+  - `apps/api/src/modules/admin-command/admin-command.test.ts`:
+    - Line 27: `'admin_incidents',`
+    - Line 283: `test('AdminCommandService creates incidents with audit trail', async () => {`
+  - `apps/api/src/modules/admin-command/principal-insights.providers.ts`:
+    - Line 197: `{ id: 'boarding_incidents', title: 'Boarding Incidents', metric_key: 'boarding_incidents' },`
+    - Line 200: `drilldowns: ['hostel.occupancy', 'hostel.incidents'],`
+  - `apps/api/src/modules/admin-command/repositories/admin-command.repository.ts`:
+    - Line 343: `FROM admin_incidents`
+    - Line 452: `boarding_incidents: 0,`
+  - `apps/api/src/modules/admin-command/repositories/deputy-command.repository.ts`:
+    - Line 38: `(SELECT COUNT(*)::int FROM admin_incidents WHERE tenant_id = $1 AND status IN ('reported', 'escalated')) AS pending_incidents,`
+    - Line 44: `{ total_students: 0, total_staff: 0, pending_incidents: 0, active_classes: 0, present_today: 0, absent_today: 0 }`
+  - `apps/api/src/modules/boarding/boarding-schema.service.ts`:
+    - Line 11: `'boarding_incidents',`
+    - Line 85: `CREATE TABLE IF NOT EXISTS boarding_incidents (`
+  - `apps/api/src/modules/boarding/boarding.service.ts`:
+    - Line 70: `const [studentsRes, incidentsRes, leaveRes] = await Promise.all([`
+    - Line 72: `db.query(`SELECT COUNT(*)::int as count FROM boarding_incidents WHERE tenant_id = $1 AND status = 'open'`, [tenantId]),`
+  - `apps/api/src/modules/boarding/boarding.test.ts`:
+    - Line 17: `for (const table of ['boarding_houses', 'boarding_students', 'boarding_meals', 'boarding_dormitory_checks', 'boarding_incidents']) {`
+  - `apps/api/src/modules/class-teacher/class-teacher.service.ts`:
+    - Line 96: `urgentFollowups: [] // Requires welfare/discipline incidents logic`
+    - Line 132: `FROM discipline_incidents di`
+  - `apps/api/src/modules/discipline/discipline-schema.service.ts`:
+    - Line 7: `'discipline_incidents',`
+    - Line 114: `CREATE TABLE IF NOT EXISTS discipline_incidents (`
+  - `apps/api/src/modules/discipline/discipline.controller.ts`:
+    - Line 98: `@Get('incidents')`
+    - Line 104: `@Get('parent/incidents')`
+  - `apps/api/src/modules/discipline/discipline.service.ts`:
+    - Line 97: `FROM discipline_incidents`
+  - `apps/api/src/modules/discipline/discipline.test.ts`:
+    - Line 29: `'discipline_incidents',`
+    - Line 49: `assert.match(bootstrapSql, /CREATE INDEX IF NOT EXISTS ix_discipline_incidents_student_term/);`
+  - `apps/api/src/modules/discipline/dto/discipline.dto.ts`:
+    - Line 315: `@IsIn(['incidents', 'behavior_summary', 'commendations', 'counselling_effectiveness'])`
+    - Line 316: `report_type!: 'incidents' | 'behavior_summary' | 'commendations' | 'counselling_effectiveness';`
+  - `apps/api/src/modules/discipline/repositories/discipline.repository.ts`:
+    - Line 280: `INSERT INTO discipline_incidents (`
+    - Line 428: `FROM discipline_incidents`
+  - `apps/api/src/modules/implementation300/blueprint-registry.ts`:
+    - Line 441: `moduleDefinition('discipline', 'Discipline', ['incidents', 'actions', 'counselling', 'notices', 'scoring', 'escalation'], [`
+  - `apps/api/src/modules/inventory/inventory-schema.service.ts`:
+    - Line 314: `CREATE TABLE IF NOT EXISTS inventory_incidents (`
+    - Line 329: `CONSTRAINT uq_inventory_incidents_tenant_id_id UNIQUE (tenant_id, id),`
+  - `apps/api/src/modules/inventory/inventory.controller.ts`:
+    - Line 234: `@Get('incidents')`
+    - Line 240: `@Post('incidents')`
+  - `apps/api/src/modules/inventory/repositories/inventory.repository.test.ts`:
+    - Line 1026: `assert.match(schemaSql, /CREATE INDEX IF NOT EXISTS ix_inventory_incidents_tenant_status_reported/);`
+  - `apps/api/src/modules/inventory/repositories/inventory.repository.ts`:
+    - Line 2455: `INSERT INTO inventory_incidents (`
+    - Line 2503: `FROM inventory_incidents incident`
+  - `apps/api/src/modules/module-access/module-access.constants.ts`:
+    - Line 199: `description: 'Hostel occupancy, dormitory issues, boarding incidents, and meal consumption analytics.',`
+  - `apps/api/src/modules/secretary/secretary.service.ts`:
+    - Line 85: ``INSERT INTO admin_incidents (tenant_id, incident_type, recorded_by_user_id, description, metadata, status)`
+    - Line 98: ``INSERT INTO admin_incidents (tenant_id, incident_type, recorded_by_user_id, description, metadata, status)`
+  - `apps/api/src/modules/security/data-classification-registry.service.ts`:
+    - Line 62: `{ column: 'discipline_incidents.counselling_notes', classification: 'sensitive_child_data', encryption: 'column', redaction: 'tokenize' },`
+  - `apps/api/src/modules/security/security-operations.controller.ts`:
+    - Line 11: `@Post('incidents')`
+  - `apps/api/src/modules/security/security-operations.service.ts`:
+    - Line 53: ``INSERT INTO security_incidents (tenant_id, title, description, severity, location, reported_by)`
+  - `apps/api/src/modules/support/repositories/support.repository.test.ts`:
+    - Line 223: `test('SupportRepository analytics include response time, notification delivery, and active incidents', async () => {`
+    - Line 263: `if (text.includes('FROM support_incidents')) {`
+  - `apps/api/src/modules/support/repositories/support.repository.ts`:
+    - Line 1656: `const [components, incidents] = await Promise.all([`
+    - Line 1687: `FROM support_incidents incident`
+  - `apps/api/src/modules/support/support-schema.service.ts`:
+    - Line 276: `CREATE TABLE IF NOT EXISTS support_incidents (`
+    - Line 288: `CONSTRAINT uq_support_incidents_tenant_id_id UNIQUE (tenant_id, id),`
+  - `apps/api/src/modules/support/support-status-subscription.service.test.ts`:
+    - Line 122: `incidents: [`
+    - Line 142: `assert.equal(status.active_incidents.length, 1);`
+  - `apps/api/src/modules/support/support-status-subscription.service.ts`:
+    - Line 42: `incidents: PublicStatusIncident[];`
+    - Line 43: `active_incidents: PublicStatusIncident[];`
+  - `apps/api/src/scripts/base-onboarding-seed.ts`:
+    - Line 281: `{ moduleCode: 'inventory', table: 'inventory_incidents', tenantScoped: true },`
+    - Line 316: `{ moduleCode: 'discipline', table: 'discipline_incidents', tenantScoped: true },`
+  - `apps/api/src/scripts/core-api-load.ts`:
+    - Line 192: `id: 'discipline-incidents',`
+    - Line 194: `path: '/discipline/incidents',`
+  - `apps/api/src/scripts/high-volume-workflow-load.ts`:
+    - Line 28: `{ id: 'discipline-incident-queue', method: 'GET', path: '/discipline/incidents', targetP95Ms: 700 },`
+  - `apps/api/src/scripts/implementation100-certification.ts`:
+    - Line 65: `moduleEvidence('discipline', 'Discipline', 'apps/web/src/components/discipline/discipline-workspace.tsx', ['Discipline'], 'apps/web/src/app/api/discipline/[...path]/route.ts', ['proxyDisciplineRequest', 'upstreamPath'], 'apps/api/src/modules/discipline/discipline.controller.ts', ['DisciplineController'], 'apps/api/src/modules/discipline/discipline-schema.service.ts', ['discipline_incidents'], 'apps/api/src/modules/discipline/discipline.test.ts', ['discipline']),`
+    - Line 76: `moduleEvidence('admin_command_centers', 'Administrative Leadership', 'apps/web/src/components/school/school-pages.tsx', ['Leadership'], 'apps/web/src/app/api/admin-command/[...path]/route.ts', ['proxySchoolApiRequest', '/admin-command'], 'apps/api/src/modules/admin-command/admin-command.controller.ts', ['AdminCommandController'], 'apps/api/src/modules/admin-command/admin-command-schema.service.ts', ['admin_incidents'], 'apps/api/src/modules/admin-command/admin-command.test.ts', ['admin-command']),`
+  - `apps/api/src/scripts/implementation20-certification.test.ts`:
+    - Line 25: `'apps/api/src/modules/admin-command/admin-command-schema.service.ts': 'admin_incidents announcements meeting_minutes duty_rosters',`
+  - `apps/api/src/scripts/implementation20-certification.ts`:
+    - Line 67: `check('admin-command-schema', 'Leadership schema includes incidents, announcements, minutes, and duty rosters', 'apps/api/src/modules/admin-command/admin-command-schema.service.ts', /admin_incidents[\s\S]+announcements[\s\S]+meeting_minutes[\s\S]+duty_rosters/),`
+  - `apps/api/src/scripts/implementation30-certification.test.ts`:
+    - Line 79: `'apps/api/src/scripts/implementation30-rollout-gate.test.ts': 'blocks live phases without pilot evidence zero critical incidents payment or callback safety regressions without leaking secrets',`
+  - `apps/api/src/scripts/implementation30-certification.ts`:
+    - Line 163: `check('rollout-gate-tests', 'Rollout gate tests cover blocked live phases, complete zero-incident evidence, failed payment safety, and secret-safe markdown', 'apps/api/src/scripts/implementation30-rollout-gate.test.ts', /(?=.*blocks live phases without pilot evidence)(?=.*zero critical incidents)(?=.*payment or callback safety regressions)(?=.*without leaking secrets)/s),`
+  - `apps/api/src/scripts/implementation30-rollout-gate.test.ts`:
+    - Line 25: `test('Implementation 30 rollout gate passes all phases only with zero critical incidents and required 30-day evidence', () => {`
+  - `apps/api/src/scripts/implementation30-rollout-gate.ts`:
+    - Line 320: `numericZeroCheck('zero-cross-tenant-incidents', '0 cross-tenant access incidents', metrics.crossTenantAccessIncidents),`
+  - `apps/api/src/scripts/kisumu-boys-demo-seed.ts`:
+    - Line 280: `{ moduleCode: 'inventory', table: 'inventory_incidents', tenantScoped: true },`
+    - Line 315: `{ moduleCode: 'discipline', table: 'discipline_incidents', tenantScoped: true },`
+  - `apps/api/src/scripts/module-certification.test.ts`:
+    - Line 25: `'apps/api/src/modules/discipline/repositories/discipline.repository.ts': 'parent_user_id student_id getDashboard incidents_by_severity',`
+  - `apps/api/src/scripts/module-certification.ts`:
+    - Line 91: `check('create-incident', 'Discipline service creates incidents', 'apps/api/src/modules/discipline/discipline.service.ts', /createIncident/),`
+    - Line 108: `check('analytics-dashboard', 'Discipline analytics dashboard exists', 'apps/api/src/modules/discipline/repositories/discipline.repository.ts', /getDashboard|incidents_by_severity/),`
+  - `apps/api/src/scripts/query-plan-review-local-fixture.ts`:
+    - Line 298: `name: 'discipline_incidents',`
+    - Line 300: `CREATE TABLE IF NOT EXISTS discipline_incidents (`
+  - `apps/api/src/scripts/query-plan-review.test.ts`:
+    - Line 213: `'discipline_incidents',`
+  - `apps/api/src/scripts/query-plan-review.ts`:
+    - Line 240: `FROM discipline_incidents`
+    - Line 249: `protectedTables: ['discipline_incidents'],`
+  - `apps/api/src/scripts/release-readiness-gate.test.ts`:
+    - Line 178: `Attendance is retired and must not be restored during incidents.`
+  - `apps/api/src/scripts/synthetic-journey-monitor.ts`:
+    - Line 121: `description: 'Public status web page renders current incidents, history, and subscription entry.',`
+    - Line 208: `id: 'discipline-incidents',`
+- **`leave-exit-workspace.tsx` (`leave-exit`)**: No backend references found in `apps/api/src`.
+- **`overview-workspace.tsx` (`overview`)**:
+  - `apps/api/src/middleware/billing-feature.middleware.test.ts`:
+    - Line 75: `await requestContext.run(createContext('/admin-command/principal/overview'), async () => {`
+    - Line 78: `path: '/admin-command/principal/overview',`
+  - `apps/api/src/modules/admin-command/admin-command.controller.ts`:
+    - Line 33: `@Get('principal/finance-overview')`
+    - Line 103: `@Get('principal/overview')`
+  - `apps/api/src/modules/admin-command/admissions-command.controller.ts`:
+    - Line 9: `@Get('overview')`
+    - Line 84: `overview,`
+  - `apps/api/src/modules/admin-command/deputy-command.controller.ts`:
+    - Line 9: `@Get('overview')`
+  - `apps/api/src/modules/admin-command/principal-insights.providers.ts`:
+    - Line 6: `id: 'school_overview',`
+    - Line 8: `category: 'overview',`
+  - `apps/api/src/modules/admin-command/principal-insights.service.ts`:
+    - Line 164: `const overview = await this.repository.getPrincipalOverviewSnapshot(tenantId);`
+    - Line 190: `overview,`
+  - `apps/api/src/modules/admin-command/principal-insights.types.ts`:
+    - Line 54: `overview: PrincipalOverviewPanel;`
+  - `apps/api/src/modules/admin-command/repositories/admin-command.repository.ts`:
+    - Line 1221: `defaultView: "overview"`
+  - `apps/api/src/modules/billing/billing-access.service.ts`:
+    - Line 59: `const { subscription, overview } =`
+    - Line 61: `const access = this.buildAccessState(subscription, overview);`
+  - `apps/api/src/modules/billing/billing-lifecycle.service.ts`:
+    - Line 60: `overview: SubscriptionLifecycleOverview | null;`
+    - Line 69: `overview: null,`
+  - `apps/api/src/modules/billing/billing-notification.service.ts`:
+    - Line 18: `overview: SubscriptionLifecycleOverview,`
+    - Line 20: `const descriptors = this.buildDescriptors(subscription, overview);`
+  - `apps/api/src/modules/billing/billing.service.ts`:
+    - Line 281: `if (!lifecycle.subscription || !lifecycle.overview) {`
+    - Line 285: `return this.mapSubscription(lifecycle.subscription, lifecycle.overview);`
+  - `apps/api/src/modules/billing/billing.test.ts`:
+    - Line 129: `overview: null,`
+    - Line 877: `ensureCurrentLifecycle: async () => ({ subscription: null, overview: null }),`
+  - `apps/api/src/modules/class-teacher/class-teacher.controller.ts`:
+    - Line 20: `@Get('overview')`
+    - Line 30: `@Get('dashboard-overview')`
+  - `apps/api/src/modules/dashboard/dashboard.controller.ts`:
+    - Line 34: `@Get('parent/overview')`
+    - Line 58: `@Get('student/overview')`
+  - `apps/api/src/modules/discipline/discipline.controller.ts`:
+    - Line 244: `@Get('analytics/overview')`
+  - `apps/api/src/modules/finance/finance.controller.ts`:
+    - Line 306: `@Get('accounts-overview')`
+  - `apps/api/src/modules/grade-master/grade-master.controller.ts`:
+    - Line 9: `@Get('overview')`
+  - `apps/api/src/modules/operations/consumers/export-overview.consumer.ts`:
+    - Line 6: `readonly name = 'export-overview.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'export-overview' && event.payload.action_id !== 'export-overview') {`
+  - `apps/api/src/modules/operations/consumers/index.ts`:
+    - Line 262: `export { ExportOverviewConsumer } from './export-overview.consumer';`
+  - `apps/api/src/modules/platform/platform-onboarding.service.test.ts`:
+    - Line 665: `test('PlatformOnboardingService summarizes tenants in product for the Super Admin overview', async () => {`
+  - `apps/api/src/scripts/core-api-load.ts`:
+    - Line 203: `path: '/discipline/analytics/overview',`
+  - `apps/api/src/scripts/high-volume-workflow-load.ts`:
+    - Line 29: `{ id: 'discipline-analytics', method: 'GET', path: '/discipline/analytics/overview', targetP95Ms: 800 },`
+- **`reports-workspace.tsx` (`reports`)**:
+  - `apps/api/src/auth/auth-email.service.test.ts`:
+    - Line 6: `test('AuthEmailService reports transactional email as missing without secrets', () => {`
+    - Line 20: `test('AuthEmailService reports transactional email as configured without exposing secrets', () => {`
+  - `apps/api/src/auth/auth.constants.ts`:
+    - Line 59: `{ resource: 'reports', action: 'read', description: 'View generated report export jobs and snapshots' },`
+    - Line 108: `{ resource: 'discipline', action: 'reports', description: 'Export discipline reports and analytics' },`
+  - `apps/api/src/auth/monitoring-service-account.service.ts`:
+    - Line 16: `'reports:read',`
+  - `apps/api/src/auth/role-governance-policy.ts`:
+    - Line 125: `platform_support: ['support:view', 'support:manage', 'reports:read'],`
+    - Line 126: `finance_admin: ['billing:read', 'billing:write', 'reports:read'],`
+  - `apps/api/src/common/auto-repair/auto-repair-agent.test.ts`:
+    - Line 474: `operationalIntent: 'Bursar can act on finance exceptions, not browse static trend reports',`
+    - Line 706: `test('AutoRepairAgent reports dashboard repair patch intelligence for KPI-only dashboards', () => {`
+  - `apps/api/src/common/auto-repair/auto-repair-deployment.test.ts`:
+    - Line 43: `test('AutoRepairService reports deployed runtime readiness and keeps the full widget state contract', () => {`
+  - `apps/api/src/common/common.module.ts`:
+    - Line 12: `import { ReportExportQueueService } from './reports/report-export-queue';`
+    - Line 13: `import { ReportExportJobsController } from './reports/report-export-jobs.controller';`
+  - `apps/api/src/common/reports/report-artifact-storage.service.test.ts`:
+    - Line 18: `retention_policy: 'reports',`
+    - Line 48: `assert.equal(savedInputs[0].storagePath, `tenant/tenant-a/reports/billing/invoices/${'b'.repeat(64)}.pdf`);`
+  - `apps/api/src/common/reports/report-artifact-storage.service.ts`:
+    - Line 40: `retentionPolicy: 'reports',`
+    - Line 73: `return `tenant/${input.tenantId}/reports/${module}/${reportId}/${input.artifact.checksumSha256}.${extension}`;`
+  - `apps/api/src/common/reports/report-export-jobs.controller.ts`:
+    - Line 7: `@Controller('reports')`
+    - Line 8: `@RequiresModule('reports')`
+  - `apps/api/src/common/reports/report-export-queue.ts`:
+    - Line 52: `reports: 'reports',`
+  - `apps/api/src/common/reports/report-export.worker.test.ts`:
+    - Line 25: `storage_path: 'tenant/tenant-a/reports/exams/exam-results/artifact.pdf',`
+    - Line 80: `storage_path: 'tenant/tenant-a/reports/exams/exam-results/artifact.pdf',`
+  - `apps/api/src/common/reports/report-snapshot.repository.test.ts`:
+    - Line 95: `assert.deepEqual(Reflect.getMetadata(PERMISSIONS_KEY, handler), ['reports:read']);`
+  - `apps/api/src/common/uploads/database-file-storage.service.test.ts`:
+    - Line 685: `test('S3CompatibleObjectStorageService reports failed object deletes as unavailable', async () => {`
+  - `apps/api/src/common/uploads/upload-policy.test.ts`:
+    - Line 252: `test('runProviderMalwareScan returns unsafe verdicts when the provider reports infection', async () => {`
+  - `apps/api/src/database/batch4_schemas.sql`:
+    - Line 71: `CREATE TABLE IF NOT EXISTS operations_reports (`
+    - Line 80: `CONSTRAINT ck_operations_reports_tenant CHECK (tenant_id <> 'global')`
+  - `apps/api/src/database/schema.sql`:
+    - Line 2755: `CREATE TABLE IF NOT EXISTS operations_reports (`
+    - Line 2764: `CONSTRAINT ck_operations_reports_tenant CHECK (tenant_id <> 'global')`
+  - `apps/api/src/database/tenant-database-policy.ts`:
+    - Line 93: `reports: ['report_export_jobs', 'report_snapshots'],`
+  - `apps/api/src/modules/admin-command/admin-command.controller.ts`:
+    - Line 124: `@Get('principal/reports')`
+    - Line 126: `@Permissions('principal:read', 'reports:read')`
+  - `apps/api/src/modules/admin-command/admissions-command.controller.ts`:
+    - Line 69: `@Get('reports')`
+    - Line 99: `reports,`
+  - `apps/api/src/modules/admin-command/deputy-command.controller.ts`:
+    - Line 133: `@Get('reports')`
+    - Line 137: `@Post('reports/generate')`
+  - `apps/api/src/modules/admin-command/principal-insights.providers.ts`:
+    - Line 16: `reports: ['school-overview', 'population-trend'],`
+    - Line 31: `reports: ['academic-summary', 'cbc-cbe-competency-progress'],`
+  - `apps/api/src/modules/admin-command/principal-insights.service.ts`:
+    - Line 184: `const reportExports = Array.from(new Set(sections.flatMap((section) => section.reports)));`
+    - Line 273: `reports: [...provider.reports],`
+  - `apps/api/src/modules/admin-command/principal-insights.types.ts`:
+    - Line 34: `reports: string[];`
+    - Line 81: `reports: string[];`
+  - `apps/api/src/modules/admin-command/repositories/admin-command.repository.ts`:
+    - Line 846: `reportsPending: summaryResult.rows[0]?.pending_reviews || 0,`
+    - Line 1479: ``INSERT INTO operations_reports (content, prepared_by, tenant_id, title, updated_at) VALUES ($1, $2, $3, $4, NOW())`,`
+  - `apps/api/src/modules/admin-command/repositories/deputy-command.repository.ts`:
+    - Line 449: `0::int AS generated_reports`
+    - Line 452: `{ generated_reports: 0 }`
+  - `apps/api/src/modules/admissions/admissions.controller.ts`:
+    - Line 33: `} from '../../common/reports/report-export-queue';`
+    - Line 217: `@Post('reports/:reportId/export-jobs')`
+  - `apps/api/src/modules/admissions/admissions.service.ts`:
+    - Line 22: `} from '../../common/reports/report-csv-artifact';`
+  - `apps/api/src/modules/admissions/admissions.test.ts`:
+    - Line 197: `path: '/admissions/reports/applications/export',`
+    - Line 350: `path: '/admissions/reports/unknown/export',`
+  - `apps/api/src/modules/billing/billing.controller.ts`:
+    - Line 15: `} from '../../common/reports/report-export-queue';`
+    - Line 214: `@Post('reports/:reportId/export-jobs')`
+  - `apps/api/src/modules/billing/billing.service.ts`:
+    - Line 14: `} from '../../common/reports/report-csv-artifact';`
+  - `apps/api/src/modules/billing/billing.test.ts`:
+    - Line 2245: `path: '/billing/reports/invoices/export',`
+    - Line 2297: `path: '/billing/reports/unknown/export',`
+  - `apps/api/src/modules/biometric-attendance/biometric-attendance.controller.ts`:
+    - Line 52: `@Get('reports/monthly')`
+  - `apps/api/src/modules/class-teacher/class-teacher.controller.ts`:
+    - Line 358: `@Get('reports')`
+  - `apps/api/src/modules/clinic/clinic.controller.ts`:
+    - Line 62: `@Permissions('clinic:reports')`
+  - `apps/api/src/modules/clinic/clinic.service.ts`:
+    - Line 171: `this.assertPermission('clinic:reports');`
+  - `apps/api/src/modules/clinic/clinic.test.ts`:
+    - Line 58: `assert.deepEqual(Reflect.getMetadata(PERMISSIONS_KEY, analyticsHandler), ['clinic:reports']);`
+  - `apps/api/src/modules/compliance/compliance-schema.service.ts`:
+    - Line 127: `CREATE TABLE IF NOT EXISTS breach_response_reports (`
+    - Line 141: `CONSTRAINT ck_breach_response_reports_severity CHECK (severity IN ('low', 'medium', 'high', 'critical')),`
+  - `apps/api/src/modules/compliance/compliance.controller.ts`:
+    - Line 81: `@Get('breach-response-reports/:reportId/export')`
+  - `apps/api/src/modules/compliance/compliance.service.ts`:
+    - Line 351: `FROM breach_response_reports`
+  - `apps/api/src/modules/compliance/compliance.test.ts`:
+    - Line 33: `assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS breach_response_reports/);`
+    - Line 36: `assert.match(schemaSql, /ALTER TABLE breach_response_reports FORCE ROW LEVEL SECURITY/);`
+  - `apps/api/src/modules/counselling/counselling.controller.ts`:
+    - Line 87: `@Get('reports')`
+  - `apps/api/src/modules/discipline/discipline.controller.ts`:
+    - Line 245: `@Permissions('discipline:reports')`
+    - Line 250: `@Post('reports/export')`
+  - `apps/api/src/modules/discipline/discipline.service.ts`:
+    - Line 636: `this.assertPermission('discipline:reports');`
+    - Line 648: `this.assertPermission('discipline:reports');`
+  - `apps/api/src/modules/discipline/discipline.test.ts`:
+    - Line 65: `'discipline:reports',`
+    - Line 597: `permissions: ['discipline:reports'],`
+  - `apps/api/src/modules/exams/consumers/download-reports.consumer.ts`:
+    - Line 6: `readonly name = 'download-reports.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'download-reports' && event.payload.action_id !== 'download-reports') {`
+  - `apps/api/src/modules/exams/consumers/index.ts`:
+    - Line 10: `export { DownloadReportsConsumer } from './download-reports.consumer';`
+  - `apps/api/src/modules/exams/exams.test.ts`:
+    - Line 648: `test('ExamsService reports duplicate and unauthorized rows during bulk mark upload preview', async () => {`
+  - `apps/api/src/modules/exams/repositories/exams.repository.ts`:
+    - Line 1481: `(SELECT COUNT(*) FROM student_report_cards WHERE tenant_id = $1 AND status = 'published') AS published_reports,`
+  - `apps/api/src/modules/exams/services/report-card-pdf-artifact.ts`:
+    - Line 3: `import { normalizeReportFilename, normalizeReportGeneratedAt, type ReportArtifact } from '../../../common/reports/report-artifact';`
+  - `apps/api/src/modules/exams/services/report-card-template.service.ts`:
+    - Line 3: `import type { ReportArtifactInput, ReportArtifactValue } from '../../../common/reports/report-artifact';`
+  - `apps/api/src/modules/grade-master/grade-master.controller.ts`:
+    - Line 81: `@Get('reports')`
+  - `apps/api/src/modules/grade-master/grade-master.service.ts`:
+    - Line 16: `reportsNotReady: 12,`
+  - `apps/api/src/modules/health/health.controller.test.ts`:
+    - Line 297: `test('HealthController readiness reports optional Redis degradation without throwing', async () => {`
+  - `apps/api/src/modules/implementation300/api-category-policy.ts`:
+    - Line 45: `api('analytics_engine', 'internal', 'reports', ['/api/internal/analytics'], 'internal_service', true, true, 600),`
+  - `apps/api/src/modules/implementation300/blueprint-registry.ts`:
+    - Line 42: `| 'reports'`
+    - Line 437: `moduleDefinition('exams', 'Exams and Results', ['setup', 'grading', 'cbc-assessment', 'moderation', 'reports', 'analytics'], [`
+  - `apps/api/src/modules/implementation300/development-phase-policy.test.ts`:
+    - Line 24: `'reports',`
+    - Line 31: `completedModules: ['authentication', 'tenant_management', 'students', 'finance', 'exams', 'communication_sms', 'reports', 'inventory'],`
+  - `apps/api/src/modules/implementation300/development-phase-policy.ts`:
+    - Line 59: `'reports',`
+    - Line 61: `capabilities: ['tenant_onboarding', 'billing', 'exam_results', 'communication', 'reports'],`
+  - `apps/api/src/modules/integrations/integrations.test.ts`:
+    - Line 202: `test('SmsDispatchService reports missing credential fields without exposing secrets', async () => {`
+  - `apps/api/src/modules/inventory/inventory.controller.ts`:
+    - Line 7: `} from '../../common/reports/report-export-queue';`
+    - Line 246: `@Get('reports')`
+  - `apps/api/src/modules/inventory/inventory.service.ts`:
+    - Line 13: `} from '../../common/reports/report-csv-artifact';`
+    - Line 93: `rows: (reports: InventoryReportsPayload) => ReportCsvValue[][];`
+  - `apps/api/src/modules/inventory/inventory.test.ts`:
+    - Line 2222: `path: '/inventory/reports/stock-valuation/export',`
+    - Line 2250: `throw new Error('reports should not be loaded for an unknown export');`
+  - `apps/api/src/modules/inventory/repositories/inventory.repository.test.ts`:
+    - Line 971: `const reports = await repository.buildReports('tenant-a');`
+    - Line 978: `assert.deepEqual(reports.stock_reconciliation, [`
+  - `apps/api/src/modules/library/library.controller.ts`:
+    - Line 89: `@Get('reports')`
+  - `apps/api/src/modules/mobile/mobile-app-policy.test.ts`:
+    - Line 44: `enabledModules: ['principal_dashboard', 'finance', 'reports'],`
+    - Line 79: `capabilities: ['fees', 'communication', 'reports', 'results'],`
+  - `apps/api/src/modules/mobile/mobile-app-policy.ts`:
+    - Line 9: `| 'reports'`
+    - Line 19: `export type MobileOfflineCapability = 'attendance' | 'mark_entry' | 'assignments' | 'fees' | 'communication' | 'reports' | 'results';`
+  - `apps/api/src/modules/module-access/module-access.constants.ts`:
+    - Line 55: `description: 'Assessments, marks, reports, academic analytics, CBT hooks, and result publishing.',`
+    - Line 67: `permission_scopes: ['discipline:read', 'discipline:write', 'discipline:manage', 'discipline:reports'],`
+  - `apps/api/src/modules/module-access/module-access.test.ts`:
+    - Line 13: `import { ReportExportJobsController } from '../../common/reports/report-export-jobs.controller';`
+    - Line 38: `'reports',`
+  - `apps/api/src/modules/operations/consumers/index.ts`:
+    - Line 505: `export { ReportsConsumer } from './reports.consumer';`
+    - Line 516: `export { RequestReportsConsumer } from './request-reports.consumer';`
+  - `apps/api/src/modules/operations/consumers/reports.consumer.ts`:
+    - Line 6: `readonly name = 'reports.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'reports' && event.payload.action_id !== 'reports') {`
+  - `apps/api/src/modules/operations/consumers/request-reports.consumer.ts`:
+    - Line 6: `readonly name = 'request-reports.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'request-reports' && event.payload.action_id !== 'request-reports') {`
+  - `apps/api/src/modules/operations/consumers/view-reports.consumer.ts`:
+    - Line 6: `readonly name = 'view-reports.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'view-reports' && event.payload.action_id !== 'view-reports') {`
+  - `apps/api/src/modules/operations/operations.service.ts`:
+    - Line 69: ``INSERT INTO operations_reports (tenant_id, title, content, prepared_by)`
+  - `apps/api/src/modules/payments/payments.test.ts`:
+    - Line 3482: `test('MpesaReconciliationService reports missing callbacks, duplicates, amount mismatches, wrong references, and late provider status', async () => {`
+    - Line 4016: `result.reports.map((report) => report.payment_channel_id),`
+  - `apps/api/src/modules/payments/payments.types.ts`:
+    - Line 297: `reports: MpesaReconciliationReport[];`
+    - Line 305: `reports: MpesaReconciliationReport[];`
+  - `apps/api/src/modules/payments/services/mpesa-reconciliation.service.ts`:
+    - Line 446: `const reports: MpesaReconciliationReport[] = [];`
+    - Line 449: `reports.push(`
+  - `apps/api/src/modules/platform/platform-onboarding.service.test.ts`:
+    - Line 470: `test('PlatformOnboardingService reports Resend testing mode as blocked instead of encouraging repeated resends', async () => {`
+  - `apps/api/src/modules/support/support-notification-delivery.service.test.ts`:
+    - Line 12: `test('SupportNotificationDeliveryService reports provider readiness without exposing secrets', async () => {`
+    - Line 97: `test('SupportNotificationDeliveryService reports precise missing provider status for dashboard-managed SMS', async () => {`
+  - `apps/api/src/scripts/audit-coverage-review.test.ts`:
+    - Line 49: `test('runAuditCoverageReview reports missing evidence by file and pattern', () => {`
+  - `apps/api/src/scripts/base-onboarding-seed.ts`:
+    - Line 30: `'reports',`
+    - Line 362: `{ moduleCode: 'reports', table: 'report_snapshots', tenantScoped: true },`
+  - `apps/api/src/scripts/core-api-load.test.ts`:
+    - Line 33: `assert.equal(inventoryExport.url, 'http://127.0.0.1:3000/inventory/reports/stock-valuation/export');`
+  - `apps/api/src/scripts/core-api-load.ts`:
+    - Line 131: `path: '/admissions/reports/applications/export',`
+    - Line 147: `id: 'inventory-reports',`
+  - `apps/api/src/scripts/enable-admin-modules.ts`:
+    - Line 47: `'Module-aware executive KPIs, alerts, analytics, trends, and reports for the Principal.',`
+  - `apps/api/src/scripts/generate-production-scorecard.test.ts`:
+    - Line 22: `"reports",`
+  - `apps/api/src/scripts/generate-production-scorecard.ts`:
+    - Line 150: `remediation: 'Add the tenant isolation audit runner and require it in CI for finance, support, library, discipline, reports, and files.',`
+    - Line 183: `evidenceLine(/missing_provider/.test(supportNotificationSource), 'support notification health reports precise missing provider state'),`
+  - `apps/api/src/scripts/high-volume-workflow-load.test.ts`:
+    - Line 18: `'billing-invoice-reports',`
+  - `apps/api/src/scripts/high-volume-workflow-load.ts`:
+    - Line 18: `{ id: 'billing-invoice-reports', method: 'GET', path: '/billing/reports/invoices/export', targetP95Ms: 900 },`
+    - Line 31: `{ id: 'report-export-jobs', method: 'GET', path: '/reports/export-jobs', targetP95Ms: 800 },`
+  - `apps/api/src/scripts/implementation100-certification.ts`:
+    - Line 74: `moduleEvidence('reports', 'Reports', 'apps/web/src/components/school/school-pages.tsx', ['Reports'], 'apps/web/src/app/api/reports/[...path]/route.ts', ['proxySchoolApiRequest', '/reports'], 'apps/api/src/common/reports/report-export-jobs.controller.ts', ['ReportExportJobsController'], 'apps/api/src/common/reports/report-snapshot-schema.service.ts', ['report_snapshots'], 'apps/api/src/common/reports/report-export-queue.test.ts', ['report']),`
+  - `apps/api/src/scripts/implementation20-certification.test.ts`:
+    - Line 30: `'apps/api/src/modules/biometric-attendance/biometric-attendance.controller.ts': 'live-feed reports/monthly',`
+    - Line 37: `'apps/web/src/app/api/reports/[...path]/route.ts': 'proxySchoolApiRequest "/reports"',`
+  - `apps/api/src/scripts/implementation20-certification.ts`:
+    - Line 72: `check('biometric-live-reports', 'Biometric API exposes live feed and monthly reports', 'apps/api/src/modules/biometric-attendance/biometric-attendance.controller.ts', /live-feed[\s\S]+reports\/monthly/),`
+    - Line 84: `check('reports-web-proxy', 'Web app proxies reports requests to the API', 'apps/web/src/app/api/reports/[...path]/route.ts', /proxySchoolApiRequest[\s\S]+"\/reports"/),`
+  - `apps/api/src/scripts/implementation21-certification.test.ts`:
+    - Line 10: `'apps/api/src/modules/admin-command/principal-insights.providers.ts': 'finance summary_only lab_management communication_sms clinic_health permission_required: \'clinic:reports\' summary_only medicine_consumption_cost_minor wastage_due_to_expiry_minor emergency_supply_ready_rate most_used_medicine ai_insights fee_default_risk_alerts medicine_shortage_predictions attendance_irregularities budget_overrun_alerts performance_decline_warnings',`
+    - Line 29: `'apps/api/src/modules/clinic/clinic.controller.ts': 'clinic:inventory clinic:dispense clinic:reports portal:read_own_children',`
+  - `apps/api/src/scripts/implementation21-certification.ts`:
+    - Line 76: `check('clinic-api-permissions', 'Clinic controller separates inventory, dispensing, reports, and parent history permissions', 'apps/api/src/modules/clinic/clinic.controller.ts', /clinic:inventory[\s\S]+clinic:dispense[\s\S]+clinic:reports[\s\S]+portal:read_own_children/),`
+    - Line 92: `check('principal-no-confidential-notes', 'Principal insights use clinic reports, not confidential permissions', 'apps/api/src/modules/admin-command/principal-insights.providers.ts', /permission_required:\s+'clinic:reports'[\s\S]+summary_only/),`
+  - `apps/api/src/scripts/implementation30-certification.test.ts`:
+    - Line 59: `'apps/api/src/modules/payments/payments.test.ts': 'provider_verification_required exports only redacted payloads redacts C2B API payment responses for legacy raw rows assert.notEqual creates callback channels with hashed secrets builds high-entropy STK and C2B callback URLs high-entropy channel-secret routes creates M-PESA verification jobs verificationJobInput duplicate M-PESA identifiers MpesaTransactionStatusService verifies STK callback status classifies verified C2B payments without ledger enqueue accepts unsigned direct Daraja callbacks rejects unsigned callbacks in edge-signed mode accepts unsigned validation callbacks in direct Daraja mode PaymentsSchemaService creates reconciliation batches MpesaReconciliationService reports missing callbacks, duplicates, amount mismatches, wrong references, and late provider status runs daily reconciliation for every active tenant payment channel generates on-demand date-range reports lists accountant review items without raw M-PESA payload leakage requires two distinct approvers before resolving reversal requests exposes accountant review and finance approval endpoints',`
+    - Line 65: `'apps/api/src/modules/compliance/compliance-schema.service.ts': 'data_subject_requests access_request correction_request deletion_anonymization_request export_request objection_request data_retention_schedules child_data_dpia_records students payments sync_offline breach_response_reports FORCE ROW LEVEL SECURITY',`
+  - `apps/api/src/scripts/implementation30-certification.ts`:
+    - Line 95: `check('mpesa-reconciliation-processor', 'M-Pesa reconciliation service runs daily and date-range reports, persists batches, and classifies mismatch states', 'apps/api/src/modules/payments/services/mpesa-reconciliation.service.ts', /(?=.*generateDailyReport)(?=.*generateDateRangeReport)(?=.*runDailyProcessor)(?=.*reconciliation_state)(?=.*provider_received)(?=.*amount_mismatch)(?=.*duplicate_provider_receipt)(?=.*missing_provider_record)(?=.*verified_unmatched)(?=.*manual_review_required)(?=.*INSERT INTO mpesa_reconciliation_batches)(?=.*INSERT INTO mpesa_reconciliation_discrepancies)/s),`
+    - Line 100: `check('mpesa-reconciliation-tests', 'Payments tests cover reconciliation schema, missing callbacks, duplicates, amount mismatch, wrong references, late provider status, daily processor, and range reports', 'apps/api/src/modules/payments/payments.test.ts', /(?=.*PaymentsSchemaService creates reconciliation batches)(?=.*MpesaReconciliationService reports missing callbacks, duplicates, amount mismatches, wrong references, and late provider status)(?=.*runs daily reconciliation for every active tenant payment channel)(?=.*generates on-demand date-range reports)/s),`
+  - `apps/api/src/scripts/implementation30-load-profile.test.ts`:
+    - Line 35: `'apps/api/src/common/reports/report-export-queue.ts': 'shouldQueueReportExport DEFAULT_SYNC_EXPORT_ROW_LIMIT REPORT_EXPORT_JOB_OPTIONS attempts backoff estimated_rows',`
+    - Line 63: `'apps/api/src/common/reports/report-export-queue.ts': 'shouldQueueReportExport DEFAULT_SYNC_EXPORT_ROW_LIMIT REPORT_EXPORT_JOB_OPTIONS attempts backoff estimated_rows',`
+  - `apps/api/src/scripts/implementation30-load-profile.ts`:
+    - Line 181: `'apps/api/src/common/reports/report-export-queue.ts',`
+  - `apps/api/src/scripts/kisumu-boys-demo-seed.ts`:
+    - Line 29: `'reports',`
+    - Line 361: `{ moduleCode: 'reports', table: 'report_snapshots', tenantScoped: true },`
+  - `apps/api/src/scripts/module-access-certification.test.ts`:
+    - Line 28: `'apps/api/src/common/reports/report-export-jobs.controller.ts': '@Controller(\'reports\') @RequiresModule(\'reports\')',`
+    - Line 39: `'apps/api/src/modules/module-access/module-access.constants.ts': 'MODULE_REGISTRY_SEED students admissions academics finance exams discipline timetable lab_management teacher_biometric_attendance parent_portal inventory library transport communication_sms reports staff admin_command_centers principal_dashboard clinic_health procurement hostel boarding cbt_exams lms ai_insights visitor_management asset_tracking iot permission_scopes',`
+  - `apps/api/src/scripts/module-access-certification.ts`:
+    - Line 67: `backendRoute('reports', 'Report export job routes require the reports module', 'apps/api/src/common/reports/report-export-jobs.controller.ts', 'reports'),`
+    - Line 88: `frontendRoute('reports', 'reports'),`
+  - `apps/api/src/scripts/module-certification.test.ts`:
+    - Line 24: `'apps/web/src/lib/discipline/discipline-live.ts': 'acknowledgeDisciplineIncident exportDisciplineReport reports',`
+  - `apps/api/src/scripts/module-certification.ts`:
+    - Line 105: `workflow('reports-and-documents', 'Reports, documents, and confidential export safety', [`
+    - Line 106: `check('discipline-report-api', 'Discipline reports are exposed through API', 'apps/web/src/lib/discipline/discipline-live.ts', /exportDisciplineReport|reports/),`
+  - `apps/api/src/scripts/release-readiness-gate.test.ts`:
+    - Line 20: `"reports",`
+    - Line 49: `'dist/apps/api/src/common/reports/report-excel-artifact.test.js',`
+  - `apps/api/src/scripts/release-readiness-gate.ts`:
+    - Line 27: `} from '../common/reports/report-export-queue';`
+    - Line 31: `} from '../common/reports/report-snapshot-manifest';`
+  - `apps/api/src/scripts/run-pilot-certification.test.ts`:
+    - Line 75: `'apps/api/src/common/reports/report-export-queue.ts': 'validateReportExportJobPayload queue',`
+  - `apps/api/src/scripts/run-pilot-certification.ts`:
+    - Line 167: `check('report-export', 'Report export queue exists', 'apps/api/src/common/reports/report-export-queue.ts', /validateReportExportJobPayload|queue/i),`
+  - `apps/api/src/scripts/synthetic-journey-monitor.ts`:
+    - Line 286: `path: '/admissions/reports/applications/export',`
+    - Line 295: `path: '/inventory/reports/stock-valuation/export',`
+  - `apps/api/src/scripts/tenant-isolation-audit.test.ts`:
+    - Line 144: `'apps/api/src/common/reports/report-export-queue.ts': 'attendance',`
+  - `apps/api/src/scripts/tenant-isolation-audit.ts`:
+    - Line 59: `check('reports-block-retired-attendance', 'Report exports block retired attendance data', 'apps/api/src/common/reports/report-export-queue.ts', /attendance/i, 'high'),`
+- **`rooms-beds-workspace.tsx` (`rooms-beds`)**: No backend references found in `apps/api/src`.
+
+---
+
+### Role: `class-teacher`
+
+| File Name | Module ID | Definition Status | Backend Status | Refs |
+| :--- | :--- | :--- | :--- | :--- |
+| `attendance-follow-up-workspace.tsx` | `attendance-follow-up` | ✅ Found (Attendance Follow-up) | ✅ Referenced (4 refs) | `create-attendance-follow-up.consumer.ts`, `index.ts` |
+| `class-academics-workspace.tsx` | `class-academics` | ❌ Missing | ❌ Missing | None |
+| `discipline-follow-up-workspace.tsx` | `discipline-follow-up` | ❌ Missing | ❌ Missing | None |
+| `learner-profiles-workspace.tsx` | `learner-profiles` | ❌ Missing | ❌ Missing | None |
+| `my-class-workspace.tsx` | `my-class` | ✅ Found (My Class) | ✅ Referenced (1 refs) | `class-teacher.controller.ts` |
+| `overview-workspace.tsx` | `overview` | ✅ Found (Overview) | ✅ Referenced (106 refs) | `billing-feature.middleware.test.ts`, `admin-command.controller.ts`, `admissions-command.controller.ts`... |
+| `parent-contacts-workspace.tsx` | `parent-contacts` | ❌ Missing | ❌ Missing | None |
+| `report-comments-workspace.tsx` | `report-comments` | ✅ Found (Report Comments) | ✅ Referenced (2 refs) | `class-teacher.controller.ts` |
+| `reports-workspace.tsx` | `reports` | ✅ Found (Reports) | ✅ Referenced (371 refs) | `auth-email.service.test.ts`, `auth.constants.ts`, `monitoring-service-account.service.ts`... |
+| `welfare-notes-workspace.tsx` | `welfare-notes` | ❌ Missing | ❌ Missing | None |
+
+#### Backend Reference Details for `class-teacher`:
+- **`attendance-follow-up-workspace.tsx` (`attendance-follow-up`)**:
+  - `apps/api/src/modules/operations/consumers/create-attendance-follow-up.consumer.ts`:
+    - Line 6: `readonly name = 'create-attendance-follow-up.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'create-attendance-follow-up' && event.payload.action_id !== 'create-attendance-follow-up') {`
+  - `apps/api/src/modules/operations/consumers/index.ts`:
+    - Line 138: `export { CreateAttendanceFollowUpConsumer } from './create-attendance-follow-up.consumer';`
+- **`class-academics-workspace.tsx` (`class-academics`)**: No backend references found in `apps/api/src`.
+- **`discipline-follow-up-workspace.tsx` (`discipline-follow-up`)**: No backend references found in `apps/api/src`.
+- **`learner-profiles-workspace.tsx` (`learner-profiles`)**: No backend references found in `apps/api/src`.
+- **`my-class-workspace.tsx` (`my-class`)**:
+  - `apps/api/src/modules/class-teacher/class-teacher.controller.ts`:
+    - Line 11: `@Get('my-classes')`
+- **`overview-workspace.tsx` (`overview`)**:
+  - `apps/api/src/middleware/billing-feature.middleware.test.ts`:
+    - Line 75: `await requestContext.run(createContext('/admin-command/principal/overview'), async () => {`
+    - Line 78: `path: '/admin-command/principal/overview',`
+  - `apps/api/src/modules/admin-command/admin-command.controller.ts`:
+    - Line 33: `@Get('principal/finance-overview')`
+    - Line 103: `@Get('principal/overview')`
+  - `apps/api/src/modules/admin-command/admissions-command.controller.ts`:
+    - Line 9: `@Get('overview')`
+    - Line 84: `overview,`
+  - `apps/api/src/modules/admin-command/deputy-command.controller.ts`:
+    - Line 9: `@Get('overview')`
+  - `apps/api/src/modules/admin-command/principal-insights.providers.ts`:
+    - Line 6: `id: 'school_overview',`
+    - Line 8: `category: 'overview',`
+  - `apps/api/src/modules/admin-command/principal-insights.service.ts`:
+    - Line 164: `const overview = await this.repository.getPrincipalOverviewSnapshot(tenantId);`
+    - Line 190: `overview,`
+  - `apps/api/src/modules/admin-command/principal-insights.types.ts`:
+    - Line 54: `overview: PrincipalOverviewPanel;`
+  - `apps/api/src/modules/admin-command/repositories/admin-command.repository.ts`:
+    - Line 1221: `defaultView: "overview"`
+  - `apps/api/src/modules/billing/billing-access.service.ts`:
+    - Line 59: `const { subscription, overview } =`
+    - Line 61: `const access = this.buildAccessState(subscription, overview);`
+  - `apps/api/src/modules/billing/billing-lifecycle.service.ts`:
+    - Line 60: `overview: SubscriptionLifecycleOverview | null;`
+    - Line 69: `overview: null,`
+  - `apps/api/src/modules/billing/billing-notification.service.ts`:
+    - Line 18: `overview: SubscriptionLifecycleOverview,`
+    - Line 20: `const descriptors = this.buildDescriptors(subscription, overview);`
+  - `apps/api/src/modules/billing/billing.service.ts`:
+    - Line 281: `if (!lifecycle.subscription || !lifecycle.overview) {`
+    - Line 285: `return this.mapSubscription(lifecycle.subscription, lifecycle.overview);`
+  - `apps/api/src/modules/billing/billing.test.ts`:
+    - Line 129: `overview: null,`
+    - Line 877: `ensureCurrentLifecycle: async () => ({ subscription: null, overview: null }),`
+  - `apps/api/src/modules/class-teacher/class-teacher.controller.ts`:
+    - Line 20: `@Get('overview')`
+    - Line 30: `@Get('dashboard-overview')`
+  - `apps/api/src/modules/dashboard/dashboard.controller.ts`:
+    - Line 34: `@Get('parent/overview')`
+    - Line 58: `@Get('student/overview')`
+  - `apps/api/src/modules/discipline/discipline.controller.ts`:
+    - Line 244: `@Get('analytics/overview')`
+  - `apps/api/src/modules/finance/finance.controller.ts`:
+    - Line 306: `@Get('accounts-overview')`
+  - `apps/api/src/modules/grade-master/grade-master.controller.ts`:
+    - Line 9: `@Get('overview')`
+  - `apps/api/src/modules/operations/consumers/export-overview.consumer.ts`:
+    - Line 6: `readonly name = 'export-overview.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'export-overview' && event.payload.action_id !== 'export-overview') {`
+  - `apps/api/src/modules/operations/consumers/index.ts`:
+    - Line 262: `export { ExportOverviewConsumer } from './export-overview.consumer';`
+  - `apps/api/src/modules/platform/platform-onboarding.service.test.ts`:
+    - Line 665: `test('PlatformOnboardingService summarizes tenants in product for the Super Admin overview', async () => {`
+  - `apps/api/src/scripts/core-api-load.ts`:
+    - Line 203: `path: '/discipline/analytics/overview',`
+  - `apps/api/src/scripts/high-volume-workflow-load.ts`:
+    - Line 29: `{ id: 'discipline-analytics', method: 'GET', path: '/discipline/analytics/overview', targetP95Ms: 800 },`
+- **`parent-contacts-workspace.tsx` (`parent-contacts`)**: No backend references found in `apps/api/src`.
+- **`report-comments-workspace.tsx` (`report-comments`)**:
+  - `apps/api/src/modules/class-teacher/class-teacher.controller.ts`:
+    - Line 117: `@Get('report-comments')`
+    - Line 126: `@Post('report-comments')`
+- **`reports-workspace.tsx` (`reports`)**:
+  - `apps/api/src/auth/auth-email.service.test.ts`:
+    - Line 6: `test('AuthEmailService reports transactional email as missing without secrets', () => {`
+    - Line 20: `test('AuthEmailService reports transactional email as configured without exposing secrets', () => {`
+  - `apps/api/src/auth/auth.constants.ts`:
+    - Line 59: `{ resource: 'reports', action: 'read', description: 'View generated report export jobs and snapshots' },`
+    - Line 108: `{ resource: 'discipline', action: 'reports', description: 'Export discipline reports and analytics' },`
+  - `apps/api/src/auth/monitoring-service-account.service.ts`:
+    - Line 16: `'reports:read',`
+  - `apps/api/src/auth/role-governance-policy.ts`:
+    - Line 125: `platform_support: ['support:view', 'support:manage', 'reports:read'],`
+    - Line 126: `finance_admin: ['billing:read', 'billing:write', 'reports:read'],`
+  - `apps/api/src/common/auto-repair/auto-repair-agent.test.ts`:
+    - Line 474: `operationalIntent: 'Bursar can act on finance exceptions, not browse static trend reports',`
+    - Line 706: `test('AutoRepairAgent reports dashboard repair patch intelligence for KPI-only dashboards', () => {`
+  - `apps/api/src/common/auto-repair/auto-repair-deployment.test.ts`:
+    - Line 43: `test('AutoRepairService reports deployed runtime readiness and keeps the full widget state contract', () => {`
+  - `apps/api/src/common/common.module.ts`:
+    - Line 12: `import { ReportExportQueueService } from './reports/report-export-queue';`
+    - Line 13: `import { ReportExportJobsController } from './reports/report-export-jobs.controller';`
+  - `apps/api/src/common/reports/report-artifact-storage.service.test.ts`:
+    - Line 18: `retention_policy: 'reports',`
+    - Line 48: `assert.equal(savedInputs[0].storagePath, `tenant/tenant-a/reports/billing/invoices/${'b'.repeat(64)}.pdf`);`
+  - `apps/api/src/common/reports/report-artifact-storage.service.ts`:
+    - Line 40: `retentionPolicy: 'reports',`
+    - Line 73: `return `tenant/${input.tenantId}/reports/${module}/${reportId}/${input.artifact.checksumSha256}.${extension}`;`
+  - `apps/api/src/common/reports/report-export-jobs.controller.ts`:
+    - Line 7: `@Controller('reports')`
+    - Line 8: `@RequiresModule('reports')`
+  - `apps/api/src/common/reports/report-export-queue.ts`:
+    - Line 52: `reports: 'reports',`
+  - `apps/api/src/common/reports/report-export.worker.test.ts`:
+    - Line 25: `storage_path: 'tenant/tenant-a/reports/exams/exam-results/artifact.pdf',`
+    - Line 80: `storage_path: 'tenant/tenant-a/reports/exams/exam-results/artifact.pdf',`
+  - `apps/api/src/common/reports/report-snapshot.repository.test.ts`:
+    - Line 95: `assert.deepEqual(Reflect.getMetadata(PERMISSIONS_KEY, handler), ['reports:read']);`
+  - `apps/api/src/common/uploads/database-file-storage.service.test.ts`:
+    - Line 685: `test('S3CompatibleObjectStorageService reports failed object deletes as unavailable', async () => {`
+  - `apps/api/src/common/uploads/upload-policy.test.ts`:
+    - Line 252: `test('runProviderMalwareScan returns unsafe verdicts when the provider reports infection', async () => {`
+  - `apps/api/src/database/batch4_schemas.sql`:
+    - Line 71: `CREATE TABLE IF NOT EXISTS operations_reports (`
+    - Line 80: `CONSTRAINT ck_operations_reports_tenant CHECK (tenant_id <> 'global')`
+  - `apps/api/src/database/schema.sql`:
+    - Line 2755: `CREATE TABLE IF NOT EXISTS operations_reports (`
+    - Line 2764: `CONSTRAINT ck_operations_reports_tenant CHECK (tenant_id <> 'global')`
+  - `apps/api/src/database/tenant-database-policy.ts`:
+    - Line 93: `reports: ['report_export_jobs', 'report_snapshots'],`
+  - `apps/api/src/modules/admin-command/admin-command.controller.ts`:
+    - Line 124: `@Get('principal/reports')`
+    - Line 126: `@Permissions('principal:read', 'reports:read')`
+  - `apps/api/src/modules/admin-command/admissions-command.controller.ts`:
+    - Line 69: `@Get('reports')`
+    - Line 99: `reports,`
+  - `apps/api/src/modules/admin-command/deputy-command.controller.ts`:
+    - Line 133: `@Get('reports')`
+    - Line 137: `@Post('reports/generate')`
+  - `apps/api/src/modules/admin-command/principal-insights.providers.ts`:
+    - Line 16: `reports: ['school-overview', 'population-trend'],`
+    - Line 31: `reports: ['academic-summary', 'cbc-cbe-competency-progress'],`
+  - `apps/api/src/modules/admin-command/principal-insights.service.ts`:
+    - Line 184: `const reportExports = Array.from(new Set(sections.flatMap((section) => section.reports)));`
+    - Line 273: `reports: [...provider.reports],`
+  - `apps/api/src/modules/admin-command/principal-insights.types.ts`:
+    - Line 34: `reports: string[];`
+    - Line 81: `reports: string[];`
+  - `apps/api/src/modules/admin-command/repositories/admin-command.repository.ts`:
+    - Line 846: `reportsPending: summaryResult.rows[0]?.pending_reviews || 0,`
+    - Line 1479: ``INSERT INTO operations_reports (content, prepared_by, tenant_id, title, updated_at) VALUES ($1, $2, $3, $4, NOW())`,`
+  - `apps/api/src/modules/admin-command/repositories/deputy-command.repository.ts`:
+    - Line 449: `0::int AS generated_reports`
+    - Line 452: `{ generated_reports: 0 }`
+  - `apps/api/src/modules/admissions/admissions.controller.ts`:
+    - Line 33: `} from '../../common/reports/report-export-queue';`
+    - Line 217: `@Post('reports/:reportId/export-jobs')`
+  - `apps/api/src/modules/admissions/admissions.service.ts`:
+    - Line 22: `} from '../../common/reports/report-csv-artifact';`
+  - `apps/api/src/modules/admissions/admissions.test.ts`:
+    - Line 197: `path: '/admissions/reports/applications/export',`
+    - Line 350: `path: '/admissions/reports/unknown/export',`
+  - `apps/api/src/modules/billing/billing.controller.ts`:
+    - Line 15: `} from '../../common/reports/report-export-queue';`
+    - Line 214: `@Post('reports/:reportId/export-jobs')`
+  - `apps/api/src/modules/billing/billing.service.ts`:
+    - Line 14: `} from '../../common/reports/report-csv-artifact';`
+  - `apps/api/src/modules/billing/billing.test.ts`:
+    - Line 2245: `path: '/billing/reports/invoices/export',`
+    - Line 2297: `path: '/billing/reports/unknown/export',`
+  - `apps/api/src/modules/biometric-attendance/biometric-attendance.controller.ts`:
+    - Line 52: `@Get('reports/monthly')`
+  - `apps/api/src/modules/class-teacher/class-teacher.controller.ts`:
+    - Line 358: `@Get('reports')`
+  - `apps/api/src/modules/clinic/clinic.controller.ts`:
+    - Line 62: `@Permissions('clinic:reports')`
+  - `apps/api/src/modules/clinic/clinic.service.ts`:
+    - Line 171: `this.assertPermission('clinic:reports');`
+  - `apps/api/src/modules/clinic/clinic.test.ts`:
+    - Line 58: `assert.deepEqual(Reflect.getMetadata(PERMISSIONS_KEY, analyticsHandler), ['clinic:reports']);`
+  - `apps/api/src/modules/compliance/compliance-schema.service.ts`:
+    - Line 127: `CREATE TABLE IF NOT EXISTS breach_response_reports (`
+    - Line 141: `CONSTRAINT ck_breach_response_reports_severity CHECK (severity IN ('low', 'medium', 'high', 'critical')),`
+  - `apps/api/src/modules/compliance/compliance.controller.ts`:
+    - Line 81: `@Get('breach-response-reports/:reportId/export')`
+  - `apps/api/src/modules/compliance/compliance.service.ts`:
+    - Line 351: `FROM breach_response_reports`
+  - `apps/api/src/modules/compliance/compliance.test.ts`:
+    - Line 33: `assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS breach_response_reports/);`
+    - Line 36: `assert.match(schemaSql, /ALTER TABLE breach_response_reports FORCE ROW LEVEL SECURITY/);`
+  - `apps/api/src/modules/counselling/counselling.controller.ts`:
+    - Line 87: `@Get('reports')`
+  - `apps/api/src/modules/discipline/discipline.controller.ts`:
+    - Line 245: `@Permissions('discipline:reports')`
+    - Line 250: `@Post('reports/export')`
+  - `apps/api/src/modules/discipline/discipline.service.ts`:
+    - Line 636: `this.assertPermission('discipline:reports');`
+    - Line 648: `this.assertPermission('discipline:reports');`
+  - `apps/api/src/modules/discipline/discipline.test.ts`:
+    - Line 65: `'discipline:reports',`
+    - Line 597: `permissions: ['discipline:reports'],`
+  - `apps/api/src/modules/exams/consumers/download-reports.consumer.ts`:
+    - Line 6: `readonly name = 'download-reports.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'download-reports' && event.payload.action_id !== 'download-reports') {`
+  - `apps/api/src/modules/exams/consumers/index.ts`:
+    - Line 10: `export { DownloadReportsConsumer } from './download-reports.consumer';`
+  - `apps/api/src/modules/exams/exams.test.ts`:
+    - Line 648: `test('ExamsService reports duplicate and unauthorized rows during bulk mark upload preview', async () => {`
+  - `apps/api/src/modules/exams/repositories/exams.repository.ts`:
+    - Line 1481: `(SELECT COUNT(*) FROM student_report_cards WHERE tenant_id = $1 AND status = 'published') AS published_reports,`
+  - `apps/api/src/modules/exams/services/report-card-pdf-artifact.ts`:
+    - Line 3: `import { normalizeReportFilename, normalizeReportGeneratedAt, type ReportArtifact } from '../../../common/reports/report-artifact';`
+  - `apps/api/src/modules/exams/services/report-card-template.service.ts`:
+    - Line 3: `import type { ReportArtifactInput, ReportArtifactValue } from '../../../common/reports/report-artifact';`
+  - `apps/api/src/modules/grade-master/grade-master.controller.ts`:
+    - Line 81: `@Get('reports')`
+  - `apps/api/src/modules/grade-master/grade-master.service.ts`:
+    - Line 16: `reportsNotReady: 12,`
+  - `apps/api/src/modules/health/health.controller.test.ts`:
+    - Line 297: `test('HealthController readiness reports optional Redis degradation without throwing', async () => {`
+  - `apps/api/src/modules/implementation300/api-category-policy.ts`:
+    - Line 45: `api('analytics_engine', 'internal', 'reports', ['/api/internal/analytics'], 'internal_service', true, true, 600),`
+  - `apps/api/src/modules/implementation300/blueprint-registry.ts`:
+    - Line 42: `| 'reports'`
+    - Line 437: `moduleDefinition('exams', 'Exams and Results', ['setup', 'grading', 'cbc-assessment', 'moderation', 'reports', 'analytics'], [`
+  - `apps/api/src/modules/implementation300/development-phase-policy.test.ts`:
+    - Line 24: `'reports',`
+    - Line 31: `completedModules: ['authentication', 'tenant_management', 'students', 'finance', 'exams', 'communication_sms', 'reports', 'inventory'],`
+  - `apps/api/src/modules/implementation300/development-phase-policy.ts`:
+    - Line 59: `'reports',`
+    - Line 61: `capabilities: ['tenant_onboarding', 'billing', 'exam_results', 'communication', 'reports'],`
+  - `apps/api/src/modules/integrations/integrations.test.ts`:
+    - Line 202: `test('SmsDispatchService reports missing credential fields without exposing secrets', async () => {`
+  - `apps/api/src/modules/inventory/inventory.controller.ts`:
+    - Line 7: `} from '../../common/reports/report-export-queue';`
+    - Line 246: `@Get('reports')`
+  - `apps/api/src/modules/inventory/inventory.service.ts`:
+    - Line 13: `} from '../../common/reports/report-csv-artifact';`
+    - Line 93: `rows: (reports: InventoryReportsPayload) => ReportCsvValue[][];`
+  - `apps/api/src/modules/inventory/inventory.test.ts`:
+    - Line 2222: `path: '/inventory/reports/stock-valuation/export',`
+    - Line 2250: `throw new Error('reports should not be loaded for an unknown export');`
+  - `apps/api/src/modules/inventory/repositories/inventory.repository.test.ts`:
+    - Line 971: `const reports = await repository.buildReports('tenant-a');`
+    - Line 978: `assert.deepEqual(reports.stock_reconciliation, [`
+  - `apps/api/src/modules/library/library.controller.ts`:
+    - Line 89: `@Get('reports')`
+  - `apps/api/src/modules/mobile/mobile-app-policy.test.ts`:
+    - Line 44: `enabledModules: ['principal_dashboard', 'finance', 'reports'],`
+    - Line 79: `capabilities: ['fees', 'communication', 'reports', 'results'],`
+  - `apps/api/src/modules/mobile/mobile-app-policy.ts`:
+    - Line 9: `| 'reports'`
+    - Line 19: `export type MobileOfflineCapability = 'attendance' | 'mark_entry' | 'assignments' | 'fees' | 'communication' | 'reports' | 'results';`
+  - `apps/api/src/modules/module-access/module-access.constants.ts`:
+    - Line 55: `description: 'Assessments, marks, reports, academic analytics, CBT hooks, and result publishing.',`
+    - Line 67: `permission_scopes: ['discipline:read', 'discipline:write', 'discipline:manage', 'discipline:reports'],`
+  - `apps/api/src/modules/module-access/module-access.test.ts`:
+    - Line 13: `import { ReportExportJobsController } from '../../common/reports/report-export-jobs.controller';`
+    - Line 38: `'reports',`
+  - `apps/api/src/modules/operations/consumers/index.ts`:
+    - Line 505: `export { ReportsConsumer } from './reports.consumer';`
+    - Line 516: `export { RequestReportsConsumer } from './request-reports.consumer';`
+  - `apps/api/src/modules/operations/consumers/reports.consumer.ts`:
+    - Line 6: `readonly name = 'reports.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'reports' && event.payload.action_id !== 'reports') {`
+  - `apps/api/src/modules/operations/consumers/request-reports.consumer.ts`:
+    - Line 6: `readonly name = 'request-reports.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'request-reports' && event.payload.action_id !== 'request-reports') {`
+  - `apps/api/src/modules/operations/consumers/view-reports.consumer.ts`:
+    - Line 6: `readonly name = 'view-reports.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'view-reports' && event.payload.action_id !== 'view-reports') {`
+  - `apps/api/src/modules/operations/operations.service.ts`:
+    - Line 69: ``INSERT INTO operations_reports (tenant_id, title, content, prepared_by)`
+  - `apps/api/src/modules/payments/payments.test.ts`:
+    - Line 3482: `test('MpesaReconciliationService reports missing callbacks, duplicates, amount mismatches, wrong references, and late provider status', async () => {`
+    - Line 4016: `result.reports.map((report) => report.payment_channel_id),`
+  - `apps/api/src/modules/payments/payments.types.ts`:
+    - Line 297: `reports: MpesaReconciliationReport[];`
+    - Line 305: `reports: MpesaReconciliationReport[];`
+  - `apps/api/src/modules/payments/services/mpesa-reconciliation.service.ts`:
+    - Line 446: `const reports: MpesaReconciliationReport[] = [];`
+    - Line 449: `reports.push(`
+  - `apps/api/src/modules/platform/platform-onboarding.service.test.ts`:
+    - Line 470: `test('PlatformOnboardingService reports Resend testing mode as blocked instead of encouraging repeated resends', async () => {`
+  - `apps/api/src/modules/support/support-notification-delivery.service.test.ts`:
+    - Line 12: `test('SupportNotificationDeliveryService reports provider readiness without exposing secrets', async () => {`
+    - Line 97: `test('SupportNotificationDeliveryService reports precise missing provider status for dashboard-managed SMS', async () => {`
+  - `apps/api/src/scripts/audit-coverage-review.test.ts`:
+    - Line 49: `test('runAuditCoverageReview reports missing evidence by file and pattern', () => {`
+  - `apps/api/src/scripts/base-onboarding-seed.ts`:
+    - Line 30: `'reports',`
+    - Line 362: `{ moduleCode: 'reports', table: 'report_snapshots', tenantScoped: true },`
+  - `apps/api/src/scripts/core-api-load.test.ts`:
+    - Line 33: `assert.equal(inventoryExport.url, 'http://127.0.0.1:3000/inventory/reports/stock-valuation/export');`
+  - `apps/api/src/scripts/core-api-load.ts`:
+    - Line 131: `path: '/admissions/reports/applications/export',`
+    - Line 147: `id: 'inventory-reports',`
+  - `apps/api/src/scripts/enable-admin-modules.ts`:
+    - Line 47: `'Module-aware executive KPIs, alerts, analytics, trends, and reports for the Principal.',`
+  - `apps/api/src/scripts/generate-production-scorecard.test.ts`:
+    - Line 22: `"reports",`
+  - `apps/api/src/scripts/generate-production-scorecard.ts`:
+    - Line 150: `remediation: 'Add the tenant isolation audit runner and require it in CI for finance, support, library, discipline, reports, and files.',`
+    - Line 183: `evidenceLine(/missing_provider/.test(supportNotificationSource), 'support notification health reports precise missing provider state'),`
+  - `apps/api/src/scripts/high-volume-workflow-load.test.ts`:
+    - Line 18: `'billing-invoice-reports',`
+  - `apps/api/src/scripts/high-volume-workflow-load.ts`:
+    - Line 18: `{ id: 'billing-invoice-reports', method: 'GET', path: '/billing/reports/invoices/export', targetP95Ms: 900 },`
+    - Line 31: `{ id: 'report-export-jobs', method: 'GET', path: '/reports/export-jobs', targetP95Ms: 800 },`
+  - `apps/api/src/scripts/implementation100-certification.ts`:
+    - Line 74: `moduleEvidence('reports', 'Reports', 'apps/web/src/components/school/school-pages.tsx', ['Reports'], 'apps/web/src/app/api/reports/[...path]/route.ts', ['proxySchoolApiRequest', '/reports'], 'apps/api/src/common/reports/report-export-jobs.controller.ts', ['ReportExportJobsController'], 'apps/api/src/common/reports/report-snapshot-schema.service.ts', ['report_snapshots'], 'apps/api/src/common/reports/report-export-queue.test.ts', ['report']),`
+  - `apps/api/src/scripts/implementation20-certification.test.ts`:
+    - Line 30: `'apps/api/src/modules/biometric-attendance/biometric-attendance.controller.ts': 'live-feed reports/monthly',`
+    - Line 37: `'apps/web/src/app/api/reports/[...path]/route.ts': 'proxySchoolApiRequest "/reports"',`
+  - `apps/api/src/scripts/implementation20-certification.ts`:
+    - Line 72: `check('biometric-live-reports', 'Biometric API exposes live feed and monthly reports', 'apps/api/src/modules/biometric-attendance/biometric-attendance.controller.ts', /live-feed[\s\S]+reports\/monthly/),`
+    - Line 84: `check('reports-web-proxy', 'Web app proxies reports requests to the API', 'apps/web/src/app/api/reports/[...path]/route.ts', /proxySchoolApiRequest[\s\S]+"\/reports"/),`
+  - `apps/api/src/scripts/implementation21-certification.test.ts`:
+    - Line 10: `'apps/api/src/modules/admin-command/principal-insights.providers.ts': 'finance summary_only lab_management communication_sms clinic_health permission_required: \'clinic:reports\' summary_only medicine_consumption_cost_minor wastage_due_to_expiry_minor emergency_supply_ready_rate most_used_medicine ai_insights fee_default_risk_alerts medicine_shortage_predictions attendance_irregularities budget_overrun_alerts performance_decline_warnings',`
+    - Line 29: `'apps/api/src/modules/clinic/clinic.controller.ts': 'clinic:inventory clinic:dispense clinic:reports portal:read_own_children',`
+  - `apps/api/src/scripts/implementation21-certification.ts`:
+    - Line 76: `check('clinic-api-permissions', 'Clinic controller separates inventory, dispensing, reports, and parent history permissions', 'apps/api/src/modules/clinic/clinic.controller.ts', /clinic:inventory[\s\S]+clinic:dispense[\s\S]+clinic:reports[\s\S]+portal:read_own_children/),`
+    - Line 92: `check('principal-no-confidential-notes', 'Principal insights use clinic reports, not confidential permissions', 'apps/api/src/modules/admin-command/principal-insights.providers.ts', /permission_required:\s+'clinic:reports'[\s\S]+summary_only/),`
+  - `apps/api/src/scripts/implementation30-certification.test.ts`:
+    - Line 59: `'apps/api/src/modules/payments/payments.test.ts': 'provider_verification_required exports only redacted payloads redacts C2B API payment responses for legacy raw rows assert.notEqual creates callback channels with hashed secrets builds high-entropy STK and C2B callback URLs high-entropy channel-secret routes creates M-PESA verification jobs verificationJobInput duplicate M-PESA identifiers MpesaTransactionStatusService verifies STK callback status classifies verified C2B payments without ledger enqueue accepts unsigned direct Daraja callbacks rejects unsigned callbacks in edge-signed mode accepts unsigned validation callbacks in direct Daraja mode PaymentsSchemaService creates reconciliation batches MpesaReconciliationService reports missing callbacks, duplicates, amount mismatches, wrong references, and late provider status runs daily reconciliation for every active tenant payment channel generates on-demand date-range reports lists accountant review items without raw M-PESA payload leakage requires two distinct approvers before resolving reversal requests exposes accountant review and finance approval endpoints',`
+    - Line 65: `'apps/api/src/modules/compliance/compliance-schema.service.ts': 'data_subject_requests access_request correction_request deletion_anonymization_request export_request objection_request data_retention_schedules child_data_dpia_records students payments sync_offline breach_response_reports FORCE ROW LEVEL SECURITY',`
+  - `apps/api/src/scripts/implementation30-certification.ts`:
+    - Line 95: `check('mpesa-reconciliation-processor', 'M-Pesa reconciliation service runs daily and date-range reports, persists batches, and classifies mismatch states', 'apps/api/src/modules/payments/services/mpesa-reconciliation.service.ts', /(?=.*generateDailyReport)(?=.*generateDateRangeReport)(?=.*runDailyProcessor)(?=.*reconciliation_state)(?=.*provider_received)(?=.*amount_mismatch)(?=.*duplicate_provider_receipt)(?=.*missing_provider_record)(?=.*verified_unmatched)(?=.*manual_review_required)(?=.*INSERT INTO mpesa_reconciliation_batches)(?=.*INSERT INTO mpesa_reconciliation_discrepancies)/s),`
+    - Line 100: `check('mpesa-reconciliation-tests', 'Payments tests cover reconciliation schema, missing callbacks, duplicates, amount mismatch, wrong references, late provider status, daily processor, and range reports', 'apps/api/src/modules/payments/payments.test.ts', /(?=.*PaymentsSchemaService creates reconciliation batches)(?=.*MpesaReconciliationService reports missing callbacks, duplicates, amount mismatches, wrong references, and late provider status)(?=.*runs daily reconciliation for every active tenant payment channel)(?=.*generates on-demand date-range reports)/s),`
+  - `apps/api/src/scripts/implementation30-load-profile.test.ts`:
+    - Line 35: `'apps/api/src/common/reports/report-export-queue.ts': 'shouldQueueReportExport DEFAULT_SYNC_EXPORT_ROW_LIMIT REPORT_EXPORT_JOB_OPTIONS attempts backoff estimated_rows',`
+    - Line 63: `'apps/api/src/common/reports/report-export-queue.ts': 'shouldQueueReportExport DEFAULT_SYNC_EXPORT_ROW_LIMIT REPORT_EXPORT_JOB_OPTIONS attempts backoff estimated_rows',`
+  - `apps/api/src/scripts/implementation30-load-profile.ts`:
+    - Line 181: `'apps/api/src/common/reports/report-export-queue.ts',`
+  - `apps/api/src/scripts/kisumu-boys-demo-seed.ts`:
+    - Line 29: `'reports',`
+    - Line 361: `{ moduleCode: 'reports', table: 'report_snapshots', tenantScoped: true },`
+  - `apps/api/src/scripts/module-access-certification.test.ts`:
+    - Line 28: `'apps/api/src/common/reports/report-export-jobs.controller.ts': '@Controller(\'reports\') @RequiresModule(\'reports\')',`
+    - Line 39: `'apps/api/src/modules/module-access/module-access.constants.ts': 'MODULE_REGISTRY_SEED students admissions academics finance exams discipline timetable lab_management teacher_biometric_attendance parent_portal inventory library transport communication_sms reports staff admin_command_centers principal_dashboard clinic_health procurement hostel boarding cbt_exams lms ai_insights visitor_management asset_tracking iot permission_scopes',`
+  - `apps/api/src/scripts/module-access-certification.ts`:
+    - Line 67: `backendRoute('reports', 'Report export job routes require the reports module', 'apps/api/src/common/reports/report-export-jobs.controller.ts', 'reports'),`
+    - Line 88: `frontendRoute('reports', 'reports'),`
+  - `apps/api/src/scripts/module-certification.test.ts`:
+    - Line 24: `'apps/web/src/lib/discipline/discipline-live.ts': 'acknowledgeDisciplineIncident exportDisciplineReport reports',`
+  - `apps/api/src/scripts/module-certification.ts`:
+    - Line 105: `workflow('reports-and-documents', 'Reports, documents, and confidential export safety', [`
+    - Line 106: `check('discipline-report-api', 'Discipline reports are exposed through API', 'apps/web/src/lib/discipline/discipline-live.ts', /exportDisciplineReport|reports/),`
+  - `apps/api/src/scripts/release-readiness-gate.test.ts`:
+    - Line 20: `"reports",`
+    - Line 49: `'dist/apps/api/src/common/reports/report-excel-artifact.test.js',`
+  - `apps/api/src/scripts/release-readiness-gate.ts`:
+    - Line 27: `} from '../common/reports/report-export-queue';`
+    - Line 31: `} from '../common/reports/report-snapshot-manifest';`
+  - `apps/api/src/scripts/run-pilot-certification.test.ts`:
+    - Line 75: `'apps/api/src/common/reports/report-export-queue.ts': 'validateReportExportJobPayload queue',`
+  - `apps/api/src/scripts/run-pilot-certification.ts`:
+    - Line 167: `check('report-export', 'Report export queue exists', 'apps/api/src/common/reports/report-export-queue.ts', /validateReportExportJobPayload|queue/i),`
+  - `apps/api/src/scripts/synthetic-journey-monitor.ts`:
+    - Line 286: `path: '/admissions/reports/applications/export',`
+    - Line 295: `path: '/inventory/reports/stock-valuation/export',`
+  - `apps/api/src/scripts/tenant-isolation-audit.test.ts`:
+    - Line 144: `'apps/api/src/common/reports/report-export-queue.ts': 'attendance',`
+  - `apps/api/src/scripts/tenant-isolation-audit.ts`:
+    - Line 59: `check('reports-block-retired-attendance', 'Report exports block retired attendance data', 'apps/api/src/common/reports/report-export-queue.ts', /attendance/i, 'high'),`
+- **`welfare-notes-workspace.tsx` (`welfare-notes`)**: No backend references found in `apps/api/src`.
+
+---
+
+### Role: `dean-academics`
+
+| File Name | Module ID | Definition Status | Backend Status | Refs |
+| :--- | :--- | :--- | :--- | :--- |
+| `academic-interventions-workspace.tsx` | `academic-interventions` | ✅ Found (Academic Interventions) | ✅ Referenced (1 refs) | `grade-master.controller.ts` |
+| `assessments-workspace.tsx` | `assessments` | ❌ Missing | ✅ Referenced (19 refs) | `auth.constants.ts`, `exams-schema.service.ts`, `exams.controller.ts`... |
+| `curriculum-coverage-workspace.tsx` | `curriculum-coverage` | ✅ Found (Curriculum Coverage) | ❌ Missing | None |
+| `department-performance-workspace.tsx` | `department-performance` | ✅ Found (Department Performance) | ✅ Referenced (1 refs) | `principal-insights.providers.ts` |
+| `lesson-logs-workspace.tsx` | `lesson-logs` | ✅ Found (Lesson Logs) | ✅ Referenced (8 refs) | `academics.controller.ts`, `class-teacher.controller.ts`, `index.ts`... |
+| `lesson-plans-workspace.tsx` | `lesson-plans` | ✅ Found (Lesson Plans) | ❌ Missing | None |
+| `overview-workspace.tsx` | `overview` | ✅ Found (Overview) | ✅ Referenced (106 refs) | `billing-feature.middleware.test.ts`, `admin-command.controller.ts`, `admissions-command.controller.ts`... |
+| `reports-workspace.tsx` | `reports` | ✅ Found (Reports) | ✅ Referenced (371 refs) | `auth-email.service.test.ts`, `auth.constants.ts`, `monitoring-service-account.service.ts`... |
+| `teacher-workload-workspace.tsx` | `teacher-workload` | ✅ Found (Teacher Workload) | ❌ Missing | None |
+
+#### Backend Reference Details for `dean-academics`:
+- **`academic-interventions-workspace.tsx` (`academic-interventions`)**:
+  - `apps/api/src/modules/grade-master/grade-master.controller.ts`:
+    - Line 99: `@Post('academic-interventions')`
+- **`assessments-workspace.tsx` (`assessments`)**:
+  - `apps/api/src/auth/auth.constants.ts`:
+    - Line 71: `{ resource: 'exams', action: 'write', description: 'Manage exam setup and assessments' },`
+  - `apps/api/src/modules/exams/exams-schema.service.ts`:
+    - Line 57: `CREATE TABLE IF NOT EXISTS exam_assessments (`
+    - Line 68: `CONSTRAINT uq_exam_assessments_tenant_id_id UNIQUE (tenant_id, id),`
+  - `apps/api/src/modules/exams/exams.controller.ts`:
+    - Line 40: `@Post('assessments')`
+    - Line 260: `@Get('assessments')`
+  - `apps/api/src/modules/exams/repositories/exams.repository.ts`:
+    - Line 69: `INSERT INTO exam_assessments (`
+    - Line 652: `JOIN exam_assessments assessment`
+  - `apps/api/src/scripts/base-onboarding-seed.ts`:
+    - Line 255: `{ moduleCode: 'exams', table: 'exam_assessments', tenantScoped: true },`
+  - `apps/api/src/scripts/kisumu-boys-demo-seed.ts`:
+    - Line 254: `{ moduleCode: 'exams', table: 'exam_assessments', tenantScoped: true },`
+    - Line 1273: `await writer.upsert('exam_assessments', { id: examAssessmentId, tenant_id: tenantId, exam_series_id: examSeriesId, subject_id: subjectIds[0], name: 'Mathematics Paper 1', max_score: 100, weight: 100 });`
+- **`curriculum-coverage-workspace.tsx` (`curriculum-coverage`)**: No backend references found in `apps/api/src`.
+- **`department-performance-workspace.tsx` (`department-performance`)**:
+  - `apps/api/src/modules/admin-command/principal-insights.providers.ts`:
+    - Line 30: `drilldowns: ['academics.department-performance', 'academics.class-ranking', 'academics.risk-alerts'],`
+- **`lesson-logs-workspace.tsx` (`lesson-logs`)**:
+  - `apps/api/src/modules/academics/academics.controller.ts`:
+    - Line 121: `@Post('lesson-logs')`
+    - Line 127: `@Get('my-lesson-logs')`
+  - `apps/api/src/modules/class-teacher/class-teacher.controller.ts`:
+    - Line 298: `@Get('lesson-logs')`
+    - Line 308: `@Post('lesson-logs')`
+  - `apps/api/src/modules/operations/consumers/index.ts`:
+    - Line 512: `export { RequestMissingLessonLogsConsumer } from './request-missing-lesson-logs.consumer';`
+  - `apps/api/src/modules/operations/consumers/request-missing-lesson-logs.consumer.ts`:
+    - Line 6: `readonly name = 'request-missing-lesson-logs.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'request-missing-lesson-logs' && event.payload.action_id !== 'request-missing-lesson-logs') {`
+- **`lesson-plans-workspace.tsx` (`lesson-plans`)**: No backend references found in `apps/api/src`.
+- **`overview-workspace.tsx` (`overview`)**:
+  - `apps/api/src/middleware/billing-feature.middleware.test.ts`:
+    - Line 75: `await requestContext.run(createContext('/admin-command/principal/overview'), async () => {`
+    - Line 78: `path: '/admin-command/principal/overview',`
+  - `apps/api/src/modules/admin-command/admin-command.controller.ts`:
+    - Line 33: `@Get('principal/finance-overview')`
+    - Line 103: `@Get('principal/overview')`
+  - `apps/api/src/modules/admin-command/admissions-command.controller.ts`:
+    - Line 9: `@Get('overview')`
+    - Line 84: `overview,`
+  - `apps/api/src/modules/admin-command/deputy-command.controller.ts`:
+    - Line 9: `@Get('overview')`
+  - `apps/api/src/modules/admin-command/principal-insights.providers.ts`:
+    - Line 6: `id: 'school_overview',`
+    - Line 8: `category: 'overview',`
+  - `apps/api/src/modules/admin-command/principal-insights.service.ts`:
+    - Line 164: `const overview = await this.repository.getPrincipalOverviewSnapshot(tenantId);`
+    - Line 190: `overview,`
+  - `apps/api/src/modules/admin-command/principal-insights.types.ts`:
+    - Line 54: `overview: PrincipalOverviewPanel;`
+  - `apps/api/src/modules/admin-command/repositories/admin-command.repository.ts`:
+    - Line 1221: `defaultView: "overview"`
+  - `apps/api/src/modules/billing/billing-access.service.ts`:
+    - Line 59: `const { subscription, overview } =`
+    - Line 61: `const access = this.buildAccessState(subscription, overview);`
+  - `apps/api/src/modules/billing/billing-lifecycle.service.ts`:
+    - Line 60: `overview: SubscriptionLifecycleOverview | null;`
+    - Line 69: `overview: null,`
+  - `apps/api/src/modules/billing/billing-notification.service.ts`:
+    - Line 18: `overview: SubscriptionLifecycleOverview,`
+    - Line 20: `const descriptors = this.buildDescriptors(subscription, overview);`
+  - `apps/api/src/modules/billing/billing.service.ts`:
+    - Line 281: `if (!lifecycle.subscription || !lifecycle.overview) {`
+    - Line 285: `return this.mapSubscription(lifecycle.subscription, lifecycle.overview);`
+  - `apps/api/src/modules/billing/billing.test.ts`:
+    - Line 129: `overview: null,`
+    - Line 877: `ensureCurrentLifecycle: async () => ({ subscription: null, overview: null }),`
+  - `apps/api/src/modules/class-teacher/class-teacher.controller.ts`:
+    - Line 20: `@Get('overview')`
+    - Line 30: `@Get('dashboard-overview')`
+  - `apps/api/src/modules/dashboard/dashboard.controller.ts`:
+    - Line 34: `@Get('parent/overview')`
+    - Line 58: `@Get('student/overview')`
+  - `apps/api/src/modules/discipline/discipline.controller.ts`:
+    - Line 244: `@Get('analytics/overview')`
+  - `apps/api/src/modules/finance/finance.controller.ts`:
+    - Line 306: `@Get('accounts-overview')`
+  - `apps/api/src/modules/grade-master/grade-master.controller.ts`:
+    - Line 9: `@Get('overview')`
+  - `apps/api/src/modules/operations/consumers/export-overview.consumer.ts`:
+    - Line 6: `readonly name = 'export-overview.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'export-overview' && event.payload.action_id !== 'export-overview') {`
+  - `apps/api/src/modules/operations/consumers/index.ts`:
+    - Line 262: `export { ExportOverviewConsumer } from './export-overview.consumer';`
+  - `apps/api/src/modules/platform/platform-onboarding.service.test.ts`:
+    - Line 665: `test('PlatformOnboardingService summarizes tenants in product for the Super Admin overview', async () => {`
+  - `apps/api/src/scripts/core-api-load.ts`:
+    - Line 203: `path: '/discipline/analytics/overview',`
+  - `apps/api/src/scripts/high-volume-workflow-load.ts`:
+    - Line 29: `{ id: 'discipline-analytics', method: 'GET', path: '/discipline/analytics/overview', targetP95Ms: 800 },`
+- **`reports-workspace.tsx` (`reports`)**:
+  - `apps/api/src/auth/auth-email.service.test.ts`:
+    - Line 6: `test('AuthEmailService reports transactional email as missing without secrets', () => {`
+    - Line 20: `test('AuthEmailService reports transactional email as configured without exposing secrets', () => {`
+  - `apps/api/src/auth/auth.constants.ts`:
+    - Line 59: `{ resource: 'reports', action: 'read', description: 'View generated report export jobs and snapshots' },`
+    - Line 108: `{ resource: 'discipline', action: 'reports', description: 'Export discipline reports and analytics' },`
+  - `apps/api/src/auth/monitoring-service-account.service.ts`:
+    - Line 16: `'reports:read',`
+  - `apps/api/src/auth/role-governance-policy.ts`:
+    - Line 125: `platform_support: ['support:view', 'support:manage', 'reports:read'],`
+    - Line 126: `finance_admin: ['billing:read', 'billing:write', 'reports:read'],`
+  - `apps/api/src/common/auto-repair/auto-repair-agent.test.ts`:
+    - Line 474: `operationalIntent: 'Bursar can act on finance exceptions, not browse static trend reports',`
+    - Line 706: `test('AutoRepairAgent reports dashboard repair patch intelligence for KPI-only dashboards', () => {`
+  - `apps/api/src/common/auto-repair/auto-repair-deployment.test.ts`:
+    - Line 43: `test('AutoRepairService reports deployed runtime readiness and keeps the full widget state contract', () => {`
+  - `apps/api/src/common/common.module.ts`:
+    - Line 12: `import { ReportExportQueueService } from './reports/report-export-queue';`
+    - Line 13: `import { ReportExportJobsController } from './reports/report-export-jobs.controller';`
+  - `apps/api/src/common/reports/report-artifact-storage.service.test.ts`:
+    - Line 18: `retention_policy: 'reports',`
+    - Line 48: `assert.equal(savedInputs[0].storagePath, `tenant/tenant-a/reports/billing/invoices/${'b'.repeat(64)}.pdf`);`
+  - `apps/api/src/common/reports/report-artifact-storage.service.ts`:
+    - Line 40: `retentionPolicy: 'reports',`
+    - Line 73: `return `tenant/${input.tenantId}/reports/${module}/${reportId}/${input.artifact.checksumSha256}.${extension}`;`
+  - `apps/api/src/common/reports/report-export-jobs.controller.ts`:
+    - Line 7: `@Controller('reports')`
+    - Line 8: `@RequiresModule('reports')`
+  - `apps/api/src/common/reports/report-export-queue.ts`:
+    - Line 52: `reports: 'reports',`
+  - `apps/api/src/common/reports/report-export.worker.test.ts`:
+    - Line 25: `storage_path: 'tenant/tenant-a/reports/exams/exam-results/artifact.pdf',`
+    - Line 80: `storage_path: 'tenant/tenant-a/reports/exams/exam-results/artifact.pdf',`
+  - `apps/api/src/common/reports/report-snapshot.repository.test.ts`:
+    - Line 95: `assert.deepEqual(Reflect.getMetadata(PERMISSIONS_KEY, handler), ['reports:read']);`
+  - `apps/api/src/common/uploads/database-file-storage.service.test.ts`:
+    - Line 685: `test('S3CompatibleObjectStorageService reports failed object deletes as unavailable', async () => {`
+  - `apps/api/src/common/uploads/upload-policy.test.ts`:
+    - Line 252: `test('runProviderMalwareScan returns unsafe verdicts when the provider reports infection', async () => {`
+  - `apps/api/src/database/batch4_schemas.sql`:
+    - Line 71: `CREATE TABLE IF NOT EXISTS operations_reports (`
+    - Line 80: `CONSTRAINT ck_operations_reports_tenant CHECK (tenant_id <> 'global')`
+  - `apps/api/src/database/schema.sql`:
+    - Line 2755: `CREATE TABLE IF NOT EXISTS operations_reports (`
+    - Line 2764: `CONSTRAINT ck_operations_reports_tenant CHECK (tenant_id <> 'global')`
+  - `apps/api/src/database/tenant-database-policy.ts`:
+    - Line 93: `reports: ['report_export_jobs', 'report_snapshots'],`
+  - `apps/api/src/modules/admin-command/admin-command.controller.ts`:
+    - Line 124: `@Get('principal/reports')`
+    - Line 126: `@Permissions('principal:read', 'reports:read')`
+  - `apps/api/src/modules/admin-command/admissions-command.controller.ts`:
+    - Line 69: `@Get('reports')`
+    - Line 99: `reports,`
+  - `apps/api/src/modules/admin-command/deputy-command.controller.ts`:
+    - Line 133: `@Get('reports')`
+    - Line 137: `@Post('reports/generate')`
+  - `apps/api/src/modules/admin-command/principal-insights.providers.ts`:
+    - Line 16: `reports: ['school-overview', 'population-trend'],`
+    - Line 31: `reports: ['academic-summary', 'cbc-cbe-competency-progress'],`
+  - `apps/api/src/modules/admin-command/principal-insights.service.ts`:
+    - Line 184: `const reportExports = Array.from(new Set(sections.flatMap((section) => section.reports)));`
+    - Line 273: `reports: [...provider.reports],`
+  - `apps/api/src/modules/admin-command/principal-insights.types.ts`:
+    - Line 34: `reports: string[];`
+    - Line 81: `reports: string[];`
+  - `apps/api/src/modules/admin-command/repositories/admin-command.repository.ts`:
+    - Line 846: `reportsPending: summaryResult.rows[0]?.pending_reviews || 0,`
+    - Line 1479: ``INSERT INTO operations_reports (content, prepared_by, tenant_id, title, updated_at) VALUES ($1, $2, $3, $4, NOW())`,`
+  - `apps/api/src/modules/admin-command/repositories/deputy-command.repository.ts`:
+    - Line 449: `0::int AS generated_reports`
+    - Line 452: `{ generated_reports: 0 }`
+  - `apps/api/src/modules/admissions/admissions.controller.ts`:
+    - Line 33: `} from '../../common/reports/report-export-queue';`
+    - Line 217: `@Post('reports/:reportId/export-jobs')`
+  - `apps/api/src/modules/admissions/admissions.service.ts`:
+    - Line 22: `} from '../../common/reports/report-csv-artifact';`
+  - `apps/api/src/modules/admissions/admissions.test.ts`:
+    - Line 197: `path: '/admissions/reports/applications/export',`
+    - Line 350: `path: '/admissions/reports/unknown/export',`
+  - `apps/api/src/modules/billing/billing.controller.ts`:
+    - Line 15: `} from '../../common/reports/report-export-queue';`
+    - Line 214: `@Post('reports/:reportId/export-jobs')`
+  - `apps/api/src/modules/billing/billing.service.ts`:
+    - Line 14: `} from '../../common/reports/report-csv-artifact';`
+  - `apps/api/src/modules/billing/billing.test.ts`:
+    - Line 2245: `path: '/billing/reports/invoices/export',`
+    - Line 2297: `path: '/billing/reports/unknown/export',`
+  - `apps/api/src/modules/biometric-attendance/biometric-attendance.controller.ts`:
+    - Line 52: `@Get('reports/monthly')`
+  - `apps/api/src/modules/class-teacher/class-teacher.controller.ts`:
+    - Line 358: `@Get('reports')`
+  - `apps/api/src/modules/clinic/clinic.controller.ts`:
+    - Line 62: `@Permissions('clinic:reports')`
+  - `apps/api/src/modules/clinic/clinic.service.ts`:
+    - Line 171: `this.assertPermission('clinic:reports');`
+  - `apps/api/src/modules/clinic/clinic.test.ts`:
+    - Line 58: `assert.deepEqual(Reflect.getMetadata(PERMISSIONS_KEY, analyticsHandler), ['clinic:reports']);`
+  - `apps/api/src/modules/compliance/compliance-schema.service.ts`:
+    - Line 127: `CREATE TABLE IF NOT EXISTS breach_response_reports (`
+    - Line 141: `CONSTRAINT ck_breach_response_reports_severity CHECK (severity IN ('low', 'medium', 'high', 'critical')),`
+  - `apps/api/src/modules/compliance/compliance.controller.ts`:
+    - Line 81: `@Get('breach-response-reports/:reportId/export')`
+  - `apps/api/src/modules/compliance/compliance.service.ts`:
+    - Line 351: `FROM breach_response_reports`
+  - `apps/api/src/modules/compliance/compliance.test.ts`:
+    - Line 33: `assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS breach_response_reports/);`
+    - Line 36: `assert.match(schemaSql, /ALTER TABLE breach_response_reports FORCE ROW LEVEL SECURITY/);`
+  - `apps/api/src/modules/counselling/counselling.controller.ts`:
+    - Line 87: `@Get('reports')`
+  - `apps/api/src/modules/discipline/discipline.controller.ts`:
+    - Line 245: `@Permissions('discipline:reports')`
+    - Line 250: `@Post('reports/export')`
+  - `apps/api/src/modules/discipline/discipline.service.ts`:
+    - Line 636: `this.assertPermission('discipline:reports');`
+    - Line 648: `this.assertPermission('discipline:reports');`
+  - `apps/api/src/modules/discipline/discipline.test.ts`:
+    - Line 65: `'discipline:reports',`
+    - Line 597: `permissions: ['discipline:reports'],`
+  - `apps/api/src/modules/exams/consumers/download-reports.consumer.ts`:
+    - Line 6: `readonly name = 'download-reports.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'download-reports' && event.payload.action_id !== 'download-reports') {`
+  - `apps/api/src/modules/exams/consumers/index.ts`:
+    - Line 10: `export { DownloadReportsConsumer } from './download-reports.consumer';`
+  - `apps/api/src/modules/exams/exams.test.ts`:
+    - Line 648: `test('ExamsService reports duplicate and unauthorized rows during bulk mark upload preview', async () => {`
+  - `apps/api/src/modules/exams/repositories/exams.repository.ts`:
+    - Line 1481: `(SELECT COUNT(*) FROM student_report_cards WHERE tenant_id = $1 AND status = 'published') AS published_reports,`
+  - `apps/api/src/modules/exams/services/report-card-pdf-artifact.ts`:
+    - Line 3: `import { normalizeReportFilename, normalizeReportGeneratedAt, type ReportArtifact } from '../../../common/reports/report-artifact';`
+  - `apps/api/src/modules/exams/services/report-card-template.service.ts`:
+    - Line 3: `import type { ReportArtifactInput, ReportArtifactValue } from '../../../common/reports/report-artifact';`
+  - `apps/api/src/modules/grade-master/grade-master.controller.ts`:
+    - Line 81: `@Get('reports')`
+  - `apps/api/src/modules/grade-master/grade-master.service.ts`:
+    - Line 16: `reportsNotReady: 12,`
+  - `apps/api/src/modules/health/health.controller.test.ts`:
+    - Line 297: `test('HealthController readiness reports optional Redis degradation without throwing', async () => {`
+  - `apps/api/src/modules/implementation300/api-category-policy.ts`:
+    - Line 45: `api('analytics_engine', 'internal', 'reports', ['/api/internal/analytics'], 'internal_service', true, true, 600),`
+  - `apps/api/src/modules/implementation300/blueprint-registry.ts`:
+    - Line 42: `| 'reports'`
+    - Line 437: `moduleDefinition('exams', 'Exams and Results', ['setup', 'grading', 'cbc-assessment', 'moderation', 'reports', 'analytics'], [`
+  - `apps/api/src/modules/implementation300/development-phase-policy.test.ts`:
+    - Line 24: `'reports',`
+    - Line 31: `completedModules: ['authentication', 'tenant_management', 'students', 'finance', 'exams', 'communication_sms', 'reports', 'inventory'],`
+  - `apps/api/src/modules/implementation300/development-phase-policy.ts`:
+    - Line 59: `'reports',`
+    - Line 61: `capabilities: ['tenant_onboarding', 'billing', 'exam_results', 'communication', 'reports'],`
+  - `apps/api/src/modules/integrations/integrations.test.ts`:
+    - Line 202: `test('SmsDispatchService reports missing credential fields without exposing secrets', async () => {`
+  - `apps/api/src/modules/inventory/inventory.controller.ts`:
+    - Line 7: `} from '../../common/reports/report-export-queue';`
+    - Line 246: `@Get('reports')`
+  - `apps/api/src/modules/inventory/inventory.service.ts`:
+    - Line 13: `} from '../../common/reports/report-csv-artifact';`
+    - Line 93: `rows: (reports: InventoryReportsPayload) => ReportCsvValue[][];`
+  - `apps/api/src/modules/inventory/inventory.test.ts`:
+    - Line 2222: `path: '/inventory/reports/stock-valuation/export',`
+    - Line 2250: `throw new Error('reports should not be loaded for an unknown export');`
+  - `apps/api/src/modules/inventory/repositories/inventory.repository.test.ts`:
+    - Line 971: `const reports = await repository.buildReports('tenant-a');`
+    - Line 978: `assert.deepEqual(reports.stock_reconciliation, [`
+  - `apps/api/src/modules/library/library.controller.ts`:
+    - Line 89: `@Get('reports')`
+  - `apps/api/src/modules/mobile/mobile-app-policy.test.ts`:
+    - Line 44: `enabledModules: ['principal_dashboard', 'finance', 'reports'],`
+    - Line 79: `capabilities: ['fees', 'communication', 'reports', 'results'],`
+  - `apps/api/src/modules/mobile/mobile-app-policy.ts`:
+    - Line 9: `| 'reports'`
+    - Line 19: `export type MobileOfflineCapability = 'attendance' | 'mark_entry' | 'assignments' | 'fees' | 'communication' | 'reports' | 'results';`
+  - `apps/api/src/modules/module-access/module-access.constants.ts`:
+    - Line 55: `description: 'Assessments, marks, reports, academic analytics, CBT hooks, and result publishing.',`
+    - Line 67: `permission_scopes: ['discipline:read', 'discipline:write', 'discipline:manage', 'discipline:reports'],`
+  - `apps/api/src/modules/module-access/module-access.test.ts`:
+    - Line 13: `import { ReportExportJobsController } from '../../common/reports/report-export-jobs.controller';`
+    - Line 38: `'reports',`
+  - `apps/api/src/modules/operations/consumers/index.ts`:
+    - Line 505: `export { ReportsConsumer } from './reports.consumer';`
+    - Line 516: `export { RequestReportsConsumer } from './request-reports.consumer';`
+  - `apps/api/src/modules/operations/consumers/reports.consumer.ts`:
+    - Line 6: `readonly name = 'reports.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'reports' && event.payload.action_id !== 'reports') {`
+  - `apps/api/src/modules/operations/consumers/request-reports.consumer.ts`:
+    - Line 6: `readonly name = 'request-reports.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'request-reports' && event.payload.action_id !== 'request-reports') {`
+  - `apps/api/src/modules/operations/consumers/view-reports.consumer.ts`:
+    - Line 6: `readonly name = 'view-reports.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'view-reports' && event.payload.action_id !== 'view-reports') {`
+  - `apps/api/src/modules/operations/operations.service.ts`:
+    - Line 69: ``INSERT INTO operations_reports (tenant_id, title, content, prepared_by)`
+  - `apps/api/src/modules/payments/payments.test.ts`:
+    - Line 3482: `test('MpesaReconciliationService reports missing callbacks, duplicates, amount mismatches, wrong references, and late provider status', async () => {`
+    - Line 4016: `result.reports.map((report) => report.payment_channel_id),`
+  - `apps/api/src/modules/payments/payments.types.ts`:
+    - Line 297: `reports: MpesaReconciliationReport[];`
+    - Line 305: `reports: MpesaReconciliationReport[];`
+  - `apps/api/src/modules/payments/services/mpesa-reconciliation.service.ts`:
+    - Line 446: `const reports: MpesaReconciliationReport[] = [];`
+    - Line 449: `reports.push(`
+  - `apps/api/src/modules/platform/platform-onboarding.service.test.ts`:
+    - Line 470: `test('PlatformOnboardingService reports Resend testing mode as blocked instead of encouraging repeated resends', async () => {`
+  - `apps/api/src/modules/support/support-notification-delivery.service.test.ts`:
+    - Line 12: `test('SupportNotificationDeliveryService reports provider readiness without exposing secrets', async () => {`
+    - Line 97: `test('SupportNotificationDeliveryService reports precise missing provider status for dashboard-managed SMS', async () => {`
+  - `apps/api/src/scripts/audit-coverage-review.test.ts`:
+    - Line 49: `test('runAuditCoverageReview reports missing evidence by file and pattern', () => {`
+  - `apps/api/src/scripts/base-onboarding-seed.ts`:
+    - Line 30: `'reports',`
+    - Line 362: `{ moduleCode: 'reports', table: 'report_snapshots', tenantScoped: true },`
+  - `apps/api/src/scripts/core-api-load.test.ts`:
+    - Line 33: `assert.equal(inventoryExport.url, 'http://127.0.0.1:3000/inventory/reports/stock-valuation/export');`
+  - `apps/api/src/scripts/core-api-load.ts`:
+    - Line 131: `path: '/admissions/reports/applications/export',`
+    - Line 147: `id: 'inventory-reports',`
+  - `apps/api/src/scripts/enable-admin-modules.ts`:
+    - Line 47: `'Module-aware executive KPIs, alerts, analytics, trends, and reports for the Principal.',`
+  - `apps/api/src/scripts/generate-production-scorecard.test.ts`:
+    - Line 22: `"reports",`
+  - `apps/api/src/scripts/generate-production-scorecard.ts`:
+    - Line 150: `remediation: 'Add the tenant isolation audit runner and require it in CI for finance, support, library, discipline, reports, and files.',`
+    - Line 183: `evidenceLine(/missing_provider/.test(supportNotificationSource), 'support notification health reports precise missing provider state'),`
+  - `apps/api/src/scripts/high-volume-workflow-load.test.ts`:
+    - Line 18: `'billing-invoice-reports',`
+  - `apps/api/src/scripts/high-volume-workflow-load.ts`:
+    - Line 18: `{ id: 'billing-invoice-reports', method: 'GET', path: '/billing/reports/invoices/export', targetP95Ms: 900 },`
+    - Line 31: `{ id: 'report-export-jobs', method: 'GET', path: '/reports/export-jobs', targetP95Ms: 800 },`
+  - `apps/api/src/scripts/implementation100-certification.ts`:
+    - Line 74: `moduleEvidence('reports', 'Reports', 'apps/web/src/components/school/school-pages.tsx', ['Reports'], 'apps/web/src/app/api/reports/[...path]/route.ts', ['proxySchoolApiRequest', '/reports'], 'apps/api/src/common/reports/report-export-jobs.controller.ts', ['ReportExportJobsController'], 'apps/api/src/common/reports/report-snapshot-schema.service.ts', ['report_snapshots'], 'apps/api/src/common/reports/report-export-queue.test.ts', ['report']),`
+  - `apps/api/src/scripts/implementation20-certification.test.ts`:
+    - Line 30: `'apps/api/src/modules/biometric-attendance/biometric-attendance.controller.ts': 'live-feed reports/monthly',`
+    - Line 37: `'apps/web/src/app/api/reports/[...path]/route.ts': 'proxySchoolApiRequest "/reports"',`
+  - `apps/api/src/scripts/implementation20-certification.ts`:
+    - Line 72: `check('biometric-live-reports', 'Biometric API exposes live feed and monthly reports', 'apps/api/src/modules/biometric-attendance/biometric-attendance.controller.ts', /live-feed[\s\S]+reports\/monthly/),`
+    - Line 84: `check('reports-web-proxy', 'Web app proxies reports requests to the API', 'apps/web/src/app/api/reports/[...path]/route.ts', /proxySchoolApiRequest[\s\S]+"\/reports"/),`
+  - `apps/api/src/scripts/implementation21-certification.test.ts`:
+    - Line 10: `'apps/api/src/modules/admin-command/principal-insights.providers.ts': 'finance summary_only lab_management communication_sms clinic_health permission_required: \'clinic:reports\' summary_only medicine_consumption_cost_minor wastage_due_to_expiry_minor emergency_supply_ready_rate most_used_medicine ai_insights fee_default_risk_alerts medicine_shortage_predictions attendance_irregularities budget_overrun_alerts performance_decline_warnings',`
+    - Line 29: `'apps/api/src/modules/clinic/clinic.controller.ts': 'clinic:inventory clinic:dispense clinic:reports portal:read_own_children',`
+  - `apps/api/src/scripts/implementation21-certification.ts`:
+    - Line 76: `check('clinic-api-permissions', 'Clinic controller separates inventory, dispensing, reports, and parent history permissions', 'apps/api/src/modules/clinic/clinic.controller.ts', /clinic:inventory[\s\S]+clinic:dispense[\s\S]+clinic:reports[\s\S]+portal:read_own_children/),`
+    - Line 92: `check('principal-no-confidential-notes', 'Principal insights use clinic reports, not confidential permissions', 'apps/api/src/modules/admin-command/principal-insights.providers.ts', /permission_required:\s+'clinic:reports'[\s\S]+summary_only/),`
+  - `apps/api/src/scripts/implementation30-certification.test.ts`:
+    - Line 59: `'apps/api/src/modules/payments/payments.test.ts': 'provider_verification_required exports only redacted payloads redacts C2B API payment responses for legacy raw rows assert.notEqual creates callback channels with hashed secrets builds high-entropy STK and C2B callback URLs high-entropy channel-secret routes creates M-PESA verification jobs verificationJobInput duplicate M-PESA identifiers MpesaTransactionStatusService verifies STK callback status classifies verified C2B payments without ledger enqueue accepts unsigned direct Daraja callbacks rejects unsigned callbacks in edge-signed mode accepts unsigned validation callbacks in direct Daraja mode PaymentsSchemaService creates reconciliation batches MpesaReconciliationService reports missing callbacks, duplicates, amount mismatches, wrong references, and late provider status runs daily reconciliation for every active tenant payment channel generates on-demand date-range reports lists accountant review items without raw M-PESA payload leakage requires two distinct approvers before resolving reversal requests exposes accountant review and finance approval endpoints',`
+    - Line 65: `'apps/api/src/modules/compliance/compliance-schema.service.ts': 'data_subject_requests access_request correction_request deletion_anonymization_request export_request objection_request data_retention_schedules child_data_dpia_records students payments sync_offline breach_response_reports FORCE ROW LEVEL SECURITY',`
+  - `apps/api/src/scripts/implementation30-certification.ts`:
+    - Line 95: `check('mpesa-reconciliation-processor', 'M-Pesa reconciliation service runs daily and date-range reports, persists batches, and classifies mismatch states', 'apps/api/src/modules/payments/services/mpesa-reconciliation.service.ts', /(?=.*generateDailyReport)(?=.*generateDateRangeReport)(?=.*runDailyProcessor)(?=.*reconciliation_state)(?=.*provider_received)(?=.*amount_mismatch)(?=.*duplicate_provider_receipt)(?=.*missing_provider_record)(?=.*verified_unmatched)(?=.*manual_review_required)(?=.*INSERT INTO mpesa_reconciliation_batches)(?=.*INSERT INTO mpesa_reconciliation_discrepancies)/s),`
+    - Line 100: `check('mpesa-reconciliation-tests', 'Payments tests cover reconciliation schema, missing callbacks, duplicates, amount mismatch, wrong references, late provider status, daily processor, and range reports', 'apps/api/src/modules/payments/payments.test.ts', /(?=.*PaymentsSchemaService creates reconciliation batches)(?=.*MpesaReconciliationService reports missing callbacks, duplicates, amount mismatches, wrong references, and late provider status)(?=.*runs daily reconciliation for every active tenant payment channel)(?=.*generates on-demand date-range reports)/s),`
+  - `apps/api/src/scripts/implementation30-load-profile.test.ts`:
+    - Line 35: `'apps/api/src/common/reports/report-export-queue.ts': 'shouldQueueReportExport DEFAULT_SYNC_EXPORT_ROW_LIMIT REPORT_EXPORT_JOB_OPTIONS attempts backoff estimated_rows',`
+    - Line 63: `'apps/api/src/common/reports/report-export-queue.ts': 'shouldQueueReportExport DEFAULT_SYNC_EXPORT_ROW_LIMIT REPORT_EXPORT_JOB_OPTIONS attempts backoff estimated_rows',`
+  - `apps/api/src/scripts/implementation30-load-profile.ts`:
+    - Line 181: `'apps/api/src/common/reports/report-export-queue.ts',`
+  - `apps/api/src/scripts/kisumu-boys-demo-seed.ts`:
+    - Line 29: `'reports',`
+    - Line 361: `{ moduleCode: 'reports', table: 'report_snapshots', tenantScoped: true },`
+  - `apps/api/src/scripts/module-access-certification.test.ts`:
+    - Line 28: `'apps/api/src/common/reports/report-export-jobs.controller.ts': '@Controller(\'reports\') @RequiresModule(\'reports\')',`
+    - Line 39: `'apps/api/src/modules/module-access/module-access.constants.ts': 'MODULE_REGISTRY_SEED students admissions academics finance exams discipline timetable lab_management teacher_biometric_attendance parent_portal inventory library transport communication_sms reports staff admin_command_centers principal_dashboard clinic_health procurement hostel boarding cbt_exams lms ai_insights visitor_management asset_tracking iot permission_scopes',`
+  - `apps/api/src/scripts/module-access-certification.ts`:
+    - Line 67: `backendRoute('reports', 'Report export job routes require the reports module', 'apps/api/src/common/reports/report-export-jobs.controller.ts', 'reports'),`
+    - Line 88: `frontendRoute('reports', 'reports'),`
+  - `apps/api/src/scripts/module-certification.test.ts`:
+    - Line 24: `'apps/web/src/lib/discipline/discipline-live.ts': 'acknowledgeDisciplineIncident exportDisciplineReport reports',`
+  - `apps/api/src/scripts/module-certification.ts`:
+    - Line 105: `workflow('reports-and-documents', 'Reports, documents, and confidential export safety', [`
+    - Line 106: `check('discipline-report-api', 'Discipline reports are exposed through API', 'apps/web/src/lib/discipline/discipline-live.ts', /exportDisciplineReport|reports/),`
+  - `apps/api/src/scripts/release-readiness-gate.test.ts`:
+    - Line 20: `"reports",`
+    - Line 49: `'dist/apps/api/src/common/reports/report-excel-artifact.test.js',`
+  - `apps/api/src/scripts/release-readiness-gate.ts`:
+    - Line 27: `} from '../common/reports/report-export-queue';`
+    - Line 31: `} from '../common/reports/report-snapshot-manifest';`
+  - `apps/api/src/scripts/run-pilot-certification.test.ts`:
+    - Line 75: `'apps/api/src/common/reports/report-export-queue.ts': 'validateReportExportJobPayload queue',`
+  - `apps/api/src/scripts/run-pilot-certification.ts`:
+    - Line 167: `check('report-export', 'Report export queue exists', 'apps/api/src/common/reports/report-export-queue.ts', /validateReportExportJobPayload|queue/i),`
+  - `apps/api/src/scripts/synthetic-journey-monitor.ts`:
+    - Line 286: `path: '/admissions/reports/applications/export',`
+    - Line 295: `path: '/inventory/reports/stock-valuation/export',`
+  - `apps/api/src/scripts/tenant-isolation-audit.test.ts`:
+    - Line 144: `'apps/api/src/common/reports/report-export-queue.ts': 'attendance',`
+  - `apps/api/src/scripts/tenant-isolation-audit.ts`:
+    - Line 59: `check('reports-block-retired-attendance', 'Report exports block retired attendance data', 'apps/api/src/common/reports/report-export-queue.ts', /attendance/i, 'high'),`
+- **`teacher-workload-workspace.tsx` (`teacher-workload`)**: No backend references found in `apps/api/src`.
+
+---
+
+### Role: `school`
+
+| File Name | Module ID | Definition Status | Backend Status | Refs |
+| :--- | :--- | :--- | :--- | :--- |
+| `docx-operational-workspace.tsx` | `null` | ❌ Missing | ❌ Missing | None |
+
+#### Backend Reference Details for `school`:
+- **`docx-operational-workspace.tsx` (`null`)**: No backend references found in `apps/api/src`.
+
+---
+
+### Role: `exams-manager`
+
+| File Name | Module ID | Definition Status | Backend Status | Refs |
+| :--- | :--- | :--- | :--- | :--- |
+| `analysis-workspace.tsx` | `analysis` | ✅ Found (Analysis) | ✅ Referenced (8 refs) | `export-department-analysis.consumer.ts`, `generate-analysis.consumer.ts`, `index.ts` |
+| `exam-setup-workspace.tsx` | `exam-setup` | ✅ Found (Exam Setup) | ❌ Missing | None |
+| `exam-timetable-workspace.tsx` | `exam-timetable` | ✅ Found (Exam Timetable) | ❌ Missing | None |
+| `marks-entry-workspace.tsx` | `marks-entry` | ✅ Found (Marks Entry) | ✅ Referenced (8 refs) | `close-marks-entry.consumer.ts`, `index.ts`, `open-marks-entry.consumer.ts` |
+| `moderation-workspace.tsx` | `moderation` | ✅ Found (Moderation) | ✅ Referenced (18 refs) | `auth.constants.ts`, `operational-execution-contract.ts`, `workflow-runtime-contract.test.ts`... |
+| `overview-workspace.tsx` | `overview` | ✅ Found (Overview) | ✅ Referenced (106 refs) | `billing-feature.middleware.test.ts`, `admin-command.controller.ts`, `admissions-command.controller.ts`... |
+| `publishing-workspace.tsx` | `publishing` | ✅ Found (Publishing) | ✅ Referenced (11 refs) | `event-publisher.service.ts`, `publish-report-cards.consumer.ts`, `exams.test.ts`... |
+| `report-cards-workspace.tsx` | `report-cards` | ✅ Found (Report Cards) | ✅ Referenced (61 refs) | `cache-invalidation-rules.ts`, `workflow-runtime-contract.test.ts`, `workflow-runtime-contract.ts`... |
+| `reports-workspace.tsx` | `reports` | ✅ Found (Reports) | ✅ Referenced (371 refs) | `auth-email.service.test.ts`, `auth.constants.ts`, `monitoring-service-account.service.ts`... |
+
+#### Backend Reference Details for `exams-manager`:
+- **`analysis-workspace.tsx` (`analysis`)**:
+  - `apps/api/src/modules/operations/consumers/export-department-analysis.consumer.ts`:
+    - Line 6: `readonly name = 'export-department-analysis.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'export-department-analysis' && event.payload.action_id !== 'export-department-analysis') {`
+  - `apps/api/src/modules/operations/consumers/generate-analysis.consumer.ts`:
+    - Line 6: `readonly name = 'generate-analysis.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'generate-analysis' && event.payload.action_id !== 'generate-analysis') {`
+  - `apps/api/src/modules/operations/consumers/index.ts`:
+    - Line 247: `export { ExportDepartmentAnalysisConsumer } from './export-department-analysis.consumer';`
+    - Line 295: `export { GenerateAnalysisConsumer } from './generate-analysis.consumer';`
+- **`exam-setup-workspace.tsx` (`exam-setup`)**: No backend references found in `apps/api/src`.
+- **`exam-timetable-workspace.tsx` (`exam-timetable`)**: No backend references found in `apps/api/src`.
+- **`marks-entry-workspace.tsx` (`marks-entry`)**:
+  - `apps/api/src/modules/operations/consumers/close-marks-entry.consumer.ts`:
+    - Line 6: `readonly name = 'close-marks-entry.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'close-marks-entry' && event.payload.action_id !== 'close-marks-entry') {`
+  - `apps/api/src/modules/operations/consumers/index.ts`:
+    - Line 117: `export { CloseMarksEntryConsumer } from './close-marks-entry.consumer';`
+    - Line 404: `export { OpenMarksEntryConsumer } from './open-marks-entry.consumer';`
+  - `apps/api/src/modules/operations/consumers/open-marks-entry.consumer.ts`:
+    - Line 6: `readonly name = 'open-marks-entry.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'open-marks-entry' && event.payload.action_id !== 'open-marks-entry') {`
+- **`moderation-workspace.tsx` (`moderation`)**:
+  - `apps/api/src/auth/auth.constants.ts`:
+    - Line 274: `description: 'Academic quality assurance, exam moderation, report card review, grading integrity checks, and curriculum compliance approval',`
+  - `apps/api/src/common/platform-governance/operational-execution-contract.ts`:
+    - Line 187: `'escalate-moderation',`
+    - Line 204: `action('escalate-moderation', 'Escalate Moderation', 'exam-release', 'workflows.examRelease.escalate', [`
+  - `apps/api/src/common/platform-governance/workflow-runtime-contract.test.ts`:
+    - Line 71: `'moderation-service',`
+  - `apps/api/src/common/platform-governance/workflow-runtime-contract.ts`:
+    - Line 342: `orchestrationStep('moderation.scan', 'moderation-service', 'run-integrity-scan', ['exams.generate-drafts']),`
+    - Line 343: `orchestrationStep('dean.review', 'dean-workflow', 'request-dean-approval', ['moderation.scan']),`
+  - `apps/api/src/modules/events/dashboard-realtime.service.ts`:
+    - Line 75: `return `${examName} for ${className} ${streamName} is ready for moderation.`;`
+  - `apps/api/src/modules/exams/exams.test.ts`:
+    - Line 1343: `test('ExamsController exposes new moderation and publishing endpoints', () => {`
+  - `apps/api/src/modules/exams/repositories/exams.repository.ts`:
+    - Line 1482: `(SELECT COUNT(*) FROM exam_mark_versions WHERE tenant_id = $1 AND approval_state = 'pending') AS pending_moderations`
+  - `apps/api/src/modules/implementation300/blueprint-registry.ts`:
+    - Line 437: `moduleDefinition('exams', 'Exams and Results', ['setup', 'grading', 'cbc-assessment', 'moderation', 'reports', 'analytics'], [`
+  - `apps/api/src/modules/operations/consumers/add-moderation-note.consumer.ts`:
+    - Line 6: `readonly name = 'add-moderation-note.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'add-moderation-note' && event.payload.action_id !== 'add-moderation-note') {`
+  - `apps/api/src/modules/operations/consumers/export-moderation-report.consumer.ts`:
+    - Line 6: `readonly name = 'export-moderation-report.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'export-moderation-report' && event.payload.action_id !== 'export-moderation-report') {`
+  - `apps/api/src/modules/operations/consumers/index.ts`:
+    - Line 34: `export { AddModerationNoteConsumer } from './add-moderation-note.consumer';`
+    - Line 259: `export { ExportModerationReportConsumer } from './export-moderation-report.consumer';`
+- **`overview-workspace.tsx` (`overview`)**:
+  - `apps/api/src/middleware/billing-feature.middleware.test.ts`:
+    - Line 75: `await requestContext.run(createContext('/admin-command/principal/overview'), async () => {`
+    - Line 78: `path: '/admin-command/principal/overview',`
+  - `apps/api/src/modules/admin-command/admin-command.controller.ts`:
+    - Line 33: `@Get('principal/finance-overview')`
+    - Line 103: `@Get('principal/overview')`
+  - `apps/api/src/modules/admin-command/admissions-command.controller.ts`:
+    - Line 9: `@Get('overview')`
+    - Line 84: `overview,`
+  - `apps/api/src/modules/admin-command/deputy-command.controller.ts`:
+    - Line 9: `@Get('overview')`
+  - `apps/api/src/modules/admin-command/principal-insights.providers.ts`:
+    - Line 6: `id: 'school_overview',`
+    - Line 8: `category: 'overview',`
+  - `apps/api/src/modules/admin-command/principal-insights.service.ts`:
+    - Line 164: `const overview = await this.repository.getPrincipalOverviewSnapshot(tenantId);`
+    - Line 190: `overview,`
+  - `apps/api/src/modules/admin-command/principal-insights.types.ts`:
+    - Line 54: `overview: PrincipalOverviewPanel;`
+  - `apps/api/src/modules/admin-command/repositories/admin-command.repository.ts`:
+    - Line 1221: `defaultView: "overview"`
+  - `apps/api/src/modules/billing/billing-access.service.ts`:
+    - Line 59: `const { subscription, overview } =`
+    - Line 61: `const access = this.buildAccessState(subscription, overview);`
+  - `apps/api/src/modules/billing/billing-lifecycle.service.ts`:
+    - Line 60: `overview: SubscriptionLifecycleOverview | null;`
+    - Line 69: `overview: null,`
+  - `apps/api/src/modules/billing/billing-notification.service.ts`:
+    - Line 18: `overview: SubscriptionLifecycleOverview,`
+    - Line 20: `const descriptors = this.buildDescriptors(subscription, overview);`
+  - `apps/api/src/modules/billing/billing.service.ts`:
+    - Line 281: `if (!lifecycle.subscription || !lifecycle.overview) {`
+    - Line 285: `return this.mapSubscription(lifecycle.subscription, lifecycle.overview);`
+  - `apps/api/src/modules/billing/billing.test.ts`:
+    - Line 129: `overview: null,`
+    - Line 877: `ensureCurrentLifecycle: async () => ({ subscription: null, overview: null }),`
+  - `apps/api/src/modules/class-teacher/class-teacher.controller.ts`:
+    - Line 20: `@Get('overview')`
+    - Line 30: `@Get('dashboard-overview')`
+  - `apps/api/src/modules/dashboard/dashboard.controller.ts`:
+    - Line 34: `@Get('parent/overview')`
+    - Line 58: `@Get('student/overview')`
+  - `apps/api/src/modules/discipline/discipline.controller.ts`:
+    - Line 244: `@Get('analytics/overview')`
+  - `apps/api/src/modules/finance/finance.controller.ts`:
+    - Line 306: `@Get('accounts-overview')`
+  - `apps/api/src/modules/grade-master/grade-master.controller.ts`:
+    - Line 9: `@Get('overview')`
+  - `apps/api/src/modules/operations/consumers/export-overview.consumer.ts`:
+    - Line 6: `readonly name = 'export-overview.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'export-overview' && event.payload.action_id !== 'export-overview') {`
+  - `apps/api/src/modules/operations/consumers/index.ts`:
+    - Line 262: `export { ExportOverviewConsumer } from './export-overview.consumer';`
+  - `apps/api/src/modules/platform/platform-onboarding.service.test.ts`:
+    - Line 665: `test('PlatformOnboardingService summarizes tenants in product for the Super Admin overview', async () => {`
+  - `apps/api/src/scripts/core-api-load.ts`:
+    - Line 203: `path: '/discipline/analytics/overview',`
+  - `apps/api/src/scripts/high-volume-workflow-load.ts`:
+    - Line 29: `{ id: 'discipline-analytics', method: 'GET', path: '/discipline/analytics/overview', targetP95Ms: 800 },`
+- **`publishing-workspace.tsx` (`publishing`)**:
+  - `apps/api/src/modules/events/event-publisher.service.ts`:
+    - Line 38: `throw new BadRequestException('Tenant context is required for domain event publishing');`
+  - `apps/api/src/modules/exams/consumers/publish-report-cards.consumer.ts`:
+    - Line 20: `this.logger.warn(`Missing examCycleId for publishing report cards in tenant ${tenant_id}`);`
+  - `apps/api/src/modules/exams/exams.test.ts`:
+    - Line 498: `test('ExamsService generates report-card payloads from marks before publishing', async () => {`
+    - Line 1343: `test('ExamsController exposes new moderation and publishing endpoints', () => {`
+  - `apps/api/src/modules/module-access/module-access.constants.ts`:
+    - Line 55: `description: 'Assessments, marks, reports, academic analytics, CBT hooks, and result publishing.',`
+  - `apps/api/src/modules/operations/consumers/download-publishing-log.consumer.ts`:
+    - Line 6: `readonly name = 'download-publishing-log.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'download-publishing-log' && event.payload.action_id !== 'download-publishing-log') {`
+  - `apps/api/src/modules/operations/consumers/index.ts`:
+    - Line 190: `export { DownloadPublishingLogConsumer } from './download-publishing-log.consumer';`
+  - `apps/api/src/modules/security/data-classification-registry.service.ts`:
+    - Line 75: `{ id: 'media_event_publishing', guardian_required: true, revocable: true, evidence_required: true },`
+  - `apps/api/src/scripts/audit-coverage-review.ts`:
+    - Line 206: `description: 'Timetable slot creation and version publishing are audited.',`
+- **`report-cards-workspace.tsx` (`report-cards`)**:
+  - `apps/api/src/common/cache/cache-invalidation-rules.ts`:
+    - Line 43: `namespaces: ['exams:mark-sheets', 'exams:report-cards', 'dashboard:principal'],`
+  - `apps/api/src/common/platform-governance/workflow-runtime-contract.test.ts`:
+    - Line 64: `const plan = createOperationalOrchestrationPlan('publish-report-cards');`
+  - `apps/api/src/common/platform-governance/workflow-runtime-contract.ts`:
+    - Line 333: `if (planId !== 'publish-report-cards') {`
+    - Line 356: `queueItem('queue-report-cards', 'exam-workflow-1', 'exam-results-approval', 'exam-batch-1', [`
+  - `apps/api/src/modules/exams/consumers/index.ts`:
+    - Line 25: `export { PrintReportCardsConsumer } from './print-report-cards.consumer';`
+    - Line 26: `export { PublishReportCardsConsumer } from './publish-report-cards.consumer';`
+  - `apps/api/src/modules/exams/consumers/print-report-cards.consumer.ts`:
+    - Line 6: `readonly name = 'print-report-cards.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'print-report-cards' && event.payload.action_id !== 'print-report-cards') {`
+  - `apps/api/src/modules/exams/consumers/publish-report-cards.consumer.ts`:
+    - Line 8: `readonly name = 'publish-report-cards.execution';`
+    - Line 14: `if (event.payload.workflow_id !== 'publish-report-cards' && event.payload.action_id !== 'publish-report-cards') {`
+  - `apps/api/src/modules/exams/exams.controller.ts`:
+    - Line 105: `@Post('report-cards/publish')`
+    - Line 111: `@Post('report-cards/generate')`
+  - `apps/api/src/modules/exams/exams.service.ts`:
+    - Line 697: `download_url: `/exams/report-cards/download/${token}`,`
+  - `apps/api/src/modules/exams/exams.test.ts`:
+    - Line 1101: `assert.match(String(signed.download_url), /^\/exams\/report-cards\/download\//);`
+    - Line 1186: `assert.equal(Reflect.getMetadata(PATH_METADATA, tokenHandler), 'report-cards/:reportCardId/parent-download');`
+  - `apps/api/src/modules/exams/services/report-card-generation.service.ts`:
+    - Line 292: `return `tenant/${tenantId}/exams/report-cards/${reportCardId}/${verificationCode}.${extension}`;`
+  - `apps/api/src/modules/observability/production-observability.catalog.ts`:
+    - Line 110: `runbook: 'docs/runbooks/report-cards-stuck.md',`
+    - Line 166: `'docs/runbooks/report-cards-stuck.md',`
+  - `apps/api/src/modules/operations/consumers/generate-report-cards.consumer.ts`:
+    - Line 6: `readonly name = 'generate-report-cards.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'generate-report-cards' && event.payload.action_id !== 'generate-report-cards') {`
+  - `apps/api/src/modules/operations/consumers/index.ts`:
+    - Line 303: `export { GenerateReportCardsConsumer } from './generate-report-cards.consumer';`
+  - `apps/api/src/scripts/core-api-load.test.ts`:
+    - Line 18: `assert.ok(workloadIds.includes('exams-report-cards'));`
+  - `apps/api/src/scripts/core-api-load.ts`:
+    - Line 111: `id: 'exams-report-cards',`
+    - Line 113: `path: '/exams/report-cards',`
+  - `apps/api/src/scripts/high-volume-workflow-load.test.ts`:
+    - Line 21: `'exams-report-cards',`
+  - `apps/api/src/scripts/high-volume-workflow-load.ts`:
+    - Line 21: `{ id: 'exams-report-cards', method: 'GET', path: '/exams/report-cards', targetP95Ms: 800 },`
+  - `apps/api/src/scripts/implementation30-certification.test.ts`:
+    - Line 41: `'apps/api/src/modules/exams/exams.controller.ts': 'marks/bulk-template marks/bulk-upload exams:enter-marks report-cards/generate exams:approve report-cards/regenerate report-cards/batches report-cards/batches/:batchId exams:read report-cards/verify/:verificationCode report-cards/:reportCardId/parent-download portal:read_own_children report-cards/download/:token mark-sheets/:markSheetId/lock exams:enter-marks lockMarkSheet',`
+    - Line 87: `'docs/runbooks/report-cards-stuck.md': 'Report Cards Stuck report-card generation batch progress',`
+  - `apps/api/src/scripts/implementation30-certification.ts`:
+    - Line 139: `check('report-card-runbook', 'Report-card incident runbook covers stuck generation queues', 'docs/runbooks/report-cards-stuck.md', /(?=.*Report Cards Stuck)(?=.*report-card generation)(?=.*batch progress)/s),`
+    - Line 178: `area('exams-report-cards', 'Backend-generated and immutable report cards', [`
+  - `apps/api/src/scripts/implementation30-load-profile.test.ts`:
+    - Line 28: `'apps/api/src/scripts/high-volume-workflow-load.ts': 'HIGH_VOLUME_WORKFLOW_LOADS targetP95Ms dashboard-summaries student-search exams-report-cards teacher-mark-sheets',`
+    - Line 56: `'apps/api/src/scripts/high-volume-workflow-load.ts': 'HIGH_VOLUME_WORKFLOW_LOADS targetP95Ms dashboard-summaries student-search exams-report-cards teacher-mark-sheets',`
+  - `apps/api/src/scripts/implementation30-load-profile.ts`:
+    - Line 110: `{ id: 'exams-report-cards', target_p95_ms: 800, max_db_round_trips: 3, max_rows_per_page: 100 },`
+    - Line 151: `pattern: /(?=.*HIGH_VOLUME_WORKFLOW_LOADS)(?=.*targetP95Ms)(?=.*dashboard-summaries)(?=.*student-search)(?=.*exams-report-cards)(?=.*teacher-mark-sheets)/s,`
+  - `apps/api/src/scripts/implementation30-rollout-gate.ts`:
+    - Line 129: `booleanCheck('report-cards-enabled', 'Report cards are enabled', (evidence) => evidence.reportCardsEnabled === true),`
+  - `apps/api/src/scripts/implementation90-load-profile.ts`:
+    - Line 66: `{ id: 'published-report-cards', method: 'GET', path: '/exams/report-cards', mix: 0.1, target_p95_ms: 800 },`
+  - `apps/api/src/scripts/release-readiness-gate.ts`:
+    - Line 99: `'exams-report-cards',`
+  - `apps/api/src/scripts/synthetic-journey-monitor.ts`:
+    - Line 172: `id: 'exams-report-cards',`
+    - Line 175: `path: '/exams/report-cards',`
+- **`reports-workspace.tsx` (`reports`)**:
+  - `apps/api/src/auth/auth-email.service.test.ts`:
+    - Line 6: `test('AuthEmailService reports transactional email as missing without secrets', () => {`
+    - Line 20: `test('AuthEmailService reports transactional email as configured without exposing secrets', () => {`
+  - `apps/api/src/auth/auth.constants.ts`:
+    - Line 59: `{ resource: 'reports', action: 'read', description: 'View generated report export jobs and snapshots' },`
+    - Line 108: `{ resource: 'discipline', action: 'reports', description: 'Export discipline reports and analytics' },`
+  - `apps/api/src/auth/monitoring-service-account.service.ts`:
+    - Line 16: `'reports:read',`
+  - `apps/api/src/auth/role-governance-policy.ts`:
+    - Line 125: `platform_support: ['support:view', 'support:manage', 'reports:read'],`
+    - Line 126: `finance_admin: ['billing:read', 'billing:write', 'reports:read'],`
+  - `apps/api/src/common/auto-repair/auto-repair-agent.test.ts`:
+    - Line 474: `operationalIntent: 'Bursar can act on finance exceptions, not browse static trend reports',`
+    - Line 706: `test('AutoRepairAgent reports dashboard repair patch intelligence for KPI-only dashboards', () => {`
+  - `apps/api/src/common/auto-repair/auto-repair-deployment.test.ts`:
+    - Line 43: `test('AutoRepairService reports deployed runtime readiness and keeps the full widget state contract', () => {`
+  - `apps/api/src/common/common.module.ts`:
+    - Line 12: `import { ReportExportQueueService } from './reports/report-export-queue';`
+    - Line 13: `import { ReportExportJobsController } from './reports/report-export-jobs.controller';`
+  - `apps/api/src/common/reports/report-artifact-storage.service.test.ts`:
+    - Line 18: `retention_policy: 'reports',`
+    - Line 48: `assert.equal(savedInputs[0].storagePath, `tenant/tenant-a/reports/billing/invoices/${'b'.repeat(64)}.pdf`);`
+  - `apps/api/src/common/reports/report-artifact-storage.service.ts`:
+    - Line 40: `retentionPolicy: 'reports',`
+    - Line 73: `return `tenant/${input.tenantId}/reports/${module}/${reportId}/${input.artifact.checksumSha256}.${extension}`;`
+  - `apps/api/src/common/reports/report-export-jobs.controller.ts`:
+    - Line 7: `@Controller('reports')`
+    - Line 8: `@RequiresModule('reports')`
+  - `apps/api/src/common/reports/report-export-queue.ts`:
+    - Line 52: `reports: 'reports',`
+  - `apps/api/src/common/reports/report-export.worker.test.ts`:
+    - Line 25: `storage_path: 'tenant/tenant-a/reports/exams/exam-results/artifact.pdf',`
+    - Line 80: `storage_path: 'tenant/tenant-a/reports/exams/exam-results/artifact.pdf',`
+  - `apps/api/src/common/reports/report-snapshot.repository.test.ts`:
+    - Line 95: `assert.deepEqual(Reflect.getMetadata(PERMISSIONS_KEY, handler), ['reports:read']);`
+  - `apps/api/src/common/uploads/database-file-storage.service.test.ts`:
+    - Line 685: `test('S3CompatibleObjectStorageService reports failed object deletes as unavailable', async () => {`
+  - `apps/api/src/common/uploads/upload-policy.test.ts`:
+    - Line 252: `test('runProviderMalwareScan returns unsafe verdicts when the provider reports infection', async () => {`
+  - `apps/api/src/database/batch4_schemas.sql`:
+    - Line 71: `CREATE TABLE IF NOT EXISTS operations_reports (`
+    - Line 80: `CONSTRAINT ck_operations_reports_tenant CHECK (tenant_id <> 'global')`
+  - `apps/api/src/database/schema.sql`:
+    - Line 2755: `CREATE TABLE IF NOT EXISTS operations_reports (`
+    - Line 2764: `CONSTRAINT ck_operations_reports_tenant CHECK (tenant_id <> 'global')`
+  - `apps/api/src/database/tenant-database-policy.ts`:
+    - Line 93: `reports: ['report_export_jobs', 'report_snapshots'],`
+  - `apps/api/src/modules/admin-command/admin-command.controller.ts`:
+    - Line 124: `@Get('principal/reports')`
+    - Line 126: `@Permissions('principal:read', 'reports:read')`
+  - `apps/api/src/modules/admin-command/admissions-command.controller.ts`:
+    - Line 69: `@Get('reports')`
+    - Line 99: `reports,`
+  - `apps/api/src/modules/admin-command/deputy-command.controller.ts`:
+    - Line 133: `@Get('reports')`
+    - Line 137: `@Post('reports/generate')`
+  - `apps/api/src/modules/admin-command/principal-insights.providers.ts`:
+    - Line 16: `reports: ['school-overview', 'population-trend'],`
+    - Line 31: `reports: ['academic-summary', 'cbc-cbe-competency-progress'],`
+  - `apps/api/src/modules/admin-command/principal-insights.service.ts`:
+    - Line 184: `const reportExports = Array.from(new Set(sections.flatMap((section) => section.reports)));`
+    - Line 273: `reports: [...provider.reports],`
+  - `apps/api/src/modules/admin-command/principal-insights.types.ts`:
+    - Line 34: `reports: string[];`
+    - Line 81: `reports: string[];`
+  - `apps/api/src/modules/admin-command/repositories/admin-command.repository.ts`:
+    - Line 846: `reportsPending: summaryResult.rows[0]?.pending_reviews || 0,`
+    - Line 1479: ``INSERT INTO operations_reports (content, prepared_by, tenant_id, title, updated_at) VALUES ($1, $2, $3, $4, NOW())`,`
+  - `apps/api/src/modules/admin-command/repositories/deputy-command.repository.ts`:
+    - Line 449: `0::int AS generated_reports`
+    - Line 452: `{ generated_reports: 0 }`
+  - `apps/api/src/modules/admissions/admissions.controller.ts`:
+    - Line 33: `} from '../../common/reports/report-export-queue';`
+    - Line 217: `@Post('reports/:reportId/export-jobs')`
+  - `apps/api/src/modules/admissions/admissions.service.ts`:
+    - Line 22: `} from '../../common/reports/report-csv-artifact';`
+  - `apps/api/src/modules/admissions/admissions.test.ts`:
+    - Line 197: `path: '/admissions/reports/applications/export',`
+    - Line 350: `path: '/admissions/reports/unknown/export',`
+  - `apps/api/src/modules/billing/billing.controller.ts`:
+    - Line 15: `} from '../../common/reports/report-export-queue';`
+    - Line 214: `@Post('reports/:reportId/export-jobs')`
+  - `apps/api/src/modules/billing/billing.service.ts`:
+    - Line 14: `} from '../../common/reports/report-csv-artifact';`
+  - `apps/api/src/modules/billing/billing.test.ts`:
+    - Line 2245: `path: '/billing/reports/invoices/export',`
+    - Line 2297: `path: '/billing/reports/unknown/export',`
+  - `apps/api/src/modules/biometric-attendance/biometric-attendance.controller.ts`:
+    - Line 52: `@Get('reports/monthly')`
+  - `apps/api/src/modules/class-teacher/class-teacher.controller.ts`:
+    - Line 358: `@Get('reports')`
+  - `apps/api/src/modules/clinic/clinic.controller.ts`:
+    - Line 62: `@Permissions('clinic:reports')`
+  - `apps/api/src/modules/clinic/clinic.service.ts`:
+    - Line 171: `this.assertPermission('clinic:reports');`
+  - `apps/api/src/modules/clinic/clinic.test.ts`:
+    - Line 58: `assert.deepEqual(Reflect.getMetadata(PERMISSIONS_KEY, analyticsHandler), ['clinic:reports']);`
+  - `apps/api/src/modules/compliance/compliance-schema.service.ts`:
+    - Line 127: `CREATE TABLE IF NOT EXISTS breach_response_reports (`
+    - Line 141: `CONSTRAINT ck_breach_response_reports_severity CHECK (severity IN ('low', 'medium', 'high', 'critical')),`
+  - `apps/api/src/modules/compliance/compliance.controller.ts`:
+    - Line 81: `@Get('breach-response-reports/:reportId/export')`
+  - `apps/api/src/modules/compliance/compliance.service.ts`:
+    - Line 351: `FROM breach_response_reports`
+  - `apps/api/src/modules/compliance/compliance.test.ts`:
+    - Line 33: `assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS breach_response_reports/);`
+    - Line 36: `assert.match(schemaSql, /ALTER TABLE breach_response_reports FORCE ROW LEVEL SECURITY/);`
+  - `apps/api/src/modules/counselling/counselling.controller.ts`:
+    - Line 87: `@Get('reports')`
+  - `apps/api/src/modules/discipline/discipline.controller.ts`:
+    - Line 245: `@Permissions('discipline:reports')`
+    - Line 250: `@Post('reports/export')`
+  - `apps/api/src/modules/discipline/discipline.service.ts`:
+    - Line 636: `this.assertPermission('discipline:reports');`
+    - Line 648: `this.assertPermission('discipline:reports');`
+  - `apps/api/src/modules/discipline/discipline.test.ts`:
+    - Line 65: `'discipline:reports',`
+    - Line 597: `permissions: ['discipline:reports'],`
+  - `apps/api/src/modules/exams/consumers/download-reports.consumer.ts`:
+    - Line 6: `readonly name = 'download-reports.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'download-reports' && event.payload.action_id !== 'download-reports') {`
+  - `apps/api/src/modules/exams/consumers/index.ts`:
+    - Line 10: `export { DownloadReportsConsumer } from './download-reports.consumer';`
+  - `apps/api/src/modules/exams/exams.test.ts`:
+    - Line 648: `test('ExamsService reports duplicate and unauthorized rows during bulk mark upload preview', async () => {`
+  - `apps/api/src/modules/exams/repositories/exams.repository.ts`:
+    - Line 1481: `(SELECT COUNT(*) FROM student_report_cards WHERE tenant_id = $1 AND status = 'published') AS published_reports,`
+  - `apps/api/src/modules/exams/services/report-card-pdf-artifact.ts`:
+    - Line 3: `import { normalizeReportFilename, normalizeReportGeneratedAt, type ReportArtifact } from '../../../common/reports/report-artifact';`
+  - `apps/api/src/modules/exams/services/report-card-template.service.ts`:
+    - Line 3: `import type { ReportArtifactInput, ReportArtifactValue } from '../../../common/reports/report-artifact';`
+  - `apps/api/src/modules/grade-master/grade-master.controller.ts`:
+    - Line 81: `@Get('reports')`
+  - `apps/api/src/modules/grade-master/grade-master.service.ts`:
+    - Line 16: `reportsNotReady: 12,`
+  - `apps/api/src/modules/health/health.controller.test.ts`:
+    - Line 297: `test('HealthController readiness reports optional Redis degradation without throwing', async () => {`
+  - `apps/api/src/modules/implementation300/api-category-policy.ts`:
+    - Line 45: `api('analytics_engine', 'internal', 'reports', ['/api/internal/analytics'], 'internal_service', true, true, 600),`
+  - `apps/api/src/modules/implementation300/blueprint-registry.ts`:
+    - Line 42: `| 'reports'`
+    - Line 437: `moduleDefinition('exams', 'Exams and Results', ['setup', 'grading', 'cbc-assessment', 'moderation', 'reports', 'analytics'], [`
+  - `apps/api/src/modules/implementation300/development-phase-policy.test.ts`:
+    - Line 24: `'reports',`
+    - Line 31: `completedModules: ['authentication', 'tenant_management', 'students', 'finance', 'exams', 'communication_sms', 'reports', 'inventory'],`
+  - `apps/api/src/modules/implementation300/development-phase-policy.ts`:
+    - Line 59: `'reports',`
+    - Line 61: `capabilities: ['tenant_onboarding', 'billing', 'exam_results', 'communication', 'reports'],`
+  - `apps/api/src/modules/integrations/integrations.test.ts`:
+    - Line 202: `test('SmsDispatchService reports missing credential fields without exposing secrets', async () => {`
+  - `apps/api/src/modules/inventory/inventory.controller.ts`:
+    - Line 7: `} from '../../common/reports/report-export-queue';`
+    - Line 246: `@Get('reports')`
+  - `apps/api/src/modules/inventory/inventory.service.ts`:
+    - Line 13: `} from '../../common/reports/report-csv-artifact';`
+    - Line 93: `rows: (reports: InventoryReportsPayload) => ReportCsvValue[][];`
+  - `apps/api/src/modules/inventory/inventory.test.ts`:
+    - Line 2222: `path: '/inventory/reports/stock-valuation/export',`
+    - Line 2250: `throw new Error('reports should not be loaded for an unknown export');`
+  - `apps/api/src/modules/inventory/repositories/inventory.repository.test.ts`:
+    - Line 971: `const reports = await repository.buildReports('tenant-a');`
+    - Line 978: `assert.deepEqual(reports.stock_reconciliation, [`
+  - `apps/api/src/modules/library/library.controller.ts`:
+    - Line 89: `@Get('reports')`
+  - `apps/api/src/modules/mobile/mobile-app-policy.test.ts`:
+    - Line 44: `enabledModules: ['principal_dashboard', 'finance', 'reports'],`
+    - Line 79: `capabilities: ['fees', 'communication', 'reports', 'results'],`
+  - `apps/api/src/modules/mobile/mobile-app-policy.ts`:
+    - Line 9: `| 'reports'`
+    - Line 19: `export type MobileOfflineCapability = 'attendance' | 'mark_entry' | 'assignments' | 'fees' | 'communication' | 'reports' | 'results';`
+  - `apps/api/src/modules/module-access/module-access.constants.ts`:
+    - Line 55: `description: 'Assessments, marks, reports, academic analytics, CBT hooks, and result publishing.',`
+    - Line 67: `permission_scopes: ['discipline:read', 'discipline:write', 'discipline:manage', 'discipline:reports'],`
+  - `apps/api/src/modules/module-access/module-access.test.ts`:
+    - Line 13: `import { ReportExportJobsController } from '../../common/reports/report-export-jobs.controller';`
+    - Line 38: `'reports',`
+  - `apps/api/src/modules/operations/consumers/index.ts`:
+    - Line 505: `export { ReportsConsumer } from './reports.consumer';`
+    - Line 516: `export { RequestReportsConsumer } from './request-reports.consumer';`
+  - `apps/api/src/modules/operations/consumers/reports.consumer.ts`:
+    - Line 6: `readonly name = 'reports.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'reports' && event.payload.action_id !== 'reports') {`
+  - `apps/api/src/modules/operations/consumers/request-reports.consumer.ts`:
+    - Line 6: `readonly name = 'request-reports.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'request-reports' && event.payload.action_id !== 'request-reports') {`
+  - `apps/api/src/modules/operations/consumers/view-reports.consumer.ts`:
+    - Line 6: `readonly name = 'view-reports.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'view-reports' && event.payload.action_id !== 'view-reports') {`
+  - `apps/api/src/modules/operations/operations.service.ts`:
+    - Line 69: ``INSERT INTO operations_reports (tenant_id, title, content, prepared_by)`
+  - `apps/api/src/modules/payments/payments.test.ts`:
+    - Line 3482: `test('MpesaReconciliationService reports missing callbacks, duplicates, amount mismatches, wrong references, and late provider status', async () => {`
+    - Line 4016: `result.reports.map((report) => report.payment_channel_id),`
+  - `apps/api/src/modules/payments/payments.types.ts`:
+    - Line 297: `reports: MpesaReconciliationReport[];`
+    - Line 305: `reports: MpesaReconciliationReport[];`
+  - `apps/api/src/modules/payments/services/mpesa-reconciliation.service.ts`:
+    - Line 446: `const reports: MpesaReconciliationReport[] = [];`
+    - Line 449: `reports.push(`
+  - `apps/api/src/modules/platform/platform-onboarding.service.test.ts`:
+    - Line 470: `test('PlatformOnboardingService reports Resend testing mode as blocked instead of encouraging repeated resends', async () => {`
+  - `apps/api/src/modules/support/support-notification-delivery.service.test.ts`:
+    - Line 12: `test('SupportNotificationDeliveryService reports provider readiness without exposing secrets', async () => {`
+    - Line 97: `test('SupportNotificationDeliveryService reports precise missing provider status for dashboard-managed SMS', async () => {`
+  - `apps/api/src/scripts/audit-coverage-review.test.ts`:
+    - Line 49: `test('runAuditCoverageReview reports missing evidence by file and pattern', () => {`
+  - `apps/api/src/scripts/base-onboarding-seed.ts`:
+    - Line 30: `'reports',`
+    - Line 362: `{ moduleCode: 'reports', table: 'report_snapshots', tenantScoped: true },`
+  - `apps/api/src/scripts/core-api-load.test.ts`:
+    - Line 33: `assert.equal(inventoryExport.url, 'http://127.0.0.1:3000/inventory/reports/stock-valuation/export');`
+  - `apps/api/src/scripts/core-api-load.ts`:
+    - Line 131: `path: '/admissions/reports/applications/export',`
+    - Line 147: `id: 'inventory-reports',`
+  - `apps/api/src/scripts/enable-admin-modules.ts`:
+    - Line 47: `'Module-aware executive KPIs, alerts, analytics, trends, and reports for the Principal.',`
+  - `apps/api/src/scripts/generate-production-scorecard.test.ts`:
+    - Line 22: `"reports",`
+  - `apps/api/src/scripts/generate-production-scorecard.ts`:
+    - Line 150: `remediation: 'Add the tenant isolation audit runner and require it in CI for finance, support, library, discipline, reports, and files.',`
+    - Line 183: `evidenceLine(/missing_provider/.test(supportNotificationSource), 'support notification health reports precise missing provider state'),`
+  - `apps/api/src/scripts/high-volume-workflow-load.test.ts`:
+    - Line 18: `'billing-invoice-reports',`
+  - `apps/api/src/scripts/high-volume-workflow-load.ts`:
+    - Line 18: `{ id: 'billing-invoice-reports', method: 'GET', path: '/billing/reports/invoices/export', targetP95Ms: 900 },`
+    - Line 31: `{ id: 'report-export-jobs', method: 'GET', path: '/reports/export-jobs', targetP95Ms: 800 },`
+  - `apps/api/src/scripts/implementation100-certification.ts`:
+    - Line 74: `moduleEvidence('reports', 'Reports', 'apps/web/src/components/school/school-pages.tsx', ['Reports'], 'apps/web/src/app/api/reports/[...path]/route.ts', ['proxySchoolApiRequest', '/reports'], 'apps/api/src/common/reports/report-export-jobs.controller.ts', ['ReportExportJobsController'], 'apps/api/src/common/reports/report-snapshot-schema.service.ts', ['report_snapshots'], 'apps/api/src/common/reports/report-export-queue.test.ts', ['report']),`
+  - `apps/api/src/scripts/implementation20-certification.test.ts`:
+    - Line 30: `'apps/api/src/modules/biometric-attendance/biometric-attendance.controller.ts': 'live-feed reports/monthly',`
+    - Line 37: `'apps/web/src/app/api/reports/[...path]/route.ts': 'proxySchoolApiRequest "/reports"',`
+  - `apps/api/src/scripts/implementation20-certification.ts`:
+    - Line 72: `check('biometric-live-reports', 'Biometric API exposes live feed and monthly reports', 'apps/api/src/modules/biometric-attendance/biometric-attendance.controller.ts', /live-feed[\s\S]+reports\/monthly/),`
+    - Line 84: `check('reports-web-proxy', 'Web app proxies reports requests to the API', 'apps/web/src/app/api/reports/[...path]/route.ts', /proxySchoolApiRequest[\s\S]+"\/reports"/),`
+  - `apps/api/src/scripts/implementation21-certification.test.ts`:
+    - Line 10: `'apps/api/src/modules/admin-command/principal-insights.providers.ts': 'finance summary_only lab_management communication_sms clinic_health permission_required: \'clinic:reports\' summary_only medicine_consumption_cost_minor wastage_due_to_expiry_minor emergency_supply_ready_rate most_used_medicine ai_insights fee_default_risk_alerts medicine_shortage_predictions attendance_irregularities budget_overrun_alerts performance_decline_warnings',`
+    - Line 29: `'apps/api/src/modules/clinic/clinic.controller.ts': 'clinic:inventory clinic:dispense clinic:reports portal:read_own_children',`
+  - `apps/api/src/scripts/implementation21-certification.ts`:
+    - Line 76: `check('clinic-api-permissions', 'Clinic controller separates inventory, dispensing, reports, and parent history permissions', 'apps/api/src/modules/clinic/clinic.controller.ts', /clinic:inventory[\s\S]+clinic:dispense[\s\S]+clinic:reports[\s\S]+portal:read_own_children/),`
+    - Line 92: `check('principal-no-confidential-notes', 'Principal insights use clinic reports, not confidential permissions', 'apps/api/src/modules/admin-command/principal-insights.providers.ts', /permission_required:\s+'clinic:reports'[\s\S]+summary_only/),`
+  - `apps/api/src/scripts/implementation30-certification.test.ts`:
+    - Line 59: `'apps/api/src/modules/payments/payments.test.ts': 'provider_verification_required exports only redacted payloads redacts C2B API payment responses for legacy raw rows assert.notEqual creates callback channels with hashed secrets builds high-entropy STK and C2B callback URLs high-entropy channel-secret routes creates M-PESA verification jobs verificationJobInput duplicate M-PESA identifiers MpesaTransactionStatusService verifies STK callback status classifies verified C2B payments without ledger enqueue accepts unsigned direct Daraja callbacks rejects unsigned callbacks in edge-signed mode accepts unsigned validation callbacks in direct Daraja mode PaymentsSchemaService creates reconciliation batches MpesaReconciliationService reports missing callbacks, duplicates, amount mismatches, wrong references, and late provider status runs daily reconciliation for every active tenant payment channel generates on-demand date-range reports lists accountant review items without raw M-PESA payload leakage requires two distinct approvers before resolving reversal requests exposes accountant review and finance approval endpoints',`
+    - Line 65: `'apps/api/src/modules/compliance/compliance-schema.service.ts': 'data_subject_requests access_request correction_request deletion_anonymization_request export_request objection_request data_retention_schedules child_data_dpia_records students payments sync_offline breach_response_reports FORCE ROW LEVEL SECURITY',`
+  - `apps/api/src/scripts/implementation30-certification.ts`:
+    - Line 95: `check('mpesa-reconciliation-processor', 'M-Pesa reconciliation service runs daily and date-range reports, persists batches, and classifies mismatch states', 'apps/api/src/modules/payments/services/mpesa-reconciliation.service.ts', /(?=.*generateDailyReport)(?=.*generateDateRangeReport)(?=.*runDailyProcessor)(?=.*reconciliation_state)(?=.*provider_received)(?=.*amount_mismatch)(?=.*duplicate_provider_receipt)(?=.*missing_provider_record)(?=.*verified_unmatched)(?=.*manual_review_required)(?=.*INSERT INTO mpesa_reconciliation_batches)(?=.*INSERT INTO mpesa_reconciliation_discrepancies)/s),`
+    - Line 100: `check('mpesa-reconciliation-tests', 'Payments tests cover reconciliation schema, missing callbacks, duplicates, amount mismatch, wrong references, late provider status, daily processor, and range reports', 'apps/api/src/modules/payments/payments.test.ts', /(?=.*PaymentsSchemaService creates reconciliation batches)(?=.*MpesaReconciliationService reports missing callbacks, duplicates, amount mismatches, wrong references, and late provider status)(?=.*runs daily reconciliation for every active tenant payment channel)(?=.*generates on-demand date-range reports)/s),`
+  - `apps/api/src/scripts/implementation30-load-profile.test.ts`:
+    - Line 35: `'apps/api/src/common/reports/report-export-queue.ts': 'shouldQueueReportExport DEFAULT_SYNC_EXPORT_ROW_LIMIT REPORT_EXPORT_JOB_OPTIONS attempts backoff estimated_rows',`
+    - Line 63: `'apps/api/src/common/reports/report-export-queue.ts': 'shouldQueueReportExport DEFAULT_SYNC_EXPORT_ROW_LIMIT REPORT_EXPORT_JOB_OPTIONS attempts backoff estimated_rows',`
+  - `apps/api/src/scripts/implementation30-load-profile.ts`:
+    - Line 181: `'apps/api/src/common/reports/report-export-queue.ts',`
+  - `apps/api/src/scripts/kisumu-boys-demo-seed.ts`:
+    - Line 29: `'reports',`
+    - Line 361: `{ moduleCode: 'reports', table: 'report_snapshots', tenantScoped: true },`
+  - `apps/api/src/scripts/module-access-certification.test.ts`:
+    - Line 28: `'apps/api/src/common/reports/report-export-jobs.controller.ts': '@Controller(\'reports\') @RequiresModule(\'reports\')',`
+    - Line 39: `'apps/api/src/modules/module-access/module-access.constants.ts': 'MODULE_REGISTRY_SEED students admissions academics finance exams discipline timetable lab_management teacher_biometric_attendance parent_portal inventory library transport communication_sms reports staff admin_command_centers principal_dashboard clinic_health procurement hostel boarding cbt_exams lms ai_insights visitor_management asset_tracking iot permission_scopes',`
+  - `apps/api/src/scripts/module-access-certification.ts`:
+    - Line 67: `backendRoute('reports', 'Report export job routes require the reports module', 'apps/api/src/common/reports/report-export-jobs.controller.ts', 'reports'),`
+    - Line 88: `frontendRoute('reports', 'reports'),`
+  - `apps/api/src/scripts/module-certification.test.ts`:
+    - Line 24: `'apps/web/src/lib/discipline/discipline-live.ts': 'acknowledgeDisciplineIncident exportDisciplineReport reports',`
+  - `apps/api/src/scripts/module-certification.ts`:
+    - Line 105: `workflow('reports-and-documents', 'Reports, documents, and confidential export safety', [`
+    - Line 106: `check('discipline-report-api', 'Discipline reports are exposed through API', 'apps/web/src/lib/discipline/discipline-live.ts', /exportDisciplineReport|reports/),`
+  - `apps/api/src/scripts/release-readiness-gate.test.ts`:
+    - Line 20: `"reports",`
+    - Line 49: `'dist/apps/api/src/common/reports/report-excel-artifact.test.js',`
+  - `apps/api/src/scripts/release-readiness-gate.ts`:
+    - Line 27: `} from '../common/reports/report-export-queue';`
+    - Line 31: `} from '../common/reports/report-snapshot-manifest';`
+  - `apps/api/src/scripts/run-pilot-certification.test.ts`:
+    - Line 75: `'apps/api/src/common/reports/report-export-queue.ts': 'validateReportExportJobPayload queue',`
+  - `apps/api/src/scripts/run-pilot-certification.ts`:
+    - Line 167: `check('report-export', 'Report export queue exists', 'apps/api/src/common/reports/report-export-queue.ts', /validateReportExportJobPayload|queue/i),`
+  - `apps/api/src/scripts/synthetic-journey-monitor.ts`:
+    - Line 286: `path: '/admissions/reports/applications/export',`
+    - Line 295: `path: '/inventory/reports/stock-valuation/export',`
+  - `apps/api/src/scripts/tenant-isolation-audit.test.ts`:
+    - Line 144: `'apps/api/src/common/reports/report-export-queue.ts': 'attendance',`
+  - `apps/api/src/scripts/tenant-isolation-audit.ts`:
+    - Line 59: `check('reports-block-retired-attendance', 'Report exports block retired attendance data', 'apps/api/src/common/reports/report-export-queue.ts', /attendance/i, 'high'),`
+
+---
+
+### Role: `guidance-counselling`
+
+| File Name | Module ID | Definition Status | Backend Status | Refs |
+| :--- | :--- | :--- | :--- | :--- |
+| `follow-ups-workspace.tsx` | `follow-ups` | ❌ Missing | ❌ Missing | None |
+| `overview-workspace.tsx` | `overview` | ✅ Found (Overview) | ✅ Referenced (106 refs) | `billing-feature.middleware.test.ts`, `admin-command.controller.ts`, `admissions-command.controller.ts`... |
+| `parent-engagement-workspace.tsx` | `parent-engagement` | ❌ Missing | ✅ Referenced (1 refs) | `principal-insights.providers.ts` |
+| `referrals-workspace.tsx` | `referrals` | ✅ Found (Referrals) | ✅ Referenced (52 refs) | `auth.constants.ts`, `schema.sql`, `principal-insights.providers.ts`... |
+| `reports-workspace.tsx` | `reports` | ✅ Found (Reports) | ✅ Referenced (371 refs) | `auth-email.service.test.ts`, `auth.constants.ts`, `monitoring-service-account.service.ts`... |
+| `sessions-workspace.tsx` | `sessions` | ✅ Found (Sessions) | ✅ Referenced (107 refs) | `auth.constants.ts`, `auth.test.ts`, `identity-blueprint.test.ts`... |
+| `welfare-notes-workspace.tsx` | `welfare-notes` | ❌ Missing | ❌ Missing | None |
+
+#### Backend Reference Details for `guidance-counselling`:
+- **`follow-ups-workspace.tsx` (`follow-ups`)**: No backend references found in `apps/api/src`.
+- **`overview-workspace.tsx` (`overview`)**:
+  - `apps/api/src/middleware/billing-feature.middleware.test.ts`:
+    - Line 75: `await requestContext.run(createContext('/admin-command/principal/overview'), async () => {`
+    - Line 78: `path: '/admin-command/principal/overview',`
+  - `apps/api/src/modules/admin-command/admin-command.controller.ts`:
+    - Line 33: `@Get('principal/finance-overview')`
+    - Line 103: `@Get('principal/overview')`
+  - `apps/api/src/modules/admin-command/admissions-command.controller.ts`:
+    - Line 9: `@Get('overview')`
+    - Line 84: `overview,`
+  - `apps/api/src/modules/admin-command/deputy-command.controller.ts`:
+    - Line 9: `@Get('overview')`
+  - `apps/api/src/modules/admin-command/principal-insights.providers.ts`:
+    - Line 6: `id: 'school_overview',`
+    - Line 8: `category: 'overview',`
+  - `apps/api/src/modules/admin-command/principal-insights.service.ts`:
+    - Line 164: `const overview = await this.repository.getPrincipalOverviewSnapshot(tenantId);`
+    - Line 190: `overview,`
+  - `apps/api/src/modules/admin-command/principal-insights.types.ts`:
+    - Line 54: `overview: PrincipalOverviewPanel;`
+  - `apps/api/src/modules/admin-command/repositories/admin-command.repository.ts`:
+    - Line 1221: `defaultView: "overview"`
+  - `apps/api/src/modules/billing/billing-access.service.ts`:
+    - Line 59: `const { subscription, overview } =`
+    - Line 61: `const access = this.buildAccessState(subscription, overview);`
+  - `apps/api/src/modules/billing/billing-lifecycle.service.ts`:
+    - Line 60: `overview: SubscriptionLifecycleOverview | null;`
+    - Line 69: `overview: null,`
+  - `apps/api/src/modules/billing/billing-notification.service.ts`:
+    - Line 18: `overview: SubscriptionLifecycleOverview,`
+    - Line 20: `const descriptors = this.buildDescriptors(subscription, overview);`
+  - `apps/api/src/modules/billing/billing.service.ts`:
+    - Line 281: `if (!lifecycle.subscription || !lifecycle.overview) {`
+    - Line 285: `return this.mapSubscription(lifecycle.subscription, lifecycle.overview);`
+  - `apps/api/src/modules/billing/billing.test.ts`:
+    - Line 129: `overview: null,`
+    - Line 877: `ensureCurrentLifecycle: async () => ({ subscription: null, overview: null }),`
+  - `apps/api/src/modules/class-teacher/class-teacher.controller.ts`:
+    - Line 20: `@Get('overview')`
+    - Line 30: `@Get('dashboard-overview')`
+  - `apps/api/src/modules/dashboard/dashboard.controller.ts`:
+    - Line 34: `@Get('parent/overview')`
+    - Line 58: `@Get('student/overview')`
+  - `apps/api/src/modules/discipline/discipline.controller.ts`:
+    - Line 244: `@Get('analytics/overview')`
+  - `apps/api/src/modules/finance/finance.controller.ts`:
+    - Line 306: `@Get('accounts-overview')`
+  - `apps/api/src/modules/grade-master/grade-master.controller.ts`:
+    - Line 9: `@Get('overview')`
+  - `apps/api/src/modules/operations/consumers/export-overview.consumer.ts`:
+    - Line 6: `readonly name = 'export-overview.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'export-overview' && event.payload.action_id !== 'export-overview') {`
+  - `apps/api/src/modules/operations/consumers/index.ts`:
+    - Line 262: `export { ExportOverviewConsumer } from './export-overview.consumer';`
+  - `apps/api/src/modules/platform/platform-onboarding.service.test.ts`:
+    - Line 665: `test('PlatformOnboardingService summarizes tenants in product for the Super Admin overview', async () => {`
+  - `apps/api/src/scripts/core-api-load.ts`:
+    - Line 203: `path: '/discipline/analytics/overview',`
+  - `apps/api/src/scripts/high-volume-workflow-load.ts`:
+    - Line 29: `{ id: 'discipline-analytics', method: 'GET', path: '/discipline/analytics/overview', targetP95Ms: 800 },`
+- **`parent-engagement-workspace.tsx` (`parent-engagement`)**:
+  - `apps/api/src/modules/admin-command/principal-insights.providers.ts`:
+    - Line 228: `drilldowns: ['communication.delivery-logs', 'communication.parent-engagement'],`
+- **`referrals-workspace.tsx` (`referrals`)**:
+  - `apps/api/src/auth/auth.constants.ts`:
+    - Line 109: `{ resource: 'counselling', action: 'read', description: 'View permitted counselling referrals, sessions, and improvement plans' },`
+    - Line 110: `{ resource: 'counselling', action: 'write', description: 'Create counselling referrals, sessions, notes, and improvement plan updates' },`
+  - `apps/api/src/database/schema.sql`:
+    - Line 2919: `CREATE TABLE IF NOT EXISTS boarding_referrals (`
+    - Line 2930: `ALTER TABLE boarding_referrals ENABLE ROW LEVEL SECURITY;`
+  - `apps/api/src/modules/admin-command/principal-insights.providers.ts`:
+    - Line 172: `drilldowns: ['discipline.trends', 'discipline.repeat-offenders', 'discipline.counselling-referrals'],`
+  - `apps/api/src/modules/boarding/boarding.controller.ts`:
+    - Line 78: ``INSERT INTO boarding_referrals (tenant_id, school_id, student_id, reason, status)`
+  - `apps/api/src/modules/clinic/clinic.controller.ts`:
+    - Line 103: `@Get('referrals')`
+    - Line 109: `@Post('referrals')`
+  - `apps/api/src/modules/counselling/counselling.controller.ts`:
+    - Line 15: `@Get('referrals')`
+  - `apps/api/src/modules/discipline/counselling.controller.ts`:
+    - Line 26: `@Get('referrals')`
+    - Line 32: `@Post('referrals')`
+  - `apps/api/src/modules/discipline/discipline-schema.service.ts`:
+    - Line 16: `'counselling_referrals',`
+    - Line 337: `CREATE TABLE IF NOT EXISTS counselling_referrals (`
+  - `apps/api/src/modules/discipline/discipline.test.ts`:
+    - Line 621: `active_referrals: 7,`
+    - Line 624: `repeat_referrals: 2,`
+  - `apps/api/src/modules/discipline/repositories/counselling.repository.ts`:
+    - Line 24: `active_referrals: string;`
+    - Line 27: `repeat_referrals: string;`
+  - `apps/api/src/modules/implementation300/blueprint-registry.ts`:
+    - Line 511: `moduleDefinition('clinic_health', 'Clinic and Health', ['visits', 'profiles', 'medicine', 'dispensing', 'allergies', 'referrals'], [`
+  - `apps/api/src/scripts/base-onboarding-seed.ts`:
+    - Line 319: `{ moduleCode: 'discipline', table: 'counselling_referrals', tenantScoped: true },`
+  - `apps/api/src/scripts/kisumu-boys-demo-seed.ts`:
+    - Line 318: `{ moduleCode: 'discipline', table: 'counselling_referrals', tenantScoped: true },`
+    - Line 1610: `await writer.upsert('counselling_referrals', { id: demoUuid('counselling-referral-1'), tenant_id: tenantId, school_id: context.tenant.id, student_id: studentIds[2], class_id: classIds[1], academic_term_id: termId, academic_year_id: yearId, referred_by_user_id: context.teacherUserId, reason: 'Academic stress check-in', status: 'open' });`
+- **`reports-workspace.tsx` (`reports`)**:
+  - `apps/api/src/auth/auth-email.service.test.ts`:
+    - Line 6: `test('AuthEmailService reports transactional email as missing without secrets', () => {`
+    - Line 20: `test('AuthEmailService reports transactional email as configured without exposing secrets', () => {`
+  - `apps/api/src/auth/auth.constants.ts`:
+    - Line 59: `{ resource: 'reports', action: 'read', description: 'View generated report export jobs and snapshots' },`
+    - Line 108: `{ resource: 'discipline', action: 'reports', description: 'Export discipline reports and analytics' },`
+  - `apps/api/src/auth/monitoring-service-account.service.ts`:
+    - Line 16: `'reports:read',`
+  - `apps/api/src/auth/role-governance-policy.ts`:
+    - Line 125: `platform_support: ['support:view', 'support:manage', 'reports:read'],`
+    - Line 126: `finance_admin: ['billing:read', 'billing:write', 'reports:read'],`
+  - `apps/api/src/common/auto-repair/auto-repair-agent.test.ts`:
+    - Line 474: `operationalIntent: 'Bursar can act on finance exceptions, not browse static trend reports',`
+    - Line 706: `test('AutoRepairAgent reports dashboard repair patch intelligence for KPI-only dashboards', () => {`
+  - `apps/api/src/common/auto-repair/auto-repair-deployment.test.ts`:
+    - Line 43: `test('AutoRepairService reports deployed runtime readiness and keeps the full widget state contract', () => {`
+  - `apps/api/src/common/common.module.ts`:
+    - Line 12: `import { ReportExportQueueService } from './reports/report-export-queue';`
+    - Line 13: `import { ReportExportJobsController } from './reports/report-export-jobs.controller';`
+  - `apps/api/src/common/reports/report-artifact-storage.service.test.ts`:
+    - Line 18: `retention_policy: 'reports',`
+    - Line 48: `assert.equal(savedInputs[0].storagePath, `tenant/tenant-a/reports/billing/invoices/${'b'.repeat(64)}.pdf`);`
+  - `apps/api/src/common/reports/report-artifact-storage.service.ts`:
+    - Line 40: `retentionPolicy: 'reports',`
+    - Line 73: `return `tenant/${input.tenantId}/reports/${module}/${reportId}/${input.artifact.checksumSha256}.${extension}`;`
+  - `apps/api/src/common/reports/report-export-jobs.controller.ts`:
+    - Line 7: `@Controller('reports')`
+    - Line 8: `@RequiresModule('reports')`
+  - `apps/api/src/common/reports/report-export-queue.ts`:
+    - Line 52: `reports: 'reports',`
+  - `apps/api/src/common/reports/report-export.worker.test.ts`:
+    - Line 25: `storage_path: 'tenant/tenant-a/reports/exams/exam-results/artifact.pdf',`
+    - Line 80: `storage_path: 'tenant/tenant-a/reports/exams/exam-results/artifact.pdf',`
+  - `apps/api/src/common/reports/report-snapshot.repository.test.ts`:
+    - Line 95: `assert.deepEqual(Reflect.getMetadata(PERMISSIONS_KEY, handler), ['reports:read']);`
+  - `apps/api/src/common/uploads/database-file-storage.service.test.ts`:
+    - Line 685: `test('S3CompatibleObjectStorageService reports failed object deletes as unavailable', async () => {`
+  - `apps/api/src/common/uploads/upload-policy.test.ts`:
+    - Line 252: `test('runProviderMalwareScan returns unsafe verdicts when the provider reports infection', async () => {`
+  - `apps/api/src/database/batch4_schemas.sql`:
+    - Line 71: `CREATE TABLE IF NOT EXISTS operations_reports (`
+    - Line 80: `CONSTRAINT ck_operations_reports_tenant CHECK (tenant_id <> 'global')`
+  - `apps/api/src/database/schema.sql`:
+    - Line 2755: `CREATE TABLE IF NOT EXISTS operations_reports (`
+    - Line 2764: `CONSTRAINT ck_operations_reports_tenant CHECK (tenant_id <> 'global')`
+  - `apps/api/src/database/tenant-database-policy.ts`:
+    - Line 93: `reports: ['report_export_jobs', 'report_snapshots'],`
+  - `apps/api/src/modules/admin-command/admin-command.controller.ts`:
+    - Line 124: `@Get('principal/reports')`
+    - Line 126: `@Permissions('principal:read', 'reports:read')`
+  - `apps/api/src/modules/admin-command/admissions-command.controller.ts`:
+    - Line 69: `@Get('reports')`
+    - Line 99: `reports,`
+  - `apps/api/src/modules/admin-command/deputy-command.controller.ts`:
+    - Line 133: `@Get('reports')`
+    - Line 137: `@Post('reports/generate')`
+  - `apps/api/src/modules/admin-command/principal-insights.providers.ts`:
+    - Line 16: `reports: ['school-overview', 'population-trend'],`
+    - Line 31: `reports: ['academic-summary', 'cbc-cbe-competency-progress'],`
+  - `apps/api/src/modules/admin-command/principal-insights.service.ts`:
+    - Line 184: `const reportExports = Array.from(new Set(sections.flatMap((section) => section.reports)));`
+    - Line 273: `reports: [...provider.reports],`
+  - `apps/api/src/modules/admin-command/principal-insights.types.ts`:
+    - Line 34: `reports: string[];`
+    - Line 81: `reports: string[];`
+  - `apps/api/src/modules/admin-command/repositories/admin-command.repository.ts`:
+    - Line 846: `reportsPending: summaryResult.rows[0]?.pending_reviews || 0,`
+    - Line 1479: ``INSERT INTO operations_reports (content, prepared_by, tenant_id, title, updated_at) VALUES ($1, $2, $3, $4, NOW())`,`
+  - `apps/api/src/modules/admin-command/repositories/deputy-command.repository.ts`:
+    - Line 449: `0::int AS generated_reports`
+    - Line 452: `{ generated_reports: 0 }`
+  - `apps/api/src/modules/admissions/admissions.controller.ts`:
+    - Line 33: `} from '../../common/reports/report-export-queue';`
+    - Line 217: `@Post('reports/:reportId/export-jobs')`
+  - `apps/api/src/modules/admissions/admissions.service.ts`:
+    - Line 22: `} from '../../common/reports/report-csv-artifact';`
+  - `apps/api/src/modules/admissions/admissions.test.ts`:
+    - Line 197: `path: '/admissions/reports/applications/export',`
+    - Line 350: `path: '/admissions/reports/unknown/export',`
+  - `apps/api/src/modules/billing/billing.controller.ts`:
+    - Line 15: `} from '../../common/reports/report-export-queue';`
+    - Line 214: `@Post('reports/:reportId/export-jobs')`
+  - `apps/api/src/modules/billing/billing.service.ts`:
+    - Line 14: `} from '../../common/reports/report-csv-artifact';`
+  - `apps/api/src/modules/billing/billing.test.ts`:
+    - Line 2245: `path: '/billing/reports/invoices/export',`
+    - Line 2297: `path: '/billing/reports/unknown/export',`
+  - `apps/api/src/modules/biometric-attendance/biometric-attendance.controller.ts`:
+    - Line 52: `@Get('reports/monthly')`
+  - `apps/api/src/modules/class-teacher/class-teacher.controller.ts`:
+    - Line 358: `@Get('reports')`
+  - `apps/api/src/modules/clinic/clinic.controller.ts`:
+    - Line 62: `@Permissions('clinic:reports')`
+  - `apps/api/src/modules/clinic/clinic.service.ts`:
+    - Line 171: `this.assertPermission('clinic:reports');`
+  - `apps/api/src/modules/clinic/clinic.test.ts`:
+    - Line 58: `assert.deepEqual(Reflect.getMetadata(PERMISSIONS_KEY, analyticsHandler), ['clinic:reports']);`
+  - `apps/api/src/modules/compliance/compliance-schema.service.ts`:
+    - Line 127: `CREATE TABLE IF NOT EXISTS breach_response_reports (`
+    - Line 141: `CONSTRAINT ck_breach_response_reports_severity CHECK (severity IN ('low', 'medium', 'high', 'critical')),`
+  - `apps/api/src/modules/compliance/compliance.controller.ts`:
+    - Line 81: `@Get('breach-response-reports/:reportId/export')`
+  - `apps/api/src/modules/compliance/compliance.service.ts`:
+    - Line 351: `FROM breach_response_reports`
+  - `apps/api/src/modules/compliance/compliance.test.ts`:
+    - Line 33: `assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS breach_response_reports/);`
+    - Line 36: `assert.match(schemaSql, /ALTER TABLE breach_response_reports FORCE ROW LEVEL SECURITY/);`
+  - `apps/api/src/modules/counselling/counselling.controller.ts`:
+    - Line 87: `@Get('reports')`
+  - `apps/api/src/modules/discipline/discipline.controller.ts`:
+    - Line 245: `@Permissions('discipline:reports')`
+    - Line 250: `@Post('reports/export')`
+  - `apps/api/src/modules/discipline/discipline.service.ts`:
+    - Line 636: `this.assertPermission('discipline:reports');`
+    - Line 648: `this.assertPermission('discipline:reports');`
+  - `apps/api/src/modules/discipline/discipline.test.ts`:
+    - Line 65: `'discipline:reports',`
+    - Line 597: `permissions: ['discipline:reports'],`
+  - `apps/api/src/modules/exams/consumers/download-reports.consumer.ts`:
+    - Line 6: `readonly name = 'download-reports.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'download-reports' && event.payload.action_id !== 'download-reports') {`
+  - `apps/api/src/modules/exams/consumers/index.ts`:
+    - Line 10: `export { DownloadReportsConsumer } from './download-reports.consumer';`
+  - `apps/api/src/modules/exams/exams.test.ts`:
+    - Line 648: `test('ExamsService reports duplicate and unauthorized rows during bulk mark upload preview', async () => {`
+  - `apps/api/src/modules/exams/repositories/exams.repository.ts`:
+    - Line 1481: `(SELECT COUNT(*) FROM student_report_cards WHERE tenant_id = $1 AND status = 'published') AS published_reports,`
+  - `apps/api/src/modules/exams/services/report-card-pdf-artifact.ts`:
+    - Line 3: `import { normalizeReportFilename, normalizeReportGeneratedAt, type ReportArtifact } from '../../../common/reports/report-artifact';`
+  - `apps/api/src/modules/exams/services/report-card-template.service.ts`:
+    - Line 3: `import type { ReportArtifactInput, ReportArtifactValue } from '../../../common/reports/report-artifact';`
+  - `apps/api/src/modules/grade-master/grade-master.controller.ts`:
+    - Line 81: `@Get('reports')`
+  - `apps/api/src/modules/grade-master/grade-master.service.ts`:
+    - Line 16: `reportsNotReady: 12,`
+  - `apps/api/src/modules/health/health.controller.test.ts`:
+    - Line 297: `test('HealthController readiness reports optional Redis degradation without throwing', async () => {`
+  - `apps/api/src/modules/implementation300/api-category-policy.ts`:
+    - Line 45: `api('analytics_engine', 'internal', 'reports', ['/api/internal/analytics'], 'internal_service', true, true, 600),`
+  - `apps/api/src/modules/implementation300/blueprint-registry.ts`:
+    - Line 42: `| 'reports'`
+    - Line 437: `moduleDefinition('exams', 'Exams and Results', ['setup', 'grading', 'cbc-assessment', 'moderation', 'reports', 'analytics'], [`
+  - `apps/api/src/modules/implementation300/development-phase-policy.test.ts`:
+    - Line 24: `'reports',`
+    - Line 31: `completedModules: ['authentication', 'tenant_management', 'students', 'finance', 'exams', 'communication_sms', 'reports', 'inventory'],`
+  - `apps/api/src/modules/implementation300/development-phase-policy.ts`:
+    - Line 59: `'reports',`
+    - Line 61: `capabilities: ['tenant_onboarding', 'billing', 'exam_results', 'communication', 'reports'],`
+  - `apps/api/src/modules/integrations/integrations.test.ts`:
+    - Line 202: `test('SmsDispatchService reports missing credential fields without exposing secrets', async () => {`
+  - `apps/api/src/modules/inventory/inventory.controller.ts`:
+    - Line 7: `} from '../../common/reports/report-export-queue';`
+    - Line 246: `@Get('reports')`
+  - `apps/api/src/modules/inventory/inventory.service.ts`:
+    - Line 13: `} from '../../common/reports/report-csv-artifact';`
+    - Line 93: `rows: (reports: InventoryReportsPayload) => ReportCsvValue[][];`
+  - `apps/api/src/modules/inventory/inventory.test.ts`:
+    - Line 2222: `path: '/inventory/reports/stock-valuation/export',`
+    - Line 2250: `throw new Error('reports should not be loaded for an unknown export');`
+  - `apps/api/src/modules/inventory/repositories/inventory.repository.test.ts`:
+    - Line 971: `const reports = await repository.buildReports('tenant-a');`
+    - Line 978: `assert.deepEqual(reports.stock_reconciliation, [`
+  - `apps/api/src/modules/library/library.controller.ts`:
+    - Line 89: `@Get('reports')`
+  - `apps/api/src/modules/mobile/mobile-app-policy.test.ts`:
+    - Line 44: `enabledModules: ['principal_dashboard', 'finance', 'reports'],`
+    - Line 79: `capabilities: ['fees', 'communication', 'reports', 'results'],`
+  - `apps/api/src/modules/mobile/mobile-app-policy.ts`:
+    - Line 9: `| 'reports'`
+    - Line 19: `export type MobileOfflineCapability = 'attendance' | 'mark_entry' | 'assignments' | 'fees' | 'communication' | 'reports' | 'results';`
+  - `apps/api/src/modules/module-access/module-access.constants.ts`:
+    - Line 55: `description: 'Assessments, marks, reports, academic analytics, CBT hooks, and result publishing.',`
+    - Line 67: `permission_scopes: ['discipline:read', 'discipline:write', 'discipline:manage', 'discipline:reports'],`
+  - `apps/api/src/modules/module-access/module-access.test.ts`:
+    - Line 13: `import { ReportExportJobsController } from '../../common/reports/report-export-jobs.controller';`
+    - Line 38: `'reports',`
+  - `apps/api/src/modules/operations/consumers/index.ts`:
+    - Line 505: `export { ReportsConsumer } from './reports.consumer';`
+    - Line 516: `export { RequestReportsConsumer } from './request-reports.consumer';`
+  - `apps/api/src/modules/operations/consumers/reports.consumer.ts`:
+    - Line 6: `readonly name = 'reports.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'reports' && event.payload.action_id !== 'reports') {`
+  - `apps/api/src/modules/operations/consumers/request-reports.consumer.ts`:
+    - Line 6: `readonly name = 'request-reports.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'request-reports' && event.payload.action_id !== 'request-reports') {`
+  - `apps/api/src/modules/operations/consumers/view-reports.consumer.ts`:
+    - Line 6: `readonly name = 'view-reports.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'view-reports' && event.payload.action_id !== 'view-reports') {`
+  - `apps/api/src/modules/operations/operations.service.ts`:
+    - Line 69: ``INSERT INTO operations_reports (tenant_id, title, content, prepared_by)`
+  - `apps/api/src/modules/payments/payments.test.ts`:
+    - Line 3482: `test('MpesaReconciliationService reports missing callbacks, duplicates, amount mismatches, wrong references, and late provider status', async () => {`
+    - Line 4016: `result.reports.map((report) => report.payment_channel_id),`
+  - `apps/api/src/modules/payments/payments.types.ts`:
+    - Line 297: `reports: MpesaReconciliationReport[];`
+    - Line 305: `reports: MpesaReconciliationReport[];`
+  - `apps/api/src/modules/payments/services/mpesa-reconciliation.service.ts`:
+    - Line 446: `const reports: MpesaReconciliationReport[] = [];`
+    - Line 449: `reports.push(`
+  - `apps/api/src/modules/platform/platform-onboarding.service.test.ts`:
+    - Line 470: `test('PlatformOnboardingService reports Resend testing mode as blocked instead of encouraging repeated resends', async () => {`
+  - `apps/api/src/modules/support/support-notification-delivery.service.test.ts`:
+    - Line 12: `test('SupportNotificationDeliveryService reports provider readiness without exposing secrets', async () => {`
+    - Line 97: `test('SupportNotificationDeliveryService reports precise missing provider status for dashboard-managed SMS', async () => {`
+  - `apps/api/src/scripts/audit-coverage-review.test.ts`:
+    - Line 49: `test('runAuditCoverageReview reports missing evidence by file and pattern', () => {`
+  - `apps/api/src/scripts/base-onboarding-seed.ts`:
+    - Line 30: `'reports',`
+    - Line 362: `{ moduleCode: 'reports', table: 'report_snapshots', tenantScoped: true },`
+  - `apps/api/src/scripts/core-api-load.test.ts`:
+    - Line 33: `assert.equal(inventoryExport.url, 'http://127.0.0.1:3000/inventory/reports/stock-valuation/export');`
+  - `apps/api/src/scripts/core-api-load.ts`:
+    - Line 131: `path: '/admissions/reports/applications/export',`
+    - Line 147: `id: 'inventory-reports',`
+  - `apps/api/src/scripts/enable-admin-modules.ts`:
+    - Line 47: `'Module-aware executive KPIs, alerts, analytics, trends, and reports for the Principal.',`
+  - `apps/api/src/scripts/generate-production-scorecard.test.ts`:
+    - Line 22: `"reports",`
+  - `apps/api/src/scripts/generate-production-scorecard.ts`:
+    - Line 150: `remediation: 'Add the tenant isolation audit runner and require it in CI for finance, support, library, discipline, reports, and files.',`
+    - Line 183: `evidenceLine(/missing_provider/.test(supportNotificationSource), 'support notification health reports precise missing provider state'),`
+  - `apps/api/src/scripts/high-volume-workflow-load.test.ts`:
+    - Line 18: `'billing-invoice-reports',`
+  - `apps/api/src/scripts/high-volume-workflow-load.ts`:
+    - Line 18: `{ id: 'billing-invoice-reports', method: 'GET', path: '/billing/reports/invoices/export', targetP95Ms: 900 },`
+    - Line 31: `{ id: 'report-export-jobs', method: 'GET', path: '/reports/export-jobs', targetP95Ms: 800 },`
+  - `apps/api/src/scripts/implementation100-certification.ts`:
+    - Line 74: `moduleEvidence('reports', 'Reports', 'apps/web/src/components/school/school-pages.tsx', ['Reports'], 'apps/web/src/app/api/reports/[...path]/route.ts', ['proxySchoolApiRequest', '/reports'], 'apps/api/src/common/reports/report-export-jobs.controller.ts', ['ReportExportJobsController'], 'apps/api/src/common/reports/report-snapshot-schema.service.ts', ['report_snapshots'], 'apps/api/src/common/reports/report-export-queue.test.ts', ['report']),`
+  - `apps/api/src/scripts/implementation20-certification.test.ts`:
+    - Line 30: `'apps/api/src/modules/biometric-attendance/biometric-attendance.controller.ts': 'live-feed reports/monthly',`
+    - Line 37: `'apps/web/src/app/api/reports/[...path]/route.ts': 'proxySchoolApiRequest "/reports"',`
+  - `apps/api/src/scripts/implementation20-certification.ts`:
+    - Line 72: `check('biometric-live-reports', 'Biometric API exposes live feed and monthly reports', 'apps/api/src/modules/biometric-attendance/biometric-attendance.controller.ts', /live-feed[\s\S]+reports\/monthly/),`
+    - Line 84: `check('reports-web-proxy', 'Web app proxies reports requests to the API', 'apps/web/src/app/api/reports/[...path]/route.ts', /proxySchoolApiRequest[\s\S]+"\/reports"/),`
+  - `apps/api/src/scripts/implementation21-certification.test.ts`:
+    - Line 10: `'apps/api/src/modules/admin-command/principal-insights.providers.ts': 'finance summary_only lab_management communication_sms clinic_health permission_required: \'clinic:reports\' summary_only medicine_consumption_cost_minor wastage_due_to_expiry_minor emergency_supply_ready_rate most_used_medicine ai_insights fee_default_risk_alerts medicine_shortage_predictions attendance_irregularities budget_overrun_alerts performance_decline_warnings',`
+    - Line 29: `'apps/api/src/modules/clinic/clinic.controller.ts': 'clinic:inventory clinic:dispense clinic:reports portal:read_own_children',`
+  - `apps/api/src/scripts/implementation21-certification.ts`:
+    - Line 76: `check('clinic-api-permissions', 'Clinic controller separates inventory, dispensing, reports, and parent history permissions', 'apps/api/src/modules/clinic/clinic.controller.ts', /clinic:inventory[\s\S]+clinic:dispense[\s\S]+clinic:reports[\s\S]+portal:read_own_children/),`
+    - Line 92: `check('principal-no-confidential-notes', 'Principal insights use clinic reports, not confidential permissions', 'apps/api/src/modules/admin-command/principal-insights.providers.ts', /permission_required:\s+'clinic:reports'[\s\S]+summary_only/),`
+  - `apps/api/src/scripts/implementation30-certification.test.ts`:
+    - Line 59: `'apps/api/src/modules/payments/payments.test.ts': 'provider_verification_required exports only redacted payloads redacts C2B API payment responses for legacy raw rows assert.notEqual creates callback channels with hashed secrets builds high-entropy STK and C2B callback URLs high-entropy channel-secret routes creates M-PESA verification jobs verificationJobInput duplicate M-PESA identifiers MpesaTransactionStatusService verifies STK callback status classifies verified C2B payments without ledger enqueue accepts unsigned direct Daraja callbacks rejects unsigned callbacks in edge-signed mode accepts unsigned validation callbacks in direct Daraja mode PaymentsSchemaService creates reconciliation batches MpesaReconciliationService reports missing callbacks, duplicates, amount mismatches, wrong references, and late provider status runs daily reconciliation for every active tenant payment channel generates on-demand date-range reports lists accountant review items without raw M-PESA payload leakage requires two distinct approvers before resolving reversal requests exposes accountant review and finance approval endpoints',`
+    - Line 65: `'apps/api/src/modules/compliance/compliance-schema.service.ts': 'data_subject_requests access_request correction_request deletion_anonymization_request export_request objection_request data_retention_schedules child_data_dpia_records students payments sync_offline breach_response_reports FORCE ROW LEVEL SECURITY',`
+  - `apps/api/src/scripts/implementation30-certification.ts`:
+    - Line 95: `check('mpesa-reconciliation-processor', 'M-Pesa reconciliation service runs daily and date-range reports, persists batches, and classifies mismatch states', 'apps/api/src/modules/payments/services/mpesa-reconciliation.service.ts', /(?=.*generateDailyReport)(?=.*generateDateRangeReport)(?=.*runDailyProcessor)(?=.*reconciliation_state)(?=.*provider_received)(?=.*amount_mismatch)(?=.*duplicate_provider_receipt)(?=.*missing_provider_record)(?=.*verified_unmatched)(?=.*manual_review_required)(?=.*INSERT INTO mpesa_reconciliation_batches)(?=.*INSERT INTO mpesa_reconciliation_discrepancies)/s),`
+    - Line 100: `check('mpesa-reconciliation-tests', 'Payments tests cover reconciliation schema, missing callbacks, duplicates, amount mismatch, wrong references, late provider status, daily processor, and range reports', 'apps/api/src/modules/payments/payments.test.ts', /(?=.*PaymentsSchemaService creates reconciliation batches)(?=.*MpesaReconciliationService reports missing callbacks, duplicates, amount mismatches, wrong references, and late provider status)(?=.*runs daily reconciliation for every active tenant payment channel)(?=.*generates on-demand date-range reports)/s),`
+  - `apps/api/src/scripts/implementation30-load-profile.test.ts`:
+    - Line 35: `'apps/api/src/common/reports/report-export-queue.ts': 'shouldQueueReportExport DEFAULT_SYNC_EXPORT_ROW_LIMIT REPORT_EXPORT_JOB_OPTIONS attempts backoff estimated_rows',`
+    - Line 63: `'apps/api/src/common/reports/report-export-queue.ts': 'shouldQueueReportExport DEFAULT_SYNC_EXPORT_ROW_LIMIT REPORT_EXPORT_JOB_OPTIONS attempts backoff estimated_rows',`
+  - `apps/api/src/scripts/implementation30-load-profile.ts`:
+    - Line 181: `'apps/api/src/common/reports/report-export-queue.ts',`
+  - `apps/api/src/scripts/kisumu-boys-demo-seed.ts`:
+    - Line 29: `'reports',`
+    - Line 361: `{ moduleCode: 'reports', table: 'report_snapshots', tenantScoped: true },`
+  - `apps/api/src/scripts/module-access-certification.test.ts`:
+    - Line 28: `'apps/api/src/common/reports/report-export-jobs.controller.ts': '@Controller(\'reports\') @RequiresModule(\'reports\')',`
+    - Line 39: `'apps/api/src/modules/module-access/module-access.constants.ts': 'MODULE_REGISTRY_SEED students admissions academics finance exams discipline timetable lab_management teacher_biometric_attendance parent_portal inventory library transport communication_sms reports staff admin_command_centers principal_dashboard clinic_health procurement hostel boarding cbt_exams lms ai_insights visitor_management asset_tracking iot permission_scopes',`
+  - `apps/api/src/scripts/module-access-certification.ts`:
+    - Line 67: `backendRoute('reports', 'Report export job routes require the reports module', 'apps/api/src/common/reports/report-export-jobs.controller.ts', 'reports'),`
+    - Line 88: `frontendRoute('reports', 'reports'),`
+  - `apps/api/src/scripts/module-certification.test.ts`:
+    - Line 24: `'apps/web/src/lib/discipline/discipline-live.ts': 'acknowledgeDisciplineIncident exportDisciplineReport reports',`
+  - `apps/api/src/scripts/module-certification.ts`:
+    - Line 105: `workflow('reports-and-documents', 'Reports, documents, and confidential export safety', [`
+    - Line 106: `check('discipline-report-api', 'Discipline reports are exposed through API', 'apps/web/src/lib/discipline/discipline-live.ts', /exportDisciplineReport|reports/),`
+  - `apps/api/src/scripts/release-readiness-gate.test.ts`:
+    - Line 20: `"reports",`
+    - Line 49: `'dist/apps/api/src/common/reports/report-excel-artifact.test.js',`
+  - `apps/api/src/scripts/release-readiness-gate.ts`:
+    - Line 27: `} from '../common/reports/report-export-queue';`
+    - Line 31: `} from '../common/reports/report-snapshot-manifest';`
+  - `apps/api/src/scripts/run-pilot-certification.test.ts`:
+    - Line 75: `'apps/api/src/common/reports/report-export-queue.ts': 'validateReportExportJobPayload queue',`
+  - `apps/api/src/scripts/run-pilot-certification.ts`:
+    - Line 167: `check('report-export', 'Report export queue exists', 'apps/api/src/common/reports/report-export-queue.ts', /validateReportExportJobPayload|queue/i),`
+  - `apps/api/src/scripts/synthetic-journey-monitor.ts`:
+    - Line 286: `path: '/admissions/reports/applications/export',`
+    - Line 295: `path: '/inventory/reports/stock-valuation/export',`
+  - `apps/api/src/scripts/tenant-isolation-audit.test.ts`:
+    - Line 144: `'apps/api/src/common/reports/report-export-queue.ts': 'attendance',`
+  - `apps/api/src/scripts/tenant-isolation-audit.ts`:
+    - Line 59: `check('reports-block-retired-attendance', 'Report exports block retired attendance data', 'apps/api/src/common/reports/report-export-queue.ts', /attendance/i, 'high'),`
+- **`sessions-workspace.tsx` (`sessions`)**:
+  - `apps/api/src/auth/auth.constants.ts`:
+    - Line 109: `{ resource: 'counselling', action: 'read', description: 'View permitted counselling referrals, sessions, and improvement plans' },`
+    - Line 110: `{ resource: 'counselling', action: 'write', description: 'Create counselling referrals, sessions, notes, and improvement plan updates' },`
+  - `apps/api/src/auth/auth.test.ts`:
+    - Line 220: `test('AuthService authenticateAccessToken allows platform sessions without a tenant id', async () => {`
+    - Line 550: `test('AuthService authenticateAccessToken blocks existing unverified sensitive sessions', async () => {`
+  - `apps/api/src/auth/identity-blueprint.test.ts`:
+    - Line 31: `'tenant_bound_sessions',`
+  - `apps/api/src/auth/identity-blueprint.ts`:
+    - Line 20: `'tenant_bound_sessions',`
+  - `apps/api/src/auth/session.service.ts`:
+    - Line 7: `const AUTH_USER_SESSION_PREFIX = 'auth:user-sessions';`
+    - Line 96: `const sessions: SafeSessionRecord[] = [];`
+  - `apps/api/src/database/schema.sql`:
+    - Line 3082: `CREATE TABLE IF NOT EXISTS counselling_sessions (`
+    - Line 3194: `ALTER TABLE counselling_sessions ENABLE ROW LEVEL SECURITY;`
+  - `apps/api/src/database/tenant-database-policy.ts`:
+    - Line 84: `discipline: ['discipline_incidents', 'discipline_actions', 'counselling_sessions'],`
+    - Line 86: `lab_management: ['lab_inventory', 'lab_sessions', 'lab_hazard_logs'],`
+  - `apps/api/src/modules/admin-command/principal-insights.providers.ts`:
+    - Line 152: `{ id: 'missed_practicals', title: 'Missed Practicals', metric_key: 'missed_practical_sessions' },`
+  - `apps/api/src/modules/admin-command/repositories/admin-command.repository.ts`:
+    - Line 329: `(SELECT COUNT(*)::int FROM lab_sessions WHERE tenant_id = $1 AND status = 'scheduled' AND session_date < CURRENT_DATE) AS missed_practical_sessions,`
+  - `apps/api/src/modules/cbt/cbt-schema.service.ts`:
+    - Line 7: `'cbt_exam_sessions',`
+    - Line 47: `mainTable: 'cbt_exam_sessions',`
+  - `apps/api/src/modules/cbt/cbt.test.ts`:
+    - Line 17: `for (const table of ['cbt_exam_sessions', 'cbt_questions', 'cbt_attempts', 'cbt_responses', 'cbt_invigilation_events']) {`
+  - `apps/api/src/modules/cbt/repositories/cbt.repository.ts`:
+    - Line 10: `mainTable: 'cbt_exam_sessions',`
+  - `apps/api/src/modules/counselling/counselling.controller.ts`:
+    - Line 27: `@Get('sessions')`
+  - `apps/api/src/modules/discipline/counselling.controller.ts`:
+    - Line 56: `@Get('sessions')`
+    - Line 62: `@Post('sessions')`
+  - `apps/api/src/modules/discipline/discipline-schema.service.ts`:
+    - Line 17: `'counselling_sessions',`
+    - Line 359: `CREATE TABLE IF NOT EXISTS counselling_sessions (`
+  - `apps/api/src/modules/discipline/discipline.test.ts`:
+    - Line 32: `'counselling_sessions',`
+    - Line 50: `assert.match(bootstrapSql, /CREATE INDEX IF NOT EXISTS ix_counselling_sessions_counsellor_schedule/);`
+  - `apps/api/src/modules/discipline/repositories/counselling.repository.ts`:
+    - Line 25: `upcoming_sessions: string;`
+    - Line 41: `FROM counselling_sessions`
+  - `apps/api/src/modules/implementation300/blueprint-registry.ts`:
+    - Line 215: `evidence('implementation300-trusted-device-service', 'Trusted device sessions exist', 'apps/api/src/auth/trusted-device.service.ts', [`
+    - Line 453: `moduleDefinition('lab_management', 'Laboratory Management', ['inventory', 'chemicals', 'compliance', 'equipment', 'sessions', 'hazards'], [`
+  - `apps/api/src/modules/labs/labs-schema.service.ts`:
+    - Line 8: `'lab_sessions',`
+    - Line 84: `CREATE TABLE IF NOT EXISTS lab_sessions (`
+  - `apps/api/src/modules/labs/labs.controller.ts`:
+    - Line 36: `@Post('sessions')`
+    - Line 42: `@Post('sessions/:sessionId/attendance')`
+  - `apps/api/src/modules/labs/labs.test.ts`:
+    - Line 25: `'lab_sessions',`
+  - `apps/api/src/modules/labs/repositories/labs.repository.ts`:
+    - Line 57: `INSERT INTO lab_sessions (`
+    - Line 300: `FROM lab_sessions`
+  - `apps/api/src/modules/mobile/mobile-app-policy.test.ts`:
+    - Line 40: `test('evaluateMobileSession requires trusted MFA sessions for admin app access', () => {`
+  - `apps/api/src/modules/module-access/module-access.constants.ts`:
+    - Line 82: `description: 'Labs, sessions, mandatory attendance, equipment, chemicals, and safety controls.',`
+  - `apps/api/src/scripts/base-onboarding-seed.ts`:
+    - Line 311: `{ moduleCode: 'lab_management', table: 'lab_sessions', tenantScoped: true },`
+    - Line 320: `{ moduleCode: 'discipline', table: 'counselling_sessions', tenantScoped: true },`
+  - `apps/api/src/scripts/implementation100-certification.ts`:
+    - Line 67: `moduleEvidence('lab_management', 'Laboratory Management', 'apps/web/src/components/school/school-pages.tsx', ['labs'], 'apps/web/src/app/api/labs/[...path]/route.ts', ['proxySchoolApiRequest', '/labs'], 'apps/api/src/modules/labs/labs.controller.ts', ['LabsController'], 'apps/api/src/modules/labs/labs-schema.service.ts', ['lab_sessions'], 'apps/api/src/modules/labs/labs.test.ts', ['labs']),`
+    - Line 82: `moduleEvidence('cbt_exams', 'CBT Exams', 'apps/web/src/components/modules/cbt/cbt-module-screen.tsx', ['CbtModuleScreen'], 'apps/web/src/app/api/cbt/[...path]/route.ts', ['proxySchoolApiRequest', '/cbt'], 'apps/api/src/modules/cbt/cbt.controller.ts', ['CbtController'], 'apps/api/src/modules/cbt/cbt-schema.service.ts', ['cbt_exam_sessions'], 'apps/api/src/modules/cbt/cbt.test.ts', ['cbt']),`
+  - `apps/api/src/scripts/implementation20-certification.test.ts`:
+    - Line 19: `'apps/api/src/modules/labs/labs-schema.service.ts': 'lab_departments lab_sessions lab_attendance lab_equipment chemical_items chemical_disposal_requests',`
+  - `apps/api/src/scripts/implementation20-certification.ts`:
+    - Line 58: `check('lab-schema', 'Lab schema includes departments, labs, sessions, attendance, equipment, chemicals, usage, and disposal', 'apps/api/src/modules/labs/labs-schema.service.ts', /lab_departments[\s\S]+lab_sessions[\s\S]+lab_attendance[\s\S]+lab_equipment[\s\S]+chemical_items[\s\S]+chemical_disposal_requests/),`
+  - `apps/api/src/scripts/kisumu-boys-demo-seed.ts`:
+    - Line 310: `{ moduleCode: 'lab_management', table: 'lab_sessions', tenantScoped: true },`
+    - Line 319: `{ moduleCode: 'discipline', table: 'counselling_sessions', tenantScoped: true },`
+  - `apps/api/src/scripts/query-plan-review-local-fixture.ts`:
+    - Line 321: `name: 'counselling_sessions',`
+    - Line 323: `CREATE TABLE IF NOT EXISTS counselling_sessions (`
+  - `apps/api/src/scripts/query-plan-review.test.ts`:
+    - Line 214: `'counselling_sessions',`
+  - `apps/api/src/scripts/query-plan-review.ts`:
+    - Line 256: `FROM counselling_sessions`
+    - Line 264: `protectedTables: ['counselling_sessions'],`
+  - `apps/api/src/scripts/run-pilot-certification.ts`:
+    - Line 88: `check('auth-tenant-session', 'Auth service binds sessions to tenant membership', 'apps/api/src/auth/auth.service.ts', /membership\.tenant_id|tenant_id/),`
+- **`welfare-notes-workspace.tsx` (`welfare-notes`)**: No backend references found in `apps/api/src`.
+
+---
+
+### Role: `hod`
+
+| File Name | Module ID | Definition Status | Backend Status | Refs |
+| :--- | :--- | :--- | :--- | :--- |
+| `coverage-review-workspace.tsx` | `coverage-review` | ✅ Found (Coverage Review) | ✅ Referenced (18 refs) | `blueprint-registry.ts`, `audit-coverage-review.test.ts`, `generate-production-scorecard.test.ts`... |
+| `department-teachers-workspace.tsx` | `department-teachers` | ✅ Found (Department Teachers) | ❌ Missing | None |
+| `lesson-plans-workspace.tsx` | `lesson-plans` | ✅ Found (Lesson Plans) | ❌ Missing | None |
+| `marks-moderation-workspace.tsx` | `marks-moderation` | ✅ Found (Marks Moderation) | ❌ Missing | None |
+| `overview-workspace.tsx` | `overview` | ✅ Found (Overview) | ✅ Referenced (106 refs) | `billing-feature.middleware.test.ts`, `admin-command.controller.ts`, `admissions-command.controller.ts`... |
+| `reports-workspace.tsx` | `reports` | ✅ Found (Reports) | ✅ Referenced (371 refs) | `auth-email.service.test.ts`, `auth.constants.ts`, `monitoring-service-account.service.ts`... |
+| `resource-requests-workspace.tsx` | `resource-requests` | ✅ Found (Resource Requests) | ❌ Missing | None |
+| `subject-allocation-workspace.tsx` | `subject-allocation` | ✅ Found (Subject Allocation) | ❌ Missing | None |
+
+#### Backend Reference Details for `hod`:
+- **`coverage-review-workspace.tsx` (`coverage-review`)**:
+  - `apps/api/src/modules/implementation300/blueprint-registry.ts`:
+    - Line 347: `evidence('implementation300-audit-coverage', 'Audit coverage review exists', 'apps/api/src/scripts/audit-coverage-review.ts', [`
+  - `apps/api/src/scripts/audit-coverage-review.test.ts`:
+    - Line 8: `} from './audit-coverage-review';`
+  - `apps/api/src/scripts/generate-production-scorecard.test.ts`:
+    - Line 60: `'audit:coverage-review': 'node apps/api/src/scripts/audit-coverage-review.ts',`
+  - `apps/api/src/scripts/release-readiness-gate.test.ts`:
+    - Line 47: `'dist/apps/api/src/scripts/audit-coverage-review.test.js',`
+    - Line 98: `'audit:coverage-review': 'node apps/api/src/scripts/audit-coverage-review.ts',`
+  - `apps/api/src/scripts/release-readiness-gate.ts`:
+    - Line 9: `} from './audit-coverage-review';`
+    - Line 120: `'audit:coverage-review',`
+  - `apps/api/src/scripts/run-pilot-certification.test.ts`:
+    - Line 76: `'apps/api/src/scripts/audit-coverage-review.ts': 'AUDIT_COVERAGE_REQUIREMENTS audit',`
+    - Line 77: `'apps/api/src/scripts/release-readiness-gate.ts': 'audit-coverage-review',`
+  - `apps/api/src/scripts/run-pilot-certification.ts`:
+    - Line 168: `check('audit-review', 'Audit coverage review exists', 'apps/api/src/scripts/audit-coverage-review.ts', /AUDIT_COVERAGE_REQUIREMENTS|audit/i),`
+    - Line 169: `check('release-gate', 'Release gate requires audit coverage', 'apps/api/src/scripts/release-readiness-gate.ts', /audit-coverage-review/),`
+- **`department-teachers-workspace.tsx` (`department-teachers`)**: No backend references found in `apps/api/src`.
+- **`lesson-plans-workspace.tsx` (`lesson-plans`)**: No backend references found in `apps/api/src`.
+- **`marks-moderation-workspace.tsx` (`marks-moderation`)**: No backend references found in `apps/api/src`.
+- **`overview-workspace.tsx` (`overview`)**:
+  - `apps/api/src/middleware/billing-feature.middleware.test.ts`:
+    - Line 75: `await requestContext.run(createContext('/admin-command/principal/overview'), async () => {`
+    - Line 78: `path: '/admin-command/principal/overview',`
+  - `apps/api/src/modules/admin-command/admin-command.controller.ts`:
+    - Line 33: `@Get('principal/finance-overview')`
+    - Line 103: `@Get('principal/overview')`
+  - `apps/api/src/modules/admin-command/admissions-command.controller.ts`:
+    - Line 9: `@Get('overview')`
+    - Line 84: `overview,`
+  - `apps/api/src/modules/admin-command/deputy-command.controller.ts`:
+    - Line 9: `@Get('overview')`
+  - `apps/api/src/modules/admin-command/principal-insights.providers.ts`:
+    - Line 6: `id: 'school_overview',`
+    - Line 8: `category: 'overview',`
+  - `apps/api/src/modules/admin-command/principal-insights.service.ts`:
+    - Line 164: `const overview = await this.repository.getPrincipalOverviewSnapshot(tenantId);`
+    - Line 190: `overview,`
+  - `apps/api/src/modules/admin-command/principal-insights.types.ts`:
+    - Line 54: `overview: PrincipalOverviewPanel;`
+  - `apps/api/src/modules/admin-command/repositories/admin-command.repository.ts`:
+    - Line 1221: `defaultView: "overview"`
+  - `apps/api/src/modules/billing/billing-access.service.ts`:
+    - Line 59: `const { subscription, overview } =`
+    - Line 61: `const access = this.buildAccessState(subscription, overview);`
+  - `apps/api/src/modules/billing/billing-lifecycle.service.ts`:
+    - Line 60: `overview: SubscriptionLifecycleOverview | null;`
+    - Line 69: `overview: null,`
+  - `apps/api/src/modules/billing/billing-notification.service.ts`:
+    - Line 18: `overview: SubscriptionLifecycleOverview,`
+    - Line 20: `const descriptors = this.buildDescriptors(subscription, overview);`
+  - `apps/api/src/modules/billing/billing.service.ts`:
+    - Line 281: `if (!lifecycle.subscription || !lifecycle.overview) {`
+    - Line 285: `return this.mapSubscription(lifecycle.subscription, lifecycle.overview);`
+  - `apps/api/src/modules/billing/billing.test.ts`:
+    - Line 129: `overview: null,`
+    - Line 877: `ensureCurrentLifecycle: async () => ({ subscription: null, overview: null }),`
+  - `apps/api/src/modules/class-teacher/class-teacher.controller.ts`:
+    - Line 20: `@Get('overview')`
+    - Line 30: `@Get('dashboard-overview')`
+  - `apps/api/src/modules/dashboard/dashboard.controller.ts`:
+    - Line 34: `@Get('parent/overview')`
+    - Line 58: `@Get('student/overview')`
+  - `apps/api/src/modules/discipline/discipline.controller.ts`:
+    - Line 244: `@Get('analytics/overview')`
+  - `apps/api/src/modules/finance/finance.controller.ts`:
+    - Line 306: `@Get('accounts-overview')`
+  - `apps/api/src/modules/grade-master/grade-master.controller.ts`:
+    - Line 9: `@Get('overview')`
+  - `apps/api/src/modules/operations/consumers/export-overview.consumer.ts`:
+    - Line 6: `readonly name = 'export-overview.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'export-overview' && event.payload.action_id !== 'export-overview') {`
+  - `apps/api/src/modules/operations/consumers/index.ts`:
+    - Line 262: `export { ExportOverviewConsumer } from './export-overview.consumer';`
+  - `apps/api/src/modules/platform/platform-onboarding.service.test.ts`:
+    - Line 665: `test('PlatformOnboardingService summarizes tenants in product for the Super Admin overview', async () => {`
+  - `apps/api/src/scripts/core-api-load.ts`:
+    - Line 203: `path: '/discipline/analytics/overview',`
+  - `apps/api/src/scripts/high-volume-workflow-load.ts`:
+    - Line 29: `{ id: 'discipline-analytics', method: 'GET', path: '/discipline/analytics/overview', targetP95Ms: 800 },`
+- **`reports-workspace.tsx` (`reports`)**:
+  - `apps/api/src/auth/auth-email.service.test.ts`:
+    - Line 6: `test('AuthEmailService reports transactional email as missing without secrets', () => {`
+    - Line 20: `test('AuthEmailService reports transactional email as configured without exposing secrets', () => {`
+  - `apps/api/src/auth/auth.constants.ts`:
+    - Line 59: `{ resource: 'reports', action: 'read', description: 'View generated report export jobs and snapshots' },`
+    - Line 108: `{ resource: 'discipline', action: 'reports', description: 'Export discipline reports and analytics' },`
+  - `apps/api/src/auth/monitoring-service-account.service.ts`:
+    - Line 16: `'reports:read',`
+  - `apps/api/src/auth/role-governance-policy.ts`:
+    - Line 125: `platform_support: ['support:view', 'support:manage', 'reports:read'],`
+    - Line 126: `finance_admin: ['billing:read', 'billing:write', 'reports:read'],`
+  - `apps/api/src/common/auto-repair/auto-repair-agent.test.ts`:
+    - Line 474: `operationalIntent: 'Bursar can act on finance exceptions, not browse static trend reports',`
+    - Line 706: `test('AutoRepairAgent reports dashboard repair patch intelligence for KPI-only dashboards', () => {`
+  - `apps/api/src/common/auto-repair/auto-repair-deployment.test.ts`:
+    - Line 43: `test('AutoRepairService reports deployed runtime readiness and keeps the full widget state contract', () => {`
+  - `apps/api/src/common/common.module.ts`:
+    - Line 12: `import { ReportExportQueueService } from './reports/report-export-queue';`
+    - Line 13: `import { ReportExportJobsController } from './reports/report-export-jobs.controller';`
+  - `apps/api/src/common/reports/report-artifact-storage.service.test.ts`:
+    - Line 18: `retention_policy: 'reports',`
+    - Line 48: `assert.equal(savedInputs[0].storagePath, `tenant/tenant-a/reports/billing/invoices/${'b'.repeat(64)}.pdf`);`
+  - `apps/api/src/common/reports/report-artifact-storage.service.ts`:
+    - Line 40: `retentionPolicy: 'reports',`
+    - Line 73: `return `tenant/${input.tenantId}/reports/${module}/${reportId}/${input.artifact.checksumSha256}.${extension}`;`
+  - `apps/api/src/common/reports/report-export-jobs.controller.ts`:
+    - Line 7: `@Controller('reports')`
+    - Line 8: `@RequiresModule('reports')`
+  - `apps/api/src/common/reports/report-export-queue.ts`:
+    - Line 52: `reports: 'reports',`
+  - `apps/api/src/common/reports/report-export.worker.test.ts`:
+    - Line 25: `storage_path: 'tenant/tenant-a/reports/exams/exam-results/artifact.pdf',`
+    - Line 80: `storage_path: 'tenant/tenant-a/reports/exams/exam-results/artifact.pdf',`
+  - `apps/api/src/common/reports/report-snapshot.repository.test.ts`:
+    - Line 95: `assert.deepEqual(Reflect.getMetadata(PERMISSIONS_KEY, handler), ['reports:read']);`
+  - `apps/api/src/common/uploads/database-file-storage.service.test.ts`:
+    - Line 685: `test('S3CompatibleObjectStorageService reports failed object deletes as unavailable', async () => {`
+  - `apps/api/src/common/uploads/upload-policy.test.ts`:
+    - Line 252: `test('runProviderMalwareScan returns unsafe verdicts when the provider reports infection', async () => {`
+  - `apps/api/src/database/batch4_schemas.sql`:
+    - Line 71: `CREATE TABLE IF NOT EXISTS operations_reports (`
+    - Line 80: `CONSTRAINT ck_operations_reports_tenant CHECK (tenant_id <> 'global')`
+  - `apps/api/src/database/schema.sql`:
+    - Line 2755: `CREATE TABLE IF NOT EXISTS operations_reports (`
+    - Line 2764: `CONSTRAINT ck_operations_reports_tenant CHECK (tenant_id <> 'global')`
+  - `apps/api/src/database/tenant-database-policy.ts`:
+    - Line 93: `reports: ['report_export_jobs', 'report_snapshots'],`
+  - `apps/api/src/modules/admin-command/admin-command.controller.ts`:
+    - Line 124: `@Get('principal/reports')`
+    - Line 126: `@Permissions('principal:read', 'reports:read')`
+  - `apps/api/src/modules/admin-command/admissions-command.controller.ts`:
+    - Line 69: `@Get('reports')`
+    - Line 99: `reports,`
+  - `apps/api/src/modules/admin-command/deputy-command.controller.ts`:
+    - Line 133: `@Get('reports')`
+    - Line 137: `@Post('reports/generate')`
+  - `apps/api/src/modules/admin-command/principal-insights.providers.ts`:
+    - Line 16: `reports: ['school-overview', 'population-trend'],`
+    - Line 31: `reports: ['academic-summary', 'cbc-cbe-competency-progress'],`
+  - `apps/api/src/modules/admin-command/principal-insights.service.ts`:
+    - Line 184: `const reportExports = Array.from(new Set(sections.flatMap((section) => section.reports)));`
+    - Line 273: `reports: [...provider.reports],`
+  - `apps/api/src/modules/admin-command/principal-insights.types.ts`:
+    - Line 34: `reports: string[];`
+    - Line 81: `reports: string[];`
+  - `apps/api/src/modules/admin-command/repositories/admin-command.repository.ts`:
+    - Line 846: `reportsPending: summaryResult.rows[0]?.pending_reviews || 0,`
+    - Line 1479: ``INSERT INTO operations_reports (content, prepared_by, tenant_id, title, updated_at) VALUES ($1, $2, $3, $4, NOW())`,`
+  - `apps/api/src/modules/admin-command/repositories/deputy-command.repository.ts`:
+    - Line 449: `0::int AS generated_reports`
+    - Line 452: `{ generated_reports: 0 }`
+  - `apps/api/src/modules/admissions/admissions.controller.ts`:
+    - Line 33: `} from '../../common/reports/report-export-queue';`
+    - Line 217: `@Post('reports/:reportId/export-jobs')`
+  - `apps/api/src/modules/admissions/admissions.service.ts`:
+    - Line 22: `} from '../../common/reports/report-csv-artifact';`
+  - `apps/api/src/modules/admissions/admissions.test.ts`:
+    - Line 197: `path: '/admissions/reports/applications/export',`
+    - Line 350: `path: '/admissions/reports/unknown/export',`
+  - `apps/api/src/modules/billing/billing.controller.ts`:
+    - Line 15: `} from '../../common/reports/report-export-queue';`
+    - Line 214: `@Post('reports/:reportId/export-jobs')`
+  - `apps/api/src/modules/billing/billing.service.ts`:
+    - Line 14: `} from '../../common/reports/report-csv-artifact';`
+  - `apps/api/src/modules/billing/billing.test.ts`:
+    - Line 2245: `path: '/billing/reports/invoices/export',`
+    - Line 2297: `path: '/billing/reports/unknown/export',`
+  - `apps/api/src/modules/biometric-attendance/biometric-attendance.controller.ts`:
+    - Line 52: `@Get('reports/monthly')`
+  - `apps/api/src/modules/class-teacher/class-teacher.controller.ts`:
+    - Line 358: `@Get('reports')`
+  - `apps/api/src/modules/clinic/clinic.controller.ts`:
+    - Line 62: `@Permissions('clinic:reports')`
+  - `apps/api/src/modules/clinic/clinic.service.ts`:
+    - Line 171: `this.assertPermission('clinic:reports');`
+  - `apps/api/src/modules/clinic/clinic.test.ts`:
+    - Line 58: `assert.deepEqual(Reflect.getMetadata(PERMISSIONS_KEY, analyticsHandler), ['clinic:reports']);`
+  - `apps/api/src/modules/compliance/compliance-schema.service.ts`:
+    - Line 127: `CREATE TABLE IF NOT EXISTS breach_response_reports (`
+    - Line 141: `CONSTRAINT ck_breach_response_reports_severity CHECK (severity IN ('low', 'medium', 'high', 'critical')),`
+  - `apps/api/src/modules/compliance/compliance.controller.ts`:
+    - Line 81: `@Get('breach-response-reports/:reportId/export')`
+  - `apps/api/src/modules/compliance/compliance.service.ts`:
+    - Line 351: `FROM breach_response_reports`
+  - `apps/api/src/modules/compliance/compliance.test.ts`:
+    - Line 33: `assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS breach_response_reports/);`
+    - Line 36: `assert.match(schemaSql, /ALTER TABLE breach_response_reports FORCE ROW LEVEL SECURITY/);`
+  - `apps/api/src/modules/counselling/counselling.controller.ts`:
+    - Line 87: `@Get('reports')`
+  - `apps/api/src/modules/discipline/discipline.controller.ts`:
+    - Line 245: `@Permissions('discipline:reports')`
+    - Line 250: `@Post('reports/export')`
+  - `apps/api/src/modules/discipline/discipline.service.ts`:
+    - Line 636: `this.assertPermission('discipline:reports');`
+    - Line 648: `this.assertPermission('discipline:reports');`
+  - `apps/api/src/modules/discipline/discipline.test.ts`:
+    - Line 65: `'discipline:reports',`
+    - Line 597: `permissions: ['discipline:reports'],`
+  - `apps/api/src/modules/exams/consumers/download-reports.consumer.ts`:
+    - Line 6: `readonly name = 'download-reports.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'download-reports' && event.payload.action_id !== 'download-reports') {`
+  - `apps/api/src/modules/exams/consumers/index.ts`:
+    - Line 10: `export { DownloadReportsConsumer } from './download-reports.consumer';`
+  - `apps/api/src/modules/exams/exams.test.ts`:
+    - Line 648: `test('ExamsService reports duplicate and unauthorized rows during bulk mark upload preview', async () => {`
+  - `apps/api/src/modules/exams/repositories/exams.repository.ts`:
+    - Line 1481: `(SELECT COUNT(*) FROM student_report_cards WHERE tenant_id = $1 AND status = 'published') AS published_reports,`
+  - `apps/api/src/modules/exams/services/report-card-pdf-artifact.ts`:
+    - Line 3: `import { normalizeReportFilename, normalizeReportGeneratedAt, type ReportArtifact } from '../../../common/reports/report-artifact';`
+  - `apps/api/src/modules/exams/services/report-card-template.service.ts`:
+    - Line 3: `import type { ReportArtifactInput, ReportArtifactValue } from '../../../common/reports/report-artifact';`
+  - `apps/api/src/modules/grade-master/grade-master.controller.ts`:
+    - Line 81: `@Get('reports')`
+  - `apps/api/src/modules/grade-master/grade-master.service.ts`:
+    - Line 16: `reportsNotReady: 12,`
+  - `apps/api/src/modules/health/health.controller.test.ts`:
+    - Line 297: `test('HealthController readiness reports optional Redis degradation without throwing', async () => {`
+  - `apps/api/src/modules/implementation300/api-category-policy.ts`:
+    - Line 45: `api('analytics_engine', 'internal', 'reports', ['/api/internal/analytics'], 'internal_service', true, true, 600),`
+  - `apps/api/src/modules/implementation300/blueprint-registry.ts`:
+    - Line 42: `| 'reports'`
+    - Line 437: `moduleDefinition('exams', 'Exams and Results', ['setup', 'grading', 'cbc-assessment', 'moderation', 'reports', 'analytics'], [`
+  - `apps/api/src/modules/implementation300/development-phase-policy.test.ts`:
+    - Line 24: `'reports',`
+    - Line 31: `completedModules: ['authentication', 'tenant_management', 'students', 'finance', 'exams', 'communication_sms', 'reports', 'inventory'],`
+  - `apps/api/src/modules/implementation300/development-phase-policy.ts`:
+    - Line 59: `'reports',`
+    - Line 61: `capabilities: ['tenant_onboarding', 'billing', 'exam_results', 'communication', 'reports'],`
+  - `apps/api/src/modules/integrations/integrations.test.ts`:
+    - Line 202: `test('SmsDispatchService reports missing credential fields without exposing secrets', async () => {`
+  - `apps/api/src/modules/inventory/inventory.controller.ts`:
+    - Line 7: `} from '../../common/reports/report-export-queue';`
+    - Line 246: `@Get('reports')`
+  - `apps/api/src/modules/inventory/inventory.service.ts`:
+    - Line 13: `} from '../../common/reports/report-csv-artifact';`
+    - Line 93: `rows: (reports: InventoryReportsPayload) => ReportCsvValue[][];`
+  - `apps/api/src/modules/inventory/inventory.test.ts`:
+    - Line 2222: `path: '/inventory/reports/stock-valuation/export',`
+    - Line 2250: `throw new Error('reports should not be loaded for an unknown export');`
+  - `apps/api/src/modules/inventory/repositories/inventory.repository.test.ts`:
+    - Line 971: `const reports = await repository.buildReports('tenant-a');`
+    - Line 978: `assert.deepEqual(reports.stock_reconciliation, [`
+  - `apps/api/src/modules/library/library.controller.ts`:
+    - Line 89: `@Get('reports')`
+  - `apps/api/src/modules/mobile/mobile-app-policy.test.ts`:
+    - Line 44: `enabledModules: ['principal_dashboard', 'finance', 'reports'],`
+    - Line 79: `capabilities: ['fees', 'communication', 'reports', 'results'],`
+  - `apps/api/src/modules/mobile/mobile-app-policy.ts`:
+    - Line 9: `| 'reports'`
+    - Line 19: `export type MobileOfflineCapability = 'attendance' | 'mark_entry' | 'assignments' | 'fees' | 'communication' | 'reports' | 'results';`
+  - `apps/api/src/modules/module-access/module-access.constants.ts`:
+    - Line 55: `description: 'Assessments, marks, reports, academic analytics, CBT hooks, and result publishing.',`
+    - Line 67: `permission_scopes: ['discipline:read', 'discipline:write', 'discipline:manage', 'discipline:reports'],`
+  - `apps/api/src/modules/module-access/module-access.test.ts`:
+    - Line 13: `import { ReportExportJobsController } from '../../common/reports/report-export-jobs.controller';`
+    - Line 38: `'reports',`
+  - `apps/api/src/modules/operations/consumers/index.ts`:
+    - Line 505: `export { ReportsConsumer } from './reports.consumer';`
+    - Line 516: `export { RequestReportsConsumer } from './request-reports.consumer';`
+  - `apps/api/src/modules/operations/consumers/reports.consumer.ts`:
+    - Line 6: `readonly name = 'reports.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'reports' && event.payload.action_id !== 'reports') {`
+  - `apps/api/src/modules/operations/consumers/request-reports.consumer.ts`:
+    - Line 6: `readonly name = 'request-reports.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'request-reports' && event.payload.action_id !== 'request-reports') {`
+  - `apps/api/src/modules/operations/consumers/view-reports.consumer.ts`:
+    - Line 6: `readonly name = 'view-reports.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'view-reports' && event.payload.action_id !== 'view-reports') {`
+  - `apps/api/src/modules/operations/operations.service.ts`:
+    - Line 69: ``INSERT INTO operations_reports (tenant_id, title, content, prepared_by)`
+  - `apps/api/src/modules/payments/payments.test.ts`:
+    - Line 3482: `test('MpesaReconciliationService reports missing callbacks, duplicates, amount mismatches, wrong references, and late provider status', async () => {`
+    - Line 4016: `result.reports.map((report) => report.payment_channel_id),`
+  - `apps/api/src/modules/payments/payments.types.ts`:
+    - Line 297: `reports: MpesaReconciliationReport[];`
+    - Line 305: `reports: MpesaReconciliationReport[];`
+  - `apps/api/src/modules/payments/services/mpesa-reconciliation.service.ts`:
+    - Line 446: `const reports: MpesaReconciliationReport[] = [];`
+    - Line 449: `reports.push(`
+  - `apps/api/src/modules/platform/platform-onboarding.service.test.ts`:
+    - Line 470: `test('PlatformOnboardingService reports Resend testing mode as blocked instead of encouraging repeated resends', async () => {`
+  - `apps/api/src/modules/support/support-notification-delivery.service.test.ts`:
+    - Line 12: `test('SupportNotificationDeliveryService reports provider readiness without exposing secrets', async () => {`
+    - Line 97: `test('SupportNotificationDeliveryService reports precise missing provider status for dashboard-managed SMS', async () => {`
+  - `apps/api/src/scripts/audit-coverage-review.test.ts`:
+    - Line 49: `test('runAuditCoverageReview reports missing evidence by file and pattern', () => {`
+  - `apps/api/src/scripts/base-onboarding-seed.ts`:
+    - Line 30: `'reports',`
+    - Line 362: `{ moduleCode: 'reports', table: 'report_snapshots', tenantScoped: true },`
+  - `apps/api/src/scripts/core-api-load.test.ts`:
+    - Line 33: `assert.equal(inventoryExport.url, 'http://127.0.0.1:3000/inventory/reports/stock-valuation/export');`
+  - `apps/api/src/scripts/core-api-load.ts`:
+    - Line 131: `path: '/admissions/reports/applications/export',`
+    - Line 147: `id: 'inventory-reports',`
+  - `apps/api/src/scripts/enable-admin-modules.ts`:
+    - Line 47: `'Module-aware executive KPIs, alerts, analytics, trends, and reports for the Principal.',`
+  - `apps/api/src/scripts/generate-production-scorecard.test.ts`:
+    - Line 22: `"reports",`
+  - `apps/api/src/scripts/generate-production-scorecard.ts`:
+    - Line 150: `remediation: 'Add the tenant isolation audit runner and require it in CI for finance, support, library, discipline, reports, and files.',`
+    - Line 183: `evidenceLine(/missing_provider/.test(supportNotificationSource), 'support notification health reports precise missing provider state'),`
+  - `apps/api/src/scripts/high-volume-workflow-load.test.ts`:
+    - Line 18: `'billing-invoice-reports',`
+  - `apps/api/src/scripts/high-volume-workflow-load.ts`:
+    - Line 18: `{ id: 'billing-invoice-reports', method: 'GET', path: '/billing/reports/invoices/export', targetP95Ms: 900 },`
+    - Line 31: `{ id: 'report-export-jobs', method: 'GET', path: '/reports/export-jobs', targetP95Ms: 800 },`
+  - `apps/api/src/scripts/implementation100-certification.ts`:
+    - Line 74: `moduleEvidence('reports', 'Reports', 'apps/web/src/components/school/school-pages.tsx', ['Reports'], 'apps/web/src/app/api/reports/[...path]/route.ts', ['proxySchoolApiRequest', '/reports'], 'apps/api/src/common/reports/report-export-jobs.controller.ts', ['ReportExportJobsController'], 'apps/api/src/common/reports/report-snapshot-schema.service.ts', ['report_snapshots'], 'apps/api/src/common/reports/report-export-queue.test.ts', ['report']),`
+  - `apps/api/src/scripts/implementation20-certification.test.ts`:
+    - Line 30: `'apps/api/src/modules/biometric-attendance/biometric-attendance.controller.ts': 'live-feed reports/monthly',`
+    - Line 37: `'apps/web/src/app/api/reports/[...path]/route.ts': 'proxySchoolApiRequest "/reports"',`
+  - `apps/api/src/scripts/implementation20-certification.ts`:
+    - Line 72: `check('biometric-live-reports', 'Biometric API exposes live feed and monthly reports', 'apps/api/src/modules/biometric-attendance/biometric-attendance.controller.ts', /live-feed[\s\S]+reports\/monthly/),`
+    - Line 84: `check('reports-web-proxy', 'Web app proxies reports requests to the API', 'apps/web/src/app/api/reports/[...path]/route.ts', /proxySchoolApiRequest[\s\S]+"\/reports"/),`
+  - `apps/api/src/scripts/implementation21-certification.test.ts`:
+    - Line 10: `'apps/api/src/modules/admin-command/principal-insights.providers.ts': 'finance summary_only lab_management communication_sms clinic_health permission_required: \'clinic:reports\' summary_only medicine_consumption_cost_minor wastage_due_to_expiry_minor emergency_supply_ready_rate most_used_medicine ai_insights fee_default_risk_alerts medicine_shortage_predictions attendance_irregularities budget_overrun_alerts performance_decline_warnings',`
+    - Line 29: `'apps/api/src/modules/clinic/clinic.controller.ts': 'clinic:inventory clinic:dispense clinic:reports portal:read_own_children',`
+  - `apps/api/src/scripts/implementation21-certification.ts`:
+    - Line 76: `check('clinic-api-permissions', 'Clinic controller separates inventory, dispensing, reports, and parent history permissions', 'apps/api/src/modules/clinic/clinic.controller.ts', /clinic:inventory[\s\S]+clinic:dispense[\s\S]+clinic:reports[\s\S]+portal:read_own_children/),`
+    - Line 92: `check('principal-no-confidential-notes', 'Principal insights use clinic reports, not confidential permissions', 'apps/api/src/modules/admin-command/principal-insights.providers.ts', /permission_required:\s+'clinic:reports'[\s\S]+summary_only/),`
+  - `apps/api/src/scripts/implementation30-certification.test.ts`:
+    - Line 59: `'apps/api/src/modules/payments/payments.test.ts': 'provider_verification_required exports only redacted payloads redacts C2B API payment responses for legacy raw rows assert.notEqual creates callback channels with hashed secrets builds high-entropy STK and C2B callback URLs high-entropy channel-secret routes creates M-PESA verification jobs verificationJobInput duplicate M-PESA identifiers MpesaTransactionStatusService verifies STK callback status classifies verified C2B payments without ledger enqueue accepts unsigned direct Daraja callbacks rejects unsigned callbacks in edge-signed mode accepts unsigned validation callbacks in direct Daraja mode PaymentsSchemaService creates reconciliation batches MpesaReconciliationService reports missing callbacks, duplicates, amount mismatches, wrong references, and late provider status runs daily reconciliation for every active tenant payment channel generates on-demand date-range reports lists accountant review items without raw M-PESA payload leakage requires two distinct approvers before resolving reversal requests exposes accountant review and finance approval endpoints',`
+    - Line 65: `'apps/api/src/modules/compliance/compliance-schema.service.ts': 'data_subject_requests access_request correction_request deletion_anonymization_request export_request objection_request data_retention_schedules child_data_dpia_records students payments sync_offline breach_response_reports FORCE ROW LEVEL SECURITY',`
+  - `apps/api/src/scripts/implementation30-certification.ts`:
+    - Line 95: `check('mpesa-reconciliation-processor', 'M-Pesa reconciliation service runs daily and date-range reports, persists batches, and classifies mismatch states', 'apps/api/src/modules/payments/services/mpesa-reconciliation.service.ts', /(?=.*generateDailyReport)(?=.*generateDateRangeReport)(?=.*runDailyProcessor)(?=.*reconciliation_state)(?=.*provider_received)(?=.*amount_mismatch)(?=.*duplicate_provider_receipt)(?=.*missing_provider_record)(?=.*verified_unmatched)(?=.*manual_review_required)(?=.*INSERT INTO mpesa_reconciliation_batches)(?=.*INSERT INTO mpesa_reconciliation_discrepancies)/s),`
+    - Line 100: `check('mpesa-reconciliation-tests', 'Payments tests cover reconciliation schema, missing callbacks, duplicates, amount mismatch, wrong references, late provider status, daily processor, and range reports', 'apps/api/src/modules/payments/payments.test.ts', /(?=.*PaymentsSchemaService creates reconciliation batches)(?=.*MpesaReconciliationService reports missing callbacks, duplicates, amount mismatches, wrong references, and late provider status)(?=.*runs daily reconciliation for every active tenant payment channel)(?=.*generates on-demand date-range reports)/s),`
+  - `apps/api/src/scripts/implementation30-load-profile.test.ts`:
+    - Line 35: `'apps/api/src/common/reports/report-export-queue.ts': 'shouldQueueReportExport DEFAULT_SYNC_EXPORT_ROW_LIMIT REPORT_EXPORT_JOB_OPTIONS attempts backoff estimated_rows',`
+    - Line 63: `'apps/api/src/common/reports/report-export-queue.ts': 'shouldQueueReportExport DEFAULT_SYNC_EXPORT_ROW_LIMIT REPORT_EXPORT_JOB_OPTIONS attempts backoff estimated_rows',`
+  - `apps/api/src/scripts/implementation30-load-profile.ts`:
+    - Line 181: `'apps/api/src/common/reports/report-export-queue.ts',`
+  - `apps/api/src/scripts/kisumu-boys-demo-seed.ts`:
+    - Line 29: `'reports',`
+    - Line 361: `{ moduleCode: 'reports', table: 'report_snapshots', tenantScoped: true },`
+  - `apps/api/src/scripts/module-access-certification.test.ts`:
+    - Line 28: `'apps/api/src/common/reports/report-export-jobs.controller.ts': '@Controller(\'reports\') @RequiresModule(\'reports\')',`
+    - Line 39: `'apps/api/src/modules/module-access/module-access.constants.ts': 'MODULE_REGISTRY_SEED students admissions academics finance exams discipline timetable lab_management teacher_biometric_attendance parent_portal inventory library transport communication_sms reports staff admin_command_centers principal_dashboard clinic_health procurement hostel boarding cbt_exams lms ai_insights visitor_management asset_tracking iot permission_scopes',`
+  - `apps/api/src/scripts/module-access-certification.ts`:
+    - Line 67: `backendRoute('reports', 'Report export job routes require the reports module', 'apps/api/src/common/reports/report-export-jobs.controller.ts', 'reports'),`
+    - Line 88: `frontendRoute('reports', 'reports'),`
+  - `apps/api/src/scripts/module-certification.test.ts`:
+    - Line 24: `'apps/web/src/lib/discipline/discipline-live.ts': 'acknowledgeDisciplineIncident exportDisciplineReport reports',`
+  - `apps/api/src/scripts/module-certification.ts`:
+    - Line 105: `workflow('reports-and-documents', 'Reports, documents, and confidential export safety', [`
+    - Line 106: `check('discipline-report-api', 'Discipline reports are exposed through API', 'apps/web/src/lib/discipline/discipline-live.ts', /exportDisciplineReport|reports/),`
+  - `apps/api/src/scripts/release-readiness-gate.test.ts`:
+    - Line 20: `"reports",`
+    - Line 49: `'dist/apps/api/src/common/reports/report-excel-artifact.test.js',`
+  - `apps/api/src/scripts/release-readiness-gate.ts`:
+    - Line 27: `} from '../common/reports/report-export-queue';`
+    - Line 31: `} from '../common/reports/report-snapshot-manifest';`
+  - `apps/api/src/scripts/run-pilot-certification.test.ts`:
+    - Line 75: `'apps/api/src/common/reports/report-export-queue.ts': 'validateReportExportJobPayload queue',`
+  - `apps/api/src/scripts/run-pilot-certification.ts`:
+    - Line 167: `check('report-export', 'Report export queue exists', 'apps/api/src/common/reports/report-export-queue.ts', /validateReportExportJobPayload|queue/i),`
+  - `apps/api/src/scripts/synthetic-journey-monitor.ts`:
+    - Line 286: `path: '/admissions/reports/applications/export',`
+    - Line 295: `path: '/inventory/reports/stock-valuation/export',`
+  - `apps/api/src/scripts/tenant-isolation-audit.test.ts`:
+    - Line 144: `'apps/api/src/common/reports/report-export-queue.ts': 'attendance',`
+  - `apps/api/src/scripts/tenant-isolation-audit.ts`:
+    - Line 59: `check('reports-block-retired-attendance', 'Report exports block retired attendance data', 'apps/api/src/common/reports/report-export-queue.ts', /attendance/i, 'high'),`
+- **`resource-requests-workspace.tsx` (`resource-requests`)**: No backend references found in `apps/api/src`.
+- **`subject-allocation-workspace.tsx` (`subject-allocation`)**: No backend references found in `apps/api/src`.
+
+---
+
+### Role: `ict-manager`
+
+| File Name | Module ID | Definition Status | Backend Status | Refs |
+| :--- | :--- | :--- | :--- | :--- |
+| `asset-assignment-workspace.tsx` | `asset-assignment` | ❌ Missing | ✅ Referenced (1 refs) | `kisumu-boys-demo-seed.ts` |
+| `assets-workspace.tsx` | `assets` | ✅ Found (Assets) | ✅ Referenced (55 refs) | `app.module.ts`, `auth.constants.ts`, `role-governance-policy.ts`... |
+| `facilities-issues-workspace.tsx` | `facilities-issues` | ❌ Missing | ❌ Missing | None |
+| `loans-returns-workspace.tsx` | `loans-returns` | ✅ Found (Loans & Returns) | ❌ Missing | None |
+| `maintenance-workspace.tsx` | `maintenance` | ✅ Found (Maintenance) | ✅ Referenced (52 refs) | `001_partitioning_and_views.sql`, `tenant-database-policy.ts`, `admin-command.controller.ts`... |
+| `overview-workspace.tsx` | `overview` | ✅ Found (Overview) | ✅ Referenced (106 refs) | `billing-feature.middleware.test.ts`, `admin-command.controller.ts`, `admissions-command.controller.ts`... |
+| `reports-workspace.tsx` | `reports` | ✅ Found (Reports) | ✅ Referenced (371 refs) | `auth-email.service.test.ts`, `auth.constants.ts`, `monitoring-service-account.service.ts`... |
+
+#### Backend Reference Details for `ict-manager`:
+- **`asset-assignment-workspace.tsx` (`asset-assignment`)**:
+  - `apps/api/src/scripts/kisumu-boys-demo-seed.ts`:
+    - Line 1682: `await writer.upsert('asset_assignments', { id: demoUuid('asset-assignment-1'), tenant_id: tenantId, asset_tag: 'KB-ASSET-PROJ-001', assigned_to_type: 'department', assigned_to_label: 'Science Department', status: 'active' });`
+- **`assets-workspace.tsx` (`assets`)**:
+  - `apps/api/src/app.module.ts`:
+    - Line 54: `import { AssetsModule } from './modules/assets/assets.module';`
+  - `apps/api/src/auth/auth.constants.ts`:
+    - Line 66: `{ resource: 'assets', action: 'read', description: 'View asset and apparatus tracking records' },`
+    - Line 722: `'assets:read',`
+  - `apps/api/src/auth/role-governance-policy.ts`:
+    - Line 152: `ict_manager: ['assets:read', 'inventory:read', 'labs:read', 'reports:read'],`
+  - `apps/api/src/modules/admin-command/principal-insights.providers.ts`:
+    - Line 124: `{ id: 'damaged_assets', title: 'Damaged Assets', metric_key: 'damaged_assets' },`
+  - `apps/api/src/modules/admin-command/repositories/admin-command.repository.ts`:
+    - Line 302: `0::int AS damaged_assets,`
+  - `apps/api/src/modules/assets/assets-schema.service.ts`:
+    - Line 7: `'assets',`
+    - Line 46: `mainTable: 'assets',`
+  - `apps/api/src/modules/assets/assets.controller.ts`:
+    - Line 6: `import { AssetsService } from './assets.service';`
+    - Line 8: `@Controller('assets')`
+  - `apps/api/src/modules/assets/assets.module.ts`:
+    - Line 3: `import { AssetsController } from './assets.controller';`
+    - Line 4: `import { AssetsSchemaService } from './assets-schema.service';`
+  - `apps/api/src/modules/assets/assets.service.ts`:
+    - Line 5: `import { AssetsRepository } from './repositories/assets.repository';`
+    - Line 16: `permissionPrefix: 'assets',`
+  - `apps/api/src/modules/assets/assets.test.ts`:
+    - Line 7: `import { AssetsController } from './assets.controller';`
+    - Line 8: `import { AssetsSchemaService } from './assets-schema.service';`
+  - `apps/api/src/modules/assets/repositories/assets.repository.ts`:
+    - Line 10: `mainTable: 'assets',`
+  - `apps/api/src/modules/implementation100/simple-operations.test.ts`:
+    - Line 41: `mainTable: 'assets',`
+  - `apps/api/src/modules/implementation300/blueprint-registry.ts`:
+    - Line 559: `evidence('assets-controller', 'Assets controller exists', 'apps/api/src/modules/assets/assets.controller.ts', ['AssetsController']),`
+    - Line 560: `evidence('assets-ui', 'Asset tracking workspace exists', 'apps/web/src/components/modules/assets/asset-tracking-module-screen.tsx', [`
+  - `apps/api/src/modules/module-access/module-access.constants.ts`:
+    - Line 109: `description: 'Stock, procurement, issuing, transfers, assets, valuation, and reconciliation.',`
+    - Line 253: `description: 'School assets, assignments, repairs, depreciation, and utilization reporting.',`
+  - `apps/api/src/modules/operations/consumers/import-assets.consumer.ts`:
+    - Line 6: `readonly name = 'import-assets.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'import-assets' && event.payload.action_id !== 'import-assets') {`
+  - `apps/api/src/modules/operations/consumers/index.ts`:
+    - Line 309: `export { ImportAssetsConsumer } from './import-assets.consumer';`
+  - `apps/api/src/scripts/implementation100-certification.ts`:
+    - Line 86: `moduleEvidence('asset_tracking', 'Asset Tracking', 'apps/web/src/components/modules/assets/asset-tracking-module-screen.tsx', ['AssetTrackingModuleScreen'], 'apps/web/src/app/api/assets/[...path]/route.ts', ['proxySchoolApiRequest', '/assets'], 'apps/api/src/modules/assets/assets.controller.ts', ['AssetsController'], 'apps/api/src/modules/assets/assets-schema.service.ts', ['assets'], 'apps/api/src/modules/assets/assets.test.ts', ['assets']),`
+  - `apps/api/src/scripts/kisumu-boys-demo-seed.test.ts`:
+    - Line 156: `test('Kisumu Boys operational blueprints cover clinic, store, assets, and transport', () => {`
+  - `apps/api/src/scripts/module-access-certification.test.ts`:
+    - Line 37: `'apps/api/src/modules/assets/assets.controller.ts': '@Controller(\'assets\') @RequiresModule(\'asset_tracking\')',`
+    - Line 41: `'apps/web/src/lib/module-access/module-access-map.ts': 'schoolSectionModuleMap students: "students" admissions: "admissions" finance: "finance" mpesa: "finance" academics: "academics" exams: "exams" discipline: "discipline" reports: "reports" communication: "communication_sms" timetable: "timetable" staff: "staff" inventory: "inventory" library: "library" clinic: "clinic_health" labs: "lab_management" "teacher-attendance": "teacher_biometric_attendance" leadership: "admin_command_centers" transport: "transport" procurement: "procurement" hostel: "hostel" boarding: "boarding" cbt: "cbt_exams" lms: "lms" "ai-insights": "ai_insights" visitors: "visitor_management" assets: "asset_tracking" iot: "iot" isSchoolSectionEnabled filterNavItemsByEnabledModules',`
+  - `apps/api/src/scripts/module-access-certification.ts`:
+    - Line 76: `backendRoute('assets', 'Asset routes require the asset tracking module', 'apps/api/src/modules/assets/assets.controller.ts', 'asset_tracking'),`
+    - Line 106: `frontendRoute('assets', 'asset_tracking'),`
+- **`facilities-issues-workspace.tsx` (`facilities-issues`)**: No backend references found in `apps/api/src`.
+- **`loans-returns-workspace.tsx` (`loans-returns`)**: No backend references found in `apps/api/src`.
+- **`maintenance-workspace.tsx` (`maintenance`)**:
+  - `apps/api/src/database/migrations/001_partitioning_and_views.sql`:
+    - Line 78: `RAISE NOTICE 'audit_logs partitioning should be done during a maintenance window with data migration';`
+  - `apps/api/src/database/tenant-database-policy.ts`:
+    - Line 105: `asset_tracking: ['asset_registry', 'asset_movements', 'asset_maintenance'],`
+  - `apps/api/src/modules/admin-command/admin-command.controller.ts`:
+    - Line 351: `@Post('transport/maintenance')`
+  - `apps/api/src/modules/admin-command/principal-insights.providers.ts`:
+    - Line 154: `{ id: 'maintenance', title: 'Equipment Maintenance Alerts', metric_key: 'lab_equipment_maintenance_alerts' },`
+  - `apps/api/src/modules/admin-command/repositories/admin-command.repository.ts`:
+    - Line 331: `(SELECT COUNT(*)::int FROM lab_equipment WHERE tenant_id = $1 AND condition_status <> 'serviceable') AS lab_equipment_maintenance_alerts`
+  - `apps/api/src/modules/biometric-attendance/biometric-attendance-schema.service.ts`:
+    - Line 59: `CONSTRAINT ck_biometric_devices_status CHECK (status IN ('active', 'inactive', 'maintenance', 'revoked'))`
+  - `apps/api/src/modules/hostel/hostel.test.ts`:
+    - Line 44: `await service.createRecord({ title: 'Dormitory issue', category: 'maintenance', owner_name: 'Matron' });`
+  - `apps/api/src/modules/implementation100/simple-operations.test.ts`:
+    - Line 54: `status: 'maintenance',`
+  - `apps/api/src/modules/implementation300/blueprint-registry.ts`:
+    - Line 558: `moduleDefinition('asset_tracking', 'Asset Tracking', ['registry', 'tags', 'repairs', 'maintenance', 'depreciation', 'movement'], [`
+  - `apps/api/src/modules/iot/iot-schema.service.ts`:
+    - Line 66: `CONSTRAINT ck_iot_devices_status CHECK (status IN ('online', 'offline', 'maintenance', 'retired')),`
+  - `apps/api/src/modules/iot/repositories/iot.repository.ts`:
+    - Line 50: `(SELECT COUNT(*)::int FROM iot_devices WHERE tenant_id = $1 AND status IN ('offline', 'maintenance')) AS offline_devices,`
+    - Line 74: `CASE status WHEN 'offline' THEN 1 WHEN 'maintenance' THEN 2 ELSE 3 END,`
+  - `apps/api/src/modules/labs/labs.processor.ts`:
+    - Line 21: `readonly queueName = 'labs-maintenance';`
+    - Line 23: `private maintenanceTimer: ReturnType<typeof setInterval> | null = null;`
+  - `apps/api/src/modules/labs/labs.test.ts`:
+    - Line 155: `assert.equal(processor.queueName, 'labs-maintenance');`
+    - Line 177: `assert.equal(contexts[0]?.path, '/internal/labs/maintenance');`
+  - `apps/api/src/modules/operations/consumers/download-maintenance-report.consumer.ts`:
+    - Line 6: `readonly name = 'download-maintenance-report.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'download-maintenance-report' && event.payload.action_id !== 'download-maintenance-report') {`
+  - `apps/api/src/modules/operations/consumers/index.ts`:
+    - Line 183: `export { DownloadMaintenanceReportConsumer } from './download-maintenance-report.consumer';`
+    - Line 368: `export { MarkUnderMaintenanceConsumer } from './mark-under-maintenance.consumer';`
+  - `apps/api/src/modules/operations/consumers/mark-under-maintenance.consumer.ts`:
+    - Line 6: `readonly name = 'mark-under-maintenance.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'mark-under-maintenance' && event.payload.action_id !== 'mark-under-maintenance') {`
+  - `apps/api/src/modules/support/support-schema.service.ts`:
+    - Line 273: `CONSTRAINT ck_support_system_components_status CHECK (status IN ('operational', 'degraded', 'partial_outage', 'major_outage', 'maintenance'))`
+  - `apps/api/src/modules/transport/transport-schema.service.ts`:
+    - Line 112: `CONSTRAINT ck_transport_vehicles_status CHECK (status IN ('active', 'maintenance', 'suspended', 'retired'))`
+  - `apps/api/src/scripts/base-onboarding-seed.ts`:
+    - Line 114: `status?: 'active' | 'damaged' | 'maintenance';`
+    - Line 534: `{ name: 'Security CCTV cameras', sku: 'KB-ASSET-CCTV-001', category: 'Security Assets', unit: 'piece', kind: 'asset', quantity: 16, reorderLevel: 2, unitCost: 12500, location: 'Security Office', department: 'Security', status: 'maintenance' },`
+  - `apps/api/src/scripts/implementation20-certification.ts`:
+    - Line 62: `check('lab-maintenance-jobs', 'Lab maintenance jobs cover chemical expiry, equipment reconciliation, and mandatory attendance discipline checks', 'apps/api/src/modules/labs/labs.processor.ts', /runChemicalExpiryCheck[\s\S]+runEquipmentReconciliationCheck[\s\S]+runMandatoryAttendanceDisciplineCheck/),`
+  - `apps/api/src/scripts/kisumu-boys-demo-seed.ts`:
+    - Line 113: `status?: 'active' | 'damaged' | 'maintenance';`
+    - Line 533: `{ name: 'Security CCTV cameras', sku: 'KB-ASSET-CCTV-001', category: 'Security Assets', unit: 'piece', kind: 'asset', quantity: 16, reorderLevel: 2, unitCost: 12500, location: 'Security Office', department: 'Security', status: 'maintenance' },`
+- **`overview-workspace.tsx` (`overview`)**:
+  - `apps/api/src/middleware/billing-feature.middleware.test.ts`:
+    - Line 75: `await requestContext.run(createContext('/admin-command/principal/overview'), async () => {`
+    - Line 78: `path: '/admin-command/principal/overview',`
+  - `apps/api/src/modules/admin-command/admin-command.controller.ts`:
+    - Line 33: `@Get('principal/finance-overview')`
+    - Line 103: `@Get('principal/overview')`
+  - `apps/api/src/modules/admin-command/admissions-command.controller.ts`:
+    - Line 9: `@Get('overview')`
+    - Line 84: `overview,`
+  - `apps/api/src/modules/admin-command/deputy-command.controller.ts`:
+    - Line 9: `@Get('overview')`
+  - `apps/api/src/modules/admin-command/principal-insights.providers.ts`:
+    - Line 6: `id: 'school_overview',`
+    - Line 8: `category: 'overview',`
+  - `apps/api/src/modules/admin-command/principal-insights.service.ts`:
+    - Line 164: `const overview = await this.repository.getPrincipalOverviewSnapshot(tenantId);`
+    - Line 190: `overview,`
+  - `apps/api/src/modules/admin-command/principal-insights.types.ts`:
+    - Line 54: `overview: PrincipalOverviewPanel;`
+  - `apps/api/src/modules/admin-command/repositories/admin-command.repository.ts`:
+    - Line 1221: `defaultView: "overview"`
+  - `apps/api/src/modules/billing/billing-access.service.ts`:
+    - Line 59: `const { subscription, overview } =`
+    - Line 61: `const access = this.buildAccessState(subscription, overview);`
+  - `apps/api/src/modules/billing/billing-lifecycle.service.ts`:
+    - Line 60: `overview: SubscriptionLifecycleOverview | null;`
+    - Line 69: `overview: null,`
+  - `apps/api/src/modules/billing/billing-notification.service.ts`:
+    - Line 18: `overview: SubscriptionLifecycleOverview,`
+    - Line 20: `const descriptors = this.buildDescriptors(subscription, overview);`
+  - `apps/api/src/modules/billing/billing.service.ts`:
+    - Line 281: `if (!lifecycle.subscription || !lifecycle.overview) {`
+    - Line 285: `return this.mapSubscription(lifecycle.subscription, lifecycle.overview);`
+  - `apps/api/src/modules/billing/billing.test.ts`:
+    - Line 129: `overview: null,`
+    - Line 877: `ensureCurrentLifecycle: async () => ({ subscription: null, overview: null }),`
+  - `apps/api/src/modules/class-teacher/class-teacher.controller.ts`:
+    - Line 20: `@Get('overview')`
+    - Line 30: `@Get('dashboard-overview')`
+  - `apps/api/src/modules/dashboard/dashboard.controller.ts`:
+    - Line 34: `@Get('parent/overview')`
+    - Line 58: `@Get('student/overview')`
+  - `apps/api/src/modules/discipline/discipline.controller.ts`:
+    - Line 244: `@Get('analytics/overview')`
+  - `apps/api/src/modules/finance/finance.controller.ts`:
+    - Line 306: `@Get('accounts-overview')`
+  - `apps/api/src/modules/grade-master/grade-master.controller.ts`:
+    - Line 9: `@Get('overview')`
+  - `apps/api/src/modules/operations/consumers/export-overview.consumer.ts`:
+    - Line 6: `readonly name = 'export-overview.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'export-overview' && event.payload.action_id !== 'export-overview') {`
+  - `apps/api/src/modules/operations/consumers/index.ts`:
+    - Line 262: `export { ExportOverviewConsumer } from './export-overview.consumer';`
+  - `apps/api/src/modules/platform/platform-onboarding.service.test.ts`:
+    - Line 665: `test('PlatformOnboardingService summarizes tenants in product for the Super Admin overview', async () => {`
+  - `apps/api/src/scripts/core-api-load.ts`:
+    - Line 203: `path: '/discipline/analytics/overview',`
+  - `apps/api/src/scripts/high-volume-workflow-load.ts`:
+    - Line 29: `{ id: 'discipline-analytics', method: 'GET', path: '/discipline/analytics/overview', targetP95Ms: 800 },`
+- **`reports-workspace.tsx` (`reports`)**:
+  - `apps/api/src/auth/auth-email.service.test.ts`:
+    - Line 6: `test('AuthEmailService reports transactional email as missing without secrets', () => {`
+    - Line 20: `test('AuthEmailService reports transactional email as configured without exposing secrets', () => {`
+  - `apps/api/src/auth/auth.constants.ts`:
+    - Line 59: `{ resource: 'reports', action: 'read', description: 'View generated report export jobs and snapshots' },`
+    - Line 108: `{ resource: 'discipline', action: 'reports', description: 'Export discipline reports and analytics' },`
+  - `apps/api/src/auth/monitoring-service-account.service.ts`:
+    - Line 16: `'reports:read',`
+  - `apps/api/src/auth/role-governance-policy.ts`:
+    - Line 125: `platform_support: ['support:view', 'support:manage', 'reports:read'],`
+    - Line 126: `finance_admin: ['billing:read', 'billing:write', 'reports:read'],`
+  - `apps/api/src/common/auto-repair/auto-repair-agent.test.ts`:
+    - Line 474: `operationalIntent: 'Bursar can act on finance exceptions, not browse static trend reports',`
+    - Line 706: `test('AutoRepairAgent reports dashboard repair patch intelligence for KPI-only dashboards', () => {`
+  - `apps/api/src/common/auto-repair/auto-repair-deployment.test.ts`:
+    - Line 43: `test('AutoRepairService reports deployed runtime readiness and keeps the full widget state contract', () => {`
+  - `apps/api/src/common/common.module.ts`:
+    - Line 12: `import { ReportExportQueueService } from './reports/report-export-queue';`
+    - Line 13: `import { ReportExportJobsController } from './reports/report-export-jobs.controller';`
+  - `apps/api/src/common/reports/report-artifact-storage.service.test.ts`:
+    - Line 18: `retention_policy: 'reports',`
+    - Line 48: `assert.equal(savedInputs[0].storagePath, `tenant/tenant-a/reports/billing/invoices/${'b'.repeat(64)}.pdf`);`
+  - `apps/api/src/common/reports/report-artifact-storage.service.ts`:
+    - Line 40: `retentionPolicy: 'reports',`
+    - Line 73: `return `tenant/${input.tenantId}/reports/${module}/${reportId}/${input.artifact.checksumSha256}.${extension}`;`
+  - `apps/api/src/common/reports/report-export-jobs.controller.ts`:
+    - Line 7: `@Controller('reports')`
+    - Line 8: `@RequiresModule('reports')`
+  - `apps/api/src/common/reports/report-export-queue.ts`:
+    - Line 52: `reports: 'reports',`
+  - `apps/api/src/common/reports/report-export.worker.test.ts`:
+    - Line 25: `storage_path: 'tenant/tenant-a/reports/exams/exam-results/artifact.pdf',`
+    - Line 80: `storage_path: 'tenant/tenant-a/reports/exams/exam-results/artifact.pdf',`
+  - `apps/api/src/common/reports/report-snapshot.repository.test.ts`:
+    - Line 95: `assert.deepEqual(Reflect.getMetadata(PERMISSIONS_KEY, handler), ['reports:read']);`
+  - `apps/api/src/common/uploads/database-file-storage.service.test.ts`:
+    - Line 685: `test('S3CompatibleObjectStorageService reports failed object deletes as unavailable', async () => {`
+  - `apps/api/src/common/uploads/upload-policy.test.ts`:
+    - Line 252: `test('runProviderMalwareScan returns unsafe verdicts when the provider reports infection', async () => {`
+  - `apps/api/src/database/batch4_schemas.sql`:
+    - Line 71: `CREATE TABLE IF NOT EXISTS operations_reports (`
+    - Line 80: `CONSTRAINT ck_operations_reports_tenant CHECK (tenant_id <> 'global')`
+  - `apps/api/src/database/schema.sql`:
+    - Line 2755: `CREATE TABLE IF NOT EXISTS operations_reports (`
+    - Line 2764: `CONSTRAINT ck_operations_reports_tenant CHECK (tenant_id <> 'global')`
+  - `apps/api/src/database/tenant-database-policy.ts`:
+    - Line 93: `reports: ['report_export_jobs', 'report_snapshots'],`
+  - `apps/api/src/modules/admin-command/admin-command.controller.ts`:
+    - Line 124: `@Get('principal/reports')`
+    - Line 126: `@Permissions('principal:read', 'reports:read')`
+  - `apps/api/src/modules/admin-command/admissions-command.controller.ts`:
+    - Line 69: `@Get('reports')`
+    - Line 99: `reports,`
+  - `apps/api/src/modules/admin-command/deputy-command.controller.ts`:
+    - Line 133: `@Get('reports')`
+    - Line 137: `@Post('reports/generate')`
+  - `apps/api/src/modules/admin-command/principal-insights.providers.ts`:
+    - Line 16: `reports: ['school-overview', 'population-trend'],`
+    - Line 31: `reports: ['academic-summary', 'cbc-cbe-competency-progress'],`
+  - `apps/api/src/modules/admin-command/principal-insights.service.ts`:
+    - Line 184: `const reportExports = Array.from(new Set(sections.flatMap((section) => section.reports)));`
+    - Line 273: `reports: [...provider.reports],`
+  - `apps/api/src/modules/admin-command/principal-insights.types.ts`:
+    - Line 34: `reports: string[];`
+    - Line 81: `reports: string[];`
+  - `apps/api/src/modules/admin-command/repositories/admin-command.repository.ts`:
+    - Line 846: `reportsPending: summaryResult.rows[0]?.pending_reviews || 0,`
+    - Line 1479: ``INSERT INTO operations_reports (content, prepared_by, tenant_id, title, updated_at) VALUES ($1, $2, $3, $4, NOW())`,`
+  - `apps/api/src/modules/admin-command/repositories/deputy-command.repository.ts`:
+    - Line 449: `0::int AS generated_reports`
+    - Line 452: `{ generated_reports: 0 }`
+  - `apps/api/src/modules/admissions/admissions.controller.ts`:
+    - Line 33: `} from '../../common/reports/report-export-queue';`
+    - Line 217: `@Post('reports/:reportId/export-jobs')`
+  - `apps/api/src/modules/admissions/admissions.service.ts`:
+    - Line 22: `} from '../../common/reports/report-csv-artifact';`
+  - `apps/api/src/modules/admissions/admissions.test.ts`:
+    - Line 197: `path: '/admissions/reports/applications/export',`
+    - Line 350: `path: '/admissions/reports/unknown/export',`
+  - `apps/api/src/modules/billing/billing.controller.ts`:
+    - Line 15: `} from '../../common/reports/report-export-queue';`
+    - Line 214: `@Post('reports/:reportId/export-jobs')`
+  - `apps/api/src/modules/billing/billing.service.ts`:
+    - Line 14: `} from '../../common/reports/report-csv-artifact';`
+  - `apps/api/src/modules/billing/billing.test.ts`:
+    - Line 2245: `path: '/billing/reports/invoices/export',`
+    - Line 2297: `path: '/billing/reports/unknown/export',`
+  - `apps/api/src/modules/biometric-attendance/biometric-attendance.controller.ts`:
+    - Line 52: `@Get('reports/monthly')`
+  - `apps/api/src/modules/class-teacher/class-teacher.controller.ts`:
+    - Line 358: `@Get('reports')`
+  - `apps/api/src/modules/clinic/clinic.controller.ts`:
+    - Line 62: `@Permissions('clinic:reports')`
+  - `apps/api/src/modules/clinic/clinic.service.ts`:
+    - Line 171: `this.assertPermission('clinic:reports');`
+  - `apps/api/src/modules/clinic/clinic.test.ts`:
+    - Line 58: `assert.deepEqual(Reflect.getMetadata(PERMISSIONS_KEY, analyticsHandler), ['clinic:reports']);`
+  - `apps/api/src/modules/compliance/compliance-schema.service.ts`:
+    - Line 127: `CREATE TABLE IF NOT EXISTS breach_response_reports (`
+    - Line 141: `CONSTRAINT ck_breach_response_reports_severity CHECK (severity IN ('low', 'medium', 'high', 'critical')),`
+  - `apps/api/src/modules/compliance/compliance.controller.ts`:
+    - Line 81: `@Get('breach-response-reports/:reportId/export')`
+  - `apps/api/src/modules/compliance/compliance.service.ts`:
+    - Line 351: `FROM breach_response_reports`
+  - `apps/api/src/modules/compliance/compliance.test.ts`:
+    - Line 33: `assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS breach_response_reports/);`
+    - Line 36: `assert.match(schemaSql, /ALTER TABLE breach_response_reports FORCE ROW LEVEL SECURITY/);`
+  - `apps/api/src/modules/counselling/counselling.controller.ts`:
+    - Line 87: `@Get('reports')`
+  - `apps/api/src/modules/discipline/discipline.controller.ts`:
+    - Line 245: `@Permissions('discipline:reports')`
+    - Line 250: `@Post('reports/export')`
+  - `apps/api/src/modules/discipline/discipline.service.ts`:
+    - Line 636: `this.assertPermission('discipline:reports');`
+    - Line 648: `this.assertPermission('discipline:reports');`
+  - `apps/api/src/modules/discipline/discipline.test.ts`:
+    - Line 65: `'discipline:reports',`
+    - Line 597: `permissions: ['discipline:reports'],`
+  - `apps/api/src/modules/exams/consumers/download-reports.consumer.ts`:
+    - Line 6: `readonly name = 'download-reports.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'download-reports' && event.payload.action_id !== 'download-reports') {`
+  - `apps/api/src/modules/exams/consumers/index.ts`:
+    - Line 10: `export { DownloadReportsConsumer } from './download-reports.consumer';`
+  - `apps/api/src/modules/exams/exams.test.ts`:
+    - Line 648: `test('ExamsService reports duplicate and unauthorized rows during bulk mark upload preview', async () => {`
+  - `apps/api/src/modules/exams/repositories/exams.repository.ts`:
+    - Line 1481: `(SELECT COUNT(*) FROM student_report_cards WHERE tenant_id = $1 AND status = 'published') AS published_reports,`
+  - `apps/api/src/modules/exams/services/report-card-pdf-artifact.ts`:
+    - Line 3: `import { normalizeReportFilename, normalizeReportGeneratedAt, type ReportArtifact } from '../../../common/reports/report-artifact';`
+  - `apps/api/src/modules/exams/services/report-card-template.service.ts`:
+    - Line 3: `import type { ReportArtifactInput, ReportArtifactValue } from '../../../common/reports/report-artifact';`
+  - `apps/api/src/modules/grade-master/grade-master.controller.ts`:
+    - Line 81: `@Get('reports')`
+  - `apps/api/src/modules/grade-master/grade-master.service.ts`:
+    - Line 16: `reportsNotReady: 12,`
+  - `apps/api/src/modules/health/health.controller.test.ts`:
+    - Line 297: `test('HealthController readiness reports optional Redis degradation without throwing', async () => {`
+  - `apps/api/src/modules/implementation300/api-category-policy.ts`:
+    - Line 45: `api('analytics_engine', 'internal', 'reports', ['/api/internal/analytics'], 'internal_service', true, true, 600),`
+  - `apps/api/src/modules/implementation300/blueprint-registry.ts`:
+    - Line 42: `| 'reports'`
+    - Line 437: `moduleDefinition('exams', 'Exams and Results', ['setup', 'grading', 'cbc-assessment', 'moderation', 'reports', 'analytics'], [`
+  - `apps/api/src/modules/implementation300/development-phase-policy.test.ts`:
+    - Line 24: `'reports',`
+    - Line 31: `completedModules: ['authentication', 'tenant_management', 'students', 'finance', 'exams', 'communication_sms', 'reports', 'inventory'],`
+  - `apps/api/src/modules/implementation300/development-phase-policy.ts`:
+    - Line 59: `'reports',`
+    - Line 61: `capabilities: ['tenant_onboarding', 'billing', 'exam_results', 'communication', 'reports'],`
+  - `apps/api/src/modules/integrations/integrations.test.ts`:
+    - Line 202: `test('SmsDispatchService reports missing credential fields without exposing secrets', async () => {`
+  - `apps/api/src/modules/inventory/inventory.controller.ts`:
+    - Line 7: `} from '../../common/reports/report-export-queue';`
+    - Line 246: `@Get('reports')`
+  - `apps/api/src/modules/inventory/inventory.service.ts`:
+    - Line 13: `} from '../../common/reports/report-csv-artifact';`
+    - Line 93: `rows: (reports: InventoryReportsPayload) => ReportCsvValue[][];`
+  - `apps/api/src/modules/inventory/inventory.test.ts`:
+    - Line 2222: `path: '/inventory/reports/stock-valuation/export',`
+    - Line 2250: `throw new Error('reports should not be loaded for an unknown export');`
+  - `apps/api/src/modules/inventory/repositories/inventory.repository.test.ts`:
+    - Line 971: `const reports = await repository.buildReports('tenant-a');`
+    - Line 978: `assert.deepEqual(reports.stock_reconciliation, [`
+  - `apps/api/src/modules/library/library.controller.ts`:
+    - Line 89: `@Get('reports')`
+  - `apps/api/src/modules/mobile/mobile-app-policy.test.ts`:
+    - Line 44: `enabledModules: ['principal_dashboard', 'finance', 'reports'],`
+    - Line 79: `capabilities: ['fees', 'communication', 'reports', 'results'],`
+  - `apps/api/src/modules/mobile/mobile-app-policy.ts`:
+    - Line 9: `| 'reports'`
+    - Line 19: `export type MobileOfflineCapability = 'attendance' | 'mark_entry' | 'assignments' | 'fees' | 'communication' | 'reports' | 'results';`
+  - `apps/api/src/modules/module-access/module-access.constants.ts`:
+    - Line 55: `description: 'Assessments, marks, reports, academic analytics, CBT hooks, and result publishing.',`
+    - Line 67: `permission_scopes: ['discipline:read', 'discipline:write', 'discipline:manage', 'discipline:reports'],`
+  - `apps/api/src/modules/module-access/module-access.test.ts`:
+    - Line 13: `import { ReportExportJobsController } from '../../common/reports/report-export-jobs.controller';`
+    - Line 38: `'reports',`
+  - `apps/api/src/modules/operations/consumers/index.ts`:
+    - Line 505: `export { ReportsConsumer } from './reports.consumer';`
+    - Line 516: `export { RequestReportsConsumer } from './request-reports.consumer';`
+  - `apps/api/src/modules/operations/consumers/reports.consumer.ts`:
+    - Line 6: `readonly name = 'reports.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'reports' && event.payload.action_id !== 'reports') {`
+  - `apps/api/src/modules/operations/consumers/request-reports.consumer.ts`:
+    - Line 6: `readonly name = 'request-reports.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'request-reports' && event.payload.action_id !== 'request-reports') {`
+  - `apps/api/src/modules/operations/consumers/view-reports.consumer.ts`:
+    - Line 6: `readonly name = 'view-reports.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'view-reports' && event.payload.action_id !== 'view-reports') {`
+  - `apps/api/src/modules/operations/operations.service.ts`:
+    - Line 69: ``INSERT INTO operations_reports (tenant_id, title, content, prepared_by)`
+  - `apps/api/src/modules/payments/payments.test.ts`:
+    - Line 3482: `test('MpesaReconciliationService reports missing callbacks, duplicates, amount mismatches, wrong references, and late provider status', async () => {`
+    - Line 4016: `result.reports.map((report) => report.payment_channel_id),`
+  - `apps/api/src/modules/payments/payments.types.ts`:
+    - Line 297: `reports: MpesaReconciliationReport[];`
+    - Line 305: `reports: MpesaReconciliationReport[];`
+  - `apps/api/src/modules/payments/services/mpesa-reconciliation.service.ts`:
+    - Line 446: `const reports: MpesaReconciliationReport[] = [];`
+    - Line 449: `reports.push(`
+  - `apps/api/src/modules/platform/platform-onboarding.service.test.ts`:
+    - Line 470: `test('PlatformOnboardingService reports Resend testing mode as blocked instead of encouraging repeated resends', async () => {`
+  - `apps/api/src/modules/support/support-notification-delivery.service.test.ts`:
+    - Line 12: `test('SupportNotificationDeliveryService reports provider readiness without exposing secrets', async () => {`
+    - Line 97: `test('SupportNotificationDeliveryService reports precise missing provider status for dashboard-managed SMS', async () => {`
+  - `apps/api/src/scripts/audit-coverage-review.test.ts`:
+    - Line 49: `test('runAuditCoverageReview reports missing evidence by file and pattern', () => {`
+  - `apps/api/src/scripts/base-onboarding-seed.ts`:
+    - Line 30: `'reports',`
+    - Line 362: `{ moduleCode: 'reports', table: 'report_snapshots', tenantScoped: true },`
+  - `apps/api/src/scripts/core-api-load.test.ts`:
+    - Line 33: `assert.equal(inventoryExport.url, 'http://127.0.0.1:3000/inventory/reports/stock-valuation/export');`
+  - `apps/api/src/scripts/core-api-load.ts`:
+    - Line 131: `path: '/admissions/reports/applications/export',`
+    - Line 147: `id: 'inventory-reports',`
+  - `apps/api/src/scripts/enable-admin-modules.ts`:
+    - Line 47: `'Module-aware executive KPIs, alerts, analytics, trends, and reports for the Principal.',`
+  - `apps/api/src/scripts/generate-production-scorecard.test.ts`:
+    - Line 22: `"reports",`
+  - `apps/api/src/scripts/generate-production-scorecard.ts`:
+    - Line 150: `remediation: 'Add the tenant isolation audit runner and require it in CI for finance, support, library, discipline, reports, and files.',`
+    - Line 183: `evidenceLine(/missing_provider/.test(supportNotificationSource), 'support notification health reports precise missing provider state'),`
+  - `apps/api/src/scripts/high-volume-workflow-load.test.ts`:
+    - Line 18: `'billing-invoice-reports',`
+  - `apps/api/src/scripts/high-volume-workflow-load.ts`:
+    - Line 18: `{ id: 'billing-invoice-reports', method: 'GET', path: '/billing/reports/invoices/export', targetP95Ms: 900 },`
+    - Line 31: `{ id: 'report-export-jobs', method: 'GET', path: '/reports/export-jobs', targetP95Ms: 800 },`
+  - `apps/api/src/scripts/implementation100-certification.ts`:
+    - Line 74: `moduleEvidence('reports', 'Reports', 'apps/web/src/components/school/school-pages.tsx', ['Reports'], 'apps/web/src/app/api/reports/[...path]/route.ts', ['proxySchoolApiRequest', '/reports'], 'apps/api/src/common/reports/report-export-jobs.controller.ts', ['ReportExportJobsController'], 'apps/api/src/common/reports/report-snapshot-schema.service.ts', ['report_snapshots'], 'apps/api/src/common/reports/report-export-queue.test.ts', ['report']),`
+  - `apps/api/src/scripts/implementation20-certification.test.ts`:
+    - Line 30: `'apps/api/src/modules/biometric-attendance/biometric-attendance.controller.ts': 'live-feed reports/monthly',`
+    - Line 37: `'apps/web/src/app/api/reports/[...path]/route.ts': 'proxySchoolApiRequest "/reports"',`
+  - `apps/api/src/scripts/implementation20-certification.ts`:
+    - Line 72: `check('biometric-live-reports', 'Biometric API exposes live feed and monthly reports', 'apps/api/src/modules/biometric-attendance/biometric-attendance.controller.ts', /live-feed[\s\S]+reports\/monthly/),`
+    - Line 84: `check('reports-web-proxy', 'Web app proxies reports requests to the API', 'apps/web/src/app/api/reports/[...path]/route.ts', /proxySchoolApiRequest[\s\S]+"\/reports"/),`
+  - `apps/api/src/scripts/implementation21-certification.test.ts`:
+    - Line 10: `'apps/api/src/modules/admin-command/principal-insights.providers.ts': 'finance summary_only lab_management communication_sms clinic_health permission_required: \'clinic:reports\' summary_only medicine_consumption_cost_minor wastage_due_to_expiry_minor emergency_supply_ready_rate most_used_medicine ai_insights fee_default_risk_alerts medicine_shortage_predictions attendance_irregularities budget_overrun_alerts performance_decline_warnings',`
+    - Line 29: `'apps/api/src/modules/clinic/clinic.controller.ts': 'clinic:inventory clinic:dispense clinic:reports portal:read_own_children',`
+  - `apps/api/src/scripts/implementation21-certification.ts`:
+    - Line 76: `check('clinic-api-permissions', 'Clinic controller separates inventory, dispensing, reports, and parent history permissions', 'apps/api/src/modules/clinic/clinic.controller.ts', /clinic:inventory[\s\S]+clinic:dispense[\s\S]+clinic:reports[\s\S]+portal:read_own_children/),`
+    - Line 92: `check('principal-no-confidential-notes', 'Principal insights use clinic reports, not confidential permissions', 'apps/api/src/modules/admin-command/principal-insights.providers.ts', /permission_required:\s+'clinic:reports'[\s\S]+summary_only/),`
+  - `apps/api/src/scripts/implementation30-certification.test.ts`:
+    - Line 59: `'apps/api/src/modules/payments/payments.test.ts': 'provider_verification_required exports only redacted payloads redacts C2B API payment responses for legacy raw rows assert.notEqual creates callback channels with hashed secrets builds high-entropy STK and C2B callback URLs high-entropy channel-secret routes creates M-PESA verification jobs verificationJobInput duplicate M-PESA identifiers MpesaTransactionStatusService verifies STK callback status classifies verified C2B payments without ledger enqueue accepts unsigned direct Daraja callbacks rejects unsigned callbacks in edge-signed mode accepts unsigned validation callbacks in direct Daraja mode PaymentsSchemaService creates reconciliation batches MpesaReconciliationService reports missing callbacks, duplicates, amount mismatches, wrong references, and late provider status runs daily reconciliation for every active tenant payment channel generates on-demand date-range reports lists accountant review items without raw M-PESA payload leakage requires two distinct approvers before resolving reversal requests exposes accountant review and finance approval endpoints',`
+    - Line 65: `'apps/api/src/modules/compliance/compliance-schema.service.ts': 'data_subject_requests access_request correction_request deletion_anonymization_request export_request objection_request data_retention_schedules child_data_dpia_records students payments sync_offline breach_response_reports FORCE ROW LEVEL SECURITY',`
+  - `apps/api/src/scripts/implementation30-certification.ts`:
+    - Line 95: `check('mpesa-reconciliation-processor', 'M-Pesa reconciliation service runs daily and date-range reports, persists batches, and classifies mismatch states', 'apps/api/src/modules/payments/services/mpesa-reconciliation.service.ts', /(?=.*generateDailyReport)(?=.*generateDateRangeReport)(?=.*runDailyProcessor)(?=.*reconciliation_state)(?=.*provider_received)(?=.*amount_mismatch)(?=.*duplicate_provider_receipt)(?=.*missing_provider_record)(?=.*verified_unmatched)(?=.*manual_review_required)(?=.*INSERT INTO mpesa_reconciliation_batches)(?=.*INSERT INTO mpesa_reconciliation_discrepancies)/s),`
+    - Line 100: `check('mpesa-reconciliation-tests', 'Payments tests cover reconciliation schema, missing callbacks, duplicates, amount mismatch, wrong references, late provider status, daily processor, and range reports', 'apps/api/src/modules/payments/payments.test.ts', /(?=.*PaymentsSchemaService creates reconciliation batches)(?=.*MpesaReconciliationService reports missing callbacks, duplicates, amount mismatches, wrong references, and late provider status)(?=.*runs daily reconciliation for every active tenant payment channel)(?=.*generates on-demand date-range reports)/s),`
+  - `apps/api/src/scripts/implementation30-load-profile.test.ts`:
+    - Line 35: `'apps/api/src/common/reports/report-export-queue.ts': 'shouldQueueReportExport DEFAULT_SYNC_EXPORT_ROW_LIMIT REPORT_EXPORT_JOB_OPTIONS attempts backoff estimated_rows',`
+    - Line 63: `'apps/api/src/common/reports/report-export-queue.ts': 'shouldQueueReportExport DEFAULT_SYNC_EXPORT_ROW_LIMIT REPORT_EXPORT_JOB_OPTIONS attempts backoff estimated_rows',`
+  - `apps/api/src/scripts/implementation30-load-profile.ts`:
+    - Line 181: `'apps/api/src/common/reports/report-export-queue.ts',`
+  - `apps/api/src/scripts/kisumu-boys-demo-seed.ts`:
+    - Line 29: `'reports',`
+    - Line 361: `{ moduleCode: 'reports', table: 'report_snapshots', tenantScoped: true },`
+  - `apps/api/src/scripts/module-access-certification.test.ts`:
+    - Line 28: `'apps/api/src/common/reports/report-export-jobs.controller.ts': '@Controller(\'reports\') @RequiresModule(\'reports\')',`
+    - Line 39: `'apps/api/src/modules/module-access/module-access.constants.ts': 'MODULE_REGISTRY_SEED students admissions academics finance exams discipline timetable lab_management teacher_biometric_attendance parent_portal inventory library transport communication_sms reports staff admin_command_centers principal_dashboard clinic_health procurement hostel boarding cbt_exams lms ai_insights visitor_management asset_tracking iot permission_scopes',`
+  - `apps/api/src/scripts/module-access-certification.ts`:
+    - Line 67: `backendRoute('reports', 'Report export job routes require the reports module', 'apps/api/src/common/reports/report-export-jobs.controller.ts', 'reports'),`
+    - Line 88: `frontendRoute('reports', 'reports'),`
+  - `apps/api/src/scripts/module-certification.test.ts`:
+    - Line 24: `'apps/web/src/lib/discipline/discipline-live.ts': 'acknowledgeDisciplineIncident exportDisciplineReport reports',`
+  - `apps/api/src/scripts/module-certification.ts`:
+    - Line 105: `workflow('reports-and-documents', 'Reports, documents, and confidential export safety', [`
+    - Line 106: `check('discipline-report-api', 'Discipline reports are exposed through API', 'apps/web/src/lib/discipline/discipline-live.ts', /exportDisciplineReport|reports/),`
+  - `apps/api/src/scripts/release-readiness-gate.test.ts`:
+    - Line 20: `"reports",`
+    - Line 49: `'dist/apps/api/src/common/reports/report-excel-artifact.test.js',`
+  - `apps/api/src/scripts/release-readiness-gate.ts`:
+    - Line 27: `} from '../common/reports/report-export-queue';`
+    - Line 31: `} from '../common/reports/report-snapshot-manifest';`
+  - `apps/api/src/scripts/run-pilot-certification.test.ts`:
+    - Line 75: `'apps/api/src/common/reports/report-export-queue.ts': 'validateReportExportJobPayload queue',`
+  - `apps/api/src/scripts/run-pilot-certification.ts`:
+    - Line 167: `check('report-export', 'Report export queue exists', 'apps/api/src/common/reports/report-export-queue.ts', /validateReportExportJobPayload|queue/i),`
+  - `apps/api/src/scripts/synthetic-journey-monitor.ts`:
+    - Line 286: `path: '/admissions/reports/applications/export',`
+    - Line 295: `path: '/inventory/reports/stock-valuation/export',`
+  - `apps/api/src/scripts/tenant-isolation-audit.test.ts`:
+    - Line 144: `'apps/api/src/common/reports/report-export-queue.ts': 'attendance',`
+  - `apps/api/src/scripts/tenant-isolation-audit.ts`:
+    - Line 59: `check('reports-block-retired-attendance', 'Report exports block retired attendance data', 'apps/api/src/common/reports/report-export-queue.ts', /attendance/i, 'high'),`
+
+---
+
+### Role: `laboratory-technician`
+
+| File Name | Module ID | Definition Status | Backend Status | Refs |
+| :--- | :--- | :--- | :--- | :--- |
+| `apparatus-issue-workspace.tsx` | `apparatus-issue` | ✅ Found (Apparatus Issue) | ❌ Missing | None |
+| `chemicals-workspace.tsx` | `chemicals` | ✅ Found (Chemicals) | ✅ Referenced (10 refs) | `auth.constants.ts`, `blueprint-registry.ts`, `labs.controller.ts`... |
+| `lab-inventory-workspace.tsx` | `lab-inventory` | ✅ Found (Lab Inventory) | ❌ Missing | None |
+| `lab-timetable-workspace.tsx` | `lab-timetable` | ❌ Missing | ❌ Missing | None |
+| `overview-workspace.tsx` | `overview` | ✅ Found (Overview) | ✅ Referenced (106 refs) | `billing-feature.middleware.test.ts`, `admin-command.controller.ts`, `admissions-command.controller.ts`... |
+| `reports-workspace.tsx` | `reports` | ✅ Found (Reports) | ✅ Referenced (371 refs) | `auth-email.service.test.ts`, `auth.constants.ts`, `monitoring-service-account.service.ts`... |
+| `safety-incidents-workspace.tsx` | `safety-incidents` | ❌ Missing | ❌ Missing | None |
+
+#### Backend Reference Details for `laboratory-technician`:
+- **`apparatus-issue-workspace.tsx` (`apparatus-issue`)**: No backend references found in `apps/api/src`.
+- **`chemicals-workspace.tsx` (`chemicals`)**:
+  - `apps/api/src/auth/auth.constants.ts`:
+    - Line 115: `{ resource: 'labs', action: 'inventory', description: 'Manage laboratory equipment and chemicals' },`
+  - `apps/api/src/modules/implementation300/blueprint-registry.ts`:
+    - Line 453: `moduleDefinition('lab_management', 'Laboratory Management', ['inventory', 'chemicals', 'compliance', 'equipment', 'sessions', 'hazards'], [`
+  - `apps/api/src/modules/labs/labs.controller.ts`:
+    - Line 57: `@Post('chemicals')`
+    - Line 90: `@Post('chemicals/:chemicalId/disposal-requests')`
+  - `apps/api/src/modules/labs/labs.service.ts`:
+    - Line 241: `throw new BadRequestException('Expired chemicals cannot be issued');`
+  - `apps/api/src/modules/labs/labs.test.ts`:
+    - Line 73: `/Expired chemicals cannot be issued/i,`
+  - `apps/api/src/modules/module-access/module-access.constants.ts`:
+    - Line 82: `description: 'Labs, sessions, mandatory attendance, equipment, chemicals, and safety controls.',`
+  - `apps/api/src/scripts/implementation20-certification.test.ts`:
+    - Line 20: `'apps/api/src/modules/labs/labs.service.ts': 'Expired chemicals cannot be issued quarantined markMissingMandatoryAttendanceAbsent completeLabSession recordMandatoryLabAttendanceEffects',`
+  - `apps/api/src/scripts/implementation20-certification.ts`:
+    - Line 58: `check('lab-schema', 'Lab schema includes departments, labs, sessions, attendance, equipment, chemicals, usage, and disposal', 'apps/api/src/modules/labs/labs-schema.service.ts', /lab_departments[\s\S]+lab_sessions[\s\S]+lab_attendance[\s\S]+lab_equipment[\s\S]+chemical_items[\s\S]+chemical_disposal_requests/),`
+    - Line 59: `check('expired-chemical-block', 'Expired and quarantined chemicals are blocked from use', 'apps/api/src/modules/labs/labs.service.ts', /Expired chemicals cannot be issued[\s\S]+quarantined/),`
+- **`lab-inventory-workspace.tsx` (`lab-inventory`)**: No backend references found in `apps/api/src`.
+- **`lab-timetable-workspace.tsx` (`lab-timetable`)**: No backend references found in `apps/api/src`.
+- **`overview-workspace.tsx` (`overview`)**:
+  - `apps/api/src/middleware/billing-feature.middleware.test.ts`:
+    - Line 75: `await requestContext.run(createContext('/admin-command/principal/overview'), async () => {`
+    - Line 78: `path: '/admin-command/principal/overview',`
+  - `apps/api/src/modules/admin-command/admin-command.controller.ts`:
+    - Line 33: `@Get('principal/finance-overview')`
+    - Line 103: `@Get('principal/overview')`
+  - `apps/api/src/modules/admin-command/admissions-command.controller.ts`:
+    - Line 9: `@Get('overview')`
+    - Line 84: `overview,`
+  - `apps/api/src/modules/admin-command/deputy-command.controller.ts`:
+    - Line 9: `@Get('overview')`
+  - `apps/api/src/modules/admin-command/principal-insights.providers.ts`:
+    - Line 6: `id: 'school_overview',`
+    - Line 8: `category: 'overview',`
+  - `apps/api/src/modules/admin-command/principal-insights.service.ts`:
+    - Line 164: `const overview = await this.repository.getPrincipalOverviewSnapshot(tenantId);`
+    - Line 190: `overview,`
+  - `apps/api/src/modules/admin-command/principal-insights.types.ts`:
+    - Line 54: `overview: PrincipalOverviewPanel;`
+  - `apps/api/src/modules/admin-command/repositories/admin-command.repository.ts`:
+    - Line 1221: `defaultView: "overview"`
+  - `apps/api/src/modules/billing/billing-access.service.ts`:
+    - Line 59: `const { subscription, overview } =`
+    - Line 61: `const access = this.buildAccessState(subscription, overview);`
+  - `apps/api/src/modules/billing/billing-lifecycle.service.ts`:
+    - Line 60: `overview: SubscriptionLifecycleOverview | null;`
+    - Line 69: `overview: null,`
+  - `apps/api/src/modules/billing/billing-notification.service.ts`:
+    - Line 18: `overview: SubscriptionLifecycleOverview,`
+    - Line 20: `const descriptors = this.buildDescriptors(subscription, overview);`
+  - `apps/api/src/modules/billing/billing.service.ts`:
+    - Line 281: `if (!lifecycle.subscription || !lifecycle.overview) {`
+    - Line 285: `return this.mapSubscription(lifecycle.subscription, lifecycle.overview);`
+  - `apps/api/src/modules/billing/billing.test.ts`:
+    - Line 129: `overview: null,`
+    - Line 877: `ensureCurrentLifecycle: async () => ({ subscription: null, overview: null }),`
+  - `apps/api/src/modules/class-teacher/class-teacher.controller.ts`:
+    - Line 20: `@Get('overview')`
+    - Line 30: `@Get('dashboard-overview')`
+  - `apps/api/src/modules/dashboard/dashboard.controller.ts`:
+    - Line 34: `@Get('parent/overview')`
+    - Line 58: `@Get('student/overview')`
+  - `apps/api/src/modules/discipline/discipline.controller.ts`:
+    - Line 244: `@Get('analytics/overview')`
+  - `apps/api/src/modules/finance/finance.controller.ts`:
+    - Line 306: `@Get('accounts-overview')`
+  - `apps/api/src/modules/grade-master/grade-master.controller.ts`:
+    - Line 9: `@Get('overview')`
+  - `apps/api/src/modules/operations/consumers/export-overview.consumer.ts`:
+    - Line 6: `readonly name = 'export-overview.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'export-overview' && event.payload.action_id !== 'export-overview') {`
+  - `apps/api/src/modules/operations/consumers/index.ts`:
+    - Line 262: `export { ExportOverviewConsumer } from './export-overview.consumer';`
+  - `apps/api/src/modules/platform/platform-onboarding.service.test.ts`:
+    - Line 665: `test('PlatformOnboardingService summarizes tenants in product for the Super Admin overview', async () => {`
+  - `apps/api/src/scripts/core-api-load.ts`:
+    - Line 203: `path: '/discipline/analytics/overview',`
+  - `apps/api/src/scripts/high-volume-workflow-load.ts`:
+    - Line 29: `{ id: 'discipline-analytics', method: 'GET', path: '/discipline/analytics/overview', targetP95Ms: 800 },`
+- **`reports-workspace.tsx` (`reports`)**:
+  - `apps/api/src/auth/auth-email.service.test.ts`:
+    - Line 6: `test('AuthEmailService reports transactional email as missing without secrets', () => {`
+    - Line 20: `test('AuthEmailService reports transactional email as configured without exposing secrets', () => {`
+  - `apps/api/src/auth/auth.constants.ts`:
+    - Line 59: `{ resource: 'reports', action: 'read', description: 'View generated report export jobs and snapshots' },`
+    - Line 108: `{ resource: 'discipline', action: 'reports', description: 'Export discipline reports and analytics' },`
+  - `apps/api/src/auth/monitoring-service-account.service.ts`:
+    - Line 16: `'reports:read',`
+  - `apps/api/src/auth/role-governance-policy.ts`:
+    - Line 125: `platform_support: ['support:view', 'support:manage', 'reports:read'],`
+    - Line 126: `finance_admin: ['billing:read', 'billing:write', 'reports:read'],`
+  - `apps/api/src/common/auto-repair/auto-repair-agent.test.ts`:
+    - Line 474: `operationalIntent: 'Bursar can act on finance exceptions, not browse static trend reports',`
+    - Line 706: `test('AutoRepairAgent reports dashboard repair patch intelligence for KPI-only dashboards', () => {`
+  - `apps/api/src/common/auto-repair/auto-repair-deployment.test.ts`:
+    - Line 43: `test('AutoRepairService reports deployed runtime readiness and keeps the full widget state contract', () => {`
+  - `apps/api/src/common/common.module.ts`:
+    - Line 12: `import { ReportExportQueueService } from './reports/report-export-queue';`
+    - Line 13: `import { ReportExportJobsController } from './reports/report-export-jobs.controller';`
+  - `apps/api/src/common/reports/report-artifact-storage.service.test.ts`:
+    - Line 18: `retention_policy: 'reports',`
+    - Line 48: `assert.equal(savedInputs[0].storagePath, `tenant/tenant-a/reports/billing/invoices/${'b'.repeat(64)}.pdf`);`
+  - `apps/api/src/common/reports/report-artifact-storage.service.ts`:
+    - Line 40: `retentionPolicy: 'reports',`
+    - Line 73: `return `tenant/${input.tenantId}/reports/${module}/${reportId}/${input.artifact.checksumSha256}.${extension}`;`
+  - `apps/api/src/common/reports/report-export-jobs.controller.ts`:
+    - Line 7: `@Controller('reports')`
+    - Line 8: `@RequiresModule('reports')`
+  - `apps/api/src/common/reports/report-export-queue.ts`:
+    - Line 52: `reports: 'reports',`
+  - `apps/api/src/common/reports/report-export.worker.test.ts`:
+    - Line 25: `storage_path: 'tenant/tenant-a/reports/exams/exam-results/artifact.pdf',`
+    - Line 80: `storage_path: 'tenant/tenant-a/reports/exams/exam-results/artifact.pdf',`
+  - `apps/api/src/common/reports/report-snapshot.repository.test.ts`:
+    - Line 95: `assert.deepEqual(Reflect.getMetadata(PERMISSIONS_KEY, handler), ['reports:read']);`
+  - `apps/api/src/common/uploads/database-file-storage.service.test.ts`:
+    - Line 685: `test('S3CompatibleObjectStorageService reports failed object deletes as unavailable', async () => {`
+  - `apps/api/src/common/uploads/upload-policy.test.ts`:
+    - Line 252: `test('runProviderMalwareScan returns unsafe verdicts when the provider reports infection', async () => {`
+  - `apps/api/src/database/batch4_schemas.sql`:
+    - Line 71: `CREATE TABLE IF NOT EXISTS operations_reports (`
+    - Line 80: `CONSTRAINT ck_operations_reports_tenant CHECK (tenant_id <> 'global')`
+  - `apps/api/src/database/schema.sql`:
+    - Line 2755: `CREATE TABLE IF NOT EXISTS operations_reports (`
+    - Line 2764: `CONSTRAINT ck_operations_reports_tenant CHECK (tenant_id <> 'global')`
+  - `apps/api/src/database/tenant-database-policy.ts`:
+    - Line 93: `reports: ['report_export_jobs', 'report_snapshots'],`
+  - `apps/api/src/modules/admin-command/admin-command.controller.ts`:
+    - Line 124: `@Get('principal/reports')`
+    - Line 126: `@Permissions('principal:read', 'reports:read')`
+  - `apps/api/src/modules/admin-command/admissions-command.controller.ts`:
+    - Line 69: `@Get('reports')`
+    - Line 99: `reports,`
+  - `apps/api/src/modules/admin-command/deputy-command.controller.ts`:
+    - Line 133: `@Get('reports')`
+    - Line 137: `@Post('reports/generate')`
+  - `apps/api/src/modules/admin-command/principal-insights.providers.ts`:
+    - Line 16: `reports: ['school-overview', 'population-trend'],`
+    - Line 31: `reports: ['academic-summary', 'cbc-cbe-competency-progress'],`
+  - `apps/api/src/modules/admin-command/principal-insights.service.ts`:
+    - Line 184: `const reportExports = Array.from(new Set(sections.flatMap((section) => section.reports)));`
+    - Line 273: `reports: [...provider.reports],`
+  - `apps/api/src/modules/admin-command/principal-insights.types.ts`:
+    - Line 34: `reports: string[];`
+    - Line 81: `reports: string[];`
+  - `apps/api/src/modules/admin-command/repositories/admin-command.repository.ts`:
+    - Line 846: `reportsPending: summaryResult.rows[0]?.pending_reviews || 0,`
+    - Line 1479: ``INSERT INTO operations_reports (content, prepared_by, tenant_id, title, updated_at) VALUES ($1, $2, $3, $4, NOW())`,`
+  - `apps/api/src/modules/admin-command/repositories/deputy-command.repository.ts`:
+    - Line 449: `0::int AS generated_reports`
+    - Line 452: `{ generated_reports: 0 }`
+  - `apps/api/src/modules/admissions/admissions.controller.ts`:
+    - Line 33: `} from '../../common/reports/report-export-queue';`
+    - Line 217: `@Post('reports/:reportId/export-jobs')`
+  - `apps/api/src/modules/admissions/admissions.service.ts`:
+    - Line 22: `} from '../../common/reports/report-csv-artifact';`
+  - `apps/api/src/modules/admissions/admissions.test.ts`:
+    - Line 197: `path: '/admissions/reports/applications/export',`
+    - Line 350: `path: '/admissions/reports/unknown/export',`
+  - `apps/api/src/modules/billing/billing.controller.ts`:
+    - Line 15: `} from '../../common/reports/report-export-queue';`
+    - Line 214: `@Post('reports/:reportId/export-jobs')`
+  - `apps/api/src/modules/billing/billing.service.ts`:
+    - Line 14: `} from '../../common/reports/report-csv-artifact';`
+  - `apps/api/src/modules/billing/billing.test.ts`:
+    - Line 2245: `path: '/billing/reports/invoices/export',`
+    - Line 2297: `path: '/billing/reports/unknown/export',`
+  - `apps/api/src/modules/biometric-attendance/biometric-attendance.controller.ts`:
+    - Line 52: `@Get('reports/monthly')`
+  - `apps/api/src/modules/class-teacher/class-teacher.controller.ts`:
+    - Line 358: `@Get('reports')`
+  - `apps/api/src/modules/clinic/clinic.controller.ts`:
+    - Line 62: `@Permissions('clinic:reports')`
+  - `apps/api/src/modules/clinic/clinic.service.ts`:
+    - Line 171: `this.assertPermission('clinic:reports');`
+  - `apps/api/src/modules/clinic/clinic.test.ts`:
+    - Line 58: `assert.deepEqual(Reflect.getMetadata(PERMISSIONS_KEY, analyticsHandler), ['clinic:reports']);`
+  - `apps/api/src/modules/compliance/compliance-schema.service.ts`:
+    - Line 127: `CREATE TABLE IF NOT EXISTS breach_response_reports (`
+    - Line 141: `CONSTRAINT ck_breach_response_reports_severity CHECK (severity IN ('low', 'medium', 'high', 'critical')),`
+  - `apps/api/src/modules/compliance/compliance.controller.ts`:
+    - Line 81: `@Get('breach-response-reports/:reportId/export')`
+  - `apps/api/src/modules/compliance/compliance.service.ts`:
+    - Line 351: `FROM breach_response_reports`
+  - `apps/api/src/modules/compliance/compliance.test.ts`:
+    - Line 33: `assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS breach_response_reports/);`
+    - Line 36: `assert.match(schemaSql, /ALTER TABLE breach_response_reports FORCE ROW LEVEL SECURITY/);`
+  - `apps/api/src/modules/counselling/counselling.controller.ts`:
+    - Line 87: `@Get('reports')`
+  - `apps/api/src/modules/discipline/discipline.controller.ts`:
+    - Line 245: `@Permissions('discipline:reports')`
+    - Line 250: `@Post('reports/export')`
+  - `apps/api/src/modules/discipline/discipline.service.ts`:
+    - Line 636: `this.assertPermission('discipline:reports');`
+    - Line 648: `this.assertPermission('discipline:reports');`
+  - `apps/api/src/modules/discipline/discipline.test.ts`:
+    - Line 65: `'discipline:reports',`
+    - Line 597: `permissions: ['discipline:reports'],`
+  - `apps/api/src/modules/exams/consumers/download-reports.consumer.ts`:
+    - Line 6: `readonly name = 'download-reports.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'download-reports' && event.payload.action_id !== 'download-reports') {`
+  - `apps/api/src/modules/exams/consumers/index.ts`:
+    - Line 10: `export { DownloadReportsConsumer } from './download-reports.consumer';`
+  - `apps/api/src/modules/exams/exams.test.ts`:
+    - Line 648: `test('ExamsService reports duplicate and unauthorized rows during bulk mark upload preview', async () => {`
+  - `apps/api/src/modules/exams/repositories/exams.repository.ts`:
+    - Line 1481: `(SELECT COUNT(*) FROM student_report_cards WHERE tenant_id = $1 AND status = 'published') AS published_reports,`
+  - `apps/api/src/modules/exams/services/report-card-pdf-artifact.ts`:
+    - Line 3: `import { normalizeReportFilename, normalizeReportGeneratedAt, type ReportArtifact } from '../../../common/reports/report-artifact';`
+  - `apps/api/src/modules/exams/services/report-card-template.service.ts`:
+    - Line 3: `import type { ReportArtifactInput, ReportArtifactValue } from '../../../common/reports/report-artifact';`
+  - `apps/api/src/modules/grade-master/grade-master.controller.ts`:
+    - Line 81: `@Get('reports')`
+  - `apps/api/src/modules/grade-master/grade-master.service.ts`:
+    - Line 16: `reportsNotReady: 12,`
+  - `apps/api/src/modules/health/health.controller.test.ts`:
+    - Line 297: `test('HealthController readiness reports optional Redis degradation without throwing', async () => {`
+  - `apps/api/src/modules/implementation300/api-category-policy.ts`:
+    - Line 45: `api('analytics_engine', 'internal', 'reports', ['/api/internal/analytics'], 'internal_service', true, true, 600),`
+  - `apps/api/src/modules/implementation300/blueprint-registry.ts`:
+    - Line 42: `| 'reports'`
+    - Line 437: `moduleDefinition('exams', 'Exams and Results', ['setup', 'grading', 'cbc-assessment', 'moderation', 'reports', 'analytics'], [`
+  - `apps/api/src/modules/implementation300/development-phase-policy.test.ts`:
+    - Line 24: `'reports',`
+    - Line 31: `completedModules: ['authentication', 'tenant_management', 'students', 'finance', 'exams', 'communication_sms', 'reports', 'inventory'],`
+  - `apps/api/src/modules/implementation300/development-phase-policy.ts`:
+    - Line 59: `'reports',`
+    - Line 61: `capabilities: ['tenant_onboarding', 'billing', 'exam_results', 'communication', 'reports'],`
+  - `apps/api/src/modules/integrations/integrations.test.ts`:
+    - Line 202: `test('SmsDispatchService reports missing credential fields without exposing secrets', async () => {`
+  - `apps/api/src/modules/inventory/inventory.controller.ts`:
+    - Line 7: `} from '../../common/reports/report-export-queue';`
+    - Line 246: `@Get('reports')`
+  - `apps/api/src/modules/inventory/inventory.service.ts`:
+    - Line 13: `} from '../../common/reports/report-csv-artifact';`
+    - Line 93: `rows: (reports: InventoryReportsPayload) => ReportCsvValue[][];`
+  - `apps/api/src/modules/inventory/inventory.test.ts`:
+    - Line 2222: `path: '/inventory/reports/stock-valuation/export',`
+    - Line 2250: `throw new Error('reports should not be loaded for an unknown export');`
+  - `apps/api/src/modules/inventory/repositories/inventory.repository.test.ts`:
+    - Line 971: `const reports = await repository.buildReports('tenant-a');`
+    - Line 978: `assert.deepEqual(reports.stock_reconciliation, [`
+  - `apps/api/src/modules/library/library.controller.ts`:
+    - Line 89: `@Get('reports')`
+  - `apps/api/src/modules/mobile/mobile-app-policy.test.ts`:
+    - Line 44: `enabledModules: ['principal_dashboard', 'finance', 'reports'],`
+    - Line 79: `capabilities: ['fees', 'communication', 'reports', 'results'],`
+  - `apps/api/src/modules/mobile/mobile-app-policy.ts`:
+    - Line 9: `| 'reports'`
+    - Line 19: `export type MobileOfflineCapability = 'attendance' | 'mark_entry' | 'assignments' | 'fees' | 'communication' | 'reports' | 'results';`
+  - `apps/api/src/modules/module-access/module-access.constants.ts`:
+    - Line 55: `description: 'Assessments, marks, reports, academic analytics, CBT hooks, and result publishing.',`
+    - Line 67: `permission_scopes: ['discipline:read', 'discipline:write', 'discipline:manage', 'discipline:reports'],`
+  - `apps/api/src/modules/module-access/module-access.test.ts`:
+    - Line 13: `import { ReportExportJobsController } from '../../common/reports/report-export-jobs.controller';`
+    - Line 38: `'reports',`
+  - `apps/api/src/modules/operations/consumers/index.ts`:
+    - Line 505: `export { ReportsConsumer } from './reports.consumer';`
+    - Line 516: `export { RequestReportsConsumer } from './request-reports.consumer';`
+  - `apps/api/src/modules/operations/consumers/reports.consumer.ts`:
+    - Line 6: `readonly name = 'reports.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'reports' && event.payload.action_id !== 'reports') {`
+  - `apps/api/src/modules/operations/consumers/request-reports.consumer.ts`:
+    - Line 6: `readonly name = 'request-reports.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'request-reports' && event.payload.action_id !== 'request-reports') {`
+  - `apps/api/src/modules/operations/consumers/view-reports.consumer.ts`:
+    - Line 6: `readonly name = 'view-reports.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'view-reports' && event.payload.action_id !== 'view-reports') {`
+  - `apps/api/src/modules/operations/operations.service.ts`:
+    - Line 69: ``INSERT INTO operations_reports (tenant_id, title, content, prepared_by)`
+  - `apps/api/src/modules/payments/payments.test.ts`:
+    - Line 3482: `test('MpesaReconciliationService reports missing callbacks, duplicates, amount mismatches, wrong references, and late provider status', async () => {`
+    - Line 4016: `result.reports.map((report) => report.payment_channel_id),`
+  - `apps/api/src/modules/payments/payments.types.ts`:
+    - Line 297: `reports: MpesaReconciliationReport[];`
+    - Line 305: `reports: MpesaReconciliationReport[];`
+  - `apps/api/src/modules/payments/services/mpesa-reconciliation.service.ts`:
+    - Line 446: `const reports: MpesaReconciliationReport[] = [];`
+    - Line 449: `reports.push(`
+  - `apps/api/src/modules/platform/platform-onboarding.service.test.ts`:
+    - Line 470: `test('PlatformOnboardingService reports Resend testing mode as blocked instead of encouraging repeated resends', async () => {`
+  - `apps/api/src/modules/support/support-notification-delivery.service.test.ts`:
+    - Line 12: `test('SupportNotificationDeliveryService reports provider readiness without exposing secrets', async () => {`
+    - Line 97: `test('SupportNotificationDeliveryService reports precise missing provider status for dashboard-managed SMS', async () => {`
+  - `apps/api/src/scripts/audit-coverage-review.test.ts`:
+    - Line 49: `test('runAuditCoverageReview reports missing evidence by file and pattern', () => {`
+  - `apps/api/src/scripts/base-onboarding-seed.ts`:
+    - Line 30: `'reports',`
+    - Line 362: `{ moduleCode: 'reports', table: 'report_snapshots', tenantScoped: true },`
+  - `apps/api/src/scripts/core-api-load.test.ts`:
+    - Line 33: `assert.equal(inventoryExport.url, 'http://127.0.0.1:3000/inventory/reports/stock-valuation/export');`
+  - `apps/api/src/scripts/core-api-load.ts`:
+    - Line 131: `path: '/admissions/reports/applications/export',`
+    - Line 147: `id: 'inventory-reports',`
+  - `apps/api/src/scripts/enable-admin-modules.ts`:
+    - Line 47: `'Module-aware executive KPIs, alerts, analytics, trends, and reports for the Principal.',`
+  - `apps/api/src/scripts/generate-production-scorecard.test.ts`:
+    - Line 22: `"reports",`
+  - `apps/api/src/scripts/generate-production-scorecard.ts`:
+    - Line 150: `remediation: 'Add the tenant isolation audit runner and require it in CI for finance, support, library, discipline, reports, and files.',`
+    - Line 183: `evidenceLine(/missing_provider/.test(supportNotificationSource), 'support notification health reports precise missing provider state'),`
+  - `apps/api/src/scripts/high-volume-workflow-load.test.ts`:
+    - Line 18: `'billing-invoice-reports',`
+  - `apps/api/src/scripts/high-volume-workflow-load.ts`:
+    - Line 18: `{ id: 'billing-invoice-reports', method: 'GET', path: '/billing/reports/invoices/export', targetP95Ms: 900 },`
+    - Line 31: `{ id: 'report-export-jobs', method: 'GET', path: '/reports/export-jobs', targetP95Ms: 800 },`
+  - `apps/api/src/scripts/implementation100-certification.ts`:
+    - Line 74: `moduleEvidence('reports', 'Reports', 'apps/web/src/components/school/school-pages.tsx', ['Reports'], 'apps/web/src/app/api/reports/[...path]/route.ts', ['proxySchoolApiRequest', '/reports'], 'apps/api/src/common/reports/report-export-jobs.controller.ts', ['ReportExportJobsController'], 'apps/api/src/common/reports/report-snapshot-schema.service.ts', ['report_snapshots'], 'apps/api/src/common/reports/report-export-queue.test.ts', ['report']),`
+  - `apps/api/src/scripts/implementation20-certification.test.ts`:
+    - Line 30: `'apps/api/src/modules/biometric-attendance/biometric-attendance.controller.ts': 'live-feed reports/monthly',`
+    - Line 37: `'apps/web/src/app/api/reports/[...path]/route.ts': 'proxySchoolApiRequest "/reports"',`
+  - `apps/api/src/scripts/implementation20-certification.ts`:
+    - Line 72: `check('biometric-live-reports', 'Biometric API exposes live feed and monthly reports', 'apps/api/src/modules/biometric-attendance/biometric-attendance.controller.ts', /live-feed[\s\S]+reports\/monthly/),`
+    - Line 84: `check('reports-web-proxy', 'Web app proxies reports requests to the API', 'apps/web/src/app/api/reports/[...path]/route.ts', /proxySchoolApiRequest[\s\S]+"\/reports"/),`
+  - `apps/api/src/scripts/implementation21-certification.test.ts`:
+    - Line 10: `'apps/api/src/modules/admin-command/principal-insights.providers.ts': 'finance summary_only lab_management communication_sms clinic_health permission_required: \'clinic:reports\' summary_only medicine_consumption_cost_minor wastage_due_to_expiry_minor emergency_supply_ready_rate most_used_medicine ai_insights fee_default_risk_alerts medicine_shortage_predictions attendance_irregularities budget_overrun_alerts performance_decline_warnings',`
+    - Line 29: `'apps/api/src/modules/clinic/clinic.controller.ts': 'clinic:inventory clinic:dispense clinic:reports portal:read_own_children',`
+  - `apps/api/src/scripts/implementation21-certification.ts`:
+    - Line 76: `check('clinic-api-permissions', 'Clinic controller separates inventory, dispensing, reports, and parent history permissions', 'apps/api/src/modules/clinic/clinic.controller.ts', /clinic:inventory[\s\S]+clinic:dispense[\s\S]+clinic:reports[\s\S]+portal:read_own_children/),`
+    - Line 92: `check('principal-no-confidential-notes', 'Principal insights use clinic reports, not confidential permissions', 'apps/api/src/modules/admin-command/principal-insights.providers.ts', /permission_required:\s+'clinic:reports'[\s\S]+summary_only/),`
+  - `apps/api/src/scripts/implementation30-certification.test.ts`:
+    - Line 59: `'apps/api/src/modules/payments/payments.test.ts': 'provider_verification_required exports only redacted payloads redacts C2B API payment responses for legacy raw rows assert.notEqual creates callback channels with hashed secrets builds high-entropy STK and C2B callback URLs high-entropy channel-secret routes creates M-PESA verification jobs verificationJobInput duplicate M-PESA identifiers MpesaTransactionStatusService verifies STK callback status classifies verified C2B payments without ledger enqueue accepts unsigned direct Daraja callbacks rejects unsigned callbacks in edge-signed mode accepts unsigned validation callbacks in direct Daraja mode PaymentsSchemaService creates reconciliation batches MpesaReconciliationService reports missing callbacks, duplicates, amount mismatches, wrong references, and late provider status runs daily reconciliation for every active tenant payment channel generates on-demand date-range reports lists accountant review items without raw M-PESA payload leakage requires two distinct approvers before resolving reversal requests exposes accountant review and finance approval endpoints',`
+    - Line 65: `'apps/api/src/modules/compliance/compliance-schema.service.ts': 'data_subject_requests access_request correction_request deletion_anonymization_request export_request objection_request data_retention_schedules child_data_dpia_records students payments sync_offline breach_response_reports FORCE ROW LEVEL SECURITY',`
+  - `apps/api/src/scripts/implementation30-certification.ts`:
+    - Line 95: `check('mpesa-reconciliation-processor', 'M-Pesa reconciliation service runs daily and date-range reports, persists batches, and classifies mismatch states', 'apps/api/src/modules/payments/services/mpesa-reconciliation.service.ts', /(?=.*generateDailyReport)(?=.*generateDateRangeReport)(?=.*runDailyProcessor)(?=.*reconciliation_state)(?=.*provider_received)(?=.*amount_mismatch)(?=.*duplicate_provider_receipt)(?=.*missing_provider_record)(?=.*verified_unmatched)(?=.*manual_review_required)(?=.*INSERT INTO mpesa_reconciliation_batches)(?=.*INSERT INTO mpesa_reconciliation_discrepancies)/s),`
+    - Line 100: `check('mpesa-reconciliation-tests', 'Payments tests cover reconciliation schema, missing callbacks, duplicates, amount mismatch, wrong references, late provider status, daily processor, and range reports', 'apps/api/src/modules/payments/payments.test.ts', /(?=.*PaymentsSchemaService creates reconciliation batches)(?=.*MpesaReconciliationService reports missing callbacks, duplicates, amount mismatches, wrong references, and late provider status)(?=.*runs daily reconciliation for every active tenant payment channel)(?=.*generates on-demand date-range reports)/s),`
+  - `apps/api/src/scripts/implementation30-load-profile.test.ts`:
+    - Line 35: `'apps/api/src/common/reports/report-export-queue.ts': 'shouldQueueReportExport DEFAULT_SYNC_EXPORT_ROW_LIMIT REPORT_EXPORT_JOB_OPTIONS attempts backoff estimated_rows',`
+    - Line 63: `'apps/api/src/common/reports/report-export-queue.ts': 'shouldQueueReportExport DEFAULT_SYNC_EXPORT_ROW_LIMIT REPORT_EXPORT_JOB_OPTIONS attempts backoff estimated_rows',`
+  - `apps/api/src/scripts/implementation30-load-profile.ts`:
+    - Line 181: `'apps/api/src/common/reports/report-export-queue.ts',`
+  - `apps/api/src/scripts/kisumu-boys-demo-seed.ts`:
+    - Line 29: `'reports',`
+    - Line 361: `{ moduleCode: 'reports', table: 'report_snapshots', tenantScoped: true },`
+  - `apps/api/src/scripts/module-access-certification.test.ts`:
+    - Line 28: `'apps/api/src/common/reports/report-export-jobs.controller.ts': '@Controller(\'reports\') @RequiresModule(\'reports\')',`
+    - Line 39: `'apps/api/src/modules/module-access/module-access.constants.ts': 'MODULE_REGISTRY_SEED students admissions academics finance exams discipline timetable lab_management teacher_biometric_attendance parent_portal inventory library transport communication_sms reports staff admin_command_centers principal_dashboard clinic_health procurement hostel boarding cbt_exams lms ai_insights visitor_management asset_tracking iot permission_scopes',`
+  - `apps/api/src/scripts/module-access-certification.ts`:
+    - Line 67: `backendRoute('reports', 'Report export job routes require the reports module', 'apps/api/src/common/reports/report-export-jobs.controller.ts', 'reports'),`
+    - Line 88: `frontendRoute('reports', 'reports'),`
+  - `apps/api/src/scripts/module-certification.test.ts`:
+    - Line 24: `'apps/web/src/lib/discipline/discipline-live.ts': 'acknowledgeDisciplineIncident exportDisciplineReport reports',`
+  - `apps/api/src/scripts/module-certification.ts`:
+    - Line 105: `workflow('reports-and-documents', 'Reports, documents, and confidential export safety', [`
+    - Line 106: `check('discipline-report-api', 'Discipline reports are exposed through API', 'apps/web/src/lib/discipline/discipline-live.ts', /exportDisciplineReport|reports/),`
+  - `apps/api/src/scripts/release-readiness-gate.test.ts`:
+    - Line 20: `"reports",`
+    - Line 49: `'dist/apps/api/src/common/reports/report-excel-artifact.test.js',`
+  - `apps/api/src/scripts/release-readiness-gate.ts`:
+    - Line 27: `} from '../common/reports/report-export-queue';`
+    - Line 31: `} from '../common/reports/report-snapshot-manifest';`
+  - `apps/api/src/scripts/run-pilot-certification.test.ts`:
+    - Line 75: `'apps/api/src/common/reports/report-export-queue.ts': 'validateReportExportJobPayload queue',`
+  - `apps/api/src/scripts/run-pilot-certification.ts`:
+    - Line 167: `check('report-export', 'Report export queue exists', 'apps/api/src/common/reports/report-export-queue.ts', /validateReportExportJobPayload|queue/i),`
+  - `apps/api/src/scripts/synthetic-journey-monitor.ts`:
+    - Line 286: `path: '/admissions/reports/applications/export',`
+    - Line 295: `path: '/inventory/reports/stock-valuation/export',`
+  - `apps/api/src/scripts/tenant-isolation-audit.test.ts`:
+    - Line 144: `'apps/api/src/common/reports/report-export-queue.ts': 'attendance',`
+  - `apps/api/src/scripts/tenant-isolation-audit.ts`:
+    - Line 59: `check('reports-block-retired-attendance', 'Report exports block retired attendance data', 'apps/api/src/common/reports/report-export-queue.ts', /attendance/i, 'high'),`
+- **`safety-incidents-workspace.tsx` (`safety-incidents`)**: No backend references found in `apps/api/src`.
+
+---
+
+### Role: `librarian`
+
+| File Name | Module ID | Definition Status | Backend Status | Refs |
+| :--- | :--- | :--- | :--- | :--- |
+| `books-workspace.tsx` | `books` | ✅ Found (Books) | ✅ Referenced (130 refs) | `report-snapshot-manifest.test.ts`, `schema.sql`, `tenant-database-policy.ts`... |
+| `borrowers-workspace.tsx` | `borrowers` | ❌ Missing | ✅ Referenced (13 refs) | `library-schema.service.ts`, `library.repository.ts`, `base-onboarding-seed.ts`... |
+| `fines-lost-damaged-workspace.tsx` | `fines-lost-damaged` | ❌ Missing | ❌ Missing | None |
+| `issue-book-workspace.tsx` | `issue-book` | ✅ Found (Issue Book) | ✅ Referenced (3 refs) | `index.ts`, `issue-book.consumer.ts` |
+| `overdue-books-workspace.tsx` | `overdue-books` | ✅ Found (Overdue Books) | ❌ Missing | None |
+| `overview-workspace.tsx` | `overview` | ✅ Found (Overview) | ✅ Referenced (106 refs) | `billing-feature.middleware.test.ts`, `admin-command.controller.ts`, `admissions-command.controller.ts`... |
+| `reports-workspace.tsx` | `reports` | ✅ Found (Reports) | ✅ Referenced (371 refs) | `auth-email.service.test.ts`, `auth.constants.ts`, `monitoring-service-account.service.ts`... |
+| `return-book-workspace.tsx` | `return-book` | ✅ Found (Return Book) | ✅ Referenced (4 refs) | `index.ts`, `return-book.consumer.ts` |
+
+#### Backend Reference Details for `librarian`:
+- **`books-workspace.tsx` (`books`)**:
+  - `apps/api/src/common/reports/report-snapshot-manifest.test.ts`:
+    - Line 16: `rows: [['Exercise books', 2400]],`
+  - `apps/api/src/database/schema.sql`:
+    - Line 3942: `CREATE TABLE IF NOT EXISTS library_books (`
+    - Line 4004: `ALTER TABLE library_books FORCE ROW LEVEL SECURITY;`
+  - `apps/api/src/database/tenant-database-policy.ts`:
+    - Line 90: `library: ['library_books', 'library_loans', 'library_fines'],`
+  - `apps/api/src/modules/admin-command/principal-insights.providers.ts`:
+    - Line 252: `{ id: 'borrowed_books', title: 'Borrowed Books', metric_key: 'borrowed_books' },`
+    - Line 253: `{ id: 'overdue_books', title: 'Overdue Books', metric_key: 'overdue_books' },`
+  - `apps/api/src/modules/admin-command/repositories/admin-command.repository.ts`:
+    - Line 459: `borrowed_books: 0,`
+    - Line 460: `overdue_books: 0,`
+  - `apps/api/src/modules/events/consumers/library-student-lifecycle.consumer.ts`:
+    - Line 12: `// Check if student has overdue books and flag account`
+    - Line 13: `this.logger.log(`[Library Module] Flagging library account and checking overdue books for suspended student: ${payload.student_id}`);`
+  - `apps/api/src/modules/implementation300/blueprint-registry.ts`:
+    - Line 475: `moduleDefinition('library', 'Library', ['catalog', 'barcode-rfid', 'lending', 'fines', 'ebooks', 'audits'], [`
+  - `apps/api/src/modules/observability/observability.test.ts`:
+    - Line 207: `test('production observability catalog covers Kenyan school operating dashboards, alerts, runbooks, and synthetics', () => {`
+    - Line 224: `assert.equal(PRODUCTION_ALERT_POLICIES.some((alert) => alert.runbook === 'docs/runbooks/extreme-scale-incident.md'), true);`
+  - `apps/api/src/modules/observability/production-observability.catalog.ts`:
+    - Line 96: `runbook: 'docs/runbooks/mpesa-callbacks-failing.md',`
+    - Line 103: `runbook: 'docs/runbooks/mpesa-callbacks-failing.md',`
+  - `apps/api/src/modules/operations/consumers/import-books.consumer.ts`:
+    - Line 6: `readonly name = 'import-books.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'import-books' && event.payload.action_id !== 'import-books') {`
+  - `apps/api/src/modules/operations/consumers/index.ts`:
+    - Line 310: `export { ImportBooksConsumer } from './import-books.consumer';`
+  - `apps/api/src/scripts/base-onboarding-seed.ts`:
+    - Line 442: `const books = [`
+    - Line 485: `return books.map(([title, author, category], index) => ({`
+  - `apps/api/src/scripts/generate-production-scorecard.ts`:
+    - Line 86: `'docs/runbooks/extreme-scale-incident.md',`
+    - Line 90: `'docs/runbooks/security-lockdown-mode.md',`
+  - `apps/api/src/scripts/implementation30-certification.test.ts`:
+    - Line 57: `'docs/runbooks/secret-rotation.md': 'M-Pesa secret rotation MPESA_TRANSACTION_STATUS_SECURITY_CREDENTIAL Platform secret rotation never print secrets',`
+    - Line 68: `'docs/runbooks/data-breach-response.md': 'Data Breach Response Runbook Containment Notification Evidence Export security:pii-scan breach-response-reports/:reportId/export',`
+  - `apps/api/src/scripts/implementation30-certification.ts`:
+    - Line 129: `check('secret-rotation-runbook', 'Secret rotation runbook covers M-Pesa and platform secrets without printing sensitive values', 'docs/runbooks/secret-rotation.md', /M-Pesa secret rotation[\s\S]+MPESA_TRANSACTION_STATUS_SECURITY_CREDENTIAL[\s\S]+Platform secret rotation[\s\S]+never print secrets/i),`
+    - Line 132: `area('production-observability', 'Production observability, alerts, runbooks, and synthetic checks', [`
+  - `apps/api/src/scripts/implementation30-rollout-gate.test.ts`:
+    - Line 142: `supportRunbooksRehearsed: true,`
+  - `apps/api/src/scripts/implementation30-rollout-gate.ts`:
+    - Line 28: `supportRunbooksRehearsed?: boolean;`
+    - Line 128: `phaseGate(4, '50 schools with production M-Pesa, report cards, parent portal, and runbooks', 50, 'production', [`
+  - `apps/api/src/scripts/implementation90-load-profile.test.ts`:
+    - Line 76: `'docs/runbooks/extreme-scale-incident.md': 'database saturation Redis degradation queue backlog lockdown mode',`
+    - Line 77: `'docs/runbooks/security-lockdown-mode.md': 'Rotate suspected secrets Disable provider callbacks Preserve audit logs',`
+  - `apps/api/src/scripts/implementation90-load-profile.ts`:
+    - Line 112: `label: 'Production observability catalog includes Implementation 90 dashboards, alerts, runbooks, and synthetics.',`
+    - Line 147: `id: 'implementation90-runbooks-and-architecture',`
+  - `apps/api/src/scripts/incident-drill.test.ts`:
+    - Line 6: `test('runIncidentDrill passes when runbooks and workflow contain operability evidence', () => {`
+    - Line 18: `test('runIncidentDrill fails when provider playbooks are missing', () => {`
+  - `apps/api/src/scripts/incident-drill.ts`:
+    - Line 25: `const requiredProviderPlaybooks = [`
+    - Line 39: `'docs/runbooks/incident-response.md',`
+  - `apps/api/src/scripts/kisumu-boys-demo-seed.ts`:
+    - Line 441: `const books = [`
+    - Line 484: `return books.map(([title, author, category], index) => ({`
+  - `apps/api/src/scripts/maintainability-scan.test.ts`:
+    - Line 32: `'docs/runbooks/extreme-scale-incident.md': 'database saturation Redis degradation queue backlog lockdown mode',`
+    - Line 33: `'docs/runbooks/security-lockdown-mode.md': 'Rotate suspected secrets Disable provider callbacks Preserve audit logs',`
+  - `apps/api/src/scripts/maintainability-scan.ts`:
+    - Line 42: `checkImplementation90ArchitectureRunbooks(workspaceRoot, options.sourceOverrides),`
+    - Line 119: `function checkImplementation90ArchitectureRunbooks(`
+  - `apps/api/src/scripts/release-readiness-gate.ts`:
+    - Line 331: `?? readWorkspaceFile(workspaceRoot, 'docs/runbooks/incident-response.md');`
+    - Line 334: `?? readWorkspaceFile(workspaceRoot, 'docs/runbooks/backup-restore-drill.md');`
+- **`borrowers-workspace.tsx` (`borrowers`)**:
+  - `apps/api/src/modules/library/library-schema.service.ts`:
+    - Line 8: `'library_borrowers',`
+    - Line 72: `CREATE TABLE IF NOT EXISTS library_borrowers (`
+  - `apps/api/src/modules/library/repositories/library.repository.ts`:
+    - Line 104: `FROM library_borrowers`
+    - Line 304: `LEFT JOIN library_borrowers borrower`
+  - `apps/api/src/scripts/base-onboarding-seed.ts`:
+    - Line 265: `{ moduleCode: 'library', table: 'library_borrowers', tenantScoped: true },`
+    - Line 596: `{ key: 'library-overdue-fine', type: 'library.alert', title: 'Overdue library books need follow-up', body: 'Five borrowers have overdue books and fine notices.', audienceRoles: ['librarian', 'class_teacher', 'parent'], priority: 'important', targetGuardianIndex: 1 },`
+  - `apps/api/src/scripts/kisumu-boys-demo-seed.ts`:
+    - Line 264: `{ moduleCode: 'library', table: 'library_borrowers', tenantScoped: true },`
+    - Line 595: `{ key: 'library-overdue-fine', type: 'library.alert', title: 'Overdue library books need follow-up', body: 'Five borrowers have overdue books and fine notices.', audienceRoles: ['librarian', 'class_teacher', 'parent'], priority: 'important', targetGuardianIndex: 1 },`
+- **`fines-lost-damaged-workspace.tsx` (`fines-lost-damaged`)**: No backend references found in `apps/api/src`.
+- **`issue-book-workspace.tsx` (`issue-book`)**:
+  - `apps/api/src/modules/operations/consumers/index.ts`:
+    - Line 323: `export { IssueBookConsumer } from './issue-book.consumer';`
+  - `apps/api/src/modules/operations/consumers/issue-book.consumer.ts`:
+    - Line 8: `readonly name = 'issue-book.execution';`
+    - Line 14: `if (event.payload.workflow_id !== 'issue-book' && event.payload.action_id !== 'issue-book') {`
+- **`overdue-books-workspace.tsx` (`overdue-books`)**: No backend references found in `apps/api/src`.
+- **`overview-workspace.tsx` (`overview`)**:
+  - `apps/api/src/middleware/billing-feature.middleware.test.ts`:
+    - Line 75: `await requestContext.run(createContext('/admin-command/principal/overview'), async () => {`
+    - Line 78: `path: '/admin-command/principal/overview',`
+  - `apps/api/src/modules/admin-command/admin-command.controller.ts`:
+    - Line 33: `@Get('principal/finance-overview')`
+    - Line 103: `@Get('principal/overview')`
+  - `apps/api/src/modules/admin-command/admissions-command.controller.ts`:
+    - Line 9: `@Get('overview')`
+    - Line 84: `overview,`
+  - `apps/api/src/modules/admin-command/deputy-command.controller.ts`:
+    - Line 9: `@Get('overview')`
+  - `apps/api/src/modules/admin-command/principal-insights.providers.ts`:
+    - Line 6: `id: 'school_overview',`
+    - Line 8: `category: 'overview',`
+  - `apps/api/src/modules/admin-command/principal-insights.service.ts`:
+    - Line 164: `const overview = await this.repository.getPrincipalOverviewSnapshot(tenantId);`
+    - Line 190: `overview,`
+  - `apps/api/src/modules/admin-command/principal-insights.types.ts`:
+    - Line 54: `overview: PrincipalOverviewPanel;`
+  - `apps/api/src/modules/admin-command/repositories/admin-command.repository.ts`:
+    - Line 1221: `defaultView: "overview"`
+  - `apps/api/src/modules/billing/billing-access.service.ts`:
+    - Line 59: `const { subscription, overview } =`
+    - Line 61: `const access = this.buildAccessState(subscription, overview);`
+  - `apps/api/src/modules/billing/billing-lifecycle.service.ts`:
+    - Line 60: `overview: SubscriptionLifecycleOverview | null;`
+    - Line 69: `overview: null,`
+  - `apps/api/src/modules/billing/billing-notification.service.ts`:
+    - Line 18: `overview: SubscriptionLifecycleOverview,`
+    - Line 20: `const descriptors = this.buildDescriptors(subscription, overview);`
+  - `apps/api/src/modules/billing/billing.service.ts`:
+    - Line 281: `if (!lifecycle.subscription || !lifecycle.overview) {`
+    - Line 285: `return this.mapSubscription(lifecycle.subscription, lifecycle.overview);`
+  - `apps/api/src/modules/billing/billing.test.ts`:
+    - Line 129: `overview: null,`
+    - Line 877: `ensureCurrentLifecycle: async () => ({ subscription: null, overview: null }),`
+  - `apps/api/src/modules/class-teacher/class-teacher.controller.ts`:
+    - Line 20: `@Get('overview')`
+    - Line 30: `@Get('dashboard-overview')`
+  - `apps/api/src/modules/dashboard/dashboard.controller.ts`:
+    - Line 34: `@Get('parent/overview')`
+    - Line 58: `@Get('student/overview')`
+  - `apps/api/src/modules/discipline/discipline.controller.ts`:
+    - Line 244: `@Get('analytics/overview')`
+  - `apps/api/src/modules/finance/finance.controller.ts`:
+    - Line 306: `@Get('accounts-overview')`
+  - `apps/api/src/modules/grade-master/grade-master.controller.ts`:
+    - Line 9: `@Get('overview')`
+  - `apps/api/src/modules/operations/consumers/export-overview.consumer.ts`:
+    - Line 6: `readonly name = 'export-overview.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'export-overview' && event.payload.action_id !== 'export-overview') {`
+  - `apps/api/src/modules/operations/consumers/index.ts`:
+    - Line 262: `export { ExportOverviewConsumer } from './export-overview.consumer';`
+  - `apps/api/src/modules/platform/platform-onboarding.service.test.ts`:
+    - Line 665: `test('PlatformOnboardingService summarizes tenants in product for the Super Admin overview', async () => {`
+  - `apps/api/src/scripts/core-api-load.ts`:
+    - Line 203: `path: '/discipline/analytics/overview',`
+  - `apps/api/src/scripts/high-volume-workflow-load.ts`:
+    - Line 29: `{ id: 'discipline-analytics', method: 'GET', path: '/discipline/analytics/overview', targetP95Ms: 800 },`
+- **`reports-workspace.tsx` (`reports`)**:
+  - `apps/api/src/auth/auth-email.service.test.ts`:
+    - Line 6: `test('AuthEmailService reports transactional email as missing without secrets', () => {`
+    - Line 20: `test('AuthEmailService reports transactional email as configured without exposing secrets', () => {`
+  - `apps/api/src/auth/auth.constants.ts`:
+    - Line 59: `{ resource: 'reports', action: 'read', description: 'View generated report export jobs and snapshots' },`
+    - Line 108: `{ resource: 'discipline', action: 'reports', description: 'Export discipline reports and analytics' },`
+  - `apps/api/src/auth/monitoring-service-account.service.ts`:
+    - Line 16: `'reports:read',`
+  - `apps/api/src/auth/role-governance-policy.ts`:
+    - Line 125: `platform_support: ['support:view', 'support:manage', 'reports:read'],`
+    - Line 126: `finance_admin: ['billing:read', 'billing:write', 'reports:read'],`
+  - `apps/api/src/common/auto-repair/auto-repair-agent.test.ts`:
+    - Line 474: `operationalIntent: 'Bursar can act on finance exceptions, not browse static trend reports',`
+    - Line 706: `test('AutoRepairAgent reports dashboard repair patch intelligence for KPI-only dashboards', () => {`
+  - `apps/api/src/common/auto-repair/auto-repair-deployment.test.ts`:
+    - Line 43: `test('AutoRepairService reports deployed runtime readiness and keeps the full widget state contract', () => {`
+  - `apps/api/src/common/common.module.ts`:
+    - Line 12: `import { ReportExportQueueService } from './reports/report-export-queue';`
+    - Line 13: `import { ReportExportJobsController } from './reports/report-export-jobs.controller';`
+  - `apps/api/src/common/reports/report-artifact-storage.service.test.ts`:
+    - Line 18: `retention_policy: 'reports',`
+    - Line 48: `assert.equal(savedInputs[0].storagePath, `tenant/tenant-a/reports/billing/invoices/${'b'.repeat(64)}.pdf`);`
+  - `apps/api/src/common/reports/report-artifact-storage.service.ts`:
+    - Line 40: `retentionPolicy: 'reports',`
+    - Line 73: `return `tenant/${input.tenantId}/reports/${module}/${reportId}/${input.artifact.checksumSha256}.${extension}`;`
+  - `apps/api/src/common/reports/report-export-jobs.controller.ts`:
+    - Line 7: `@Controller('reports')`
+    - Line 8: `@RequiresModule('reports')`
+  - `apps/api/src/common/reports/report-export-queue.ts`:
+    - Line 52: `reports: 'reports',`
+  - `apps/api/src/common/reports/report-export.worker.test.ts`:
+    - Line 25: `storage_path: 'tenant/tenant-a/reports/exams/exam-results/artifact.pdf',`
+    - Line 80: `storage_path: 'tenant/tenant-a/reports/exams/exam-results/artifact.pdf',`
+  - `apps/api/src/common/reports/report-snapshot.repository.test.ts`:
+    - Line 95: `assert.deepEqual(Reflect.getMetadata(PERMISSIONS_KEY, handler), ['reports:read']);`
+  - `apps/api/src/common/uploads/database-file-storage.service.test.ts`:
+    - Line 685: `test('S3CompatibleObjectStorageService reports failed object deletes as unavailable', async () => {`
+  - `apps/api/src/common/uploads/upload-policy.test.ts`:
+    - Line 252: `test('runProviderMalwareScan returns unsafe verdicts when the provider reports infection', async () => {`
+  - `apps/api/src/database/batch4_schemas.sql`:
+    - Line 71: `CREATE TABLE IF NOT EXISTS operations_reports (`
+    - Line 80: `CONSTRAINT ck_operations_reports_tenant CHECK (tenant_id <> 'global')`
+  - `apps/api/src/database/schema.sql`:
+    - Line 2755: `CREATE TABLE IF NOT EXISTS operations_reports (`
+    - Line 2764: `CONSTRAINT ck_operations_reports_tenant CHECK (tenant_id <> 'global')`
+  - `apps/api/src/database/tenant-database-policy.ts`:
+    - Line 93: `reports: ['report_export_jobs', 'report_snapshots'],`
+  - `apps/api/src/modules/admin-command/admin-command.controller.ts`:
+    - Line 124: `@Get('principal/reports')`
+    - Line 126: `@Permissions('principal:read', 'reports:read')`
+  - `apps/api/src/modules/admin-command/admissions-command.controller.ts`:
+    - Line 69: `@Get('reports')`
+    - Line 99: `reports,`
+  - `apps/api/src/modules/admin-command/deputy-command.controller.ts`:
+    - Line 133: `@Get('reports')`
+    - Line 137: `@Post('reports/generate')`
+  - `apps/api/src/modules/admin-command/principal-insights.providers.ts`:
+    - Line 16: `reports: ['school-overview', 'population-trend'],`
+    - Line 31: `reports: ['academic-summary', 'cbc-cbe-competency-progress'],`
+  - `apps/api/src/modules/admin-command/principal-insights.service.ts`:
+    - Line 184: `const reportExports = Array.from(new Set(sections.flatMap((section) => section.reports)));`
+    - Line 273: `reports: [...provider.reports],`
+  - `apps/api/src/modules/admin-command/principal-insights.types.ts`:
+    - Line 34: `reports: string[];`
+    - Line 81: `reports: string[];`
+  - `apps/api/src/modules/admin-command/repositories/admin-command.repository.ts`:
+    - Line 846: `reportsPending: summaryResult.rows[0]?.pending_reviews || 0,`
+    - Line 1479: ``INSERT INTO operations_reports (content, prepared_by, tenant_id, title, updated_at) VALUES ($1, $2, $3, $4, NOW())`,`
+  - `apps/api/src/modules/admin-command/repositories/deputy-command.repository.ts`:
+    - Line 449: `0::int AS generated_reports`
+    - Line 452: `{ generated_reports: 0 }`
+  - `apps/api/src/modules/admissions/admissions.controller.ts`:
+    - Line 33: `} from '../../common/reports/report-export-queue';`
+    - Line 217: `@Post('reports/:reportId/export-jobs')`
+  - `apps/api/src/modules/admissions/admissions.service.ts`:
+    - Line 22: `} from '../../common/reports/report-csv-artifact';`
+  - `apps/api/src/modules/admissions/admissions.test.ts`:
+    - Line 197: `path: '/admissions/reports/applications/export',`
+    - Line 350: `path: '/admissions/reports/unknown/export',`
+  - `apps/api/src/modules/billing/billing.controller.ts`:
+    - Line 15: `} from '../../common/reports/report-export-queue';`
+    - Line 214: `@Post('reports/:reportId/export-jobs')`
+  - `apps/api/src/modules/billing/billing.service.ts`:
+    - Line 14: `} from '../../common/reports/report-csv-artifact';`
+  - `apps/api/src/modules/billing/billing.test.ts`:
+    - Line 2245: `path: '/billing/reports/invoices/export',`
+    - Line 2297: `path: '/billing/reports/unknown/export',`
+  - `apps/api/src/modules/biometric-attendance/biometric-attendance.controller.ts`:
+    - Line 52: `@Get('reports/monthly')`
+  - `apps/api/src/modules/class-teacher/class-teacher.controller.ts`:
+    - Line 358: `@Get('reports')`
+  - `apps/api/src/modules/clinic/clinic.controller.ts`:
+    - Line 62: `@Permissions('clinic:reports')`
+  - `apps/api/src/modules/clinic/clinic.service.ts`:
+    - Line 171: `this.assertPermission('clinic:reports');`
+  - `apps/api/src/modules/clinic/clinic.test.ts`:
+    - Line 58: `assert.deepEqual(Reflect.getMetadata(PERMISSIONS_KEY, analyticsHandler), ['clinic:reports']);`
+  - `apps/api/src/modules/compliance/compliance-schema.service.ts`:
+    - Line 127: `CREATE TABLE IF NOT EXISTS breach_response_reports (`
+    - Line 141: `CONSTRAINT ck_breach_response_reports_severity CHECK (severity IN ('low', 'medium', 'high', 'critical')),`
+  - `apps/api/src/modules/compliance/compliance.controller.ts`:
+    - Line 81: `@Get('breach-response-reports/:reportId/export')`
+  - `apps/api/src/modules/compliance/compliance.service.ts`:
+    - Line 351: `FROM breach_response_reports`
+  - `apps/api/src/modules/compliance/compliance.test.ts`:
+    - Line 33: `assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS breach_response_reports/);`
+    - Line 36: `assert.match(schemaSql, /ALTER TABLE breach_response_reports FORCE ROW LEVEL SECURITY/);`
+  - `apps/api/src/modules/counselling/counselling.controller.ts`:
+    - Line 87: `@Get('reports')`
+  - `apps/api/src/modules/discipline/discipline.controller.ts`:
+    - Line 245: `@Permissions('discipline:reports')`
+    - Line 250: `@Post('reports/export')`
+  - `apps/api/src/modules/discipline/discipline.service.ts`:
+    - Line 636: `this.assertPermission('discipline:reports');`
+    - Line 648: `this.assertPermission('discipline:reports');`
+  - `apps/api/src/modules/discipline/discipline.test.ts`:
+    - Line 65: `'discipline:reports',`
+    - Line 597: `permissions: ['discipline:reports'],`
+  - `apps/api/src/modules/exams/consumers/download-reports.consumer.ts`:
+    - Line 6: `readonly name = 'download-reports.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'download-reports' && event.payload.action_id !== 'download-reports') {`
+  - `apps/api/src/modules/exams/consumers/index.ts`:
+    - Line 10: `export { DownloadReportsConsumer } from './download-reports.consumer';`
+  - `apps/api/src/modules/exams/exams.test.ts`:
+    - Line 648: `test('ExamsService reports duplicate and unauthorized rows during bulk mark upload preview', async () => {`
+  - `apps/api/src/modules/exams/repositories/exams.repository.ts`:
+    - Line 1481: `(SELECT COUNT(*) FROM student_report_cards WHERE tenant_id = $1 AND status = 'published') AS published_reports,`
+  - `apps/api/src/modules/exams/services/report-card-pdf-artifact.ts`:
+    - Line 3: `import { normalizeReportFilename, normalizeReportGeneratedAt, type ReportArtifact } from '../../../common/reports/report-artifact';`
+  - `apps/api/src/modules/exams/services/report-card-template.service.ts`:
+    - Line 3: `import type { ReportArtifactInput, ReportArtifactValue } from '../../../common/reports/report-artifact';`
+  - `apps/api/src/modules/grade-master/grade-master.controller.ts`:
+    - Line 81: `@Get('reports')`
+  - `apps/api/src/modules/grade-master/grade-master.service.ts`:
+    - Line 16: `reportsNotReady: 12,`
+  - `apps/api/src/modules/health/health.controller.test.ts`:
+    - Line 297: `test('HealthController readiness reports optional Redis degradation without throwing', async () => {`
+  - `apps/api/src/modules/implementation300/api-category-policy.ts`:
+    - Line 45: `api('analytics_engine', 'internal', 'reports', ['/api/internal/analytics'], 'internal_service', true, true, 600),`
+  - `apps/api/src/modules/implementation300/blueprint-registry.ts`:
+    - Line 42: `| 'reports'`
+    - Line 437: `moduleDefinition('exams', 'Exams and Results', ['setup', 'grading', 'cbc-assessment', 'moderation', 'reports', 'analytics'], [`
+  - `apps/api/src/modules/implementation300/development-phase-policy.test.ts`:
+    - Line 24: `'reports',`
+    - Line 31: `completedModules: ['authentication', 'tenant_management', 'students', 'finance', 'exams', 'communication_sms', 'reports', 'inventory'],`
+  - `apps/api/src/modules/implementation300/development-phase-policy.ts`:
+    - Line 59: `'reports',`
+    - Line 61: `capabilities: ['tenant_onboarding', 'billing', 'exam_results', 'communication', 'reports'],`
+  - `apps/api/src/modules/integrations/integrations.test.ts`:
+    - Line 202: `test('SmsDispatchService reports missing credential fields without exposing secrets', async () => {`
+  - `apps/api/src/modules/inventory/inventory.controller.ts`:
+    - Line 7: `} from '../../common/reports/report-export-queue';`
+    - Line 246: `@Get('reports')`
+  - `apps/api/src/modules/inventory/inventory.service.ts`:
+    - Line 13: `} from '../../common/reports/report-csv-artifact';`
+    - Line 93: `rows: (reports: InventoryReportsPayload) => ReportCsvValue[][];`
+  - `apps/api/src/modules/inventory/inventory.test.ts`:
+    - Line 2222: `path: '/inventory/reports/stock-valuation/export',`
+    - Line 2250: `throw new Error('reports should not be loaded for an unknown export');`
+  - `apps/api/src/modules/inventory/repositories/inventory.repository.test.ts`:
+    - Line 971: `const reports = await repository.buildReports('tenant-a');`
+    - Line 978: `assert.deepEqual(reports.stock_reconciliation, [`
+  - `apps/api/src/modules/library/library.controller.ts`:
+    - Line 89: `@Get('reports')`
+  - `apps/api/src/modules/mobile/mobile-app-policy.test.ts`:
+    - Line 44: `enabledModules: ['principal_dashboard', 'finance', 'reports'],`
+    - Line 79: `capabilities: ['fees', 'communication', 'reports', 'results'],`
+  - `apps/api/src/modules/mobile/mobile-app-policy.ts`:
+    - Line 9: `| 'reports'`
+    - Line 19: `export type MobileOfflineCapability = 'attendance' | 'mark_entry' | 'assignments' | 'fees' | 'communication' | 'reports' | 'results';`
+  - `apps/api/src/modules/module-access/module-access.constants.ts`:
+    - Line 55: `description: 'Assessments, marks, reports, academic analytics, CBT hooks, and result publishing.',`
+    - Line 67: `permission_scopes: ['discipline:read', 'discipline:write', 'discipline:manage', 'discipline:reports'],`
+  - `apps/api/src/modules/module-access/module-access.test.ts`:
+    - Line 13: `import { ReportExportJobsController } from '../../common/reports/report-export-jobs.controller';`
+    - Line 38: `'reports',`
+  - `apps/api/src/modules/operations/consumers/index.ts`:
+    - Line 505: `export { ReportsConsumer } from './reports.consumer';`
+    - Line 516: `export { RequestReportsConsumer } from './request-reports.consumer';`
+  - `apps/api/src/modules/operations/consumers/reports.consumer.ts`:
+    - Line 6: `readonly name = 'reports.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'reports' && event.payload.action_id !== 'reports') {`
+  - `apps/api/src/modules/operations/consumers/request-reports.consumer.ts`:
+    - Line 6: `readonly name = 'request-reports.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'request-reports' && event.payload.action_id !== 'request-reports') {`
+  - `apps/api/src/modules/operations/consumers/view-reports.consumer.ts`:
+    - Line 6: `readonly name = 'view-reports.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'view-reports' && event.payload.action_id !== 'view-reports') {`
+  - `apps/api/src/modules/operations/operations.service.ts`:
+    - Line 69: ``INSERT INTO operations_reports (tenant_id, title, content, prepared_by)`
+  - `apps/api/src/modules/payments/payments.test.ts`:
+    - Line 3482: `test('MpesaReconciliationService reports missing callbacks, duplicates, amount mismatches, wrong references, and late provider status', async () => {`
+    - Line 4016: `result.reports.map((report) => report.payment_channel_id),`
+  - `apps/api/src/modules/payments/payments.types.ts`:
+    - Line 297: `reports: MpesaReconciliationReport[];`
+    - Line 305: `reports: MpesaReconciliationReport[];`
+  - `apps/api/src/modules/payments/services/mpesa-reconciliation.service.ts`:
+    - Line 446: `const reports: MpesaReconciliationReport[] = [];`
+    - Line 449: `reports.push(`
+  - `apps/api/src/modules/platform/platform-onboarding.service.test.ts`:
+    - Line 470: `test('PlatformOnboardingService reports Resend testing mode as blocked instead of encouraging repeated resends', async () => {`
+  - `apps/api/src/modules/support/support-notification-delivery.service.test.ts`:
+    - Line 12: `test('SupportNotificationDeliveryService reports provider readiness without exposing secrets', async () => {`
+    - Line 97: `test('SupportNotificationDeliveryService reports precise missing provider status for dashboard-managed SMS', async () => {`
+  - `apps/api/src/scripts/audit-coverage-review.test.ts`:
+    - Line 49: `test('runAuditCoverageReview reports missing evidence by file and pattern', () => {`
+  - `apps/api/src/scripts/base-onboarding-seed.ts`:
+    - Line 30: `'reports',`
+    - Line 362: `{ moduleCode: 'reports', table: 'report_snapshots', tenantScoped: true },`
+  - `apps/api/src/scripts/core-api-load.test.ts`:
+    - Line 33: `assert.equal(inventoryExport.url, 'http://127.0.0.1:3000/inventory/reports/stock-valuation/export');`
+  - `apps/api/src/scripts/core-api-load.ts`:
+    - Line 131: `path: '/admissions/reports/applications/export',`
+    - Line 147: `id: 'inventory-reports',`
+  - `apps/api/src/scripts/enable-admin-modules.ts`:
+    - Line 47: `'Module-aware executive KPIs, alerts, analytics, trends, and reports for the Principal.',`
+  - `apps/api/src/scripts/generate-production-scorecard.test.ts`:
+    - Line 22: `"reports",`
+  - `apps/api/src/scripts/generate-production-scorecard.ts`:
+    - Line 150: `remediation: 'Add the tenant isolation audit runner and require it in CI for finance, support, library, discipline, reports, and files.',`
+    - Line 183: `evidenceLine(/missing_provider/.test(supportNotificationSource), 'support notification health reports precise missing provider state'),`
+  - `apps/api/src/scripts/high-volume-workflow-load.test.ts`:
+    - Line 18: `'billing-invoice-reports',`
+  - `apps/api/src/scripts/high-volume-workflow-load.ts`:
+    - Line 18: `{ id: 'billing-invoice-reports', method: 'GET', path: '/billing/reports/invoices/export', targetP95Ms: 900 },`
+    - Line 31: `{ id: 'report-export-jobs', method: 'GET', path: '/reports/export-jobs', targetP95Ms: 800 },`
+  - `apps/api/src/scripts/implementation100-certification.ts`:
+    - Line 74: `moduleEvidence('reports', 'Reports', 'apps/web/src/components/school/school-pages.tsx', ['Reports'], 'apps/web/src/app/api/reports/[...path]/route.ts', ['proxySchoolApiRequest', '/reports'], 'apps/api/src/common/reports/report-export-jobs.controller.ts', ['ReportExportJobsController'], 'apps/api/src/common/reports/report-snapshot-schema.service.ts', ['report_snapshots'], 'apps/api/src/common/reports/report-export-queue.test.ts', ['report']),`
+  - `apps/api/src/scripts/implementation20-certification.test.ts`:
+    - Line 30: `'apps/api/src/modules/biometric-attendance/biometric-attendance.controller.ts': 'live-feed reports/monthly',`
+    - Line 37: `'apps/web/src/app/api/reports/[...path]/route.ts': 'proxySchoolApiRequest "/reports"',`
+  - `apps/api/src/scripts/implementation20-certification.ts`:
+    - Line 72: `check('biometric-live-reports', 'Biometric API exposes live feed and monthly reports', 'apps/api/src/modules/biometric-attendance/biometric-attendance.controller.ts', /live-feed[\s\S]+reports\/monthly/),`
+    - Line 84: `check('reports-web-proxy', 'Web app proxies reports requests to the API', 'apps/web/src/app/api/reports/[...path]/route.ts', /proxySchoolApiRequest[\s\S]+"\/reports"/),`
+  - `apps/api/src/scripts/implementation21-certification.test.ts`:
+    - Line 10: `'apps/api/src/modules/admin-command/principal-insights.providers.ts': 'finance summary_only lab_management communication_sms clinic_health permission_required: \'clinic:reports\' summary_only medicine_consumption_cost_minor wastage_due_to_expiry_minor emergency_supply_ready_rate most_used_medicine ai_insights fee_default_risk_alerts medicine_shortage_predictions attendance_irregularities budget_overrun_alerts performance_decline_warnings',`
+    - Line 29: `'apps/api/src/modules/clinic/clinic.controller.ts': 'clinic:inventory clinic:dispense clinic:reports portal:read_own_children',`
+  - `apps/api/src/scripts/implementation21-certification.ts`:
+    - Line 76: `check('clinic-api-permissions', 'Clinic controller separates inventory, dispensing, reports, and parent history permissions', 'apps/api/src/modules/clinic/clinic.controller.ts', /clinic:inventory[\s\S]+clinic:dispense[\s\S]+clinic:reports[\s\S]+portal:read_own_children/),`
+    - Line 92: `check('principal-no-confidential-notes', 'Principal insights use clinic reports, not confidential permissions', 'apps/api/src/modules/admin-command/principal-insights.providers.ts', /permission_required:\s+'clinic:reports'[\s\S]+summary_only/),`
+  - `apps/api/src/scripts/implementation30-certification.test.ts`:
+    - Line 59: `'apps/api/src/modules/payments/payments.test.ts': 'provider_verification_required exports only redacted payloads redacts C2B API payment responses for legacy raw rows assert.notEqual creates callback channels with hashed secrets builds high-entropy STK and C2B callback URLs high-entropy channel-secret routes creates M-PESA verification jobs verificationJobInput duplicate M-PESA identifiers MpesaTransactionStatusService verifies STK callback status classifies verified C2B payments without ledger enqueue accepts unsigned direct Daraja callbacks rejects unsigned callbacks in edge-signed mode accepts unsigned validation callbacks in direct Daraja mode PaymentsSchemaService creates reconciliation batches MpesaReconciliationService reports missing callbacks, duplicates, amount mismatches, wrong references, and late provider status runs daily reconciliation for every active tenant payment channel generates on-demand date-range reports lists accountant review items without raw M-PESA payload leakage requires two distinct approvers before resolving reversal requests exposes accountant review and finance approval endpoints',`
+    - Line 65: `'apps/api/src/modules/compliance/compliance-schema.service.ts': 'data_subject_requests access_request correction_request deletion_anonymization_request export_request objection_request data_retention_schedules child_data_dpia_records students payments sync_offline breach_response_reports FORCE ROW LEVEL SECURITY',`
+  - `apps/api/src/scripts/implementation30-certification.ts`:
+    - Line 95: `check('mpesa-reconciliation-processor', 'M-Pesa reconciliation service runs daily and date-range reports, persists batches, and classifies mismatch states', 'apps/api/src/modules/payments/services/mpesa-reconciliation.service.ts', /(?=.*generateDailyReport)(?=.*generateDateRangeReport)(?=.*runDailyProcessor)(?=.*reconciliation_state)(?=.*provider_received)(?=.*amount_mismatch)(?=.*duplicate_provider_receipt)(?=.*missing_provider_record)(?=.*verified_unmatched)(?=.*manual_review_required)(?=.*INSERT INTO mpesa_reconciliation_batches)(?=.*INSERT INTO mpesa_reconciliation_discrepancies)/s),`
+    - Line 100: `check('mpesa-reconciliation-tests', 'Payments tests cover reconciliation schema, missing callbacks, duplicates, amount mismatch, wrong references, late provider status, daily processor, and range reports', 'apps/api/src/modules/payments/payments.test.ts', /(?=.*PaymentsSchemaService creates reconciliation batches)(?=.*MpesaReconciliationService reports missing callbacks, duplicates, amount mismatches, wrong references, and late provider status)(?=.*runs daily reconciliation for every active tenant payment channel)(?=.*generates on-demand date-range reports)/s),`
+  - `apps/api/src/scripts/implementation30-load-profile.test.ts`:
+    - Line 35: `'apps/api/src/common/reports/report-export-queue.ts': 'shouldQueueReportExport DEFAULT_SYNC_EXPORT_ROW_LIMIT REPORT_EXPORT_JOB_OPTIONS attempts backoff estimated_rows',`
+    - Line 63: `'apps/api/src/common/reports/report-export-queue.ts': 'shouldQueueReportExport DEFAULT_SYNC_EXPORT_ROW_LIMIT REPORT_EXPORT_JOB_OPTIONS attempts backoff estimated_rows',`
+  - `apps/api/src/scripts/implementation30-load-profile.ts`:
+    - Line 181: `'apps/api/src/common/reports/report-export-queue.ts',`
+  - `apps/api/src/scripts/kisumu-boys-demo-seed.ts`:
+    - Line 29: `'reports',`
+    - Line 361: `{ moduleCode: 'reports', table: 'report_snapshots', tenantScoped: true },`
+  - `apps/api/src/scripts/module-access-certification.test.ts`:
+    - Line 28: `'apps/api/src/common/reports/report-export-jobs.controller.ts': '@Controller(\'reports\') @RequiresModule(\'reports\')',`
+    - Line 39: `'apps/api/src/modules/module-access/module-access.constants.ts': 'MODULE_REGISTRY_SEED students admissions academics finance exams discipline timetable lab_management teacher_biometric_attendance parent_portal inventory library transport communication_sms reports staff admin_command_centers principal_dashboard clinic_health procurement hostel boarding cbt_exams lms ai_insights visitor_management asset_tracking iot permission_scopes',`
+  - `apps/api/src/scripts/module-access-certification.ts`:
+    - Line 67: `backendRoute('reports', 'Report export job routes require the reports module', 'apps/api/src/common/reports/report-export-jobs.controller.ts', 'reports'),`
+    - Line 88: `frontendRoute('reports', 'reports'),`
+  - `apps/api/src/scripts/module-certification.test.ts`:
+    - Line 24: `'apps/web/src/lib/discipline/discipline-live.ts': 'acknowledgeDisciplineIncident exportDisciplineReport reports',`
+  - `apps/api/src/scripts/module-certification.ts`:
+    - Line 105: `workflow('reports-and-documents', 'Reports, documents, and confidential export safety', [`
+    - Line 106: `check('discipline-report-api', 'Discipline reports are exposed through API', 'apps/web/src/lib/discipline/discipline-live.ts', /exportDisciplineReport|reports/),`
+  - `apps/api/src/scripts/release-readiness-gate.test.ts`:
+    - Line 20: `"reports",`
+    - Line 49: `'dist/apps/api/src/common/reports/report-excel-artifact.test.js',`
+  - `apps/api/src/scripts/release-readiness-gate.ts`:
+    - Line 27: `} from '../common/reports/report-export-queue';`
+    - Line 31: `} from '../common/reports/report-snapshot-manifest';`
+  - `apps/api/src/scripts/run-pilot-certification.test.ts`:
+    - Line 75: `'apps/api/src/common/reports/report-export-queue.ts': 'validateReportExportJobPayload queue',`
+  - `apps/api/src/scripts/run-pilot-certification.ts`:
+    - Line 167: `check('report-export', 'Report export queue exists', 'apps/api/src/common/reports/report-export-queue.ts', /validateReportExportJobPayload|queue/i),`
+  - `apps/api/src/scripts/synthetic-journey-monitor.ts`:
+    - Line 286: `path: '/admissions/reports/applications/export',`
+    - Line 295: `path: '/inventory/reports/stock-valuation/export',`
+  - `apps/api/src/scripts/tenant-isolation-audit.test.ts`:
+    - Line 144: `'apps/api/src/common/reports/report-export-queue.ts': 'attendance',`
+  - `apps/api/src/scripts/tenant-isolation-audit.ts`:
+    - Line 59: `check('reports-block-retired-attendance', 'Report exports block retired attendance data', 'apps/api/src/common/reports/report-export-queue.ts', /attendance/i, 'high'),`
+- **`return-book-workspace.tsx` (`return-book`)**:
+  - `apps/api/src/modules/operations/consumers/index.ts`:
+    - Line 533: `export { ReturnBookConsumer } from './return-book.consumer';`
+  - `apps/api/src/modules/operations/consumers/return-book.consumer.ts`:
+    - Line 6: `readonly name = 'return-book.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'return-book' && event.payload.action_id !== 'return-book') {`
+
+---
+
+### Role: `nurse`
+
+| File Name | Module ID | Definition Status | Backend Status | Refs |
+| :--- | :--- | :--- | :--- | :--- |
+| `dispensing-log-workspace.tsx` | `dispensing-log` | ✅ Found (Dispensing Log) | ❌ Missing | None |
+| `health-reports-workspace.tsx` | `health-reports` | ❌ Missing | ❌ Missing | None |
+| `medicine-inventory-workspace.tsx` | `medicine-inventory` | ✅ Found (Medicine Inventory) | ✅ Referenced (2 refs) | `principal-insights.providers.ts`, `implementation21-certification.ts` |
+| `overview-workspace.tsx` | `overview` | ✅ Found (Overview) | ✅ Referenced (106 refs) | `billing-feature.middleware.test.ts`, `admin-command.controller.ts`, `admissions-command.controller.ts`... |
+| `parent-notifications-workspace.tsx` | `parent-notifications` | ❌ Missing | ❌ Missing | None |
+| `sick-bay-queue-workspace.tsx` | `sick-bay-queue` | ✅ Found (Sick Bay Queue) | ❌ Missing | None |
+| `visits-workspace.tsx` | `visits` | ❌ Missing | ✅ Referenced (51 refs) | `auth.constants.ts`, `schema.sql`, `tenant-database-policy.ts`... |
+
+#### Backend Reference Details for `nurse`:
+- **`dispensing-log-workspace.tsx` (`dispensing-log`)**: No backend references found in `apps/api/src`.
+- **`health-reports-workspace.tsx` (`health-reports`)**: No backend references found in `apps/api/src`.
+- **`medicine-inventory-workspace.tsx` (`medicine-inventory`)**:
+  - `apps/api/src/modules/admin-command/principal-insights.providers.ts`:
+    - Line 113: `reports: ['clinic-operations', 'medicine-inventory', 'medicine-expiry'],`
+  - `apps/api/src/scripts/implementation21-certification.ts`:
+    - Line 68: `area('clinic-medicine-inventory', 'Clinic medicine inventory, dispensing, expiry, and analytics', [`
+- **`overview-workspace.tsx` (`overview`)**:
+  - `apps/api/src/middleware/billing-feature.middleware.test.ts`:
+    - Line 75: `await requestContext.run(createContext('/admin-command/principal/overview'), async () => {`
+    - Line 78: `path: '/admin-command/principal/overview',`
+  - `apps/api/src/modules/admin-command/admin-command.controller.ts`:
+    - Line 33: `@Get('principal/finance-overview')`
+    - Line 103: `@Get('principal/overview')`
+  - `apps/api/src/modules/admin-command/admissions-command.controller.ts`:
+    - Line 9: `@Get('overview')`
+    - Line 84: `overview,`
+  - `apps/api/src/modules/admin-command/deputy-command.controller.ts`:
+    - Line 9: `@Get('overview')`
+  - `apps/api/src/modules/admin-command/principal-insights.providers.ts`:
+    - Line 6: `id: 'school_overview',`
+    - Line 8: `category: 'overview',`
+  - `apps/api/src/modules/admin-command/principal-insights.service.ts`:
+    - Line 164: `const overview = await this.repository.getPrincipalOverviewSnapshot(tenantId);`
+    - Line 190: `overview,`
+  - `apps/api/src/modules/admin-command/principal-insights.types.ts`:
+    - Line 54: `overview: PrincipalOverviewPanel;`
+  - `apps/api/src/modules/admin-command/repositories/admin-command.repository.ts`:
+    - Line 1221: `defaultView: "overview"`
+  - `apps/api/src/modules/billing/billing-access.service.ts`:
+    - Line 59: `const { subscription, overview } =`
+    - Line 61: `const access = this.buildAccessState(subscription, overview);`
+  - `apps/api/src/modules/billing/billing-lifecycle.service.ts`:
+    - Line 60: `overview: SubscriptionLifecycleOverview | null;`
+    - Line 69: `overview: null,`
+  - `apps/api/src/modules/billing/billing-notification.service.ts`:
+    - Line 18: `overview: SubscriptionLifecycleOverview,`
+    - Line 20: `const descriptors = this.buildDescriptors(subscription, overview);`
+  - `apps/api/src/modules/billing/billing.service.ts`:
+    - Line 281: `if (!lifecycle.subscription || !lifecycle.overview) {`
+    - Line 285: `return this.mapSubscription(lifecycle.subscription, lifecycle.overview);`
+  - `apps/api/src/modules/billing/billing.test.ts`:
+    - Line 129: `overview: null,`
+    - Line 877: `ensureCurrentLifecycle: async () => ({ subscription: null, overview: null }),`
+  - `apps/api/src/modules/class-teacher/class-teacher.controller.ts`:
+    - Line 20: `@Get('overview')`
+    - Line 30: `@Get('dashboard-overview')`
+  - `apps/api/src/modules/dashboard/dashboard.controller.ts`:
+    - Line 34: `@Get('parent/overview')`
+    - Line 58: `@Get('student/overview')`
+  - `apps/api/src/modules/discipline/discipline.controller.ts`:
+    - Line 244: `@Get('analytics/overview')`
+  - `apps/api/src/modules/finance/finance.controller.ts`:
+    - Line 306: `@Get('accounts-overview')`
+  - `apps/api/src/modules/grade-master/grade-master.controller.ts`:
+    - Line 9: `@Get('overview')`
+  - `apps/api/src/modules/operations/consumers/export-overview.consumer.ts`:
+    - Line 6: `readonly name = 'export-overview.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'export-overview' && event.payload.action_id !== 'export-overview') {`
+  - `apps/api/src/modules/operations/consumers/index.ts`:
+    - Line 262: `export { ExportOverviewConsumer } from './export-overview.consumer';`
+  - `apps/api/src/modules/platform/platform-onboarding.service.test.ts`:
+    - Line 665: `test('PlatformOnboardingService summarizes tenants in product for the Super Admin overview', async () => {`
+  - `apps/api/src/scripts/core-api-load.ts`:
+    - Line 203: `path: '/discipline/analytics/overview',`
+  - `apps/api/src/scripts/high-volume-workflow-load.ts`:
+    - Line 29: `{ id: 'discipline-analytics', method: 'GET', path: '/discipline/analytics/overview', targetP95Ms: 800 },`
+- **`parent-notifications-workspace.tsx` (`parent-notifications`)**: No backend references found in `apps/api/src`.
+- **`sick-bay-queue-workspace.tsx` (`sick-bay-queue`)**: No backend references found in `apps/api/src`.
+- **`visits-workspace.tsx` (`visits`)**:
+  - `apps/api/src/auth/auth.constants.ts`:
+    - Line 127: `{ resource: 'clinic', action: 'read', description: 'View clinic visits, inventory summaries, and allowed health records' },`
+    - Line 128: `{ resource: 'clinic', action: 'write', description: 'Record clinic visits, treatment notes, and non-confidential health workflows' },`
+  - `apps/api/src/database/schema.sql`:
+    - Line 2855: `CREATE TABLE IF NOT EXISTS clinic_visits (`
+    - Line 2868: `ALTER TABLE clinic_visits ENABLE ROW LEVEL SECURITY;`
+  - `apps/api/src/database/tenant-database-policy.ts`:
+    - Line 97: `clinic_health: ['clinic_visits', 'student_health_profiles', 'medicine_inventory'],`
+  - `apps/api/src/modules/admin-command/admin-command.test.ts`:
+    - Line 173: `clinic_visits_today: '12',`
+  - `apps/api/src/modules/admin-command/principal-insights.providers.ts`:
+    - Line 102: `{ id: 'clinic_visits_today', title: "Today's Clinic Visits", metric_key: 'clinic_visits_today' },`
+    - Line 254: `{ id: 'library_visits', title: 'Library Visits', metric_key: 'library_visits_today' },`
+  - `apps/api/src/modules/admin-command/repositories/admin-command.repository.ts`:
+    - Line 248: `(SELECT COUNT(*)::int FROM clinic_visits WHERE tenant_id = $1 AND visit_date = CURRENT_DATE) AS clinic_visits_today,`
+    - Line 461: `library_visits_today: 0,`
+  - `apps/api/src/modules/admin-command/repositories/deputy-command.repository.ts`:
+    - Line 207: `(SELECT COUNT(*)::int FROM clinic_visits WHERE tenant_id = $1 AND visit_date = CURRENT_DATE) AS clinic_visits_today`
+    - Line 210: `{ clinic_visits_today: 0 }`
+  - `apps/api/src/modules/class-teacher/class-teacher.service.ts`:
+    - Line 965: `FROM clinic_visits cv`
+  - `apps/api/src/modules/clinic/clinic-schema.service.ts`:
+    - Line 11: `'clinic_visits',`
+    - Line 149: `CREATE TABLE IF NOT EXISTS clinic_visits (`
+  - `apps/api/src/modules/clinic/clinic.controller.ts`:
+    - Line 40: `@Get('visits')`
+    - Line 46: `@Post('visits')`
+  - `apps/api/src/modules/clinic/clinic.service.ts`:
+    - Line 67: `FROM clinic_visits v`
+  - `apps/api/src/modules/clinic/clinic.test.ts`:
+    - Line 27: `'clinic_visits',`
+    - Line 257: `clinic_visits_today: '8',`
+  - `apps/api/src/modules/clinic/repositories/clinic.repository.ts`:
+    - Line 258: `INSERT INTO clinic_visits (`
+    - Line 394: `(SELECT COUNT(*)::int FROM clinic_visits WHERE tenant_id = $1 AND visit_date = CURRENT_DATE) AS clinic_visits_today,`
+  - `apps/api/src/modules/implementation300/blueprint-registry.ts`:
+    - Line 511: `moduleDefinition('clinic_health', 'Clinic and Health', ['visits', 'profiles', 'medicine', 'dispensing', 'allergies', 'referrals'], [`
+  - `apps/api/src/modules/library/library.controller.ts`:
+    - Line 77: `@Get('visits')`
+  - `apps/api/src/modules/module-access/module-access.constants.ts`:
+    - Line 181: `description: 'Clinic visits, medicine inventory, dispensing, health analytics, and parent medical history.',`
+  - `apps/api/src/modules/security/consumers/index.ts`:
+    - Line 13: `export { PrintTodaySVisitsConsumer } from './print-today-s-visits.consumer';`
+  - `apps/api/src/modules/security/consumers/print-today-s-visits.consumer.ts`:
+    - Line 6: `readonly name = 'print-today-s-visits.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'print-today-s-visits' && event.payload.action_id !== 'print-today-s-visits') {`
+  - `apps/api/src/scripts/base-onboarding-seed.ts`:
+    - Line 304: `{ moduleCode: 'clinic_health', table: 'clinic_visits', tenantScoped: true },`
+  - `apps/api/src/scripts/implementation100-certification.ts`:
+    - Line 78: `moduleEvidence('clinic_health', 'Clinic and Health', 'apps/web/src/components/school/school-pages.tsx', ['Clinic'], 'apps/web/src/app/api/clinic/[...path]/route.ts', ['proxySchoolApiRequest', '/clinic'], 'apps/api/src/modules/clinic/clinic.controller.ts', ['ClinicController'], 'apps/api/src/modules/clinic/clinic-schema.service.ts', ['clinic_visits'], 'apps/api/src/modules/clinic/clinic.test.ts', ['clinic']),`
+  - `apps/api/src/scripts/implementation21-certification.test.ts`:
+    - Line 25: `'apps/api/src/modules/clinic/clinic-schema.service.ts': 'clinic_medicines clinic_medicine_batches clinic_stock_movements clinic_visits clinic_medicine_dispenses clinic_alerts clinic_procurement_recommendations clinic_audit_logs prevent_clinic_stock_movement_mutation BEFORE DELETE ON clinic_stock_movements ALTER TABLE ${table} ENABLE ROW LEVEL SECURITY FORCE ROW LEVEL SECURITY',`
+  - `apps/api/src/scripts/implementation21-certification.ts`:
+    - Line 69: `check('clinic-schema', 'Clinic schema includes medicine, batch, movement, visit, dispense, alert, procurement, and audit tables', 'apps/api/src/modules/clinic/clinic-schema.service.ts', /clinic_medicines[\s\S]+clinic_medicine_batches[\s\S]+clinic_stock_movements[\s\S]+clinic_visits[\s\S]+clinic_medicine_dispenses[\s\S]+clinic_alerts[\s\S]+clinic_procurement_recommendations[\s\S]+clinic_audit_logs/),`
+    - Line 91: `check('clinic-audit', 'Clinic service records audit events for inventory, visits, dispensing, and jobs', 'apps/api/src/modules/clinic/clinic.service.ts', /clinic\.medicine_created[\s\S]+clinic\.medicine_dispensed[\s\S]+clinic\.low_stock_check_completed/),`
+  - `apps/api/src/scripts/kisumu-boys-demo-seed.ts`:
+    - Line 303: `{ moduleCode: 'clinic_health', table: 'clinic_visits', tenantScoped: true },`
+    - Line 1593: `await writer.upsert('clinic_visits', { id: visitId, tenant_id: tenantId, clinic_location_id: clinicLocationId, student_id: studentIds[visit.studentIndex], recorded_by_user_id: context.actorUserId, visit_date: '2026-05-24', visit_time: ['07:40', '08:15', '09:05', '10:20', '11:30'][index], symptoms_summary: visit.symptoms, diagnosis_summary: visit.diagnosis, treatment_summary: visit.treatment, status: visit.status });`
+
+---
+
+### Role: `principal`
+
+| File Name | Module ID | Definition Status | Backend Status | Refs |
+| :--- | :--- | :--- | :--- | :--- |
+| `academic-setup-workspace.tsx` | `academic-setup` | ✅ Found (Academic Setup) | ✅ Referenced (1 refs) | `admin-command.controller.ts` |
+| `academics-workspace.tsx` | `academics` | ✅ Found (Academics) | ✅ Referenced (528 refs) | `app.module.ts`, `auth.constants.ts`, `auth.test.ts`... |
+| `approvals-workspace.tsx` | `approvals` | ✅ Found (Approvals) | ✅ Referenced (84 refs) | `app.module.ts`, `platform-governance.ts`, `schema.sql`... |
+| `attendance-monitoring-workspace.tsx` | `attendance-monitoring` | ✅ Found (Attendance Monitoring) | ❌ Missing | None |
+| `classes-streams-workspace.tsx` | `classes-streams` | ✅ Found (Classes & Streams) | ❌ Missing | None |
+| `communication-workspace.tsx` | `communication` | ✅ Found (Communication) | ✅ Referenced (189 refs) | `app.module.ts`, `auth.constants.ts`, `role-governance-policy.test.ts`... |
+| `discipline-workspace.tsx` | `discipline` | ✅ Found (Discipline) | ✅ Referenced (646 refs) | `app.module.ts`, `auth.constants.ts`, `auth.test.ts`... |
+| `exams-report-cards-workspace.tsx` | `exams-report-cards` | ✅ Found (Exams & Report Cards) | ✅ Referenced (12 refs) | `core-api-load.test.ts`, `core-api-load.ts`, `high-volume-workflow-load.test.ts`... |
+| `finance-overview-workspace.tsx` | `finance-overview` | ✅ Found (Finance Overview) | ✅ Referenced (1 refs) | `admin-command.controller.ts` |
+| `overview-workspace.tsx` | `overview` | ✅ Found (Overview) | ✅ Referenced (106 refs) | `billing-feature.middleware.test.ts`, `admin-command.controller.ts`, `admissions-command.controller.ts`... |
+| `reports-workspace.tsx` | `reports` | ✅ Found (Reports) | ✅ Referenced (371 refs) | `auth-email.service.test.ts`, `auth.constants.ts`, `monitoring-service-account.service.ts`... |
+| `school-profile-workspace.tsx` | `school-profile` | ✅ Found (School Profile) | ✅ Referenced (6 refs) | `admin-command.controller.ts`, `download-school-profile.consumer.ts`, `index.ts` |
+| `setup-checklist-workspace.tsx` | `setup-checklist` | ✅ Found (Setup Checklist) | ✅ Referenced (1 refs) | `admin-command.controller.ts` |
+| `staff-roles-workspace.tsx` | `staff-roles` | ✅ Found (Staff & Roles) | ❌ Missing | None |
+| `students-workspace.tsx` | `students` | ✅ Found (Students) | ✅ Referenced (656 refs) | `app.module.ts`, `auth.constants.ts`, `auth.test.ts`... |
+| `subjects-departments-workspace.tsx` | `subjects-departments` | ✅ Found (Subjects & Departments) | ❌ Missing | None |
+
+#### Backend Reference Details for `principal`:
+- **`academic-setup-workspace.tsx` (`academic-setup`)**:
+  - `apps/api/src/modules/admin-command/admin-command.controller.ts`:
+    - Line 160: `@Get('principal/academic-setup')`
+- **`academics-workspace.tsx` (`academics`)**:
+  - `apps/api/src/app.module.ts`:
+    - Line 42: `import { AcademicsModule } from './modules/academics/academics.module';`
+  - `apps/api/src/auth/auth.constants.ts`:
+    - Line 17: `export const DEFAULT_ROLE_DEAN_ACADEMICS = 'dean_academics';`
+    - Line 67: `{ resource: 'academics', action: 'read', description: 'View academic years, terms, classes, subjects, and assignments' },`
+  - `apps/api/src/auth/auth.test.ts`:
+    - Line 111: `'dean_academics',`
+  - `apps/api/src/auth/dto/create-invitation.dto.ts`:
+    - Line 8: `'dean_academics',`
+  - `apps/api/src/auth/dto/tenant-invitation.dto.ts`:
+    - Line 11: `'dean_academics',`
+  - `apps/api/src/auth/identity-blueprint.test.ts`:
+    - Line 37: `assert.equal(normalizeBlueprintRole('Dean of Academics'), 'dean_academics');`
+  - `apps/api/src/auth/identity-blueprint.ts`:
+    - Line 33: `'dean_academics',`
+    - Line 113: `dean_academics: 'dean_academics',`
+  - `apps/api/src/auth/monitoring-service-account.service.ts`:
+    - Line 11: `'academics:read',`
+  - `apps/api/src/auth/role-governance-policy.ts`:
+    - Line 61: `'dean_academics',`
+    - Line 109: `dean_academics: ['exams'],`
+  - `apps/api/src/auth/tenant-invitations.service.ts`:
+    - Line 35: `dean_academics: 50,`
+  - `apps/api/src/common/auto-repair/auto-repair-agent.test.ts`:
+    - Line 52: `dashboardId: 'dean-academics',`
+    - Line 53: `role: 'dean-academics',`
+  - `apps/api/src/common/platform-governance/architecture-runtime-contract.test.ts`:
+    - Line 54: `dashboardId: 'dean-academics',`
+  - `apps/api/src/common/platform-governance/workflow-runtime-contract.test.ts`:
+    - Line 39: `assert.deepEqual(result.escalation.roles, ['dean-academics', 'school-owner']);`
+  - `apps/api/src/common/platform-governance/workflow-runtime-contract.ts`:
+    - Line 234: `['hod', 'dean-academics'],`
+    - Line 243: `['dean-academics'],`
+  - `apps/api/src/common/reports/report-export-queue.ts`:
+    - Line 33: `academics: 'academics',`
+  - `apps/api/src/database/batch4_schemas.sql`:
+    - Line 2: `CREATE TABLE IF NOT EXISTS academics_attendance (`
+    - Line 12: `CONSTRAINT ck_academics_attendance_tenant CHECK (tenant_id <> 'global')`
+  - `apps/api/src/database/migrations/004_test3_missing_domains.sql`:
+    - Line 2: `-- Description: Adds academics_departments, academics_class_teachers, academics_report_card_settings`
+    - Line 6: `CREATE TABLE academics_departments (`
+  - `apps/api/src/database/migrations/005_teacher_dashboard_tables.sql`:
+    - Line 4: `CREATE TABLE IF NOT EXISTS academics_marks (`
+    - Line 15: `CONSTRAINT ck_academics_marks_tenant CHECK (tenant_id <> 'global')`
+  - `apps/api/src/database/schema.sql`:
+    - Line 788: `CREATE TABLE academics_grading_systems (`
+    - Line 796: `CONSTRAINT ck_academics_grading_systems_tenant_id_non_global CHECK (tenant_id <> 'global'),`
+  - `apps/api/src/database/tenant-database-policy.ts`:
+    - Line 81: `academics: ['academic_years', 'academic_terms', 'classes', 'streams', 'subjects'],`
+  - `apps/api/src/modules/academics/academics-schema.service.ts`:
+    - Line 310: `CREATE TABLE IF NOT EXISTS academics_grading_systems (`
+    - Line 318: `CONSTRAINT uq_academics_grading_systems_tenant_name UNIQUE (tenant_id, name)`
+  - `apps/api/src/modules/academics/academics.controller.ts`:
+    - Line 5: `import { AcademicsService } from './academics.service';`
+    - Line 22: `@Controller('academics')`
+  - `apps/api/src/modules/academics/academics.module.ts`:
+    - Line 1: `import { AcademicsWidgetProvider } from './widgets/academics-widget.provider';`
+    - Line 4: `import { AcademicsController } from './academics.controller';`
+  - `apps/api/src/modules/academics/academics.service.ts`:
+    - Line 19: `import { AcademicsRepository } from './repositories/academics.repository';`
+    - Line 93: `action: 'academics.class_structure_created',`
+  - `apps/api/src/modules/academics/academics.test.ts`:
+    - Line 4: `import { AcademicsSchemaService } from './academics-schema.service';`
+    - Line 5: `import { AcademicsService } from './academics.service';`
+  - `apps/api/src/modules/academics/repositories/academics.repository.ts`:
+    - Line 601: `INSERT INTO academics_attendance (`
+    - Line 615: `INSERT INTO academics_attendance (`
+  - `apps/api/src/modules/academics/widgets/academics-widget.provider.ts`:
+    - Line 8: `widget_id = 'academics_summary';`
+    - Line 9: `capabilities = ['academics:read'];`
+  - `apps/api/src/modules/admin-command/admin-command.controller.ts`:
+    - Line 61: `@Get('principal/academics')`
+    - Line 63: `@Permissions('principal:read', 'academics:read')`
+  - `apps/api/src/modules/admin-command/deputy-command.controller.ts`:
+    - Line 93: `@Get('academics')`
+    - Line 97: `@Post('academics/:id/message-hod')`
+  - `apps/api/src/modules/admin-command/principal-insights.providers.ts`:
+    - Line 19: `module_code: 'academics',`
+    - Line 20: `id: 'academics',`
+  - `apps/api/src/modules/admin-command/repositories/admin-command.repository.ts`:
+    - Line 168: `case 'academics':`
+    - Line 723: `FROM academics_attendance`
+  - `apps/api/src/modules/admissions/admissions.service.ts`:
+    - Line 521: `relatedModule: 'academics',`
+  - `apps/api/src/modules/class-teacher/class-teacher.controller.ts`:
+    - Line 7: `@RequiresModule('academics')`
+    - Line 12: `@Permissions('academics:read')`
+  - `apps/api/src/modules/class-teacher/class-teacher.service.ts`:
+    - Line 87: ``SELECT count(*) FILTER (WHERE status = 'present')::int as present, count(*) FILTER (WHERE status = 'absent')::int as absent FROM academics_attendance WHERE tenant_id = $1 AND class_id = $2 AND attendance_date = CURRENT_DATE`,`
+    - Line 105: ``SELECT count(*)::int as count FROM academics_timetable_slots WHERE tenant_id = $1 AND teacher_id = $2 AND day_of_week = EXTRACT(ISODOW FROM CURRENT_DATE)`,`
+  - `apps/api/src/modules/class-teacher/consumers/index.ts`:
+    - Line 35: `export { ViewAcademicsConsumer } from './view-academics.consumer';`
+  - `apps/api/src/modules/class-teacher/consumers/view-academics.consumer.ts`:
+    - Line 6: `readonly name = 'view-academics.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'view-academics' && event.payload.action_id !== 'view-academics') {`
+  - `apps/api/src/modules/dashboard/dashboard.controller.ts`:
+    - Line 40: `@Get('parent/academics')`
+    - Line 64: `@Get('student/academics')`
+  - `apps/api/src/modules/events/consumers/operational-workflow-execution.consumer.test.ts`:
+    - Line 55: `assert.deepEqual(notification.audienceRoles, ['dean-of-academics', 'exams-manager']);`
+    - Line 83: `targetRoles: ['dean-of-academics', 'exams-manager'],`
+  - `apps/api/src/modules/events/dashboard-realtime.service.ts`:
+    - Line 66: `roleChannels: ['role:dean-academics', 'role:principal', 'role:exams-manager'],`
+    - Line 268: `sourceModule: 'academics',`
+  - `apps/api/src/modules/exams/exams.controller.ts`:
+    - Line 329: `@Permissions('academics:write')`
+    - Line 335: `@Permissions('academics:write')`
+  - `apps/api/src/modules/exams/exams.service.ts`:
+    - Line 648: `relatedModule: 'academics',`
+  - `apps/api/src/modules/exams/exams.test.ts`:
+    - Line 1358: `{ getStore: () => ({ tenant_id: 'tenant-a', user_id: 'teacher-2', role: 'teacher', permissions: ['academics:write'] }) } as never,`
+    - Line 1382: `{ getStore: () => ({ tenant_id: 'tenant-a', user_id: 'hod-1', role: 'teacher', permissions: ['academics:write'] }) } as never,`
+  - `apps/api/src/modules/grade-master/grade-master.controller.ts`:
+    - Line 33: `@Get('academics')`
+  - `apps/api/src/modules/implementation300/blueprint-registry.test.ts`:
+    - Line 89: `const academics = IMPLEMENTATION300_MODULES.find((module) => module.code === 'academics');`
+    - Line 93: `assert.ok(academics?.evidence.some((item) => item.file.endsWith('curriculum-policy.ts')));`
+  - `apps/api/src/modules/implementation300/blueprint-registry.ts`:
+    - Line 30: `| 'academics'`
+    - Line 424: `moduleDefinition('academics', 'Academic Structure', ['cbc', 'cbe', '8-4-4', 'cambridge', 'classes', 'subjects'], [`
+  - `apps/api/src/modules/mobile/mobile-app-policy.test.ts`:
+    - Line 26: `enabledModules: ['academics', 'exams', 'timetable', 'communication_sms'],`
+  - `apps/api/src/modules/mobile/mobile-app-policy.ts`:
+    - Line 79: `required_modules: ['academics', 'exams', 'timetable'],`
+    - Line 108: `attendance: ['academics', 'teacher_biometric_attendance', 'parent_portal'],`
+  - `apps/api/src/modules/module-access/module-access.constants.ts`:
+    - Line 35: `code: 'academics',`
+    - Line 38: `category: 'academics',`
+  - `apps/api/src/modules/module-access/module-access.test.ts`:
+    - Line 8: `import { AcademicsController } from '../academics/academics.controller';`
+    - Line 27: `'academics',`
+  - `apps/api/src/modules/timetable/timetable.controller.ts`:
+    - Line 32: `@Permissions('timetable:read', 'academics:read')`
+  - `apps/api/src/parent-portal/parent-portal.service.ts`:
+    - Line 34: `return { status: "success", data: { activeChild: null, children: [], feeBalance: 0, attendance: null, academics: null, messages: 0, actionRequired: [], recentActivity: [] } };`
+    - Line 44: `FROM academics_attendance`
+  - `apps/api/src/scripts/audit-coverage-review.ts`:
+    - Line 144: `id: 'academics-teacher-assignment-audit',`
+    - Line 145: `module: 'academics',`
+  - `apps/api/src/scripts/base-onboarding-seed.ts`:
+    - Line 9: `'academics',`
+    - Line 209: `{ moduleCode: 'academics', table: 'academic_years', tenantScoped: true },`
+  - `apps/api/src/scripts/core-api-load.test.ts`:
+    - Line 17: `assert.ok(workloadIds.includes('academics-teacher-assignments'));`
+  - `apps/api/src/scripts/core-api-load.ts`:
+    - Line 102: `id: 'academics-teacher-assignments',`
+    - Line 104: `path: '/academics/teacher-assignments',`
+  - `apps/api/src/scripts/generate-production-scorecard.test.ts`:
+    - Line 20: `"academics",`
+  - `apps/api/src/scripts/implementation100-certification.ts`:
+    - Line 62: `moduleEvidence('academics', 'Academic Structure', 'apps/web/src/components/school/school-pages.tsx', ['Academics'], 'apps/web/src/app/api/academics/[...path]/route.ts', ['proxySchoolApiRequest', '/academics'], 'apps/api/src/modules/academics/academics.controller.ts', ['AcademicsController'], 'apps/api/src/modules/academics/academics-schema.service.ts', ['academic_years'], 'apps/api/src/modules/academics/academics.test.ts', ['academics']),`
+  - `apps/api/src/scripts/implementation20-certification.test.ts`:
+    - Line 15: `'apps/api/src/modules/academics/academics-schema.service.ts': 'academic_levels class_streams student_class_assignments',`
+    - Line 16: `'apps/api/src/modules/academics/dto/academic.dto.ts': 'CBE CBC 8-4-4 International Custom',`
+  - `apps/api/src/scripts/implementation20-certification.ts`:
+    - Line 52: `check('academic-levels', 'Academic levels, class streams, and assignments are in schema', 'apps/api/src/modules/academics/academics-schema.service.ts', /academic_levels[\s\S]+class_streams[\s\S]+student_class_assignments/),`
+    - Line 53: `check('cbe-support', 'CBE, CBC, 8-4-4, International, and custom systems are supported', 'apps/api/src/modules/academics/dto/academic.dto.ts', /(?=.*CBE)(?=.*CBC)(?=.*8-4-4)(?=.*International)(?=.*Custom)/s),`
+  - `apps/api/src/scripts/kisumu-boys-demo-seed.ts`:
+    - Line 8: `'academics',`
+    - Line 208: `{ moduleCode: 'academics', table: 'academic_years', tenantScoped: true },`
+  - `apps/api/src/scripts/module-access-certification.test.ts`:
+    - Line 12: `'apps/api/src/modules/academics/academics.controller.ts': '@Controller(\'academics\') @RequiresModule(\'academics\')',`
+    - Line 39: `'apps/api/src/modules/module-access/module-access.constants.ts': 'MODULE_REGISTRY_SEED students admissions academics finance exams discipline timetable lab_management teacher_biometric_attendance parent_portal inventory library transport communication_sms reports staff admin_command_centers principal_dashboard clinic_health procurement hostel boarding cbt_exams lms ai_insights visitor_management asset_tracking iot permission_scopes',`
+  - `apps/api/src/scripts/module-access-certification.ts`:
+    - Line 50: `backendRoute('academics', 'Academic structure routes require the academics module', 'apps/api/src/modules/academics/academics.controller.ts', 'academics'),`
+    - Line 85: `frontendRoute('academics', 'academics'),`
+  - `apps/api/src/scripts/query-plan-review.test.ts`:
+    - Line 23: `assert.ok(reviewIds.includes('academics-teacher-assignment-lookup'));`
+  - `apps/api/src/scripts/query-plan-review.ts`:
+    - Line 110: `id: 'academics-teacher-assignment-lookup',`
+  - `apps/api/src/scripts/release-readiness-gate.test.ts`:
+    - Line 14: `"academics",`
+    - Line 76: `'dist/apps/api/src/modules/academics/academics.test.js',`
+  - `apps/api/src/scripts/release-readiness-gate.ts`:
+    - Line 76: `'academics',`
+    - Line 98: `'academics-teacher-assignments',`
+  - `apps/api/src/scripts/synthetic-journey-monitor.ts`:
+    - Line 163: `id: 'academics-teacher-assignments',`
+    - Line 166: `path: '/academics/teacher-assignments',`
+- **`approvals-workspace.tsx` (`approvals`)**:
+  - `apps/api/src/app.module.ts`:
+    - Line 72: `import { ApprovalsModule } from './modules/approvals/approvals.module';`
+  - `apps/api/src/common/platform-governance/platform-governance.ts`:
+    - Line 145: `enforcement: 'Move approvals and state machines into workflow engine templates with audit tracking',`
+  - `apps/api/src/database/schema.sql`:
+    - Line 3323: `CONSTRAINT fk_approvals_requested_user`
+    - Line 3325: `CONSTRAINT fk_approvals_approver_user`
+  - `apps/api/src/database/tenant-database-policy.ts`:
+    - Line 95: `admin_command_centers: ['leadership_approvals', 'front_office_events'],`
+  - `apps/api/src/modules/admin-command/admin-command.controller.ts`:
+    - Line 117: `@Get('principal/approvals')`
+  - `apps/api/src/modules/admin-command/deputy-command.controller.ts`:
+    - Line 121: `@Get('approvals')`
+    - Line 125: `@Post('approvals/:id/action')`
+  - `apps/api/src/modules/admin-command/principal-insights.providers.ts`:
+    - Line 58: `{ id: 'pending_approvals', title: 'Pending Approvals', metric_key: 'pending_finance_approvals' },`
+    - Line 141: `drilldowns: ['procurement.pending-approvals', 'procurement.supplier-performance'],`
+  - `apps/api/src/modules/admin-command/principal-insights.service.ts`:
+    - Line 292: `const channels = ['principal.alerts', 'principal.approvals'];`
+  - `apps/api/src/modules/admin-command/repositories/admin-command.repository.ts`:
+    - Line 210: `COUNT(*) FILTER (WHERE status IN ('draft', 'open', 'pending_payment'))::int AS pending_finance_approvals`
+  - `apps/api/src/modules/admin-command/repositories/deputy-command.repository.ts`:
+    - Line 413: `0::int AS pending_approvals`
+    - Line 416: `{ pending_approvals: 0 }`
+  - `apps/api/src/modules/admissions/repositories/admissions.repository.ts`:
+    - Line 96: `pending_approvals: pendingApprovals,`
+  - `apps/api/src/modules/approvals/approvals.controller.ts`:
+    - Line 2: `import { ApprovalsService } from './approvals.service';`
+    - Line 3: `import { ApprovalsExecutor } from './approvals.executor';`
+  - `apps/api/src/modules/approvals/approvals.module.ts`:
+    - Line 2: `import { ApprovalsService } from './approvals.service';`
+    - Line 3: `import { ApprovalsController } from './approvals.controller';`
+  - `apps/api/src/modules/discipline/discipline.test.ts`:
+    - Line 577: `pending_approvals: 2,`
+  - `apps/api/src/modules/discipline/repositories/discipline.repository.ts`:
+    - Line 1200: `pending_approvals: string;`
+    - Line 1211: `) AS pending_approvals`
+  - `apps/api/src/modules/events/notification-router.controller.ts`:
+    - Line 35: `@Get('approvals')`
+  - `apps/api/src/modules/events/operational-workflow-dispatcher.controller.ts`:
+    - Line 48: `@Post('approvals/:approvalId/decide')`
+  - `apps/api/src/modules/exams/exams.service.ts`:
+    - Line 1596: `details: isReady ? 'All marks approved' : 'Pending HOD approvals',`
+  - `apps/api/src/modules/finance/finance-approvals.handler.ts`:
+    - Line 2: `import { ApprovalsExecutor } from '../approvals/approvals.executor';`
+    - Line 10: `private readonly approvalsExecutor: ApprovalsExecutor,`
+  - `apps/api/src/modules/finance/finance.controller.ts`:
+    - Line 10: `import { ApprovalsService } from '../approvals/approvals.service';`
+    - Line 47: `private readonly approvals: ApprovalsService,`
+  - `apps/api/src/modules/finance/finance.module.ts`:
+    - Line 19: `import { ApprovalsModule } from '../approvals/approvals.module';`
+    - Line 21: `import { FinanceApprovalsHandler } from './finance-approvals.handler';`
+  - `apps/api/src/modules/implementation300/blueprint-registry.ts`:
+    - Line 342: `evidence('implementation300-audit-monitoring-policy', 'Audit monitoring policy covers user activity, login history, record changes, approvals, financial trails, device logs, uptime, errors, resources, tenant monitoring, and usage analytics', 'apps/api/src/modules/observability/audit-monitoring-policy.ts', [`
+    - Line 418: `moduleDefinition('admissions', 'Admissions', ['applications', 'workflow', 'interviews', 'exams', 'approvals', 'letters'], [`
+  - `apps/api/src/modules/inventory/repositories/inventory.repository.ts`:
+    - Line 255: `const [valuationResult, lowStockResult, requestsResult, purchasesResult, movementResult, purchaseActivityResult, alertsResult, approvalsResult, categoryBreakdownResult] =`
+    - Line 387: `pending_approvals: approvalsResult.rows,`
+  - `apps/api/src/modules/mobile/mobile-app-policy.ts`:
+    - Line 16: `| 'approvals'`
+    - Line 96: `capabilities: ['approvals', 'analytics', 'fees', 'reports'],`
+  - `apps/api/src/modules/module-access/module-access.constants.ts`:
+    - Line 190: `description: 'Purchase requests, supplier tracking, approvals, invoice attachment, and budget linkage.',`
+  - `apps/api/src/modules/operations/consumers/index.ts`:
+    - Line 540: `export { ReviewApprovalsConsumer } from './review-approvals.consumer';`
+  - `apps/api/src/modules/operations/consumers/review-approvals.consumer.ts`:
+    - Line 6: `readonly name = 'review-approvals.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'review-approvals' && event.payload.action_id !== 'review-approvals') {`
+  - `apps/api/src/modules/procurement/procurement-schema.service.ts`:
+    - Line 9: `'procurement_approvals',`
+    - Line 105: `CREATE TABLE IF NOT EXISTS procurement_approvals (`
+  - `apps/api/src/modules/procurement/procurement.test.ts`:
+    - Line 25: `'procurement_approvals',`
+    - Line 52: `test('ProcurementService creates auditable suppliers, requests, approvals, purchase orders, and invoices', async () => {`
+  - `apps/api/src/modules/procurement/repositories/procurement.repository.ts`:
+    - Line 7: `pending_approvals: number;`
+    - Line 47: `(SELECT COUNT(*)::int FROM procurement_requests WHERE tenant_id = $1 AND status = 'submitted') AS pending_approvals,`
+  - `apps/api/src/modules/workflow/controllers/approval.controller.ts`:
+    - Line 8: `@Controller('approvals')`
+  - `apps/api/src/modules/workflow/services/dashboard-feed.service.ts`:
+    - Line 59: `const [tasks, notifications, approvals] = await Promise.all([`
+    - Line 77: `pendingApprovals: parseInt(approvals.rows[0].count, 10),`
+  - `apps/api/src/scripts/base-onboarding-seed.ts`:
+    - Line 296: `{ moduleCode: 'procurement', table: 'procurement_approvals', tenantScoped: true },`
+  - `apps/api/src/scripts/kisumu-boys-demo-seed.ts`:
+    - Line 295: `{ moduleCode: 'procurement', table: 'procurement_approvals', tenantScoped: true },`
+    - Line 1558: `await writer.upsert('procurement_approvals', { id: demoUuid('procurement-approval-1'), tenant_id: tenantId, request_id: procurementRequestId, decision: 'approved', approver_user_id: context.actorUserId });`
+  - `apps/api/src/scripts/release-readiness-gate.test.ts`:
+    - Line 299: `| Audit and monitoring | pass | pass: Audit monitoring policy covers user activity, login history, record changes, approvals, financial trails, device logs, uptime, errors, resources, tenant monitoring, and usage analytics |`
+- **`attendance-monitoring-workspace.tsx` (`attendance-monitoring`)**: No backend references found in `apps/api/src`.
+- **`classes-streams-workspace.tsx` (`classes-streams`)**: No backend references found in `apps/api/src`.
+- **`communication-workspace.tsx` (`communication`)**:
+  - `apps/api/src/app.module.ts`:
+    - Line 66: `import { CommunicationModule } from './modules/communication/communication.module';`
+  - `apps/api/src/auth/auth.constants.ts`:
+    - Line 121: `{ resource: 'secretary', action: 'read', description: 'View admissions, records, communications, meetings, and reports workspace' },`
+    - Line 330: `description: 'Class-level attendance, welfare, parent communication, and academic oversight',`
+  - `apps/api/src/auth/role-governance-policy.test.ts`:
+    - Line 98: `activeModules: ['finance', 'parent_portal', 'communication_sms'],`
+  - `apps/api/src/common/platform-governance/architecture-runtime-contract.ts`:
+    - Line 268: `rule: 'Event-driven communication only',`
+  - `apps/api/src/common/platform-governance/operational-execution-contract.ts`:
+    - Line 307: `nodeId: 'communications.broadcast',`
+    - Line 316: `action('send-announcement', 'Send Announcement', 'incident-escalation', 'workflows.communication.broadcast', [`
+  - `apps/api/src/common/platform-governance/workflow-runtime-contract.test.ts`:
+    - Line 74: `'communication-service',`
+  - `apps/api/src/common/platform-governance/workflow-runtime-contract.ts`:
+    - Line 345: `orchestrationStep('parents.notify', 'communication-service', 'notify-parents', ['principal.approve']),`
+  - `apps/api/src/common/reports/report-export-queue.ts`:
+    - Line 41: `communication: 'communication_sms',`
+    - Line 53: `school_sms: 'communication_sms',`
+  - `apps/api/src/database/batch4_schemas.sql`:
+    - Line 122: `CREATE TABLE IF NOT EXISTS communication_sms_outbox (`
+    - Line 132: `CONSTRAINT ck_communication_sms_outbox_tenant CHECK (tenant_id <> 'global')`
+  - `apps/api/src/database/schema.sql`:
+    - Line 800: `CREATE TABLE communication_templates (`
+    - Line 812: `CONSTRAINT ck_communication_templates_tenant_id_non_global CHECK (tenant_id <> 'global'),`
+  - `apps/api/src/database/tenant-database-policy.test.ts`:
+    - Line 32: `activeModules: ['students', 'finance', 'communication_sms'],`
+    - Line 86: `activeModules: ['students', 'finance', 'communication_sms'],`
+  - `apps/api/src/database/tenant-database-policy.ts`:
+    - Line 92: `communication_sms: ['school_sms_wallets', 'school_integrations', 'sms_logs'],`
+  - `apps/api/src/modules/admin-command/admin-command-schema.service.ts`:
+    - Line 12: `'communication_templates',`
+    - Line 145: `CREATE TABLE IF NOT EXISTS communication_templates (`
+  - `apps/api/src/modules/admin-command/admin-command.controller.ts`:
+    - Line 75: `@Get('principal/communication')`
+    - Line 219: `@Get('communication-templates')`
+  - `apps/api/src/modules/admin-command/admissions-command.controller.ts`:
+    - Line 57: `@Get('communication')`
+    - Line 96: `communication,`
+  - `apps/api/src/modules/admin-command/deputy-command.controller.ts`:
+    - Line 129: `@Get('communication')`
+  - `apps/api/src/modules/admin-command/principal-insights.providers.ts`:
+    - Line 217: `module_code: 'communication_sms',`
+    - Line 218: `id: 'communication',`
+  - `apps/api/src/modules/admin-command/repositories/admin-command.repository.ts`:
+    - Line 348: `case 'communication_sms':`
+    - Line 421: `) AS communication_anomalies`
+  - `apps/api/src/modules/class-teacher/class-teacher.controller.ts`:
+    - Line 238: `@Get('communication')`
+  - `apps/api/src/modules/class-teacher/class-teacher.service.ts`:
+    - Line 342: `FROM communication_sms_outbox`
+    - Line 858: `FROM communication_sms_outbox`
+  - `apps/api/src/modules/communication/communication-schema.service.ts`:
+    - Line 35: `CREATE TABLE IF NOT EXISTS communication_sms_outbox (`
+    - Line 45: `ALTER TABLE communication_sms_outbox ENABLE ROW LEVEL SECURITY;`
+  - `apps/api/src/modules/communication/communication-sms.service.ts`:
+    - Line 53: `eventName: 'communication.sms.queued',`
+    - Line 63: ``INSERT INTO communication_sms_outbox (`
+  - `apps/api/src/modules/communication/communication.controller.test.ts`:
+    - Line 7: `import { CommunicationController } from './communication.controller';`
+    - Line 9: `test('CommunicationController is gated by communication_sms module and permissions', () => {`
+  - `apps/api/src/modules/communication/communication.controller.ts`:
+    - Line 7: `import { CommunicationSmsService } from './communication-sms.service';`
+    - Line 16: `@Controller('communication')`
+  - `apps/api/src/modules/communication/communication.module.ts`:
+    - Line 2: `import { CommunicationController } from './communication.controller';`
+    - Line 3: `import { CommunicationSmsService } from './communication-sms.service';`
+  - `apps/api/src/modules/compliance/data-protection-policy.ts`:
+    - Line 32: `| 'parent_communication'`
+    - Line 86: `'parent_communication',`
+  - `apps/api/src/modules/dashboard/dashboard.controller.ts`:
+    - Line 52: `@Get('parent/communication')`
+  - `apps/api/src/modules/dashboard/dashboard.dto.ts`:
+    - Line 99: `category!: 'payment' | 'student' | 'communication';`
+  - `apps/api/src/modules/events/event-publisher.service.ts`:
+    - Line 183: `): Promise<DomainEvent<'communication.sms.queued'>> {`
+    - Line 185: `event_key: `communication.sms.queued:${payload.sms_id}`,`
+  - `apps/api/src/modules/events/events.types.ts`:
+    - Line 30: `| 'communication.sms.queued'`
+    - Line 369: `'communication.sms.queued': CommunicationSmsQueuedPayload;`
+  - `apps/api/src/modules/grade-master/grade-master.controller.ts`:
+    - Line 63: `@Get('communications')`
+  - `apps/api/src/modules/implementation300/api-category-policy.test.ts`:
+    - Line 34: `enabledModules: ['parent_portal', 'finance', 'ai_insights', 'communication_sms', 'transport'],`
+  - `apps/api/src/modules/implementation300/api-category-policy.ts`:
+    - Line 46: `api('notification_engine', 'internal', 'communication_sms', ['/api/internal/notifications'], 'internal_service', true, true, 600),`
+    - Line 47: `api('integration_engine', 'internal', 'communication_sms', ['/api/internal/integrations'], 'internal_service', true, true, 600),`
+  - `apps/api/src/modules/implementation300/blueprint-registry.ts`:
+    - Line 41: `| 'communication_sms'`
+    - Line 483: `moduleDefinition('communication_sms', 'Communication and SMS', ['bulk-sms', 'email', 'whatsapp', 'reminders', 'delivery', 'scheduled-messages'], [`
+  - `apps/api/src/modules/implementation300/development-phase-policy.test.ts`:
+    - Line 23: `'communication_sms',`
+    - Line 31: `completedModules: ['authentication', 'tenant_management', 'students', 'finance', 'exams', 'communication_sms', 'reports', 'inventory'],`
+  - `apps/api/src/modules/implementation300/development-phase-policy.ts`:
+    - Line 58: `'communication_sms',`
+    - Line 61: `capabilities: ['tenant_onboarding', 'billing', 'exam_results', 'communication', 'reports'],`
+  - `apps/api/src/modules/integrations/integration-policy.test.ts`:
+    - Line 13: `enabledModules: ['finance', 'students', 'exams', 'communication_sms', 'transport', 'lms'],`
+    - Line 78: `enabledModules: ['communication_sms'],`
+  - `apps/api/src/modules/integrations/integration-policy.ts`:
+    - Line 56: `sms_gateways: 'communication_sms',`
+  - `apps/api/src/modules/integrations/school-sms.controller.ts`:
+    - Line 13: `@RequiresModule('communication_sms')`
+  - `apps/api/src/modules/mobile/mobile-app-policy.test.ts`:
+    - Line 26: `enabledModules: ['academics', 'exams', 'timetable', 'communication_sms'],`
+    - Line 35: `'communication',`
+  - `apps/api/src/modules/mobile/mobile-app-policy.ts`:
+    - Line 8: `| 'communication'`
+    - Line 19: `export type MobileOfflineCapability = 'attendance' | 'mark_entry' | 'assignments' | 'fees' | 'communication' | 'reports' | 'results';`
+  - `apps/api/src/modules/module-access/module-access.constants.ts`:
+    - Line 134: `code: 'communication_sms',`
+    - Line 137: `category: 'communication',`
+  - `apps/api/src/modules/module-access/module-access.test.ts`:
+    - Line 37: `'communication_sms',`
+    - Line 216: `assert.deepEqual(Reflect.getMetadata(MODULE_ACCESS_KEY, SchoolSmsController), ['communication_sms']);`
+  - `apps/api/src/modules/observability/audit-monitoring-policy.ts`:
+    - Line 13: `| 'communication_delivery_logs';`
+    - Line 107: `communication_sms: ['communication_delivery_logs'],`
+  - `apps/api/src/modules/observability/production-observability.catalog.ts`:
+    - Line 49: `id: 'school-communications',`
+    - Line 197: `'school-communications',`
+  - `apps/api/src/modules/platform/platform-onboarding.service.test.ts`:
+    - Line 652: `? ['students', 'finance', 'communication_sms']`
+    - Line 661: `assert.deepEqual(response[0]?.enabled_modules, ['students', 'finance', 'communication_sms']);`
+  - `apps/api/src/modules/seeder/seeder-schema.service.ts`:
+    - Line 387: `CREATE TABLE IF NOT EXISTS communication_logs (`
+    - Line 403: `CONSTRAINT ck_communication_logs_external_reference_not_blank CHECK (btrim(external_reference) <> ''),`
+  - `apps/api/src/scripts/base-onboarding-seed.ts`:
+    - Line 17: `'communication_sms',`
+    - Line 352: `{ moduleCode: 'communication_sms', table: 'school_sms_wallets', tenantScoped: true },`
+  - `apps/api/src/scripts/generate-production-scorecard.test.ts`:
+    - Line 21: `"communication",`
+  - `apps/api/src/scripts/implementation100-certification.ts`:
+    - Line 73: `moduleEvidence('communication_sms', 'Communication and SMS', 'apps/web/src/components/school/school-pages.tsx', ['Communication'], 'apps/web/src/app/api/sms/[...path]/route.ts', ['proxySchoolApiRequest', '/sms'], 'apps/api/src/modules/integrations/school-sms.controller.ts', ['SchoolSmsController'], 'apps/api/src/modules/integrations/integrations-schema.service.ts', ['sms_wallet'], 'apps/api/src/modules/integrations/integrations.test.ts', ['sms']),`
+  - `apps/api/src/scripts/implementation21-certification.test.ts`:
+    - Line 10: `'apps/api/src/modules/admin-command/principal-insights.providers.ts': 'finance summary_only lab_management communication_sms clinic_health permission_required: \'clinic:reports\' summary_only medicine_consumption_cost_minor wastage_due_to_expiry_minor emergency_supply_ready_rate most_used_medicine ai_insights fee_default_risk_alerts medicine_shortage_predictions attendance_irregularities budget_overrun_alerts performance_decline_warnings',`
+    - Line 93: `'apps/api/src/modules/admin-command/principal-insights.providers.ts': 'finance summary_only lab_management communication_sms clinic_health permission_required: \'clinic:reports\' summary_only ai_insights',`
+  - `apps/api/src/scripts/implementation21-certification.ts`:
+    - Line 44: `check('provider-registry', 'Dashboard sections are provider-configured by module', 'apps/api/src/modules/admin-command/principal-insights.providers.ts', /(?=.*clinic_health)(?=.*finance)(?=.*lab_management)(?=.*communication_sms)/s),`
+  - `apps/api/src/scripts/incident-drill.test.ts`:
+    - Line 20: `sources['docs/runbooks/incident-response.md'] = 'Incident drill checklist with incident commander severity rollback decision communications checkpoint evidence closeout';`
+  - `apps/api/src/scripts/incident-drill.ts`:
+    - Line 80: `/communications checkpoint/i,`
+    - Line 84: `evidence: 'incident response runbook includes owner, severity, rollback, communications, evidence, and closeout checklist items',`
+  - `apps/api/src/scripts/kisumu-boys-demo-seed.ts`:
+    - Line 16: `'communication_sms',`
+    - Line 351: `{ moduleCode: 'communication_sms', table: 'school_sms_wallets', tenantScoped: true },`
+  - `apps/api/src/scripts/module-access-certification.test.ts`:
+    - Line 24: `'apps/api/src/modules/integrations/school-sms.controller.ts': '@Controller() @RequiresModule(\'communication_sms\')',`
+    - Line 39: `'apps/api/src/modules/module-access/module-access.constants.ts': 'MODULE_REGISTRY_SEED students admissions academics finance exams discipline timetable lab_management teacher_biometric_attendance parent_portal inventory library transport communication_sms reports staff admin_command_centers principal_dashboard clinic_health procurement hostel boarding cbt_exams lms ai_insights visitor_management asset_tracking iot permission_scopes',`
+  - `apps/api/src/scripts/module-access-certification.ts`:
+    - Line 62: `backendRoute('communication-sms', 'School SMS routes require the communication module', 'apps/api/src/modules/integrations/school-sms.controller.ts', 'communication_sms'),`
+    - Line 89: `frontendRoute('communication', 'communication_sms'),`
+  - `apps/api/src/scripts/release-readiness-gate.test.ts`:
+    - Line 19: `"communication",`
+  - `apps/api/src/scripts/release-readiness-gate.ts`:
+    - Line 81: `'communication',`
+    - Line 264: `{ label: 'Communications', pattern: /communications/i },`
+- **`discipline-workspace.tsx` (`discipline`)**:
+  - `apps/api/src/app.module.ts`:
+    - Line 48: `import { DisciplineModule } from './modules/discipline/discipline.module';`
+  - `apps/api/src/auth/auth.constants.ts`:
+    - Line 34: `export const DEFAULT_ROLE_DISCIPLINE_MASTER = 'discipline_master';`
+    - Line 104: `{ resource: 'discipline', action: 'read', description: 'View permitted discipline incidents, actions, and behavior summaries' },`
+  - `apps/api/src/auth/auth.test.ts`:
+    - Line 118: `'discipline_master',`
+  - `apps/api/src/auth/dto/tenant-invitation.dto.ts`:
+    - Line 18: `'discipline_master',`
+  - `apps/api/src/auth/role-governance-policy.ts`:
+    - Line 129: `deputy_principal: ['deputy:read', 'deputy:write', 'students:read', 'discipline:manage'],`
+    - Line 136: `teacher: ['students:read', 'academics:read', 'exams:enter-marks', 'discipline:write'],`
+  - `apps/api/src/auth/tenant-invitations.service.ts`:
+    - Line 45: `discipline_master: 30,`
+  - `apps/api/src/common/auto-repair/auto-repair-agent.test.ts`:
+    - Line 519: `discipline: 'ENABLED',`
+    - Line 522: `'discipline:read': true,`
+  - `apps/api/src/common/platform-governance/workflow-runtime-contract.ts`:
+    - Line 360: `queueItem('queue-discipline', 'discipline-workflow-1', 'discipline-escalation', 'discipline-case-1', [`
+  - `apps/api/src/common/reports/report-export-queue.ts`:
+    - Line 42: `counselling: 'discipline',`
+    - Line 43: `discipline: 'discipline',`
+  - `apps/api/src/common/uploads/streaming-upload.service.ts`:
+    - Line 21: `| 'discipline_attachment'`
+  - `apps/api/src/database/migrations/003_discipline_schema.sql`:
+    - Line 1: `-- Migration: 003_discipline_schema`
+    - Line 2: `-- Description: Creates the admin_incidents table for discipline tracking`
+  - `apps/api/src/database/schema.sql`:
+    - Line 2902: `CREATE TABLE IF NOT EXISTS discipline_incidents (`
+    - Line 2915: `ALTER TABLE discipline_incidents ENABLE ROW LEVEL SECURITY;`
+  - `apps/api/src/database/tenant-database-policy.ts`:
+    - Line 84: `discipline: ['discipline_incidents', 'discipline_actions', 'counselling_sessions'],`
+  - `apps/api/src/modules/admin-command/admin-command.controller.ts`:
+    - Line 47: `@Get('principal/discipline')`
+    - Line 49: `@Permissions('principal:read', 'discipline:read')`
+  - `apps/api/src/modules/admin-command/deputy-command.controller.ts`:
+    - Line 33: `@Get('discipline')`
+    - Line 37: `@Post('discipline')`
+  - `apps/api/src/modules/admin-command/principal-insights.providers.ts`:
+    - Line 160: `module_code: 'discipline',`
+    - Line 161: `id: 'discipline_welfare',`
+  - `apps/api/src/modules/admin-command/repositories/admin-command.repository.ts`:
+    - Line 40: `0::numeric AS discipline_severity_index,`
+    - Line 51: `discipline_clusters: [],`
+  - `apps/api/src/modules/admin-command/repositories/deputy-command.repository.ts`:
+    - Line 169: `WHERE tenant_id = $1 AND title ILIKE '%discipline%'`
+  - `apps/api/src/modules/automation/automation-policy.test.ts`:
+    - Line 13: `enabledModules: ['finance', 'inventory', 'discipline', 'timetable'],`
+    - Line 20: `'discipline_escalation',`
+  - `apps/api/src/modules/automation/automation-policy.ts`:
+    - Line 8: `'discipline_escalation',`
+    - Line 22: `| 'escalate_discipline_case'`
+  - `apps/api/src/modules/boarding/boarding.service.ts`:
+    - Line 43: `audienceRoles: ['parent', 'discipline'],`
+    - Line 47: `relatedModule: 'discipline',`
+  - `apps/api/src/modules/class-teacher/class-teacher.controller.ts`:
+    - Line 98: `@Get('discipline-concerns')`
+    - Line 107: `@Post('discipline-concerns')`
+  - `apps/api/src/modules/class-teacher/class-teacher.service.ts`:
+    - Line 96: `urgentFollowups: [] // Requires welfare/discipline incidents logic`
+    - Line 130: `const disciplineRes = await this.executeSql(`
+  - `apps/api/src/modules/class-teacher/consumers/index.ts`:
+    - Line 38: `export { ViewDisciplineConsumer } from './view-discipline.consumer';`
+  - `apps/api/src/modules/class-teacher/consumers/view-discipline.consumer.ts`:
+    - Line 6: `readonly name = 'view-discipline.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'view-discipline' && event.payload.action_id !== 'view-discipline') {`
+  - `apps/api/src/modules/compliance/compliance-schema.service.ts`:
+    - Line 121: `module_code IN ('students', 'clinic', 'biometrics', 'discipline', 'exams_report_cards', 'payments', 'sync_offline')`
+  - `apps/api/src/modules/counselling/counselling.controller.ts`:
+    - Line 69: `@Get('discipline')`
+  - `apps/api/src/modules/discipline/consumers/assign-discipline-master.consumer.ts`:
+    - Line 6: `readonly name = 'assign-discipline-master.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'assign-discipline-master' && event.payload.action_id !== 'assign-discipline-master') {`
+  - `apps/api/src/modules/discipline/consumers/create-incident.consumer.ts`:
+    - Line 24: `this.logger.log(`Logging discipline incident for student ${data.studentId} in tenant ${tenant_id}`);`
+    - Line 27: `const incident = await this.prisma.disciplineCase.create({`
+  - `apps/api/src/modules/discipline/consumers/download-discipline-report.consumer.ts`:
+    - Line 6: `readonly name = 'download-discipline-report.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'download-discipline-report' && event.payload.action_id !== 'download-discipline-report') {`
+  - `apps/api/src/modules/discipline/consumers/index.ts`:
+    - Line 3: `export { AssignDisciplineMasterConsumer } from './assign-discipline-master.consumer';`
+    - Line 8: `export { DownloadDisciplineReportConsumer } from './download-discipline-report.consumer';`
+  - `apps/api/src/modules/discipline/consumers/print-discipline-summary.consumer.ts`:
+    - Line 6: `readonly name = 'print-discipline-summary.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'print-discipline-summary' && event.payload.action_id !== 'print-discipline-summary') {`
+  - `apps/api/src/modules/discipline/counselling.controller.ts`:
+    - Line 16: `@RequiresModule('discipline')`
+    - Line 33: `@Permissions('discipline:write')`
+  - `apps/api/src/modules/discipline/counselling.service.ts`:
+    - Line 19: `import { DisciplineRepository } from './repositories/discipline.repository';`
+    - Line 21: `import type { CounsellingNoteEntity } from './entities/discipline.entity';`
+  - `apps/api/src/modules/discipline/discipline-document.service.ts`:
+    - Line 3: `import type { GenerateDisciplineDocumentDto } from './dto/discipline.dto';`
+    - Line 4: `import type { DisciplineIncidentEntity } from './entities/discipline.entity';`
+  - `apps/api/src/modules/discipline/discipline-notification.service.ts`:
+    - Line 3: `import { DisciplineRepository } from './repositories/discipline.repository';`
+    - Line 7: `constructor(private readonly disciplineRepository: DisciplineRepository) {}`
+  - `apps/api/src/modules/discipline/discipline-schema.service.ts`:
+    - Line 7: `'discipline_incidents',`
+    - Line 8: `'discipline_actions',`
+  - `apps/api/src/modules/discipline/discipline.controller.ts`:
+    - Line 38: `} from './dto/discipline.dto';`
+    - Line 39: `import { DisciplineService } from './discipline.service';`
+  - `apps/api/src/modules/discipline/discipline.module.ts`:
+    - Line 5: `import { DisciplineController } from './discipline.controller';`
+    - Line 9: `import { DisciplineRepository } from './repositories/discipline.repository';`
+  - `apps/api/src/modules/discipline/discipline.service.ts`:
+    - Line 28: `} from './dto/discipline.dto';`
+    - Line 32: `} from './entities/discipline.entity';`
+  - `apps/api/src/modules/discipline/discipline.test.ts`:
+    - Line 11: `import { DisciplineSchemaService } from './discipline-schema.service';`
+    - Line 12: `import { DisciplineService } from './discipline.service';`
+  - `apps/api/src/modules/discipline/dto/counselling.dto.ts`:
+    - Line 28: `'discipline_office',`
+  - `apps/api/src/modules/discipline/entities/discipline.entity.ts`:
+    - Line 5: `} from '../dto/discipline.dto';`
+  - `apps/api/src/modules/discipline/repositories/counselling.repository.ts`:
+    - Line 15: `} from '../entities/discipline.entity';`
+  - `apps/api/src/modules/discipline/repositories/discipline.repository.ts`:
+    - Line 10: `} from '../dto/discipline.dto';`
+    - Line 15: `} from '../entities/discipline.entity';`
+  - `apps/api/src/modules/discipline/storage/discipline-attachment-storage.service.ts`:
+    - Line 32: `'discipline',`
+    - Line 44: `ownerType: 'discipline_attachment',`
+  - `apps/api/src/modules/events/consumers/discipline-incident.consumer.ts`:
+    - Line 8: `implements EventConsumerDescriptor<'discipline.incident.reported'>`
+    - Line 10: `readonly name = 'discipline-incident.audit';`
+  - `apps/api/src/modules/events/consumers/index.ts`:
+    - Line 5: `export { DisciplineIncidentConsumer } from './discipline-incident.consumer';`
+  - `apps/api/src/modules/events/consumers/operational-workflow-dispatched.consumer.test.ts`:
+    - Line 43: `{ event_name: 'discipline.incident.reported', name: 'discipline-incident.audit' } as never,`
+  - `apps/api/src/modules/events/dashboard-realtime.service.ts`:
+    - Line 93: `'discipline.case.escalated': {`
+    - Line 95: `sourceModule: 'discipline',`
+  - `apps/api/src/modules/events/event-consumer-registry.service.ts`:
+    - Line 9: `import { DisciplineIncidentConsumer } from './consumers/discipline-incident.consumer';`
+    - Line 27: `disciplineIncidentConsumer: DisciplineIncidentConsumer,`
+  - `apps/api/src/modules/events/event-publisher.service.ts`:
+    - Line 111: `): Promise<DomainEvent<'discipline.case.escalated'>> {`
+    - Line 113: `event_key: `discipline.case.escalated:${payload.case_id}`,`
+  - `apps/api/src/modules/events/events.module.ts`:
+    - Line 15: `import { DisciplineIncidentConsumer } from './consumers/discipline-incident.consumer';`
+  - `apps/api/src/modules/events/events.types.ts`:
+    - Line 13: `| 'discipline.case.escalated'`
+    - Line 24: `| 'discipline.incident.reported'`
+  - `apps/api/src/modules/grade-master/grade-master.controller.ts`:
+    - Line 45: `@Get('discipline')`
+  - `apps/api/src/modules/implementation300/blueprint-registry.ts`:
+    - Line 33: `| 'discipline'`
+    - Line 313: `evidence('implementation300-automation-policy', 'Automation policy covers fee reminders, low stock, attendance, discipline, timetable, exams, and clinic triggers', 'apps/api/src/modules/automation/automation-policy.ts', [`
+  - `apps/api/src/modules/labs/labs.test.ts`:
+    - Line 127: `test('LabsProcessor runs chemical expiry, equipment reconciliation, and lab discipline checks', async () => {`
+    - Line 153: `const disciplineResult = await processor.runMandatoryAttendanceDisciplineCheck({ lookbackDays: 4 });`
+  - `apps/api/src/modules/module-access/module-access.constants.ts`:
+    - Line 62: `code: 'discipline',`
+    - Line 66: `route_segment: 'discipline',`
+  - `apps/api/src/modules/module-access/module-access.test.ts`:
+    - Line 30: `'discipline',`
+  - `apps/api/src/modules/operations/consumers/assign-discipline-master.consumer.ts`:
+    - Line 6: `readonly name = 'assign-discipline-master.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'assign-discipline-master' && event.payload.action_id !== 'assign-discipline-master') {`
+  - `apps/api/src/modules/operations/consumers/create-discipline-case.consumer.ts`:
+    - Line 6: `readonly name = 'create-discipline-case.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'create-discipline-case' && event.payload.action_id !== 'create-discipline-case') {`
+  - `apps/api/src/modules/operations/consumers/index.ts`:
+    - Line 75: `export { AssignDisciplineMasterConsumer } from './assign-discipline-master.consumer';`
+    - Line 139: `export { CreateDisciplineCaseConsumer } from './create-discipline-case.consumer';`
+  - `apps/api/src/modules/operations/consumers/review-discipline.consumer.ts`:
+    - Line 6: `readonly name = 'review-discipline.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'review-discipline' && event.payload.action_id !== 'review-discipline') {`
+  - `apps/api/src/modules/platform/dto/create-school.dto.ts`:
+    - Line 298: `health_discipline_notes: string;`
+  - `apps/api/src/modules/platform/platform-onboarding.service.ts`:
+    - Line 672: `health_discipline_notes: 'keep with strict school policy and legal review',`
+  - `apps/api/src/modules/security/data-classification-registry.service.ts`:
+    - Line 62: `{ column: 'discipline_incidents.counselling_notes', classification: 'sensitive_child_data', encryption: 'column', redaction: 'tokenize' },`
+    - Line 83: `{ module: 'discipline', requires_dpia: true, review_frequency: 'termly' },`
+  - `apps/api/src/parent-portal/parent-portal.service.ts`:
+    - Line 98: `case 'discipline':`
+  - `apps/api/src/scripts/base-onboarding-seed.ts`:
+    - Line 18: `'discipline',`
+    - Line 315: `{ moduleCode: 'discipline', table: 'offense_categories', tenantScoped: true },`
+  - `apps/api/src/scripts/certify-discipline.ts`:
+    - Line 3: `const result = runAndWriteModuleCertification('discipline');`
+  - `apps/api/src/scripts/core-api-load.ts`:
+    - Line 192: `id: 'discipline-incidents',`
+    - Line 194: `path: '/discipline/incidents',`
+  - `apps/api/src/scripts/generate-production-scorecard.test.ts`:
+    - Line 44: `'discipline:certify': 'node apps/api/src/scripts/certify-discipline.ts',`
+    - Line 115: `- run: npm run discipline:certify`
+  - `apps/api/src/scripts/generate-production-scorecard.ts`:
+    - Line 150: `remediation: 'Add the tenant isolation audit runner and require it in CI for finance, support, library, discipline, reports, and files.',`
+    - Line 223: `remediation: 'Replace fallback telemetry with live states and run mobile journeys for login, parent, finance, library, support, and discipline.',`
+  - `apps/api/src/scripts/high-volume-workflow-load.ts`:
+    - Line 28: `{ id: 'discipline-incident-queue', method: 'GET', path: '/discipline/incidents', targetP95Ms: 700 },`
+    - Line 29: `{ id: 'discipline-analytics', method: 'GET', path: '/discipline/analytics/overview', targetP95Ms: 800 },`
+  - `apps/api/src/scripts/implementation100-certification.test.ts`:
+    - Line 60: `'apps/web/src/app/api/discipline/[...path]/route.ts': 'proxyDisciplineRequest upstreamPath = `/discipline/${(params.path ?? []).join("/")}` getDashboardApiBaseUrl',`
+    - Line 66: `for (const moduleCode of ['students', 'finance', 'discipline', 'admissions', 'principal_dashboard']) {`
+  - `apps/api/src/scripts/implementation100-certification.ts`:
+    - Line 65: `moduleEvidence('discipline', 'Discipline', 'apps/web/src/components/discipline/discipline-workspace.tsx', ['Discipline'], 'apps/web/src/app/api/discipline/[...path]/route.ts', ['proxyDisciplineRequest', 'upstreamPath'], 'apps/api/src/modules/discipline/discipline.controller.ts', ['DisciplineController'], 'apps/api/src/modules/discipline/discipline-schema.service.ts', ['discipline_incidents'], 'apps/api/src/modules/discipline/discipline.test.ts', ['discipline']),`
+  - `apps/api/src/scripts/implementation20-certification.ts`:
+    - Line 61: `check('lab-discipline-effects', 'Mandatory lab absences feed discipline and academic reporting sources', 'apps/api/src/modules/labs/repositories/labs.repository.ts', /source_type[\s\S]+'lab_attendance'[\s\S]+labs\.participation_metric_recorded/),`
+    - Line 62: `check('lab-maintenance-jobs', 'Lab maintenance jobs cover chemical expiry, equipment reconciliation, and mandatory attendance discipline checks', 'apps/api/src/modules/labs/labs.processor.ts', /runChemicalExpiryCheck[\s\S]+runEquipmentReconciliationCheck[\s\S]+runMandatoryAttendanceDisciplineCheck/),`
+  - `apps/api/src/scripts/kisumu-boys-demo-seed.ts`:
+    - Line 17: `'discipline',`
+    - Line 314: `{ moduleCode: 'discipline', table: 'offense_categories', tenantScoped: true },`
+  - `apps/api/src/scripts/maintainability-scan.test.ts`:
+    - Line 11: `'apps/web/src/components/discipline/discipline-workspace.tsx': 'Student record ID',`
+    - Line 27: `'apps/web/src/components/discipline/discipline-workspace.tsx': 'Search learner by name or admission number',`
+  - `apps/api/src/scripts/maintainability-scan.ts`:
+    - Line 27: `'apps/web/src/components/discipline/discipline-workspace.tsx',`
+  - `apps/api/src/scripts/module-access-certification.test.ts`:
+    - Line 17: `'apps/api/src/modules/discipline/discipline.controller.ts': '@Controller(\'discipline\') @RequiresModule(\'discipline\')',`
+    - Line 18: `'apps/api/src/modules/discipline/counselling.controller.ts': '@Controller(\'counselling\') @RequiresModule(\'discipline\')',`
+  - `apps/api/src/scripts/module-access-certification.ts`:
+    - Line 55: `backendRoute('discipline', 'Discipline routes require the discipline module', 'apps/api/src/modules/discipline/discipline.controller.ts', 'discipline'),`
+    - Line 56: `backendRoute('counselling', 'Counselling routes require the discipline module', 'apps/api/src/modules/discipline/counselling.controller.ts', 'discipline'),`
+  - `apps/api/src/scripts/module-certification.test.ts`:
+    - Line 22: `'apps/api/src/modules/discipline/discipline.service.ts': 'createIncident',`
+    - Line 23: `'apps/api/src/modules/discipline/discipline-schema.service.ts': 'discipline_actions discipline_audit_logs prevent_discipline_audit_mutation parent_acknowledgements',`
+  - `apps/api/src/scripts/module-certification.ts`:
+    - Line 4: `export type ModuleCertificationName = 'finance' | 'library' | 'discipline';`
+    - Line 89: `discipline: [`
+  - `apps/api/src/scripts/query-plan-review-local-fixture.ts`:
+    - Line 298: `name: 'discipline_incidents',`
+    - Line 300: `CREATE TABLE IF NOT EXISTS discipline_incidents (`
+  - `apps/api/src/scripts/query-plan-review.test.ts`:
+    - Line 213: `'discipline_incidents',`
+  - `apps/api/src/scripts/query-plan-review.ts`:
+    - Line 236: `id: 'discipline-incident-queue',`
+    - Line 240: `FROM discipline_incidents`
+  - `apps/api/src/scripts/release-readiness-gate.test.ts`:
+    - Line 18: `"discipline",`
+    - Line 114: `'discipline:certify': 'node apps/api/src/scripts/certify-discipline.ts',`
+  - `apps/api/src/scripts/release-readiness-gate.ts`:
+    - Line 80: `'discipline',`
+    - Line 136: `'discipline:certify',`
+  - `apps/api/src/scripts/run-pilot-certification.test.ts`:
+    - Line 72: `'apps/api/src/modules/discipline/discipline.service.ts': 'createIncident discipline',`
+    - Line 73: `'apps/api/src/modules/discipline/counselling.service.ts': 'class CounsellingService counselling',`
+  - `apps/api/src/scripts/run-pilot-certification.ts`:
+    - Line 155: `id: 'discipline-counselling-lifecycle',`
+    - Line 158: `check('discipline-service', 'Discipline service exists', 'apps/api/src/modules/discipline/discipline.service.ts', /createIncident|discipline/i),`
+  - `apps/api/src/scripts/security-scan.ts`:
+    - Line 48: `files: ['apps/api/src/modules/discipline/counselling.service.ts'],`
+  - `apps/api/src/scripts/synthetic-journey-monitor.test.ts`:
+    - Line 121: `['public-readiness', 'public-status-page', 'login-smoke', 'exams-workspace', 'discipline-workspace'],`
+  - `apps/api/src/scripts/synthetic-journey-monitor.ts`:
+    - Line 208: `id: 'discipline-incidents',`
+    - Line 211: `path: '/discipline/incidents',`
+  - `apps/api/src/scripts/tenant-isolation-audit.test.ts`:
+    - Line 140: `'apps/api/src/modules/discipline/discipline-schema.service.ts': 'FORCE ROW LEVEL SECURITY tenant_id = current_setting(\'app.tenant_id\'',`
+    - Line 141: `'apps/api/src/modules/discipline/counselling.service.ts': 'requireTenantId() confidential visibility counsellor role',`
+  - `apps/api/src/scripts/tenant-isolation-audit.ts`:
+    - Line 54: `check('discipline-rls', 'Discipline tables enforce row level security', 'apps/api/src/modules/discipline/discipline-schema.service.ts', /FORCE ROW LEVEL SECURITY/, 'critical'),`
+    - Line 55: `check('discipline-policy-tenant', 'Discipline RLS policies bind tenant setting', 'apps/api/src/modules/discipline/discipline-schema.service.ts', /tenant_id = current_setting\('app\.tenant_id'/, 'critical'),`
+- **`exams-report-cards-workspace.tsx` (`exams-report-cards`)**:
+  - `apps/api/src/scripts/core-api-load.test.ts`:
+    - Line 18: `assert.ok(workloadIds.includes('exams-report-cards'));`
+  - `apps/api/src/scripts/core-api-load.ts`:
+    - Line 111: `id: 'exams-report-cards',`
+  - `apps/api/src/scripts/high-volume-workflow-load.test.ts`:
+    - Line 21: `'exams-report-cards',`
+  - `apps/api/src/scripts/high-volume-workflow-load.ts`:
+    - Line 21: `{ id: 'exams-report-cards', method: 'GET', path: '/exams/report-cards', targetP95Ms: 800 },`
+  - `apps/api/src/scripts/implementation30-certification.ts`:
+    - Line 178: `area('exams-report-cards', 'Backend-generated and immutable report cards', [`
+  - `apps/api/src/scripts/implementation30-load-profile.test.ts`:
+    - Line 28: `'apps/api/src/scripts/high-volume-workflow-load.ts': 'HIGH_VOLUME_WORKFLOW_LOADS targetP95Ms dashboard-summaries student-search exams-report-cards teacher-mark-sheets',`
+    - Line 56: `'apps/api/src/scripts/high-volume-workflow-load.ts': 'HIGH_VOLUME_WORKFLOW_LOADS targetP95Ms dashboard-summaries student-search exams-report-cards teacher-mark-sheets',`
+  - `apps/api/src/scripts/implementation30-load-profile.ts`:
+    - Line 110: `{ id: 'exams-report-cards', target_p95_ms: 800, max_db_round_trips: 3, max_rows_per_page: 100 },`
+    - Line 151: `pattern: /(?=.*HIGH_VOLUME_WORKFLOW_LOADS)(?=.*targetP95Ms)(?=.*dashboard-summaries)(?=.*student-search)(?=.*exams-report-cards)(?=.*teacher-mark-sheets)/s,`
+  - `apps/api/src/scripts/release-readiness-gate.ts`:
+    - Line 99: `'exams-report-cards',`
+  - `apps/api/src/scripts/synthetic-journey-monitor.ts`:
+    - Line 172: `id: 'exams-report-cards',`
+- **`finance-overview-workspace.tsx` (`finance-overview`)**:
+  - `apps/api/src/modules/admin-command/admin-command.controller.ts`:
+    - Line 33: `@Get('principal/finance-overview')`
+- **`overview-workspace.tsx` (`overview`)**:
+  - `apps/api/src/middleware/billing-feature.middleware.test.ts`:
+    - Line 75: `await requestContext.run(createContext('/admin-command/principal/overview'), async () => {`
+    - Line 78: `path: '/admin-command/principal/overview',`
+  - `apps/api/src/modules/admin-command/admin-command.controller.ts`:
+    - Line 33: `@Get('principal/finance-overview')`
+    - Line 103: `@Get('principal/overview')`
+  - `apps/api/src/modules/admin-command/admissions-command.controller.ts`:
+    - Line 9: `@Get('overview')`
+    - Line 84: `overview,`
+  - `apps/api/src/modules/admin-command/deputy-command.controller.ts`:
+    - Line 9: `@Get('overview')`
+  - `apps/api/src/modules/admin-command/principal-insights.providers.ts`:
+    - Line 6: `id: 'school_overview',`
+    - Line 8: `category: 'overview',`
+  - `apps/api/src/modules/admin-command/principal-insights.service.ts`:
+    - Line 164: `const overview = await this.repository.getPrincipalOverviewSnapshot(tenantId);`
+    - Line 190: `overview,`
+  - `apps/api/src/modules/admin-command/principal-insights.types.ts`:
+    - Line 54: `overview: PrincipalOverviewPanel;`
+  - `apps/api/src/modules/admin-command/repositories/admin-command.repository.ts`:
+    - Line 1221: `defaultView: "overview"`
+  - `apps/api/src/modules/billing/billing-access.service.ts`:
+    - Line 59: `const { subscription, overview } =`
+    - Line 61: `const access = this.buildAccessState(subscription, overview);`
+  - `apps/api/src/modules/billing/billing-lifecycle.service.ts`:
+    - Line 60: `overview: SubscriptionLifecycleOverview | null;`
+    - Line 69: `overview: null,`
+  - `apps/api/src/modules/billing/billing-notification.service.ts`:
+    - Line 18: `overview: SubscriptionLifecycleOverview,`
+    - Line 20: `const descriptors = this.buildDescriptors(subscription, overview);`
+  - `apps/api/src/modules/billing/billing.service.ts`:
+    - Line 281: `if (!lifecycle.subscription || !lifecycle.overview) {`
+    - Line 285: `return this.mapSubscription(lifecycle.subscription, lifecycle.overview);`
+  - `apps/api/src/modules/billing/billing.test.ts`:
+    - Line 129: `overview: null,`
+    - Line 877: `ensureCurrentLifecycle: async () => ({ subscription: null, overview: null }),`
+  - `apps/api/src/modules/class-teacher/class-teacher.controller.ts`:
+    - Line 20: `@Get('overview')`
+    - Line 30: `@Get('dashboard-overview')`
+  - `apps/api/src/modules/dashboard/dashboard.controller.ts`:
+    - Line 34: `@Get('parent/overview')`
+    - Line 58: `@Get('student/overview')`
+  - `apps/api/src/modules/discipline/discipline.controller.ts`:
+    - Line 244: `@Get('analytics/overview')`
+  - `apps/api/src/modules/finance/finance.controller.ts`:
+    - Line 306: `@Get('accounts-overview')`
+  - `apps/api/src/modules/grade-master/grade-master.controller.ts`:
+    - Line 9: `@Get('overview')`
+  - `apps/api/src/modules/operations/consumers/export-overview.consumer.ts`:
+    - Line 6: `readonly name = 'export-overview.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'export-overview' && event.payload.action_id !== 'export-overview') {`
+  - `apps/api/src/modules/operations/consumers/index.ts`:
+    - Line 262: `export { ExportOverviewConsumer } from './export-overview.consumer';`
+  - `apps/api/src/modules/platform/platform-onboarding.service.test.ts`:
+    - Line 665: `test('PlatformOnboardingService summarizes tenants in product for the Super Admin overview', async () => {`
+  - `apps/api/src/scripts/core-api-load.ts`:
+    - Line 203: `path: '/discipline/analytics/overview',`
+  - `apps/api/src/scripts/high-volume-workflow-load.ts`:
+    - Line 29: `{ id: 'discipline-analytics', method: 'GET', path: '/discipline/analytics/overview', targetP95Ms: 800 },`
+- **`reports-workspace.tsx` (`reports`)**:
+  - `apps/api/src/auth/auth-email.service.test.ts`:
+    - Line 6: `test('AuthEmailService reports transactional email as missing without secrets', () => {`
+    - Line 20: `test('AuthEmailService reports transactional email as configured without exposing secrets', () => {`
+  - `apps/api/src/auth/auth.constants.ts`:
+    - Line 59: `{ resource: 'reports', action: 'read', description: 'View generated report export jobs and snapshots' },`
+    - Line 108: `{ resource: 'discipline', action: 'reports', description: 'Export discipline reports and analytics' },`
+  - `apps/api/src/auth/monitoring-service-account.service.ts`:
+    - Line 16: `'reports:read',`
+  - `apps/api/src/auth/role-governance-policy.ts`:
+    - Line 125: `platform_support: ['support:view', 'support:manage', 'reports:read'],`
+    - Line 126: `finance_admin: ['billing:read', 'billing:write', 'reports:read'],`
+  - `apps/api/src/common/auto-repair/auto-repair-agent.test.ts`:
+    - Line 474: `operationalIntent: 'Bursar can act on finance exceptions, not browse static trend reports',`
+    - Line 706: `test('AutoRepairAgent reports dashboard repair patch intelligence for KPI-only dashboards', () => {`
+  - `apps/api/src/common/auto-repair/auto-repair-deployment.test.ts`:
+    - Line 43: `test('AutoRepairService reports deployed runtime readiness and keeps the full widget state contract', () => {`
+  - `apps/api/src/common/common.module.ts`:
+    - Line 12: `import { ReportExportQueueService } from './reports/report-export-queue';`
+    - Line 13: `import { ReportExportJobsController } from './reports/report-export-jobs.controller';`
+  - `apps/api/src/common/reports/report-artifact-storage.service.test.ts`:
+    - Line 18: `retention_policy: 'reports',`
+    - Line 48: `assert.equal(savedInputs[0].storagePath, `tenant/tenant-a/reports/billing/invoices/${'b'.repeat(64)}.pdf`);`
+  - `apps/api/src/common/reports/report-artifact-storage.service.ts`:
+    - Line 40: `retentionPolicy: 'reports',`
+    - Line 73: `return `tenant/${input.tenantId}/reports/${module}/${reportId}/${input.artifact.checksumSha256}.${extension}`;`
+  - `apps/api/src/common/reports/report-export-jobs.controller.ts`:
+    - Line 7: `@Controller('reports')`
+    - Line 8: `@RequiresModule('reports')`
+  - `apps/api/src/common/reports/report-export-queue.ts`:
+    - Line 52: `reports: 'reports',`
+  - `apps/api/src/common/reports/report-export.worker.test.ts`:
+    - Line 25: `storage_path: 'tenant/tenant-a/reports/exams/exam-results/artifact.pdf',`
+    - Line 80: `storage_path: 'tenant/tenant-a/reports/exams/exam-results/artifact.pdf',`
+  - `apps/api/src/common/reports/report-snapshot.repository.test.ts`:
+    - Line 95: `assert.deepEqual(Reflect.getMetadata(PERMISSIONS_KEY, handler), ['reports:read']);`
+  - `apps/api/src/common/uploads/database-file-storage.service.test.ts`:
+    - Line 685: `test('S3CompatibleObjectStorageService reports failed object deletes as unavailable', async () => {`
+  - `apps/api/src/common/uploads/upload-policy.test.ts`:
+    - Line 252: `test('runProviderMalwareScan returns unsafe verdicts when the provider reports infection', async () => {`
+  - `apps/api/src/database/batch4_schemas.sql`:
+    - Line 71: `CREATE TABLE IF NOT EXISTS operations_reports (`
+    - Line 80: `CONSTRAINT ck_operations_reports_tenant CHECK (tenant_id <> 'global')`
+  - `apps/api/src/database/schema.sql`:
+    - Line 2755: `CREATE TABLE IF NOT EXISTS operations_reports (`
+    - Line 2764: `CONSTRAINT ck_operations_reports_tenant CHECK (tenant_id <> 'global')`
+  - `apps/api/src/database/tenant-database-policy.ts`:
+    - Line 93: `reports: ['report_export_jobs', 'report_snapshots'],`
+  - `apps/api/src/modules/admin-command/admin-command.controller.ts`:
+    - Line 124: `@Get('principal/reports')`
+    - Line 126: `@Permissions('principal:read', 'reports:read')`
+  - `apps/api/src/modules/admin-command/admissions-command.controller.ts`:
+    - Line 69: `@Get('reports')`
+    - Line 99: `reports,`
+  - `apps/api/src/modules/admin-command/deputy-command.controller.ts`:
+    - Line 133: `@Get('reports')`
+    - Line 137: `@Post('reports/generate')`
+  - `apps/api/src/modules/admin-command/principal-insights.providers.ts`:
+    - Line 16: `reports: ['school-overview', 'population-trend'],`
+    - Line 31: `reports: ['academic-summary', 'cbc-cbe-competency-progress'],`
+  - `apps/api/src/modules/admin-command/principal-insights.service.ts`:
+    - Line 184: `const reportExports = Array.from(new Set(sections.flatMap((section) => section.reports)));`
+    - Line 273: `reports: [...provider.reports],`
+  - `apps/api/src/modules/admin-command/principal-insights.types.ts`:
+    - Line 34: `reports: string[];`
+    - Line 81: `reports: string[];`
+  - `apps/api/src/modules/admin-command/repositories/admin-command.repository.ts`:
+    - Line 846: `reportsPending: summaryResult.rows[0]?.pending_reviews || 0,`
+    - Line 1479: ``INSERT INTO operations_reports (content, prepared_by, tenant_id, title, updated_at) VALUES ($1, $2, $3, $4, NOW())`,`
+  - `apps/api/src/modules/admin-command/repositories/deputy-command.repository.ts`:
+    - Line 449: `0::int AS generated_reports`
+    - Line 452: `{ generated_reports: 0 }`
+  - `apps/api/src/modules/admissions/admissions.controller.ts`:
+    - Line 33: `} from '../../common/reports/report-export-queue';`
+    - Line 217: `@Post('reports/:reportId/export-jobs')`
+  - `apps/api/src/modules/admissions/admissions.service.ts`:
+    - Line 22: `} from '../../common/reports/report-csv-artifact';`
+  - `apps/api/src/modules/admissions/admissions.test.ts`:
+    - Line 197: `path: '/admissions/reports/applications/export',`
+    - Line 350: `path: '/admissions/reports/unknown/export',`
+  - `apps/api/src/modules/billing/billing.controller.ts`:
+    - Line 15: `} from '../../common/reports/report-export-queue';`
+    - Line 214: `@Post('reports/:reportId/export-jobs')`
+  - `apps/api/src/modules/billing/billing.service.ts`:
+    - Line 14: `} from '../../common/reports/report-csv-artifact';`
+  - `apps/api/src/modules/billing/billing.test.ts`:
+    - Line 2245: `path: '/billing/reports/invoices/export',`
+    - Line 2297: `path: '/billing/reports/unknown/export',`
+  - `apps/api/src/modules/biometric-attendance/biometric-attendance.controller.ts`:
+    - Line 52: `@Get('reports/monthly')`
+  - `apps/api/src/modules/class-teacher/class-teacher.controller.ts`:
+    - Line 358: `@Get('reports')`
+  - `apps/api/src/modules/clinic/clinic.controller.ts`:
+    - Line 62: `@Permissions('clinic:reports')`
+  - `apps/api/src/modules/clinic/clinic.service.ts`:
+    - Line 171: `this.assertPermission('clinic:reports');`
+  - `apps/api/src/modules/clinic/clinic.test.ts`:
+    - Line 58: `assert.deepEqual(Reflect.getMetadata(PERMISSIONS_KEY, analyticsHandler), ['clinic:reports']);`
+  - `apps/api/src/modules/compliance/compliance-schema.service.ts`:
+    - Line 127: `CREATE TABLE IF NOT EXISTS breach_response_reports (`
+    - Line 141: `CONSTRAINT ck_breach_response_reports_severity CHECK (severity IN ('low', 'medium', 'high', 'critical')),`
+  - `apps/api/src/modules/compliance/compliance.controller.ts`:
+    - Line 81: `@Get('breach-response-reports/:reportId/export')`
+  - `apps/api/src/modules/compliance/compliance.service.ts`:
+    - Line 351: `FROM breach_response_reports`
+  - `apps/api/src/modules/compliance/compliance.test.ts`:
+    - Line 33: `assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS breach_response_reports/);`
+    - Line 36: `assert.match(schemaSql, /ALTER TABLE breach_response_reports FORCE ROW LEVEL SECURITY/);`
+  - `apps/api/src/modules/counselling/counselling.controller.ts`:
+    - Line 87: `@Get('reports')`
+  - `apps/api/src/modules/discipline/discipline.controller.ts`:
+    - Line 245: `@Permissions('discipline:reports')`
+    - Line 250: `@Post('reports/export')`
+  - `apps/api/src/modules/discipline/discipline.service.ts`:
+    - Line 636: `this.assertPermission('discipline:reports');`
+    - Line 648: `this.assertPermission('discipline:reports');`
+  - `apps/api/src/modules/discipline/discipline.test.ts`:
+    - Line 65: `'discipline:reports',`
+    - Line 597: `permissions: ['discipline:reports'],`
+  - `apps/api/src/modules/exams/consumers/download-reports.consumer.ts`:
+    - Line 6: `readonly name = 'download-reports.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'download-reports' && event.payload.action_id !== 'download-reports') {`
+  - `apps/api/src/modules/exams/consumers/index.ts`:
+    - Line 10: `export { DownloadReportsConsumer } from './download-reports.consumer';`
+  - `apps/api/src/modules/exams/exams.test.ts`:
+    - Line 648: `test('ExamsService reports duplicate and unauthorized rows during bulk mark upload preview', async () => {`
+  - `apps/api/src/modules/exams/repositories/exams.repository.ts`:
+    - Line 1481: `(SELECT COUNT(*) FROM student_report_cards WHERE tenant_id = $1 AND status = 'published') AS published_reports,`
+  - `apps/api/src/modules/exams/services/report-card-pdf-artifact.ts`:
+    - Line 3: `import { normalizeReportFilename, normalizeReportGeneratedAt, type ReportArtifact } from '../../../common/reports/report-artifact';`
+  - `apps/api/src/modules/exams/services/report-card-template.service.ts`:
+    - Line 3: `import type { ReportArtifactInput, ReportArtifactValue } from '../../../common/reports/report-artifact';`
+  - `apps/api/src/modules/grade-master/grade-master.controller.ts`:
+    - Line 81: `@Get('reports')`
+  - `apps/api/src/modules/grade-master/grade-master.service.ts`:
+    - Line 16: `reportsNotReady: 12,`
+  - `apps/api/src/modules/health/health.controller.test.ts`:
+    - Line 297: `test('HealthController readiness reports optional Redis degradation without throwing', async () => {`
+  - `apps/api/src/modules/implementation300/api-category-policy.ts`:
+    - Line 45: `api('analytics_engine', 'internal', 'reports', ['/api/internal/analytics'], 'internal_service', true, true, 600),`
+  - `apps/api/src/modules/implementation300/blueprint-registry.ts`:
+    - Line 42: `| 'reports'`
+    - Line 437: `moduleDefinition('exams', 'Exams and Results', ['setup', 'grading', 'cbc-assessment', 'moderation', 'reports', 'analytics'], [`
+  - `apps/api/src/modules/implementation300/development-phase-policy.test.ts`:
+    - Line 24: `'reports',`
+    - Line 31: `completedModules: ['authentication', 'tenant_management', 'students', 'finance', 'exams', 'communication_sms', 'reports', 'inventory'],`
+  - `apps/api/src/modules/implementation300/development-phase-policy.ts`:
+    - Line 59: `'reports',`
+    - Line 61: `capabilities: ['tenant_onboarding', 'billing', 'exam_results', 'communication', 'reports'],`
+  - `apps/api/src/modules/integrations/integrations.test.ts`:
+    - Line 202: `test('SmsDispatchService reports missing credential fields without exposing secrets', async () => {`
+  - `apps/api/src/modules/inventory/inventory.controller.ts`:
+    - Line 7: `} from '../../common/reports/report-export-queue';`
+    - Line 246: `@Get('reports')`
+  - `apps/api/src/modules/inventory/inventory.service.ts`:
+    - Line 13: `} from '../../common/reports/report-csv-artifact';`
+    - Line 93: `rows: (reports: InventoryReportsPayload) => ReportCsvValue[][];`
+  - `apps/api/src/modules/inventory/inventory.test.ts`:
+    - Line 2222: `path: '/inventory/reports/stock-valuation/export',`
+    - Line 2250: `throw new Error('reports should not be loaded for an unknown export');`
+  - `apps/api/src/modules/inventory/repositories/inventory.repository.test.ts`:
+    - Line 971: `const reports = await repository.buildReports('tenant-a');`
+    - Line 978: `assert.deepEqual(reports.stock_reconciliation, [`
+  - `apps/api/src/modules/library/library.controller.ts`:
+    - Line 89: `@Get('reports')`
+  - `apps/api/src/modules/mobile/mobile-app-policy.test.ts`:
+    - Line 44: `enabledModules: ['principal_dashboard', 'finance', 'reports'],`
+    - Line 79: `capabilities: ['fees', 'communication', 'reports', 'results'],`
+  - `apps/api/src/modules/mobile/mobile-app-policy.ts`:
+    - Line 9: `| 'reports'`
+    - Line 19: `export type MobileOfflineCapability = 'attendance' | 'mark_entry' | 'assignments' | 'fees' | 'communication' | 'reports' | 'results';`
+  - `apps/api/src/modules/module-access/module-access.constants.ts`:
+    - Line 55: `description: 'Assessments, marks, reports, academic analytics, CBT hooks, and result publishing.',`
+    - Line 67: `permission_scopes: ['discipline:read', 'discipline:write', 'discipline:manage', 'discipline:reports'],`
+  - `apps/api/src/modules/module-access/module-access.test.ts`:
+    - Line 13: `import { ReportExportJobsController } from '../../common/reports/report-export-jobs.controller';`
+    - Line 38: `'reports',`
+  - `apps/api/src/modules/operations/consumers/index.ts`:
+    - Line 505: `export { ReportsConsumer } from './reports.consumer';`
+    - Line 516: `export { RequestReportsConsumer } from './request-reports.consumer';`
+  - `apps/api/src/modules/operations/consumers/reports.consumer.ts`:
+    - Line 6: `readonly name = 'reports.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'reports' && event.payload.action_id !== 'reports') {`
+  - `apps/api/src/modules/operations/consumers/request-reports.consumer.ts`:
+    - Line 6: `readonly name = 'request-reports.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'request-reports' && event.payload.action_id !== 'request-reports') {`
+  - `apps/api/src/modules/operations/consumers/view-reports.consumer.ts`:
+    - Line 6: `readonly name = 'view-reports.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'view-reports' && event.payload.action_id !== 'view-reports') {`
+  - `apps/api/src/modules/operations/operations.service.ts`:
+    - Line 69: ``INSERT INTO operations_reports (tenant_id, title, content, prepared_by)`
+  - `apps/api/src/modules/payments/payments.test.ts`:
+    - Line 3482: `test('MpesaReconciliationService reports missing callbacks, duplicates, amount mismatches, wrong references, and late provider status', async () => {`
+    - Line 4016: `result.reports.map((report) => report.payment_channel_id),`
+  - `apps/api/src/modules/payments/payments.types.ts`:
+    - Line 297: `reports: MpesaReconciliationReport[];`
+    - Line 305: `reports: MpesaReconciliationReport[];`
+  - `apps/api/src/modules/payments/services/mpesa-reconciliation.service.ts`:
+    - Line 446: `const reports: MpesaReconciliationReport[] = [];`
+    - Line 449: `reports.push(`
+  - `apps/api/src/modules/platform/platform-onboarding.service.test.ts`:
+    - Line 470: `test('PlatformOnboardingService reports Resend testing mode as blocked instead of encouraging repeated resends', async () => {`
+  - `apps/api/src/modules/support/support-notification-delivery.service.test.ts`:
+    - Line 12: `test('SupportNotificationDeliveryService reports provider readiness without exposing secrets', async () => {`
+    - Line 97: `test('SupportNotificationDeliveryService reports precise missing provider status for dashboard-managed SMS', async () => {`
+  - `apps/api/src/scripts/audit-coverage-review.test.ts`:
+    - Line 49: `test('runAuditCoverageReview reports missing evidence by file and pattern', () => {`
+  - `apps/api/src/scripts/base-onboarding-seed.ts`:
+    - Line 30: `'reports',`
+    - Line 362: `{ moduleCode: 'reports', table: 'report_snapshots', tenantScoped: true },`
+  - `apps/api/src/scripts/core-api-load.test.ts`:
+    - Line 33: `assert.equal(inventoryExport.url, 'http://127.0.0.1:3000/inventory/reports/stock-valuation/export');`
+  - `apps/api/src/scripts/core-api-load.ts`:
+    - Line 131: `path: '/admissions/reports/applications/export',`
+    - Line 147: `id: 'inventory-reports',`
+  - `apps/api/src/scripts/enable-admin-modules.ts`:
+    - Line 47: `'Module-aware executive KPIs, alerts, analytics, trends, and reports for the Principal.',`
+  - `apps/api/src/scripts/generate-production-scorecard.test.ts`:
+    - Line 22: `"reports",`
+  - `apps/api/src/scripts/generate-production-scorecard.ts`:
+    - Line 150: `remediation: 'Add the tenant isolation audit runner and require it in CI for finance, support, library, discipline, reports, and files.',`
+    - Line 183: `evidenceLine(/missing_provider/.test(supportNotificationSource), 'support notification health reports precise missing provider state'),`
+  - `apps/api/src/scripts/high-volume-workflow-load.test.ts`:
+    - Line 18: `'billing-invoice-reports',`
+  - `apps/api/src/scripts/high-volume-workflow-load.ts`:
+    - Line 18: `{ id: 'billing-invoice-reports', method: 'GET', path: '/billing/reports/invoices/export', targetP95Ms: 900 },`
+    - Line 31: `{ id: 'report-export-jobs', method: 'GET', path: '/reports/export-jobs', targetP95Ms: 800 },`
+  - `apps/api/src/scripts/implementation100-certification.ts`:
+    - Line 74: `moduleEvidence('reports', 'Reports', 'apps/web/src/components/school/school-pages.tsx', ['Reports'], 'apps/web/src/app/api/reports/[...path]/route.ts', ['proxySchoolApiRequest', '/reports'], 'apps/api/src/common/reports/report-export-jobs.controller.ts', ['ReportExportJobsController'], 'apps/api/src/common/reports/report-snapshot-schema.service.ts', ['report_snapshots'], 'apps/api/src/common/reports/report-export-queue.test.ts', ['report']),`
+  - `apps/api/src/scripts/implementation20-certification.test.ts`:
+    - Line 30: `'apps/api/src/modules/biometric-attendance/biometric-attendance.controller.ts': 'live-feed reports/monthly',`
+    - Line 37: `'apps/web/src/app/api/reports/[...path]/route.ts': 'proxySchoolApiRequest "/reports"',`
+  - `apps/api/src/scripts/implementation20-certification.ts`:
+    - Line 72: `check('biometric-live-reports', 'Biometric API exposes live feed and monthly reports', 'apps/api/src/modules/biometric-attendance/biometric-attendance.controller.ts', /live-feed[\s\S]+reports\/monthly/),`
+    - Line 84: `check('reports-web-proxy', 'Web app proxies reports requests to the API', 'apps/web/src/app/api/reports/[...path]/route.ts', /proxySchoolApiRequest[\s\S]+"\/reports"/),`
+  - `apps/api/src/scripts/implementation21-certification.test.ts`:
+    - Line 10: `'apps/api/src/modules/admin-command/principal-insights.providers.ts': 'finance summary_only lab_management communication_sms clinic_health permission_required: \'clinic:reports\' summary_only medicine_consumption_cost_minor wastage_due_to_expiry_minor emergency_supply_ready_rate most_used_medicine ai_insights fee_default_risk_alerts medicine_shortage_predictions attendance_irregularities budget_overrun_alerts performance_decline_warnings',`
+    - Line 29: `'apps/api/src/modules/clinic/clinic.controller.ts': 'clinic:inventory clinic:dispense clinic:reports portal:read_own_children',`
+  - `apps/api/src/scripts/implementation21-certification.ts`:
+    - Line 76: `check('clinic-api-permissions', 'Clinic controller separates inventory, dispensing, reports, and parent history permissions', 'apps/api/src/modules/clinic/clinic.controller.ts', /clinic:inventory[\s\S]+clinic:dispense[\s\S]+clinic:reports[\s\S]+portal:read_own_children/),`
+    - Line 92: `check('principal-no-confidential-notes', 'Principal insights use clinic reports, not confidential permissions', 'apps/api/src/modules/admin-command/principal-insights.providers.ts', /permission_required:\s+'clinic:reports'[\s\S]+summary_only/),`
+  - `apps/api/src/scripts/implementation30-certification.test.ts`:
+    - Line 59: `'apps/api/src/modules/payments/payments.test.ts': 'provider_verification_required exports only redacted payloads redacts C2B API payment responses for legacy raw rows assert.notEqual creates callback channels with hashed secrets builds high-entropy STK and C2B callback URLs high-entropy channel-secret routes creates M-PESA verification jobs verificationJobInput duplicate M-PESA identifiers MpesaTransactionStatusService verifies STK callback status classifies verified C2B payments without ledger enqueue accepts unsigned direct Daraja callbacks rejects unsigned callbacks in edge-signed mode accepts unsigned validation callbacks in direct Daraja mode PaymentsSchemaService creates reconciliation batches MpesaReconciliationService reports missing callbacks, duplicates, amount mismatches, wrong references, and late provider status runs daily reconciliation for every active tenant payment channel generates on-demand date-range reports lists accountant review items without raw M-PESA payload leakage requires two distinct approvers before resolving reversal requests exposes accountant review and finance approval endpoints',`
+    - Line 65: `'apps/api/src/modules/compliance/compliance-schema.service.ts': 'data_subject_requests access_request correction_request deletion_anonymization_request export_request objection_request data_retention_schedules child_data_dpia_records students payments sync_offline breach_response_reports FORCE ROW LEVEL SECURITY',`
+  - `apps/api/src/scripts/implementation30-certification.ts`:
+    - Line 95: `check('mpesa-reconciliation-processor', 'M-Pesa reconciliation service runs daily and date-range reports, persists batches, and classifies mismatch states', 'apps/api/src/modules/payments/services/mpesa-reconciliation.service.ts', /(?=.*generateDailyReport)(?=.*generateDateRangeReport)(?=.*runDailyProcessor)(?=.*reconciliation_state)(?=.*provider_received)(?=.*amount_mismatch)(?=.*duplicate_provider_receipt)(?=.*missing_provider_record)(?=.*verified_unmatched)(?=.*manual_review_required)(?=.*INSERT INTO mpesa_reconciliation_batches)(?=.*INSERT INTO mpesa_reconciliation_discrepancies)/s),`
+    - Line 100: `check('mpesa-reconciliation-tests', 'Payments tests cover reconciliation schema, missing callbacks, duplicates, amount mismatch, wrong references, late provider status, daily processor, and range reports', 'apps/api/src/modules/payments/payments.test.ts', /(?=.*PaymentsSchemaService creates reconciliation batches)(?=.*MpesaReconciliationService reports missing callbacks, duplicates, amount mismatches, wrong references, and late provider status)(?=.*runs daily reconciliation for every active tenant payment channel)(?=.*generates on-demand date-range reports)/s),`
+  - `apps/api/src/scripts/implementation30-load-profile.test.ts`:
+    - Line 35: `'apps/api/src/common/reports/report-export-queue.ts': 'shouldQueueReportExport DEFAULT_SYNC_EXPORT_ROW_LIMIT REPORT_EXPORT_JOB_OPTIONS attempts backoff estimated_rows',`
+    - Line 63: `'apps/api/src/common/reports/report-export-queue.ts': 'shouldQueueReportExport DEFAULT_SYNC_EXPORT_ROW_LIMIT REPORT_EXPORT_JOB_OPTIONS attempts backoff estimated_rows',`
+  - `apps/api/src/scripts/implementation30-load-profile.ts`:
+    - Line 181: `'apps/api/src/common/reports/report-export-queue.ts',`
+  - `apps/api/src/scripts/kisumu-boys-demo-seed.ts`:
+    - Line 29: `'reports',`
+    - Line 361: `{ moduleCode: 'reports', table: 'report_snapshots', tenantScoped: true },`
+  - `apps/api/src/scripts/module-access-certification.test.ts`:
+    - Line 28: `'apps/api/src/common/reports/report-export-jobs.controller.ts': '@Controller(\'reports\') @RequiresModule(\'reports\')',`
+    - Line 39: `'apps/api/src/modules/module-access/module-access.constants.ts': 'MODULE_REGISTRY_SEED students admissions academics finance exams discipline timetable lab_management teacher_biometric_attendance parent_portal inventory library transport communication_sms reports staff admin_command_centers principal_dashboard clinic_health procurement hostel boarding cbt_exams lms ai_insights visitor_management asset_tracking iot permission_scopes',`
+  - `apps/api/src/scripts/module-access-certification.ts`:
+    - Line 67: `backendRoute('reports', 'Report export job routes require the reports module', 'apps/api/src/common/reports/report-export-jobs.controller.ts', 'reports'),`
+    - Line 88: `frontendRoute('reports', 'reports'),`
+  - `apps/api/src/scripts/module-certification.test.ts`:
+    - Line 24: `'apps/web/src/lib/discipline/discipline-live.ts': 'acknowledgeDisciplineIncident exportDisciplineReport reports',`
+  - `apps/api/src/scripts/module-certification.ts`:
+    - Line 105: `workflow('reports-and-documents', 'Reports, documents, and confidential export safety', [`
+    - Line 106: `check('discipline-report-api', 'Discipline reports are exposed through API', 'apps/web/src/lib/discipline/discipline-live.ts', /exportDisciplineReport|reports/),`
+  - `apps/api/src/scripts/release-readiness-gate.test.ts`:
+    - Line 20: `"reports",`
+    - Line 49: `'dist/apps/api/src/common/reports/report-excel-artifact.test.js',`
+  - `apps/api/src/scripts/release-readiness-gate.ts`:
+    - Line 27: `} from '../common/reports/report-export-queue';`
+    - Line 31: `} from '../common/reports/report-snapshot-manifest';`
+  - `apps/api/src/scripts/run-pilot-certification.test.ts`:
+    - Line 75: `'apps/api/src/common/reports/report-export-queue.ts': 'validateReportExportJobPayload queue',`
+  - `apps/api/src/scripts/run-pilot-certification.ts`:
+    - Line 167: `check('report-export', 'Report export queue exists', 'apps/api/src/common/reports/report-export-queue.ts', /validateReportExportJobPayload|queue/i),`
+  - `apps/api/src/scripts/synthetic-journey-monitor.ts`:
+    - Line 286: `path: '/admissions/reports/applications/export',`
+    - Line 295: `path: '/inventory/reports/stock-valuation/export',`
+  - `apps/api/src/scripts/tenant-isolation-audit.test.ts`:
+    - Line 144: `'apps/api/src/common/reports/report-export-queue.ts': 'attendance',`
+  - `apps/api/src/scripts/tenant-isolation-audit.ts`:
+    - Line 59: `check('reports-block-retired-attendance', 'Report exports block retired attendance data', 'apps/api/src/common/reports/report-export-queue.ts', /attendance/i, 'high'),`
+- **`school-profile-workspace.tsx` (`school-profile`)**:
+  - `apps/api/src/modules/admin-command/admin-command.controller.ts`:
+    - Line 110: `@Get('principal/school-profile')`
+    - Line 411: `@Post('principal/school-profile/logo')`
+  - `apps/api/src/modules/operations/consumers/download-school-profile.consumer.ts`:
+    - Line 6: `readonly name = 'download-school-profile.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'download-school-profile' && event.payload.action_id !== 'download-school-profile') {`
+  - `apps/api/src/modules/operations/consumers/index.ts`:
+    - Line 194: `export { DownloadSchoolProfileConsumer } from './download-school-profile.consumer';`
+- **`setup-checklist-workspace.tsx` (`setup-checklist`)**:
+  - `apps/api/src/modules/admin-command/admin-command.controller.ts`:
+    - Line 153: `@Get('principal/setup-checklist')`
+- **`staff-roles-workspace.tsx` (`staff-roles`)**: No backend references found in `apps/api/src`.
+- **`students-workspace.tsx` (`students`)**:
+  - `apps/api/src/app.module.ts`:
+    - Line 21: `import { StudentsModule } from './modules/students/students.module';`
+  - `apps/api/src/auth/auth.constants.ts`:
+    - Line 62: `{ resource: 'students', action: 'read', description: 'View student records' },`
+    - Line 63: `{ resource: 'students', action: 'write', description: 'Manage student records' },`
+  - `apps/api/src/auth/auth.test.ts`:
+    - Line 190: `permissions: ['students:read'],`
+    - Line 597: `permissions: ['students:write'],`
+  - `apps/api/src/auth/monitoring-service-account.service.test.ts`:
+    - Line 45: `permissions: ['students:read', 'support:view'],`
+    - Line 52: `assert.deepEqual(created.permissions, ['students:read', 'support:view']);`
+  - `apps/api/src/auth/monitoring-service-account.service.ts`:
+    - Line 10: `'students:read',`
+  - `apps/api/src/auth/role-governance-policy.test.ts`:
+    - Line 70: `permissions: ['students:read', 'finance:read'],`
+  - `apps/api/src/auth/role-governance-policy.ts`:
+    - Line 127: `school_admin: ['users:read', 'users:write', 'roles:read', 'roles:write', 'students:read', 'reports:read'],`
+    - Line 128: `principal: ['principal:read', 'principal:write', 'students:read', 'finance:read', 'reports:read'],`
+  - `apps/api/src/common/cache/cache-invalidation-rules.ts`:
+    - Line 13: `module: 'students',`
+    - Line 15: `namespaces: ['students:list', 'students:detail', 'dashboard:principal'],`
+  - `apps/api/src/common/platform-governance/agents/orchestration-agent.service.ts`:
+    - Line 17: `// This allows cross-module side-effects without the students module calling finance directly!`
+  - `apps/api/src/common/platform-governance/architecture-validation-suite.ts`:
+    - Line 178: `capabilityRequired: 'students:write',`
+    - Line 179: `capabilities: ['students:write'],`
+  - `apps/api/src/common/reports/report-export-queue.ts`:
+    - Line 56: `students: 'students',`
+  - `apps/api/src/database/database.test.ts`:
+    - Line 198: `permissions: ['students:read'],`
+    - Line 203: `path: '/students',`
+  - `apps/api/src/database/migrations/001_partitioning_and_views.sql`:
+    - Line 159: `FROM students s`
+  - `apps/api/src/database/schema.sql`:
+    - Line 1156: `CREATE TABLE students (`
+    - Line 1172: `CONSTRAINT ck_students_tenant_id_non_global CHECK (tenant_id <> 'global'),`
+  - `apps/api/src/database/tenant-database-policy.test.ts`:
+    - Line 32: `activeModules: ['students', 'finance', 'communication_sms'],`
+    - Line 35: `assert.equal(policy.requiredTables.some((table) => table.name === 'students'), true);`
+  - `apps/api/src/database/tenant-database-policy.ts`:
+    - Line 79: `students: ['students', 'student_guardians'],`
+  - `apps/api/src/middleware/request-logging.middleware.test.ts`:
+    - Line 11: `assert.equal(shouldRecordApiSloMetric('/students'), true);`
+  - `apps/api/src/middleware/tenant.middleware.test.ts`:
+    - Line 190: `path: '/students',`
+    - Line 202: `path: '/students',`
+  - `apps/api/src/modules/academics/academics.controller.ts`:
+    - Line 70: `@Permissions('students:write', 'academics:write')`
+  - `apps/api/src/modules/admin-command/admin-command.controller.ts`:
+    - Line 40: `@Get('principal/students')`
+    - Line 42: `@Permissions('principal:read', 'students:read')`
+  - `apps/api/src/modules/admin-command/admin-command.test.ts`:
+    - Line 55: `total_students: 0,`
+  - `apps/api/src/modules/admin-command/principal-insights.providers.ts`:
+    - Line 5: `module_code: 'students',`
+    - Line 9: `permission_required: 'students:read',`
+  - `apps/api/src/modules/admin-command/principal-insights.types.ts`:
+    - Line 38: `total_students: number;`
+  - `apps/api/src/modules/admin-command/repositories/admin-command.repository.ts`:
+    - Line 60: `(SELECT COUNT(*)::int FROM students WHERE tenant_id = $1 AND status = 'active') AS total_students,`
+    - Line 65: `FROM students`
+  - `apps/api/src/modules/admin-command/repositories/admissions-command.repository.ts`:
+    - Line 157: `const admissionNumbersGenerated = await this.executeSql(tenantId, `SELECT COUNT(*) as count FROM students WHERE tenant_id = $1 AND admission_number IS NOT NULL`, [tenantId]);`
+    - Line 169: `const unplaced = await this.executeSql(tenantId, `SELECT COUNT(*) as count FROM students WHERE tenant_id = $1 AND id NOT IN (SELECT student_id FROM student_allocations WHERE tenant_id = $1 AND is_current = TRUE)`, [tenantId]);`
+  - `apps/api/src/modules/admin-command/repositories/deputy-command.repository.ts`:
+    - Line 36: `(SELECT COUNT(*)::int FROM students WHERE tenant_id = $1 AND status = 'active') AS total_students,`
+    - Line 44: `{ total_students: 0, total_staff: 0, pending_incidents: 0, active_classes: 0, present_today: 0, absent_today: 0 }`
+  - `apps/api/src/modules/admissions/admissions-schema.service.ts`:
+    - Line 5: `import { StudentsSchemaService } from '../students/students-schema.service';`
+    - Line 36: `private readonly studentsSchemaService: StudentsSchemaService,`
+  - `apps/api/src/modules/admissions/admissions.controller.ts`:
+    - Line 134: `@Permissions('admissions:write', 'students:write')`
+    - Line 143: `@Permissions('admissions:write', 'students:write')`
+  - `apps/api/src/modules/admissions/admissions.module.ts`:
+    - Line 8: `import { StudentsModule } from '../students/students.module';`
+  - `apps/api/src/modules/admissions/admissions.repository.test.ts`:
+    - Line 125: `if (sql.includes('FROM students')) {`
+  - `apps/api/src/modules/admissions/admissions.service.ts`:
+    - Line 18: `import { StudentsService } from '../students/students.service';`
+    - Line 210: `private readonly studentsService: StudentsService,`
+  - `apps/api/src/modules/admissions/admissions.test.ts`:
+    - Line 132: `permissions: ['admissions:*', 'students:*', 'documents:*'],`
+    - Line 231: `observed.students = options;`
+  - `apps/api/src/modules/admissions/consumers/export-enrolled-students.consumer.ts`:
+    - Line 6: `readonly name = 'export-enrolled-students.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'export-enrolled-students' && event.payload.action_id !== 'export-enrolled-students') {`
+  - `apps/api/src/modules/admissions/consumers/index.ts`:
+    - Line 12: `export { ExportEnrolledStudentsConsumer } from './export-enrolled-students.consumer';`
+  - `apps/api/src/modules/admissions/repositories/admissions.repository.ts`:
+    - Line 92: `approved_students: approvedStudents,`
+    - Line 569: `LEFT JOIN students student`
+  - `apps/api/src/modules/analytics/kpi-policy.test.ts`:
+    - Line 25: `enabledModules: ['finance', 'exams', 'students', 'principal_dashboard'],`
+    - Line 43: `enabledModules: ['finance', 'students', 'principal_dashboard'],`
+  - `apps/api/src/modules/billing/billing-contract.test.ts`:
+    - Line 15: `{ code: 'students', name: 'Student Management', baseAmountMinor: 50_000, perStudentAmountMinor: 100 },`
+    - Line 41: `assert.equal(invoice.line_items.find((line) => line.code === 'module:students')?.amount_minor, 110_000);`
+  - `apps/api/src/modules/billing/billing.constants.ts`:
+    - Line 53: `features: ['students', 'billing.mpesa'],`
+    - Line 55: `'students.max_active': 250,`
+  - `apps/api/src/modules/billing/billing.controller.ts`:
+    - Line 144: `@Get('fee-structures/:feeStructureId/billable-students')`
+  - `apps/api/src/modules/billing/billing.service.ts`:
+    - Line 402: ``Fee structure cannot list billable students while status is "${feeStructure.status}"`,`
+    - Line 468: `const students = this.normalizeBulkFeeStudents(dto.target_students);`
+  - `apps/api/src/modules/billing/billing.test.ts`:
+    - Line 210: `assert.ok(response.features.includes('students'));`
+    - Line 225: `features: ['students', 'billing.mpesa'],`
+  - `apps/api/src/modules/billing/dto/bulk-generate-fee-invoices.dto.ts`:
+    - Line 69: `target_students!: BulkFeeInvoiceStudentDto[];`
+  - `apps/api/src/modules/billing/repositories/fee-structures.repository.ts`:
+    - Line 279: `FROM students student`
+  - `apps/api/src/modules/boarding/boarding-schema.service.ts`:
+    - Line 8: `'boarding_students',`
+    - Line 50: `CREATE TABLE IF NOT EXISTS boarding_students (`
+  - `apps/api/src/modules/boarding/boarding.service.ts`:
+    - Line 70: `const [studentsRes, incidentsRes, leaveRes] = await Promise.all([`
+    - Line 71: `db.query(`SELECT COUNT(*)::int as count FROM boarding_students WHERE tenant_id = $1 AND status = 'active'`, [tenantId]),`
+  - `apps/api/src/modules/boarding/boarding.test.ts`:
+    - Line 17: `for (const table of ['boarding_houses', 'boarding_students', 'boarding_meals', 'boarding_dormitory_checks', 'boarding_incidents']) {`
+  - `apps/api/src/modules/class-teacher/class-teacher.service.ts`:
+    - Line 168: `JOIN students s ON s.id = sa.student_id AND s.tenant_id = sa.tenant_id`
+    - Line 263: `) as total_students,`
+  - `apps/api/src/modules/class-teacher/consumers/auto-place-students.consumer.ts`:
+    - Line 6: `readonly name = 'auto-place-students.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'auto-place-students' && event.payload.action_id !== 'auto-place-students') {`
+  - `apps/api/src/modules/class-teacher/consumers/index.ts`:
+    - Line 10: `export { AutoPlaceStudentsConsumer } from './auto-place-students.consumer';`
+  - `apps/api/src/modules/clinic/clinic-schema.service.ts`:
+    - Line 4: `import { StudentsSchemaService } from '../students/students-schema.service';`
+    - Line 48: `private readonly studentsSchemaService: StudentsSchemaService,`
+  - `apps/api/src/modules/clinic/clinic.controller.ts`:
+    - Line 73: `@Get('parent/students/:studentId/history')`
+  - `apps/api/src/modules/clinic/clinic.module.ts`:
+    - Line 4: `import { StudentsModule } from '../students/students.module';`
+  - `apps/api/src/modules/compliance/compliance-schema.service.ts`:
+    - Line 121: `module_code IN ('students', 'clinic', 'biometrics', 'discipline', 'exams_report_cards', 'payments', 'sync_offline')`
+  - `apps/api/src/modules/compliance/compliance.test.ts`:
+    - Line 30: `assert.match(schemaSql, /students/);`
+  - `apps/api/src/modules/compliance/data-protection-policy.test.ts`:
+    - Line 14: `enabledModules: ['students', 'finance', 'clinic_health', 'teacher_biometric_attendance'],`
+    - Line 44: `enabledModules: ['students', 'clinic_health'],`
+  - `apps/api/src/modules/dashboard/dashboard.service.ts`:
+    - Line 20: `{ id: 'btn_create_student', label: 'Admit Student', action: 'students.admit', requiredCapability: 'students:write' },`
+  - `apps/api/src/modules/discipline/discipline.controller.ts`:
+    - Line 226: `@Get('students/:studentId/behavior-score')`
+  - `apps/api/src/modules/discipline/discipline.test.ts`:
+    - Line 421: `test('DisciplineService blocks parent acknowledgement for unlinked students', async () => {`
+    - Line 625: `high_risk_students: 1,`
+  - `apps/api/src/modules/discipline/repositories/counselling.repository.ts`:
+    - Line 28: `high_risk_students: string;`
+    - Line 70: `) AS high_risk_students,`
+  - `apps/api/src/modules/discipline/repositories/discipline.repository.ts`:
+    - Line 1266: `) repeat_students`
+  - `apps/api/src/modules/exams/exams-schema.service.ts`:
+    - Line 258: `total_students integer NOT NULL DEFAULT 0,`
+    - Line 259: `completed_students integer NOT NULL DEFAULT 0,`
+  - `apps/api/src/modules/exams/exams.test.ts`:
+    - Line 876: `total_students: 2,`
+    - Line 877: `completed_students: 2,`
+  - `apps/api/src/modules/exams/repositories/exams.repository.ts`:
+    - Line 448: `total_students,`
+    - Line 462: `input.total_students ?? 0,`
+  - `apps/api/src/modules/exams/services/report-card-generation.service.ts`:
+    - Line 31: `total_students: number;`
+    - Line 32: `completed_students: number;`
+  - `apps/api/src/modules/finance/finance.controller.ts`:
+    - Line 316: `FROM students s`
+    - Line 382: `const studentsRes = await this.db.query(`
+  - `apps/api/src/modules/implementation300/api-category-policy.test.ts`:
+    - Line 51: `assert.equal(classifyApiRoute(policy, '/api/parent/students').status, 'pass');`
+  - `apps/api/src/modules/implementation300/api-category-policy.ts`:
+    - Line 40: `api('student', 'public', 'students', ['/api/student'], 'parent_student', true, false, 120),`
+  - `apps/api/src/modules/implementation300/blueprint-registry.ts`:
+    - Line 28: `| 'students'`
+    - Line 172: `['MODULE_REGISTRY_SEED', 'students', 'iot'],`
+  - `apps/api/src/modules/implementation300/development-phase-policy.test.ts`:
+    - Line 20: `'students',`
+    - Line 31: `completedModules: ['authentication', 'tenant_management', 'students', 'finance', 'exams', 'communication_sms', 'reports', 'inventory'],`
+  - `apps/api/src/modules/implementation300/development-phase-policy.ts`:
+    - Line 55: `'students',`
+  - `apps/api/src/modules/integrations/integration-policy.test.ts`:
+    - Line 13: `enabledModules: ['finance', 'students', 'exams', 'communication_sms', 'transport', 'lms'],`
+  - `apps/api/src/modules/integrations/integration-policy.ts`:
+    - Line 58: `nemis_hooks: 'students',`
+  - `apps/api/src/modules/mobile/mobile-app-policy.ts`:
+    - Line 88: `required_modules: ['students', 'lms'],`
+  - `apps/api/src/modules/module-access/module-access.constants.ts`:
+    - Line 17: `code: 'students',`
+    - Line 21: `route_segment: 'students',`
+  - `apps/api/src/modules/module-access/module-access.test.ts`:
+    - Line 26: `'students',`
+  - `apps/api/src/modules/operations/consumers/import-students.consumer.ts`:
+    - Line 6: `readonly name = 'import-students.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'import-students' && event.payload.action_id !== 'import-students') {`
+  - `apps/api/src/modules/operations/consumers/index.ts`:
+    - Line 317: `export { ImportStudentsConsumer } from './import-students.consumer';`
+    - Line 474: `export { PromoteStudentsConsumer } from './promote-students.consumer';`
+  - `apps/api/src/modules/operations/consumers/promote-students.consumer.ts`:
+    - Line 6: `readonly name = 'promote-students.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'promote-students' && event.payload.action_id !== 'promote-students') {`
+  - `apps/api/src/modules/operations/consumers/view-linked-students.consumer.ts`:
+    - Line 6: `readonly name = 'view-linked-students.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'view-linked-students' && event.payload.action_id !== 'view-linked-students') {`
+  - `apps/api/src/modules/payments/payments-schema.service.ts`:
+    - Line 658: `IF to_regclass('public.students') IS NOT NULL`
+    - Line 667: `REFERENCES students (tenant_id, id)`
+  - `apps/api/src/modules/payments/services/mpesa-c2b.service.ts`:
+    - Line 474: `FROM students`
+  - `apps/api/src/modules/platform/dto/create-school.dto.ts`:
+    - Line 71: `students?: number;`
+    - Line 269: `students: number;`
+  - `apps/api/src/modules/platform/platform-onboarding.service.test.ts`:
+    - Line 197: `module_codes: ['students', 'finance', 'exams', 'parent_portal'],`
+    - Line 198: `quotas: { students: 1200, staff: 160, storage_gb: 200, sms_per_term: 50000, devices: 24 },`
+  - `apps/api/src/modules/platform/platform-onboarding.service.ts`:
+    - Line 599: `usageSummary.students > 0 ||`
+    - Line 663: `{ name: 'students', category: 'child data', retention: 'export only to verified school owner or legal delegate' },`
+  - `apps/api/src/modules/security/data-classification-registry.service.ts`:
+    - Line 59: `{ column: 'students.primary_guardian_phone', classification: 'sensitive_child_data', encryption: 'column', redaction: 'mask' },`
+    - Line 60: `{ column: 'students.primary_guardian_email', classification: 'sensitive_child_data', encryption: 'column', redaction: 'mask' },`
+  - `apps/api/src/modules/security/security.test.ts`:
+    - Line 61: `const encrypted = service.encrypt('Grace Otieno', 'students:tenant-a:primary_guardian_name');`
+    - Line 65: `service.decrypt(encrypted, 'students:tenant-a:primary_guardian_name'),`
+  - `apps/api/src/modules/seeder/seeder-schema.service.ts`:
+    - Line 227: `REFERENCES students (tenant_id, id)`
+    - Line 265: `REFERENCES students (tenant_id, id)`
+  - `apps/api/src/modules/students/repositories/students.repository.ts`:
+    - Line 112: `const students = await tx.student.findMany({`
+    - Line 123: `return students.map((s) => this.mapRow(s));`
+  - `apps/api/src/modules/students/student-lifecycle.controller.ts`:
+    - Line 10: `@Controller('students/lifecycle')`
+    - Line 11: `@Permissions('students:lifecycle')`
+  - `apps/api/src/modules/students/student-lifecycle.service.ts`:
+    - Line 128: `throw new BadRequestException('Only active students can be suspended');`
+  - `apps/api/src/modules/students/students-schema.service.ts`:
+    - Line 52: `CREATE TABLE IF NOT EXISTS students (`
+    - Line 68: `CONSTRAINT ck_students_admission_number_not_blank CHECK (btrim(admission_number) <> ''),`
+  - `apps/api/src/modules/students/students.controller.ts`:
+    - Line 17: `import { ListStudentsQueryDto } from './dto/list-students-query.dto';`
+    - Line 20: `import { StudentsService } from './students.service';`
+  - `apps/api/src/modules/students/students.module.ts`:
+    - Line 1: `import { StudentsWidgetProvider } from './widgets/students-widget.provider';`
+    - Line 8: `import { StudentsController } from './students.controller';`
+  - `apps/api/src/modules/students/students.service.ts`:
+    - Line 21: `import { ListStudentsQueryDto } from './dto/list-students-query.dto';`
+    - Line 25: `import { StudentsRepository } from './repositories/students.repository';`
+  - `apps/api/src/modules/students/students.test.ts`:
+    - Line 10: `import { StudentsModule } from './students.module';`
+    - Line 11: `import { StudentsRepository } from './repositories/students.repository';`
+  - `apps/api/src/modules/students/widgets/students-widget.provider.ts`:
+    - Line 8: `widget_id = 'students_summary';`
+    - Line 9: `capabilities = ['students:read'];`
+  - `apps/api/src/modules/transport/repositories/transport.repository.ts`:
+    - Line 74: `LEFT JOIN transport_manifest_students manifest_student`
+    - Line 120: `LEFT JOIN transport_manifest_students manifest_student`
+  - `apps/api/src/modules/transport/transport-schema.service.ts`:
+    - Line 11: `'transport_manifest_students',`
+    - Line 151: `CREATE TABLE IF NOT EXISTS transport_manifest_students (`
+  - `apps/api/src/modules/transport/transport.service.ts`:
+    - Line 96: `const studentIds = this.requireUniqueIds(dto.student_ids, 'Transport manifest students');`
+  - `apps/api/src/modules/transport/transport.test.ts`:
+    - Line 27: `'transport_manifest_students',`
+  - `apps/api/src/parent-portal/parent-portal.service.ts`:
+    - Line 21: `FROM students s`
+    - Line 74: `FROM students s`
+  - `apps/api/src/scripts/audit-coverage-review.test.ts`:
+    - Line 39: `file: 'apps/api/src/modules/students/attendance.service.ts',`
+  - `apps/api/src/scripts/base-onboarding-seed.ts`:
+    - Line 32: `'students',`
+    - Line 220: `{ moduleCode: 'students', table: 'students', tenantScoped: true },`
+  - `apps/api/src/scripts/core-api-load.test.ts`:
+    - Line 76: `path: '/students/student-a/attendance',`
+  - `apps/api/src/scripts/core-api-load.ts`:
+    - Line 93: `id: 'students-directory',`
+    - Line 95: `path: '/students',`
+  - `apps/api/src/scripts/generate-pilot-school-fixture.test.ts`:
+    - Line 10: `assert.equal(plan.students, 1500);`
+  - `apps/api/src/scripts/generate-pilot-school-fixture.ts`:
+    - Line 3: `students: number;`
+    - Line 22: `students: 1500,`
+  - `apps/api/src/scripts/generate-production-scorecard.test.ts`:
+    - Line 12: `"students",`
+  - `apps/api/src/scripts/high-volume-workflow-load.ts`:
+    - Line 15: `{ id: 'student-search', method: 'GET', path: '/students?search=a', targetP95Ms: 500 },`
+    - Line 19: `{ id: 'student-fee-balances', method: 'GET', path: '/billing/students/balances', targetP95Ms: 650 },`
+  - `apps/api/src/scripts/implementation100-certification.test.ts`:
+    - Line 66: `for (const moduleCode of ['students', 'finance', 'discipline', 'admissions', 'principal_dashboard']) {`
+    - Line 83: `assert.match(markdown, /IMPLEMENTATION100-001-students/);`
+  - `apps/api/src/scripts/implementation100-certification.ts`:
+    - Line 60: `moduleEvidence('students', 'Student Management', 'apps/web/src/app/school/[role]/students/[studentId]/page.tsx', ['studentId'], 'apps/web/src/app/api/school/[...path]/route.ts', ['proxySchoolApiRequest', '/school'], 'apps/api/src/modules/students/students.controller.ts', ['StudentsController'], 'apps/api/src/modules/students/students-schema.service.ts', ['students'], 'apps/api/src/modules/students/students.test.ts', ['students']),`
+  - `apps/api/src/scripts/implementation21-certification.test.ts`:
+    - Line 32: `'apps/web/src/components/portal/portal-pages.tsx': 'PortalHealthPage /api/clinic/parent/students/${encodeURIComponent',`
+  - `apps/api/src/scripts/implementation21-certification.ts`:
+    - Line 86: `check('portal-health-ui', 'Portal UI fetches child medical history from the clinic parent endpoint', 'apps/web/src/components/portal/portal-pages.tsx', /PortalHealthPage[\s\S]+\/api\/clinic\/parent\/students\/\$\{encodeURIComponent/),`
+  - `apps/api/src/scripts/implementation30-certification.test.ts`:
+    - Line 42: `'apps/api/src/modules/exams/repositories/exams.repository.ts': 'upsertMark ON CONFLICT (tenant_id, assessment_id, student_id) exam_marks.exam_series_id = EXCLUDED.exam_series_id exam_marks.academic_term_id = EXCLUDED.academic_term_id exam_marks.class_section_id = EXCLUDED.class_section_id exam_marks.subject_id = EXCLUDED.subject_id findGradeBoundaryForScore exam_grade_boundaries configured_count match_count BETWEEN min_score AND max_score createReportCardSnapshot WHERE student_report_cards.status <> \'published\' loadReportCardData exam_marks exam_grade_boundaries students findReportCardForGuardian student_guardians guardian.user_id = $3::uuid guardian.status = \'active\' createMarkVersion INSERT INTO exam_mark_versions findPublishedReportCardsForMark markReportCardsRegenerationRequired regeneration_required recordReportCardArtifact INSERT INTO report_card_artifacts createReportCardGenerationBatch updateReportCardGenerationBatch getReportCardGenerationBatch findReportCardArtifactByVerificationCode',`
+    - Line 61: `'apps/api/src/modules/security/data-classification-registry.service.ts': 'DataClassificationRegistryService sensitive_child_data sensitive_health_data sensitive_biometric_data payment_data students.primary_guardian_phone biometric_attendance medical_processing exams_report_cards mpesa_payload_vault raw_payload_days',`
+  - `apps/api/src/scripts/implementation30-certification.ts`:
+    - Line 154: `check('implementation30-load-profile-budgets', 'Implementation 30 load profile models 1000+ schools, report-card generation, and M-Pesa reconciliation budgets', 'apps/api/src/scripts/implementation30-load-profile.ts', /(?=.*IMPLEMENTATION30_LOAD_PROFILE)(?=.*school_count:\s+1000)(?=.*students_per_school:\s+500)(?=.*validateParallelTenantPerformanceBudgets)(?=.*parallel-tenant-performance-budgets)(?=.*IMPLEMENTATION30_PARALLEL_TENANT_PERFORMANCE_TESTS)(?=.*report-card-generation)(?=.*mpesa-reconciliation-parallel-tenants)(?=.*runImplementation30LoadProfile)/s),`
+    - Line 186: `check('report-card-data-query', 'Report cards are built from student, exam, subject, mark, and grade data', 'apps/api/src/modules/exams/repositories/exams.repository.ts', /(?=.*loadReportCardData)(?=.*exam_marks)(?=.*exam_grade_boundaries)(?=.*students)/s),`
+  - `apps/api/src/scripts/implementation30-load-profile.test.ts`:
+    - Line 11: `assert.equal(IMPLEMENTATION30_LOAD_PROFILE.students_per_school, 500);`
+    - Line 38: `'apps/api/src/modules/students/repositories/students.repository.ts': 'decodeCreatedAtIdCursor cursor (created_at, id) < ORDER BY created_at DESC, id DESC',`
+  - `apps/api/src/scripts/implementation30-load-profile.ts`:
+    - Line 20: `students_per_school: number;`
+    - Line 79: `students_per_school: 500,`
+  - `apps/api/src/scripts/implementation30-rollout-gate.test.ts`:
+    - Line 111: `studentsPerSchool: 500,`
+    - Line 120: `studentsPerSchool: 500,`
+  - `apps/api/src/scripts/implementation30-rollout-gate.ts`:
+    - Line 21: `studentsPerSchool?: number;`
+    - Line 100: `label: 'Load profile covers 1000 schools and 500 students per school',`
+  - `apps/api/src/scripts/implementation90-load-profile.ts`:
+    - Line 64: `{ id: 'student-search', method: 'GET', path: '/students?search=a', mix: 0.12, target_p95_ms: 500 },`
+    - Line 65: `{ id: 'fee-balances', method: 'GET', path: '/billing/students/balances', mix: 0.1, target_p95_ms: 650 },`
+  - `apps/api/src/scripts/kisumu-boys-demo-seed.ts`:
+    - Line 31: `'students',`
+    - Line 219: `{ moduleCode: 'students', table: 'students', tenantScoped: true },`
+  - `apps/api/src/scripts/module-access-certification.test.ts`:
+    - Line 10: `'apps/api/src/modules/students/students.controller.ts': '@Controller(\'students\') @RequiresModule(\'students\')',`
+    - Line 39: `'apps/api/src/modules/module-access/module-access.constants.ts': 'MODULE_REGISTRY_SEED students admissions academics finance exams discipline timetable lab_management teacher_biometric_attendance parent_portal inventory library transport communication_sms reports staff admin_command_centers principal_dashboard clinic_health procurement hostel boarding cbt_exams lms ai_insights visitor_management asset_tracking iot permission_scopes',`
+  - `apps/api/src/scripts/module-access-certification.ts`:
+    - Line 48: `backendRoute('students', 'Student routes require the students module', 'apps/api/src/modules/students/students.controller.ts', 'students'),`
+    - Line 81: `frontendRoute('students', 'students'),`
+  - `apps/api/src/scripts/query-plan-review-local-fixture.ts`:
+    - Line 13: `name: 'students',`
+    - Line 15: `CREATE TABLE IF NOT EXISTS students (`
+  - `apps/api/src/scripts/query-plan-review.test.ts`:
+    - Line 20: `assert.ok(reviewIds.includes('students-directory-search'));`
+    - Line 75: `id: 'students-directory-search',`
+  - `apps/api/src/scripts/query-plan-review.ts`:
+    - Line 43: `id: 'students-directory-search',`
+    - Line 47: `FROM students`
+  - `apps/api/src/scripts/release-readiness-gate.test.ts`:
+    - Line 12: `"students",`
+    - Line 268: `| students-directory-search | Student directory search should use the student full-text index. | Limit, Index Scan | clear |`
+  - `apps/api/src/scripts/release-readiness-gate.ts`:
+    - Line 74: `'students',`
+    - Line 97: `'students-directory',`
+  - `apps/api/src/scripts/synthetic-journey-monitor.test.ts`:
+    - Line 79: `id: 'students',`
+    - Line 82: `path: '/students',`
+  - `apps/api/src/scripts/synthetic-journey-monitor.ts`:
+    - Line 154: `id: 'students-directory',`
+    - Line 157: `path: '/students',`
+- **`subjects-departments-workspace.tsx` (`subjects-departments`)**: No backend references found in `apps/api/src`.
+
+---
+
+### Role: `procurement-officer`
+
+| File Name | Module ID | Definition Status | Backend Status | Refs |
+| :--- | :--- | :--- | :--- | :--- |
+| `deliveries-workspace.tsx` | `deliveries` | ❌ Missing | ✅ Referenced (3 refs) | `support.repository.test.ts`, `support.test.ts`, `release-readiness-gate.test.ts` |
+| `overview-workspace.tsx` | `overview` | ✅ Found (Overview) | ✅ Referenced (106 refs) | `billing-feature.middleware.test.ts`, `admin-command.controller.ts`, `admissions-command.controller.ts`... |
+| `purchase-orders-workspace.tsx` | `purchase-orders` | ✅ Found (Purchase Orders) | ✅ Referenced (6 refs) | `inventory.controller.ts`, `inventory.test.ts`, `procurement.controller.ts` |
+| `purchase-requests-workspace.tsx` | `purchase-requests` | ✅ Found (Purchase Requests) | ✅ Referenced (1 refs) | `school-sms.controller.ts` |
+| `quotations-workspace.tsx` | `quotations` | ❌ Missing | ❌ Missing | None |
+| `reports-workspace.tsx` | `reports` | ✅ Found (Reports) | ✅ Referenced (371 refs) | `auth-email.service.test.ts`, `auth.constants.ts`, `monitoring-service-account.service.ts`... |
+| `suppliers-workspace.tsx` | `suppliers` | ✅ Found (Suppliers) | ✅ Referenced (66 refs) | `blueprint-registry.ts`, `inventory-schema.service.ts`, `inventory.controller.ts`... |
+
+#### Backend Reference Details for `procurement-officer`:
+- **`deliveries-workspace.tsx` (`deliveries`)**:
+  - `apps/api/src/modules/support/repositories/support.repository.test.ts`:
+    - Line 167: `test('SupportRepository lists failed notification deliveries for dead-letter review', async () => {`
+  - `apps/api/src/modules/support/support.test.ts`:
+    - Line 859: `test('SupportService exposes failed support notification deliveries only to support operators', async () => {`
+  - `apps/api/src/scripts/release-readiness-gate.test.ts`:
+    - Line 165: `- Review support notification dead-letter deliveries.`
+- **`overview-workspace.tsx` (`overview`)**:
+  - `apps/api/src/middleware/billing-feature.middleware.test.ts`:
+    - Line 75: `await requestContext.run(createContext('/admin-command/principal/overview'), async () => {`
+    - Line 78: `path: '/admin-command/principal/overview',`
+  - `apps/api/src/modules/admin-command/admin-command.controller.ts`:
+    - Line 33: `@Get('principal/finance-overview')`
+    - Line 103: `@Get('principal/overview')`
+  - `apps/api/src/modules/admin-command/admissions-command.controller.ts`:
+    - Line 9: `@Get('overview')`
+    - Line 84: `overview,`
+  - `apps/api/src/modules/admin-command/deputy-command.controller.ts`:
+    - Line 9: `@Get('overview')`
+  - `apps/api/src/modules/admin-command/principal-insights.providers.ts`:
+    - Line 6: `id: 'school_overview',`
+    - Line 8: `category: 'overview',`
+  - `apps/api/src/modules/admin-command/principal-insights.service.ts`:
+    - Line 164: `const overview = await this.repository.getPrincipalOverviewSnapshot(tenantId);`
+    - Line 190: `overview,`
+  - `apps/api/src/modules/admin-command/principal-insights.types.ts`:
+    - Line 54: `overview: PrincipalOverviewPanel;`
+  - `apps/api/src/modules/admin-command/repositories/admin-command.repository.ts`:
+    - Line 1221: `defaultView: "overview"`
+  - `apps/api/src/modules/billing/billing-access.service.ts`:
+    - Line 59: `const { subscription, overview } =`
+    - Line 61: `const access = this.buildAccessState(subscription, overview);`
+  - `apps/api/src/modules/billing/billing-lifecycle.service.ts`:
+    - Line 60: `overview: SubscriptionLifecycleOverview | null;`
+    - Line 69: `overview: null,`
+  - `apps/api/src/modules/billing/billing-notification.service.ts`:
+    - Line 18: `overview: SubscriptionLifecycleOverview,`
+    - Line 20: `const descriptors = this.buildDescriptors(subscription, overview);`
+  - `apps/api/src/modules/billing/billing.service.ts`:
+    - Line 281: `if (!lifecycle.subscription || !lifecycle.overview) {`
+    - Line 285: `return this.mapSubscription(lifecycle.subscription, lifecycle.overview);`
+  - `apps/api/src/modules/billing/billing.test.ts`:
+    - Line 129: `overview: null,`
+    - Line 877: `ensureCurrentLifecycle: async () => ({ subscription: null, overview: null }),`
+  - `apps/api/src/modules/class-teacher/class-teacher.controller.ts`:
+    - Line 20: `@Get('overview')`
+    - Line 30: `@Get('dashboard-overview')`
+  - `apps/api/src/modules/dashboard/dashboard.controller.ts`:
+    - Line 34: `@Get('parent/overview')`
+    - Line 58: `@Get('student/overview')`
+  - `apps/api/src/modules/discipline/discipline.controller.ts`:
+    - Line 244: `@Get('analytics/overview')`
+  - `apps/api/src/modules/finance/finance.controller.ts`:
+    - Line 306: `@Get('accounts-overview')`
+  - `apps/api/src/modules/grade-master/grade-master.controller.ts`:
+    - Line 9: `@Get('overview')`
+  - `apps/api/src/modules/operations/consumers/export-overview.consumer.ts`:
+    - Line 6: `readonly name = 'export-overview.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'export-overview' && event.payload.action_id !== 'export-overview') {`
+  - `apps/api/src/modules/operations/consumers/index.ts`:
+    - Line 262: `export { ExportOverviewConsumer } from './export-overview.consumer';`
+  - `apps/api/src/modules/platform/platform-onboarding.service.test.ts`:
+    - Line 665: `test('PlatformOnboardingService summarizes tenants in product for the Super Admin overview', async () => {`
+  - `apps/api/src/scripts/core-api-load.ts`:
+    - Line 203: `path: '/discipline/analytics/overview',`
+  - `apps/api/src/scripts/high-volume-workflow-load.ts`:
+    - Line 29: `{ id: 'discipline-analytics', method: 'GET', path: '/discipline/analytics/overview', targetP95Ms: 800 },`
+- **`purchase-orders-workspace.tsx` (`purchase-orders`)**:
+  - `apps/api/src/modules/inventory/inventory.controller.ts`:
+    - Line 162: `@Get('purchase-orders')`
+    - Line 169: `@Post('purchase-orders')`
+  - `apps/api/src/modules/inventory/inventory.test.ts`:
+    - Line 177: `path: '/inventory/purchase-orders/00000000-0000-0000-0000-000000000501/status',`
+  - `apps/api/src/modules/procurement/procurement.controller.ts`:
+    - Line 46: `@Post('purchase-orders')`
+    - Line 52: `@Post('purchase-orders/:purchaseOrderId/invoices')`
+- **`purchase-requests-workspace.tsx` (`purchase-requests`)**:
+  - `apps/api/src/modules/integrations/school-sms.controller.ts`:
+    - Line 35: `@Post('school/sms/purchase-requests')`
+- **`quotations-workspace.tsx` (`quotations`)**: No backend references found in `apps/api/src`.
+- **`reports-workspace.tsx` (`reports`)**:
+  - `apps/api/src/auth/auth-email.service.test.ts`:
+    - Line 6: `test('AuthEmailService reports transactional email as missing without secrets', () => {`
+    - Line 20: `test('AuthEmailService reports transactional email as configured without exposing secrets', () => {`
+  - `apps/api/src/auth/auth.constants.ts`:
+    - Line 59: `{ resource: 'reports', action: 'read', description: 'View generated report export jobs and snapshots' },`
+    - Line 108: `{ resource: 'discipline', action: 'reports', description: 'Export discipline reports and analytics' },`
+  - `apps/api/src/auth/monitoring-service-account.service.ts`:
+    - Line 16: `'reports:read',`
+  - `apps/api/src/auth/role-governance-policy.ts`:
+    - Line 125: `platform_support: ['support:view', 'support:manage', 'reports:read'],`
+    - Line 126: `finance_admin: ['billing:read', 'billing:write', 'reports:read'],`
+  - `apps/api/src/common/auto-repair/auto-repair-agent.test.ts`:
+    - Line 474: `operationalIntent: 'Bursar can act on finance exceptions, not browse static trend reports',`
+    - Line 706: `test('AutoRepairAgent reports dashboard repair patch intelligence for KPI-only dashboards', () => {`
+  - `apps/api/src/common/auto-repair/auto-repair-deployment.test.ts`:
+    - Line 43: `test('AutoRepairService reports deployed runtime readiness and keeps the full widget state contract', () => {`
+  - `apps/api/src/common/common.module.ts`:
+    - Line 12: `import { ReportExportQueueService } from './reports/report-export-queue';`
+    - Line 13: `import { ReportExportJobsController } from './reports/report-export-jobs.controller';`
+  - `apps/api/src/common/reports/report-artifact-storage.service.test.ts`:
+    - Line 18: `retention_policy: 'reports',`
+    - Line 48: `assert.equal(savedInputs[0].storagePath, `tenant/tenant-a/reports/billing/invoices/${'b'.repeat(64)}.pdf`);`
+  - `apps/api/src/common/reports/report-artifact-storage.service.ts`:
+    - Line 40: `retentionPolicy: 'reports',`
+    - Line 73: `return `tenant/${input.tenantId}/reports/${module}/${reportId}/${input.artifact.checksumSha256}.${extension}`;`
+  - `apps/api/src/common/reports/report-export-jobs.controller.ts`:
+    - Line 7: `@Controller('reports')`
+    - Line 8: `@RequiresModule('reports')`
+  - `apps/api/src/common/reports/report-export-queue.ts`:
+    - Line 52: `reports: 'reports',`
+  - `apps/api/src/common/reports/report-export.worker.test.ts`:
+    - Line 25: `storage_path: 'tenant/tenant-a/reports/exams/exam-results/artifact.pdf',`
+    - Line 80: `storage_path: 'tenant/tenant-a/reports/exams/exam-results/artifact.pdf',`
+  - `apps/api/src/common/reports/report-snapshot.repository.test.ts`:
+    - Line 95: `assert.deepEqual(Reflect.getMetadata(PERMISSIONS_KEY, handler), ['reports:read']);`
+  - `apps/api/src/common/uploads/database-file-storage.service.test.ts`:
+    - Line 685: `test('S3CompatibleObjectStorageService reports failed object deletes as unavailable', async () => {`
+  - `apps/api/src/common/uploads/upload-policy.test.ts`:
+    - Line 252: `test('runProviderMalwareScan returns unsafe verdicts when the provider reports infection', async () => {`
+  - `apps/api/src/database/batch4_schemas.sql`:
+    - Line 71: `CREATE TABLE IF NOT EXISTS operations_reports (`
+    - Line 80: `CONSTRAINT ck_operations_reports_tenant CHECK (tenant_id <> 'global')`
+  - `apps/api/src/database/schema.sql`:
+    - Line 2755: `CREATE TABLE IF NOT EXISTS operations_reports (`
+    - Line 2764: `CONSTRAINT ck_operations_reports_tenant CHECK (tenant_id <> 'global')`
+  - `apps/api/src/database/tenant-database-policy.ts`:
+    - Line 93: `reports: ['report_export_jobs', 'report_snapshots'],`
+  - `apps/api/src/modules/admin-command/admin-command.controller.ts`:
+    - Line 124: `@Get('principal/reports')`
+    - Line 126: `@Permissions('principal:read', 'reports:read')`
+  - `apps/api/src/modules/admin-command/admissions-command.controller.ts`:
+    - Line 69: `@Get('reports')`
+    - Line 99: `reports,`
+  - `apps/api/src/modules/admin-command/deputy-command.controller.ts`:
+    - Line 133: `@Get('reports')`
+    - Line 137: `@Post('reports/generate')`
+  - `apps/api/src/modules/admin-command/principal-insights.providers.ts`:
+    - Line 16: `reports: ['school-overview', 'population-trend'],`
+    - Line 31: `reports: ['academic-summary', 'cbc-cbe-competency-progress'],`
+  - `apps/api/src/modules/admin-command/principal-insights.service.ts`:
+    - Line 184: `const reportExports = Array.from(new Set(sections.flatMap((section) => section.reports)));`
+    - Line 273: `reports: [...provider.reports],`
+  - `apps/api/src/modules/admin-command/principal-insights.types.ts`:
+    - Line 34: `reports: string[];`
+    - Line 81: `reports: string[];`
+  - `apps/api/src/modules/admin-command/repositories/admin-command.repository.ts`:
+    - Line 846: `reportsPending: summaryResult.rows[0]?.pending_reviews || 0,`
+    - Line 1479: ``INSERT INTO operations_reports (content, prepared_by, tenant_id, title, updated_at) VALUES ($1, $2, $3, $4, NOW())`,`
+  - `apps/api/src/modules/admin-command/repositories/deputy-command.repository.ts`:
+    - Line 449: `0::int AS generated_reports`
+    - Line 452: `{ generated_reports: 0 }`
+  - `apps/api/src/modules/admissions/admissions.controller.ts`:
+    - Line 33: `} from '../../common/reports/report-export-queue';`
+    - Line 217: `@Post('reports/:reportId/export-jobs')`
+  - `apps/api/src/modules/admissions/admissions.service.ts`:
+    - Line 22: `} from '../../common/reports/report-csv-artifact';`
+  - `apps/api/src/modules/admissions/admissions.test.ts`:
+    - Line 197: `path: '/admissions/reports/applications/export',`
+    - Line 350: `path: '/admissions/reports/unknown/export',`
+  - `apps/api/src/modules/billing/billing.controller.ts`:
+    - Line 15: `} from '../../common/reports/report-export-queue';`
+    - Line 214: `@Post('reports/:reportId/export-jobs')`
+  - `apps/api/src/modules/billing/billing.service.ts`:
+    - Line 14: `} from '../../common/reports/report-csv-artifact';`
+  - `apps/api/src/modules/billing/billing.test.ts`:
+    - Line 2245: `path: '/billing/reports/invoices/export',`
+    - Line 2297: `path: '/billing/reports/unknown/export',`
+  - `apps/api/src/modules/biometric-attendance/biometric-attendance.controller.ts`:
+    - Line 52: `@Get('reports/monthly')`
+  - `apps/api/src/modules/class-teacher/class-teacher.controller.ts`:
+    - Line 358: `@Get('reports')`
+  - `apps/api/src/modules/clinic/clinic.controller.ts`:
+    - Line 62: `@Permissions('clinic:reports')`
+  - `apps/api/src/modules/clinic/clinic.service.ts`:
+    - Line 171: `this.assertPermission('clinic:reports');`
+  - `apps/api/src/modules/clinic/clinic.test.ts`:
+    - Line 58: `assert.deepEqual(Reflect.getMetadata(PERMISSIONS_KEY, analyticsHandler), ['clinic:reports']);`
+  - `apps/api/src/modules/compliance/compliance-schema.service.ts`:
+    - Line 127: `CREATE TABLE IF NOT EXISTS breach_response_reports (`
+    - Line 141: `CONSTRAINT ck_breach_response_reports_severity CHECK (severity IN ('low', 'medium', 'high', 'critical')),`
+  - `apps/api/src/modules/compliance/compliance.controller.ts`:
+    - Line 81: `@Get('breach-response-reports/:reportId/export')`
+  - `apps/api/src/modules/compliance/compliance.service.ts`:
+    - Line 351: `FROM breach_response_reports`
+  - `apps/api/src/modules/compliance/compliance.test.ts`:
+    - Line 33: `assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS breach_response_reports/);`
+    - Line 36: `assert.match(schemaSql, /ALTER TABLE breach_response_reports FORCE ROW LEVEL SECURITY/);`
+  - `apps/api/src/modules/counselling/counselling.controller.ts`:
+    - Line 87: `@Get('reports')`
+  - `apps/api/src/modules/discipline/discipline.controller.ts`:
+    - Line 245: `@Permissions('discipline:reports')`
+    - Line 250: `@Post('reports/export')`
+  - `apps/api/src/modules/discipline/discipline.service.ts`:
+    - Line 636: `this.assertPermission('discipline:reports');`
+    - Line 648: `this.assertPermission('discipline:reports');`
+  - `apps/api/src/modules/discipline/discipline.test.ts`:
+    - Line 65: `'discipline:reports',`
+    - Line 597: `permissions: ['discipline:reports'],`
+  - `apps/api/src/modules/exams/consumers/download-reports.consumer.ts`:
+    - Line 6: `readonly name = 'download-reports.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'download-reports' && event.payload.action_id !== 'download-reports') {`
+  - `apps/api/src/modules/exams/consumers/index.ts`:
+    - Line 10: `export { DownloadReportsConsumer } from './download-reports.consumer';`
+  - `apps/api/src/modules/exams/exams.test.ts`:
+    - Line 648: `test('ExamsService reports duplicate and unauthorized rows during bulk mark upload preview', async () => {`
+  - `apps/api/src/modules/exams/repositories/exams.repository.ts`:
+    - Line 1481: `(SELECT COUNT(*) FROM student_report_cards WHERE tenant_id = $1 AND status = 'published') AS published_reports,`
+  - `apps/api/src/modules/exams/services/report-card-pdf-artifact.ts`:
+    - Line 3: `import { normalizeReportFilename, normalizeReportGeneratedAt, type ReportArtifact } from '../../../common/reports/report-artifact';`
+  - `apps/api/src/modules/exams/services/report-card-template.service.ts`:
+    - Line 3: `import type { ReportArtifactInput, ReportArtifactValue } from '../../../common/reports/report-artifact';`
+  - `apps/api/src/modules/grade-master/grade-master.controller.ts`:
+    - Line 81: `@Get('reports')`
+  - `apps/api/src/modules/grade-master/grade-master.service.ts`:
+    - Line 16: `reportsNotReady: 12,`
+  - `apps/api/src/modules/health/health.controller.test.ts`:
+    - Line 297: `test('HealthController readiness reports optional Redis degradation without throwing', async () => {`
+  - `apps/api/src/modules/implementation300/api-category-policy.ts`:
+    - Line 45: `api('analytics_engine', 'internal', 'reports', ['/api/internal/analytics'], 'internal_service', true, true, 600),`
+  - `apps/api/src/modules/implementation300/blueprint-registry.ts`:
+    - Line 42: `| 'reports'`
+    - Line 437: `moduleDefinition('exams', 'Exams and Results', ['setup', 'grading', 'cbc-assessment', 'moderation', 'reports', 'analytics'], [`
+  - `apps/api/src/modules/implementation300/development-phase-policy.test.ts`:
+    - Line 24: `'reports',`
+    - Line 31: `completedModules: ['authentication', 'tenant_management', 'students', 'finance', 'exams', 'communication_sms', 'reports', 'inventory'],`
+  - `apps/api/src/modules/implementation300/development-phase-policy.ts`:
+    - Line 59: `'reports',`
+    - Line 61: `capabilities: ['tenant_onboarding', 'billing', 'exam_results', 'communication', 'reports'],`
+  - `apps/api/src/modules/integrations/integrations.test.ts`:
+    - Line 202: `test('SmsDispatchService reports missing credential fields without exposing secrets', async () => {`
+  - `apps/api/src/modules/inventory/inventory.controller.ts`:
+    - Line 7: `} from '../../common/reports/report-export-queue';`
+    - Line 246: `@Get('reports')`
+  - `apps/api/src/modules/inventory/inventory.service.ts`:
+    - Line 13: `} from '../../common/reports/report-csv-artifact';`
+    - Line 93: `rows: (reports: InventoryReportsPayload) => ReportCsvValue[][];`
+  - `apps/api/src/modules/inventory/inventory.test.ts`:
+    - Line 2222: `path: '/inventory/reports/stock-valuation/export',`
+    - Line 2250: `throw new Error('reports should not be loaded for an unknown export');`
+  - `apps/api/src/modules/inventory/repositories/inventory.repository.test.ts`:
+    - Line 971: `const reports = await repository.buildReports('tenant-a');`
+    - Line 978: `assert.deepEqual(reports.stock_reconciliation, [`
+  - `apps/api/src/modules/library/library.controller.ts`:
+    - Line 89: `@Get('reports')`
+  - `apps/api/src/modules/mobile/mobile-app-policy.test.ts`:
+    - Line 44: `enabledModules: ['principal_dashboard', 'finance', 'reports'],`
+    - Line 79: `capabilities: ['fees', 'communication', 'reports', 'results'],`
+  - `apps/api/src/modules/mobile/mobile-app-policy.ts`:
+    - Line 9: `| 'reports'`
+    - Line 19: `export type MobileOfflineCapability = 'attendance' | 'mark_entry' | 'assignments' | 'fees' | 'communication' | 'reports' | 'results';`
+  - `apps/api/src/modules/module-access/module-access.constants.ts`:
+    - Line 55: `description: 'Assessments, marks, reports, academic analytics, CBT hooks, and result publishing.',`
+    - Line 67: `permission_scopes: ['discipline:read', 'discipline:write', 'discipline:manage', 'discipline:reports'],`
+  - `apps/api/src/modules/module-access/module-access.test.ts`:
+    - Line 13: `import { ReportExportJobsController } from '../../common/reports/report-export-jobs.controller';`
+    - Line 38: `'reports',`
+  - `apps/api/src/modules/operations/consumers/index.ts`:
+    - Line 505: `export { ReportsConsumer } from './reports.consumer';`
+    - Line 516: `export { RequestReportsConsumer } from './request-reports.consumer';`
+  - `apps/api/src/modules/operations/consumers/reports.consumer.ts`:
+    - Line 6: `readonly name = 'reports.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'reports' && event.payload.action_id !== 'reports') {`
+  - `apps/api/src/modules/operations/consumers/request-reports.consumer.ts`:
+    - Line 6: `readonly name = 'request-reports.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'request-reports' && event.payload.action_id !== 'request-reports') {`
+  - `apps/api/src/modules/operations/consumers/view-reports.consumer.ts`:
+    - Line 6: `readonly name = 'view-reports.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'view-reports' && event.payload.action_id !== 'view-reports') {`
+  - `apps/api/src/modules/operations/operations.service.ts`:
+    - Line 69: ``INSERT INTO operations_reports (tenant_id, title, content, prepared_by)`
+  - `apps/api/src/modules/payments/payments.test.ts`:
+    - Line 3482: `test('MpesaReconciliationService reports missing callbacks, duplicates, amount mismatches, wrong references, and late provider status', async () => {`
+    - Line 4016: `result.reports.map((report) => report.payment_channel_id),`
+  - `apps/api/src/modules/payments/payments.types.ts`:
+    - Line 297: `reports: MpesaReconciliationReport[];`
+    - Line 305: `reports: MpesaReconciliationReport[];`
+  - `apps/api/src/modules/payments/services/mpesa-reconciliation.service.ts`:
+    - Line 446: `const reports: MpesaReconciliationReport[] = [];`
+    - Line 449: `reports.push(`
+  - `apps/api/src/modules/platform/platform-onboarding.service.test.ts`:
+    - Line 470: `test('PlatformOnboardingService reports Resend testing mode as blocked instead of encouraging repeated resends', async () => {`
+  - `apps/api/src/modules/support/support-notification-delivery.service.test.ts`:
+    - Line 12: `test('SupportNotificationDeliveryService reports provider readiness without exposing secrets', async () => {`
+    - Line 97: `test('SupportNotificationDeliveryService reports precise missing provider status for dashboard-managed SMS', async () => {`
+  - `apps/api/src/scripts/audit-coverage-review.test.ts`:
+    - Line 49: `test('runAuditCoverageReview reports missing evidence by file and pattern', () => {`
+  - `apps/api/src/scripts/base-onboarding-seed.ts`:
+    - Line 30: `'reports',`
+    - Line 362: `{ moduleCode: 'reports', table: 'report_snapshots', tenantScoped: true },`
+  - `apps/api/src/scripts/core-api-load.test.ts`:
+    - Line 33: `assert.equal(inventoryExport.url, 'http://127.0.0.1:3000/inventory/reports/stock-valuation/export');`
+  - `apps/api/src/scripts/core-api-load.ts`:
+    - Line 131: `path: '/admissions/reports/applications/export',`
+    - Line 147: `id: 'inventory-reports',`
+  - `apps/api/src/scripts/enable-admin-modules.ts`:
+    - Line 47: `'Module-aware executive KPIs, alerts, analytics, trends, and reports for the Principal.',`
+  - `apps/api/src/scripts/generate-production-scorecard.test.ts`:
+    - Line 22: `"reports",`
+  - `apps/api/src/scripts/generate-production-scorecard.ts`:
+    - Line 150: `remediation: 'Add the tenant isolation audit runner and require it in CI for finance, support, library, discipline, reports, and files.',`
+    - Line 183: `evidenceLine(/missing_provider/.test(supportNotificationSource), 'support notification health reports precise missing provider state'),`
+  - `apps/api/src/scripts/high-volume-workflow-load.test.ts`:
+    - Line 18: `'billing-invoice-reports',`
+  - `apps/api/src/scripts/high-volume-workflow-load.ts`:
+    - Line 18: `{ id: 'billing-invoice-reports', method: 'GET', path: '/billing/reports/invoices/export', targetP95Ms: 900 },`
+    - Line 31: `{ id: 'report-export-jobs', method: 'GET', path: '/reports/export-jobs', targetP95Ms: 800 },`
+  - `apps/api/src/scripts/implementation100-certification.ts`:
+    - Line 74: `moduleEvidence('reports', 'Reports', 'apps/web/src/components/school/school-pages.tsx', ['Reports'], 'apps/web/src/app/api/reports/[...path]/route.ts', ['proxySchoolApiRequest', '/reports'], 'apps/api/src/common/reports/report-export-jobs.controller.ts', ['ReportExportJobsController'], 'apps/api/src/common/reports/report-snapshot-schema.service.ts', ['report_snapshots'], 'apps/api/src/common/reports/report-export-queue.test.ts', ['report']),`
+  - `apps/api/src/scripts/implementation20-certification.test.ts`:
+    - Line 30: `'apps/api/src/modules/biometric-attendance/biometric-attendance.controller.ts': 'live-feed reports/monthly',`
+    - Line 37: `'apps/web/src/app/api/reports/[...path]/route.ts': 'proxySchoolApiRequest "/reports"',`
+  - `apps/api/src/scripts/implementation20-certification.ts`:
+    - Line 72: `check('biometric-live-reports', 'Biometric API exposes live feed and monthly reports', 'apps/api/src/modules/biometric-attendance/biometric-attendance.controller.ts', /live-feed[\s\S]+reports\/monthly/),`
+    - Line 84: `check('reports-web-proxy', 'Web app proxies reports requests to the API', 'apps/web/src/app/api/reports/[...path]/route.ts', /proxySchoolApiRequest[\s\S]+"\/reports"/),`
+  - `apps/api/src/scripts/implementation21-certification.test.ts`:
+    - Line 10: `'apps/api/src/modules/admin-command/principal-insights.providers.ts': 'finance summary_only lab_management communication_sms clinic_health permission_required: \'clinic:reports\' summary_only medicine_consumption_cost_minor wastage_due_to_expiry_minor emergency_supply_ready_rate most_used_medicine ai_insights fee_default_risk_alerts medicine_shortage_predictions attendance_irregularities budget_overrun_alerts performance_decline_warnings',`
+    - Line 29: `'apps/api/src/modules/clinic/clinic.controller.ts': 'clinic:inventory clinic:dispense clinic:reports portal:read_own_children',`
+  - `apps/api/src/scripts/implementation21-certification.ts`:
+    - Line 76: `check('clinic-api-permissions', 'Clinic controller separates inventory, dispensing, reports, and parent history permissions', 'apps/api/src/modules/clinic/clinic.controller.ts', /clinic:inventory[\s\S]+clinic:dispense[\s\S]+clinic:reports[\s\S]+portal:read_own_children/),`
+    - Line 92: `check('principal-no-confidential-notes', 'Principal insights use clinic reports, not confidential permissions', 'apps/api/src/modules/admin-command/principal-insights.providers.ts', /permission_required:\s+'clinic:reports'[\s\S]+summary_only/),`
+  - `apps/api/src/scripts/implementation30-certification.test.ts`:
+    - Line 59: `'apps/api/src/modules/payments/payments.test.ts': 'provider_verification_required exports only redacted payloads redacts C2B API payment responses for legacy raw rows assert.notEqual creates callback channels with hashed secrets builds high-entropy STK and C2B callback URLs high-entropy channel-secret routes creates M-PESA verification jobs verificationJobInput duplicate M-PESA identifiers MpesaTransactionStatusService verifies STK callback status classifies verified C2B payments without ledger enqueue accepts unsigned direct Daraja callbacks rejects unsigned callbacks in edge-signed mode accepts unsigned validation callbacks in direct Daraja mode PaymentsSchemaService creates reconciliation batches MpesaReconciliationService reports missing callbacks, duplicates, amount mismatches, wrong references, and late provider status runs daily reconciliation for every active tenant payment channel generates on-demand date-range reports lists accountant review items without raw M-PESA payload leakage requires two distinct approvers before resolving reversal requests exposes accountant review and finance approval endpoints',`
+    - Line 65: `'apps/api/src/modules/compliance/compliance-schema.service.ts': 'data_subject_requests access_request correction_request deletion_anonymization_request export_request objection_request data_retention_schedules child_data_dpia_records students payments sync_offline breach_response_reports FORCE ROW LEVEL SECURITY',`
+  - `apps/api/src/scripts/implementation30-certification.ts`:
+    - Line 95: `check('mpesa-reconciliation-processor', 'M-Pesa reconciliation service runs daily and date-range reports, persists batches, and classifies mismatch states', 'apps/api/src/modules/payments/services/mpesa-reconciliation.service.ts', /(?=.*generateDailyReport)(?=.*generateDateRangeReport)(?=.*runDailyProcessor)(?=.*reconciliation_state)(?=.*provider_received)(?=.*amount_mismatch)(?=.*duplicate_provider_receipt)(?=.*missing_provider_record)(?=.*verified_unmatched)(?=.*manual_review_required)(?=.*INSERT INTO mpesa_reconciliation_batches)(?=.*INSERT INTO mpesa_reconciliation_discrepancies)/s),`
+    - Line 100: `check('mpesa-reconciliation-tests', 'Payments tests cover reconciliation schema, missing callbacks, duplicates, amount mismatch, wrong references, late provider status, daily processor, and range reports', 'apps/api/src/modules/payments/payments.test.ts', /(?=.*PaymentsSchemaService creates reconciliation batches)(?=.*MpesaReconciliationService reports missing callbacks, duplicates, amount mismatches, wrong references, and late provider status)(?=.*runs daily reconciliation for every active tenant payment channel)(?=.*generates on-demand date-range reports)/s),`
+  - `apps/api/src/scripts/implementation30-load-profile.test.ts`:
+    - Line 35: `'apps/api/src/common/reports/report-export-queue.ts': 'shouldQueueReportExport DEFAULT_SYNC_EXPORT_ROW_LIMIT REPORT_EXPORT_JOB_OPTIONS attempts backoff estimated_rows',`
+    - Line 63: `'apps/api/src/common/reports/report-export-queue.ts': 'shouldQueueReportExport DEFAULT_SYNC_EXPORT_ROW_LIMIT REPORT_EXPORT_JOB_OPTIONS attempts backoff estimated_rows',`
+  - `apps/api/src/scripts/implementation30-load-profile.ts`:
+    - Line 181: `'apps/api/src/common/reports/report-export-queue.ts',`
+  - `apps/api/src/scripts/kisumu-boys-demo-seed.ts`:
+    - Line 29: `'reports',`
+    - Line 361: `{ moduleCode: 'reports', table: 'report_snapshots', tenantScoped: true },`
+  - `apps/api/src/scripts/module-access-certification.test.ts`:
+    - Line 28: `'apps/api/src/common/reports/report-export-jobs.controller.ts': '@Controller(\'reports\') @RequiresModule(\'reports\')',`
+    - Line 39: `'apps/api/src/modules/module-access/module-access.constants.ts': 'MODULE_REGISTRY_SEED students admissions academics finance exams discipline timetable lab_management teacher_biometric_attendance parent_portal inventory library transport communication_sms reports staff admin_command_centers principal_dashboard clinic_health procurement hostel boarding cbt_exams lms ai_insights visitor_management asset_tracking iot permission_scopes',`
+  - `apps/api/src/scripts/module-access-certification.ts`:
+    - Line 67: `backendRoute('reports', 'Report export job routes require the reports module', 'apps/api/src/common/reports/report-export-jobs.controller.ts', 'reports'),`
+    - Line 88: `frontendRoute('reports', 'reports'),`
+  - `apps/api/src/scripts/module-certification.test.ts`:
+    - Line 24: `'apps/web/src/lib/discipline/discipline-live.ts': 'acknowledgeDisciplineIncident exportDisciplineReport reports',`
+  - `apps/api/src/scripts/module-certification.ts`:
+    - Line 105: `workflow('reports-and-documents', 'Reports, documents, and confidential export safety', [`
+    - Line 106: `check('discipline-report-api', 'Discipline reports are exposed through API', 'apps/web/src/lib/discipline/discipline-live.ts', /exportDisciplineReport|reports/),`
+  - `apps/api/src/scripts/release-readiness-gate.test.ts`:
+    - Line 20: `"reports",`
+    - Line 49: `'dist/apps/api/src/common/reports/report-excel-artifact.test.js',`
+  - `apps/api/src/scripts/release-readiness-gate.ts`:
+    - Line 27: `} from '../common/reports/report-export-queue';`
+    - Line 31: `} from '../common/reports/report-snapshot-manifest';`
+  - `apps/api/src/scripts/run-pilot-certification.test.ts`:
+    - Line 75: `'apps/api/src/common/reports/report-export-queue.ts': 'validateReportExportJobPayload queue',`
+  - `apps/api/src/scripts/run-pilot-certification.ts`:
+    - Line 167: `check('report-export', 'Report export queue exists', 'apps/api/src/common/reports/report-export-queue.ts', /validateReportExportJobPayload|queue/i),`
+  - `apps/api/src/scripts/synthetic-journey-monitor.ts`:
+    - Line 286: `path: '/admissions/reports/applications/export',`
+    - Line 295: `path: '/inventory/reports/stock-valuation/export',`
+  - `apps/api/src/scripts/tenant-isolation-audit.test.ts`:
+    - Line 144: `'apps/api/src/common/reports/report-export-queue.ts': 'attendance',`
+  - `apps/api/src/scripts/tenant-isolation-audit.ts`:
+    - Line 59: `check('reports-block-retired-attendance', 'Report exports block retired attendance data', 'apps/api/src/common/reports/report-export-queue.ts', /attendance/i, 'high'),`
+- **`suppliers-workspace.tsx` (`suppliers`)**:
+  - `apps/api/src/modules/implementation300/blueprint-registry.ts`:
+    - Line 515: `moduleDefinition('procurement', 'Procurement', ['requests', 'approvals', 'suppliers', 'invoices', 'budgets', 'receiving'], [`
+  - `apps/api/src/modules/inventory/inventory-schema.service.ts`:
+    - Line 68: `CREATE TABLE IF NOT EXISTS inventory_suppliers (`
+    - Line 81: `CONSTRAINT uq_inventory_suppliers_tenant_id_id UNIQUE (tenant_id, id),`
+  - `apps/api/src/modules/inventory/inventory.controller.ts`:
+    - Line 141: `@Get('suppliers')`
+    - Line 147: `@Post('suppliers')`
+  - `apps/api/src/modules/inventory/inventory.test.ts`:
+    - Line 2122: `path: '/inventory/suppliers',`
+    - Line 2162: `path: '/inventory/suppliers/00000000-0000-0000-0000-000000000941',`
+  - `apps/api/src/modules/inventory/repositories/inventory.repository.test.ts`:
+    - Line 37: `const suppliers = await repository.listSuppliers('tenant-a');`
+    - Line 39: `assert.equal(suppliers[0]?.county, null);`
+  - `apps/api/src/modules/inventory/repositories/inventory.repository.ts`:
+    - Line 328: `LEFT JOIN inventory_suppliers supplier`
+    - Line 446: `LEFT JOIN inventory_suppliers supplier`
+  - `apps/api/src/modules/operations/consumers/export-suppliers.consumer.ts`:
+    - Line 6: `readonly name = 'export-suppliers.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'export-suppliers' && event.payload.action_id !== 'export-suppliers') {`
+  - `apps/api/src/modules/operations/consumers/index.ts`:
+    - Line 278: `export { ExportSuppliersConsumer } from './export-suppliers.consumer';`
+  - `apps/api/src/modules/procurement/procurement-schema.service.ts`:
+    - Line 6: `'procurement_suppliers',`
+    - Line 50: `CREATE TABLE IF NOT EXISTS procurement_suppliers (`
+  - `apps/api/src/modules/procurement/procurement.controller.ts`:
+    - Line 25: `@Post('suppliers')`
+  - `apps/api/src/modules/procurement/procurement.test.ts`:
+    - Line 22: `'procurement_suppliers',`
+    - Line 52: `test('ProcurementService creates auditable suppliers, requests, approvals, purchase orders, and invoices', async () => {`
+  - `apps/api/src/modules/procurement/repositories/procurement.repository.ts`:
+    - Line 8: `active_suppliers: number;`
+    - Line 42: `const [summary, requests, suppliers, orders, invoices] = await Promise.all([`
+  - `apps/api/src/scripts/base-onboarding-seed.ts`:
+    - Line 270: `{ moduleCode: 'inventory', table: 'inventory_suppliers', tenantScoped: true },`
+    - Line 293: `{ moduleCode: 'procurement', table: 'procurement_suppliers', tenantScoped: true },`
+  - `apps/api/src/scripts/kisumu-boys-demo-seed.ts`:
+    - Line 269: `{ moduleCode: 'inventory', table: 'inventory_suppliers', tenantScoped: true },`
+    - Line 292: `{ moduleCode: 'procurement', table: 'procurement_suppliers', tenantScoped: true },`
+
+---
+
+### Role: `secretary`
+
+| File Name | Module ID | Definition Status | Backend Status | Refs |
+| :--- | :--- | :--- | :--- | :--- |
+| `appointments-workspace.tsx` | `appointments` | ✅ Found (Appointments) | ✅ Referenced (47 refs) | `schema.sql`, `admissions-command.controller.ts`, `admissions-command.repository.ts`... |
+| `calls-log-workspace.tsx` | `calls-log` | ❌ Missing | ❌ Missing | None |
+| `letters-documents-workspace.tsx` | `letters-documents` | ✅ Found (Letters & Documents) | ❌ Missing | None |
+| `overview-workspace.tsx` | `overview` | ✅ Found (Overview) | ✅ Referenced (106 refs) | `billing-feature.middleware.test.ts`, `admin-command.controller.ts`, `admissions-command.controller.ts`... |
+| `parent-messages-workspace.tsx` | `parent-messages` | ❌ Missing | ❌ Missing | None |
+| `reception-queue-workspace.tsx` | `reception-queue` | ✅ Found (Reception Queue) | ❌ Missing | None |
+| `reports-workspace.tsx` | `reports` | ✅ Found (Reports) | ✅ Referenced (371 refs) | `auth-email.service.test.ts`, `auth.constants.ts`, `monitoring-service-account.service.ts`... |
+| `student-clearance-workspace.tsx` | `student-clearance` | ❌ Missing | ❌ Missing | None |
+| `visitors-workspace.tsx` | `visitors` | ✅ Found (Visitors) | ✅ Referenced (93 refs) | `app.module.ts`, `auth.constants.ts`, `role-governance-policy.ts`... |
+
+#### Backend Reference Details for `secretary`:
+- **`appointments-workspace.tsx` (`appointments`)**:
+  - `apps/api/src/database/schema.sql`:
+    - Line 3103: `CREATE TABLE IF NOT EXISTS counselling_appointments (`
+    - Line 3198: `ALTER TABLE counselling_appointments ENABLE ROW LEVEL SECURITY;`
+  - `apps/api/src/modules/admin-command/admissions-command.controller.ts`:
+    - Line 61: `@Get('appointments')`
+    - Line 97: `appointments,`
+  - `apps/api/src/modules/admin-command/repositories/admissions-command.repository.ts`:
+    - Line 211: `const today = await this.executeSql(tenantId, `SELECT COUNT(*) as count FROM admission_appointments WHERE tenant_id = $1 AND appointment_date = CURRENT_DATE`, [tenantId]);`
+    - Line 212: `const upcoming = await this.executeSql(tenantId, `SELECT COUNT(*) as count FROM admission_appointments WHERE tenant_id = $1 AND appointment_date > CURRENT_DATE`, [tenantId]);`
+  - `apps/api/src/modules/admissions/admissions-schema.service.ts`:
+    - Line 531: `CREATE TABLE IF NOT EXISTS admission_appointments (`
+    - Line 543: `CONSTRAINT uq_admission_appointments_tenant_id_id UNIQUE (tenant_id, id),`
+  - `apps/api/src/modules/admissions/admissions.controller.ts`:
+    - Line 321: `@Post('appointments')`
+  - `apps/api/src/modules/counselling/counselling.controller.ts`:
+    - Line 33: `@Get('appointments')`
+  - `apps/api/src/modules/counselling/counselling.service.ts`:
+    - Line 9: `appointmentsToday: 14,`
+  - `apps/api/src/modules/module-access/module-access.constants.ts`:
+    - Line 244: `description: 'Gate visitors, appointments, check-ins, emergency logs, and school security reports.',`
+  - `apps/api/src/modules/secretary/secretary.controller.ts`:
+    - Line 48: `@Get('appointments')`
+    - Line 68: `@Post('appointments')`
+  - `apps/api/src/modules/secretary/secretary.service.ts`:
+    - Line 71: ``SELECT * FROM appointments WHERE tenant_id = $1 ORDER BY appointment_date DESC, start_time DESC`,`
+  - `apps/api/src/modules/visitors/repositories/visitors.repository.ts`:
+    - Line 33: ``INSERT INTO visitors_appointments`
+    - Line 44: ``SELECT * FROM visitors_appointments WHERE tenant_id = $1 ORDER BY appointment_time DESC LIMIT 100`,`
+  - `apps/api/src/modules/visitors/visitors-schema.service.ts`:
+    - Line 51: `CREATE TABLE IF NOT EXISTS visitors_appointments (`
+    - Line 99: `CREATE INDEX IF NOT EXISTS ix_visitors_appointments_tenant ON visitors_appointments (tenant_id, appointment_time);`
+  - `apps/api/src/modules/visitors/visitors.controller.ts`:
+    - Line 15: `const appointments = await this.visitorsService.listAppointments();`
+    - Line 19: `today_appointments: appointments.length,`
+  - `apps/api/src/modules/visitors/visitors.test.ts`:
+    - Line 17: `for (const table of ['visitors_registry', 'visitors_appointments', 'visitors_logs', 'student_exits']) {`
+  - `apps/api/src/scripts/base-onboarding-seed.ts`:
+    - Line 342: `{ moduleCode: 'visitor_management', table: 'visitor_appointments', tenantScoped: true },`
+  - `apps/api/src/scripts/kisumu-boys-demo-seed.ts`:
+    - Line 341: `{ moduleCode: 'visitor_management', table: 'visitor_appointments', tenantScoped: true },`
+    - Line 1677: `await writer.upsert('visitor_appointments', { id: appointmentId, tenant_id: tenantId, visitor_name: visitor.name, host_user_id: index === 1 || index === 2 ? context.actorUserId : context.teacherUserId, appointment_at: `2026-05-24T0${Math.min(index + 6, 9)}:00:00.000Z`, status: visitor.status === 'exited' ? 'completed' : 'scheduled' });`
+- **`calls-log-workspace.tsx` (`calls-log`)**: No backend references found in `apps/api/src`.
+- **`letters-documents-workspace.tsx` (`letters-documents`)**: No backend references found in `apps/api/src`.
+- **`overview-workspace.tsx` (`overview`)**:
+  - `apps/api/src/middleware/billing-feature.middleware.test.ts`:
+    - Line 75: `await requestContext.run(createContext('/admin-command/principal/overview'), async () => {`
+    - Line 78: `path: '/admin-command/principal/overview',`
+  - `apps/api/src/modules/admin-command/admin-command.controller.ts`:
+    - Line 33: `@Get('principal/finance-overview')`
+    - Line 103: `@Get('principal/overview')`
+  - `apps/api/src/modules/admin-command/admissions-command.controller.ts`:
+    - Line 9: `@Get('overview')`
+    - Line 84: `overview,`
+  - `apps/api/src/modules/admin-command/deputy-command.controller.ts`:
+    - Line 9: `@Get('overview')`
+  - `apps/api/src/modules/admin-command/principal-insights.providers.ts`:
+    - Line 6: `id: 'school_overview',`
+    - Line 8: `category: 'overview',`
+  - `apps/api/src/modules/admin-command/principal-insights.service.ts`:
+    - Line 164: `const overview = await this.repository.getPrincipalOverviewSnapshot(tenantId);`
+    - Line 190: `overview,`
+  - `apps/api/src/modules/admin-command/principal-insights.types.ts`:
+    - Line 54: `overview: PrincipalOverviewPanel;`
+  - `apps/api/src/modules/admin-command/repositories/admin-command.repository.ts`:
+    - Line 1221: `defaultView: "overview"`
+  - `apps/api/src/modules/billing/billing-access.service.ts`:
+    - Line 59: `const { subscription, overview } =`
+    - Line 61: `const access = this.buildAccessState(subscription, overview);`
+  - `apps/api/src/modules/billing/billing-lifecycle.service.ts`:
+    - Line 60: `overview: SubscriptionLifecycleOverview | null;`
+    - Line 69: `overview: null,`
+  - `apps/api/src/modules/billing/billing-notification.service.ts`:
+    - Line 18: `overview: SubscriptionLifecycleOverview,`
+    - Line 20: `const descriptors = this.buildDescriptors(subscription, overview);`
+  - `apps/api/src/modules/billing/billing.service.ts`:
+    - Line 281: `if (!lifecycle.subscription || !lifecycle.overview) {`
+    - Line 285: `return this.mapSubscription(lifecycle.subscription, lifecycle.overview);`
+  - `apps/api/src/modules/billing/billing.test.ts`:
+    - Line 129: `overview: null,`
+    - Line 877: `ensureCurrentLifecycle: async () => ({ subscription: null, overview: null }),`
+  - `apps/api/src/modules/class-teacher/class-teacher.controller.ts`:
+    - Line 20: `@Get('overview')`
+    - Line 30: `@Get('dashboard-overview')`
+  - `apps/api/src/modules/dashboard/dashboard.controller.ts`:
+    - Line 34: `@Get('parent/overview')`
+    - Line 58: `@Get('student/overview')`
+  - `apps/api/src/modules/discipline/discipline.controller.ts`:
+    - Line 244: `@Get('analytics/overview')`
+  - `apps/api/src/modules/finance/finance.controller.ts`:
+    - Line 306: `@Get('accounts-overview')`
+  - `apps/api/src/modules/grade-master/grade-master.controller.ts`:
+    - Line 9: `@Get('overview')`
+  - `apps/api/src/modules/operations/consumers/export-overview.consumer.ts`:
+    - Line 6: `readonly name = 'export-overview.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'export-overview' && event.payload.action_id !== 'export-overview') {`
+  - `apps/api/src/modules/operations/consumers/index.ts`:
+    - Line 262: `export { ExportOverviewConsumer } from './export-overview.consumer';`
+  - `apps/api/src/modules/platform/platform-onboarding.service.test.ts`:
+    - Line 665: `test('PlatformOnboardingService summarizes tenants in product for the Super Admin overview', async () => {`
+  - `apps/api/src/scripts/core-api-load.ts`:
+    - Line 203: `path: '/discipline/analytics/overview',`
+  - `apps/api/src/scripts/high-volume-workflow-load.ts`:
+    - Line 29: `{ id: 'discipline-analytics', method: 'GET', path: '/discipline/analytics/overview', targetP95Ms: 800 },`
+- **`parent-messages-workspace.tsx` (`parent-messages`)**: No backend references found in `apps/api/src`.
+- **`reception-queue-workspace.tsx` (`reception-queue`)**: No backend references found in `apps/api/src`.
+- **`reports-workspace.tsx` (`reports`)**:
+  - `apps/api/src/auth/auth-email.service.test.ts`:
+    - Line 6: `test('AuthEmailService reports transactional email as missing without secrets', () => {`
+    - Line 20: `test('AuthEmailService reports transactional email as configured without exposing secrets', () => {`
+  - `apps/api/src/auth/auth.constants.ts`:
+    - Line 59: `{ resource: 'reports', action: 'read', description: 'View generated report export jobs and snapshots' },`
+    - Line 108: `{ resource: 'discipline', action: 'reports', description: 'Export discipline reports and analytics' },`
+  - `apps/api/src/auth/monitoring-service-account.service.ts`:
+    - Line 16: `'reports:read',`
+  - `apps/api/src/auth/role-governance-policy.ts`:
+    - Line 125: `platform_support: ['support:view', 'support:manage', 'reports:read'],`
+    - Line 126: `finance_admin: ['billing:read', 'billing:write', 'reports:read'],`
+  - `apps/api/src/common/auto-repair/auto-repair-agent.test.ts`:
+    - Line 474: `operationalIntent: 'Bursar can act on finance exceptions, not browse static trend reports',`
+    - Line 706: `test('AutoRepairAgent reports dashboard repair patch intelligence for KPI-only dashboards', () => {`
+  - `apps/api/src/common/auto-repair/auto-repair-deployment.test.ts`:
+    - Line 43: `test('AutoRepairService reports deployed runtime readiness and keeps the full widget state contract', () => {`
+  - `apps/api/src/common/common.module.ts`:
+    - Line 12: `import { ReportExportQueueService } from './reports/report-export-queue';`
+    - Line 13: `import { ReportExportJobsController } from './reports/report-export-jobs.controller';`
+  - `apps/api/src/common/reports/report-artifact-storage.service.test.ts`:
+    - Line 18: `retention_policy: 'reports',`
+    - Line 48: `assert.equal(savedInputs[0].storagePath, `tenant/tenant-a/reports/billing/invoices/${'b'.repeat(64)}.pdf`);`
+  - `apps/api/src/common/reports/report-artifact-storage.service.ts`:
+    - Line 40: `retentionPolicy: 'reports',`
+    - Line 73: `return `tenant/${input.tenantId}/reports/${module}/${reportId}/${input.artifact.checksumSha256}.${extension}`;`
+  - `apps/api/src/common/reports/report-export-jobs.controller.ts`:
+    - Line 7: `@Controller('reports')`
+    - Line 8: `@RequiresModule('reports')`
+  - `apps/api/src/common/reports/report-export-queue.ts`:
+    - Line 52: `reports: 'reports',`
+  - `apps/api/src/common/reports/report-export.worker.test.ts`:
+    - Line 25: `storage_path: 'tenant/tenant-a/reports/exams/exam-results/artifact.pdf',`
+    - Line 80: `storage_path: 'tenant/tenant-a/reports/exams/exam-results/artifact.pdf',`
+  - `apps/api/src/common/reports/report-snapshot.repository.test.ts`:
+    - Line 95: `assert.deepEqual(Reflect.getMetadata(PERMISSIONS_KEY, handler), ['reports:read']);`
+  - `apps/api/src/common/uploads/database-file-storage.service.test.ts`:
+    - Line 685: `test('S3CompatibleObjectStorageService reports failed object deletes as unavailable', async () => {`
+  - `apps/api/src/common/uploads/upload-policy.test.ts`:
+    - Line 252: `test('runProviderMalwareScan returns unsafe verdicts when the provider reports infection', async () => {`
+  - `apps/api/src/database/batch4_schemas.sql`:
+    - Line 71: `CREATE TABLE IF NOT EXISTS operations_reports (`
+    - Line 80: `CONSTRAINT ck_operations_reports_tenant CHECK (tenant_id <> 'global')`
+  - `apps/api/src/database/schema.sql`:
+    - Line 2755: `CREATE TABLE IF NOT EXISTS operations_reports (`
+    - Line 2764: `CONSTRAINT ck_operations_reports_tenant CHECK (tenant_id <> 'global')`
+  - `apps/api/src/database/tenant-database-policy.ts`:
+    - Line 93: `reports: ['report_export_jobs', 'report_snapshots'],`
+  - `apps/api/src/modules/admin-command/admin-command.controller.ts`:
+    - Line 124: `@Get('principal/reports')`
+    - Line 126: `@Permissions('principal:read', 'reports:read')`
+  - `apps/api/src/modules/admin-command/admissions-command.controller.ts`:
+    - Line 69: `@Get('reports')`
+    - Line 99: `reports,`
+  - `apps/api/src/modules/admin-command/deputy-command.controller.ts`:
+    - Line 133: `@Get('reports')`
+    - Line 137: `@Post('reports/generate')`
+  - `apps/api/src/modules/admin-command/principal-insights.providers.ts`:
+    - Line 16: `reports: ['school-overview', 'population-trend'],`
+    - Line 31: `reports: ['academic-summary', 'cbc-cbe-competency-progress'],`
+  - `apps/api/src/modules/admin-command/principal-insights.service.ts`:
+    - Line 184: `const reportExports = Array.from(new Set(sections.flatMap((section) => section.reports)));`
+    - Line 273: `reports: [...provider.reports],`
+  - `apps/api/src/modules/admin-command/principal-insights.types.ts`:
+    - Line 34: `reports: string[];`
+    - Line 81: `reports: string[];`
+  - `apps/api/src/modules/admin-command/repositories/admin-command.repository.ts`:
+    - Line 846: `reportsPending: summaryResult.rows[0]?.pending_reviews || 0,`
+    - Line 1479: ``INSERT INTO operations_reports (content, prepared_by, tenant_id, title, updated_at) VALUES ($1, $2, $3, $4, NOW())`,`
+  - `apps/api/src/modules/admin-command/repositories/deputy-command.repository.ts`:
+    - Line 449: `0::int AS generated_reports`
+    - Line 452: `{ generated_reports: 0 }`
+  - `apps/api/src/modules/admissions/admissions.controller.ts`:
+    - Line 33: `} from '../../common/reports/report-export-queue';`
+    - Line 217: `@Post('reports/:reportId/export-jobs')`
+  - `apps/api/src/modules/admissions/admissions.service.ts`:
+    - Line 22: `} from '../../common/reports/report-csv-artifact';`
+  - `apps/api/src/modules/admissions/admissions.test.ts`:
+    - Line 197: `path: '/admissions/reports/applications/export',`
+    - Line 350: `path: '/admissions/reports/unknown/export',`
+  - `apps/api/src/modules/billing/billing.controller.ts`:
+    - Line 15: `} from '../../common/reports/report-export-queue';`
+    - Line 214: `@Post('reports/:reportId/export-jobs')`
+  - `apps/api/src/modules/billing/billing.service.ts`:
+    - Line 14: `} from '../../common/reports/report-csv-artifact';`
+  - `apps/api/src/modules/billing/billing.test.ts`:
+    - Line 2245: `path: '/billing/reports/invoices/export',`
+    - Line 2297: `path: '/billing/reports/unknown/export',`
+  - `apps/api/src/modules/biometric-attendance/biometric-attendance.controller.ts`:
+    - Line 52: `@Get('reports/monthly')`
+  - `apps/api/src/modules/class-teacher/class-teacher.controller.ts`:
+    - Line 358: `@Get('reports')`
+  - `apps/api/src/modules/clinic/clinic.controller.ts`:
+    - Line 62: `@Permissions('clinic:reports')`
+  - `apps/api/src/modules/clinic/clinic.service.ts`:
+    - Line 171: `this.assertPermission('clinic:reports');`
+  - `apps/api/src/modules/clinic/clinic.test.ts`:
+    - Line 58: `assert.deepEqual(Reflect.getMetadata(PERMISSIONS_KEY, analyticsHandler), ['clinic:reports']);`
+  - `apps/api/src/modules/compliance/compliance-schema.service.ts`:
+    - Line 127: `CREATE TABLE IF NOT EXISTS breach_response_reports (`
+    - Line 141: `CONSTRAINT ck_breach_response_reports_severity CHECK (severity IN ('low', 'medium', 'high', 'critical')),`
+  - `apps/api/src/modules/compliance/compliance.controller.ts`:
+    - Line 81: `@Get('breach-response-reports/:reportId/export')`
+  - `apps/api/src/modules/compliance/compliance.service.ts`:
+    - Line 351: `FROM breach_response_reports`
+  - `apps/api/src/modules/compliance/compliance.test.ts`:
+    - Line 33: `assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS breach_response_reports/);`
+    - Line 36: `assert.match(schemaSql, /ALTER TABLE breach_response_reports FORCE ROW LEVEL SECURITY/);`
+  - `apps/api/src/modules/counselling/counselling.controller.ts`:
+    - Line 87: `@Get('reports')`
+  - `apps/api/src/modules/discipline/discipline.controller.ts`:
+    - Line 245: `@Permissions('discipline:reports')`
+    - Line 250: `@Post('reports/export')`
+  - `apps/api/src/modules/discipline/discipline.service.ts`:
+    - Line 636: `this.assertPermission('discipline:reports');`
+    - Line 648: `this.assertPermission('discipline:reports');`
+  - `apps/api/src/modules/discipline/discipline.test.ts`:
+    - Line 65: `'discipline:reports',`
+    - Line 597: `permissions: ['discipline:reports'],`
+  - `apps/api/src/modules/exams/consumers/download-reports.consumer.ts`:
+    - Line 6: `readonly name = 'download-reports.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'download-reports' && event.payload.action_id !== 'download-reports') {`
+  - `apps/api/src/modules/exams/consumers/index.ts`:
+    - Line 10: `export { DownloadReportsConsumer } from './download-reports.consumer';`
+  - `apps/api/src/modules/exams/exams.test.ts`:
+    - Line 648: `test('ExamsService reports duplicate and unauthorized rows during bulk mark upload preview', async () => {`
+  - `apps/api/src/modules/exams/repositories/exams.repository.ts`:
+    - Line 1481: `(SELECT COUNT(*) FROM student_report_cards WHERE tenant_id = $1 AND status = 'published') AS published_reports,`
+  - `apps/api/src/modules/exams/services/report-card-pdf-artifact.ts`:
+    - Line 3: `import { normalizeReportFilename, normalizeReportGeneratedAt, type ReportArtifact } from '../../../common/reports/report-artifact';`
+  - `apps/api/src/modules/exams/services/report-card-template.service.ts`:
+    - Line 3: `import type { ReportArtifactInput, ReportArtifactValue } from '../../../common/reports/report-artifact';`
+  - `apps/api/src/modules/grade-master/grade-master.controller.ts`:
+    - Line 81: `@Get('reports')`
+  - `apps/api/src/modules/grade-master/grade-master.service.ts`:
+    - Line 16: `reportsNotReady: 12,`
+  - `apps/api/src/modules/health/health.controller.test.ts`:
+    - Line 297: `test('HealthController readiness reports optional Redis degradation without throwing', async () => {`
+  - `apps/api/src/modules/implementation300/api-category-policy.ts`:
+    - Line 45: `api('analytics_engine', 'internal', 'reports', ['/api/internal/analytics'], 'internal_service', true, true, 600),`
+  - `apps/api/src/modules/implementation300/blueprint-registry.ts`:
+    - Line 42: `| 'reports'`
+    - Line 437: `moduleDefinition('exams', 'Exams and Results', ['setup', 'grading', 'cbc-assessment', 'moderation', 'reports', 'analytics'], [`
+  - `apps/api/src/modules/implementation300/development-phase-policy.test.ts`:
+    - Line 24: `'reports',`
+    - Line 31: `completedModules: ['authentication', 'tenant_management', 'students', 'finance', 'exams', 'communication_sms', 'reports', 'inventory'],`
+  - `apps/api/src/modules/implementation300/development-phase-policy.ts`:
+    - Line 59: `'reports',`
+    - Line 61: `capabilities: ['tenant_onboarding', 'billing', 'exam_results', 'communication', 'reports'],`
+  - `apps/api/src/modules/integrations/integrations.test.ts`:
+    - Line 202: `test('SmsDispatchService reports missing credential fields without exposing secrets', async () => {`
+  - `apps/api/src/modules/inventory/inventory.controller.ts`:
+    - Line 7: `} from '../../common/reports/report-export-queue';`
+    - Line 246: `@Get('reports')`
+  - `apps/api/src/modules/inventory/inventory.service.ts`:
+    - Line 13: `} from '../../common/reports/report-csv-artifact';`
+    - Line 93: `rows: (reports: InventoryReportsPayload) => ReportCsvValue[][];`
+  - `apps/api/src/modules/inventory/inventory.test.ts`:
+    - Line 2222: `path: '/inventory/reports/stock-valuation/export',`
+    - Line 2250: `throw new Error('reports should not be loaded for an unknown export');`
+  - `apps/api/src/modules/inventory/repositories/inventory.repository.test.ts`:
+    - Line 971: `const reports = await repository.buildReports('tenant-a');`
+    - Line 978: `assert.deepEqual(reports.stock_reconciliation, [`
+  - `apps/api/src/modules/library/library.controller.ts`:
+    - Line 89: `@Get('reports')`
+  - `apps/api/src/modules/mobile/mobile-app-policy.test.ts`:
+    - Line 44: `enabledModules: ['principal_dashboard', 'finance', 'reports'],`
+    - Line 79: `capabilities: ['fees', 'communication', 'reports', 'results'],`
+  - `apps/api/src/modules/mobile/mobile-app-policy.ts`:
+    - Line 9: `| 'reports'`
+    - Line 19: `export type MobileOfflineCapability = 'attendance' | 'mark_entry' | 'assignments' | 'fees' | 'communication' | 'reports' | 'results';`
+  - `apps/api/src/modules/module-access/module-access.constants.ts`:
+    - Line 55: `description: 'Assessments, marks, reports, academic analytics, CBT hooks, and result publishing.',`
+    - Line 67: `permission_scopes: ['discipline:read', 'discipline:write', 'discipline:manage', 'discipline:reports'],`
+  - `apps/api/src/modules/module-access/module-access.test.ts`:
+    - Line 13: `import { ReportExportJobsController } from '../../common/reports/report-export-jobs.controller';`
+    - Line 38: `'reports',`
+  - `apps/api/src/modules/operations/consumers/index.ts`:
+    - Line 505: `export { ReportsConsumer } from './reports.consumer';`
+    - Line 516: `export { RequestReportsConsumer } from './request-reports.consumer';`
+  - `apps/api/src/modules/operations/consumers/reports.consumer.ts`:
+    - Line 6: `readonly name = 'reports.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'reports' && event.payload.action_id !== 'reports') {`
+  - `apps/api/src/modules/operations/consumers/request-reports.consumer.ts`:
+    - Line 6: `readonly name = 'request-reports.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'request-reports' && event.payload.action_id !== 'request-reports') {`
+  - `apps/api/src/modules/operations/consumers/view-reports.consumer.ts`:
+    - Line 6: `readonly name = 'view-reports.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'view-reports' && event.payload.action_id !== 'view-reports') {`
+  - `apps/api/src/modules/operations/operations.service.ts`:
+    - Line 69: ``INSERT INTO operations_reports (tenant_id, title, content, prepared_by)`
+  - `apps/api/src/modules/payments/payments.test.ts`:
+    - Line 3482: `test('MpesaReconciliationService reports missing callbacks, duplicates, amount mismatches, wrong references, and late provider status', async () => {`
+    - Line 4016: `result.reports.map((report) => report.payment_channel_id),`
+  - `apps/api/src/modules/payments/payments.types.ts`:
+    - Line 297: `reports: MpesaReconciliationReport[];`
+    - Line 305: `reports: MpesaReconciliationReport[];`
+  - `apps/api/src/modules/payments/services/mpesa-reconciliation.service.ts`:
+    - Line 446: `const reports: MpesaReconciliationReport[] = [];`
+    - Line 449: `reports.push(`
+  - `apps/api/src/modules/platform/platform-onboarding.service.test.ts`:
+    - Line 470: `test('PlatformOnboardingService reports Resend testing mode as blocked instead of encouraging repeated resends', async () => {`
+  - `apps/api/src/modules/support/support-notification-delivery.service.test.ts`:
+    - Line 12: `test('SupportNotificationDeliveryService reports provider readiness without exposing secrets', async () => {`
+    - Line 97: `test('SupportNotificationDeliveryService reports precise missing provider status for dashboard-managed SMS', async () => {`
+  - `apps/api/src/scripts/audit-coverage-review.test.ts`:
+    - Line 49: `test('runAuditCoverageReview reports missing evidence by file and pattern', () => {`
+  - `apps/api/src/scripts/base-onboarding-seed.ts`:
+    - Line 30: `'reports',`
+    - Line 362: `{ moduleCode: 'reports', table: 'report_snapshots', tenantScoped: true },`
+  - `apps/api/src/scripts/core-api-load.test.ts`:
+    - Line 33: `assert.equal(inventoryExport.url, 'http://127.0.0.1:3000/inventory/reports/stock-valuation/export');`
+  - `apps/api/src/scripts/core-api-load.ts`:
+    - Line 131: `path: '/admissions/reports/applications/export',`
+    - Line 147: `id: 'inventory-reports',`
+  - `apps/api/src/scripts/enable-admin-modules.ts`:
+    - Line 47: `'Module-aware executive KPIs, alerts, analytics, trends, and reports for the Principal.',`
+  - `apps/api/src/scripts/generate-production-scorecard.test.ts`:
+    - Line 22: `"reports",`
+  - `apps/api/src/scripts/generate-production-scorecard.ts`:
+    - Line 150: `remediation: 'Add the tenant isolation audit runner and require it in CI for finance, support, library, discipline, reports, and files.',`
+    - Line 183: `evidenceLine(/missing_provider/.test(supportNotificationSource), 'support notification health reports precise missing provider state'),`
+  - `apps/api/src/scripts/high-volume-workflow-load.test.ts`:
+    - Line 18: `'billing-invoice-reports',`
+  - `apps/api/src/scripts/high-volume-workflow-load.ts`:
+    - Line 18: `{ id: 'billing-invoice-reports', method: 'GET', path: '/billing/reports/invoices/export', targetP95Ms: 900 },`
+    - Line 31: `{ id: 'report-export-jobs', method: 'GET', path: '/reports/export-jobs', targetP95Ms: 800 },`
+  - `apps/api/src/scripts/implementation100-certification.ts`:
+    - Line 74: `moduleEvidence('reports', 'Reports', 'apps/web/src/components/school/school-pages.tsx', ['Reports'], 'apps/web/src/app/api/reports/[...path]/route.ts', ['proxySchoolApiRequest', '/reports'], 'apps/api/src/common/reports/report-export-jobs.controller.ts', ['ReportExportJobsController'], 'apps/api/src/common/reports/report-snapshot-schema.service.ts', ['report_snapshots'], 'apps/api/src/common/reports/report-export-queue.test.ts', ['report']),`
+  - `apps/api/src/scripts/implementation20-certification.test.ts`:
+    - Line 30: `'apps/api/src/modules/biometric-attendance/biometric-attendance.controller.ts': 'live-feed reports/monthly',`
+    - Line 37: `'apps/web/src/app/api/reports/[...path]/route.ts': 'proxySchoolApiRequest "/reports"',`
+  - `apps/api/src/scripts/implementation20-certification.ts`:
+    - Line 72: `check('biometric-live-reports', 'Biometric API exposes live feed and monthly reports', 'apps/api/src/modules/biometric-attendance/biometric-attendance.controller.ts', /live-feed[\s\S]+reports\/monthly/),`
+    - Line 84: `check('reports-web-proxy', 'Web app proxies reports requests to the API', 'apps/web/src/app/api/reports/[...path]/route.ts', /proxySchoolApiRequest[\s\S]+"\/reports"/),`
+  - `apps/api/src/scripts/implementation21-certification.test.ts`:
+    - Line 10: `'apps/api/src/modules/admin-command/principal-insights.providers.ts': 'finance summary_only lab_management communication_sms clinic_health permission_required: \'clinic:reports\' summary_only medicine_consumption_cost_minor wastage_due_to_expiry_minor emergency_supply_ready_rate most_used_medicine ai_insights fee_default_risk_alerts medicine_shortage_predictions attendance_irregularities budget_overrun_alerts performance_decline_warnings',`
+    - Line 29: `'apps/api/src/modules/clinic/clinic.controller.ts': 'clinic:inventory clinic:dispense clinic:reports portal:read_own_children',`
+  - `apps/api/src/scripts/implementation21-certification.ts`:
+    - Line 76: `check('clinic-api-permissions', 'Clinic controller separates inventory, dispensing, reports, and parent history permissions', 'apps/api/src/modules/clinic/clinic.controller.ts', /clinic:inventory[\s\S]+clinic:dispense[\s\S]+clinic:reports[\s\S]+portal:read_own_children/),`
+    - Line 92: `check('principal-no-confidential-notes', 'Principal insights use clinic reports, not confidential permissions', 'apps/api/src/modules/admin-command/principal-insights.providers.ts', /permission_required:\s+'clinic:reports'[\s\S]+summary_only/),`
+  - `apps/api/src/scripts/implementation30-certification.test.ts`:
+    - Line 59: `'apps/api/src/modules/payments/payments.test.ts': 'provider_verification_required exports only redacted payloads redacts C2B API payment responses for legacy raw rows assert.notEqual creates callback channels with hashed secrets builds high-entropy STK and C2B callback URLs high-entropy channel-secret routes creates M-PESA verification jobs verificationJobInput duplicate M-PESA identifiers MpesaTransactionStatusService verifies STK callback status classifies verified C2B payments without ledger enqueue accepts unsigned direct Daraja callbacks rejects unsigned callbacks in edge-signed mode accepts unsigned validation callbacks in direct Daraja mode PaymentsSchemaService creates reconciliation batches MpesaReconciliationService reports missing callbacks, duplicates, amount mismatches, wrong references, and late provider status runs daily reconciliation for every active tenant payment channel generates on-demand date-range reports lists accountant review items without raw M-PESA payload leakage requires two distinct approvers before resolving reversal requests exposes accountant review and finance approval endpoints',`
+    - Line 65: `'apps/api/src/modules/compliance/compliance-schema.service.ts': 'data_subject_requests access_request correction_request deletion_anonymization_request export_request objection_request data_retention_schedules child_data_dpia_records students payments sync_offline breach_response_reports FORCE ROW LEVEL SECURITY',`
+  - `apps/api/src/scripts/implementation30-certification.ts`:
+    - Line 95: `check('mpesa-reconciliation-processor', 'M-Pesa reconciliation service runs daily and date-range reports, persists batches, and classifies mismatch states', 'apps/api/src/modules/payments/services/mpesa-reconciliation.service.ts', /(?=.*generateDailyReport)(?=.*generateDateRangeReport)(?=.*runDailyProcessor)(?=.*reconciliation_state)(?=.*provider_received)(?=.*amount_mismatch)(?=.*duplicate_provider_receipt)(?=.*missing_provider_record)(?=.*verified_unmatched)(?=.*manual_review_required)(?=.*INSERT INTO mpesa_reconciliation_batches)(?=.*INSERT INTO mpesa_reconciliation_discrepancies)/s),`
+    - Line 100: `check('mpesa-reconciliation-tests', 'Payments tests cover reconciliation schema, missing callbacks, duplicates, amount mismatch, wrong references, late provider status, daily processor, and range reports', 'apps/api/src/modules/payments/payments.test.ts', /(?=.*PaymentsSchemaService creates reconciliation batches)(?=.*MpesaReconciliationService reports missing callbacks, duplicates, amount mismatches, wrong references, and late provider status)(?=.*runs daily reconciliation for every active tenant payment channel)(?=.*generates on-demand date-range reports)/s),`
+  - `apps/api/src/scripts/implementation30-load-profile.test.ts`:
+    - Line 35: `'apps/api/src/common/reports/report-export-queue.ts': 'shouldQueueReportExport DEFAULT_SYNC_EXPORT_ROW_LIMIT REPORT_EXPORT_JOB_OPTIONS attempts backoff estimated_rows',`
+    - Line 63: `'apps/api/src/common/reports/report-export-queue.ts': 'shouldQueueReportExport DEFAULT_SYNC_EXPORT_ROW_LIMIT REPORT_EXPORT_JOB_OPTIONS attempts backoff estimated_rows',`
+  - `apps/api/src/scripts/implementation30-load-profile.ts`:
+    - Line 181: `'apps/api/src/common/reports/report-export-queue.ts',`
+  - `apps/api/src/scripts/kisumu-boys-demo-seed.ts`:
+    - Line 29: `'reports',`
+    - Line 361: `{ moduleCode: 'reports', table: 'report_snapshots', tenantScoped: true },`
+  - `apps/api/src/scripts/module-access-certification.test.ts`:
+    - Line 28: `'apps/api/src/common/reports/report-export-jobs.controller.ts': '@Controller(\'reports\') @RequiresModule(\'reports\')',`
+    - Line 39: `'apps/api/src/modules/module-access/module-access.constants.ts': 'MODULE_REGISTRY_SEED students admissions academics finance exams discipline timetable lab_management teacher_biometric_attendance parent_portal inventory library transport communication_sms reports staff admin_command_centers principal_dashboard clinic_health procurement hostel boarding cbt_exams lms ai_insights visitor_management asset_tracking iot permission_scopes',`
+  - `apps/api/src/scripts/module-access-certification.ts`:
+    - Line 67: `backendRoute('reports', 'Report export job routes require the reports module', 'apps/api/src/common/reports/report-export-jobs.controller.ts', 'reports'),`
+    - Line 88: `frontendRoute('reports', 'reports'),`
+  - `apps/api/src/scripts/module-certification.test.ts`:
+    - Line 24: `'apps/web/src/lib/discipline/discipline-live.ts': 'acknowledgeDisciplineIncident exportDisciplineReport reports',`
+  - `apps/api/src/scripts/module-certification.ts`:
+    - Line 105: `workflow('reports-and-documents', 'Reports, documents, and confidential export safety', [`
+    - Line 106: `check('discipline-report-api', 'Discipline reports are exposed through API', 'apps/web/src/lib/discipline/discipline-live.ts', /exportDisciplineReport|reports/),`
+  - `apps/api/src/scripts/release-readiness-gate.test.ts`:
+    - Line 20: `"reports",`
+    - Line 49: `'dist/apps/api/src/common/reports/report-excel-artifact.test.js',`
+  - `apps/api/src/scripts/release-readiness-gate.ts`:
+    - Line 27: `} from '../common/reports/report-export-queue';`
+    - Line 31: `} from '../common/reports/report-snapshot-manifest';`
+  - `apps/api/src/scripts/run-pilot-certification.test.ts`:
+    - Line 75: `'apps/api/src/common/reports/report-export-queue.ts': 'validateReportExportJobPayload queue',`
+  - `apps/api/src/scripts/run-pilot-certification.ts`:
+    - Line 167: `check('report-export', 'Report export queue exists', 'apps/api/src/common/reports/report-export-queue.ts', /validateReportExportJobPayload|queue/i),`
+  - `apps/api/src/scripts/synthetic-journey-monitor.ts`:
+    - Line 286: `path: '/admissions/reports/applications/export',`
+    - Line 295: `path: '/inventory/reports/stock-valuation/export',`
+  - `apps/api/src/scripts/tenant-isolation-audit.test.ts`:
+    - Line 144: `'apps/api/src/common/reports/report-export-queue.ts': 'attendance',`
+  - `apps/api/src/scripts/tenant-isolation-audit.ts`:
+    - Line 59: `check('reports-block-retired-attendance', 'Report exports block retired attendance data', 'apps/api/src/common/reports/report-export-queue.ts', /attendance/i, 'high'),`
+- **`student-clearance-workspace.tsx` (`student-clearance`)**: No backend references found in `apps/api/src`.
+- **`visitors-workspace.tsx` (`visitors`)**:
+  - `apps/api/src/app.module.ts`:
+    - Line 64: `import { VisitorsModule } from './modules/visitors/visitors.module';`
+  - `apps/api/src/auth/auth.constants.ts`:
+    - Line 141: `{ resource: 'visitors', action: 'read', description: 'View visitor logs and gate summaries' },`
+    - Line 142: `{ resource: 'visitors', action: 'write', description: 'Manage visitor records and gate check-ins' },`
+  - `apps/api/src/auth/role-governance-policy.ts`:
+    - Line 146: `security_officer: ['visitors:read', 'visitors:write'],`
+  - `apps/api/src/database/schema.sql`:
+    - Line 2887: `CREATE TABLE IF NOT EXISTS visitors (`
+    - Line 2898: `ALTER TABLE visitors ENABLE ROW LEVEL SECURITY;`
+  - `apps/api/src/modules/implementation300/blueprint-registry.ts`:
+    - Line 523: `moduleDefinition('hostel', 'Hostel', ['beds', 'occupancy', 'inspections', 'visitors', 'attendance', 'curfew'], [`
+    - Line 553: `evidence('visitors-controller', 'Visitors controller exists', 'apps/api/src/modules/visitors/visitors.controller.ts', ['VisitorsController']),`
+  - `apps/api/src/modules/module-access/module-access.constants.ts`:
+    - Line 244: `description: 'Gate visitors, appointments, check-ins, emergency logs, and school security reports.',`
+    - Line 246: `route_segment: 'visitors',`
+  - `apps/api/src/modules/secretary/secretary.controller.ts`:
+    - Line 60: `@Post('visitors')`
+  - `apps/api/src/modules/security/security-operations.controller.ts`:
+    - Line 23: `@Post('visitors')`
+    - Line 24: `@Permissions('visitors:write')`
+  - `apps/api/src/modules/security/security-operations.service.ts`:
+    - Line 5: `import { VisitorsService } from '../visitors/visitors.service';`
+    - Line 35: `private readonly visitorsService: VisitorsService,`
+  - `apps/api/src/modules/security/security.module.ts`:
+    - Line 14: `import { VisitorsModule } from '../visitors/visitors.module';`
+  - `apps/api/src/modules/visitors/repositories/visitors.repository.ts`:
+    - Line 33: ``INSERT INTO visitors_appointments`
+    - Line 44: ``SELECT * FROM visitors_appointments WHERE tenant_id = $1 ORDER BY appointment_time DESC LIMIT 100`,`
+  - `apps/api/src/modules/visitors/visitors-schema.service.ts`:
+    - Line 38: `-- Core visitors registry (frequent visitors)`
+    - Line 39: `CREATE TABLE IF NOT EXISTS visitors_registry (`
+  - `apps/api/src/modules/visitors/visitors.controller.ts`:
+    - Line 4: `import { VisitorsService } from './visitors.service';`
+    - Line 6: `@Controller('visitors')`
+  - `apps/api/src/modules/visitors/visitors.module.ts`:
+    - Line 3: `import { VisitorsController } from './visitors.controller';`
+    - Line 4: `import { VisitorsSchemaService } from './visitors-schema.service';`
+  - `apps/api/src/modules/visitors/visitors.service.ts`:
+    - Line 3: `import { VisitorsRepository } from './repositories/visitors.repository';`
+    - Line 64: `module: 'visitors',`
+  - `apps/api/src/modules/visitors/visitors.test.ts`:
+    - Line 7: `import { VisitorsController } from './visitors.controller';`
+    - Line 8: `import { VisitorsSchemaService } from './visitors-schema.service';`
+  - `apps/api/src/scripts/implementation100-certification.ts`:
+    - Line 85: `moduleEvidence('visitor_management', 'Visitor Management', 'apps/web/src/components/modules/visitors/visitor-management-module-screen.tsx', ['VisitorManagementModuleScreen'], 'apps/web/src/app/api/visitors/[...path]/route.ts', ['proxySchoolApiRequest', '/visitors'], 'apps/api/src/modules/visitors/visitors.controller.ts', ['VisitorsController'], 'apps/api/src/modules/visitors/visitors-schema.service.ts', ['visitor_checkins'], 'apps/api/src/modules/visitors/visitors.test.ts', ['visitors']),`
+  - `apps/api/src/scripts/kisumu-boys-demo-seed.test.ts`:
+    - Line 171: `test('Kisumu Boys cross-dashboard blueprints cover boarding, visitors, finance, and notifications', () => {`
+    - Line 173: `const visitors = buildKisumuBoysDemoVisitors();`
+  - `apps/api/src/scripts/kisumu-boys-demo-seed.ts`:
+    - Line 1659: `const visitors = buildKisumuBoysDemoVisitors();`
+    - Line 1660: `for (const [index, visitor] of visitors.entries()) {`
+  - `apps/api/src/scripts/module-access-certification.test.ts`:
+    - Line 36: `'apps/api/src/modules/visitors/visitors.controller.ts': '@Controller(\'visitors\') @RequiresModule(\'visitor_management\')',`
+    - Line 41: `'apps/web/src/lib/module-access/module-access-map.ts': 'schoolSectionModuleMap students: "students" admissions: "admissions" finance: "finance" mpesa: "finance" academics: "academics" exams: "exams" discipline: "discipline" reports: "reports" communication: "communication_sms" timetable: "timetable" staff: "staff" inventory: "inventory" library: "library" clinic: "clinic_health" labs: "lab_management" "teacher-attendance": "teacher_biometric_attendance" leadership: "admin_command_centers" transport: "transport" procurement: "procurement" hostel: "hostel" boarding: "boarding" cbt: "cbt_exams" lms: "lms" "ai-insights": "ai_insights" visitors: "visitor_management" assets: "asset_tracking" iot: "iot" isSchoolSectionEnabled filterNavItemsByEnabledModules',`
+  - `apps/api/src/scripts/module-access-certification.ts`:
+    - Line 75: `backendRoute('visitors', 'Visitor routes require the visitor management module', 'apps/api/src/modules/visitors/visitors.controller.ts', 'visitor_management'),`
+    - Line 105: `frontendRoute('visitors', 'visitor_management'),`
+
+---
+
+### Role: `security-officer`
+
+| File Name | Module ID | Definition Status | Backend Status | Refs |
+| :--- | :--- | :--- | :--- | :--- |
+| `gate-register-workspace.tsx` | `gate-register` | ✅ Found (Gate Register) | ❌ Missing | None |
+| `incidents-workspace.tsx` | `incidents` | ❌ Missing | ✅ Referenced (271 refs) | `auth.constants.ts`, `operational-execution-contract.ts`, `batch4_schemas.sql`... |
+| `overview-workspace.tsx` | `overview` | ✅ Found (Overview) | ✅ Referenced (106 refs) | `billing-feature.middleware.test.ts`, `admin-command.controller.ts`, `admissions-command.controller.ts`... |
+| `reports-workspace.tsx` | `reports` | ✅ Found (Reports) | ✅ Referenced (371 refs) | `auth-email.service.test.ts`, `auth.constants.ts`, `monitoring-service-account.service.ts`... |
+| `staff-movement-workspace.tsx` | `staff-movement` | ❌ Missing | ❌ Missing | None |
+| `student-exit-passes-workspace.tsx` | `student-exit-passes` | ✅ Found (Student Exit Passes) | ❌ Missing | None |
+| `visitors-workspace.tsx` | `visitors` | ✅ Found (Visitors) | ✅ Referenced (93 refs) | `app.module.ts`, `auth.constants.ts`, `role-governance-policy.ts`... |
+
+#### Backend Reference Details for `security-officer`:
+- **`gate-register-workspace.tsx` (`gate-register`)**: No backend references found in `apps/api/src`.
+- **`incidents-workspace.tsx` (`incidents`)**:
+  - `apps/api/src/auth/auth.constants.ts`:
+    - Line 104: `{ resource: 'discipline', action: 'read', description: 'View permitted discipline incidents, actions, and behavior summaries' },`
+    - Line 105: `{ resource: 'discipline', action: 'write', description: 'Report discipline incidents, add evidence, and record permitted discipline updates' },`
+  - `apps/api/src/common/platform-governance/operational-execution-contract.ts`:
+    - Line 254: `form('incident.escalation-form', 'schemas/incidents/escalation.json', 'workflows.incident.escalate', [`
+  - `apps/api/src/database/batch4_schemas.sql`:
+    - Line 83: `CREATE TABLE IF NOT EXISTS security_incidents (`
+    - Line 94: `CONSTRAINT ck_security_incidents_tenant CHECK (tenant_id <> 'global')`
+  - `apps/api/src/database/migrations/003_discipline_schema.sql`:
+    - Line 2: `-- Description: Creates the admin_incidents table for discipline tracking`
+    - Line 4: `CREATE TABLE IF NOT EXISTS admin_incidents (`
+  - `apps/api/src/database/schema.sql`:
+    - Line 2767: `CREATE TABLE IF NOT EXISTS security_incidents (`
+    - Line 2778: `CONSTRAINT ck_security_incidents_tenant CHECK (tenant_id <> 'global')`
+  - `apps/api/src/database/tenant-database-policy.ts`:
+    - Line 84: `discipline: ['discipline_incidents', 'discipline_actions', 'counselling_sessions'],`
+  - `apps/api/src/modules/admin-command/admin-command-schema.service.ts`:
+    - Line 6: `'admin_incidents',`
+    - Line 48: `CREATE TABLE IF NOT EXISTS admin_incidents (`
+  - `apps/api/src/modules/admin-command/admin-command.controller.ts`:
+    - Line 212: `@Post('incidents')`
+    - Line 243: `@Post('discipline/incidents')`
+  - `apps/api/src/modules/admin-command/admin-command.test.ts`:
+    - Line 27: `'admin_incidents',`
+    - Line 283: `test('AdminCommandService creates incidents with audit trail', async () => {`
+  - `apps/api/src/modules/admin-command/principal-insights.providers.ts`:
+    - Line 197: `{ id: 'boarding_incidents', title: 'Boarding Incidents', metric_key: 'boarding_incidents' },`
+    - Line 200: `drilldowns: ['hostel.occupancy', 'hostel.incidents'],`
+  - `apps/api/src/modules/admin-command/repositories/admin-command.repository.ts`:
+    - Line 343: `FROM admin_incidents`
+    - Line 452: `boarding_incidents: 0,`
+  - `apps/api/src/modules/admin-command/repositories/deputy-command.repository.ts`:
+    - Line 38: `(SELECT COUNT(*)::int FROM admin_incidents WHERE tenant_id = $1 AND status IN ('reported', 'escalated')) AS pending_incidents,`
+    - Line 44: `{ total_students: 0, total_staff: 0, pending_incidents: 0, active_classes: 0, present_today: 0, absent_today: 0 }`
+  - `apps/api/src/modules/boarding/boarding-schema.service.ts`:
+    - Line 11: `'boarding_incidents',`
+    - Line 85: `CREATE TABLE IF NOT EXISTS boarding_incidents (`
+  - `apps/api/src/modules/boarding/boarding.service.ts`:
+    - Line 70: `const [studentsRes, incidentsRes, leaveRes] = await Promise.all([`
+    - Line 72: `db.query(`SELECT COUNT(*)::int as count FROM boarding_incidents WHERE tenant_id = $1 AND status = 'open'`, [tenantId]),`
+  - `apps/api/src/modules/boarding/boarding.test.ts`:
+    - Line 17: `for (const table of ['boarding_houses', 'boarding_students', 'boarding_meals', 'boarding_dormitory_checks', 'boarding_incidents']) {`
+  - `apps/api/src/modules/class-teacher/class-teacher.service.ts`:
+    - Line 96: `urgentFollowups: [] // Requires welfare/discipline incidents logic`
+    - Line 132: `FROM discipline_incidents di`
+  - `apps/api/src/modules/discipline/discipline-schema.service.ts`:
+    - Line 7: `'discipline_incidents',`
+    - Line 114: `CREATE TABLE IF NOT EXISTS discipline_incidents (`
+  - `apps/api/src/modules/discipline/discipline.controller.ts`:
+    - Line 98: `@Get('incidents')`
+    - Line 104: `@Get('parent/incidents')`
+  - `apps/api/src/modules/discipline/discipline.service.ts`:
+    - Line 97: `FROM discipline_incidents`
+  - `apps/api/src/modules/discipline/discipline.test.ts`:
+    - Line 29: `'discipline_incidents',`
+    - Line 49: `assert.match(bootstrapSql, /CREATE INDEX IF NOT EXISTS ix_discipline_incidents_student_term/);`
+  - `apps/api/src/modules/discipline/dto/discipline.dto.ts`:
+    - Line 315: `@IsIn(['incidents', 'behavior_summary', 'commendations', 'counselling_effectiveness'])`
+    - Line 316: `report_type!: 'incidents' | 'behavior_summary' | 'commendations' | 'counselling_effectiveness';`
+  - `apps/api/src/modules/discipline/repositories/discipline.repository.ts`:
+    - Line 280: `INSERT INTO discipline_incidents (`
+    - Line 428: `FROM discipline_incidents`
+  - `apps/api/src/modules/implementation300/blueprint-registry.ts`:
+    - Line 441: `moduleDefinition('discipline', 'Discipline', ['incidents', 'actions', 'counselling', 'notices', 'scoring', 'escalation'], [`
+  - `apps/api/src/modules/inventory/inventory-schema.service.ts`:
+    - Line 314: `CREATE TABLE IF NOT EXISTS inventory_incidents (`
+    - Line 329: `CONSTRAINT uq_inventory_incidents_tenant_id_id UNIQUE (tenant_id, id),`
+  - `apps/api/src/modules/inventory/inventory.controller.ts`:
+    - Line 234: `@Get('incidents')`
+    - Line 240: `@Post('incidents')`
+  - `apps/api/src/modules/inventory/repositories/inventory.repository.test.ts`:
+    - Line 1026: `assert.match(schemaSql, /CREATE INDEX IF NOT EXISTS ix_inventory_incidents_tenant_status_reported/);`
+  - `apps/api/src/modules/inventory/repositories/inventory.repository.ts`:
+    - Line 2455: `INSERT INTO inventory_incidents (`
+    - Line 2503: `FROM inventory_incidents incident`
+  - `apps/api/src/modules/module-access/module-access.constants.ts`:
+    - Line 199: `description: 'Hostel occupancy, dormitory issues, boarding incidents, and meal consumption analytics.',`
+  - `apps/api/src/modules/secretary/secretary.service.ts`:
+    - Line 85: ``INSERT INTO admin_incidents (tenant_id, incident_type, recorded_by_user_id, description, metadata, status)`
+    - Line 98: ``INSERT INTO admin_incidents (tenant_id, incident_type, recorded_by_user_id, description, metadata, status)`
+  - `apps/api/src/modules/security/data-classification-registry.service.ts`:
+    - Line 62: `{ column: 'discipline_incidents.counselling_notes', classification: 'sensitive_child_data', encryption: 'column', redaction: 'tokenize' },`
+  - `apps/api/src/modules/security/security-operations.controller.ts`:
+    - Line 11: `@Post('incidents')`
+  - `apps/api/src/modules/security/security-operations.service.ts`:
+    - Line 53: ``INSERT INTO security_incidents (tenant_id, title, description, severity, location, reported_by)`
+  - `apps/api/src/modules/support/repositories/support.repository.test.ts`:
+    - Line 223: `test('SupportRepository analytics include response time, notification delivery, and active incidents', async () => {`
+    - Line 263: `if (text.includes('FROM support_incidents')) {`
+  - `apps/api/src/modules/support/repositories/support.repository.ts`:
+    - Line 1656: `const [components, incidents] = await Promise.all([`
+    - Line 1687: `FROM support_incidents incident`
+  - `apps/api/src/modules/support/support-schema.service.ts`:
+    - Line 276: `CREATE TABLE IF NOT EXISTS support_incidents (`
+    - Line 288: `CONSTRAINT uq_support_incidents_tenant_id_id UNIQUE (tenant_id, id),`
+  - `apps/api/src/modules/support/support-status-subscription.service.test.ts`:
+    - Line 122: `incidents: [`
+    - Line 142: `assert.equal(status.active_incidents.length, 1);`
+  - `apps/api/src/modules/support/support-status-subscription.service.ts`:
+    - Line 42: `incidents: PublicStatusIncident[];`
+    - Line 43: `active_incidents: PublicStatusIncident[];`
+  - `apps/api/src/scripts/base-onboarding-seed.ts`:
+    - Line 281: `{ moduleCode: 'inventory', table: 'inventory_incidents', tenantScoped: true },`
+    - Line 316: `{ moduleCode: 'discipline', table: 'discipline_incidents', tenantScoped: true },`
+  - `apps/api/src/scripts/core-api-load.ts`:
+    - Line 192: `id: 'discipline-incidents',`
+    - Line 194: `path: '/discipline/incidents',`
+  - `apps/api/src/scripts/high-volume-workflow-load.ts`:
+    - Line 28: `{ id: 'discipline-incident-queue', method: 'GET', path: '/discipline/incidents', targetP95Ms: 700 },`
+  - `apps/api/src/scripts/implementation100-certification.ts`:
+    - Line 65: `moduleEvidence('discipline', 'Discipline', 'apps/web/src/components/discipline/discipline-workspace.tsx', ['Discipline'], 'apps/web/src/app/api/discipline/[...path]/route.ts', ['proxyDisciplineRequest', 'upstreamPath'], 'apps/api/src/modules/discipline/discipline.controller.ts', ['DisciplineController'], 'apps/api/src/modules/discipline/discipline-schema.service.ts', ['discipline_incidents'], 'apps/api/src/modules/discipline/discipline.test.ts', ['discipline']),`
+    - Line 76: `moduleEvidence('admin_command_centers', 'Administrative Leadership', 'apps/web/src/components/school/school-pages.tsx', ['Leadership'], 'apps/web/src/app/api/admin-command/[...path]/route.ts', ['proxySchoolApiRequest', '/admin-command'], 'apps/api/src/modules/admin-command/admin-command.controller.ts', ['AdminCommandController'], 'apps/api/src/modules/admin-command/admin-command-schema.service.ts', ['admin_incidents'], 'apps/api/src/modules/admin-command/admin-command.test.ts', ['admin-command']),`
+  - `apps/api/src/scripts/implementation20-certification.test.ts`:
+    - Line 25: `'apps/api/src/modules/admin-command/admin-command-schema.service.ts': 'admin_incidents announcements meeting_minutes duty_rosters',`
+  - `apps/api/src/scripts/implementation20-certification.ts`:
+    - Line 67: `check('admin-command-schema', 'Leadership schema includes incidents, announcements, minutes, and duty rosters', 'apps/api/src/modules/admin-command/admin-command-schema.service.ts', /admin_incidents[\s\S]+announcements[\s\S]+meeting_minutes[\s\S]+duty_rosters/),`
+  - `apps/api/src/scripts/implementation30-certification.test.ts`:
+    - Line 79: `'apps/api/src/scripts/implementation30-rollout-gate.test.ts': 'blocks live phases without pilot evidence zero critical incidents payment or callback safety regressions without leaking secrets',`
+  - `apps/api/src/scripts/implementation30-certification.ts`:
+    - Line 163: `check('rollout-gate-tests', 'Rollout gate tests cover blocked live phases, complete zero-incident evidence, failed payment safety, and secret-safe markdown', 'apps/api/src/scripts/implementation30-rollout-gate.test.ts', /(?=.*blocks live phases without pilot evidence)(?=.*zero critical incidents)(?=.*payment or callback safety regressions)(?=.*without leaking secrets)/s),`
+  - `apps/api/src/scripts/implementation30-rollout-gate.test.ts`:
+    - Line 25: `test('Implementation 30 rollout gate passes all phases only with zero critical incidents and required 30-day evidence', () => {`
+  - `apps/api/src/scripts/implementation30-rollout-gate.ts`:
+    - Line 320: `numericZeroCheck('zero-cross-tenant-incidents', '0 cross-tenant access incidents', metrics.crossTenantAccessIncidents),`
+  - `apps/api/src/scripts/kisumu-boys-demo-seed.ts`:
+    - Line 280: `{ moduleCode: 'inventory', table: 'inventory_incidents', tenantScoped: true },`
+    - Line 315: `{ moduleCode: 'discipline', table: 'discipline_incidents', tenantScoped: true },`
+  - `apps/api/src/scripts/module-certification.test.ts`:
+    - Line 25: `'apps/api/src/modules/discipline/repositories/discipline.repository.ts': 'parent_user_id student_id getDashboard incidents_by_severity',`
+  - `apps/api/src/scripts/module-certification.ts`:
+    - Line 91: `check('create-incident', 'Discipline service creates incidents', 'apps/api/src/modules/discipline/discipline.service.ts', /createIncident/),`
+    - Line 108: `check('analytics-dashboard', 'Discipline analytics dashboard exists', 'apps/api/src/modules/discipline/repositories/discipline.repository.ts', /getDashboard|incidents_by_severity/),`
+  - `apps/api/src/scripts/query-plan-review-local-fixture.ts`:
+    - Line 298: `name: 'discipline_incidents',`
+    - Line 300: `CREATE TABLE IF NOT EXISTS discipline_incidents (`
+  - `apps/api/src/scripts/query-plan-review.test.ts`:
+    - Line 213: `'discipline_incidents',`
+  - `apps/api/src/scripts/query-plan-review.ts`:
+    - Line 240: `FROM discipline_incidents`
+    - Line 249: `protectedTables: ['discipline_incidents'],`
+  - `apps/api/src/scripts/release-readiness-gate.test.ts`:
+    - Line 178: `Attendance is retired and must not be restored during incidents.`
+  - `apps/api/src/scripts/synthetic-journey-monitor.ts`:
+    - Line 121: `description: 'Public status web page renders current incidents, history, and subscription entry.',`
+    - Line 208: `id: 'discipline-incidents',`
+- **`overview-workspace.tsx` (`overview`)**:
+  - `apps/api/src/middleware/billing-feature.middleware.test.ts`:
+    - Line 75: `await requestContext.run(createContext('/admin-command/principal/overview'), async () => {`
+    - Line 78: `path: '/admin-command/principal/overview',`
+  - `apps/api/src/modules/admin-command/admin-command.controller.ts`:
+    - Line 33: `@Get('principal/finance-overview')`
+    - Line 103: `@Get('principal/overview')`
+  - `apps/api/src/modules/admin-command/admissions-command.controller.ts`:
+    - Line 9: `@Get('overview')`
+    - Line 84: `overview,`
+  - `apps/api/src/modules/admin-command/deputy-command.controller.ts`:
+    - Line 9: `@Get('overview')`
+  - `apps/api/src/modules/admin-command/principal-insights.providers.ts`:
+    - Line 6: `id: 'school_overview',`
+    - Line 8: `category: 'overview',`
+  - `apps/api/src/modules/admin-command/principal-insights.service.ts`:
+    - Line 164: `const overview = await this.repository.getPrincipalOverviewSnapshot(tenantId);`
+    - Line 190: `overview,`
+  - `apps/api/src/modules/admin-command/principal-insights.types.ts`:
+    - Line 54: `overview: PrincipalOverviewPanel;`
+  - `apps/api/src/modules/admin-command/repositories/admin-command.repository.ts`:
+    - Line 1221: `defaultView: "overview"`
+  - `apps/api/src/modules/billing/billing-access.service.ts`:
+    - Line 59: `const { subscription, overview } =`
+    - Line 61: `const access = this.buildAccessState(subscription, overview);`
+  - `apps/api/src/modules/billing/billing-lifecycle.service.ts`:
+    - Line 60: `overview: SubscriptionLifecycleOverview | null;`
+    - Line 69: `overview: null,`
+  - `apps/api/src/modules/billing/billing-notification.service.ts`:
+    - Line 18: `overview: SubscriptionLifecycleOverview,`
+    - Line 20: `const descriptors = this.buildDescriptors(subscription, overview);`
+  - `apps/api/src/modules/billing/billing.service.ts`:
+    - Line 281: `if (!lifecycle.subscription || !lifecycle.overview) {`
+    - Line 285: `return this.mapSubscription(lifecycle.subscription, lifecycle.overview);`
+  - `apps/api/src/modules/billing/billing.test.ts`:
+    - Line 129: `overview: null,`
+    - Line 877: `ensureCurrentLifecycle: async () => ({ subscription: null, overview: null }),`
+  - `apps/api/src/modules/class-teacher/class-teacher.controller.ts`:
+    - Line 20: `@Get('overview')`
+    - Line 30: `@Get('dashboard-overview')`
+  - `apps/api/src/modules/dashboard/dashboard.controller.ts`:
+    - Line 34: `@Get('parent/overview')`
+    - Line 58: `@Get('student/overview')`
+  - `apps/api/src/modules/discipline/discipline.controller.ts`:
+    - Line 244: `@Get('analytics/overview')`
+  - `apps/api/src/modules/finance/finance.controller.ts`:
+    - Line 306: `@Get('accounts-overview')`
+  - `apps/api/src/modules/grade-master/grade-master.controller.ts`:
+    - Line 9: `@Get('overview')`
+  - `apps/api/src/modules/operations/consumers/export-overview.consumer.ts`:
+    - Line 6: `readonly name = 'export-overview.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'export-overview' && event.payload.action_id !== 'export-overview') {`
+  - `apps/api/src/modules/operations/consumers/index.ts`:
+    - Line 262: `export { ExportOverviewConsumer } from './export-overview.consumer';`
+  - `apps/api/src/modules/platform/platform-onboarding.service.test.ts`:
+    - Line 665: `test('PlatformOnboardingService summarizes tenants in product for the Super Admin overview', async () => {`
+  - `apps/api/src/scripts/core-api-load.ts`:
+    - Line 203: `path: '/discipline/analytics/overview',`
+  - `apps/api/src/scripts/high-volume-workflow-load.ts`:
+    - Line 29: `{ id: 'discipline-analytics', method: 'GET', path: '/discipline/analytics/overview', targetP95Ms: 800 },`
+- **`reports-workspace.tsx` (`reports`)**:
+  - `apps/api/src/auth/auth-email.service.test.ts`:
+    - Line 6: `test('AuthEmailService reports transactional email as missing without secrets', () => {`
+    - Line 20: `test('AuthEmailService reports transactional email as configured without exposing secrets', () => {`
+  - `apps/api/src/auth/auth.constants.ts`:
+    - Line 59: `{ resource: 'reports', action: 'read', description: 'View generated report export jobs and snapshots' },`
+    - Line 108: `{ resource: 'discipline', action: 'reports', description: 'Export discipline reports and analytics' },`
+  - `apps/api/src/auth/monitoring-service-account.service.ts`:
+    - Line 16: `'reports:read',`
+  - `apps/api/src/auth/role-governance-policy.ts`:
+    - Line 125: `platform_support: ['support:view', 'support:manage', 'reports:read'],`
+    - Line 126: `finance_admin: ['billing:read', 'billing:write', 'reports:read'],`
+  - `apps/api/src/common/auto-repair/auto-repair-agent.test.ts`:
+    - Line 474: `operationalIntent: 'Bursar can act on finance exceptions, not browse static trend reports',`
+    - Line 706: `test('AutoRepairAgent reports dashboard repair patch intelligence for KPI-only dashboards', () => {`
+  - `apps/api/src/common/auto-repair/auto-repair-deployment.test.ts`:
+    - Line 43: `test('AutoRepairService reports deployed runtime readiness and keeps the full widget state contract', () => {`
+  - `apps/api/src/common/common.module.ts`:
+    - Line 12: `import { ReportExportQueueService } from './reports/report-export-queue';`
+    - Line 13: `import { ReportExportJobsController } from './reports/report-export-jobs.controller';`
+  - `apps/api/src/common/reports/report-artifact-storage.service.test.ts`:
+    - Line 18: `retention_policy: 'reports',`
+    - Line 48: `assert.equal(savedInputs[0].storagePath, `tenant/tenant-a/reports/billing/invoices/${'b'.repeat(64)}.pdf`);`
+  - `apps/api/src/common/reports/report-artifact-storage.service.ts`:
+    - Line 40: `retentionPolicy: 'reports',`
+    - Line 73: `return `tenant/${input.tenantId}/reports/${module}/${reportId}/${input.artifact.checksumSha256}.${extension}`;`
+  - `apps/api/src/common/reports/report-export-jobs.controller.ts`:
+    - Line 7: `@Controller('reports')`
+    - Line 8: `@RequiresModule('reports')`
+  - `apps/api/src/common/reports/report-export-queue.ts`:
+    - Line 52: `reports: 'reports',`
+  - `apps/api/src/common/reports/report-export.worker.test.ts`:
+    - Line 25: `storage_path: 'tenant/tenant-a/reports/exams/exam-results/artifact.pdf',`
+    - Line 80: `storage_path: 'tenant/tenant-a/reports/exams/exam-results/artifact.pdf',`
+  - `apps/api/src/common/reports/report-snapshot.repository.test.ts`:
+    - Line 95: `assert.deepEqual(Reflect.getMetadata(PERMISSIONS_KEY, handler), ['reports:read']);`
+  - `apps/api/src/common/uploads/database-file-storage.service.test.ts`:
+    - Line 685: `test('S3CompatibleObjectStorageService reports failed object deletes as unavailable', async () => {`
+  - `apps/api/src/common/uploads/upload-policy.test.ts`:
+    - Line 252: `test('runProviderMalwareScan returns unsafe verdicts when the provider reports infection', async () => {`
+  - `apps/api/src/database/batch4_schemas.sql`:
+    - Line 71: `CREATE TABLE IF NOT EXISTS operations_reports (`
+    - Line 80: `CONSTRAINT ck_operations_reports_tenant CHECK (tenant_id <> 'global')`
+  - `apps/api/src/database/schema.sql`:
+    - Line 2755: `CREATE TABLE IF NOT EXISTS operations_reports (`
+    - Line 2764: `CONSTRAINT ck_operations_reports_tenant CHECK (tenant_id <> 'global')`
+  - `apps/api/src/database/tenant-database-policy.ts`:
+    - Line 93: `reports: ['report_export_jobs', 'report_snapshots'],`
+  - `apps/api/src/modules/admin-command/admin-command.controller.ts`:
+    - Line 124: `@Get('principal/reports')`
+    - Line 126: `@Permissions('principal:read', 'reports:read')`
+  - `apps/api/src/modules/admin-command/admissions-command.controller.ts`:
+    - Line 69: `@Get('reports')`
+    - Line 99: `reports,`
+  - `apps/api/src/modules/admin-command/deputy-command.controller.ts`:
+    - Line 133: `@Get('reports')`
+    - Line 137: `@Post('reports/generate')`
+  - `apps/api/src/modules/admin-command/principal-insights.providers.ts`:
+    - Line 16: `reports: ['school-overview', 'population-trend'],`
+    - Line 31: `reports: ['academic-summary', 'cbc-cbe-competency-progress'],`
+  - `apps/api/src/modules/admin-command/principal-insights.service.ts`:
+    - Line 184: `const reportExports = Array.from(new Set(sections.flatMap((section) => section.reports)));`
+    - Line 273: `reports: [...provider.reports],`
+  - `apps/api/src/modules/admin-command/principal-insights.types.ts`:
+    - Line 34: `reports: string[];`
+    - Line 81: `reports: string[];`
+  - `apps/api/src/modules/admin-command/repositories/admin-command.repository.ts`:
+    - Line 846: `reportsPending: summaryResult.rows[0]?.pending_reviews || 0,`
+    - Line 1479: ``INSERT INTO operations_reports (content, prepared_by, tenant_id, title, updated_at) VALUES ($1, $2, $3, $4, NOW())`,`
+  - `apps/api/src/modules/admin-command/repositories/deputy-command.repository.ts`:
+    - Line 449: `0::int AS generated_reports`
+    - Line 452: `{ generated_reports: 0 }`
+  - `apps/api/src/modules/admissions/admissions.controller.ts`:
+    - Line 33: `} from '../../common/reports/report-export-queue';`
+    - Line 217: `@Post('reports/:reportId/export-jobs')`
+  - `apps/api/src/modules/admissions/admissions.service.ts`:
+    - Line 22: `} from '../../common/reports/report-csv-artifact';`
+  - `apps/api/src/modules/admissions/admissions.test.ts`:
+    - Line 197: `path: '/admissions/reports/applications/export',`
+    - Line 350: `path: '/admissions/reports/unknown/export',`
+  - `apps/api/src/modules/billing/billing.controller.ts`:
+    - Line 15: `} from '../../common/reports/report-export-queue';`
+    - Line 214: `@Post('reports/:reportId/export-jobs')`
+  - `apps/api/src/modules/billing/billing.service.ts`:
+    - Line 14: `} from '../../common/reports/report-csv-artifact';`
+  - `apps/api/src/modules/billing/billing.test.ts`:
+    - Line 2245: `path: '/billing/reports/invoices/export',`
+    - Line 2297: `path: '/billing/reports/unknown/export',`
+  - `apps/api/src/modules/biometric-attendance/biometric-attendance.controller.ts`:
+    - Line 52: `@Get('reports/monthly')`
+  - `apps/api/src/modules/class-teacher/class-teacher.controller.ts`:
+    - Line 358: `@Get('reports')`
+  - `apps/api/src/modules/clinic/clinic.controller.ts`:
+    - Line 62: `@Permissions('clinic:reports')`
+  - `apps/api/src/modules/clinic/clinic.service.ts`:
+    - Line 171: `this.assertPermission('clinic:reports');`
+  - `apps/api/src/modules/clinic/clinic.test.ts`:
+    - Line 58: `assert.deepEqual(Reflect.getMetadata(PERMISSIONS_KEY, analyticsHandler), ['clinic:reports']);`
+  - `apps/api/src/modules/compliance/compliance-schema.service.ts`:
+    - Line 127: `CREATE TABLE IF NOT EXISTS breach_response_reports (`
+    - Line 141: `CONSTRAINT ck_breach_response_reports_severity CHECK (severity IN ('low', 'medium', 'high', 'critical')),`
+  - `apps/api/src/modules/compliance/compliance.controller.ts`:
+    - Line 81: `@Get('breach-response-reports/:reportId/export')`
+  - `apps/api/src/modules/compliance/compliance.service.ts`:
+    - Line 351: `FROM breach_response_reports`
+  - `apps/api/src/modules/compliance/compliance.test.ts`:
+    - Line 33: `assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS breach_response_reports/);`
+    - Line 36: `assert.match(schemaSql, /ALTER TABLE breach_response_reports FORCE ROW LEVEL SECURITY/);`
+  - `apps/api/src/modules/counselling/counselling.controller.ts`:
+    - Line 87: `@Get('reports')`
+  - `apps/api/src/modules/discipline/discipline.controller.ts`:
+    - Line 245: `@Permissions('discipline:reports')`
+    - Line 250: `@Post('reports/export')`
+  - `apps/api/src/modules/discipline/discipline.service.ts`:
+    - Line 636: `this.assertPermission('discipline:reports');`
+    - Line 648: `this.assertPermission('discipline:reports');`
+  - `apps/api/src/modules/discipline/discipline.test.ts`:
+    - Line 65: `'discipline:reports',`
+    - Line 597: `permissions: ['discipline:reports'],`
+  - `apps/api/src/modules/exams/consumers/download-reports.consumer.ts`:
+    - Line 6: `readonly name = 'download-reports.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'download-reports' && event.payload.action_id !== 'download-reports') {`
+  - `apps/api/src/modules/exams/consumers/index.ts`:
+    - Line 10: `export { DownloadReportsConsumer } from './download-reports.consumer';`
+  - `apps/api/src/modules/exams/exams.test.ts`:
+    - Line 648: `test('ExamsService reports duplicate and unauthorized rows during bulk mark upload preview', async () => {`
+  - `apps/api/src/modules/exams/repositories/exams.repository.ts`:
+    - Line 1481: `(SELECT COUNT(*) FROM student_report_cards WHERE tenant_id = $1 AND status = 'published') AS published_reports,`
+  - `apps/api/src/modules/exams/services/report-card-pdf-artifact.ts`:
+    - Line 3: `import { normalizeReportFilename, normalizeReportGeneratedAt, type ReportArtifact } from '../../../common/reports/report-artifact';`
+  - `apps/api/src/modules/exams/services/report-card-template.service.ts`:
+    - Line 3: `import type { ReportArtifactInput, ReportArtifactValue } from '../../../common/reports/report-artifact';`
+  - `apps/api/src/modules/grade-master/grade-master.controller.ts`:
+    - Line 81: `@Get('reports')`
+  - `apps/api/src/modules/grade-master/grade-master.service.ts`:
+    - Line 16: `reportsNotReady: 12,`
+  - `apps/api/src/modules/health/health.controller.test.ts`:
+    - Line 297: `test('HealthController readiness reports optional Redis degradation without throwing', async () => {`
+  - `apps/api/src/modules/implementation300/api-category-policy.ts`:
+    - Line 45: `api('analytics_engine', 'internal', 'reports', ['/api/internal/analytics'], 'internal_service', true, true, 600),`
+  - `apps/api/src/modules/implementation300/blueprint-registry.ts`:
+    - Line 42: `| 'reports'`
+    - Line 437: `moduleDefinition('exams', 'Exams and Results', ['setup', 'grading', 'cbc-assessment', 'moderation', 'reports', 'analytics'], [`
+  - `apps/api/src/modules/implementation300/development-phase-policy.test.ts`:
+    - Line 24: `'reports',`
+    - Line 31: `completedModules: ['authentication', 'tenant_management', 'students', 'finance', 'exams', 'communication_sms', 'reports', 'inventory'],`
+  - `apps/api/src/modules/implementation300/development-phase-policy.ts`:
+    - Line 59: `'reports',`
+    - Line 61: `capabilities: ['tenant_onboarding', 'billing', 'exam_results', 'communication', 'reports'],`
+  - `apps/api/src/modules/integrations/integrations.test.ts`:
+    - Line 202: `test('SmsDispatchService reports missing credential fields without exposing secrets', async () => {`
+  - `apps/api/src/modules/inventory/inventory.controller.ts`:
+    - Line 7: `} from '../../common/reports/report-export-queue';`
+    - Line 246: `@Get('reports')`
+  - `apps/api/src/modules/inventory/inventory.service.ts`:
+    - Line 13: `} from '../../common/reports/report-csv-artifact';`
+    - Line 93: `rows: (reports: InventoryReportsPayload) => ReportCsvValue[][];`
+  - `apps/api/src/modules/inventory/inventory.test.ts`:
+    - Line 2222: `path: '/inventory/reports/stock-valuation/export',`
+    - Line 2250: `throw new Error('reports should not be loaded for an unknown export');`
+  - `apps/api/src/modules/inventory/repositories/inventory.repository.test.ts`:
+    - Line 971: `const reports = await repository.buildReports('tenant-a');`
+    - Line 978: `assert.deepEqual(reports.stock_reconciliation, [`
+  - `apps/api/src/modules/library/library.controller.ts`:
+    - Line 89: `@Get('reports')`
+  - `apps/api/src/modules/mobile/mobile-app-policy.test.ts`:
+    - Line 44: `enabledModules: ['principal_dashboard', 'finance', 'reports'],`
+    - Line 79: `capabilities: ['fees', 'communication', 'reports', 'results'],`
+  - `apps/api/src/modules/mobile/mobile-app-policy.ts`:
+    - Line 9: `| 'reports'`
+    - Line 19: `export type MobileOfflineCapability = 'attendance' | 'mark_entry' | 'assignments' | 'fees' | 'communication' | 'reports' | 'results';`
+  - `apps/api/src/modules/module-access/module-access.constants.ts`:
+    - Line 55: `description: 'Assessments, marks, reports, academic analytics, CBT hooks, and result publishing.',`
+    - Line 67: `permission_scopes: ['discipline:read', 'discipline:write', 'discipline:manage', 'discipline:reports'],`
+  - `apps/api/src/modules/module-access/module-access.test.ts`:
+    - Line 13: `import { ReportExportJobsController } from '../../common/reports/report-export-jobs.controller';`
+    - Line 38: `'reports',`
+  - `apps/api/src/modules/operations/consumers/index.ts`:
+    - Line 505: `export { ReportsConsumer } from './reports.consumer';`
+    - Line 516: `export { RequestReportsConsumer } from './request-reports.consumer';`
+  - `apps/api/src/modules/operations/consumers/reports.consumer.ts`:
+    - Line 6: `readonly name = 'reports.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'reports' && event.payload.action_id !== 'reports') {`
+  - `apps/api/src/modules/operations/consumers/request-reports.consumer.ts`:
+    - Line 6: `readonly name = 'request-reports.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'request-reports' && event.payload.action_id !== 'request-reports') {`
+  - `apps/api/src/modules/operations/consumers/view-reports.consumer.ts`:
+    - Line 6: `readonly name = 'view-reports.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'view-reports' && event.payload.action_id !== 'view-reports') {`
+  - `apps/api/src/modules/operations/operations.service.ts`:
+    - Line 69: ``INSERT INTO operations_reports (tenant_id, title, content, prepared_by)`
+  - `apps/api/src/modules/payments/payments.test.ts`:
+    - Line 3482: `test('MpesaReconciliationService reports missing callbacks, duplicates, amount mismatches, wrong references, and late provider status', async () => {`
+    - Line 4016: `result.reports.map((report) => report.payment_channel_id),`
+  - `apps/api/src/modules/payments/payments.types.ts`:
+    - Line 297: `reports: MpesaReconciliationReport[];`
+    - Line 305: `reports: MpesaReconciliationReport[];`
+  - `apps/api/src/modules/payments/services/mpesa-reconciliation.service.ts`:
+    - Line 446: `const reports: MpesaReconciliationReport[] = [];`
+    - Line 449: `reports.push(`
+  - `apps/api/src/modules/platform/platform-onboarding.service.test.ts`:
+    - Line 470: `test('PlatformOnboardingService reports Resend testing mode as blocked instead of encouraging repeated resends', async () => {`
+  - `apps/api/src/modules/support/support-notification-delivery.service.test.ts`:
+    - Line 12: `test('SupportNotificationDeliveryService reports provider readiness without exposing secrets', async () => {`
+    - Line 97: `test('SupportNotificationDeliveryService reports precise missing provider status for dashboard-managed SMS', async () => {`
+  - `apps/api/src/scripts/audit-coverage-review.test.ts`:
+    - Line 49: `test('runAuditCoverageReview reports missing evidence by file and pattern', () => {`
+  - `apps/api/src/scripts/base-onboarding-seed.ts`:
+    - Line 30: `'reports',`
+    - Line 362: `{ moduleCode: 'reports', table: 'report_snapshots', tenantScoped: true },`
+  - `apps/api/src/scripts/core-api-load.test.ts`:
+    - Line 33: `assert.equal(inventoryExport.url, 'http://127.0.0.1:3000/inventory/reports/stock-valuation/export');`
+  - `apps/api/src/scripts/core-api-load.ts`:
+    - Line 131: `path: '/admissions/reports/applications/export',`
+    - Line 147: `id: 'inventory-reports',`
+  - `apps/api/src/scripts/enable-admin-modules.ts`:
+    - Line 47: `'Module-aware executive KPIs, alerts, analytics, trends, and reports for the Principal.',`
+  - `apps/api/src/scripts/generate-production-scorecard.test.ts`:
+    - Line 22: `"reports",`
+  - `apps/api/src/scripts/generate-production-scorecard.ts`:
+    - Line 150: `remediation: 'Add the tenant isolation audit runner and require it in CI for finance, support, library, discipline, reports, and files.',`
+    - Line 183: `evidenceLine(/missing_provider/.test(supportNotificationSource), 'support notification health reports precise missing provider state'),`
+  - `apps/api/src/scripts/high-volume-workflow-load.test.ts`:
+    - Line 18: `'billing-invoice-reports',`
+  - `apps/api/src/scripts/high-volume-workflow-load.ts`:
+    - Line 18: `{ id: 'billing-invoice-reports', method: 'GET', path: '/billing/reports/invoices/export', targetP95Ms: 900 },`
+    - Line 31: `{ id: 'report-export-jobs', method: 'GET', path: '/reports/export-jobs', targetP95Ms: 800 },`
+  - `apps/api/src/scripts/implementation100-certification.ts`:
+    - Line 74: `moduleEvidence('reports', 'Reports', 'apps/web/src/components/school/school-pages.tsx', ['Reports'], 'apps/web/src/app/api/reports/[...path]/route.ts', ['proxySchoolApiRequest', '/reports'], 'apps/api/src/common/reports/report-export-jobs.controller.ts', ['ReportExportJobsController'], 'apps/api/src/common/reports/report-snapshot-schema.service.ts', ['report_snapshots'], 'apps/api/src/common/reports/report-export-queue.test.ts', ['report']),`
+  - `apps/api/src/scripts/implementation20-certification.test.ts`:
+    - Line 30: `'apps/api/src/modules/biometric-attendance/biometric-attendance.controller.ts': 'live-feed reports/monthly',`
+    - Line 37: `'apps/web/src/app/api/reports/[...path]/route.ts': 'proxySchoolApiRequest "/reports"',`
+  - `apps/api/src/scripts/implementation20-certification.ts`:
+    - Line 72: `check('biometric-live-reports', 'Biometric API exposes live feed and monthly reports', 'apps/api/src/modules/biometric-attendance/biometric-attendance.controller.ts', /live-feed[\s\S]+reports\/monthly/),`
+    - Line 84: `check('reports-web-proxy', 'Web app proxies reports requests to the API', 'apps/web/src/app/api/reports/[...path]/route.ts', /proxySchoolApiRequest[\s\S]+"\/reports"/),`
+  - `apps/api/src/scripts/implementation21-certification.test.ts`:
+    - Line 10: `'apps/api/src/modules/admin-command/principal-insights.providers.ts': 'finance summary_only lab_management communication_sms clinic_health permission_required: \'clinic:reports\' summary_only medicine_consumption_cost_minor wastage_due_to_expiry_minor emergency_supply_ready_rate most_used_medicine ai_insights fee_default_risk_alerts medicine_shortage_predictions attendance_irregularities budget_overrun_alerts performance_decline_warnings',`
+    - Line 29: `'apps/api/src/modules/clinic/clinic.controller.ts': 'clinic:inventory clinic:dispense clinic:reports portal:read_own_children',`
+  - `apps/api/src/scripts/implementation21-certification.ts`:
+    - Line 76: `check('clinic-api-permissions', 'Clinic controller separates inventory, dispensing, reports, and parent history permissions', 'apps/api/src/modules/clinic/clinic.controller.ts', /clinic:inventory[\s\S]+clinic:dispense[\s\S]+clinic:reports[\s\S]+portal:read_own_children/),`
+    - Line 92: `check('principal-no-confidential-notes', 'Principal insights use clinic reports, not confidential permissions', 'apps/api/src/modules/admin-command/principal-insights.providers.ts', /permission_required:\s+'clinic:reports'[\s\S]+summary_only/),`
+  - `apps/api/src/scripts/implementation30-certification.test.ts`:
+    - Line 59: `'apps/api/src/modules/payments/payments.test.ts': 'provider_verification_required exports only redacted payloads redacts C2B API payment responses for legacy raw rows assert.notEqual creates callback channels with hashed secrets builds high-entropy STK and C2B callback URLs high-entropy channel-secret routes creates M-PESA verification jobs verificationJobInput duplicate M-PESA identifiers MpesaTransactionStatusService verifies STK callback status classifies verified C2B payments without ledger enqueue accepts unsigned direct Daraja callbacks rejects unsigned callbacks in edge-signed mode accepts unsigned validation callbacks in direct Daraja mode PaymentsSchemaService creates reconciliation batches MpesaReconciliationService reports missing callbacks, duplicates, amount mismatches, wrong references, and late provider status runs daily reconciliation for every active tenant payment channel generates on-demand date-range reports lists accountant review items without raw M-PESA payload leakage requires two distinct approvers before resolving reversal requests exposes accountant review and finance approval endpoints',`
+    - Line 65: `'apps/api/src/modules/compliance/compliance-schema.service.ts': 'data_subject_requests access_request correction_request deletion_anonymization_request export_request objection_request data_retention_schedules child_data_dpia_records students payments sync_offline breach_response_reports FORCE ROW LEVEL SECURITY',`
+  - `apps/api/src/scripts/implementation30-certification.ts`:
+    - Line 95: `check('mpesa-reconciliation-processor', 'M-Pesa reconciliation service runs daily and date-range reports, persists batches, and classifies mismatch states', 'apps/api/src/modules/payments/services/mpesa-reconciliation.service.ts', /(?=.*generateDailyReport)(?=.*generateDateRangeReport)(?=.*runDailyProcessor)(?=.*reconciliation_state)(?=.*provider_received)(?=.*amount_mismatch)(?=.*duplicate_provider_receipt)(?=.*missing_provider_record)(?=.*verified_unmatched)(?=.*manual_review_required)(?=.*INSERT INTO mpesa_reconciliation_batches)(?=.*INSERT INTO mpesa_reconciliation_discrepancies)/s),`
+    - Line 100: `check('mpesa-reconciliation-tests', 'Payments tests cover reconciliation schema, missing callbacks, duplicates, amount mismatch, wrong references, late provider status, daily processor, and range reports', 'apps/api/src/modules/payments/payments.test.ts', /(?=.*PaymentsSchemaService creates reconciliation batches)(?=.*MpesaReconciliationService reports missing callbacks, duplicates, amount mismatches, wrong references, and late provider status)(?=.*runs daily reconciliation for every active tenant payment channel)(?=.*generates on-demand date-range reports)/s),`
+  - `apps/api/src/scripts/implementation30-load-profile.test.ts`:
+    - Line 35: `'apps/api/src/common/reports/report-export-queue.ts': 'shouldQueueReportExport DEFAULT_SYNC_EXPORT_ROW_LIMIT REPORT_EXPORT_JOB_OPTIONS attempts backoff estimated_rows',`
+    - Line 63: `'apps/api/src/common/reports/report-export-queue.ts': 'shouldQueueReportExport DEFAULT_SYNC_EXPORT_ROW_LIMIT REPORT_EXPORT_JOB_OPTIONS attempts backoff estimated_rows',`
+  - `apps/api/src/scripts/implementation30-load-profile.ts`:
+    - Line 181: `'apps/api/src/common/reports/report-export-queue.ts',`
+  - `apps/api/src/scripts/kisumu-boys-demo-seed.ts`:
+    - Line 29: `'reports',`
+    - Line 361: `{ moduleCode: 'reports', table: 'report_snapshots', tenantScoped: true },`
+  - `apps/api/src/scripts/module-access-certification.test.ts`:
+    - Line 28: `'apps/api/src/common/reports/report-export-jobs.controller.ts': '@Controller(\'reports\') @RequiresModule(\'reports\')',`
+    - Line 39: `'apps/api/src/modules/module-access/module-access.constants.ts': 'MODULE_REGISTRY_SEED students admissions academics finance exams discipline timetable lab_management teacher_biometric_attendance parent_portal inventory library transport communication_sms reports staff admin_command_centers principal_dashboard clinic_health procurement hostel boarding cbt_exams lms ai_insights visitor_management asset_tracking iot permission_scopes',`
+  - `apps/api/src/scripts/module-access-certification.ts`:
+    - Line 67: `backendRoute('reports', 'Report export job routes require the reports module', 'apps/api/src/common/reports/report-export-jobs.controller.ts', 'reports'),`
+    - Line 88: `frontendRoute('reports', 'reports'),`
+  - `apps/api/src/scripts/module-certification.test.ts`:
+    - Line 24: `'apps/web/src/lib/discipline/discipline-live.ts': 'acknowledgeDisciplineIncident exportDisciplineReport reports',`
+  - `apps/api/src/scripts/module-certification.ts`:
+    - Line 105: `workflow('reports-and-documents', 'Reports, documents, and confidential export safety', [`
+    - Line 106: `check('discipline-report-api', 'Discipline reports are exposed through API', 'apps/web/src/lib/discipline/discipline-live.ts', /exportDisciplineReport|reports/),`
+  - `apps/api/src/scripts/release-readiness-gate.test.ts`:
+    - Line 20: `"reports",`
+    - Line 49: `'dist/apps/api/src/common/reports/report-excel-artifact.test.js',`
+  - `apps/api/src/scripts/release-readiness-gate.ts`:
+    - Line 27: `} from '../common/reports/report-export-queue';`
+    - Line 31: `} from '../common/reports/report-snapshot-manifest';`
+  - `apps/api/src/scripts/run-pilot-certification.test.ts`:
+    - Line 75: `'apps/api/src/common/reports/report-export-queue.ts': 'validateReportExportJobPayload queue',`
+  - `apps/api/src/scripts/run-pilot-certification.ts`:
+    - Line 167: `check('report-export', 'Report export queue exists', 'apps/api/src/common/reports/report-export-queue.ts', /validateReportExportJobPayload|queue/i),`
+  - `apps/api/src/scripts/synthetic-journey-monitor.ts`:
+    - Line 286: `path: '/admissions/reports/applications/export',`
+    - Line 295: `path: '/inventory/reports/stock-valuation/export',`
+  - `apps/api/src/scripts/tenant-isolation-audit.test.ts`:
+    - Line 144: `'apps/api/src/common/reports/report-export-queue.ts': 'attendance',`
+  - `apps/api/src/scripts/tenant-isolation-audit.ts`:
+    - Line 59: `check('reports-block-retired-attendance', 'Report exports block retired attendance data', 'apps/api/src/common/reports/report-export-queue.ts', /attendance/i, 'high'),`
+- **`staff-movement-workspace.tsx` (`staff-movement`)**: No backend references found in `apps/api/src`.
+- **`student-exit-passes-workspace.tsx` (`student-exit-passes`)**: No backend references found in `apps/api/src`.
+- **`visitors-workspace.tsx` (`visitors`)**:
+  - `apps/api/src/app.module.ts`:
+    - Line 64: `import { VisitorsModule } from './modules/visitors/visitors.module';`
+  - `apps/api/src/auth/auth.constants.ts`:
+    - Line 141: `{ resource: 'visitors', action: 'read', description: 'View visitor logs and gate summaries' },`
+    - Line 142: `{ resource: 'visitors', action: 'write', description: 'Manage visitor records and gate check-ins' },`
+  - `apps/api/src/auth/role-governance-policy.ts`:
+    - Line 146: `security_officer: ['visitors:read', 'visitors:write'],`
+  - `apps/api/src/database/schema.sql`:
+    - Line 2887: `CREATE TABLE IF NOT EXISTS visitors (`
+    - Line 2898: `ALTER TABLE visitors ENABLE ROW LEVEL SECURITY;`
+  - `apps/api/src/modules/implementation300/blueprint-registry.ts`:
+    - Line 523: `moduleDefinition('hostel', 'Hostel', ['beds', 'occupancy', 'inspections', 'visitors', 'attendance', 'curfew'], [`
+    - Line 553: `evidence('visitors-controller', 'Visitors controller exists', 'apps/api/src/modules/visitors/visitors.controller.ts', ['VisitorsController']),`
+  - `apps/api/src/modules/module-access/module-access.constants.ts`:
+    - Line 244: `description: 'Gate visitors, appointments, check-ins, emergency logs, and school security reports.',`
+    - Line 246: `route_segment: 'visitors',`
+  - `apps/api/src/modules/secretary/secretary.controller.ts`:
+    - Line 60: `@Post('visitors')`
+  - `apps/api/src/modules/security/security-operations.controller.ts`:
+    - Line 23: `@Post('visitors')`
+    - Line 24: `@Permissions('visitors:write')`
+  - `apps/api/src/modules/security/security-operations.service.ts`:
+    - Line 5: `import { VisitorsService } from '../visitors/visitors.service';`
+    - Line 35: `private readonly visitorsService: VisitorsService,`
+  - `apps/api/src/modules/security/security.module.ts`:
+    - Line 14: `import { VisitorsModule } from '../visitors/visitors.module';`
+  - `apps/api/src/modules/visitors/repositories/visitors.repository.ts`:
+    - Line 33: ``INSERT INTO visitors_appointments`
+    - Line 44: ``SELECT * FROM visitors_appointments WHERE tenant_id = $1 ORDER BY appointment_time DESC LIMIT 100`,`
+  - `apps/api/src/modules/visitors/visitors-schema.service.ts`:
+    - Line 38: `-- Core visitors registry (frequent visitors)`
+    - Line 39: `CREATE TABLE IF NOT EXISTS visitors_registry (`
+  - `apps/api/src/modules/visitors/visitors.controller.ts`:
+    - Line 4: `import { VisitorsService } from './visitors.service';`
+    - Line 6: `@Controller('visitors')`
+  - `apps/api/src/modules/visitors/visitors.module.ts`:
+    - Line 3: `import { VisitorsController } from './visitors.controller';`
+    - Line 4: `import { VisitorsSchemaService } from './visitors-schema.service';`
+  - `apps/api/src/modules/visitors/visitors.service.ts`:
+    - Line 3: `import { VisitorsRepository } from './repositories/visitors.repository';`
+    - Line 64: `module: 'visitors',`
+  - `apps/api/src/modules/visitors/visitors.test.ts`:
+    - Line 7: `import { VisitorsController } from './visitors.controller';`
+    - Line 8: `import { VisitorsSchemaService } from './visitors-schema.service';`
+  - `apps/api/src/scripts/implementation100-certification.ts`:
+    - Line 85: `moduleEvidence('visitor_management', 'Visitor Management', 'apps/web/src/components/modules/visitors/visitor-management-module-screen.tsx', ['VisitorManagementModuleScreen'], 'apps/web/src/app/api/visitors/[...path]/route.ts', ['proxySchoolApiRequest', '/visitors'], 'apps/api/src/modules/visitors/visitors.controller.ts', ['VisitorsController'], 'apps/api/src/modules/visitors/visitors-schema.service.ts', ['visitor_checkins'], 'apps/api/src/modules/visitors/visitors.test.ts', ['visitors']),`
+  - `apps/api/src/scripts/kisumu-boys-demo-seed.test.ts`:
+    - Line 171: `test('Kisumu Boys cross-dashboard blueprints cover boarding, visitors, finance, and notifications', () => {`
+    - Line 173: `const visitors = buildKisumuBoysDemoVisitors();`
+  - `apps/api/src/scripts/kisumu-boys-demo-seed.ts`:
+    - Line 1659: `const visitors = buildKisumuBoysDemoVisitors();`
+    - Line 1660: `for (const [index, visitor] of visitors.entries()) {`
+  - `apps/api/src/scripts/module-access-certification.test.ts`:
+    - Line 36: `'apps/api/src/modules/visitors/visitors.controller.ts': '@Controller(\'visitors\') @RequiresModule(\'visitor_management\')',`
+    - Line 41: `'apps/web/src/lib/module-access/module-access-map.ts': 'schoolSectionModuleMap students: "students" admissions: "admissions" finance: "finance" mpesa: "finance" academics: "academics" exams: "exams" discipline: "discipline" reports: "reports" communication: "communication_sms" timetable: "timetable" staff: "staff" inventory: "inventory" library: "library" clinic: "clinic_health" labs: "lab_management" "teacher-attendance": "teacher_biometric_attendance" leadership: "admin_command_centers" transport: "transport" procurement: "procurement" hostel: "hostel" boarding: "boarding" cbt: "cbt_exams" lms: "lms" "ai-insights": "ai_insights" visitors: "visitor_management" assets: "asset_tracking" iot: "iot" isSchoolSectionEnabled filterNavItemsByEnabledModules',`
+  - `apps/api/src/scripts/module-access-certification.ts`:
+    - Line 75: `backendRoute('visitors', 'Visitor routes require the visitor management module', 'apps/api/src/modules/visitors/visitors.controller.ts', 'visitor_management'),`
+    - Line 105: `frontendRoute('visitors', 'visitor_management'),`
+
+---
+
+### Role: `storekeeper`
+
+| File Name | Module ID | Definition Status | Backend Status | Refs |
+| :--- | :--- | :--- | :--- | :--- |
+| `damaged-missing-workspace.tsx` | `damaged-missing` | ❌ Missing | ❌ Missing | None |
+| `items-workspace.tsx` | `items` | ✅ Found (Items) | ✅ Referenced (308 refs) | `dashboard-summary.repository.test.ts`, `workflow-runtime-contract.test.ts`, `workflow-runtime-contract.ts`... |
+| `low-stock-workspace.tsx` | `low-stock` | ❌ Missing | ✅ Referenced (10 refs) | `principal-insights.providers.ts`, `clinic.controller.ts`, `clinic.processor.ts`... |
+| `overview-workspace.tsx` | `overview` | ✅ Found (Overview) | ✅ Referenced (106 refs) | `billing-feature.middleware.test.ts`, `admin-command.controller.ts`, `admissions-command.controller.ts`... |
+| `reports-workspace.tsx` | `reports` | ✅ Found (Reports) | ✅ Referenced (371 refs) | `auth-email.service.test.ts`, `auth.constants.ts`, `monitoring-service-account.service.ts`... |
+| `requests-workspace.tsx` | `requests` | ✅ Found (Requests) | ✅ Referenced (368 refs) | `auth-email.service.test.ts`, `auth.constants.ts`, `auth.test.ts`... |
+| `stocktake-workspace.tsx` | `stocktake` | ✅ Found (Stocktake) | ✅ Referenced (8 refs) | `export-stocktake.consumer.ts`, `index.ts`, `start-stocktake.consumer.ts` |
+
+#### Backend Reference Details for `storekeeper`:
+- **`damaged-missing-workspace.tsx` (`damaged-missing`)**: No backend references found in `apps/api/src`.
+- **`items-workspace.tsx` (`items`)**:
+  - `apps/api/src/common/dashboard/dashboard-summary.repository.test.ts`:
+    - Line 61: `low_stock_items: 4,`
+    - Line 74: `low_stock_items: 4,`
+  - `apps/api/src/common/platform-governance/workflow-runtime-contract.test.ts`:
+    - Line 83: `test('WorkflowRuntime live queues expose executable assignable traceable recoverable event-backed items', () => {`
+    - Line 87: `assert.equal(queue.items.length, 4);`
+  - `apps/api/src/common/platform-governance/workflow-runtime-contract.ts`:
+    - Line 125: `items: OperationalQueueItem[];`
+    - Line 167: `queues: Record<string, { items: Array<{ queueItemId: string }> }>;`
+  - `apps/api/src/database/schema.sql`:
+    - Line 1369: `line_items jsonb NOT NULL DEFAULT '[]'::jsonb,`
+    - Line 1383: `CONSTRAINT ck_fee_structures_line_items CHECK (`
+  - `apps/api/src/database/tenant-database-policy.ts`:
+    - Line 89: `inventory: ['inventory_items', 'inventory_movements', 'supplier_records'],`
+  - `apps/api/src/modules/admin-command/admin-command-schema.service.ts`:
+    - Line 89: `action_items jsonb NOT NULL DEFAULT '[]'::jsonb,`
+  - `apps/api/src/modules/admin-command/admin-command.service.ts`:
+    - Line 285: `action_items: dto.action_items ?? [],`
+  - `apps/api/src/modules/admin-command/dto/admin-command.dto.ts`:
+    - Line 20: `action_items?: Array<Record<string, unknown>>;`
+  - `apps/api/src/modules/admin-command/repositories/admin-command.repository.ts`:
+    - Line 304: `FROM inventory_items`
+    - Line 330: `(SELECT COUNT(*)::int FROM chemical_items WHERE tenant_id = $1 AND expiry_date <= CURRENT_DATE + INTERVAL '90 days' AND status IN ('active', 'near_expiry')) AS chemical_expiry_alerts,`
+  - `apps/api/src/modules/ai-insights/ai-governance-policy.ts`:
+    - Line 190: `function unique<T>(items: T[]): T[] {`
+    - Line 191: `return [...new Set(items)];`
+  - `apps/api/src/modules/billing/billing-contract.test.ts`:
+    - Line 41: `assert.equal(invoice.line_items.find((line) => line.code === 'module:students')?.amount_minor, 110_000);`
+    - Line 42: `assert.equal(invoice.line_items.find((line) => line.code === 'usage:sms')?.amount_minor, 400);`
+  - `apps/api/src/modules/billing/billing-contract.ts`:
+    - Line 51: `line_items: TenantBillingContractLineItem[];`
+    - Line 89: `line_items: lineItems,`
+  - `apps/api/src/modules/billing/billing-schema.service.ts`:
+    - Line 183: `line_items jsonb NOT NULL DEFAULT '[]'::jsonb,`
+    - Line 197: `CONSTRAINT ck_fee_structures_line_items CHECK (`
+  - `apps/api/src/modules/billing/billing.service.ts`:
+    - Line 354: `const lineItems = this.normalizeFeeStructureLineItems(dto.line_items);`
+    - Line 369: `line_items: lineItems,`
+  - `apps/api/src/modules/billing/billing.test.ts`:
+    - Line 928: `line_items: [`
+    - Line 939: `assert.equal(response.line_items.length, 2);`
+  - `apps/api/src/modules/billing/dto/create-fee-structure.dto.ts`:
+    - Line 82: `line_items!: FeeStructureLineItemDto[];`
+  - `apps/api/src/modules/billing/dto/fee-structure-response.dto.ts`:
+    - Line 17: `line_items!: FeeStructureLineItem[];`
+  - `apps/api/src/modules/billing/entities/fee-structure.entity.ts`:
+    - Line 20: `line_items!: FeeStructureLineItem[];`
+  - `apps/api/src/modules/billing/repositories/fee-structures.repository.ts`:
+    - Line 21: `line_items: FeeStructureLineItem[] | null;`
+    - Line 39: `line_items: FeeStructureLineItem[];`
+  - `apps/api/src/modules/class-teacher/class-teacher.service.ts`:
+    - Line 559: `const items = Array.isArray(data) ? data : [data];`
+    - Line 561: `for (const item of items) {`
+  - `apps/api/src/modules/finance/finance.controller.ts`:
+    - Line 365: ``INSERT INTO fee_structures (tenant_id, name, academic_year, term, grade_level, currency_code, due_days, total_amount_minor, line_items, created_by_user_id)`
+    - Line 367: `[tenantId, dto.name, dto.academic_year, dto.term, dto.grade_level, dto.currency_code || 'KES', dto.due_days || 14, dto.total_amount_minor, JSON.stringify(dto.line_items || []), userId]`
+  - `apps/api/src/modules/health/system-dashboard.template.ts`:
+    - Line 68: `align-items: center;`
+    - Line 113: `align-items: center;`
+  - `apps/api/src/modules/inventory/inventory-schema.service.ts`:
+    - Line 85: `CREATE TABLE IF NOT EXISTS inventory_items (`
+    - Line 102: `CONSTRAINT uq_inventory_items_tenant_id_id UNIQUE (tenant_id, id),`
+  - `apps/api/src/modules/inventory/inventory.controller.ts`:
+    - Line 45: `@Get('items')`
+    - Line 51: `@Post('items')`
+  - `apps/api/src/modules/inventory/inventory.test.ts`:
+    - Line 63: `path: '/inventory/items/00000000-0000-0000-0000-000000000401/adjust',`
+    - Line 1868: `path: '/inventory/items',`
+  - `apps/api/src/modules/inventory/repositories/inventory.repository.test.ts`:
+    - Line 602: `assert.match(reserveQuery, /FROM inventory_items/);`
+    - Line 639: `assert.match(reserveQuery, /JOIN inventory_items item/);`
+  - `apps/api/src/modules/inventory/repositories/inventory.repository.ts`:
+    - Line 260: `FROM inventory_items`
+    - Line 269: `FROM inventory_items`
+  - `apps/api/src/modules/labs/labs-schema.service.ts`:
+    - Line 11: `'chemical_items',`
+    - Line 159: `CREATE TABLE IF NOT EXISTS chemical_items (`
+  - `apps/api/src/modules/labs/labs.test.ts`:
+    - Line 28: `'chemical_items',`
+  - `apps/api/src/modules/labs/repositories/labs.repository.ts`:
+    - Line 142: `INSERT INTO chemical_items (`
+    - Line 223: `FROM chemical_items`
+  - `apps/api/src/modules/library/library-schema.service.ts`:
+    - Line 6: `'library_catalog_items',`
+    - Line 51: `CREATE TABLE IF NOT EXISTS library_catalog_items (`
+  - `apps/api/src/modules/library/library.service.ts`:
+    - Line 391: `FROM library_catalog_items c`
+  - `apps/api/src/modules/library/library.test.ts`:
+    - Line 34: `assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS library_catalog_items/);`
+    - Line 36: `assert.match(schemaSql, /CREATE INDEX IF NOT EXISTS ix_library_catalog_items_title_trgm/);`
+  - `apps/api/src/modules/library/repositories/library.repository.ts`:
+    - Line 301: `LEFT JOIN library_catalog_items catalog`
+    - Line 358: ``SELECT COUNT(*) as count FROM library_catalog_items WHERE tenant_id = $1`,`
+  - `apps/api/src/modules/lms/lms-schema.service.ts`:
+    - Line 8: `'lms_content_items',`
+    - Line 50: `CREATE TABLE IF NOT EXISTS lms_content_items (`
+  - `apps/api/src/modules/lms/lms.test.ts`:
+    - Line 17: `for (const table of ['lms_courses', 'lms_content_items', 'lms_assignments', 'lms_submissions', 'lms_activity_events']) {`
+  - `apps/api/src/modules/module-access/module-access-schema.service.ts`:
+    - Line 132: `CREATE TABLE IF NOT EXISTS module_package_items (`
+  - `apps/api/src/modules/module-access/module-access.repository.ts`:
+    - Line 469: `LEFT JOIN module_package_items mpi ON mpi.package_id = mp.id`
+    - Line 518: `'DELETE FROM module_package_items WHERE package_id = $1::uuid',`
+  - `apps/api/src/modules/module-access/module-access.test.ts`:
+    - Line 88: `assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS module_package_items/);`
+  - `apps/api/src/modules/operations/consumers/generate-invoice.consumer.ts`:
+    - Line 19: `if (!data?.studentId || !data?.amountDue || !data?.items) {`
+    - Line 43: `if (Array.isArray(data.items)) {`
+  - `apps/api/src/modules/operations/consumers/import-items.consumer.ts`:
+    - Line 6: `readonly name = 'import-items.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'import-items' && event.payload.action_id !== 'import-items') {`
+  - `apps/api/src/modules/operations/consumers/index.ts`:
+    - Line 313: `export { ImportItemsConsumer } from './import-items.consumer';`
+  - `apps/api/src/modules/payments/payments.test.ts`:
+    - Line 3663: `test('MpesaReconciliationService lists accountant review items without raw M-PESA payload leakage', async () => {`
+    - Line 3732: `items: Array<{ evidence: Record<string, unknown> }>;`
+  - `apps/api/src/modules/payments/services/mpesa-reconciliation.service.ts`:
+    - Line 568: `const items: Array<Record<string, unknown>> = result.rows.map((row) => ({`
+    - Line 572: `const summary = items.reduce<Record<string, number>>(`
+  - `apps/api/src/modules/payments/services/mpesa.service.ts`:
+    - Line 403: `private toMetadataMap(items: MpesaCallbackMetadataItem[]): Record<string, unknown> {`
+    - Line 404: `return items.reduce<Record<string, unknown>>((accumulator, item) => {`
+  - `apps/api/src/modules/procurement/dto/procurement.dto.ts`:
+    - Line 23: `items: ProcurementRequestItemDto[];`
+    - Line 42: `items: PurchaseOrderItemDto[];`
+  - `apps/api/src/modules/procurement/procurement-schema.service.ts`:
+    - Line 8: `'procurement_request_items',`
+    - Line 11: `'purchase_order_items',`
+  - `apps/api/src/modules/procurement/procurement.service.ts`:
+    - Line 53: `const items = this.normalizeRequestItems(dto.items);`
+    - Line 58: `items,`
+  - `apps/api/src/modules/procurement/procurement.test.ts`:
+    - Line 24: `'procurement_request_items',`
+    - Line 27: `'purchase_order_items',`
+  - `apps/api/src/modules/procurement/repositories/procurement.repository.ts`:
+    - Line 65: `LEFT JOIN procurement_request_items item`
+    - Line 191: `for (const item of (input.items ?? []) as Array<Record<string, unknown>>) {`
+  - `apps/api/src/scripts/base-onboarding-seed.ts`:
+    - Line 263: `{ moduleCode: 'library', table: 'library_catalog_items', tenantScoped: true },`
+    - Line 271: `{ moduleCode: 'inventory', table: 'inventory_items', tenantScoped: true },`
+  - `apps/api/src/scripts/implementation100-certification.ts`:
+    - Line 70: `moduleEvidence('inventory', 'Store and Inventory', 'apps/web/src/components/storekeeper/storekeeper-workspace.tsx', ['Inventory'], 'apps/web/src/app/api/inventory/[...path]/route.ts', ['proxySchoolApiRequest', '/inventory'], 'apps/api/src/modules/inventory/inventory.controller.ts', ['InventoryController'], 'apps/api/src/modules/inventory/inventory-schema.service.ts', ['inventory_items'], 'apps/api/src/modules/inventory/inventory.test.ts', ['inventory']),`
+    - Line 71: `moduleEvidence('library', 'Library', 'apps/web/src/components/library/library-workspace.tsx', ['Library'], 'apps/web/src/app/api/library/borrowings/route.ts', ['library'], 'apps/api/src/modules/library/library.controller.ts', ['LibraryController'], 'apps/api/src/modules/library/library-schema.service.ts', ['library_catalog_items'], 'apps/api/src/modules/library/library.test.ts', ['library']),`
+  - `apps/api/src/scripts/implementation20-certification.test.ts`:
+    - Line 19: `'apps/api/src/modules/labs/labs-schema.service.ts': 'lab_departments lab_sessions lab_attendance lab_equipment chemical_items chemical_disposal_requests',`
+  - `apps/api/src/scripts/implementation20-certification.ts`:
+    - Line 58: `check('lab-schema', 'Lab schema includes departments, labs, sessions, attendance, equipment, chemicals, usage, and disposal', 'apps/api/src/modules/labs/labs-schema.service.ts', /lab_departments[\s\S]+lab_sessions[\s\S]+lab_attendance[\s\S]+lab_equipment[\s\S]+chemical_items[\s\S]+chemical_disposal_requests/),`
+  - `apps/api/src/scripts/implementation30-certification.test.ts`:
+    - Line 59: `'apps/api/src/modules/payments/payments.test.ts': 'provider_verification_required exports only redacted payloads redacts C2B API payment responses for legacy raw rows assert.notEqual creates callback channels with hashed secrets builds high-entropy STK and C2B callback URLs high-entropy channel-secret routes creates M-PESA verification jobs verificationJobInput duplicate M-PESA identifiers MpesaTransactionStatusService verifies STK callback status classifies verified C2B payments without ledger enqueue accepts unsigned direct Daraja callbacks rejects unsigned callbacks in edge-signed mode accepts unsigned validation callbacks in direct Daraja mode PaymentsSchemaService creates reconciliation batches MpesaReconciliationService reports missing callbacks, duplicates, amount mismatches, wrong references, and late provider status runs daily reconciliation for every active tenant payment channel generates on-demand date-range reports lists accountant review items without raw M-PESA payload leakage requires two distinct approvers before resolving reversal requests exposes accountant review and finance approval endpoints',`
+  - `apps/api/src/scripts/implementation30-certification.ts`:
+    - Line 101: `check('mpesa-accountant-review-tests', 'Payments tests cover accountant review redaction, dual approval reversal, and review routes', 'apps/api/src/modules/payments/payments.test.ts', /(?=.*lists accountant review items without raw M-PESA payload leakage)(?=.*requires two distinct approvers before resolving reversal requests)(?=.*exposes accountant review and finance approval endpoints)/s),`
+  - `apps/api/src/scripts/incident-drill.ts`:
+    - Line 84: `evidence: 'incident response runbook includes owner, severity, rollback, communications, evidence, and closeout checklist items',`
+  - `apps/api/src/scripts/kisumu-boys-demo-seed.ts`:
+    - Line 262: `{ moduleCode: 'library', table: 'library_catalog_items', tenantScoped: true },`
+    - Line 270: `{ moduleCode: 'inventory', table: 'inventory_items', tenantScoped: true },`
+  - `apps/api/src/scripts/module-access-certification.test.ts`:
+    - Line 51: `'apps/api/src/modules/module-access/module-access-schema.service.ts': 'trial_ends_at expires_at billing_plan_code module_packages module_package_items module_usage_events FORCE ROW LEVEL SECURITY',`
+  - `apps/api/src/scripts/module-access-certification.ts`:
+    - Line 228: `/(?=.*module_packages)(?=.*module_package_items)(?=.*module_usage_events)(?=.*trial_ends_at)(?=.*expires_at)(?=.*billing_plan_code)(?=.*FORCE ROW LEVEL SECURITY)/s,`
+  - `apps/api/src/scripts/query-plan-review-local-fixture.ts`:
+    - Line 88: `name: 'inventory_items',`
+    - Line 90: `CREATE TABLE IF NOT EXISTS inventory_items (`
+  - `apps/api/src/scripts/query-plan-review.test.ts`:
+    - Line 34: `['library_catalog_items'],`
+    - Line 185: `warnings: ['Sequential scan on protected table library_catalog_items.'],`
+  - `apps/api/src/scripts/query-plan-review.ts`:
+    - Line 92: `FROM inventory_items`
+    - Line 107: `protectedTables: ['inventory_items'],`
+  - `apps/api/src/scripts/release-readiness-gate.test.ts`:
+    - Line 583: `queryPlanReviewArtifactSource: '# Query Plan Review\nStatus: fail\nSequential scan on protected table library_catalog_items.',`
+- **`low-stock-workspace.tsx` (`low-stock`)**:
+  - `apps/api/src/modules/admin-command/principal-insights.providers.ts`:
+    - Line 127: `drilldowns: ['inventory.low-stock', 'inventory.asset-utilization', 'inventory.department-consumption'],`
+  - `apps/api/src/modules/clinic/clinic.controller.ts`:
+    - Line 85: `@Post('jobs/low-stock-check')`
+  - `apps/api/src/modules/clinic/clinic.processor.ts`:
+    - Line 33: ``Clinic low-stock check created ${alerts.length} alerts and ${recommendations.length} procurement recommendations for ${tenantId}`,`
+  - `apps/api/src/modules/clinic/clinic.test.ts`:
+    - Line 194: `test('ClinicService creates procurement recommendations for low-stock medicine only when procurement is enabled', async () => {`
+  - `apps/api/src/modules/inventory/inventory.service.ts`:
+    - Line 115: `'low-stock',`
+    - Line 117: `id: 'low-stock',`
+  - `apps/api/src/scripts/implementation21-certification.ts`:
+    - Line 74: `check('expiry-low-stock-jobs', 'Clinic processor runs expiry and low-stock checks', 'apps/api/src/modules/clinic/clinic.processor.ts', /runTenantMedicineExpiryCheck[\s\S]+runTenantLowStockCheck/),`
+    - Line 75: `check('procurement-recommendations', 'Clinic low-stock checks create procurement recommendations when procurement is enabled', 'apps/api/src/modules/clinic/clinic.service.ts', /createLowStockProcurementRecommendations[\s\S]+listEnabledModulesForTenant[\s\S]+procurement/),`
+  - `apps/api/src/scripts/module-access-certification.ts`:
+    - Line 172: `'Clinic low-stock job creates procurement work only when procurement is enabled',`
+- **`overview-workspace.tsx` (`overview`)**:
+  - `apps/api/src/middleware/billing-feature.middleware.test.ts`:
+    - Line 75: `await requestContext.run(createContext('/admin-command/principal/overview'), async () => {`
+    - Line 78: `path: '/admin-command/principal/overview',`
+  - `apps/api/src/modules/admin-command/admin-command.controller.ts`:
+    - Line 33: `@Get('principal/finance-overview')`
+    - Line 103: `@Get('principal/overview')`
+  - `apps/api/src/modules/admin-command/admissions-command.controller.ts`:
+    - Line 9: `@Get('overview')`
+    - Line 84: `overview,`
+  - `apps/api/src/modules/admin-command/deputy-command.controller.ts`:
+    - Line 9: `@Get('overview')`
+  - `apps/api/src/modules/admin-command/principal-insights.providers.ts`:
+    - Line 6: `id: 'school_overview',`
+    - Line 8: `category: 'overview',`
+  - `apps/api/src/modules/admin-command/principal-insights.service.ts`:
+    - Line 164: `const overview = await this.repository.getPrincipalOverviewSnapshot(tenantId);`
+    - Line 190: `overview,`
+  - `apps/api/src/modules/admin-command/principal-insights.types.ts`:
+    - Line 54: `overview: PrincipalOverviewPanel;`
+  - `apps/api/src/modules/admin-command/repositories/admin-command.repository.ts`:
+    - Line 1221: `defaultView: "overview"`
+  - `apps/api/src/modules/billing/billing-access.service.ts`:
+    - Line 59: `const { subscription, overview } =`
+    - Line 61: `const access = this.buildAccessState(subscription, overview);`
+  - `apps/api/src/modules/billing/billing-lifecycle.service.ts`:
+    - Line 60: `overview: SubscriptionLifecycleOverview | null;`
+    - Line 69: `overview: null,`
+  - `apps/api/src/modules/billing/billing-notification.service.ts`:
+    - Line 18: `overview: SubscriptionLifecycleOverview,`
+    - Line 20: `const descriptors = this.buildDescriptors(subscription, overview);`
+  - `apps/api/src/modules/billing/billing.service.ts`:
+    - Line 281: `if (!lifecycle.subscription || !lifecycle.overview) {`
+    - Line 285: `return this.mapSubscription(lifecycle.subscription, lifecycle.overview);`
+  - `apps/api/src/modules/billing/billing.test.ts`:
+    - Line 129: `overview: null,`
+    - Line 877: `ensureCurrentLifecycle: async () => ({ subscription: null, overview: null }),`
+  - `apps/api/src/modules/class-teacher/class-teacher.controller.ts`:
+    - Line 20: `@Get('overview')`
+    - Line 30: `@Get('dashboard-overview')`
+  - `apps/api/src/modules/dashboard/dashboard.controller.ts`:
+    - Line 34: `@Get('parent/overview')`
+    - Line 58: `@Get('student/overview')`
+  - `apps/api/src/modules/discipline/discipline.controller.ts`:
+    - Line 244: `@Get('analytics/overview')`
+  - `apps/api/src/modules/finance/finance.controller.ts`:
+    - Line 306: `@Get('accounts-overview')`
+  - `apps/api/src/modules/grade-master/grade-master.controller.ts`:
+    - Line 9: `@Get('overview')`
+  - `apps/api/src/modules/operations/consumers/export-overview.consumer.ts`:
+    - Line 6: `readonly name = 'export-overview.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'export-overview' && event.payload.action_id !== 'export-overview') {`
+  - `apps/api/src/modules/operations/consumers/index.ts`:
+    - Line 262: `export { ExportOverviewConsumer } from './export-overview.consumer';`
+  - `apps/api/src/modules/platform/platform-onboarding.service.test.ts`:
+    - Line 665: `test('PlatformOnboardingService summarizes tenants in product for the Super Admin overview', async () => {`
+  - `apps/api/src/scripts/core-api-load.ts`:
+    - Line 203: `path: '/discipline/analytics/overview',`
+  - `apps/api/src/scripts/high-volume-workflow-load.ts`:
+    - Line 29: `{ id: 'discipline-analytics', method: 'GET', path: '/discipline/analytics/overview', targetP95Ms: 800 },`
+- **`reports-workspace.tsx` (`reports`)**:
+  - `apps/api/src/auth/auth-email.service.test.ts`:
+    - Line 6: `test('AuthEmailService reports transactional email as missing without secrets', () => {`
+    - Line 20: `test('AuthEmailService reports transactional email as configured without exposing secrets', () => {`
+  - `apps/api/src/auth/auth.constants.ts`:
+    - Line 59: `{ resource: 'reports', action: 'read', description: 'View generated report export jobs and snapshots' },`
+    - Line 108: `{ resource: 'discipline', action: 'reports', description: 'Export discipline reports and analytics' },`
+  - `apps/api/src/auth/monitoring-service-account.service.ts`:
+    - Line 16: `'reports:read',`
+  - `apps/api/src/auth/role-governance-policy.ts`:
+    - Line 125: `platform_support: ['support:view', 'support:manage', 'reports:read'],`
+    - Line 126: `finance_admin: ['billing:read', 'billing:write', 'reports:read'],`
+  - `apps/api/src/common/auto-repair/auto-repair-agent.test.ts`:
+    - Line 474: `operationalIntent: 'Bursar can act on finance exceptions, not browse static trend reports',`
+    - Line 706: `test('AutoRepairAgent reports dashboard repair patch intelligence for KPI-only dashboards', () => {`
+  - `apps/api/src/common/auto-repair/auto-repair-deployment.test.ts`:
+    - Line 43: `test('AutoRepairService reports deployed runtime readiness and keeps the full widget state contract', () => {`
+  - `apps/api/src/common/common.module.ts`:
+    - Line 12: `import { ReportExportQueueService } from './reports/report-export-queue';`
+    - Line 13: `import { ReportExportJobsController } from './reports/report-export-jobs.controller';`
+  - `apps/api/src/common/reports/report-artifact-storage.service.test.ts`:
+    - Line 18: `retention_policy: 'reports',`
+    - Line 48: `assert.equal(savedInputs[0].storagePath, `tenant/tenant-a/reports/billing/invoices/${'b'.repeat(64)}.pdf`);`
+  - `apps/api/src/common/reports/report-artifact-storage.service.ts`:
+    - Line 40: `retentionPolicy: 'reports',`
+    - Line 73: `return `tenant/${input.tenantId}/reports/${module}/${reportId}/${input.artifact.checksumSha256}.${extension}`;`
+  - `apps/api/src/common/reports/report-export-jobs.controller.ts`:
+    - Line 7: `@Controller('reports')`
+    - Line 8: `@RequiresModule('reports')`
+  - `apps/api/src/common/reports/report-export-queue.ts`:
+    - Line 52: `reports: 'reports',`
+  - `apps/api/src/common/reports/report-export.worker.test.ts`:
+    - Line 25: `storage_path: 'tenant/tenant-a/reports/exams/exam-results/artifact.pdf',`
+    - Line 80: `storage_path: 'tenant/tenant-a/reports/exams/exam-results/artifact.pdf',`
+  - `apps/api/src/common/reports/report-snapshot.repository.test.ts`:
+    - Line 95: `assert.deepEqual(Reflect.getMetadata(PERMISSIONS_KEY, handler), ['reports:read']);`
+  - `apps/api/src/common/uploads/database-file-storage.service.test.ts`:
+    - Line 685: `test('S3CompatibleObjectStorageService reports failed object deletes as unavailable', async () => {`
+  - `apps/api/src/common/uploads/upload-policy.test.ts`:
+    - Line 252: `test('runProviderMalwareScan returns unsafe verdicts when the provider reports infection', async () => {`
+  - `apps/api/src/database/batch4_schemas.sql`:
+    - Line 71: `CREATE TABLE IF NOT EXISTS operations_reports (`
+    - Line 80: `CONSTRAINT ck_operations_reports_tenant CHECK (tenant_id <> 'global')`
+  - `apps/api/src/database/schema.sql`:
+    - Line 2755: `CREATE TABLE IF NOT EXISTS operations_reports (`
+    - Line 2764: `CONSTRAINT ck_operations_reports_tenant CHECK (tenant_id <> 'global')`
+  - `apps/api/src/database/tenant-database-policy.ts`:
+    - Line 93: `reports: ['report_export_jobs', 'report_snapshots'],`
+  - `apps/api/src/modules/admin-command/admin-command.controller.ts`:
+    - Line 124: `@Get('principal/reports')`
+    - Line 126: `@Permissions('principal:read', 'reports:read')`
+  - `apps/api/src/modules/admin-command/admissions-command.controller.ts`:
+    - Line 69: `@Get('reports')`
+    - Line 99: `reports,`
+  - `apps/api/src/modules/admin-command/deputy-command.controller.ts`:
+    - Line 133: `@Get('reports')`
+    - Line 137: `@Post('reports/generate')`
+  - `apps/api/src/modules/admin-command/principal-insights.providers.ts`:
+    - Line 16: `reports: ['school-overview', 'population-trend'],`
+    - Line 31: `reports: ['academic-summary', 'cbc-cbe-competency-progress'],`
+  - `apps/api/src/modules/admin-command/principal-insights.service.ts`:
+    - Line 184: `const reportExports = Array.from(new Set(sections.flatMap((section) => section.reports)));`
+    - Line 273: `reports: [...provider.reports],`
+  - `apps/api/src/modules/admin-command/principal-insights.types.ts`:
+    - Line 34: `reports: string[];`
+    - Line 81: `reports: string[];`
+  - `apps/api/src/modules/admin-command/repositories/admin-command.repository.ts`:
+    - Line 846: `reportsPending: summaryResult.rows[0]?.pending_reviews || 0,`
+    - Line 1479: ``INSERT INTO operations_reports (content, prepared_by, tenant_id, title, updated_at) VALUES ($1, $2, $3, $4, NOW())`,`
+  - `apps/api/src/modules/admin-command/repositories/deputy-command.repository.ts`:
+    - Line 449: `0::int AS generated_reports`
+    - Line 452: `{ generated_reports: 0 }`
+  - `apps/api/src/modules/admissions/admissions.controller.ts`:
+    - Line 33: `} from '../../common/reports/report-export-queue';`
+    - Line 217: `@Post('reports/:reportId/export-jobs')`
+  - `apps/api/src/modules/admissions/admissions.service.ts`:
+    - Line 22: `} from '../../common/reports/report-csv-artifact';`
+  - `apps/api/src/modules/admissions/admissions.test.ts`:
+    - Line 197: `path: '/admissions/reports/applications/export',`
+    - Line 350: `path: '/admissions/reports/unknown/export',`
+  - `apps/api/src/modules/billing/billing.controller.ts`:
+    - Line 15: `} from '../../common/reports/report-export-queue';`
+    - Line 214: `@Post('reports/:reportId/export-jobs')`
+  - `apps/api/src/modules/billing/billing.service.ts`:
+    - Line 14: `} from '../../common/reports/report-csv-artifact';`
+  - `apps/api/src/modules/billing/billing.test.ts`:
+    - Line 2245: `path: '/billing/reports/invoices/export',`
+    - Line 2297: `path: '/billing/reports/unknown/export',`
+  - `apps/api/src/modules/biometric-attendance/biometric-attendance.controller.ts`:
+    - Line 52: `@Get('reports/monthly')`
+  - `apps/api/src/modules/class-teacher/class-teacher.controller.ts`:
+    - Line 358: `@Get('reports')`
+  - `apps/api/src/modules/clinic/clinic.controller.ts`:
+    - Line 62: `@Permissions('clinic:reports')`
+  - `apps/api/src/modules/clinic/clinic.service.ts`:
+    - Line 171: `this.assertPermission('clinic:reports');`
+  - `apps/api/src/modules/clinic/clinic.test.ts`:
+    - Line 58: `assert.deepEqual(Reflect.getMetadata(PERMISSIONS_KEY, analyticsHandler), ['clinic:reports']);`
+  - `apps/api/src/modules/compliance/compliance-schema.service.ts`:
+    - Line 127: `CREATE TABLE IF NOT EXISTS breach_response_reports (`
+    - Line 141: `CONSTRAINT ck_breach_response_reports_severity CHECK (severity IN ('low', 'medium', 'high', 'critical')),`
+  - `apps/api/src/modules/compliance/compliance.controller.ts`:
+    - Line 81: `@Get('breach-response-reports/:reportId/export')`
+  - `apps/api/src/modules/compliance/compliance.service.ts`:
+    - Line 351: `FROM breach_response_reports`
+  - `apps/api/src/modules/compliance/compliance.test.ts`:
+    - Line 33: `assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS breach_response_reports/);`
+    - Line 36: `assert.match(schemaSql, /ALTER TABLE breach_response_reports FORCE ROW LEVEL SECURITY/);`
+  - `apps/api/src/modules/counselling/counselling.controller.ts`:
+    - Line 87: `@Get('reports')`
+  - `apps/api/src/modules/discipline/discipline.controller.ts`:
+    - Line 245: `@Permissions('discipline:reports')`
+    - Line 250: `@Post('reports/export')`
+  - `apps/api/src/modules/discipline/discipline.service.ts`:
+    - Line 636: `this.assertPermission('discipline:reports');`
+    - Line 648: `this.assertPermission('discipline:reports');`
+  - `apps/api/src/modules/discipline/discipline.test.ts`:
+    - Line 65: `'discipline:reports',`
+    - Line 597: `permissions: ['discipline:reports'],`
+  - `apps/api/src/modules/exams/consumers/download-reports.consumer.ts`:
+    - Line 6: `readonly name = 'download-reports.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'download-reports' && event.payload.action_id !== 'download-reports') {`
+  - `apps/api/src/modules/exams/consumers/index.ts`:
+    - Line 10: `export { DownloadReportsConsumer } from './download-reports.consumer';`
+  - `apps/api/src/modules/exams/exams.test.ts`:
+    - Line 648: `test('ExamsService reports duplicate and unauthorized rows during bulk mark upload preview', async () => {`
+  - `apps/api/src/modules/exams/repositories/exams.repository.ts`:
+    - Line 1481: `(SELECT COUNT(*) FROM student_report_cards WHERE tenant_id = $1 AND status = 'published') AS published_reports,`
+  - `apps/api/src/modules/exams/services/report-card-pdf-artifact.ts`:
+    - Line 3: `import { normalizeReportFilename, normalizeReportGeneratedAt, type ReportArtifact } from '../../../common/reports/report-artifact';`
+  - `apps/api/src/modules/exams/services/report-card-template.service.ts`:
+    - Line 3: `import type { ReportArtifactInput, ReportArtifactValue } from '../../../common/reports/report-artifact';`
+  - `apps/api/src/modules/grade-master/grade-master.controller.ts`:
+    - Line 81: `@Get('reports')`
+  - `apps/api/src/modules/grade-master/grade-master.service.ts`:
+    - Line 16: `reportsNotReady: 12,`
+  - `apps/api/src/modules/health/health.controller.test.ts`:
+    - Line 297: `test('HealthController readiness reports optional Redis degradation without throwing', async () => {`
+  - `apps/api/src/modules/implementation300/api-category-policy.ts`:
+    - Line 45: `api('analytics_engine', 'internal', 'reports', ['/api/internal/analytics'], 'internal_service', true, true, 600),`
+  - `apps/api/src/modules/implementation300/blueprint-registry.ts`:
+    - Line 42: `| 'reports'`
+    - Line 437: `moduleDefinition('exams', 'Exams and Results', ['setup', 'grading', 'cbc-assessment', 'moderation', 'reports', 'analytics'], [`
+  - `apps/api/src/modules/implementation300/development-phase-policy.test.ts`:
+    - Line 24: `'reports',`
+    - Line 31: `completedModules: ['authentication', 'tenant_management', 'students', 'finance', 'exams', 'communication_sms', 'reports', 'inventory'],`
+  - `apps/api/src/modules/implementation300/development-phase-policy.ts`:
+    - Line 59: `'reports',`
+    - Line 61: `capabilities: ['tenant_onboarding', 'billing', 'exam_results', 'communication', 'reports'],`
+  - `apps/api/src/modules/integrations/integrations.test.ts`:
+    - Line 202: `test('SmsDispatchService reports missing credential fields without exposing secrets', async () => {`
+  - `apps/api/src/modules/inventory/inventory.controller.ts`:
+    - Line 7: `} from '../../common/reports/report-export-queue';`
+    - Line 246: `@Get('reports')`
+  - `apps/api/src/modules/inventory/inventory.service.ts`:
+    - Line 13: `} from '../../common/reports/report-csv-artifact';`
+    - Line 93: `rows: (reports: InventoryReportsPayload) => ReportCsvValue[][];`
+  - `apps/api/src/modules/inventory/inventory.test.ts`:
+    - Line 2222: `path: '/inventory/reports/stock-valuation/export',`
+    - Line 2250: `throw new Error('reports should not be loaded for an unknown export');`
+  - `apps/api/src/modules/inventory/repositories/inventory.repository.test.ts`:
+    - Line 971: `const reports = await repository.buildReports('tenant-a');`
+    - Line 978: `assert.deepEqual(reports.stock_reconciliation, [`
+  - `apps/api/src/modules/library/library.controller.ts`:
+    - Line 89: `@Get('reports')`
+  - `apps/api/src/modules/mobile/mobile-app-policy.test.ts`:
+    - Line 44: `enabledModules: ['principal_dashboard', 'finance', 'reports'],`
+    - Line 79: `capabilities: ['fees', 'communication', 'reports', 'results'],`
+  - `apps/api/src/modules/mobile/mobile-app-policy.ts`:
+    - Line 9: `| 'reports'`
+    - Line 19: `export type MobileOfflineCapability = 'attendance' | 'mark_entry' | 'assignments' | 'fees' | 'communication' | 'reports' | 'results';`
+  - `apps/api/src/modules/module-access/module-access.constants.ts`:
+    - Line 55: `description: 'Assessments, marks, reports, academic analytics, CBT hooks, and result publishing.',`
+    - Line 67: `permission_scopes: ['discipline:read', 'discipline:write', 'discipline:manage', 'discipline:reports'],`
+  - `apps/api/src/modules/module-access/module-access.test.ts`:
+    - Line 13: `import { ReportExportJobsController } from '../../common/reports/report-export-jobs.controller';`
+    - Line 38: `'reports',`
+  - `apps/api/src/modules/operations/consumers/index.ts`:
+    - Line 505: `export { ReportsConsumer } from './reports.consumer';`
+    - Line 516: `export { RequestReportsConsumer } from './request-reports.consumer';`
+  - `apps/api/src/modules/operations/consumers/reports.consumer.ts`:
+    - Line 6: `readonly name = 'reports.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'reports' && event.payload.action_id !== 'reports') {`
+  - `apps/api/src/modules/operations/consumers/request-reports.consumer.ts`:
+    - Line 6: `readonly name = 'request-reports.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'request-reports' && event.payload.action_id !== 'request-reports') {`
+  - `apps/api/src/modules/operations/consumers/view-reports.consumer.ts`:
+    - Line 6: `readonly name = 'view-reports.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'view-reports' && event.payload.action_id !== 'view-reports') {`
+  - `apps/api/src/modules/operations/operations.service.ts`:
+    - Line 69: ``INSERT INTO operations_reports (tenant_id, title, content, prepared_by)`
+  - `apps/api/src/modules/payments/payments.test.ts`:
+    - Line 3482: `test('MpesaReconciliationService reports missing callbacks, duplicates, amount mismatches, wrong references, and late provider status', async () => {`
+    - Line 4016: `result.reports.map((report) => report.payment_channel_id),`
+  - `apps/api/src/modules/payments/payments.types.ts`:
+    - Line 297: `reports: MpesaReconciliationReport[];`
+    - Line 305: `reports: MpesaReconciliationReport[];`
+  - `apps/api/src/modules/payments/services/mpesa-reconciliation.service.ts`:
+    - Line 446: `const reports: MpesaReconciliationReport[] = [];`
+    - Line 449: `reports.push(`
+  - `apps/api/src/modules/platform/platform-onboarding.service.test.ts`:
+    - Line 470: `test('PlatformOnboardingService reports Resend testing mode as blocked instead of encouraging repeated resends', async () => {`
+  - `apps/api/src/modules/support/support-notification-delivery.service.test.ts`:
+    - Line 12: `test('SupportNotificationDeliveryService reports provider readiness without exposing secrets', async () => {`
+    - Line 97: `test('SupportNotificationDeliveryService reports precise missing provider status for dashboard-managed SMS', async () => {`
+  - `apps/api/src/scripts/audit-coverage-review.test.ts`:
+    - Line 49: `test('runAuditCoverageReview reports missing evidence by file and pattern', () => {`
+  - `apps/api/src/scripts/base-onboarding-seed.ts`:
+    - Line 30: `'reports',`
+    - Line 362: `{ moduleCode: 'reports', table: 'report_snapshots', tenantScoped: true },`
+  - `apps/api/src/scripts/core-api-load.test.ts`:
+    - Line 33: `assert.equal(inventoryExport.url, 'http://127.0.0.1:3000/inventory/reports/stock-valuation/export');`
+  - `apps/api/src/scripts/core-api-load.ts`:
+    - Line 131: `path: '/admissions/reports/applications/export',`
+    - Line 147: `id: 'inventory-reports',`
+  - `apps/api/src/scripts/enable-admin-modules.ts`:
+    - Line 47: `'Module-aware executive KPIs, alerts, analytics, trends, and reports for the Principal.',`
+  - `apps/api/src/scripts/generate-production-scorecard.test.ts`:
+    - Line 22: `"reports",`
+  - `apps/api/src/scripts/generate-production-scorecard.ts`:
+    - Line 150: `remediation: 'Add the tenant isolation audit runner and require it in CI for finance, support, library, discipline, reports, and files.',`
+    - Line 183: `evidenceLine(/missing_provider/.test(supportNotificationSource), 'support notification health reports precise missing provider state'),`
+  - `apps/api/src/scripts/high-volume-workflow-load.test.ts`:
+    - Line 18: `'billing-invoice-reports',`
+  - `apps/api/src/scripts/high-volume-workflow-load.ts`:
+    - Line 18: `{ id: 'billing-invoice-reports', method: 'GET', path: '/billing/reports/invoices/export', targetP95Ms: 900 },`
+    - Line 31: `{ id: 'report-export-jobs', method: 'GET', path: '/reports/export-jobs', targetP95Ms: 800 },`
+  - `apps/api/src/scripts/implementation100-certification.ts`:
+    - Line 74: `moduleEvidence('reports', 'Reports', 'apps/web/src/components/school/school-pages.tsx', ['Reports'], 'apps/web/src/app/api/reports/[...path]/route.ts', ['proxySchoolApiRequest', '/reports'], 'apps/api/src/common/reports/report-export-jobs.controller.ts', ['ReportExportJobsController'], 'apps/api/src/common/reports/report-snapshot-schema.service.ts', ['report_snapshots'], 'apps/api/src/common/reports/report-export-queue.test.ts', ['report']),`
+  - `apps/api/src/scripts/implementation20-certification.test.ts`:
+    - Line 30: `'apps/api/src/modules/biometric-attendance/biometric-attendance.controller.ts': 'live-feed reports/monthly',`
+    - Line 37: `'apps/web/src/app/api/reports/[...path]/route.ts': 'proxySchoolApiRequest "/reports"',`
+  - `apps/api/src/scripts/implementation20-certification.ts`:
+    - Line 72: `check('biometric-live-reports', 'Biometric API exposes live feed and monthly reports', 'apps/api/src/modules/biometric-attendance/biometric-attendance.controller.ts', /live-feed[\s\S]+reports\/monthly/),`
+    - Line 84: `check('reports-web-proxy', 'Web app proxies reports requests to the API', 'apps/web/src/app/api/reports/[...path]/route.ts', /proxySchoolApiRequest[\s\S]+"\/reports"/),`
+  - `apps/api/src/scripts/implementation21-certification.test.ts`:
+    - Line 10: `'apps/api/src/modules/admin-command/principal-insights.providers.ts': 'finance summary_only lab_management communication_sms clinic_health permission_required: \'clinic:reports\' summary_only medicine_consumption_cost_minor wastage_due_to_expiry_minor emergency_supply_ready_rate most_used_medicine ai_insights fee_default_risk_alerts medicine_shortage_predictions attendance_irregularities budget_overrun_alerts performance_decline_warnings',`
+    - Line 29: `'apps/api/src/modules/clinic/clinic.controller.ts': 'clinic:inventory clinic:dispense clinic:reports portal:read_own_children',`
+  - `apps/api/src/scripts/implementation21-certification.ts`:
+    - Line 76: `check('clinic-api-permissions', 'Clinic controller separates inventory, dispensing, reports, and parent history permissions', 'apps/api/src/modules/clinic/clinic.controller.ts', /clinic:inventory[\s\S]+clinic:dispense[\s\S]+clinic:reports[\s\S]+portal:read_own_children/),`
+    - Line 92: `check('principal-no-confidential-notes', 'Principal insights use clinic reports, not confidential permissions', 'apps/api/src/modules/admin-command/principal-insights.providers.ts', /permission_required:\s+'clinic:reports'[\s\S]+summary_only/),`
+  - `apps/api/src/scripts/implementation30-certification.test.ts`:
+    - Line 59: `'apps/api/src/modules/payments/payments.test.ts': 'provider_verification_required exports only redacted payloads redacts C2B API payment responses for legacy raw rows assert.notEqual creates callback channels with hashed secrets builds high-entropy STK and C2B callback URLs high-entropy channel-secret routes creates M-PESA verification jobs verificationJobInput duplicate M-PESA identifiers MpesaTransactionStatusService verifies STK callback status classifies verified C2B payments without ledger enqueue accepts unsigned direct Daraja callbacks rejects unsigned callbacks in edge-signed mode accepts unsigned validation callbacks in direct Daraja mode PaymentsSchemaService creates reconciliation batches MpesaReconciliationService reports missing callbacks, duplicates, amount mismatches, wrong references, and late provider status runs daily reconciliation for every active tenant payment channel generates on-demand date-range reports lists accountant review items without raw M-PESA payload leakage requires two distinct approvers before resolving reversal requests exposes accountant review and finance approval endpoints',`
+    - Line 65: `'apps/api/src/modules/compliance/compliance-schema.service.ts': 'data_subject_requests access_request correction_request deletion_anonymization_request export_request objection_request data_retention_schedules child_data_dpia_records students payments sync_offline breach_response_reports FORCE ROW LEVEL SECURITY',`
+  - `apps/api/src/scripts/implementation30-certification.ts`:
+    - Line 95: `check('mpesa-reconciliation-processor', 'M-Pesa reconciliation service runs daily and date-range reports, persists batches, and classifies mismatch states', 'apps/api/src/modules/payments/services/mpesa-reconciliation.service.ts', /(?=.*generateDailyReport)(?=.*generateDateRangeReport)(?=.*runDailyProcessor)(?=.*reconciliation_state)(?=.*provider_received)(?=.*amount_mismatch)(?=.*duplicate_provider_receipt)(?=.*missing_provider_record)(?=.*verified_unmatched)(?=.*manual_review_required)(?=.*INSERT INTO mpesa_reconciliation_batches)(?=.*INSERT INTO mpesa_reconciliation_discrepancies)/s),`
+    - Line 100: `check('mpesa-reconciliation-tests', 'Payments tests cover reconciliation schema, missing callbacks, duplicates, amount mismatch, wrong references, late provider status, daily processor, and range reports', 'apps/api/src/modules/payments/payments.test.ts', /(?=.*PaymentsSchemaService creates reconciliation batches)(?=.*MpesaReconciliationService reports missing callbacks, duplicates, amount mismatches, wrong references, and late provider status)(?=.*runs daily reconciliation for every active tenant payment channel)(?=.*generates on-demand date-range reports)/s),`
+  - `apps/api/src/scripts/implementation30-load-profile.test.ts`:
+    - Line 35: `'apps/api/src/common/reports/report-export-queue.ts': 'shouldQueueReportExport DEFAULT_SYNC_EXPORT_ROW_LIMIT REPORT_EXPORT_JOB_OPTIONS attempts backoff estimated_rows',`
+    - Line 63: `'apps/api/src/common/reports/report-export-queue.ts': 'shouldQueueReportExport DEFAULT_SYNC_EXPORT_ROW_LIMIT REPORT_EXPORT_JOB_OPTIONS attempts backoff estimated_rows',`
+  - `apps/api/src/scripts/implementation30-load-profile.ts`:
+    - Line 181: `'apps/api/src/common/reports/report-export-queue.ts',`
+  - `apps/api/src/scripts/kisumu-boys-demo-seed.ts`:
+    - Line 29: `'reports',`
+    - Line 361: `{ moduleCode: 'reports', table: 'report_snapshots', tenantScoped: true },`
+  - `apps/api/src/scripts/module-access-certification.test.ts`:
+    - Line 28: `'apps/api/src/common/reports/report-export-jobs.controller.ts': '@Controller(\'reports\') @RequiresModule(\'reports\')',`
+    - Line 39: `'apps/api/src/modules/module-access/module-access.constants.ts': 'MODULE_REGISTRY_SEED students admissions academics finance exams discipline timetable lab_management teacher_biometric_attendance parent_portal inventory library transport communication_sms reports staff admin_command_centers principal_dashboard clinic_health procurement hostel boarding cbt_exams lms ai_insights visitor_management asset_tracking iot permission_scopes',`
+  - `apps/api/src/scripts/module-access-certification.ts`:
+    - Line 67: `backendRoute('reports', 'Report export job routes require the reports module', 'apps/api/src/common/reports/report-export-jobs.controller.ts', 'reports'),`
+    - Line 88: `frontendRoute('reports', 'reports'),`
+  - `apps/api/src/scripts/module-certification.test.ts`:
+    - Line 24: `'apps/web/src/lib/discipline/discipline-live.ts': 'acknowledgeDisciplineIncident exportDisciplineReport reports',`
+  - `apps/api/src/scripts/module-certification.ts`:
+    - Line 105: `workflow('reports-and-documents', 'Reports, documents, and confidential export safety', [`
+    - Line 106: `check('discipline-report-api', 'Discipline reports are exposed through API', 'apps/web/src/lib/discipline/discipline-live.ts', /exportDisciplineReport|reports/),`
+  - `apps/api/src/scripts/release-readiness-gate.test.ts`:
+    - Line 20: `"reports",`
+    - Line 49: `'dist/apps/api/src/common/reports/report-excel-artifact.test.js',`
+  - `apps/api/src/scripts/release-readiness-gate.ts`:
+    - Line 27: `} from '../common/reports/report-export-queue';`
+    - Line 31: `} from '../common/reports/report-snapshot-manifest';`
+  - `apps/api/src/scripts/run-pilot-certification.test.ts`:
+    - Line 75: `'apps/api/src/common/reports/report-export-queue.ts': 'validateReportExportJobPayload queue',`
+  - `apps/api/src/scripts/run-pilot-certification.ts`:
+    - Line 167: `check('report-export', 'Report export queue exists', 'apps/api/src/common/reports/report-export-queue.ts', /validateReportExportJobPayload|queue/i),`
+  - `apps/api/src/scripts/synthetic-journey-monitor.ts`:
+    - Line 286: `path: '/admissions/reports/applications/export',`
+    - Line 295: `path: '/inventory/reports/stock-valuation/export',`
+  - `apps/api/src/scripts/tenant-isolation-audit.test.ts`:
+    - Line 144: `'apps/api/src/common/reports/report-export-queue.ts': 'attendance',`
+  - `apps/api/src/scripts/tenant-isolation-audit.ts`:
+    - Line 59: `check('reports-block-retired-attendance', 'Report exports block retired attendance data', 'apps/api/src/common/reports/report-export-queue.ts', /attendance/i, 'high'),`
+- **`requests-workspace.tsx` (`requests`)**:
+  - `apps/api/src/auth/auth-email.service.test.ts`:
+    - Line 104: `const requests: Array<{`
+    - Line 111: `requests.push(JSON.parse(String(init?.body)));`
+  - `apps/api/src/auth/auth.constants.ts`:
+    - Line 81: `{ resource: 'payments', action: 'create', description: 'Initiate tenant payment requests' },`
+    - Line 116: `{ resource: 'labs', action: 'approve-disposal', description: 'Approve chemical disposal requests' },`
+  - `apps/api/src/auth/auth.test.ts`:
+    - Line 309: `test('AuthService authenticateAccessToken lets default-domain requests use the signed session tenant', async () => {`
+    - Line 416: `test('AuthService refresh lets default-domain requests use the signed refresh tenant', async () => {`
+  - `apps/api/src/common/dashboard/dashboard-summary.repository.test.ts`:
+    - Line 62: `pending_requests: 2,`
+    - Line 75: `pending_requests: 2,`
+  - `apps/api/src/common/platform-governance/operational-execution-contract.ts`:
+    - Line 210: `nodeId: 'procurement.pending-requests',`
+  - `apps/api/src/common/reports/report-export-queue.test.ts`:
+    - Line 124: `test('ReportExportQueueService rejects export requests for disabled tenant modules before enqueue', async () => {`
+  - `apps/api/src/common/reports/report-export.worker.test.ts`:
+    - Line 73: `test('ReportExportWorkerService deduplicates identical export requests', async () => {`
+  - `apps/api/src/common/uploads/database-file-storage.service.test.ts`:
+    - Line 524: `test('S3CompatibleObjectStorageService stores tenant-scoped objects with signed PUT requests', async () => {`
+    - Line 534: `const requests: Array<{`
+  - `apps/api/src/common/uploads/upload-policy.test.ts`:
+    - Line 178: `const requests: Array<{`
+    - Line 199: `requests.push({ url, init });`
+  - `apps/api/src/database/database.service.ts`:
+    - Line 240: `waiting_requests: number;`
+    - Line 250: `waiting_requests: waitingRequests,`
+  - `apps/api/src/database/migrations/005_teacher_dashboard_tables.sql`:
+    - Line 78: `CREATE TABLE IF NOT EXISTS student_requests (`
+    - Line 88: `CONSTRAINT ck_student_requests_tenant CHECK (tenant_id <> 'global')`
+  - `apps/api/src/database/schema.sql`:
+    - Line 3306: `CREATE TABLE IF NOT EXISTS approval_requests (`
+    - Line 3330: `CREATE INDEX IF NOT EXISTS idx_approvals_tenant_approver ON approval_requests(tenant_id, approver_user_id);`
+  - `apps/api/src/database/tenant-database-policy.ts`:
+    - Line 94: `staff: ['staff_profiles', 'staff_leave_requests', 'staff_documents'],`
+    - Line 98: `procurement: ['purchase_requests', 'supplier_quotes', 'goods_receipts'],`
+  - `apps/api/src/infrastructure/lifecycle/graceful-shutdown.service.ts`:
+    - Line 9: `*   2. Wait for in-flight requests to drain (up to timeout)`
+    - Line 42: `* Use this in middleware to reject new requests during shutdown.`
+  - `apps/api/src/infrastructure/resilience/circuit-breaker.service.ts`:
+    - Line 5: `*  - CLOSED: requests flow through normally`
+    - Line 6: `*  - OPEN: requests are rejected immediately (fail fast)`
+  - `apps/api/src/middleware/compression.middleware.ts`:
+    - Line 117: `// Skip SSE / upgrade requests`
+  - `apps/api/src/middleware/tenant.middleware.test.ts`:
+    - Line 157: `test('TenantMiddleware defers request transactions for CORS preflight requests', async () => {`
+    - Line 221: `test('TenantMiddleware keeps request transaction lifecycle for regular tenant requests', async () => {`
+  - `apps/api/src/modules/academics/academics-schema.service.ts`:
+    - Line 282: `CREATE TABLE IF NOT EXISTS class_requests (`
+    - Line 294: `CONSTRAINT uq_class_requests_tenant_id_id UNIQUE (tenant_id, id)`
+  - `apps/api/src/modules/admin-command/principal-insights.providers.ts`:
+    - Line 72: `{ id: 'leave_requests', title: 'Leave Requests', metric_key: 'pending_leave_requests' },`
+    - Line 137: `{ id: 'pending_requests', title: 'Pending Requests', metric_key: 'pending_procurement_requests' },`
+  - `apps/api/src/modules/admin-command/repositories/admin-command.repository.ts`:
+    - Line 221: `(SELECT COUNT(*)::int FROM staff_leave_requests WHERE tenant_id = $1 AND status = 'requested') AS pending_leave_requests,`
+    - Line 314: `(SELECT COUNT(*)::int FROM inventory_requests WHERE tenant_id = $1 AND status = 'pending') AS pending_procurement_requests,`
+  - `apps/api/src/modules/ai-insights/ai-governance-policy.test.ts`:
+    - Line 54: `test('createAuditableAiInsight rejects capability requests for disabled modules', () => {`
+  - `apps/api/src/modules/approvals/approvals.controller.ts`:
+    - Line 45: `const requests = await this.approvalsService.getPendingApprovals(schoolId, role);`
+    - Line 46: `return { success: true, data: requests };`
+  - `apps/api/src/modules/approvals/approvals.cron.ts`:
+    - Line 30: `this.logger.log('No expired requests found.');`
+    - Line 34: `this.logger.log(`Found ${expiredRequests.length} expired requests. Rejecting them...`);`
+  - `apps/api/src/modules/approvals/approvals.service.ts`:
+    - Line 124: `// Only return requests where the user's role is in the approverRoles of the associated rule`
+  - `apps/api/src/modules/biometric-attendance/biometric-attendance.test.ts`:
+    - Line 68: `test('BiometricAttendanceService bounds teacher attendance list requests', async () => {`
+  - `apps/api/src/modules/class-teacher/class-teacher.controller.ts`:
+    - Line 328: `@Get('requests')`
+  - `apps/api/src/modules/class-teacher/class-teacher.service.ts`:
+    - Line 153: `storeRequests: { count: 0, detail: "0 pending requests" } // Placeholder`
+    - Line 1001: `FROM student_requests r`
+  - `apps/api/src/modules/clinic/clinic-schema.service.ts`:
+    - Line 13: `'clinic_disposal_requests',`
+    - Line 234: `CREATE TABLE IF NOT EXISTS clinic_disposal_requests (`
+  - `apps/api/src/modules/clinic/clinic.test.ts`:
+    - Line 29: `'clinic_disposal_requests',`
+  - `apps/api/src/modules/compliance/compliance-schema.service.ts`:
+    - Line 61: `CREATE TABLE IF NOT EXISTS data_subject_requests (`
+    - Line 75: `CONSTRAINT ck_data_subject_requests_type CHECK (`
+  - `apps/api/src/modules/compliance/compliance.controller.ts`:
+    - Line 46: `@Post('data-subject-requests')`
+    - Line 54: `@Post('data-subject-requests/:requestId/identity-verification')`
+  - `apps/api/src/modules/compliance/compliance.service.ts`:
+    - Line 199: `INSERT INTO data_subject_requests (`
+    - Line 562: `UPDATE data_subject_requests`
+  - `apps/api/src/modules/compliance/compliance.test.ts`:
+    - Line 22: `assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS data_subject_requests/);`
+    - Line 34: `assert.match(schemaSql, /ALTER TABLE data_subject_requests FORCE ROW LEVEL SECURITY/);`
+  - `apps/api/src/modules/events/approval-chain.service.ts`:
+    - Line 73: `UPDATE approval_requests`
+  - `apps/api/src/modules/events/consumers/procurement-event.consumer.ts`:
+    - Line 15: `// Approval required for requests over 50,000 (example threshold)`
+  - `apps/api/src/modules/events/notification-router.service.ts`:
+    - Line 63: `SELECT * FROM approval_requests`
+  - `apps/api/src/modules/events/repositories/workflow.repository.ts`:
+    - Line 118: `INSERT INTO approval_requests (`
+  - `apps/api/src/modules/grade-master/grade-master.controller.ts`:
+    - Line 75: `@Get('requests')`
+  - `apps/api/src/modules/hr/hr-schema.service.ts`:
+    - Line 11: `'staff_leave_requests',`
+    - Line 114: `CREATE TABLE IF NOT EXISTS staff_leave_requests (`
+  - `apps/api/src/modules/hr/hr.test.ts`:
+    - Line 35: `assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS staff_leave_requests/);`
+  - `apps/api/src/modules/hr/repositories/hr.repository.ts`:
+    - Line 203: `INSERT INTO staff_leave_requests (`
+    - Line 357: `INSERT INTO staff_leave_requests (`
+  - `apps/api/src/modules/implementation300/blueprint-registry.ts`:
+    - Line 515: `moduleDefinition('procurement', 'Procurement', ['requests', 'approvals', 'suppliers', 'invoices', 'budgets', 'receiving'], [`
+  - `apps/api/src/modules/integrations/integrations-schema.service.ts`:
+    - Line 9: `'sms_purchase_requests',`
+    - Line 125: `CREATE TABLE IF NOT EXISTS sms_purchase_requests (`
+  - `apps/api/src/modules/integrations/integrations.test.ts`:
+    - Line 234: `const requests: Array<{ url: string; init?: RequestInit }> = [];`
+    - Line 237: `requests.push({ url: String(url), init });`
+  - `apps/api/src/modules/integrations/school-sms-wallet.repository.ts`:
+    - Line 391: `INSERT INTO sms_purchase_requests (`
+  - `apps/api/src/modules/integrations/school-sms.controller.ts`:
+    - Line 35: `@Post('school/sms/purchase-requests')`
+  - `apps/api/src/modules/inventory/inventory-schema.service.ts`:
+    - Line 214: `CREATE TABLE IF NOT EXISTS inventory_requests (`
+    - Line 229: `CONSTRAINT uq_inventory_requests_tenant_id_id UNIQUE (tenant_id, id),`
+  - `apps/api/src/modules/inventory/inventory.controller.ts`:
+    - Line 185: `@Get('requests')`
+    - Line 191: `@Post('requests')`
+  - `apps/api/src/modules/inventory/inventory.service.ts`:
+    - Line 917: `throw new BadRequestException('Only pending inventory requests can be approved');`
+    - Line 976: `throw new BadRequestException('Only approved inventory requests can be fulfilled');`
+  - `apps/api/src/modules/inventory/inventory.test.ts`:
+    - Line 460: `test('InventoryService approves inventory requests by reserving stock lines', async () => {`
+    - Line 530: `path: '/inventory/requests/00000000-0000-0000-0000-000000000603/status',`
+  - `apps/api/src/modules/inventory/repositories/inventory.repository.test.ts`:
+    - Line 509: `test('InventoryRepository locks inventory requests before fulfillment', async () => {`
+    - Line 1024: `assert.match(schemaSql, /CREATE INDEX IF NOT EXISTS ix_inventory_requests_tenant_status_created/);`
+  - `apps/api/src/modules/inventory/repositories/inventory.repository.ts`:
+    - Line 255: `const [valuationResult, lowStockResult, requestsResult, purchasesResult, movementResult, purchaseActivityResult, alertsResult, approvalsResult, categoryBreakdownResult] =`
+    - Line 279: `FROM inventory_requests`
+  - `apps/api/src/modules/labs/labs-schema.service.ts`:
+    - Line 14: `'chemical_disposal_requests',`
+    - Line 225: `CREATE TABLE IF NOT EXISTS chemical_disposal_requests (`
+  - `apps/api/src/modules/labs/labs.controller.ts`:
+    - Line 90: `@Post('chemicals/:chemicalId/disposal-requests')`
+    - Line 99: `@Post('disposal-requests/:requestId/approve')`
+  - `apps/api/src/modules/labs/labs.test.ts`:
+    - Line 31: `'chemical_disposal_requests',`
+  - `apps/api/src/modules/labs/repositories/labs.repository.ts`:
+    - Line 270: `INSERT INTO chemical_disposal_requests (`
+    - Line 283: `UPDATE chemical_disposal_requests`
+  - `apps/api/src/modules/library/library.controller.ts`:
+    - Line 83: `@Get('requests')`
+  - `apps/api/src/modules/module-access/module-access.constants.ts`:
+    - Line 190: `description: 'Purchase requests, supplier tracking, approvals, invoice attachment, and budget linkage.',`
+  - `apps/api/src/modules/observability/slo-monitoring.service.ts`:
+    - Line 119: `this.objective('mpesa.overdue_intents', 'mpesa', 'MPESA overdue intents', 'Overdue STK requests that still have no callback or ledger outcome', 0, 'lte', 'count', windowSeconds, 'critical'),`
+  - `apps/api/src/modules/payments/controllers/payments.controller.ts`:
+    - Line 61: `@Post('reconciliation/approval-requests')`
+    - Line 69: `@Post('reconciliation/approval-requests/:requestId/approve')`
+  - `apps/api/src/modules/payments/payments-schema.service.ts`:
+    - Line 476: `CREATE TABLE IF NOT EXISTS finance_approval_requests (`
+    - Line 499: `CONSTRAINT ck_finance_approval_requests_action CHECK (`
+  - `apps/api/src/modules/payments/payments.test.ts`:
+    - Line 1649: `assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS finance_approval_requests/);`
+    - Line 1657: `assert.match(schemaSql, /ALTER TABLE finance_approval_requests FORCE ROW LEVEL SECURITY/);`
+  - `apps/api/src/modules/payments/services/mpesa-reconciliation.service.ts`:
+    - Line 614: `INSERT INTO finance_approval_requests (`
+    - Line 1105: `FROM finance_approval_requests`
+  - `apps/api/src/modules/platform/platform-onboarding.service.ts`:
+    - Line 1198: `'DELETE FROM sms_purchase_requests WHERE tenant_id = $1',`
+  - `apps/api/src/modules/procurement/procurement-schema.service.ts`:
+    - Line 7: `'procurement_requests',`
+    - Line 69: `CREATE TABLE IF NOT EXISTS procurement_requests (`
+  - `apps/api/src/modules/procurement/procurement.controller.ts`:
+    - Line 31: `@Post('requests')`
+    - Line 37: `@Patch('requests/:requestId/approval')`
+  - `apps/api/src/modules/procurement/procurement.test.ts`:
+    - Line 23: `'procurement_requests',`
+    - Line 37: `assert.match(schemaSql, /procurement_requests_budget/);`
+  - `apps/api/src/modules/procurement/repositories/procurement.repository.ts`:
+    - Line 6: `open_requests: number;`
+    - Line 42: `const [summary, requests, suppliers, orders, invoices] = await Promise.all([`
+  - `apps/api/src/modules/secretary/secretary.controller.ts`:
+    - Line 30: `@Get('parent-requests')`
+  - `apps/api/src/modules/secretary/secretary.service.ts`:
+    - Line 50: ``SELECT * FROM parent_requests WHERE tenant_id = $1 ORDER BY created_at DESC`,`
+  - `apps/api/src/modules/security/rate-limit.service.ts`:
+    - Line 11: `max_requests: number;`
+    - Line 130: `allowed: totalHits <= policy.max_requests,`
+  - `apps/api/src/modules/security/security.test.ts`:
+    - Line 139: `test('RateLimitService blocks requests after the configured threshold', async () => {`
+  - `apps/api/src/modules/support/repositories/support.repository.ts`:
+    - Line 183: ``${name} support and troubleshooting requests.`,`
+  - `apps/api/src/modules/support/support-notification-delivery.service.test.ts`:
+    - Line 242: `const requests: Array<{ url: string; init?: RequestInit }> = [];`
+    - Line 245: `requests.push({ url: String(url), init });`
+  - `apps/api/src/modules/support/support-schema.service.ts`:
+    - Line 712: ``${category} support and troubleshooting requests.`,`
+  - `apps/api/src/modules/workflow/controllers/approval.controller.ts`:
+    - Line 49: ``SELECT * FROM approval_requests WHERE tenant_id = $1 ORDER BY created_at DESC LIMIT 50`,`
+  - `apps/api/src/modules/workflow/services/approval.service.ts`:
+    - Line 60: ``INSERT INTO approval_requests (`
+    - Line 83: ``UPDATE approval_requests`
+  - `apps/api/src/modules/workflow/services/dashboard-feed.service.ts`:
+    - Line 69: ``SELECT COUNT(*) FROM approval_requests WHERE tenant_id = $1 AND approver_roles @> $2::jsonb AND status = 'pending'`,`
+  - `apps/api/src/scripts/base-onboarding-seed.ts`:
+    - Line 230: `{ moduleCode: 'staff', table: 'staff_leave_requests', tenantScoped: true },`
+    - Line 277: `{ moduleCode: 'inventory', table: 'inventory_requests', tenantScoped: true },`
+  - `apps/api/src/scripts/implementation100-certification.ts`:
+    - Line 79: `moduleEvidence('procurement', 'Procurement', 'apps/web/src/components/modules/procurement/procurement-module-screen.tsx', ['ProcurementModuleScreen'], 'apps/web/src/app/api/procurement/[...path]/route.ts', ['proxySchoolApiRequest', '/procurement'], 'apps/api/src/modules/procurement/procurement.controller.ts', ['ProcurementController'], 'apps/api/src/modules/procurement/procurement-schema.service.ts', ['procurement_requests'], 'apps/api/src/modules/procurement/procurement.test.ts', ['procurement']),`
+  - `apps/api/src/scripts/implementation20-certification.test.ts`:
+    - Line 19: `'apps/api/src/modules/labs/labs-schema.service.ts': 'lab_departments lab_sessions lab_attendance lab_equipment chemical_items chemical_disposal_requests',`
+  - `apps/api/src/scripts/implementation20-certification.ts`:
+    - Line 58: `check('lab-schema', 'Lab schema includes departments, labs, sessions, attendance, equipment, chemicals, usage, and disposal', 'apps/api/src/modules/labs/labs-schema.service.ts', /lab_departments[\s\S]+lab_sessions[\s\S]+lab_attendance[\s\S]+lab_equipment[\s\S]+chemical_items[\s\S]+chemical_disposal_requests/),`
+    - Line 74: `check('admin-command-web-proxy', 'Web app proxies leadership command-center requests to the API', 'apps/web/src/app/api/admin-command/[...path]/route.ts', /proxySchoolApiRequest[\s\S]+"\/admin-command"/),`
+  - `apps/api/src/scripts/implementation21-certification.ts`:
+    - Line 58: `check('admin-command-proxy', 'Web app proxies leadership API requests', 'apps/web/src/app/api/admin-command/[...path]/route.ts', /proxySchoolApiRequest[\s\S]+"\/admin-command"/),`
+  - `apps/api/src/scripts/implementation30-certification.test.ts`:
+    - Line 19: `'apps/api/src/modules/payments/payments-schema.service.ts': 'mpesa_payload_vault encrypted_payload payload_sha256 raw_payload_encrypted_ref mpesa_verification_jobs payment_intent_id uuid checkout_request_id text c2b_payment_id uuid mpesa_receipt_number text transaction_status text NOT NULL DEFAULT \'pending\' last_provider_response_encrypted FORCE ROW LEVEL SECURITY ck_mpesa_c2b_payments_status received_unverified verification_requested verified_matched verified_unmatched callback_trust_status provider_verified_at provider_result_code provider_result_desc uq_payment_intents_tenant_checkout_request_id uq_mpesa_transactions_tenant_checkout_request_id ux_mpesa_transactions_tenant_receipt_number uq_mpesa_c2b_payments_tenant_trans_id mpesa_reconciliation_batches reconciliation_state provider_received system_received verified_matched verified_unmatched amount_mismatch duplicate_provider_receipt missing_provider_record reversed manual_review_required mpesa_reconciliation_discrepancies finance_close_periods finance_approval_requests app.ensure_finance_period_open FORCE ROW LEVEL SECURITY',`
+    - Line 21: `'apps/api/src/modules/payments/controllers/payments.controller.ts': 'reconciliation/range billing:read generateDateRangeReport reconciliation/daily/run billing:update runDailyProcessor reconciliation/review reconciliation/approval-requests reconciliation/approval-requests/:requestId/approve billing:read billing:update',`
+  - `apps/api/src/scripts/implementation30-certification.ts`:
+    - Line 94: `check('mpesa-reconciliation-schema', 'Payments schema stores reconciliation batches, discrepancy states, finance close periods, and dual approval requests behind tenant RLS', 'apps/api/src/modules/payments/payments-schema.service.ts', /(?=.*mpesa_reconciliation_batches)(?=.*reconciliation_state)(?=.*provider_received)(?=.*system_received)(?=.*verified_matched)(?=.*verified_unmatched)(?=.*amount_mismatch)(?=.*duplicate_provider_receipt)(?=.*missing_provider_record)(?=.*reversed)(?=.*manual_review_required)(?=.*mpesa_reconciliation_discrepancies)(?=.*finance_close_periods)(?=.*finance_approval_requests)(?=.*app\.ensure_finance_period_open)(?=.*FORCE ROW LEVEL SECURITY)/s),`
+    - Line 98: `check('mpesa-accountant-review-routes', 'Payments API exposes accountant review queue and finance approval routes', 'apps/api/src/modules/payments/controllers/payments.controller.ts', /(?=.*reconciliation\/review)(?=.*reconciliation\/approval-requests)(?=.*reconciliation\/approval-requests\/:requestId\/approve)(?=.*billing:read)(?=.*billing:update)/s),`
+  - `apps/api/src/scripts/implementation30-load-profile.ts`:
+    - Line 7: `peak_requests_per_minute: number;`
+    - Line 85: `peak_requests_per_minute: 6000,`
+  - `apps/api/src/scripts/implementation90-load-profile.test.ts`:
+    - Line 69: `'apps/api/src/database/database.service.ts': 'getPoolMetrics waiting_requests database.pool.waiting_clients database.query.timeout statementTimeoutMs',`
+    - Line 113: `'apps/api/src/database/database.service.ts': 'getPoolMetrics waiting_requests database.pool.waiting_clients database.query.timeout statementTimeoutMs',`
+  - `apps/api/src/scripts/implementation90-load-profile.ts`:
+    - Line 108: `pattern: /(?=.*getPoolMetrics)(?=.*waiting_requests)(?=.*database\.pool\.waiting_clients)(?=.*database\.query\.timeout)(?=.*statementTimeoutMs)/s,`
+  - `apps/api/src/scripts/kisumu-boys-demo-seed.ts`:
+    - Line 229: `{ moduleCode: 'staff', table: 'staff_leave_requests', tenantScoped: true },`
+    - Line 276: `{ moduleCode: 'inventory', table: 'inventory_requests', tenantScoped: true },`
+  - `apps/api/src/scripts/module-access-certification.test.ts`:
+    - Line 52: `'apps/api/src/common/reports/report-export-queue.test.ts': 'rejects export requests for disabled tenant modules before enqueue',`
+  - `apps/api/src/scripts/module-access-certification.ts`:
+    - Line 188: `/rejects export requests for disabled tenant modules before enqueue/,`
+  - `apps/api/src/tenant/tenant-trust-boundary.service.ts`:
+    - Line 51: `throw new BadRequestException('DEFAULT_TENANT_ID must be configured for localhost requests');`
+  - `apps/api/src/tenant/tenant.service.test.ts`:
+    - Line 21: `test('TenantService ignores unsigned forwarded tenant ids from browser-controlled requests', () => {`
+  - `apps/api/src/tenant/tenant.service.ts`:
+    - Line 88: `throw new BadRequestException('DEFAULT_TENANT_ID must be configured for localhost requests');`
+- **`stocktake-workspace.tsx` (`stocktake`)**:
+  - `apps/api/src/modules/operations/consumers/export-stocktake.consumer.ts`:
+    - Line 6: `readonly name = 'export-stocktake.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'export-stocktake' && event.payload.action_id !== 'export-stocktake') {`
+  - `apps/api/src/modules/operations/consumers/index.ts`:
+    - Line 277: `export { ExportStocktakeConsumer } from './export-stocktake.consumer';`
+    - Line 629: `export { StartStocktakeConsumer } from './start-stocktake.consumer';`
+  - `apps/api/src/modules/operations/consumers/start-stocktake.consumer.ts`:
+    - Line 6: `readonly name = 'start-stocktake.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'start-stocktake' && event.payload.action_id !== 'start-stocktake') {`
+
+---
+
+### Role: `transport-manager`
+
+| File Name | Module ID | Definition Status | Backend Status | Refs |
+| :--- | :--- | :--- | :--- | :--- |
+| `drivers-workspace.tsx` | `drivers` | ❌ Missing | ✅ Referenced (17 refs) | `auth.constants.ts`, `blueprint-registry.ts`, `transport.repository.ts`... |
+| `fuel-maintenance-workspace.tsx` | `fuel-maintenance` | ❌ Missing | ❌ Missing | None |
+| `overview-workspace.tsx` | `overview` | ✅ Found (Overview) | ✅ Referenced (106 refs) | `billing-feature.middleware.test.ts`, `admin-command.controller.ts`, `admissions-command.controller.ts`... |
+| `reports-workspace.tsx` | `reports` | ✅ Found (Reports) | ✅ Referenced (371 refs) | `auth-email.service.test.ts`, `auth.constants.ts`, `monitoring-service-account.service.ts`... |
+| `routes-workspace.tsx` | `routes` | ✅ Found (Routes) | ✅ Referenced (133 refs) | `auth-schema.service.ts`, `auth.constants.ts`, `schema.sql`... |
+| `student-transport-list-workspace.tsx` | `student-transport-list` | ✅ Found (Student Transport List) | ❌ Missing | None |
+| `trips-workspace.tsx` | `trips` | ❌ Missing | ✅ Referenced (39 refs) | `database.service.ts`, `transport.repository.ts`, `transport-schema.service.ts`... |
+| `vehicles-workspace.tsx` | `vehicles` | ✅ Found (Vehicles) | ✅ Referenced (40 refs) | `schema.sql`, `tenant-database-policy.ts`, `blueprint-registry.ts`... |
+
+#### Backend Reference Details for `transport-manager`:
+- **`drivers-workspace.tsx` (`drivers`)**:
+  - `apps/api/src/auth/auth.constants.ts`:
+    - Line 698: `description: 'Fleet, routes, drivers, student allocation, GPS, fuel, and transport compliance access',`
+  - `apps/api/src/modules/implementation300/blueprint-registry.ts`:
+    - Line 479: `moduleDefinition('transport', 'Transport', ['routes', 'vehicles', 'drivers', 'manifests', 'alerts', 'gps'], [`
+  - `apps/api/src/modules/transport/repositories/transport.repository.ts`:
+    - Line 149: `LEFT JOIN transport_drivers driver`
+    - Line 273: `INSERT INTO transport_drivers (`
+  - `apps/api/src/modules/transport/transport-schema.service.ts`:
+    - Line 9: `'transport_drivers',`
+    - Line 115: `CREATE TABLE IF NOT EXISTS transport_drivers (`
+  - `apps/api/src/modules/transport/transport.controller.ts`:
+    - Line 78: `@Post('drivers')`
+  - `apps/api/src/modules/transport/transport.test.ts`:
+    - Line 25: `'transport_drivers',`
+  - `apps/api/src/scripts/base-onboarding-seed.ts`:
+    - Line 285: `{ moduleCode: 'transport', table: 'transport_drivers', tenantScoped: true },`
+  - `apps/api/src/scripts/kisumu-boys-demo-seed.ts`:
+    - Line 284: `{ moduleCode: 'transport', table: 'transport_drivers', tenantScoped: true },`
+    - Line 1514: `const drivers = [`
+- **`fuel-maintenance-workspace.tsx` (`fuel-maintenance`)**: No backend references found in `apps/api/src`.
+- **`overview-workspace.tsx` (`overview`)**:
+  - `apps/api/src/middleware/billing-feature.middleware.test.ts`:
+    - Line 75: `await requestContext.run(createContext('/admin-command/principal/overview'), async () => {`
+    - Line 78: `path: '/admin-command/principal/overview',`
+  - `apps/api/src/modules/admin-command/admin-command.controller.ts`:
+    - Line 33: `@Get('principal/finance-overview')`
+    - Line 103: `@Get('principal/overview')`
+  - `apps/api/src/modules/admin-command/admissions-command.controller.ts`:
+    - Line 9: `@Get('overview')`
+    - Line 84: `overview,`
+  - `apps/api/src/modules/admin-command/deputy-command.controller.ts`:
+    - Line 9: `@Get('overview')`
+  - `apps/api/src/modules/admin-command/principal-insights.providers.ts`:
+    - Line 6: `id: 'school_overview',`
+    - Line 8: `category: 'overview',`
+  - `apps/api/src/modules/admin-command/principal-insights.service.ts`:
+    - Line 164: `const overview = await this.repository.getPrincipalOverviewSnapshot(tenantId);`
+    - Line 190: `overview,`
+  - `apps/api/src/modules/admin-command/principal-insights.types.ts`:
+    - Line 54: `overview: PrincipalOverviewPanel;`
+  - `apps/api/src/modules/admin-command/repositories/admin-command.repository.ts`:
+    - Line 1221: `defaultView: "overview"`
+  - `apps/api/src/modules/billing/billing-access.service.ts`:
+    - Line 59: `const { subscription, overview } =`
+    - Line 61: `const access = this.buildAccessState(subscription, overview);`
+  - `apps/api/src/modules/billing/billing-lifecycle.service.ts`:
+    - Line 60: `overview: SubscriptionLifecycleOverview | null;`
+    - Line 69: `overview: null,`
+  - `apps/api/src/modules/billing/billing-notification.service.ts`:
+    - Line 18: `overview: SubscriptionLifecycleOverview,`
+    - Line 20: `const descriptors = this.buildDescriptors(subscription, overview);`
+  - `apps/api/src/modules/billing/billing.service.ts`:
+    - Line 281: `if (!lifecycle.subscription || !lifecycle.overview) {`
+    - Line 285: `return this.mapSubscription(lifecycle.subscription, lifecycle.overview);`
+  - `apps/api/src/modules/billing/billing.test.ts`:
+    - Line 129: `overview: null,`
+    - Line 877: `ensureCurrentLifecycle: async () => ({ subscription: null, overview: null }),`
+  - `apps/api/src/modules/class-teacher/class-teacher.controller.ts`:
+    - Line 20: `@Get('overview')`
+    - Line 30: `@Get('dashboard-overview')`
+  - `apps/api/src/modules/dashboard/dashboard.controller.ts`:
+    - Line 34: `@Get('parent/overview')`
+    - Line 58: `@Get('student/overview')`
+  - `apps/api/src/modules/discipline/discipline.controller.ts`:
+    - Line 244: `@Get('analytics/overview')`
+  - `apps/api/src/modules/finance/finance.controller.ts`:
+    - Line 306: `@Get('accounts-overview')`
+  - `apps/api/src/modules/grade-master/grade-master.controller.ts`:
+    - Line 9: `@Get('overview')`
+  - `apps/api/src/modules/operations/consumers/export-overview.consumer.ts`:
+    - Line 6: `readonly name = 'export-overview.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'export-overview' && event.payload.action_id !== 'export-overview') {`
+  - `apps/api/src/modules/operations/consumers/index.ts`:
+    - Line 262: `export { ExportOverviewConsumer } from './export-overview.consumer';`
+  - `apps/api/src/modules/platform/platform-onboarding.service.test.ts`:
+    - Line 665: `test('PlatformOnboardingService summarizes tenants in product for the Super Admin overview', async () => {`
+  - `apps/api/src/scripts/core-api-load.ts`:
+    - Line 203: `path: '/discipline/analytics/overview',`
+  - `apps/api/src/scripts/high-volume-workflow-load.ts`:
+    - Line 29: `{ id: 'discipline-analytics', method: 'GET', path: '/discipline/analytics/overview', targetP95Ms: 800 },`
+- **`reports-workspace.tsx` (`reports`)**:
+  - `apps/api/src/auth/auth-email.service.test.ts`:
+    - Line 6: `test('AuthEmailService reports transactional email as missing without secrets', () => {`
+    - Line 20: `test('AuthEmailService reports transactional email as configured without exposing secrets', () => {`
+  - `apps/api/src/auth/auth.constants.ts`:
+    - Line 59: `{ resource: 'reports', action: 'read', description: 'View generated report export jobs and snapshots' },`
+    - Line 108: `{ resource: 'discipline', action: 'reports', description: 'Export discipline reports and analytics' },`
+  - `apps/api/src/auth/monitoring-service-account.service.ts`:
+    - Line 16: `'reports:read',`
+  - `apps/api/src/auth/role-governance-policy.ts`:
+    - Line 125: `platform_support: ['support:view', 'support:manage', 'reports:read'],`
+    - Line 126: `finance_admin: ['billing:read', 'billing:write', 'reports:read'],`
+  - `apps/api/src/common/auto-repair/auto-repair-agent.test.ts`:
+    - Line 474: `operationalIntent: 'Bursar can act on finance exceptions, not browse static trend reports',`
+    - Line 706: `test('AutoRepairAgent reports dashboard repair patch intelligence for KPI-only dashboards', () => {`
+  - `apps/api/src/common/auto-repair/auto-repair-deployment.test.ts`:
+    - Line 43: `test('AutoRepairService reports deployed runtime readiness and keeps the full widget state contract', () => {`
+  - `apps/api/src/common/common.module.ts`:
+    - Line 12: `import { ReportExportQueueService } from './reports/report-export-queue';`
+    - Line 13: `import { ReportExportJobsController } from './reports/report-export-jobs.controller';`
+  - `apps/api/src/common/reports/report-artifact-storage.service.test.ts`:
+    - Line 18: `retention_policy: 'reports',`
+    - Line 48: `assert.equal(savedInputs[0].storagePath, `tenant/tenant-a/reports/billing/invoices/${'b'.repeat(64)}.pdf`);`
+  - `apps/api/src/common/reports/report-artifact-storage.service.ts`:
+    - Line 40: `retentionPolicy: 'reports',`
+    - Line 73: `return `tenant/${input.tenantId}/reports/${module}/${reportId}/${input.artifact.checksumSha256}.${extension}`;`
+  - `apps/api/src/common/reports/report-export-jobs.controller.ts`:
+    - Line 7: `@Controller('reports')`
+    - Line 8: `@RequiresModule('reports')`
+  - `apps/api/src/common/reports/report-export-queue.ts`:
+    - Line 52: `reports: 'reports',`
+  - `apps/api/src/common/reports/report-export.worker.test.ts`:
+    - Line 25: `storage_path: 'tenant/tenant-a/reports/exams/exam-results/artifact.pdf',`
+    - Line 80: `storage_path: 'tenant/tenant-a/reports/exams/exam-results/artifact.pdf',`
+  - `apps/api/src/common/reports/report-snapshot.repository.test.ts`:
+    - Line 95: `assert.deepEqual(Reflect.getMetadata(PERMISSIONS_KEY, handler), ['reports:read']);`
+  - `apps/api/src/common/uploads/database-file-storage.service.test.ts`:
+    - Line 685: `test('S3CompatibleObjectStorageService reports failed object deletes as unavailable', async () => {`
+  - `apps/api/src/common/uploads/upload-policy.test.ts`:
+    - Line 252: `test('runProviderMalwareScan returns unsafe verdicts when the provider reports infection', async () => {`
+  - `apps/api/src/database/batch4_schemas.sql`:
+    - Line 71: `CREATE TABLE IF NOT EXISTS operations_reports (`
+    - Line 80: `CONSTRAINT ck_operations_reports_tenant CHECK (tenant_id <> 'global')`
+  - `apps/api/src/database/schema.sql`:
+    - Line 2755: `CREATE TABLE IF NOT EXISTS operations_reports (`
+    - Line 2764: `CONSTRAINT ck_operations_reports_tenant CHECK (tenant_id <> 'global')`
+  - `apps/api/src/database/tenant-database-policy.ts`:
+    - Line 93: `reports: ['report_export_jobs', 'report_snapshots'],`
+  - `apps/api/src/modules/admin-command/admin-command.controller.ts`:
+    - Line 124: `@Get('principal/reports')`
+    - Line 126: `@Permissions('principal:read', 'reports:read')`
+  - `apps/api/src/modules/admin-command/admissions-command.controller.ts`:
+    - Line 69: `@Get('reports')`
+    - Line 99: `reports,`
+  - `apps/api/src/modules/admin-command/deputy-command.controller.ts`:
+    - Line 133: `@Get('reports')`
+    - Line 137: `@Post('reports/generate')`
+  - `apps/api/src/modules/admin-command/principal-insights.providers.ts`:
+    - Line 16: `reports: ['school-overview', 'population-trend'],`
+    - Line 31: `reports: ['academic-summary', 'cbc-cbe-competency-progress'],`
+  - `apps/api/src/modules/admin-command/principal-insights.service.ts`:
+    - Line 184: `const reportExports = Array.from(new Set(sections.flatMap((section) => section.reports)));`
+    - Line 273: `reports: [...provider.reports],`
+  - `apps/api/src/modules/admin-command/principal-insights.types.ts`:
+    - Line 34: `reports: string[];`
+    - Line 81: `reports: string[];`
+  - `apps/api/src/modules/admin-command/repositories/admin-command.repository.ts`:
+    - Line 846: `reportsPending: summaryResult.rows[0]?.pending_reviews || 0,`
+    - Line 1479: ``INSERT INTO operations_reports (content, prepared_by, tenant_id, title, updated_at) VALUES ($1, $2, $3, $4, NOW())`,`
+  - `apps/api/src/modules/admin-command/repositories/deputy-command.repository.ts`:
+    - Line 449: `0::int AS generated_reports`
+    - Line 452: `{ generated_reports: 0 }`
+  - `apps/api/src/modules/admissions/admissions.controller.ts`:
+    - Line 33: `} from '../../common/reports/report-export-queue';`
+    - Line 217: `@Post('reports/:reportId/export-jobs')`
+  - `apps/api/src/modules/admissions/admissions.service.ts`:
+    - Line 22: `} from '../../common/reports/report-csv-artifact';`
+  - `apps/api/src/modules/admissions/admissions.test.ts`:
+    - Line 197: `path: '/admissions/reports/applications/export',`
+    - Line 350: `path: '/admissions/reports/unknown/export',`
+  - `apps/api/src/modules/billing/billing.controller.ts`:
+    - Line 15: `} from '../../common/reports/report-export-queue';`
+    - Line 214: `@Post('reports/:reportId/export-jobs')`
+  - `apps/api/src/modules/billing/billing.service.ts`:
+    - Line 14: `} from '../../common/reports/report-csv-artifact';`
+  - `apps/api/src/modules/billing/billing.test.ts`:
+    - Line 2245: `path: '/billing/reports/invoices/export',`
+    - Line 2297: `path: '/billing/reports/unknown/export',`
+  - `apps/api/src/modules/biometric-attendance/biometric-attendance.controller.ts`:
+    - Line 52: `@Get('reports/monthly')`
+  - `apps/api/src/modules/class-teacher/class-teacher.controller.ts`:
+    - Line 358: `@Get('reports')`
+  - `apps/api/src/modules/clinic/clinic.controller.ts`:
+    - Line 62: `@Permissions('clinic:reports')`
+  - `apps/api/src/modules/clinic/clinic.service.ts`:
+    - Line 171: `this.assertPermission('clinic:reports');`
+  - `apps/api/src/modules/clinic/clinic.test.ts`:
+    - Line 58: `assert.deepEqual(Reflect.getMetadata(PERMISSIONS_KEY, analyticsHandler), ['clinic:reports']);`
+  - `apps/api/src/modules/compliance/compliance-schema.service.ts`:
+    - Line 127: `CREATE TABLE IF NOT EXISTS breach_response_reports (`
+    - Line 141: `CONSTRAINT ck_breach_response_reports_severity CHECK (severity IN ('low', 'medium', 'high', 'critical')),`
+  - `apps/api/src/modules/compliance/compliance.controller.ts`:
+    - Line 81: `@Get('breach-response-reports/:reportId/export')`
+  - `apps/api/src/modules/compliance/compliance.service.ts`:
+    - Line 351: `FROM breach_response_reports`
+  - `apps/api/src/modules/compliance/compliance.test.ts`:
+    - Line 33: `assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS breach_response_reports/);`
+    - Line 36: `assert.match(schemaSql, /ALTER TABLE breach_response_reports FORCE ROW LEVEL SECURITY/);`
+  - `apps/api/src/modules/counselling/counselling.controller.ts`:
+    - Line 87: `@Get('reports')`
+  - `apps/api/src/modules/discipline/discipline.controller.ts`:
+    - Line 245: `@Permissions('discipline:reports')`
+    - Line 250: `@Post('reports/export')`
+  - `apps/api/src/modules/discipline/discipline.service.ts`:
+    - Line 636: `this.assertPermission('discipline:reports');`
+    - Line 648: `this.assertPermission('discipline:reports');`
+  - `apps/api/src/modules/discipline/discipline.test.ts`:
+    - Line 65: `'discipline:reports',`
+    - Line 597: `permissions: ['discipline:reports'],`
+  - `apps/api/src/modules/exams/consumers/download-reports.consumer.ts`:
+    - Line 6: `readonly name = 'download-reports.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'download-reports' && event.payload.action_id !== 'download-reports') {`
+  - `apps/api/src/modules/exams/consumers/index.ts`:
+    - Line 10: `export { DownloadReportsConsumer } from './download-reports.consumer';`
+  - `apps/api/src/modules/exams/exams.test.ts`:
+    - Line 648: `test('ExamsService reports duplicate and unauthorized rows during bulk mark upload preview', async () => {`
+  - `apps/api/src/modules/exams/repositories/exams.repository.ts`:
+    - Line 1481: `(SELECT COUNT(*) FROM student_report_cards WHERE tenant_id = $1 AND status = 'published') AS published_reports,`
+  - `apps/api/src/modules/exams/services/report-card-pdf-artifact.ts`:
+    - Line 3: `import { normalizeReportFilename, normalizeReportGeneratedAt, type ReportArtifact } from '../../../common/reports/report-artifact';`
+  - `apps/api/src/modules/exams/services/report-card-template.service.ts`:
+    - Line 3: `import type { ReportArtifactInput, ReportArtifactValue } from '../../../common/reports/report-artifact';`
+  - `apps/api/src/modules/grade-master/grade-master.controller.ts`:
+    - Line 81: `@Get('reports')`
+  - `apps/api/src/modules/grade-master/grade-master.service.ts`:
+    - Line 16: `reportsNotReady: 12,`
+  - `apps/api/src/modules/health/health.controller.test.ts`:
+    - Line 297: `test('HealthController readiness reports optional Redis degradation without throwing', async () => {`
+  - `apps/api/src/modules/implementation300/api-category-policy.ts`:
+    - Line 45: `api('analytics_engine', 'internal', 'reports', ['/api/internal/analytics'], 'internal_service', true, true, 600),`
+  - `apps/api/src/modules/implementation300/blueprint-registry.ts`:
+    - Line 42: `| 'reports'`
+    - Line 437: `moduleDefinition('exams', 'Exams and Results', ['setup', 'grading', 'cbc-assessment', 'moderation', 'reports', 'analytics'], [`
+  - `apps/api/src/modules/implementation300/development-phase-policy.test.ts`:
+    - Line 24: `'reports',`
+    - Line 31: `completedModules: ['authentication', 'tenant_management', 'students', 'finance', 'exams', 'communication_sms', 'reports', 'inventory'],`
+  - `apps/api/src/modules/implementation300/development-phase-policy.ts`:
+    - Line 59: `'reports',`
+    - Line 61: `capabilities: ['tenant_onboarding', 'billing', 'exam_results', 'communication', 'reports'],`
+  - `apps/api/src/modules/integrations/integrations.test.ts`:
+    - Line 202: `test('SmsDispatchService reports missing credential fields without exposing secrets', async () => {`
+  - `apps/api/src/modules/inventory/inventory.controller.ts`:
+    - Line 7: `} from '../../common/reports/report-export-queue';`
+    - Line 246: `@Get('reports')`
+  - `apps/api/src/modules/inventory/inventory.service.ts`:
+    - Line 13: `} from '../../common/reports/report-csv-artifact';`
+    - Line 93: `rows: (reports: InventoryReportsPayload) => ReportCsvValue[][];`
+  - `apps/api/src/modules/inventory/inventory.test.ts`:
+    - Line 2222: `path: '/inventory/reports/stock-valuation/export',`
+    - Line 2250: `throw new Error('reports should not be loaded for an unknown export');`
+  - `apps/api/src/modules/inventory/repositories/inventory.repository.test.ts`:
+    - Line 971: `const reports = await repository.buildReports('tenant-a');`
+    - Line 978: `assert.deepEqual(reports.stock_reconciliation, [`
+  - `apps/api/src/modules/library/library.controller.ts`:
+    - Line 89: `@Get('reports')`
+  - `apps/api/src/modules/mobile/mobile-app-policy.test.ts`:
+    - Line 44: `enabledModules: ['principal_dashboard', 'finance', 'reports'],`
+    - Line 79: `capabilities: ['fees', 'communication', 'reports', 'results'],`
+  - `apps/api/src/modules/mobile/mobile-app-policy.ts`:
+    - Line 9: `| 'reports'`
+    - Line 19: `export type MobileOfflineCapability = 'attendance' | 'mark_entry' | 'assignments' | 'fees' | 'communication' | 'reports' | 'results';`
+  - `apps/api/src/modules/module-access/module-access.constants.ts`:
+    - Line 55: `description: 'Assessments, marks, reports, academic analytics, CBT hooks, and result publishing.',`
+    - Line 67: `permission_scopes: ['discipline:read', 'discipline:write', 'discipline:manage', 'discipline:reports'],`
+  - `apps/api/src/modules/module-access/module-access.test.ts`:
+    - Line 13: `import { ReportExportJobsController } from '../../common/reports/report-export-jobs.controller';`
+    - Line 38: `'reports',`
+  - `apps/api/src/modules/operations/consumers/index.ts`:
+    - Line 505: `export { ReportsConsumer } from './reports.consumer';`
+    - Line 516: `export { RequestReportsConsumer } from './request-reports.consumer';`
+  - `apps/api/src/modules/operations/consumers/reports.consumer.ts`:
+    - Line 6: `readonly name = 'reports.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'reports' && event.payload.action_id !== 'reports') {`
+  - `apps/api/src/modules/operations/consumers/request-reports.consumer.ts`:
+    - Line 6: `readonly name = 'request-reports.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'request-reports' && event.payload.action_id !== 'request-reports') {`
+  - `apps/api/src/modules/operations/consumers/view-reports.consumer.ts`:
+    - Line 6: `readonly name = 'view-reports.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'view-reports' && event.payload.action_id !== 'view-reports') {`
+  - `apps/api/src/modules/operations/operations.service.ts`:
+    - Line 69: ``INSERT INTO operations_reports (tenant_id, title, content, prepared_by)`
+  - `apps/api/src/modules/payments/payments.test.ts`:
+    - Line 3482: `test('MpesaReconciliationService reports missing callbacks, duplicates, amount mismatches, wrong references, and late provider status', async () => {`
+    - Line 4016: `result.reports.map((report) => report.payment_channel_id),`
+  - `apps/api/src/modules/payments/payments.types.ts`:
+    - Line 297: `reports: MpesaReconciliationReport[];`
+    - Line 305: `reports: MpesaReconciliationReport[];`
+  - `apps/api/src/modules/payments/services/mpesa-reconciliation.service.ts`:
+    - Line 446: `const reports: MpesaReconciliationReport[] = [];`
+    - Line 449: `reports.push(`
+  - `apps/api/src/modules/platform/platform-onboarding.service.test.ts`:
+    - Line 470: `test('PlatformOnboardingService reports Resend testing mode as blocked instead of encouraging repeated resends', async () => {`
+  - `apps/api/src/modules/support/support-notification-delivery.service.test.ts`:
+    - Line 12: `test('SupportNotificationDeliveryService reports provider readiness without exposing secrets', async () => {`
+    - Line 97: `test('SupportNotificationDeliveryService reports precise missing provider status for dashboard-managed SMS', async () => {`
+  - `apps/api/src/scripts/audit-coverage-review.test.ts`:
+    - Line 49: `test('runAuditCoverageReview reports missing evidence by file and pattern', () => {`
+  - `apps/api/src/scripts/base-onboarding-seed.ts`:
+    - Line 30: `'reports',`
+    - Line 362: `{ moduleCode: 'reports', table: 'report_snapshots', tenantScoped: true },`
+  - `apps/api/src/scripts/core-api-load.test.ts`:
+    - Line 33: `assert.equal(inventoryExport.url, 'http://127.0.0.1:3000/inventory/reports/stock-valuation/export');`
+  - `apps/api/src/scripts/core-api-load.ts`:
+    - Line 131: `path: '/admissions/reports/applications/export',`
+    - Line 147: `id: 'inventory-reports',`
+  - `apps/api/src/scripts/enable-admin-modules.ts`:
+    - Line 47: `'Module-aware executive KPIs, alerts, analytics, trends, and reports for the Principal.',`
+  - `apps/api/src/scripts/generate-production-scorecard.test.ts`:
+    - Line 22: `"reports",`
+  - `apps/api/src/scripts/generate-production-scorecard.ts`:
+    - Line 150: `remediation: 'Add the tenant isolation audit runner and require it in CI for finance, support, library, discipline, reports, and files.',`
+    - Line 183: `evidenceLine(/missing_provider/.test(supportNotificationSource), 'support notification health reports precise missing provider state'),`
+  - `apps/api/src/scripts/high-volume-workflow-load.test.ts`:
+    - Line 18: `'billing-invoice-reports',`
+  - `apps/api/src/scripts/high-volume-workflow-load.ts`:
+    - Line 18: `{ id: 'billing-invoice-reports', method: 'GET', path: '/billing/reports/invoices/export', targetP95Ms: 900 },`
+    - Line 31: `{ id: 'report-export-jobs', method: 'GET', path: '/reports/export-jobs', targetP95Ms: 800 },`
+  - `apps/api/src/scripts/implementation100-certification.ts`:
+    - Line 74: `moduleEvidence('reports', 'Reports', 'apps/web/src/components/school/school-pages.tsx', ['Reports'], 'apps/web/src/app/api/reports/[...path]/route.ts', ['proxySchoolApiRequest', '/reports'], 'apps/api/src/common/reports/report-export-jobs.controller.ts', ['ReportExportJobsController'], 'apps/api/src/common/reports/report-snapshot-schema.service.ts', ['report_snapshots'], 'apps/api/src/common/reports/report-export-queue.test.ts', ['report']),`
+  - `apps/api/src/scripts/implementation20-certification.test.ts`:
+    - Line 30: `'apps/api/src/modules/biometric-attendance/biometric-attendance.controller.ts': 'live-feed reports/monthly',`
+    - Line 37: `'apps/web/src/app/api/reports/[...path]/route.ts': 'proxySchoolApiRequest "/reports"',`
+  - `apps/api/src/scripts/implementation20-certification.ts`:
+    - Line 72: `check('biometric-live-reports', 'Biometric API exposes live feed and monthly reports', 'apps/api/src/modules/biometric-attendance/biometric-attendance.controller.ts', /live-feed[\s\S]+reports\/monthly/),`
+    - Line 84: `check('reports-web-proxy', 'Web app proxies reports requests to the API', 'apps/web/src/app/api/reports/[...path]/route.ts', /proxySchoolApiRequest[\s\S]+"\/reports"/),`
+  - `apps/api/src/scripts/implementation21-certification.test.ts`:
+    - Line 10: `'apps/api/src/modules/admin-command/principal-insights.providers.ts': 'finance summary_only lab_management communication_sms clinic_health permission_required: \'clinic:reports\' summary_only medicine_consumption_cost_minor wastage_due_to_expiry_minor emergency_supply_ready_rate most_used_medicine ai_insights fee_default_risk_alerts medicine_shortage_predictions attendance_irregularities budget_overrun_alerts performance_decline_warnings',`
+    - Line 29: `'apps/api/src/modules/clinic/clinic.controller.ts': 'clinic:inventory clinic:dispense clinic:reports portal:read_own_children',`
+  - `apps/api/src/scripts/implementation21-certification.ts`:
+    - Line 76: `check('clinic-api-permissions', 'Clinic controller separates inventory, dispensing, reports, and parent history permissions', 'apps/api/src/modules/clinic/clinic.controller.ts', /clinic:inventory[\s\S]+clinic:dispense[\s\S]+clinic:reports[\s\S]+portal:read_own_children/),`
+    - Line 92: `check('principal-no-confidential-notes', 'Principal insights use clinic reports, not confidential permissions', 'apps/api/src/modules/admin-command/principal-insights.providers.ts', /permission_required:\s+'clinic:reports'[\s\S]+summary_only/),`
+  - `apps/api/src/scripts/implementation30-certification.test.ts`:
+    - Line 59: `'apps/api/src/modules/payments/payments.test.ts': 'provider_verification_required exports only redacted payloads redacts C2B API payment responses for legacy raw rows assert.notEqual creates callback channels with hashed secrets builds high-entropy STK and C2B callback URLs high-entropy channel-secret routes creates M-PESA verification jobs verificationJobInput duplicate M-PESA identifiers MpesaTransactionStatusService verifies STK callback status classifies verified C2B payments without ledger enqueue accepts unsigned direct Daraja callbacks rejects unsigned callbacks in edge-signed mode accepts unsigned validation callbacks in direct Daraja mode PaymentsSchemaService creates reconciliation batches MpesaReconciliationService reports missing callbacks, duplicates, amount mismatches, wrong references, and late provider status runs daily reconciliation for every active tenant payment channel generates on-demand date-range reports lists accountant review items without raw M-PESA payload leakage requires two distinct approvers before resolving reversal requests exposes accountant review and finance approval endpoints',`
+    - Line 65: `'apps/api/src/modules/compliance/compliance-schema.service.ts': 'data_subject_requests access_request correction_request deletion_anonymization_request export_request objection_request data_retention_schedules child_data_dpia_records students payments sync_offline breach_response_reports FORCE ROW LEVEL SECURITY',`
+  - `apps/api/src/scripts/implementation30-certification.ts`:
+    - Line 95: `check('mpesa-reconciliation-processor', 'M-Pesa reconciliation service runs daily and date-range reports, persists batches, and classifies mismatch states', 'apps/api/src/modules/payments/services/mpesa-reconciliation.service.ts', /(?=.*generateDailyReport)(?=.*generateDateRangeReport)(?=.*runDailyProcessor)(?=.*reconciliation_state)(?=.*provider_received)(?=.*amount_mismatch)(?=.*duplicate_provider_receipt)(?=.*missing_provider_record)(?=.*verified_unmatched)(?=.*manual_review_required)(?=.*INSERT INTO mpesa_reconciliation_batches)(?=.*INSERT INTO mpesa_reconciliation_discrepancies)/s),`
+    - Line 100: `check('mpesa-reconciliation-tests', 'Payments tests cover reconciliation schema, missing callbacks, duplicates, amount mismatch, wrong references, late provider status, daily processor, and range reports', 'apps/api/src/modules/payments/payments.test.ts', /(?=.*PaymentsSchemaService creates reconciliation batches)(?=.*MpesaReconciliationService reports missing callbacks, duplicates, amount mismatches, wrong references, and late provider status)(?=.*runs daily reconciliation for every active tenant payment channel)(?=.*generates on-demand date-range reports)/s),`
+  - `apps/api/src/scripts/implementation30-load-profile.test.ts`:
+    - Line 35: `'apps/api/src/common/reports/report-export-queue.ts': 'shouldQueueReportExport DEFAULT_SYNC_EXPORT_ROW_LIMIT REPORT_EXPORT_JOB_OPTIONS attempts backoff estimated_rows',`
+    - Line 63: `'apps/api/src/common/reports/report-export-queue.ts': 'shouldQueueReportExport DEFAULT_SYNC_EXPORT_ROW_LIMIT REPORT_EXPORT_JOB_OPTIONS attempts backoff estimated_rows',`
+  - `apps/api/src/scripts/implementation30-load-profile.ts`:
+    - Line 181: `'apps/api/src/common/reports/report-export-queue.ts',`
+  - `apps/api/src/scripts/kisumu-boys-demo-seed.ts`:
+    - Line 29: `'reports',`
+    - Line 361: `{ moduleCode: 'reports', table: 'report_snapshots', tenantScoped: true },`
+  - `apps/api/src/scripts/module-access-certification.test.ts`:
+    - Line 28: `'apps/api/src/common/reports/report-export-jobs.controller.ts': '@Controller(\'reports\') @RequiresModule(\'reports\')',`
+    - Line 39: `'apps/api/src/modules/module-access/module-access.constants.ts': 'MODULE_REGISTRY_SEED students admissions academics finance exams discipline timetable lab_management teacher_biometric_attendance parent_portal inventory library transport communication_sms reports staff admin_command_centers principal_dashboard clinic_health procurement hostel boarding cbt_exams lms ai_insights visitor_management asset_tracking iot permission_scopes',`
+  - `apps/api/src/scripts/module-access-certification.ts`:
+    - Line 67: `backendRoute('reports', 'Report export job routes require the reports module', 'apps/api/src/common/reports/report-export-jobs.controller.ts', 'reports'),`
+    - Line 88: `frontendRoute('reports', 'reports'),`
+  - `apps/api/src/scripts/module-certification.test.ts`:
+    - Line 24: `'apps/web/src/lib/discipline/discipline-live.ts': 'acknowledgeDisciplineIncident exportDisciplineReport reports',`
+  - `apps/api/src/scripts/module-certification.ts`:
+    - Line 105: `workflow('reports-and-documents', 'Reports, documents, and confidential export safety', [`
+    - Line 106: `check('discipline-report-api', 'Discipline reports are exposed through API', 'apps/web/src/lib/discipline/discipline-live.ts', /exportDisciplineReport|reports/),`
+  - `apps/api/src/scripts/release-readiness-gate.test.ts`:
+    - Line 20: `"reports",`
+    - Line 49: `'dist/apps/api/src/common/reports/report-excel-artifact.test.js',`
+  - `apps/api/src/scripts/release-readiness-gate.ts`:
+    - Line 27: `} from '../common/reports/report-export-queue';`
+    - Line 31: `} from '../common/reports/report-snapshot-manifest';`
+  - `apps/api/src/scripts/run-pilot-certification.test.ts`:
+    - Line 75: `'apps/api/src/common/reports/report-export-queue.ts': 'validateReportExportJobPayload queue',`
+  - `apps/api/src/scripts/run-pilot-certification.ts`:
+    - Line 167: `check('report-export', 'Report export queue exists', 'apps/api/src/common/reports/report-export-queue.ts', /validateReportExportJobPayload|queue/i),`
+  - `apps/api/src/scripts/synthetic-journey-monitor.ts`:
+    - Line 286: `path: '/admissions/reports/applications/export',`
+    - Line 295: `path: '/inventory/reports/stock-valuation/export',`
+  - `apps/api/src/scripts/tenant-isolation-audit.test.ts`:
+    - Line 144: `'apps/api/src/common/reports/report-export-queue.ts': 'attendance',`
+  - `apps/api/src/scripts/tenant-isolation-audit.ts`:
+    - Line 59: `check('reports-block-retired-attendance', 'Report exports block retired attendance data', 'apps/api/src/common/reports/report-export-queue.ts', /attendance/i, 'high'),`
+- **`routes-workspace.tsx` (`routes`)**:
+  - `apps/api/src/auth/auth-schema.service.ts`:
+    - Line 56: `RAISE EXCEPTION 'Auth user lookup is only available on login routes'`
+    - Line 112: `RAISE EXCEPTION 'Membership auto-resolution is only available on login routes'`
+  - `apps/api/src/auth/auth.constants.ts`:
+    - Line 133: `{ resource: 'transport', action: 'read', description: 'View transport routes, manifests, and operational summaries' },`
+    - Line 698: `description: 'Fleet, routes, drivers, student allocation, GPS, fuel, and transport compliance access',`
+  - `apps/api/src/database/schema.sql`:
+    - Line 79: `RAISE EXCEPTION 'Auth user lookup is only available on login routes'`
+    - Line 131: `RAISE EXCEPTION 'Membership auto-resolution is only available on login routes'`
+  - `apps/api/src/database/tenant-database-policy.ts`:
+    - Line 91: `transport: ['transport_routes', 'transport_vehicles', 'student_transport_manifests'],`
+  - `apps/api/src/middleware/billing-feature.middleware.test.ts`:
+    - Line 25: `test('BillingFeatureMiddleware bypasses public auth routes before resolving billing access', async () => {`
+    - Line 31: `throw new Error('auth routes must not depend on billing access resolution');`
+  - `apps/api/src/middleware/rate-limit.middleware.test.ts`:
+    - Line 6: `test('RateLimitMiddleware skips all health probe routes', async () => {`
+  - `apps/api/src/modules/admin-command/principal-insights.providers.ts`:
+    - Line 186: `drilldowns: ['transport.routes', 'transport.bus-attendance'],`
+  - `apps/api/src/modules/billing/billing.test.ts`:
+    - Line 2507: `test('BillingLifecycleGuard blocks writes in restricted mode but allows billing routes', async () => {`
+  - `apps/api/src/modules/compliance/compliance.test.ts`:
+    - Line 261: `test('ComplianceController exposes data-subject workflow and breach export routes', () => {`
+  - `apps/api/src/modules/events/events.test.ts`:
+    - Line 1240: `test('DashboardRealtimeController exposes authenticated snapshot and SSE routes', () => {`
+    - Line 1258: `test('SchoolOperationalEventsController exposes authenticated operation and notification routes', () => {`
+  - `apps/api/src/modules/implementation300/api-category-policy.test.ts`:
+    - Line 38: `assert.equal(policy.routes.find((route) => route.code === 'parent')?.tenant_scoped, true);`
+    - Line 39: `assert.equal(policy.routes.find((route) => route.code === 'ai_engine')?.audience, 'internal_service');`
+  - `apps/api/src/modules/implementation300/api-category-policy.ts`:
+    - Line 24: `routes: ApiCategoryDefinition[];`
+    - Line 63: `routes: allApiDefinitions().filter((definition) => enabledModules.has(definition.module_code)),`
+  - `apps/api/src/modules/implementation300/blueprint-registry.ts`:
+    - Line 479: `moduleDefinition('transport', 'Transport', ['routes', 'vehicles', 'drivers', 'manifests', 'alerts', 'gps'], [`
+  - `apps/api/src/modules/integrations/integrations-schema.service.ts`:
+    - Line 268: `RAISE EXCEPTION 'Daraja callback integration lookup is only available on callback routes'`
+    - Line 328: `RAISE EXCEPTION 'Parent OTP lookup is only available on parent OTP routes'`
+  - `apps/api/src/modules/module-access/module-access.test.ts`:
+    - Line 124: `test('platform module allocation routes require platform owner role', () => {`
+    - Line 142: `'superadmin allocation routes should not be tenant-module gated',`
+  - `apps/api/src/modules/operations/consumers/export-routes.consumer.ts`:
+    - Line 6: `readonly name = 'export-routes.execution';`
+    - Line 11: `if (event.payload.workflow_id !== 'export-routes' && event.payload.action_id !== 'export-routes') {`
+  - `apps/api/src/modules/operations/consumers/index.ts`:
+    - Line 271: `export { ExportRoutesConsumer } from './export-routes.consumer';`
+  - `apps/api/src/modules/payments/payments.test.ts`:
+    - Line 673: `test('M-PESA callback controllers expose high-entropy channel-secret routes', () => {`
+  - `apps/api/src/modules/transport/repositories/transport.repository.ts`:
+    - Line 6: `active_routes: number;`
+    - Line 42: `const [summary, routes, vehicles, manifests, trips, alerts] = await Promise.all([`
+  - `apps/api/src/modules/transport/transport-schema.service.ts`:
+    - Line 6: `'transport_routes',`
+    - Line 52: `CREATE TABLE IF NOT EXISTS transport_routes (`
+  - `apps/api/src/modules/transport/transport.controller.ts`:
+    - Line 66: `@Post('routes')`
+    - Line 125: ``INSERT INTO transport_routes (tenant_id, school_id, name, description)`
+  - `apps/api/src/modules/transport/transport.test.ts`:
+    - Line 11: `test('TransportSchemaService creates tenant-safe routes, vehicles, manifests, trips, alerts, and service logs', async () => {`
+    - Line 22: `'transport_routes',`
+  - `apps/api/src/scripts/base-onboarding-seed.ts`:
+    - Line 282: `{ moduleCode: 'transport', table: 'transport_routes', tenantScoped: true },`
+  - `apps/api/src/scripts/implementation100-certification.ts`:
+    - Line 72: `moduleEvidence('transport', 'Transport', 'apps/web/src/components/modules/transport/transport-module-screen.tsx', ['TransportModuleScreen'], 'apps/web/src/app/api/transport/[...path]/route.ts', ['proxySchoolApiRequest', '/transport'], 'apps/api/src/modules/transport/transport.controller.ts', ['TransportController'], 'apps/api/src/modules/transport/transport-schema.service.ts', ['transport_routes'], 'apps/api/src/modules/transport/transport.test.ts', ['transport']),`
+  - `apps/api/src/scripts/implementation21-certification.ts`:
+    - Line 79: `check('clinic-proxy', 'Web app proxies clinic API and parent routes', 'apps/web/src/app/api/clinic/[...path]/route.ts', /isParentRoute[\s\S]+audience:\s+isParentRoute \? "portal" : "school"/),`
+  - `apps/api/src/scripts/implementation30-certification.test.ts`:
+    - Line 59: `'apps/api/src/modules/payments/payments.test.ts': 'provider_verification_required exports only redacted payloads redacts C2B API payment responses for legacy raw rows assert.notEqual creates callback channels with hashed secrets builds high-entropy STK and C2B callback URLs high-entropy channel-secret routes creates M-PESA verification jobs verificationJobInput duplicate M-PESA identifiers MpesaTransactionStatusService verifies STK callback status classifies verified C2B payments without ledger enqueue accepts unsigned direct Daraja callbacks rejects unsigned callbacks in edge-signed mode accepts unsigned validation callbacks in direct Daraja mode PaymentsSchemaService creates reconciliation batches MpesaReconciliationService reports missing callbacks, duplicates, amount mismatches, wrong references, and late provider status runs daily reconciliation for every active tenant payment channel generates on-demand date-range reports lists accountant review items without raw M-PESA payload leakage requires two distinct approvers before resolving reversal requests exposes accountant review and finance approval endpoints',`
+  - `apps/api/src/scripts/implementation30-certification.ts`:
+    - Line 50: `check('c2b-channel-secret-routes', 'C2B validation and confirmation callbacks expose channel-id and secret-ref routes', 'apps/api/src/modules/payments/controllers/mpesa-c2b.controller.ts', /validation\/:channelId\/:secretRef[\s\S]+confirmation\/:channelId\/:secretRef[\s\S]+resolveCallbackChannel[\s\S]+requires_edge_signature/),`
+    - Line 64: `check('callback-channel-tests', 'Payments tests cover callback-channel schema, high-entropy URL generation, and channel routes', 'apps/api/src/modules/payments/payments.test.ts', /(?=.*creates callback channels with hashed secrets)(?=.*builds high-entropy STK and C2B callback URLs)(?=.*high-entropy channel-secret routes)/s),`
+  - `apps/api/src/scripts/kisumu-boys-demo-seed.test.ts`:
+    - Line 159: `const routes = buildKisumuBoysDemoTransportRoutes();`
+    - Line 167: `assert.equal(routes.length, 6);`
+  - `apps/api/src/scripts/kisumu-boys-demo-seed.ts`:
+    - Line 281: `{ moduleCode: 'transport', table: 'transport_routes', tenantScoped: true },`
+    - Line 1535: `await writer.upsert('transport_routes', { id: routeId, tenant_id: tenantId, name: route.name, code: route.code, zone: route.zone, fare_amount_minor: route.fareAmountMinor, status: 'active', created_by_user_id: context.actorUserId });`
+  - `apps/api/src/scripts/module-access-certification.ts`:
+    - Line 48: `backendRoute('students', 'Student routes require the students module', 'apps/api/src/modules/students/students.controller.ts', 'students'),`
+    - Line 49: `backendRoute('admissions', 'Admissions routes require the admissions module', 'apps/api/src/modules/admissions/admissions.controller.ts', 'admissions'),`
+  - `apps/api/src/scripts/run-pilot-certification.ts`:
+    - Line 140: `check('library-routes', 'Library scan issue route exists', 'apps/web/src/app/api/library/scan-issue/route.ts', /scan-issue|library/i),`
+- **`student-transport-list-workspace.tsx` (`student-transport-list`)**: No backend references found in `apps/api/src`.
+- **`trips-workspace.tsx` (`trips`)**:
+  - `apps/api/src/database/database.service.ts`:
+    - Line 77: `// Batch all SET LOCAL statements into a single SQL call to eliminate per-statement round-trips.`
+    - Line 78: `// At 10K concurrent users this saves ~10 round-trips per request.`
+  - `apps/api/src/modules/transport/repositories/transport.repository.ts`:
+    - Line 9: `trips_today: number;`
+    - Line 42: `const [summary, routes, vehicles, manifests, trips, alerts] = await Promise.all([`
+  - `apps/api/src/modules/transport/transport-schema.service.ts`:
+    - Line 12: `'transport_trips',`
+    - Line 180: `CREATE TABLE IF NOT EXISTS transport_trips (`
+  - `apps/api/src/modules/transport/transport.controller.ts`:
+    - Line 90: `@Post('trips')`
+    - Line 96: `@Post('trips/:tripId/events')`
+  - `apps/api/src/modules/transport/transport.test.ts`:
+    - Line 11: `test('TransportSchemaService creates tenant-safe routes, vehicles, manifests, trips, alerts, and service logs', async () => {`
+    - Line 28: `'transport_trips',`
+  - `apps/api/src/scripts/base-onboarding-seed.ts`:
+    - Line 288: `{ moduleCode: 'transport', table: 'transport_trips', tenantScoped: true },`
+  - `apps/api/src/scripts/implementation30-load-profile.ts`:
+    - Line 14: `max_db_round_trips: number;`
+    - Line 108: `{ id: 'student-search', target_p95_ms: 500, max_db_round_trips: 2, max_rows_per_page: 50 },`
+  - `apps/api/src/scripts/kisumu-boys-demo-seed.ts`:
+    - Line 287: `{ moduleCode: 'transport', table: 'transport_trips', tenantScoped: true },`
+    - Line 1547: `await writer.upsert('transport_trips', { id: tripId, tenant_id: tenantId, route_id: routeId, vehicle_id: transportVehicleIds[routeIndex % transportVehicleIds.length], driver_id: transportDriverIds[routeIndex % transportDriverIds.length], manifest_id: manifestId, trip_date: '2026-05-24', direction: 'morning', scheduled_start_at: route.stops[0]?.plannedTime, actual_start_at: '2026-05-24T03:05:00.000Z', actual_end_at: '2026-05-24T03:58:00.000Z', learner_count: 2, status: routeIndex === 1 ? 'incident' : 'completed', started_by_user_id: context.actorUserId });`
+- **`vehicles-workspace.tsx` (`vehicles`)**:
+  - `apps/api/src/database/schema.sql`:
+    - Line 3878: `CREATE TABLE IF NOT EXISTS transport_vehicles (`
+    - Line 3894: `vehicle_id UUID REFERENCES transport_vehicles(id) ON DELETE SET NULL,`
+  - `apps/api/src/database/tenant-database-policy.ts`:
+    - Line 91: `transport: ['transport_routes', 'transport_vehicles', 'student_transport_manifests'],`
+  - `apps/api/src/modules/implementation300/blueprint-registry.ts`:
+    - Line 479: `moduleDefinition('transport', 'Transport', ['routes', 'vehicles', 'drivers', 'manifests', 'alerts', 'gps'], [`
+  - `apps/api/src/modules/module-access/module-access.constants.ts`:
+    - Line 127: `description: 'Routes, vehicles, learner manifests, trip operations, and route alerts.',`
+  - `apps/api/src/modules/transport/repositories/transport.repository.ts`:
+    - Line 7: `active_vehicles: number;`
+    - Line 11: `service_due_vehicles: number;`
+  - `apps/api/src/modules/transport/transport-schema.service.ts`:
+    - Line 8: `'transport_vehicles',`
+    - Line 93: `CREATE TABLE IF NOT EXISTS transport_vehicles (`
+  - `apps/api/src/modules/transport/transport.controller.ts`:
+    - Line 72: `@Post('vehicles')`
+    - Line 105: `@Post('vehicles/:vehicleId/service-logs')`
+  - `apps/api/src/modules/transport/transport.test.ts`:
+    - Line 11: `test('TransportSchemaService creates tenant-safe routes, vehicles, manifests, trips, alerts, and service logs', async () => {`
+    - Line 24: `'transport_vehicles',`
+  - `apps/api/src/scripts/base-onboarding-seed.ts`:
+    - Line 284: `{ moduleCode: 'transport', table: 'transport_vehicles', tenantScoped: true },`
+  - `apps/api/src/scripts/kisumu-boys-demo-seed.ts`:
+    - Line 283: `{ moduleCode: 'transport', table: 'transport_vehicles', tenantScoped: true },`
+    - Line 1508: `const vehicles = [`
+
+---
+

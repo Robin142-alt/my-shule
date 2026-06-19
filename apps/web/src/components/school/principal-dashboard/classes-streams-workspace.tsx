@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { AlertCircle, LayoutDashboard, Settings2, Plus, Loader2, Users } from "lucide-react";
+import { toast } from "sonner";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
@@ -86,7 +87,7 @@ export function PrincipalClassesStreamsWorkspace() {
       await requestDashboardApi(`/academics/class-sections/${id}`, { method: "DELETE" });
       refetch();
     } catch (err: any) {
-      alert(err.message || "Failed to archive class");
+      toast.error(err.message || "Failed to archive class");
     }
   };
 
@@ -250,8 +251,8 @@ export function PrincipalClassesStreamsWorkspace() {
             </div>
           )}
           <div className="space-y-2">
-            <label className="text-sm font-medium">Academic Year</label>
-            <select name="academic_year_id" required className="w-full border rounded p-2 text-sm bg-white">
+            <label className="text-sm font-semibold text-foreground">Academic Year</label>
+            <select name="academic_year_id" required className="input-base">
               <option value="">Select Academic Year...</option>
               {yearsData?.map(year => (
                 <option key={year.id} value={year.id}>{year.name}</option>
@@ -260,17 +261,17 @@ export function PrincipalClassesStreamsWorkspace() {
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <label className="text-sm font-medium">Class Name</label>
-              <input name="name" required className="w-full border rounded p-2 text-sm" placeholder="e.g. Form 1" />
+              <label className="text-sm font-semibold text-foreground">Class Name</label>
+              <input name="name" required className="input-base" placeholder="e.g. Form 1" />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium">Grade Level</label>
-              <input name="grade_level" required className="w-full border rounded p-2 text-sm" placeholder="e.g. 9" />
+              <label className="text-sm font-semibold text-foreground">Grade Level</label>
+              <input name="grade_level" required className="input-base" placeholder="e.g. 9" />
             </div>
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-medium">Capacity</label>
-            <input type="number" name="capacity" required className="w-full border rounded p-2 text-sm" defaultValue={40} />
+            <label className="text-sm font-semibold text-foreground">Capacity</label>
+            <input type="number" name="capacity" required className="input-base" defaultValue={40} />
           </div>
           <div className="pt-4 flex justify-end">
             <Button type="submit" disabled={isSubmitting}>
@@ -289,8 +290,8 @@ export function PrincipalClassesStreamsWorkspace() {
             </div>
           )}
           <div className="space-y-2">
-            <label className="text-sm font-medium">Class Section</label>
-            <select name="class_section_id" required className="w-full border rounded p-2 text-sm bg-white">
+            <label className="text-sm font-semibold text-foreground">Class Section</label>
+            <select name="class_section_id" required className="input-base">
               <option value="">Select Class Section...</option>
               {classesData?.map(c => (
                 <option key={c.id} value={c.id}>{c.name}</option>
@@ -298,12 +299,12 @@ export function PrincipalClassesStreamsWorkspace() {
             </select>
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-medium">Stream Name</label>
-            <input name="name" required className="w-full border rounded p-2 text-sm" placeholder="e.g. Red, North, A" />
+            <label className="text-sm font-semibold text-foreground">Stream Name</label>
+            <input name="name" required className="input-base" placeholder="e.g. Red, North, A" />
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-medium">Capacity</label>
-            <input type="number" name="capacity" required className="w-full border rounded p-2 text-sm" defaultValue={40} />
+            <label className="text-sm font-semibold text-foreground">Capacity</label>
+            <input type="number" name="capacity" required className="input-base" defaultValue={40} />
           </div>
           <div className="pt-4 flex justify-end">
             <Button type="submit" disabled={isSubmitting}>

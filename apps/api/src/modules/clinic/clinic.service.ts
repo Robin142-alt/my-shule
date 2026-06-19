@@ -4,11 +4,13 @@ import {
   Injectable,
   Optional,
   UnauthorizedException,
+  InternalServerErrorException,
 } from '@nestjs/common';
 
 import { SchoolOperationalEventsService } from '../events/school-operational-events.service';
 import { RequestContextService } from '../../common/request-context/request-context.service';
 import { ModuleAccessService } from '../module-access/module-access.service';
+import { PrismaService } from '../../database/prisma.service';
 import {
   CreateMedicineDto,
   DispenseMedicineDto,
@@ -30,6 +32,8 @@ export class ClinicService {
       @Optional() private readonly schoolEvents?: SchoolOperationalEventsService,
     @Optional()
     private readonly moduleAccessService?: ModuleAccessService,
+    @Optional()
+    private readonly prisma?: PrismaService,
   ) {}
 
   async createMedicine(dto: CreateMedicineDto) {
@@ -244,34 +248,84 @@ export class ClinicService {
     };
   }
 
-  listEmergencies() {
+  async listEmergencies() {
     this.assertPermission('clinic:read');
-    return [];
+    if (!this.prisma) throw new InternalServerErrorException('Prisma is not available');
+    const items = await this.prisma.medicalVisit.findMany({
+      where: { schoolId: this.requireTenantId(), severity: 'EMERGENCY' },
+      include: { student: true }
+    });
+    return { items };
   }
 
   async recordEmergency(dto: Record<string, any>) {
     this.assertPermission('clinic:write');
-    return { id: 'em-placeholder', ...dto, tenant_id: this.requireTenantId() };
+    if (!this.prisma) throw new InternalServerErrorException('Prisma is not available');
+    const visit = await this.prisma.medicalVisit.create({
+      data: {
+        schoolId: this.requireTenantId(),
+        studentId: dto.studentId,
+        nurseUserId: this.requireUserId(),
+        visitTime: new Date(),
+        symptoms: dto.symptoms || 'Emergency',
+        severity: 'EMERGENCY',
+        actionTaken: dto.actionTaken || 'Pending',
+        parentNotified: dto.parentNotified || false,
+        status: 'OPEN',
+      }
+    });
+    return visit;
   }
 
-  listReferrals() {
+  async listReferrals() {
     this.assertPermission('clinic:read');
-    return [];
+    if (!this.prisma) throw new InternalServerErrorException('Prisma is not available');
+    const items = await this.prisma.medicalVisit.findMany({
+      where: { schoolId: this.requireTenantId(), status: 'REFERRED' },
+      include: { student: true }
+    });
+    return { items };
   }
 
   async createReferral(dto: Record<string, any>) {
     this.assertPermission('clinic:write');
-    return { id: 'ref-placeholder', ...dto, tenant_id: this.requireTenantId() };
+    if (!this.prisma) throw new InternalServerErrorException('Prisma is not available');
+    if (!dto.visitId) throw new BadRequestException('Visit ID is required');
+    const updated = await this.prisma.medicalVisit.update({
+      where: { id: dto.visitId, schoolId: this.requireTenantId() },
+      data: { status: 'REFERRED', actionTaken: dto.referralNotes || 'Referred to hospital' }
+    });
+    return updated;
   }
 
-  getSickBayQueue() {
+  async getSickBayQueue() {
     this.assertPermission('clinic:read');
-    return [];
+    if (!this.prisma) throw new InternalServerErrorException('Prisma is not available');
+    const items = await this.prisma.medicalVisit.findMany({
+      where: { schoolId: this.requireTenantId(), status: 'OPEN' },
+      orderBy: { visitTime: 'asc' },
+      include: { student: true }
+    });
+    return { items };
   }
 
   async addToQueue(dto: Record<string, any>) {
     this.assertPermission('clinic:write');
-    return { id: 'q-placeholder', ...dto, tenant_id: this.requireTenantId() };
+    if (!this.prisma) throw new InternalServerErrorException('Prisma is not available');
+    const visit = await this.prisma.medicalVisit.create({
+      data: {
+        schoolId: this.requireTenantId(),
+        studentId: dto.studentId,
+        nurseUserId: this.requireUserId(),
+        visitTime: new Date(),
+        symptoms: dto.symptoms || 'Sick bay admission',
+        severity: dto.severity || 'LOW',
+        actionTaken: 'Pending',
+        parentNotified: false,
+        status: 'OPEN',
+      }
+    });
+    return visit;
   }
 
   private assertBatchCanBeDispensed(
@@ -375,7 +429,8 @@ export class ClinicService {
       const enabledModules = await this.moduleAccessService.listEnabledModulesForTenant(tenantId);
 
       return enabledModules.includes('procurement');
-    } catch {
+    } catch (error: any) {
+      console.error('isProcurementModuleEnabled error:', error);
       return false;
     }
   }
@@ -467,5 +522,40 @@ export class ClinicService {
     }
 
     return Math.min(Math.max(Math.floor(parsed), 0), max);
+  }
+
+  async getParentStudentHistory() {
+    this.assertPermission('portal:read_own_children');
+    const tenantId = this.requireTenantId();
+    if (!this.prisma) {
+      throw new InternalServerErrorException('Prisma is not available');
+    }
+    try {
+      const items = await this.prisma.medicalVisit.findMany({
+        where: { schoolId: tenantId },
+        include: { student: true },
+      });
+      return { items };
+    } catch (e: any) {
+      console.error('Error fetching parent student history:', e);
+      throw new InternalServerErrorException(e.message);
+    }
+  }
+
+  async getMedicinesStock() {
+    this.assertPermission('clinic:read');
+    const tenantId = this.requireTenantId();
+    if (!this.prisma) {
+      throw new InternalServerErrorException('Prisma is not available');
+    }
+    try {
+      const items = await this.prisma.medicineInventory.findMany({
+        where: { schoolId: tenantId },
+      });
+      return { items };
+    } catch (e: any) {
+      console.error('Error fetching medicines stock:', e);
+      throw new InternalServerErrorException(e.message);
+    }
   }
 }

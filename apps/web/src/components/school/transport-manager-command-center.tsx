@@ -1,4 +1,4 @@
-// @ts-nocheck
+
 "use client";
 
 import { useState, type ReactNode } from "react";
@@ -509,7 +509,7 @@ function OverviewWorkspace({ onViewChange }: { onViewChange: (view: TransportVie
           </div>
         </div>
       </section>
-      <KpiGrid items={isLoading ? overviewKpis.map(k => ({...k, value: "..."})) : kpis} />
+      <KpiGrid items={isLoading ? overviewKpis.map(k => ({...k, value: "..."})) as any : kpis as any} />
       <div className="grid gap-4 xl:grid-cols-[0.85fr_1.15fr]">
         <Panel title="Transport status panel" description="Priority-ordered operational alerts for routes, drivers, vehicles, and emergencies." icon={AlertTriangle}>
           <div className="space-y-3">

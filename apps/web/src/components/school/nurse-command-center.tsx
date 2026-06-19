@@ -20,14 +20,10 @@ function LogClinicVisitModal({ onClose }: { onClose: () => void }) {
       const formData = new FormData(form);
       const data = Object.fromEntries(formData.entries());
       
-      const res = await requestDashboardApi("/api/admin-command/clinic/visit", {
+      await requestDashboardApi("/api/admin-command/clinic/visit", {
         method: "POST",
         body: JSON.stringify(data)
       });
-      
-      if (!res.ok) {
-        throw new Error("Failed to log visit");
-      }
       
       toast.success("Clinic visit logged successfully");
       onClose();

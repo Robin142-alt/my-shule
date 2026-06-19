@@ -1687,6 +1687,15 @@ export class BillingService {
       .slice(0, 10)
       .replace(/-/g, '')}-${randomUUID().slice(0, 8).toUpperCase()}`;
   }
+
+  async getWaivers() {
+    const tenantId = this.requireTenantId();
+    return this.prisma.feeWaiver.findMany({
+      where: {
+        schoolId: tenantId,
+      },
+    });
+  }
 }
 
 const addDays = (value: Date, days: number): Date =>

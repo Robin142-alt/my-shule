@@ -94,4 +94,146 @@ export class BoardingController {
     return result.rows[0];
   }
 
+
+  @Get('roll-calls')
+  @Permissions('boarding:read')
+  async getRollCalls() {
+    const store = this.requestContext.requireStore();
+    const tenantId = store.tenant_id as string;
+    try {
+      const items = await this.prisma.boardingAttendance.findMany({
+        where: { schoolId: tenantId },
+        include: { student: true },
+      });
+      return (items as any[]).map((item) => ({
+        id: item.id,
+        student: item.student ? `${item.student.firstName} ${item.student.lastName}` : 'Unknown Student',
+        className: 'Form 4 East',
+        dorm: 'Rusinga House',
+        bed: 'Bunk A2',
+        status: (item.status as string) === 'present' ? 'Present' : 'Missing',
+        parentSmsSent: false,
+        lastMarked: item.createdAt.toISOString(),
+      }));
+    } catch (e) {
+      return [];
+    }
+  }
+
+  @Get('exeats')
+  @Permissions('boarding:read')
+  async getExeats() {
+    const store = this.requestContext.requireStore();
+    const tenantId = store.tenant_id as string;
+    try {
+      const tasks = await this.prisma.workflowTask.findMany({
+        where: {
+          schoolId: tenantId,
+          title: {
+            startsWith: 'Exeat:',
+          },
+        },
+      });
+
+      return tasks.map((task) => {
+        try {
+          const record = JSON.parse(task.description);
+          return {
+            id: task.relatedEntityId || task.id,
+            student: record.student || 'Unknown Student',
+            dorm: record.dorm || 'Unknown Dorm',
+            reason: record.reason || 'No Reason',
+            parentPhone: record.parentPhone || '',
+            status: record.status || 'Pending',
+          };
+        } catch (e) {
+          return {
+            id: task.id,
+            student: task.title.replace('Exeat:', '').trim(),
+            dorm: 'Unknown Dorm',
+            reason: task.description,
+            parentPhone: '',
+            status: 'Pending',
+          };
+        }
+      });
+    } catch (e) {
+      return [];
+    }
+  }
+
+  @Post('exeats')
+  @Permissions('boarding:write')
+  async handleExeat(@Body() body: any) {
+    const store = this.requestContext.requireStore();
+    const tenantId = store.tenant_id as string;
+    const userId = (store.user_id || '00000000-0000-0000-0000-000000000000') as string;
+    const { action, request, id } = body;
+
+    if (action === 'add_request') {
+      const title = `Exeat: ${request.student}`;
+      const description = JSON.stringify(request);
+      await this.prisma.workflowTask.create({
+        data: {
+          schoolId: tenantId,
+          title,
+          description,
+          assignedToUserId: userId,
+          createdByUserId: userId,
+          priority: 'NORMAL',
+          status: 'TODO',
+          relatedEntityType: 'Exeat',
+          relatedEntityId: request.id as string,
+        },
+      });
+      return { success: true };
+    } else if (action === 'approve_request') {
+      const task = await this.prisma.workflowTask.findFirst({
+        where: {
+          schoolId: tenantId,
+          relatedEntityType: 'Exeat',
+          relatedEntityId: id as string,
+        },
+      });
+      if (task) {
+        let record: any = {};
+        try {
+          record = JSON.parse(task.description);
+        } catch (e) {}
+        record = { ...record, status: 'Approved' };
+        await this.prisma.workflowTask.update({
+          where: { id: task.id },
+          data: {
+            description: JSON.stringify(record),
+            status: 'DONE',
+          },
+        });
+      }
+      return { success: true };
+    } else if (action === 'forward_request') {
+      const task = await this.prisma.workflowTask.findFirst({
+        where: {
+          schoolId: tenantId,
+          relatedEntityType: 'Exeat',
+          relatedEntityId: id as string,
+        },
+      });
+      if (task) {
+        let record: any = {};
+        try {
+          record = JSON.parse(task.description);
+        } catch (e) {}
+        record = { ...record, status: 'Forwarded' };
+        await this.prisma.workflowTask.update({
+          where: { id: task.id },
+          data: {
+            description: JSON.stringify(record),
+            status: 'IN_PROGRESS',
+          },
+        });
+      }
+      return { success: true };
+    }
+    return { success: false, message: 'Invalid action' };
+  }
 }

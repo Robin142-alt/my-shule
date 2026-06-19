@@ -1,42 +1,69 @@
 "use client";
+import { FileCheck } from "lucide-react";
+import { useSchoolQuery } from "@/lib/data/school-hooks";
 
-import { Card } from "@/components/ui/card";
-import { AlertCircle } from "lucide-react";
-import { OpsTable, type OpsTableColumn } from "@/components/modules/shared/ops-table";
-import { StatusPill } from "@/components/ui/status-pill";
+type DocumentsData = {
+  metrics: Record<string, number>;
+  items: any[];
+};
 
-export function AdmissionsDocumentsWorkspace({ dataset }: { dataset?: any }) {
-  const data = dataset?.documents || [];
-
-  const columns: OpsTableColumn<any>[] = [
-
-    { id: "applicant", header: "Applicant ID", render: (row) => row.applicationId },
-    { id: "document", header: "Document Type", render: (row) => row.documentType },
-    { id: "status", header: "Verification", render: (row) => <StatusPill label={row.verificationStatus} tone={row.verificationStatus === "verified" ? "ok" : "critical"} /> }
-
-  ];
+export function DocumentsWorkspace() {
+  const { data, isLoading } = useSchoolQuery<DocumentsData>("/admin-command/admissions/documents");
+  const items = data?.items || [];
 
   return (
-    <div className="space-y-6">
-      <div className="grid gap-4 md:grid-cols-4">
-        <Card className="border border-white/10 bg-white/5 p-5">
-          <div className="text-sm font-semibold text-white/70">Total Documents</div>
-          <div className="mt-2 text-2xl font-black text-white">{data.length}</div>
-        </Card>
+    <section className="rounded-2xl border border-[#D8E0EC] bg-white p-5 shadow-[0_18px_50px_rgba(7,29,73,0.08)]">
+      <div className="mb-4 flex min-w-0 gap-3">
+        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#EEF5FF] text-[#1D4ED8]">
+          <FileCheck className="h-5 w-5" aria-hidden="true" />
+        </span>
+        <div>
+          <h2 className="text-xl font-black tracking-[-0.01em] text-[#071D49]">Documents</h2>
+          <p className="mt-1 text-sm leading-6 text-[#64748B]">Track required admission documents.</p>
+        </div>
       </div>
 
-      <OpsTable
-        title="Documents"
-        subtitle="Verification queue for uploaded documents."
-        rows={data}
-        columns={columns}
-        loading={false}
-        getRowId={(row) => row.id}
-        totalRows={data.length}
-        page={1}
-        pageSize={10}
-        onPageChange={() => {}}
-      />
-    </div>
+      <div className="grid gap-4 md:grid-cols-2 mb-6">
+        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
+          <div className="text-sm font-semibold text-[#64748B]">Pending Review</div>
+          <div className="mt-1 text-lg font-black text-[#071D49]">{isLoading ? "..." : data?.metrics?.pending_review ?? 0}</div>
+        </div>
+        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
+          <div className="text-sm font-semibold text-[#64748B]">Verified</div>
+          <div className="mt-1 text-lg font-black text-[#071D49]">{isLoading ? "..." : data?.metrics?.verified ?? 0}</div>
+        </div>
+      </div>
+
+      <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
+        <table className="w-full text-sm text-left whitespace-nowrap">
+          <thead className="bg-[#F8FAFC] text-[#071D49]">
+            <tr>
+              <th className="px-4 py-3 font-bold">Student</th>
+              <th className="px-4 py-3 font-bold">Document</th>
+              <th className="px-4 py-3 font-bold">Submitted</th>
+              <th className="px-4 py-3 font-bold">Verified</th>
+              <th className="px-4 py-3 font-bold">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {isLoading ? (
+              <tr><td colSpan={5} className="px-4 py-8 text-center text-[#64748B]">Loading...</td></tr>
+            ) : items.length === 0 ? (
+              <tr><td colSpan={5} className="px-4 py-8 text-center text-[#64748B]">No records found. Create the first entry to get started.</td></tr>
+            ) : (
+              items.map((row: any, i: number) => (
+                <tr key={row.id || i} className="border-t border-[#D8E0EC] hover:bg-[#F8FAFC]">
+                  <td className="px-4 py-3 text-[#64748B]">{row.student_name}</td>
+                  <td className="px-4 py-3 text-[#64748B]">{row.document_type}</td>
+                  <td className="px-4 py-3 text-[#64748B]">{row.submitted_date}</td>
+                  <td className="px-4 py-3 text-[#64748B]">{row.verified_by}</td>
+                  <td className="px-4 py-3"><span className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-bold whitespace-nowrap">{row.status}</span></td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+    </section>
   );
 }

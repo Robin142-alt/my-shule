@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { Card } from "@/components/ui/card";
-import { AlertCircle, FileText, CheckCircle2, Plus, Loader2 } from "lucide-react";
+import { AlertCircle, Wallet, TrendingUp, Download, PieChart, Receipt, Plus, Loader2, CheckCircle2 } from "lucide-react";
+import { toast } from "sonner";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
@@ -85,7 +86,7 @@ export function PrincipalFinanceOverviewWorkspace() {
       await requestDashboardApi(`/finance/fee-categories/${id}`, { method: "DELETE" });
       refetch();
     } catch (err: any) {
-      alert(err.message || "Failed to archive fee category");
+      toast.error(err.message || "Failed to archive fee category");
     }
   };
 
@@ -235,12 +236,12 @@ export function PrincipalFinanceOverviewWorkspace() {
             </div>
           )}
           <div className="space-y-2">
-            <label className="text-sm font-medium">Name</label>
-            <input name="name" required className="w-full border rounded p-2 text-sm" placeholder="e.g. Tuition Fee" />
+            <label className="text-sm font-semibold text-foreground">Name</label>
+            <input name="name" required className="input-base" placeholder="e.g. Tuition Fee" />
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-medium">Description</label>
-            <textarea name="description" className="w-full border rounded p-2 text-sm" placeholder="Optional details..." />
+            <label className="text-sm font-semibold text-foreground">Description</label>
+            <textarea name="description" className="input-base" placeholder="Optional details..." />
           </div>
           <div className="pt-4 flex justify-end">
             <Button type="submit" disabled={isSubmitting}>
@@ -259,16 +260,16 @@ export function PrincipalFinanceOverviewWorkspace() {
             </div>
           )}
           <div className="space-y-2">
-            <label className="text-sm font-medium">Student ID</label>
-            <input name="student_id" required className="w-full border rounded p-2 text-sm" placeholder="e.g. STU-1234" />
+            <label className="text-sm font-semibold text-foreground">Student ID</label>
+            <input name="student_id" required className="input-base" placeholder="e.g. STU-1234" />
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-medium">Amount</label>
-            <input type="number" name="amount" required min="0" step="0.01" className="w-full border rounded p-2 text-sm" placeholder="e.g. 5000" />
+            <label className="text-sm font-semibold text-foreground">Amount</label>
+            <input type="number" name="amount" required min="0" step="0.01" className="input-base" placeholder="e.g. 5000" />
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-medium">Reason</label>
-            <textarea name="reason" required className="w-full border rounded p-2 text-sm" placeholder="Reason for waiver..." />
+            <label className="text-sm font-semibold text-foreground">Reason</label>
+            <textarea name="reason" required className="input-base" placeholder="Reason for waiver..." />
           </div>
           <div className="pt-4 flex justify-end">
             <Button type="submit" disabled={isSubmittingWaiver}>

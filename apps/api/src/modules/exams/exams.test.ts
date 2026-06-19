@@ -1372,35 +1372,64 @@ test('ExamsService enforces strict Mark Entry permission rules based on teacher 
       student_id: 'student-1',
       score: 84,
     }),
-    /Not authorized to submit marks for this subject/i
+    /Teacher is not assigned to this subject/i
   );
 });
 
 test('ExamsService handles HOD Review workflow for returning submitted marks', async () => {
-  const calls: string[] = [];
+  const repositoryCalls: Array<{ method: string; args: any }> = [];
+
+  const mockRepository = {
+    moderateMarks: async (args: any) => {
+      repositoryCalls.push({ method: 'moderateMarks', args });
+      return [
+        { id: 'mark-1', score: 85 }
+      ];
+    },
+    createMarkVersion: async (args: any) => {
+      repositoryCalls.push({ method: 'createMarkVersion', args });
+      return { id: 'version-1' };
+    }
+  };
+
+  const mockRequestContext = {
+    getStore: () => ({
+      tenant_id: 'tenant-a',
+      user_id: 'hod-1',
+      role: 'hod',
+      permissions: ['exams:approve']
+    })
+  };
+
   const service = new ExamsService(
-    { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'hod-1', role: 'teacher', permissions: ['academics:write'] }) } as never,
-    {
-      findSubmission: async () => ({ id: 'sub-1', status: 'SUBMITTED' }),
-      updateSubmissionStatus: async () => { calls.push('updateStatus'); },
-      createHODReviewLog: async () => { calls.push('reviewLog'); }
-    } as never,
+    mockRequestContext as never,
+    mockRepository as never
   );
 
-  // Note: These methods match the conceptual HOD review workflow implemented in the APIs.
-  // Using `reviewMarks` to reflect the newly injected service method name.
-  if (service.reviewMarks) {
-    await service.reviewMarks({
-      markSubmissionId: 'sub-1',
-      hodUserId: 'hod-1',
-      approved: false,
-      reason: 'Missing decimals in scores'
-    });
-  } else {
-    // Mock simulation for test
-    calls.push('updateStatus');
-    calls.push('reviewLog');
-  }
+  const res = await service.moderateMarks({
+    mark_ids: ['mark-1'],
+    action: 'return_for_correction',
+    reason: 'Incorrect entry',
+  });
 
-  assert.deepEqual(calls, ['updateStatus', 'reviewLog']);
+  assert.deepEqual(res, { success: true, updated_count: 1 });
+  assert.equal(repositoryCalls.length, 2);
+  assert.equal(repositoryCalls[0].method, 'moderateMarks');
+  assert.deepEqual(repositoryCalls[0].args, {
+    tenant_id: 'tenant-a',
+    mark_ids: ['mark-1'],
+    action: 'return_for_correction',
+    actor_user_id: 'hod-1'
+  });
+  assert.equal(repositoryCalls[1].method, 'createMarkVersion');
+  assert.deepEqual(repositoryCalls[1].args, {
+    tenant_id: 'tenant-a',
+    mark_id: 'mark-1',
+    original_score: 85,
+    correction_score: 85,
+    corrected_by_user_id: 'hod-1',
+    reason: 'Incorrect entry',
+    approval_state: 'rejected'
+  });
 });
+

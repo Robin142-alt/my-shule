@@ -29,7 +29,7 @@ export function CardTitle({ children, className = "", ...props }: { children: Re
 }
 
 export function CardDescription({ children, className = "", ...props }: { children: ReactNode; className?: string } & HTMLAttributes<HTMLElement>) {
-  return <p className={`text-sm text-muted-foreground ${className}`} {...props}>{children}</p>
+  return <p className={`text-sm text-muted ${className}`} {...props}>{children}</p>
 }
 
 export function CardContent({ children, className = "", ...props }: { children: ReactNode; className?: string } & HTMLAttributes<HTMLElement>) {
