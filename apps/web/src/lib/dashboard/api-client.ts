@@ -154,6 +154,11 @@ export interface ObservabilityHealthResponse {
   generated_at: string;
   overall_status: "healthy" | "degraded" | "critical" | "unknown";
   active_alert_count: number;
+  failed_jobs?: number;
+  sync_queue?: number;
+  pending_emails?: number;
+  pending_sms?: number;
+  api_errors_1h?: number;
   subsystem_statuses: Array<{
     subsystem: "api" | "mpesa" | "sync" | "queue" | "database";
     status: "healthy" | "degraded" | "critical" | "unknown";

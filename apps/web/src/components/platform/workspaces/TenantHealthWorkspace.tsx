@@ -4,11 +4,24 @@ import { SuperadminPageHeader } from "@/components/platform/superadmin-pages";
 import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { fetchApiObservabilityHealth, fetchApiObservabilityAlerts } from "@/lib/dashboard/api-client";
+import {
+  fetchApiObservabilityHealth,
+  fetchApiObservabilityAlerts,
+  type ObservabilityAlert,
+} from "@/lib/dashboard/api-client";
+
+type TenantHealthAlertRow = Partial<ObservabilityAlert> & {
+  tenant_id?: string;
+  service?: string;
+  error_type?: string;
+  timestamp?: string;
+  last_evaluated_at?: string;
+  count?: number | string;
+};
 
 export function TenantHealthWorkspace() {
   const [health, setHealth] = useState<any>(null);
-  const [alerts, setAlerts] = useState<any[]>([]);
+  const [alerts, setAlerts] = useState<TenantHealthAlertRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -34,10 +47,10 @@ export function TenantHealthWorkspace() {
 
         setHealth(combinedHealth);
         
-        let alertsList = [];
+        let alertsList: TenantHealthAlertRow[] = [];
         if (alertsData) {
           if (Array.isArray(alertsData)) {
-            alertsList = alertsData;
+            alertsList = alertsData as TenantHealthAlertRow[];
           } else if (Array.isArray(alertsData.alerts)) {
             alertsList = alertsData.alerts;
           }
@@ -52,7 +65,7 @@ export function TenantHealthWorkspace() {
     void loadData();
   }, []);
 
-  const columns: DataTableColumn<any>[] = [
+  const columns: DataTableColumn<TenantHealthAlertRow>[] = [
     {
       id: "time",
       header: "Time",
