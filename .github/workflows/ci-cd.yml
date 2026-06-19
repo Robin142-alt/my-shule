@@ -32,6 +32,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Install frontend dependencies
+        run: npm --prefix apps/web ci
+
       - name: Type check (backend)
         run: npm run typecheck
 
