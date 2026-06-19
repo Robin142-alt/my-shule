@@ -1949,11 +1949,6 @@ function SupportPage() {
 
 
 
-
-
-
-
-
 export function SuperadminPages({
   section = "overview",
   routeMode = "hosted",
@@ -1961,15 +1956,34 @@ export function SuperadminPages({
   section?: string;
   routeMode?: SuperadminRouteMode;
 }) {
-  const normalizedSection =
-    section === "overview" || section === "schools" ? section : section;
+  /* ── Section alias map ──────────────────────────────────────────────
+   * The sidebar nav items use descriptive slugs (e.g. "school-onboarding")
+   * while the workspace render conditions below use shorter keys
+   * (e.g. "onboarding"). This map bridges the two so every sidebar click
+   * lands on the correct workspace instead of a blank page.
+   * ------------------------------------------------------------------ */
+  const sectionAliases: Record<string, string> = {
+    "platform-overview": "overview",
+    "school-onboarding": "onboarding",
+    "principal-invites": "invitations",
+    "module-access-control": "modules",
+    "tenant-health": "health",
+    "users-roles": "users",
+    "communication-templates": "templates",
+    "support-desk": "support",
+    "system-settings": "settings",
+    "infrastructure": "health",
+  };
+
+  const normalizedSection = sectionAliases[section] ?? section;
+
   const activeHref =
-    normalizedSection === "overview"
+    normalizedSection === "overview" || normalizedSection === "dashboard"
       ? buildSuperadminHref("dashboard", routeMode)
       : buildSuperadminHref(
           normalizedSection === "tenants"
             ? "schools"
-            : (normalizedSection as Parameters<typeof toSuperadminPath>[0]),
+            : (section as Parameters<typeof toSuperadminPath>[0]),
           routeMode,
         );
   const navItems = superadminNav.map((item) => ({
