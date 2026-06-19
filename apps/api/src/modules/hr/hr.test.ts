@@ -6,7 +6,9 @@ import 'reflect-metadata';
 
 import { PERMISSIONS_KEY } from '../../auth/auth.constants';
 import { RequestContextService } from '../../common/request-context/request-context.service';
+import { AgpExecutionService } from '../../common/platform-governance/agp-execution.service';
 import { PrismaService } from '../../database/prisma.service';
+import { EventPublisherService } from '../events/event-publisher.service';
 import { HrController } from './hr.controller';
 import { HrSchemaService } from './hr-schema.service';
 import { HrService } from './hr.service';
@@ -17,6 +19,8 @@ test('HR providers expose concrete Nest dependency metadata', () => {
   assert.deepEqual(Reflect.getMetadata('design:paramtypes', HrService), [
     RequestContextService,
     HrRepository,
+    EventPublisherService,
+    AgpExecutionService,
   ]);
 });
 

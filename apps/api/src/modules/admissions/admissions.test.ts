@@ -1702,6 +1702,7 @@ test('AdmissionsService scans uploaded documents before tenant file persistence 
     undefined,
     undefined,
     undefined,
+    undefined,
     {
       scanIfConfigured: async (file: Record<string, unknown>) => {
         captured.scannedFile = file;

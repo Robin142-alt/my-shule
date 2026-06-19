@@ -156,7 +156,7 @@ export class DisciplineService {
   }
 
   async createIncident(dto: CreateDisciplineIncidentDto) {
-    return this.prisma.withRequestTransaction(async () => {
+    return this.withRequestTransaction(async () => {
       const tenantId = this.requireTenantId();
       const actorUserId = this.actorUserId();
       const schoolId = await this.resolveSchoolId(dto.school_id);
@@ -270,7 +270,7 @@ export class DisciplineService {
   }
 
   async updateIncident(incidentId: string, dto: UpdateDisciplineIncidentDto) {
-    return this.prisma.withRequestTransaction(async () => {
+    return this.withRequestTransaction(async () => {
       this.assertDisciplineWrite();
       const incident = await this.requireIncident(incidentId);
       const updated = await this.disciplineRepository.updateIncident({
@@ -299,6 +299,18 @@ export class DisciplineService {
 
       return updated;
     });
+  }
+
+  private withRequestTransaction<T>(handler: () => Promise<T>): Promise<T> {
+    const transaction = (this.prisma as unknown as {
+      withRequestTransaction?: (callback: () => Promise<T>) => Promise<T>;
+    }).withRequestTransaction;
+
+    if (typeof transaction === 'function') {
+      return transaction.call(this.prisma, handler);
+    }
+
+    return handler();
   }
 
   async updateStatus(incidentId: string, dto: UpdateDisciplineStatusDto) {

@@ -17,20 +17,44 @@ export function DemoManagerWorkspace() {
   const [resetConfirmation, setResetConfirmation] = useState("");
   const [resetStatus, setResetStatus] = useState<string | null>(null);
 
+  async function loadData() {
+    setIsLoading(true);
+    try {
+      const liveRows = await fetchPlatformSchools();
+      const mapped = liveRows.map((s) => ({
+        ...s,
+        id: s.tenant_id,
+        schoolName: s.school_name
+      }));
+      setSchools(mapped);
+    } catch (error) {
+      redirectOnExpiredSessionError(error, "superadmin", (href) => router.replace(href));
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
   useEffect(() => {
     let cancelled = false;
-    async function loadData() {
+    async function initLoad() {
       setIsLoading(true);
       try {
         const liveRows = await fetchPlatformSchools();
-        if (!cancelled) setSchools(liveRows);
+        const mapped = liveRows.map((s) => ({
+          ...s,
+          id: s.tenant_id,
+          schoolName: s.school_name
+        }));
+        if (!cancelled) setSchools(mapped);
       } catch (error) {
-        redirectOnExpiredSessionError(error, "superadmin", (href) => router.replace(href));
+        if (redirectOnExpiredSessionError(error, "superadmin", (href) => router.replace(href))) {
+          return;
+        }
       } finally {
         if (!cancelled) setIsLoading(false);
       }
     }
-    void loadData();
+    void initLoad();
     return () => { cancelled = true; };
   }, [router]);
 
@@ -38,7 +62,7 @@ export function DemoManagerWorkspace() {
     e.preventDefault();
     if (resetConfirmation !== "RESET KISUMU BOYS DEMO") return;
     const demoSchool = schools.find((school) =>
-      String(school.schoolName ?? school.name ?? "").toLowerCase().includes("kisumu boys"),
+      String(school.schoolName ?? "").toLowerCase().includes("kisumu boys"),
     );
     if (!demoSchool?.id) {
       setResetStatus("Kisumu Boys demo tenant was not found.");
@@ -50,7 +74,7 @@ export function DemoManagerWorkspace() {
         confirmation: resetConfirmation,
         reason: "Superadmin requested Kisumu Boys demo reset",
       });
-      setSchools((current) => current.filter((school) => school.id !== demoSchool.id));
+      await loadData();
       setResetStatus("Kisumu Boys demo tenant reset request completed.");
       setIsResetOpen(false);
       setResetConfirmation("");

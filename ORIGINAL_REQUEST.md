@@ -168,3 +168,36 @@ Fix the empty `onClick={() => {}}` on the "Bulk invoicing" button in `apps/web/s
 ### Programmatic Verification
 - [ ] `npm run build` succeeds in the `apps/api` workspace without any compilation or TypeScript errors.
 - [ ] `npm run build` succeeds in the `apps/web` workspace without any compilation or Next.js errors.
+
+## Follow-up — 2026-06-19T21:44:23+03:00
+
+# Teamwork Project Prompt — Draft
+
+> Status: Launched
+> Goal: Craft prompt → get user approval → delegate to teamwork_preview
+
+Build out the missing sidebar pages in the MyShule super admin dashboard so they lead to fully functioning workspaces instead of blank places, adhering to the platform's production-grade standards.
+
+Working directory: c:\Users\user\Desktop\PROJECTS\Shule hub
+Integrity mode: development
+
+## Requirements
+
+### R1. Identify and Build Missing Workspaces
+Find all sidebar links in the Super Admin dashboard that currently lead to empty, incomplete, or placeholder pages. For each one, build a fully functional workspace that supports the intended workflows. The team must investigate the codebase to determine the necessary backend and frontend work for each missing workspace.
+
+### R2. End-to-End Implementation
+Ensure every new workspace has a complete backend and frontend implementation. This includes creating/updating API endpoints, handling database persistence, adding validation, and enforcing strict permissions (ensuring only the Super Admin role can access these global records).
+
+### R3. Adhere to MyShule Production Standards
+All implemented workspaces must comply strictly with the rules defined in `AGENTS.md`. No dead buttons, no fake success states, no hardcoded demo data, and all actions must emit relevant events and logs.
+
+## Acceptance Criteria
+
+### Workflow Verification
+- [ ] An agent acting as a judge confirms that all Super Admin sidebar links lead to fully rendered workspaces with at least one functional primary action (no dead buttons or blank pages).
+- [ ] A programmatic test or agent-as-judge verifies that the primary actions on each new workspace successfully communicate with a backend API without returning 404 or 500 errors.
+- [ ] An agent acting as a judge reviews the new backend endpoints to verify that strict Super Admin role permission guards are implemented.
+
+---
+*Next: when approved → delegate via invoke_subagent*

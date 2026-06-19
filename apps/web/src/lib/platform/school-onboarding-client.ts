@@ -302,12 +302,16 @@ export async function createPlatformSchool(input: {
   return payload as PlatformSchool;
 }
 
-export async function updatePlatformSchoolModules(input: {
-  tenantId: string;
-  moduleCodes: string[];
-}) {
+export async function updatePlatformSchoolModules(
+  tenantIdOrInput: string | { tenantId: string; moduleCodes: string[] },
+  moduleCodes?: string[],
+) {
+  const isObject = typeof tenantIdOrInput === "object" && tenantIdOrInput !== null;
+  const tenantId = isObject ? tenantIdOrInput.tenantId : tenantIdOrInput;
+  const codes = isObject ? tenantIdOrInput.moduleCodes : moduleCodes || [];
+
   const response = await fetchWithTimeout(
-    `/api/platform/schools/${encodeURIComponent(input.tenantId)}/modules`,
+    `/api/platform/schools/${encodeURIComponent(tenantId)}/modules`,
     {
       method: "PUT",
       headers: {
@@ -316,7 +320,7 @@ export async function updatePlatformSchoolModules(input: {
       },
       credentials: "same-origin",
       body: JSON.stringify({
-        module_codes: input.moduleCodes,
+        module_codes: codes,
       }),
     },
   );
@@ -330,10 +334,10 @@ export async function updatePlatformSchoolModules(input: {
     await DashboardApi.createEvent({
       event_type: 'MODULES_UPDATED',
       entity_type: 'school',
-      entity_id: input.tenantId,
+      entity_id: tenantId,
       module_name: 'superadmin',
       action_name: 'update_modules',
-      metadata: { moduleCodes: input.moduleCodes }
+      metadata: { moduleCodes: codes }
     });
   } catch (e) { console.error('Failed to dispatch event', e); }
 
@@ -591,4 +595,50 @@ export async function fetchPlatformPaymentGateways() {
   const response = await fetch("/api/platform/gateways", { method: "GET", credentials: "same-origin", cache: "no-store" });
   const payload = await parsePlatformResponse<any[]>(response);
   return Array.isArray(payload) ? payload : [];
+}
+
+export async function deletePlatformBroadcast(id: string) {
+  const response = await fetchWithTimeout(
+    `/api/platform/broadcasts/${encodeURIComponent(id)}`,
+    {
+      method: "DELETE",
+      headers: {
+        "Content-Type": "application/json",
+        "x-myshule-csrf": await getCsrfToken(),
+      },
+      credentials: "same-origin",
+    },
+  );
+  return await parsePlatformResponse<any>(response);
+}
+
+export async function deletePlatformTemplate(id: string) {
+  const response = await fetchWithTimeout(
+    `/api/platform/templates/${encodeURIComponent(id)}`,
+    {
+      method: "DELETE",
+      headers: {
+        "Content-Type": "application/json",
+        "x-myshule-csrf": await getCsrfToken(),
+      },
+      credentials: "same-origin",
+    },
+  );
+  return await parsePlatformResponse<any>(response);
+}
+
+export async function triggerPlatformBackup() {
+  const response = await fetchWithTimeout(
+    "/api/platform/backups",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-myshule-csrf": await getCsrfToken(),
+      },
+      credentials: "same-origin",
+      body: JSON.stringify({}),
+    },
+  );
+  return await parsePlatformResponse<any>(response);
 }

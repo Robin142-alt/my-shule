@@ -3,28 +3,38 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
-import { Modal } from "@/components/ui/modal";
 import { StatusPill } from "@/components/ui/status-pill";
 import { redirectOnExpiredSessionError } from "@/lib/auth/session-expiry-client";
 import { SuperadminPageHeader } from "@/components/platform/superadmin-pages";
-import { fetchPlatformBackups, type PlatformBackup } from "@/lib/platform/school-onboarding-client";
+import { fetchPlatformBackups, triggerPlatformBackup } from "@/lib/platform/school-onboarding-client";
 import { Database } from "lucide-react";
-
 
 export function DataToolsWorkspace() {
   const router = useRouter();
-  const [gateways, setGateways] = useState<any[]>([]);
+  const [backups, setBackups] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isTriggering, setIsTriggering] = useState(false);
+
+  async function loadData() {
+    setIsLoading(true);
+    try {
+      const liveRows = await fetchPlatformBackups();
+      setBackups(liveRows);
+    } catch (error) {
+      redirectOnExpiredSessionError(error, "superadmin", (href) => router.replace(href));
+    } finally {
+      setIsLoading(false);
+    }
+  }
 
   useEffect(() => {
     let cancelled = false;
-
-    async function loadData() {
+    async function initLoad() {
       setIsLoading(true);
       try {
         const liveRows = await fetchPlatformBackups();
         if (!cancelled) {
-          setGateways(liveRows);
+          setBackups(liveRows);
         }
       } catch (error) {
         if (redirectOnExpiredSessionError(error, "superadmin", (href) => router.replace(href))) {
@@ -36,43 +46,53 @@ export function DataToolsWorkspace() {
         }
       }
     }
-
-    void loadData();
-
+    void initLoad();
     return () => {
       cancelled = true;
     };
   }, [router]);
 
-  const columns: DataTableColumn<PlatformBackup>[] = [
+  async function handleTriggerBackup() {
+    setIsTriggering(true);
+    try {
+      await triggerPlatformBackup();
+      await loadData();
+    } catch (error) {
+      redirectOnExpiredSessionError(error, "superadmin", (href) => router.replace(href));
+    } finally {
+      setIsTriggering(false);
+    }
+  }
+
+  const columns: DataTableColumn<any>[] = [
     {
-      id: "schoolName",
-      header: "School Name",
-      render: (row) => <span className="font-semibold">{row.schoolName}</span>,
+      id: "backupName",
+      header: "Backup Name / School",
+      render: (row) => <span className="font-semibold">{row.backupName || row.schoolName || "Platform Snapshot"}</span>,
     },
     {
       id: "lastBackup",
       header: "Last Backup Date",
-      render: () => <span className="text-muted">Not backed up</span>,
+      render: (row) => row.lastBackup || "N/A",
     },
     {
       id: "size",
       header: "Size",
-      render: () => <span className="text-muted">N/A</span>,
+      render: (row) => row.size || "N/A",
     },
     {
       id: "status",
       header: "Status",
-      render: () => <StatusPill label="Pending" tone="warning" />,
+      render: (row) => {
+        const tone = row.status === "Completed" || row.status === "Success" || row.status === "active" ? "ok" : "warning";
+        return <StatusPill label={row.status || "Pending"} tone={tone} />;
+      },
     },
     {
       id: "actions",
       header: "Actions",
       render: (row) => (
         <div className="flex justify-end gap-2">
-          <Button variant="secondary" size="sm">
-            <Database className="h-4 w-4 mr-2" /> Trigger Backup
-          </Button>
           <Button variant="ghost" size="sm">
             Download Snapshot
           </Button>
@@ -91,13 +111,18 @@ export function DataToolsWorkspace() {
       <SuperadminPageHeader 
         title="Data Tools & Backups" 
         description="Platform database snapshots, migrations, and tenant data export tools." 
+        actions={
+          <Button onClick={handleTriggerBackup} disabled={isTriggering || isLoading}>
+            <Database className="h-4 w-4 mr-2" /> {isTriggering ? "Triggering..." : "Trigger Backup"}
+          </Button>
+        }
       />
       
       <DataTable
         title="Tenant Backups"
         subtitle="Manage isolated data backups for each school."
         columns={columns}
-        rows={gateways}
+        rows={backups}
         getRowKey={(row) => row.id}
         emptyMessage={isLoading ? "Loading backup status..." : "No tenant data found."}
       />

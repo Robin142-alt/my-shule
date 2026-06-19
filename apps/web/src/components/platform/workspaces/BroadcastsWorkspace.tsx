@@ -7,9 +7,8 @@ import { Modal } from "@/components/ui/modal";
 import { StatusPill } from "@/components/ui/status-pill";
 import { redirectOnExpiredSessionError } from "@/lib/auth/session-expiry-client";
 import { SuperadminPageHeader } from "@/components/platform/superadmin-pages";
-import { createPlatformBroadcast, fetchPlatformBroadcasts } from "@/lib/platform/school-onboarding-client";
+import { createPlatformBroadcast, deletePlatformBroadcast, fetchPlatformBroadcasts } from "@/lib/platform/school-onboarding-client";
 import { Plus } from "lucide-react";
-
 
 export function BroadcastsWorkspace() {
   const router = useRouter();
@@ -23,14 +22,26 @@ export function BroadcastsWorkspace() {
     e.preventDefault();
     setIsSaving(true);
     try {
-      const newDoc = await createPlatformBroadcast({ ...formData });
-      setBroadcasts((prev) => [newDoc, ...prev]);
+      await createPlatformBroadcast({ ...formData });
+      const liveRows = await fetchPlatformBroadcasts();
+      setBroadcasts(liveRows);
       setIsCreateOpen(false);
       setFormData({ subject: '', target: 'all', message: '' });
     } catch (error) {
       redirectOnExpiredSessionError(error, "superadmin", (href) => router.replace(href));
     } finally {
       setIsSaving(false);
+    }
+  }
+
+  async function handleRetract(id: string) {
+    if (!window.confirm("Are you sure you want to retract this broadcast?")) return;
+    try {
+      await deletePlatformBroadcast(id);
+      const liveRows = await fetchPlatformBroadcasts();
+      setBroadcasts(liveRows);
+    } catch (error) {
+      redirectOnExpiredSessionError(error, "superadmin", (href) => router.replace(href));
     }
   }
 
@@ -94,7 +105,7 @@ export function BroadcastsWorkspace() {
           <Button variant="secondary" size="sm">
             Edit
           </Button>
-          <Button variant="danger" size="sm">
+          <Button variant="danger" size="sm" onClick={() => handleRetract(row.id)}>
             Retract
           </Button>
         </div>

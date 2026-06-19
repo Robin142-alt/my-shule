@@ -17,6 +17,7 @@ test('Timetable providers expose concrete Nest dependency metadata', () => {
   assert.deepEqual(Reflect.getMetadata('design:paramtypes', TimetableService), [
     RequestContextService,
     TimetableRepository,
+    PrismaService,
   ]);
 });
 

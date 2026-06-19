@@ -64,10 +64,14 @@ export function PlatformSmsSettingsWorkspace() {
                   ) : (
                     providers.map((p: any, i: number) => (
                       <tr key={i} className="hover:bg-slate-50">
-                        <td className="px-4 py-3">{p.provider}</td>
-                        <td className="px-4 py-3 font-medium">{p.senderId}</td>
-                        <td className="px-4 py-3"><span className="px-2 py-1 bg-green-100 text-green-700 rounded-full text-xs font-medium">{p.status}</span></td>
-                        <td className="px-4 py-3">{p.balance}</td>
+                        <td className="px-4 py-3">{p.provider || p.name || "Default Provider"}</td>
+                        <td className="px-4 py-3 font-medium">{p.senderId || p.sender_id || "N/A"}</td>
+                        <td className="px-4 py-3">
+                          <span className="px-2 py-1 bg-green-100 text-green-700 rounded-full text-xs font-medium">
+                            {p.status || "Active"}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3">{p.balance || p.estimated_balance || "N/A"}</td>
                         <td className="px-4 py-3"><Button variant="ghost" size="sm">Edit</Button></td>
                       </tr>
                     ))

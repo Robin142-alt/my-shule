@@ -33,7 +33,7 @@ jobs:
         run: npm ci
 
       - name: Type check (backend)
-        run: npx tsc --noEmit
+        run: npm run typecheck
 
       - name: Lint (frontend)
         run: npm run web:lint

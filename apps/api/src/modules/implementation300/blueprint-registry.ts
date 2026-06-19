@@ -470,7 +470,7 @@ export const IMPLEMENTATION300_MODULES: Implementation300Module[] = [
   ]),
   moduleDefinition('inventory', 'Store and Inventory', ['stock', 'procurement', 'barcode', 'transfers', 'valuation', 'reorder-alerts'], [
     evidence('inventory-controller', 'Inventory controller exists', 'apps/api/src/modules/inventory/inventory.controller.ts', ['InventoryController']),
-    evidence('inventory-ui', 'Inventory workspace exists', 'apps/web/src/components/storekeeper/storekeeper-workspace.tsx', ['Inventory']),
+    evidence('inventory-ui', 'Inventory workspace exists', 'apps/web/src/components/school/storekeeper-command-center.tsx', ['Storekeeper']),
   ]),
   moduleDefinition('library', 'Library', ['catalog', 'barcode-rfid', 'lending', 'fines', 'ebooks', 'audits'], [
     evidence('library-controller', 'Library controller exists', 'apps/api/src/modules/library/library.controller.ts', ['LibraryController']),

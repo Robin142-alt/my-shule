@@ -292,6 +292,12 @@ export class ModuleAccessRepository {
           SET enabled = true,
               enabled_at = COALESCE(sma.enabled_at, NOW()),
               disabled_at = NULL,
+              access_level = 'standard',
+              trial_ends_at = NULL,
+              expires_at = NULL,
+              billing_plan_code = NULL,
+              feature_flags = '{}'::jsonb,
+              activation_reason = 'superadmin_bulk_allocation',
               updated_by = $3::uuid,
               updated_at = NOW()
           FROM module_registry mr
@@ -339,6 +345,19 @@ export class ModuleAccessRepository {
               SELECT 1 FROM school_module_access sma
               WHERE sma.module_id = mr.id AND sma.tenant_id = $1
             )
+          ON CONFLICT (tenant_id, module_id)
+          DO UPDATE SET
+            enabled = EXCLUDED.enabled,
+            enabled_at = COALESCE(school_module_access.enabled_at, NOW()),
+            disabled_at = NULL,
+            updated_by = EXCLUDED.updated_by,
+            access_level = EXCLUDED.access_level,
+            trial_ends_at = EXCLUDED.trial_ends_at,
+            expires_at = EXCLUDED.expires_at,
+            billing_plan_code = EXCLUDED.billing_plan_code,
+            feature_flags = EXCLUDED.feature_flags,
+            activation_reason = EXCLUDED.activation_reason,
+            updated_at = NOW()
         `,
         [input.tenantId, input.moduleCodes, input.updatedBy],
       );

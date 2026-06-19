@@ -7,9 +7,8 @@ import { Modal } from "@/components/ui/modal";
 import { StatusPill } from "@/components/ui/status-pill";
 import { redirectOnExpiredSessionError } from "@/lib/auth/session-expiry-client";
 import { SuperadminPageHeader } from "@/components/platform/superadmin-pages";
-import { createPlatformTemplate, fetchPlatformTemplates } from "@/lib/platform/school-onboarding-client";
+import { createPlatformTemplate, fetchPlatformTemplates, deletePlatformTemplate } from "@/lib/platform/school-onboarding-client";
 import { Blocks, Plus, Trash2 } from "lucide-react";
-
 
 export function TemplatesCenterWorkspace() {
   const router = useRouter();
@@ -17,16 +16,28 @@ export function TemplatesCenterWorkspace() {
   const [isLoading, setIsLoading] = useState(true);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [formData, setFormData] = useState({ name: '', type: 'email' });
+  const [formData, setFormData] = useState({ name: '', type: 'pdf', htmlContent: '', cssContent: '' });
+
+  async function loadData() {
+    setIsLoading(true);
+    try {
+      const liveRows = await fetchPlatformTemplates();
+      setTemplates(liveRows);
+    } catch (error) {
+      redirectOnExpiredSessionError(error, "superadmin", (href) => router.replace(href));
+    } finally {
+      setIsLoading(false);
+    }
+  }
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
     setIsSaving(true);
     try {
-      const newDoc = await createPlatformTemplate({ ...formData });
-      setTemplates((prev) => [newDoc, ...prev]);
+      await createPlatformTemplate({ ...formData });
+      await loadData();
       setIsCreateOpen(false);
-      setFormData({ name: '', type: 'email' });
+      setFormData({ name: '', type: 'pdf', htmlContent: '', cssContent: '' });
     } catch (error) {
       redirectOnExpiredSessionError(error, "superadmin", (href) => router.replace(href));
     } finally {
@@ -34,9 +45,19 @@ export function TemplatesCenterWorkspace() {
     }
   }
 
+  async function handleDelete(id: string) {
+    if (!window.confirm("Are you sure you want to delete this template?")) return;
+    try {
+      await deletePlatformTemplate(id);
+      await loadData();
+    } catch (error) {
+      redirectOnExpiredSessionError(error, "superadmin", (href) => router.replace(href));
+    }
+  }
+
   useEffect(() => {
     let cancelled = false;
-    async function loadData() {
+    async function initLoad() {
       setIsLoading(true);
       try {
         const liveRows = await fetchPlatformTemplates();
@@ -47,22 +68,22 @@ export function TemplatesCenterWorkspace() {
         if (!cancelled) setIsLoading(false);
       }
     }
-    void loadData();
+    void initLoad();
     return () => { cancelled = true; };
   }, [router]);
 
   const columns: DataTableColumn<any>[] = [
     { id: "name", header: "Template Name", render: (row) => <span className="font-semibold">{row.name}</span> },
     { id: "type", header: "Type", render: (row) => row.type },
-    { id: "status", header: "Status", render: (row) => <StatusPill label={row.status} tone={row.status === "Active" ? "ok" : "warning"} /> },
-    { id: "assigned", header: "Assigned Schools", render: (row) => row.assignedCount },
+    { id: "status", header: "Status", render: (row) => <StatusPill label={row.status || "Active"} tone={(row.status === "Active" || row.status === "active") ? "ok" : "warning"} /> },
+    { id: "assigned", header: "Assigned Schools", render: (row) => row.assignedCount || 0 },
     {
       id: "actions", header: "Actions",
       render: (row) => (
         <div className="flex justify-end gap-2">
           <Button variant="secondary" size="sm"><Blocks className="h-4 w-4 mr-2" /> Edit HTML/CSS</Button>
           <Button variant="ghost" size="sm">Duplicate</Button>
-          <Button variant="ghost" size="sm"><Trash2 className="h-4 w-4" /></Button>
+          <Button variant="ghost" size="sm" onClick={() => handleDelete(row.id)}><Trash2 className="h-4 w-4 text-red-600" /></Button>
         </div>
       ),
       className: "text-right",
@@ -102,6 +123,14 @@ export function TemplatesCenterWorkspace() {
               <option value="sms">SMS</option>
               <option value="pdf">PDF Document</option>
             </select>
+          </label>
+          <label className="block space-y-1">
+            <span className="text-sm font-semibold">HTML Content</span>
+            <textarea className="input-base w-full font-mono text-xs" rows={4} value={formData.htmlContent} onChange={(e) => setFormData({...formData, htmlContent: e.target.value})} disabled={isSaving} placeholder="<html>...</html>" />
+          </label>
+          <label className="block space-y-1">
+            <span className="text-sm font-semibold">CSS Content</span>
+            <textarea className="input-base w-full font-mono text-xs" rows={3} value={formData.cssContent} onChange={(e) => setFormData({...formData, cssContent: e.target.value})} disabled={isSaving} placeholder="body { ... }" />
           </label>
           <div className="flex justify-end gap-2 pt-4">
             <Button variant="secondary" type="button" onClick={() => setIsCreateOpen(false)} disabled={isSaving}>Cancel</Button>

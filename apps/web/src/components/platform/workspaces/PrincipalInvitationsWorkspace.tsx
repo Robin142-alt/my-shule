@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { SuperadminPageHeader } from "@/components/platform/superadmin-pages";
@@ -6,39 +7,59 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Modal } from "@/components/ui/modal";
 import { redirectOnExpiredSessionError } from "@/lib/auth/session-expiry-client";
-import { fetchPlatformSchools, resendPlatformSchoolAdminInvite, type PlatformSchool } from "@/lib/platform/school-onboarding-client";
+import { fetchPlatformSchools, resendPlatformSchoolAdminInvite } from "@/lib/platform/school-onboarding-client";
 
 export function PrincipalInvitationsWorkspace() {
   const router = useRouter();
-  const [schools, setSchools] = useState<PlatformSchool[]>([]);
+  const [schools, setSchools] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isInviteOpen, setIsInviteOpen] = useState(false);
 
+  async function loadData() {
+    setIsLoading(true);
+    try {
+      const liveRows = await fetchPlatformSchools();
+      const mapped = liveRows.map((s) => ({
+        ...s,
+        id: s.tenant_id,
+        schoolName: s.school_name
+      }));
+      setSchools(mapped);
+    } catch (error) {
+      redirectOnExpiredSessionError(error, "superadmin", (href) => router.replace(href));
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
   useEffect(() => {
     let cancelled = false;
-    async function loadData() {
+    async function initLoad() {
       setIsLoading(true);
       try {
         const liveRows = await fetchPlatformSchools();
-        if (!cancelled) setSchools(liveRows);
+        const mapped = liveRows.map((s) => ({
+          ...s,
+          id: s.tenant_id,
+          schoolName: s.school_name
+        }));
+        if (!cancelled) setSchools(mapped);
       } catch (error) {
         redirectOnExpiredSessionError(error, "superadmin", (href) => router.replace(href));
       } finally {
         if (!cancelled) setIsLoading(false);
       }
     }
-    void loadData();
+    void initLoad();
     return () => { cancelled = true; };
   }, [router]);
 
-  async function handleResend(tenantId: string) {
+  async function handleResend(id: string) {
     setIsSaving(true);
     try {
-      await resendPlatformSchoolAdminInvite(tenantId);
-      // Reload schools after resend
-      const updated = await fetchPlatformSchools();
-      setSchools(updated);
+      await resendPlatformSchoolAdminInvite(id);
+      await loadData();
     } catch (error) {
       redirectOnExpiredSessionError(error, "superadmin", (href) => router.replace(href));
     } finally {
@@ -46,8 +67,8 @@ export function PrincipalInvitationsWorkspace() {
     }
   }
 
-  const columns: DataTableColumn<PlatformSchool>[] = [
-    { id: "schoolName", header: "School Name", render: (row) => row.school_name },
+  const columns: DataTableColumn<any>[] = [
+    { id: "schoolName", header: "School Name", render: (row) => row.schoolName },
     { id: "principalEmail", header: "Admin Email", render: (row) => row.admin_email },
     { id: "status", header: "Invite Status", render: (row) => row.invitation_status || (row.invitation_sent ? "Sent" : "Pending") },
     { id: "sentDate", header: "Created Date", render: (row) => row.created_at ? new Date(row.created_at).toLocaleDateString() : "N/A" },
@@ -56,7 +77,7 @@ export function PrincipalInvitationsWorkspace() {
       header: "Actions",
       render: (row) => (
         <div className="flex gap-2">
-          <Button variant="ghost" size="sm" onClick={() => handleResend(row.tenant_id)} disabled={isSaving || !row.can_resend_invite}>Resend</Button>
+          <Button variant="ghost" size="sm" onClick={() => handleResend(row.id)} disabled={isSaving || !row.can_resend_invite}>Resend</Button>
           <Button variant="ghost" size="sm" disabled={isSaving}>Revoke</Button>
         </div>
       ),
@@ -80,14 +101,14 @@ export function PrincipalInvitationsWorkspace() {
         <Card className="p-4"><div className="text-sm font-medium text-muted">Failed Invites</div><div className="mt-2 text-2xl font-bold">{failed}</div></Card>
         <Card className="p-4"><div className="text-sm font-medium text-muted">Total Invites</div><div className="mt-2 text-2xl font-bold">{schools.length}</div></Card>
       </div>
-      <DataTable title="All Invitations" subtitle="Status of all platform invites." columns={columns} rows={schools} getRowKey={(row) => row.tenant_id} emptyMessage={isLoading ? "Loading..." : "No invitations found."} />
+      <DataTable title="All Invitations" subtitle="Status of all platform invites." columns={columns} rows={schools} getRowKey={(row) => row.id} emptyMessage={isLoading ? "Loading..." : "No invitations found."} />
       
       <Modal open={isInviteOpen} title="Invite Principal" onClose={() => setIsInviteOpen(false)}>
         <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); setIsInviteOpen(false); }}>
           <label className="block space-y-1">
             <span className="text-sm font-semibold">Select School</span>
             <select className="input-base w-full">
-              {schools.map(s => <option key={s.tenant_id} value={s.tenant_id}>{s.school_name}</option>)}
+              {schools.map(s => <option key={s.id} value={s.id}>{s.schoolName}</option>)}
             </select>
           </label>
           <div className="grid grid-cols-2 gap-4">

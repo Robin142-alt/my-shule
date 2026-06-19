@@ -1,30 +1,32 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useEffect } from "react";
 import { SuperadminPageHeader } from "@/components/platform/superadmin-pages";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { updatePlatformSettings, fetchPlatformSettings } from "@/lib/platform/school-onboarding-client";
+import { toast } from "sonner";
 
 export function SettingsWorkspace() {
   const [isSaving, setIsSaving] = useState(false);
   const [maintenanceMode, setMaintenanceMode] = useState(false);
-  const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [settings, setSettings] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    async function loadData() {
-      setIsLoading(true);
-      try {
-        const data = await fetchPlatformSettings();
-        setSettings(data || {});
-        setMaintenanceMode(data?.maintenanceMode || false);
-      } catch (error) {
-        console.error(error);
-      } finally {
-        setIsLoading(false);
-      }
+  async function loadData() {
+    setIsLoading(true);
+    try {
+      const data = await fetchPlatformSettings();
+      setSettings(data || {});
+      setMaintenanceMode(data?.maintenanceMode || false);
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setIsLoading(false);
     }
-    loadData();
+  }
+
+  useEffect(() => {
+    void loadData();
   }, []);
 
   async function handleSave(e: React.FormEvent) {
@@ -32,19 +34,48 @@ export function SettingsWorkspace() {
     const form = e.currentTarget as HTMLFormElement;
     const formData = new FormData(form);
     setIsSaving(true);
-    setSaveMessage(null);
     try {
-      await updatePlatformSettings({
-        platformName: formData.get("platformName"),
-        supportEmail: formData.get("supportEmail"),
-        defaultAcademicYear: formData.get("defaultAcademicYear"),
-        defaultCountry: formData.get("defaultCountry"),
+      const updated = {
+        ...settings,
+        platformName: formData.get("platformName") || settings?.platformName,
+        supportEmail: formData.get("supportEmail") || settings?.supportEmail,
+        defaultAcademicYear: formData.get("defaultAcademicYear") || settings?.defaultAcademicYear,
+        defaultCountry: formData.get("defaultCountry") || settings?.defaultCountry,
         maintenanceMode,
-      });
-      setSaveMessage("Settings saved.");
-    } catch (error) {
-      console.error(error);
-      setSaveMessage("Settings could not be saved.");
+      };
+      await updatePlatformSettings(updated);
+      setSettings(updated);
+      toast.success("Settings saved successfully");
+    } catch (error: any) {
+      toast.error(error.message || "Failed to save settings");
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function handleMaintenanceToggle(e: React.ChangeEvent<HTMLInputElement>) {
+    const val = e.target.checked;
+    if (val) {
+      const conf = prompt("Type ENABLE MAINTENANCE to confirm");
+      if (conf !== "ENABLE MAINTENANCE") return;
+    } else {
+      const conf = prompt("Type DISABLE MAINTENANCE to confirm");
+      if (conf !== "DISABLE MAINTENANCE") return;
+    }
+
+    setMaintenanceMode(val);
+    setIsSaving(true);
+    try {
+      const updated = {
+        ...settings,
+        maintenanceMode: val,
+      };
+      await updatePlatformSettings(updated);
+      setSettings(updated);
+      toast.success(val ? "Maintenance mode enabled" : "Maintenance mode disabled");
+    } catch (error: any) {
+      toast.error(error.message || "Failed to update maintenance settings");
+      setMaintenanceMode(!val);
     } finally {
       setIsSaving(false);
     }
@@ -53,7 +84,6 @@ export function SettingsWorkspace() {
   return (
     <div className="space-y-6">
       <SuperadminPageHeader title="Platform Settings" description="Global platform rules and configurations." />
-      {saveMessage ? <div className="rounded border border-blue-200 bg-blue-50 p-3 text-sm font-semibold text-blue-900">{saveMessage}</div> : null}
       
       <div className="grid gap-6 md:grid-cols-2">
         <Card className="p-6">
@@ -84,14 +114,18 @@ export function SettingsWorkspace() {
             <div className="flex items-center justify-between p-4 bg-red-50 rounded border border-red-100">
               <div>
                 <div className="font-semibold text-red-900">Maintenance Mode</div>
-                <div className="text-sm text-red-700">Forces all tenants offline except Super Admins. Requires confirmation.</div>
+                <div className="text-sm text-red-700">Forces all tenants offline except Super Admins.</div>
               </div>
-              <Button variant="danger" onClick={() => {
-                const conf = prompt("Type ENABLE MAINTENANCE to confirm");
-                if (conf === "ENABLE MAINTENANCE") setMaintenanceMode(true);
-              }} disabled={maintenanceMode || isLoading}>
-                {maintenanceMode ? "Maintenance Active" : "Enable Maintenance"}
-              </Button>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  className="w-5 h-5 rounded border-red-300 text-red-600 focus:ring-red-500"
+                  checked={maintenanceMode}
+                  onChange={handleMaintenanceToggle}
+                  disabled={isLoading || isSaving}
+                />
+                <span className="text-sm font-semibold text-red-950">Active</span>
+              </label>
             </div>
           </div>
         </Card>

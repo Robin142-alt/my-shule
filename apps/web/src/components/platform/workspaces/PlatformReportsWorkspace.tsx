@@ -11,19 +11,32 @@ import { requestPlatformReport, fetchPlatformReports } from "@/lib/platform/scho
 import { Plus } from "lucide-react";
 import { Card } from "@/components/ui/card";
 
-
 export function PlatformReportsWorkspace() {
   const router = useRouter();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [formData, setFormData] = useState({ reportName: '', format: 'pdf' });
+  const [reports, setReports] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  async function loadData() {
+    setIsLoading(true);
+    try {
+      const liveRows = await fetchPlatformReports();
+      setReports(liveRows);
+    } catch (error) {
+      redirectOnExpiredSessionError(error, "superadmin", (href) => router.replace(href));
+    } finally {
+      setIsLoading(false);
+    }
+  }
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
     setIsSaving(true);
     try {
-      const newDoc = await requestPlatformReport({ ...formData });
-      setReports((prev) => [newDoc, ...prev]);
+      await requestPlatformReport({ ...formData });
+      await loadData();
       setIsCreateOpen(false);
       setFormData({ reportName: '', format: 'pdf' });
     } catch (error) {
@@ -33,13 +46,9 @@ export function PlatformReportsWorkspace() {
     }
   }
 
-  const [reports, setReports] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-
   useEffect(() => {
     let cancelled = false;
-
-    async function loadData() {
+    async function initLoad() {
       setIsLoading(true);
       try {
         const liveRows = await fetchPlatformReports();
@@ -56,9 +65,7 @@ export function PlatformReportsWorkspace() {
         }
       }
     }
-
-    void loadData();
-
+    void initLoad();
     return () => {
       cancelled = true;
     };
@@ -68,17 +75,21 @@ export function PlatformReportsWorkspace() {
     {
       id: "reportName",
       header: "Report Name",
-      render: (row) => <span className="font-semibold">{row.reportName}</span>,
+      render: (row) => <span className="font-semibold">{row.reportName || "Unnamed Report"}</span>,
     },
     {
       id: "date",
       header: "Date Generated",
-      render: (row) => row.date,
+      render: (row) => row.date || row.created_at || "N/A",
     },
     {
       id: "status",
       header: "Status",
-      render: (row) => <StatusPill label={row.status} tone={row.status === "Ready" ? "ok" : "warning"} />,
+      render: (row) => {
+        const status = row.status || "Pending";
+        const tone = status === "Ready" || status === "Completed" || status === "Success" ? "ok" : "warning";
+        return <StatusPill label={status} tone={tone} />;
+      },
     },
     {
       id: "actions",
@@ -118,7 +129,7 @@ export function PlatformReportsWorkspace() {
         </Card>
         <Card className="p-4">
           <div className="text-sm font-medium text-muted">Active Tenants</div>
-          <div className="mt-2 text-2xl font-bold">0</div>
+          <div className="mt-2 text-2xl font-bold">{reports.length > 0 ? "Active" : "0"}</div>
         </Card>
         <Card className="p-4">
           <div className="text-sm font-medium text-muted">Total Users</div>
@@ -131,7 +142,7 @@ export function PlatformReportsWorkspace() {
         subtitle="Download historical and scheduled platform metric reports."
         columns={columns}
         rows={reports}
-        getRowKey={(row) => row.id}
+        getRowKey={(row) => row.id || row.reportName}
         emptyMessage={isLoading ? "Loading reports..." : "No reports generated."}
       />
       <Modal open={isCreateOpen} title="Generate Platform Report" onClose={() => !isSaving && setIsCreateOpen(false)}>
@@ -161,7 +172,6 @@ export function PlatformReportsWorkspace() {
           </div>
         </form>
       </Modal>
-
     </div>
   );
 }

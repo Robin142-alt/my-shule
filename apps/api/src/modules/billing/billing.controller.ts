@@ -321,17 +321,20 @@ export class BillingController {
   }
 
   @Get('student-balances/csv')
+  @Permissions('billing:read')
   async getStudentBalancesCsv(@Query() query: any) {
     // For now return raw JSON from listStudentBalances until export logic is fully written
     return this.billingService.listStudentBalances(query);
   }
 
   @Get('reconciliation/csv')
+  @Permissions('billing:read')
   async getReconciliationCsv(@Query() query: any) {
     return this.billingService.exportFinanceReconciliationCsv(query);
   }
 
   @Get('waivers')
+  @Permissions('billing:read')
   async getWaivers() {
     return this.billingService.getWaivers();
   }

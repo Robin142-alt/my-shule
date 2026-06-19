@@ -9,6 +9,7 @@ export class PermissionController {
   constructor(private readonly permissionService: PermissionService) {}
 
   @Get('me')
+  @Permissions('auth:read')
   async getMyPermissions(
     @Req() req: any,
     @Query('schoolId') schoolId: string,

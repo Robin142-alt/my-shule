@@ -19,7 +19,12 @@ export function SetupProgressWorkspace() {
       setIsLoading(true);
       try {
         const liveRows = await fetchPlatformSchools();
-        if (!cancelled) setSchools(liveRows);
+        const mapped = liveRows.map((s) => ({
+          ...s,
+          id: s.tenant_id,
+          schoolName: s.school_name
+        }));
+        if (!cancelled) setSchools(mapped);
       } catch (error) {
         redirectOnExpiredSessionError(error, "superadmin", (href) => router.replace(href));
       } finally {
@@ -32,13 +37,13 @@ export function SetupProgressWorkspace() {
 
   const columns: DataTableColumn<any>[] = [
     { id: "schoolName", header: "School Name", render: (row) => row.schoolName },
-    { id: "principal", header: "Principal", render: (row) => "Pending" },
+    { id: "principal", header: "Principal", render: (row) => row.invitation_status === "accepted" ? "Complete" : "Pending" },
     { id: "schoolProfile", header: "School Profile", render: (row) => "Complete" },
     { id: "academicSetup", header: "Academic Setup", render: (row) => "Pending" },
     { id: "staffSetup", header: "Staff Setup", render: (row) => "Pending" },
     { id: "studentSetup", header: "Student Setup", render: (row) => "Pending" },
     { id: "financeSetup", header: "Finance Setup", render: (row) => "Pending" },
-    { id: "overallProgress", header: "Overall Progress", render: (row) => "10%" },
+    { id: "overallProgress", header: "Overall Progress", render: (row) => row.invitation_status === "accepted" ? "40%" : "10%" },
     {
       id: "actions",
       header: "Actions",
@@ -55,8 +60,8 @@ export function SetupProgressWorkspace() {
     <div className="space-y-6">
       <SuperadminPageHeader title="Tenant Setup Progress" description="Monitor school readiness and identify setup gaps before operations begin." />
       <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-6">
-        <Card className="p-4"><div className="text-sm font-medium text-muted">Setup Complete</div><div className="mt-2 text-2xl font-bold">0</div></Card>
-        <Card className="p-4"><div className="text-sm font-medium text-muted">Setup Incomplete</div><div className="mt-2 text-2xl font-bold">{schools.length}</div></Card>
+        <Card className="p-4"><div className="text-sm font-medium text-muted">Setup Complete</div><div className="mt-2 text-2xl font-bold">{schools.filter(s => s.invitation_status === "accepted").length}</div></Card>
+        <Card className="p-4"><div className="text-sm font-medium text-muted">Setup Incomplete</div><div className="mt-2 text-2xl font-bold">{schools.filter(s => s.invitation_status !== "accepted").length}</div></Card>
         <Card className="p-4"><div className="text-sm font-medium text-muted">No Academic Year</div><div className="mt-2 text-2xl font-bold">{schools.length}</div></Card>
         <Card className="p-4"><div className="text-sm font-medium text-muted">No Staff Invited</div><div className="mt-2 text-2xl font-bold">{schools.length}</div></Card>
         <Card className="p-4"><div className="text-sm font-medium text-muted">No Students</div><div className="mt-2 text-2xl font-bold">{schools.length}</div></Card>

@@ -127,6 +127,148 @@ export class PlatformOnboardingSchemaService implements OnModuleInit {
       BEFORE UPDATE ON tenant_domains
       FOR EACH ROW
       EXECUTE FUNCTION set_updated_at();
+
+      -- Platform Broadcasts
+      CREATE TABLE IF NOT EXISTS platform_broadcasts (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        subject text NOT NULL,
+        target text NOT NULL,
+        message text NOT NULL,
+        status text NOT NULL DEFAULT 'Sent',
+        scheduled_for text NOT NULL DEFAULT 'Immediate',
+        created_at timestamptz NOT NULL DEFAULT NOW(),
+        updated_at timestamptz NOT NULL DEFAULT NOW()
+      );
+
+      ALTER TABLE platform_broadcasts ENABLE ROW LEVEL SECURITY;
+      ALTER TABLE platform_broadcasts FORCE ROW LEVEL SECURITY;
+
+      DROP POLICY IF EXISTS platform_broadcasts_rls_policy ON platform_broadcasts;
+      CREATE POLICY platform_broadcasts_rls_policy ON platform_broadcasts
+      FOR ALL
+      USING (NULLIF(current_setting('app.role', true), '') = 'platform_owner')
+      WITH CHECK (NULLIF(current_setting('app.role', true), '') = 'platform_owner');
+
+      DROP TRIGGER IF EXISTS trg_platform_broadcasts_set_updated_at ON platform_broadcasts;
+      CREATE TRIGGER trg_platform_broadcasts_set_updated_at
+      BEFORE UPDATE ON platform_broadcasts
+      FOR EACH ROW
+      EXECUTE FUNCTION set_updated_at();
+
+      CREATE INDEX IF NOT EXISTS idx_platform_broadcasts_created_at ON platform_broadcasts (created_at);
+
+      -- Platform Templates
+      CREATE TABLE IF NOT EXISTS platform_templates (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        name text NOT NULL,
+        type text NOT NULL,
+        status text NOT NULL DEFAULT 'Active',
+        html_content text,
+        css_content text,
+        created_at timestamptz NOT NULL DEFAULT NOW(),
+        updated_at timestamptz NOT NULL DEFAULT NOW()
+      );
+
+      ALTER TABLE platform_templates ENABLE ROW LEVEL SECURITY;
+      ALTER TABLE platform_templates FORCE ROW LEVEL SECURITY;
+
+      DROP POLICY IF EXISTS platform_templates_rls_policy ON platform_templates;
+      CREATE POLICY platform_templates_rls_policy ON platform_templates
+      FOR ALL
+      USING (NULLIF(current_setting('app.role', true), '') = 'platform_owner')
+      WITH CHECK (NULLIF(current_setting('app.role', true), '') = 'platform_owner');
+
+      DROP TRIGGER IF EXISTS trg_platform_templates_set_updated_at ON platform_templates;
+      CREATE TRIGGER trg_platform_templates_set_updated_at
+      BEFORE UPDATE ON platform_templates
+      FOR EACH ROW
+      EXECUTE FUNCTION set_updated_at();
+
+      CREATE INDEX IF NOT EXISTS idx_platform_templates_created_at ON platform_templates (created_at);
+
+      -- Platform Backups
+      CREATE TABLE IF NOT EXISTS platform_backups (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        backup_name text NOT NULL,
+        size text NOT NULL,
+        status text NOT NULL DEFAULT 'Pending',
+        last_backup timestamptz NOT NULL DEFAULT NOW(),
+        created_at timestamptz NOT NULL DEFAULT NOW(),
+        updated_at timestamptz NOT NULL DEFAULT NOW()
+      );
+
+      ALTER TABLE platform_backups ENABLE ROW LEVEL SECURITY;
+      ALTER TABLE platform_backups FORCE ROW LEVEL SECURITY;
+
+      DROP POLICY IF EXISTS platform_backups_rls_policy ON platform_backups;
+      CREATE POLICY platform_backups_rls_policy ON platform_backups
+      FOR ALL
+      USING (NULLIF(current_setting('app.role', true), '') = 'platform_owner')
+      WITH CHECK (NULLIF(current_setting('app.role', true), '') = 'platform_owner');
+
+      DROP TRIGGER IF EXISTS trg_platform_backups_set_updated_at ON platform_backups;
+      CREATE TRIGGER trg_platform_backups_set_updated_at
+      BEFORE UPDATE ON platform_backups
+      FOR EACH ROW
+      EXECUTE FUNCTION set_updated_at();
+
+      CREATE INDEX IF NOT EXISTS idx_platform_backups_created_at ON platform_backups (created_at);
+
+      -- Platform Security Policies
+      CREATE TABLE IF NOT EXISTS platform_security_policies (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        require_12_chars boolean NOT NULL DEFAULT false,
+        require_special_chars boolean NOT NULL DEFAULT false,
+        force_90_day_reset boolean NOT NULL DEFAULT false,
+        created_at timestamptz NOT NULL DEFAULT NOW(),
+        updated_at timestamptz NOT NULL DEFAULT NOW()
+      );
+
+      ALTER TABLE platform_security_policies ENABLE ROW LEVEL SECURITY;
+      ALTER TABLE platform_security_policies FORCE ROW LEVEL SECURITY;
+
+      DROP POLICY IF EXISTS platform_security_policies_rls_policy ON platform_security_policies;
+      CREATE POLICY platform_security_policies_rls_policy ON platform_security_policies
+      FOR ALL
+      USING (NULLIF(current_setting('app.role', true), '') = 'platform_owner')
+      WITH CHECK (NULLIF(current_setting('app.role', true), '') = 'platform_owner');
+
+      DROP TRIGGER IF EXISTS trg_platform_security_policies_set_updated_at ON platform_security_policies;
+      CREATE TRIGGER trg_platform_security_policies_set_updated_at
+      BEFORE UPDATE ON platform_security_policies
+      FOR EACH ROW
+      EXECUTE FUNCTION set_updated_at();
+
+      INSERT INTO platform_security_policies (id, require_12_chars, require_special_chars, force_90_day_reset, created_at, updated_at)
+      SELECT gen_random_uuid(), false, false, false, NOW(), NOW()
+      WHERE NOT EXISTS (SELECT 1 FROM platform_security_policies);
+
+      -- Platform Settings
+      CREATE TABLE IF NOT EXISTS platform_settings (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        maintenance_mode boolean NOT NULL DEFAULT false,
+        created_at timestamptz NOT NULL DEFAULT NOW(),
+        updated_at timestamptz NOT NULL DEFAULT NOW()
+      );
+
+      ALTER TABLE platform_settings ENABLE ROW LEVEL SECURITY;
+      ALTER TABLE platform_settings FORCE ROW LEVEL SECURITY;
+
+      DROP POLICY IF EXISTS platform_settings_rls_policy ON platform_settings;
+      CREATE POLICY platform_settings_rls_policy ON platform_settings
+      FOR ALL
+      USING (NULLIF(current_setting('app.role', true), '') = 'platform_owner')
+      WITH CHECK (NULLIF(current_setting('app.role', true), '') = 'platform_owner');
+
+      DROP TRIGGER IF EXISTS trg_platform_settings_set_updated_at ON platform_settings;
+      CREATE TRIGGER trg_platform_settings_set_updated_at
+      BEFORE UPDATE ON platform_settings
+      FOR EACH ROW
+      EXECUTE FUNCTION set_updated_at();
+
+      INSERT INTO platform_settings (id, maintenance_mode, created_at, updated_at)
+      SELECT gen_random_uuid(), false, NOW(), NOW()
+      WHERE NOT EXISTS (SELECT 1 FROM platform_settings);
     `);
 
     this.logger.log('Platform onboarding schema and tenant RLS policies verified');

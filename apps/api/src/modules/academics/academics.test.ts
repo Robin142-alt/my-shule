@@ -39,6 +39,7 @@ test('AcademicsService assigns teachers to deterministic subject class term scop
   const service = new AcademicsService(
     { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'user-1' }) } as never,
     {
+      executeSql: async () => ({ rows: [], rowCount: 0 }),
       createTeacherAssignment: async (input: Record<string, unknown>) => {
         calls.push('assign');
         return { id: 'assignment-1', ...input };

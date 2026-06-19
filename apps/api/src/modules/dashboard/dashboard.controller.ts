@@ -5,8 +5,10 @@ import { JwtAuthGuard } from '../../guards/jwt-auth.guard';
 import { RbacGuard } from '../../guards/rbac.guard';
 import { RequestContextService } from '../../common/request-context/request-context.service';
 import { PrismaService } from '../../database/prisma.service';
+import { Permissions } from '../../auth/decorators/permissions.decorator';
 
 @UseGuards(JwtAuthGuard, RbacGuard)
+@Permissions('auth:read')
 @Controller('dashboard')
 export class DashboardController {
   constructor(

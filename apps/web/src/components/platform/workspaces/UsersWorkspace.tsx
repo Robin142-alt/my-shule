@@ -3,13 +3,11 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
-import { Modal } from "@/components/ui/modal";
 import { StatusPill } from "@/components/ui/status-pill";
 import { redirectOnExpiredSessionError } from "@/lib/auth/session-expiry-client";
 import { SuperadminPageHeader } from "@/components/platform/superadmin-pages";
 import { fetchPlatformUsers } from "@/lib/platform/school-onboarding-client";
 import { Plus } from "lucide-react";
-
 
 export function UsersWorkspace() {
   const router = useRouter();
@@ -45,10 +43,18 @@ export function UsersWorkspace() {
   }, [router]);
 
   const columns: DataTableColumn<any>[] = [
-    { id: "name", header: "User Name", render: (row) => <span className="font-semibold">{row.name}</span> },
-    { id: "role", header: "Role", render: (row) => row.role },
-    { id: "status", header: "Status", render: (row) => <StatusPill label={row.status} tone={row.status === "Active" ? "ok" : "warning"} /> },
-    { id: "lastActive", header: "Last Active", render: (row) => row.lastActive },
+    { id: "name", header: "User Name", render: (row) => <span className="font-semibold">{row.name || "N/A"}</span> },
+    { id: "role", header: "Role", render: (row) => row.role || "N/A" },
+    {
+      id: "status",
+      header: "Status",
+      render: (row) => {
+        const status = row.status || "Active";
+        const tone = (status === "Active" || status === "active") ? "ok" : "warning";
+        return <StatusPill label={status} tone={tone} />;
+      }
+    },
+    { id: "lastActive", header: "Last Active", render: (row) => row.lastActive || row.last_active || "N/A" },
     {
       id: "actions",
       header: "Actions",

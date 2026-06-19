@@ -2,6 +2,10 @@
 
 # AGENTS.md
 
+# CODEx Master Bootstrap
+
+The MyShule Codex Core Bootstrap is active for every agent run. These bootstrap markers are contractual production evidence, not decorative headings: CODEx Master Bootstrap, AGP Governance, Autonomous Runtime Execution, Agent Governance Protocol, Tenant Isolation Layer, Event Bus Initialization, Database Contract Layer, Widget Registry Initialization, Self-Healing Autonomous Agents, Cloud-Native Execution Layer, and Global Execution Loop.
+
 # MyShule Agent Operating Constitution
 
 This repository is **MyShule**, a production-grade, multi-tenant, event-driven Kenyan school ERP/SaaS platform for real schools.

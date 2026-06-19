@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Put } from '@nestjs/common';
 
 import { Roles } from '../../auth/decorators/roles.decorator';
 import { SUPERADMIN_ROLE_OWNER } from '../../auth/auth.constants';
@@ -145,5 +145,40 @@ export class PlatformOnboardingController {
   @Post('reports/request')
   requestReport(@Body() body: any) {
     return this.onboardingService.requestReport(body);
+  }
+
+  @Post('broadcasts')
+  createBroadcast(@Body() body: any) {
+    return this.onboardingService.createBroadcast(body);
+  }
+
+  @Delete('broadcasts/:id')
+  deleteBroadcast(@Param('id') id: string) {
+    return this.onboardingService.deleteBroadcast(id);
+  }
+
+  @Post('templates')
+  createTemplate(@Body() body: any) {
+    return this.onboardingService.createTemplate(body);
+  }
+
+  @Delete('templates/:id')
+  deleteTemplate(@Param('id') id: string) {
+    return this.onboardingService.deleteTemplate(id);
+  }
+
+  @Post('security-policies')
+  createSecurityPolicy(@Body() body: any) {
+    return this.onboardingService.createSecurityPolicy(body);
+  }
+
+  @Put('settings')
+  updateSettings(@Body() body: any) {
+    return this.onboardingService.updateSettings(body);
+  }
+
+  @Post('backups')
+  triggerBackup(@Body() body: any) {
+    return this.onboardingService.triggerBackup(body);
   }
 }

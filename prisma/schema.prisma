@@ -6908,3 +6908,62 @@ model ExamReadinessCheck {
   @@index([schoolId])
   @@map("exam_readiness_checks")
 }
+
+model PlatformBroadcasts {
+  id           String   @id @default(uuid())
+  subject      String
+  target       String
+  message      String
+  status       String   @default("Sent")
+  scheduledFor String   @default("Immediate") @map("scheduled_for")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@map("platform_broadcasts")
+}
+
+model PlatformTemplates {
+  id          String   @id @default(uuid())
+  name        String
+  type        String
+  status      String   @default("Active")
+  htmlContent String?  @map("html_content")
+  cssContent  String?  @map("css_content")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("platform_templates")
+}
+
+model PlatformBackups {
+  id         String   @id @default(uuid())
+  backupName String   @map("backup_name")
+  size       String
+  status     String   @default("Pending")
+  lastBackup DateTime @default(now()) @map("last_backup")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@map("platform_backups")
+}
+
+model PlatformSecurityPolicies {
+  id                  String   @id @default(uuid())
+  require12Chars      Boolean  @map("require_12_chars")
+  requireSpecialChars Boolean  @map("require_special_chars")
+  force90DayReset     Boolean  @map("force_90_day_reset")
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  @@map("platform_security_policies")
+}
+
+model PlatformSettings {
+  id              String   @id @default(uuid())
+  maintenanceMode Boolean  @map("maintenance_mode")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@map("platform_settings")
+}
+
