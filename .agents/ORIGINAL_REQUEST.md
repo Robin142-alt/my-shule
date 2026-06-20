@@ -195,3 +195,29 @@ Ensure every implemented consumer strictly enforces tenant isolation. All databa
 
 ### Programmatic Verification
 - [ ] `npm run build` succeeds in the `apps/api` workspace without any compilation or TypeScript errors after all consumers are modified.
+
+## Follow-up — 2026-06-20T14:52:30+03:00
+
+Implement the backend logic and database schema to support the comprehensive Platform Settings in the Super Admin dashboard, including Maintenance Mode enforcement, registration controls, session policies, and platform limits.
+
+Working directory: c:\Users\user\Desktop\PROJECTS\Shule hub
+Integrity mode: development
+
+## Requirements
+
+### R1. Backend Persistence for Platform Settings
+Update the database schema (Prisma) to store the newly added platform settings fields (Identity, Default School Settings, Registration & Onboarding, Session & Security, Email Configuration, Platform Limits, and Maintenance Mode). Update the `PUT /api/platform/settings` and `GET /api/platform/settings` endpoints to save and retrieve these complete configurations.
+
+### R2. Enforce Maintenance Mode Globally
+Implement a global middleware, interceptor, or guard in the NestJS backend that intercepts requests to tenant-specific or school-specific routes. If `maintenanceMode` is enabled in the platform settings, it must block access (e.g., return a 503 status or specific error code) for all users EXCEPT those with the Super Admin role.
+
+### R3. Align Frontend and Backend Contracts
+Ensure that the `SettingsWorkspace` frontend correctly sends all the new configuration data to the backend, handles any validation errors from the backend gracefully, and reflects the updated state without data loss on page reloads. 
+
+## Acceptance Criteria
+
+### Settings Persistence
+- [ ] An agent acting as a judge verifies that all fields submitted from the Settings UI (e.g., `allowSelfRegistration`, `maxSchools`, `maintenanceMode`) are successfully saved to the database and correctly returned on subsequent GET requests.
+
+### Maintenance Mode Enforcement
+- [ ] An agent acting as a judge or programmatic test verifies that when `maintenanceMode` is true, an API request simulating a regular school user (e.g., Teacher, Parent) is blocked, while an API request simulating a Super Admin succeeds.

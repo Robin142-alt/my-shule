@@ -2353,41 +2353,84 @@ export class PlatformOnboardingService {
   }
 
   async getSettings() {
-    const result = await this.executeSql('SELECT * FROM platform_settings ORDER BY created_at DESC LIMIT 1');
-    let settingsRow = result.rows[0];
-    if (!settingsRow) {
-      const insertResult = await this.executeSql(
-        'INSERT INTO platform_settings (id, maintenance_mode, created_at, updated_at) VALUES (gen_random_uuid(), false, NOW(), NOW()) RETURNING *'
-      );
-      settingsRow = insertResult.rows[0];
+    let settings = await this.prisma.platformSettings.findFirst({
+      orderBy: { createdAt: 'desc' },
+    });
+    if (!settings) {
+      settings = await this.prisma.platformSettings.create({
+        data: {
+          maintenanceMode: false,
+        },
+      });
     }
-    return {
-      id: settingsRow.id,
-      maintenanceMode: settingsRow.maintenance_mode,
-      createdAt: settingsRow.created_at,
-      updatedAt: settingsRow.updated_at,
-    };
+    return settings;
   }
 
   async updateSettings(body: any) {
-    const maintenanceMode = !!body.maintenanceMode;
-    const result = await this.executeSql('SELECT id FROM platform_settings ORDER BY created_at DESC LIMIT 1');
-    let id = result.rows[0]?.id;
-    if (!id) {
-      const insertResult = await this.executeSql(
-        'INSERT INTO platform_settings (id, maintenance_mode, created_at, updated_at) VALUES (gen_random_uuid(), $1, NOW(), NOW()) RETURNING id',
-        [maintenanceMode]
-      );
-      id = insertResult.rows[0].id;
-    } else {
-      await this.executeSql(
-        'UPDATE platform_settings SET maintenance_mode = $1, updated_at = NOW() WHERE id = $2',
-        [maintenanceMode, id]
-      );
+    const latest = await this.prisma.platformSettings.findFirst({
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const data: any = {};
+    const fields = [
+      'maintenanceMode',
+      'maintenanceMessage',
+      'platformName',
+      'platformTagline',
+      'platformLogoUrl',
+      'supportEmail',
+      'supportPhone',
+      'defaultAcademicYear',
+      'defaultCountry',
+      'defaultTimezone',
+      'defaultGradingSystem',
+      'defaultTermStructure',
+      'allowSelfRegistration',
+      'requireEmailVerification',
+      'autoAssignCoreModules',
+      'defaultTrialDays',
+      'sessionTimeoutMinutes',
+      'maxLoginAttempts',
+      'enforce2fa',
+      'passwordMinLength',
+      'passwordRequireSpecialChar',
+      'emailSenderName',
+      'emailSenderAddress',
+      'emailProvider',
+      'maxSchools',
+      'maxStudentsPerSchool',
+      'maxStorageMbPerSchool',
+    ];
+
+    for (const field of fields) {
+      if (body[field] !== undefined) {
+        if (field === 'maintenanceMode') {
+          data[field] = !!body[field];
+        } else {
+          data[field] = body[field];
+        }
+      }
     }
+
+    if (!latest && data.maintenanceMode === undefined) {
+      data.maintenanceMode = false;
+    }
+
+    let updated;
+    if (latest) {
+      updated = await this.prisma.platformSettings.update({
+        where: { id: latest.id },
+        data,
+      });
+    } else {
+      updated = await this.prisma.platformSettings.create({
+        data,
+      });
+    }
+
     return {
       success: true,
-      maintenanceMode,
+      ...updated,
     };
   }
 

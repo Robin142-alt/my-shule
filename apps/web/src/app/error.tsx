@@ -3,7 +3,6 @@
 import { useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { AlertCircle, RefreshCcw, Home } from 'lucide-react';
-import Link from 'next/link';
 
 export default function ErrorBoundary({
   error,
@@ -26,7 +25,7 @@ export default function ErrorBoundary({
         <div className="space-y-2">
           <h2 className="text-2xl font-semibold tracking-tight">Something went wrong!</h2>
           <p className="text-sm text-muted-foreground">
-            An unexpected error occurred. We've been notified and are looking into it.
+            An unexpected error occurred. We&apos;ve been notified and are looking into it.
           </p>
           {process.env.NODE_ENV === 'development' && (
             <div className="mt-4 rounded-md bg-muted p-4 text-left text-xs text-muted-foreground overflow-auto max-h-40">

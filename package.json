@@ -2,6 +2,13 @@
   "name": "my-shule",
   "version": "0.1.0",
   "private": true,
+  "overrides": {
+    "@hono/node-server": "1.19.13",
+    "multer": "2.2.0",
+    "qs": "6.15.2",
+    "tmp": "0.2.7",
+    "uuid": "11.1.1"
+  },
   "scripts": {
     "prisma:generate": "prisma generate",
     "build": "npm run prisma:generate && tsc -p tsconfig.json",

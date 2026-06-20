@@ -29,6 +29,7 @@ import { TenantMiddleware } from './middleware/tenant.middleware';
 import { RequestIdInterceptor } from './interceptors/request-id.interceptor';
 import { TenantModule } from './tenant/tenant.module';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { MaintenanceModeGuard } from './guards/maintenance-mode.guard';
 import { RbacGuard } from './guards/rbac.guard';
 import { AbacGuard } from './guards/abac.guard';
 import { BillingModule } from './modules/billing/billing.module';
@@ -143,6 +144,10 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
     {
       provide: APP_GUARD,
       useClass: JwtAuthGuard,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: MaintenanceModeGuard,
     },
     {
       provide: APP_GUARD,

@@ -1,8 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { ServiceUnavailableException } from '@nestjs/common';
 
 import { EmailDeliveryError } from '../../auth/auth-email.service';
 import { PlatformOnboardingService } from './platform-onboarding.service';
+import { MaintenanceModeGuard } from '../../guards/maintenance-mode.guard';
+import { SUPERADMIN_ROLE_OWNER } from '../../auth/auth.constants';
 
 test('PlatformOnboardingService creates a school and sends an invite without exposing the token', async () => {
   const queries: Array<{ text: string; values: unknown[] }> = [];
@@ -1224,4 +1227,210 @@ query: async (text: string, values: unknown[]) => {
     queries.some((query) => query.values.some((value) => String(value).includes('legal_offboarding_anonymized_at'))),
     true,
   );
+});
+
+test('PlatformOnboardingService getSettings retrieves or creates settings', async () => {
+  let findFirstCalls = 0;
+  let createCalls = 0;
+  const mockSettings = {
+    id: 'settings-123',
+    maintenanceMode: false,
+    platformName: 'Shule Hub',
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  };
+
+  const service = new PlatformOnboardingService(
+    {
+      platformSettings: {
+        findFirst: async (options: any) => {
+          findFirstCalls++;
+          return null;
+        },
+        create: async (options: any) => {
+          createCalls++;
+          return {
+            ...mockSettings,
+            ...options.data,
+          };
+        },
+      },
+    } as never,
+    {} as never,
+    {} as never,
+    {} as never,
+    {} as never,
+  );
+
+  const result = await service.getSettings();
+  assert.equal(findFirstCalls, 1);
+  assert.equal(createCalls, 1);
+  assert.equal(result.id, 'settings-123');
+  assert.equal(result.maintenanceMode, false);
+});
+
+test('PlatformOnboardingService updateSettings updates existing settings', async () => {
+  let findFirstCalls = 0;
+  let updateCalls = 0;
+  const mockSettings = {
+    id: 'settings-123',
+    maintenanceMode: false,
+    platformName: 'Shule Hub',
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  };
+
+  const service = new PlatformOnboardingService(
+    {
+      platformSettings: {
+        findFirst: async (options: any) => {
+          findFirstCalls++;
+          return mockSettings;
+        },
+        update: async (options: any) => {
+          updateCalls++;
+          assert.equal(options.where.id, 'settings-123');
+          return {
+            ...mockSettings,
+            ...options.data,
+          };
+        },
+      },
+    } as never,
+    {} as never,
+    {} as never,
+    {} as never,
+    {} as never,
+  );
+
+  const result = await service.updateSettings({
+    maintenanceMode: true,
+    platformName: 'New Platform Name',
+    maxSchools: 100,
+  });
+
+  assert.equal(findFirstCalls, 1);
+  assert.equal(updateCalls, 1);
+  assert.equal(result.success, true);
+  assert.equal(result.maintenanceMode, true);
+  assert.equal(result.platformName, 'New Platform Name');
+  assert.equal(result.maxSchools, 100);
+});
+
+function createMockExecutionContext(options: { method?: string; path?: string } = {}) {
+  const req = {
+    method: options.method || 'GET',
+    path: options.path || '/api/schools',
+    url: options.path || '/api/schools',
+  };
+  return {
+    switchToHttp: () => ({
+      getRequest: () => req,
+    }),
+    getHandler: () => ({}),
+    getClass: () => ({}),
+  } as any;
+}
+
+function createMockRequestContextService(role: string | null) {
+  return {
+    getStore: () => ({
+      role,
+    }),
+  } as any;
+}
+
+function createMockPlatformOnboardingService(maintenanceMode: boolean, maintenanceMessage?: string) {
+  return {
+    getSettings: async () => ({
+      maintenanceMode,
+      maintenanceMessage,
+    }),
+  } as any;
+}
+
+test('MaintenanceModeGuard allows platform_owner in maintenance mode', async () => {
+  const guard = new MaintenanceModeGuard(
+    { getAllAndOverride: () => false } as any,
+    createMockRequestContextService(SUPERADMIN_ROLE_OWNER),
+    createMockPlatformOnboardingService(true)
+  );
+
+  const context = createMockExecutionContext();
+  const canActivate = await guard.canActivate(context);
+  assert.equal(canActivate, true);
+});
+
+test('MaintenanceModeGuard blocks member role in maintenance mode', async () => {
+  const guard = new MaintenanceModeGuard(
+    { getAllAndOverride: () => false } as any,
+    createMockRequestContextService('member'),
+    createMockPlatformOnboardingService(true, 'System maintenance ongoing')
+  );
+
+  const context = createMockExecutionContext();
+  await assert.rejects(
+    async () => {
+      await guard.canActivate(context);
+    },
+    (err: any) => {
+      assert.ok(err instanceof ServiceUnavailableException);
+      assert.equal(err.message, 'System maintenance ongoing');
+      assert.equal(err.getStatus(), 503);
+      return true;
+    }
+  );
+});
+
+test('MaintenanceModeGuard allows member role when maintenance mode is disabled', async () => {
+  const guard = new MaintenanceModeGuard(
+    { getAllAndOverride: () => false } as any,
+    createMockRequestContextService('member'),
+    createMockPlatformOnboardingService(false)
+  );
+
+  const context = createMockExecutionContext();
+  const canActivate = await guard.canActivate(context);
+  assert.equal(canActivate, true);
+});
+
+test('MaintenanceModeGuard allows public route when maintenance mode is active', async () => {
+  const guard = new MaintenanceModeGuard(
+    { getAllAndOverride: () => true } as any,
+    createMockRequestContextService('member'),
+    createMockPlatformOnboardingService(true)
+  );
+
+  const context = createMockExecutionContext();
+  const canActivate = await guard.canActivate(context);
+  assert.equal(canActivate, true);
+});
+
+test('MaintenanceModeGuard allows OPTIONS request when maintenance mode is active', async () => {
+  const guard = new MaintenanceModeGuard(
+    { getAllAndOverride: () => false } as any,
+    createMockRequestContextService('member'),
+    createMockPlatformOnboardingService(true)
+  );
+
+  const context = createMockExecutionContext({ method: 'OPTIONS' });
+  const canActivate = await guard.canActivate(context);
+  assert.equal(canActivate, true);
+});
+
+test('MaintenanceModeGuard allows platform routes when maintenance mode is active', async () => {
+  const guard = new MaintenanceModeGuard(
+    { getAllAndOverride: () => false } as any,
+    createMockRequestContextService('member'),
+    createMockPlatformOnboardingService(true)
+  );
+
+  const context1 = createMockExecutionContext({ path: '/api/platform/settings' });
+  assert.equal(await guard.canActivate(context1), true);
+
+  const context2 = createMockExecutionContext({ path: '/platform/setup' });
+  assert.equal(await guard.canActivate(context2), true);
+
+  const context3 = createMockExecutionContext({ path: '/api/health' });
+  assert.equal(await guard.canActivate(context3), true);
 });

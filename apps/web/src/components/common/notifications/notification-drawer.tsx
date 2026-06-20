@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Check, Info, AlertTriangle, AlertCircle, X, ExternalLink } from "lucide-react";
 
@@ -30,7 +30,7 @@ export function NotificationDrawer({
   const [notifications, setNotifications] = useState<NotificationData[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const fetchNotifications = async () => {
+  const fetchNotifications = useCallback(async () => {
     setLoading(true);
     try {
       const token = localStorage.getItem("auth_token") || "";
@@ -47,11 +47,14 @@ export function NotificationDrawer({
     } finally {
       setLoading(false);
     }
-  };
+  }, [activeTab]);
 
   useEffect(() => {
-    fetchNotifications();
-  }, [activeTab]);
+    const fetchTimer = window.setTimeout(() => {
+      void fetchNotifications();
+    }, 0);
+    return () => window.clearTimeout(fetchTimer);
+  }, [fetchNotifications]);
 
   const markAsRead = async (id: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
@@ -163,7 +166,10 @@ export function NotificationDrawer({
                     <button
                       onClick={() => {
                         onClose();
-                        router.push(notif.actionUrl!);
+                        const targetUrl = notif.actionUrl!.startsWith("/")
+                          ? notif.actionUrl!
+                          : `${basePath}/${notif.actionUrl!}`;
+                        router.push(targetUrl.replace(/\/{2,}/g, "/"));
                       }}
                       className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-emerald-100 bg-emerald-50 px-2.5 py-1 text-[10px] font-bold text-emerald-700 transition hover:border-emerald-200 hover:bg-emerald-100"
                     >
