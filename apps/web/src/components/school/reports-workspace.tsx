@@ -5,6 +5,7 @@ import Link from "next/link";
 
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { DataTable } from "@/components/ui/data-table";
 import { Modal } from "@/components/ui/modal";
 import { SchoolPageHeader } from "@/components/school/school-page-header";

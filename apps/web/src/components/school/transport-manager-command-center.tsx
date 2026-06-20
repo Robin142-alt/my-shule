@@ -591,6 +591,19 @@ function OverviewWorkspace({ onViewChange }: { onViewChange: (view: TransportVie
 }
 
 function FleetWorkspace({ onAction }: { onAction: TransportActionHandler }) {
+  const { data: dashboard } = useSchoolQuery<any>("/api/transport/dashboard");
+  const mappedVehicles = dashboard?.vehicles?.map((v: any) => [
+    v.registration_number,
+    v.id,
+    String(v.capacity),
+    v.ownership_type,
+    "-",
+    v.status,
+    v.insurance_expiry_date || "N/A",
+    v.service_due_date || "N/A",
+    v.service_status === "due" ? "danger" : "success",
+  ]) || vehicleRows;
+
   return (
     <>
       <Panel title="Fleet Management" description="Manage all vehicles with search, filters, pagination, export, status badges, and side detail drawers." icon={BusFront}>
@@ -600,21 +613,12 @@ function FleetWorkspace({ onAction }: { onAction: TransportActionHandler }) {
       </Panel>
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
         <Panel title="Vehicle table" description="Vehicle Number, Bus Name, Capacity, Driver, Route, Status, Insurance Expiry, and Next Service Date." icon={ClipboardList}>
-          {(() => {
-            const { data: dashboard } = useSchoolQuery<any>("/api/transport/dashboard");
-            const mappedVehicles = dashboard?.vehicles?.map((v: any) => [
-              v.registration_number, v.id, String(v.capacity), v.ownership_type, "-", v.status, v.insurance_expiry_date || "N/A", v.service_due_date || "N/A", v.service_status === "due" ? "danger" : "success"
-            ]) || vehicleRows;
-            
-            return (
-              <DataTable
-                title="Fleet register"
-                columns={["Vehicle Number", "Bus Name", "Capacity", "Driver", "Route", "Status", "Insurance Expiry", "Next Service", "Tone"]}
-                rows={mappedVehicles}
-                onAction={onAction}
-              />
-            );
-          })()}
+          <DataTable
+            title="Fleet register"
+            columns={["Vehicle Number", "Bus Name", "Capacity", "Driver", "Route", "Status", "Insurance Expiry", "Next Service", "Tone"]}
+            rows={mappedVehicles}
+            onAction={onAction}
+          />
         </Panel>
         <Panel title="Vehicle profile drawer" description="Side drawer preserves context while exposing vehicle records." icon={CarFront}>
           <div className="space-y-3">

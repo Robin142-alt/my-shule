@@ -6,6 +6,8 @@ import { DataTable, type OpsTableColumn } from "@/components/ui/data-table";
 import { Modal } from "@/components/ui/modal";
 import { StatusPill } from "@/components/ui/status-pill";
 import { Tabs } from "@/components/ui/tabs";
+import { MetricGrid } from "@/components/experience/metric-grid";
+import { SchoolPageHeader } from "@/components/school/school-page-header";
 import { getMonthStartInputValue, getTodayInputValue } from "@/lib/date-utils";
 import {
   downloadCsvFile,
@@ -18,6 +20,7 @@ import { getSchoolWorkspace, type SchoolExperienceRole } from "@/lib/experiences
 import { buildBillingApiPath, toMinorUnits, formatMinorKes, formatActivityDate } from "@/lib/billing/billing-utils";
 import type { LearnerLookupItem } from "@/lib/students/student-lookup";
 import { LearnerPicker } from "@/components/common/learner-picker";
+import { SubscriptionLifecyclePanel } from "@/components/school/school-pages";
 
 type SchoolRouteMode = "hosted" | "public";
 type ManualReceiptMethod = "cash" | "cheque" | "bank_deposit" | "eft" | "mpesa_c2b";

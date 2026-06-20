@@ -54,7 +54,8 @@ export function StaffRecordsWorkspace() {
   };
 
   const handleApprove = async (id: string) => {
-    const num = prompt("Enter new Staff Number", `STF-${Date.now().toString().slice(-4)}`);
+    const defaultStaffNumber = `STF-${id.replace(/[^a-zA-Z0-9]/g, "").slice(-4).padStart(4, "0").toUpperCase()}`;
+    const num = prompt("Enter new Staff Number", defaultStaffNumber);
     if (!num) return;
     await approveMutation.mutateAsync({
       staff_profile_id: id,

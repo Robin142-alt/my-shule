@@ -8,7 +8,7 @@ import { useSchoolQuery } from "@/lib/data/school-hooks";
 export function DataQualityWorkspace() {
   const { data: insightsData, isLoading } = useSchoolQuery<any>("/api/ai-insights/dashboard");
 
-  let anomalies = insightsData?.items || [];
+  const anomalies = insightsData?.items || [];
   const criticalCount = anomalies.filter((a: any) => a.severity === 'critical').length;
   const warningCount = anomalies.filter((a: any) => a.severity === 'warning').length;
   const score = Math.max(0, 100 - (criticalCount * 2) - (warningCount * 0.5));

@@ -463,6 +463,8 @@ function PendingReviews({ capability, onAction }: { capability: DeanWidgetCapabi
         })
       });
 
+      const lockedMarkIds = pendingMarks.map((m: any) => m.id);
+
       publishSchoolOperationalEvent({
         schoolId,
         type: "DEAN_MARKS_LOCKED",
@@ -470,7 +472,7 @@ function PendingReviews({ capability, onAction }: { capability: DeanWidgetCapabi
         actorRole: "Dean of Academics",
         title: "Batch Locked for Publication",
         body: `Dean locked ${pendingMarks.length} reviewed marks.`,
-        entityId: `dean-lock-${Date.now()}`,
+        entityId: `dean-lock-${lockedMarkIds.join("-").slice(0, 80) || "empty"}`,
         severity: "success",
       });
 

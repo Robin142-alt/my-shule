@@ -1,4 +1,5 @@
 import "@testing-library/jest-dom";
+import "fake-indexeddb/auto";
 
 import { TextDecoder, TextEncoder } from "node:util";
 import React from "react";
@@ -16,7 +17,6 @@ const nextNavigationRouterMock = {
   prefetch: routerPrefetchMock,
 };
 
-require("fake-indexeddb/auto");
 Object.assign(global, {
   TextEncoder,
   TextDecoder,
