@@ -1,6 +1,6 @@
 "use client";
 
-import { Users, BookOpen, Clock, ChevronRight } from "lucide-react";
+import { Users, BookOpen, ChevronRight } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useSchoolQuery } from "@/lib/data/school-hooks";

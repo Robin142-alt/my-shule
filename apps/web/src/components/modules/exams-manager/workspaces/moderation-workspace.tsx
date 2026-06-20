@@ -6,7 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, PlayCircle, ShieldAlert, CheckCircle, Mail, Download, UserCheck, Eye, Edit, AlertCircle, Loader2 } from "lucide-react";
+import { MoreHorizontal, PlayCircle, CheckCircle, Mail, Download, UserCheck, Eye, Edit, Loader2 } from "lucide-react";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 
 export function ModerationWorkspace({ model }: { model: any }) {

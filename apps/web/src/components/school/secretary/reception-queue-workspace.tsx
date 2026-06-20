@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { ListOrdered, Plus, UserCheck, CheckCircle } from "lucide-react";
+import { ListOrdered, UserCheck, CheckCircle } from "lucide-react";
 import { toast } from "sonner";
 import { Panel, StatusChip, Tone } from "./shared";
 import { useSchoolQuery } from "@/lib/data/school-hooks";

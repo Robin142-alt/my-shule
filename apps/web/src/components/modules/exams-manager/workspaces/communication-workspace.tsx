@@ -6,7 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, Plus, Send, Clock, Eye, Copy, MessageSquare, Loader2 } from "lucide-react";
+import { MoreHorizontal, Plus, Clock, Eye, Copy, MessageSquare, Loader2 } from "lucide-react";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 
 export function CommunicationWorkspace({ model }: { model: any }) {

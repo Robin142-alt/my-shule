@@ -1,7 +1,7 @@
 "use client";
 
 import { Card } from "@/components/ui/card";
-import { AlertCircle, CalendarClock, UserX, UserMinus } from "lucide-react";
+import { AlertCircle, UserMinus } from "lucide-react";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";

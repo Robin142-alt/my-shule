@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Card } from "@/components/ui/card";
-import { AlertCircle, Wallet, TrendingUp, Download, PieChart, Receipt, Plus, Loader2, CheckCircle2 } from "lucide-react";
+import { AlertCircle, Plus, Loader2, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 import { Modal } from "@/components/ui/modal";

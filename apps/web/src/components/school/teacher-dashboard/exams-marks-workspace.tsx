@@ -1,5 +1,5 @@
 import { BookOpenCheck, Loader2 } from "lucide-react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Panel, RecordTable } from "./shared-components";
 import { TeacherAction, TeacherView } from "./types";

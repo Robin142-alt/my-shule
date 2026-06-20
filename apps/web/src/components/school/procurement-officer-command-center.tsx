@@ -1,8 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
-import { Search, ShoppingCart, FileText, Truck, DollarSign, LayoutDashboard, Plus, Package } from "lucide-react";
+earch, ShoppingCart, FileText, Truck, DollarSign, LayoutDashboard, Plus } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { StatusPill } from "@/components/ui/status-pill";

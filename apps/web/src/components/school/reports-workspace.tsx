@@ -1,19 +1,13 @@
 
 // @ts-nocheck
 "use client";
-import Link from "next/link";
 
-import { useState, useEffect } from "react";
-import { Button } from "@/components/ui/button";
+Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { DataTable } from "@/components/ui/data-table";
-import { Modal } from "@/components/ui/modal";
 import { SchoolPageHeader } from "@/components/school/school-page-header";
 import { MetricGrid } from "@/components/experience/metric-grid";
-import { StatusPill } from "@/components/ui/status-pill";
-import { getSchoolWorkspace, type SchoolExperienceRole, buildSchoolStudentHref } from "@/lib/experiences/school-data";
+import { getSchoolWorkspace, type SchoolExperienceRole } from "@/lib/experiences/school-data";
 
-import type { SchoolRouteMode } from "@/components/school/school-pages";
 export function SchoolReportsPage({
   role,
   tenantSlug,

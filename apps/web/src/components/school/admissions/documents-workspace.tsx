@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { FileText, CheckCircle, AlertCircle, Send } from "lucide-react";
+import { FileText, CheckCircle, Send } from "lucide-react";
 import { Panel, StatusChip, Tone } from "./shared";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 import { toast } from "sonner";

@@ -1,10 +1,7 @@
 "use client";
-import { useState } from "react";
-import { LayoutDashboard, Users, Clock, Phone, FileText, Mail, UserCheck, AlertCircle } from "lucide-react";
-import { toast } from "sonner";
+import { LayoutDashboard, Users, Clock, Phone, Mail, UserCheck, AlertCircle } from "lucide-react";
 import { Panel, StatusChip, Tone } from "./shared";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
-import { fetchSecretaryOverview } from "./api-client";
 
 type OverviewData = {
   metrics: {

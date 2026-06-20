@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Search, Monitor, ShieldAlert, Server, Smartphone, CheckCircle2, LayoutDashboard, Plus, Users } from "lucide-react";
+import { Search, Monitor, ShieldAlert, Server, Smartphone, LayoutDashboard, Plus, Users } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { StatusPill } from "@/components/ui/status-pill";

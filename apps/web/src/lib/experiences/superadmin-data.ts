@@ -170,24 +170,22 @@ export const superadminNavMap: Record<string, ExperienceNavItem[]> = {
 };
 
 import {
-  Settings,
-  ClipboardList,
-  Stethoscope,
-  FileSpreadsheet,
-  GraduationCap,
-  UserSquare2,
-  LayoutGrid,
-  Library,
   Activity,
   BellRing,
+  Blocks,
   Building2,
   CircleDollarSign,
+  ClipboardList,
   CreditCard,
+  FileSpreadsheet,
+  LayoutGrid,
   LifeBuoy,
-  ServerCog,
-  ShieldCheck,
   MessageSquareText,
+  ServerCog,
+  Settings,
+  ShieldCheck,
   SmartphoneCharging,
+  Stethoscope,
   Users,
   Waypoints,
 } from "lucide-react";
@@ -208,7 +206,6 @@ import type {
   ExperienceProfile,
 } from "@/lib/experiences/types";
 import { toSuperadminPath } from "@/lib/routing/experience-routes";
-import { adminSupportSidebarItems } from "@/lib/support/support-data";
 
 export type TenantControlRow = {
   id: string;
@@ -264,18 +261,41 @@ export type AuditRow = {
 };
 
 export const superadminNav: ExperienceNavItem[] = [
+  /* ── Platform Operations ─────────────────────────────── */
   { id: "platform-overview", label: "Platform Overview", href: toSuperadminPath("platform-overview"), icon: LayoutGrid, group: "Platform Operations" },
-  { id: "schools", label: "Schools", href: toSuperadminPath("schools"), icon: Building2, group: "Platform Operations" },
-  { id: "school-onboarding", label: "School Onboarding", href: toSuperadminPath("school-onboarding"), icon: LayoutGrid, group: "Platform Operations" },
-  { id: "principal-invites", label: "Principal Invites", href: toSuperadminPath("principal-invites"), icon: LayoutGrid, group: "Platform Operations" },
-  { id: "module-access-control", label: "Module Access Control", href: toSuperadminPath("module-access-control"), icon: LayoutGrid, group: "Platform Operations" },
   { id: "tenant-health", label: "Tenant Health", href: toSuperadminPath("tenant-health"), icon: Stethoscope, group: "Platform Operations" },
-  { id: "users-roles", label: "Users & Roles", href: toSuperadminPath("users-roles"), icon: LayoutGrid, group: "Platform Operations" },
-  { id: "gateways", label: "Gateways", href: toSuperadminPath("gateways"), icon: LayoutGrid, group: "Platform Operations" },
-  { id: "communication-templates", label: "Communication Templates", href: toSuperadminPath("communication-templates"), icon: LayoutGrid, group: "Platform Operations" },
-  { id: "audit-logs", label: "Audit Logs", href: toSuperadminPath("audit-logs"), icon: LayoutGrid, group: "Platform Operations" },
-  { id: "support-desk", label: "Support Desk", href: toSuperadminPath("support-desk"), icon: LayoutGrid, group: "Platform Operations" },
-  { id: "system-settings", label: "System Settings", href: toSuperadminPath("system-settings"), icon: Settings, group: "Platform Operations" },
+  { id: "setup-progress", label: "Setup Progress", href: toSuperadminPath("setup-progress"), icon: Activity, group: "Platform Operations" },
+  { id: "demo-manager", label: "Demo Manager", href: toSuperadminPath("demo-manager"), icon: Blocks, group: "Platform Operations" },
+
+  /* ── Schools & Tenants ──────────────────────────────── */
+  { id: "schools", label: "Schools", href: toSuperadminPath("schools"), icon: Building2, group: "Schools & Tenants" },
+  { id: "school-onboarding", label: "School Onboarding", href: toSuperadminPath("school-onboarding"), icon: Building2, group: "Schools & Tenants" },
+  { id: "principal-invites", label: "Principal Invitations", href: toSuperadminPath("principal-invites"), icon: ClipboardList, group: "Schools & Tenants" },
+  { id: "module-access-control", label: "Module Access Control", href: toSuperadminPath("module-access-control"), icon: ClipboardList, group: "Schools & Tenants" },
+  { id: "users-roles", label: "Users & Roles", href: toSuperadminPath("users-roles"), icon: Users, group: "Schools & Tenants" },
+
+  /* ── Billing & Revenue ──────────────────────────────── */
+  { id: "revenue", label: "Revenue", href: toSuperadminPath("revenue"), icon: CircleDollarSign, group: "Billing & Revenue" },
+  { id: "subscriptions", label: "Subscriptions", href: toSuperadminPath("subscriptions"), icon: CreditCard, group: "Billing & Revenue" },
+  { id: "mpesa", label: "M-Pesa Monitoring", href: toSuperadminPath("mpesa"), icon: SmartphoneCharging, group: "Billing & Revenue" },
+  { id: "gateways", label: "Payment Gateways", href: toSuperadminPath("gateways"), icon: Waypoints, group: "Billing & Revenue" },
+
+  /* ── Communication ──────────────────────────────────── */
+  { id: "broadcasts", label: "Broadcasts", href: toSuperadminPath("broadcasts"), icon: BellRing, group: "Communication" },
+  { id: "sms-email", label: "SMS & Email Settings", href: toSuperadminPath("sms-email"), icon: MessageSquareText, group: "Communication" },
+  { id: "communication-templates", label: "Templates", href: toSuperadminPath("communication-templates"), icon: MessageSquareText, group: "Communication" },
+
+  /* ── Security & Compliance ──────────────────────────── */
+  { id: "security", label: "Security Policies", href: toSuperadminPath("security"), icon: ShieldCheck, group: "Security & Compliance" },
+  { id: "audit-logs", label: "Audit Logs", href: toSuperadminPath("audit-logs"), icon: FileSpreadsheet, group: "Security & Compliance" },
+
+  /* ── Support ────────────────────────────────────────── */
+  { id: "support-desk", label: "Support Desk", href: toSuperadminPath("support-desk"), icon: LifeBuoy, group: "Support" },
+
+  /* ── System Administration ──────────────────────────── */
+  { id: "reports", label: "Platform Reports", href: toSuperadminPath("reports"), icon: FileSpreadsheet, group: "System Administration" },
+  { id: "data-tools", label: "Data Tools", href: toSuperadminPath("data-tools"), icon: ServerCog, group: "System Administration" },
+  { id: "system-settings", label: "System Settings", href: toSuperadminPath("system-settings"), icon: Settings, group: "System Administration" },
 ];
 
 export const superadminProfile: ExperienceProfile = {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { BookOpen, Layers, Calendar, Plus, Settings2 } from "lucide-react";
+import {  Layers, Calendar, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useSchoolQuery, useSchoolMutation } from "@/lib/data/school-hooks";

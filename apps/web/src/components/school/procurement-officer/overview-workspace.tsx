@@ -1,6 +1,6 @@
 "use client";
 import { ShoppingCart } from "lucide-react";
-import { Panel, StatusChip, Tone } from "./shared";
+import { Panel, Tone } from "./shared";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 
 type OverviewRecord = {

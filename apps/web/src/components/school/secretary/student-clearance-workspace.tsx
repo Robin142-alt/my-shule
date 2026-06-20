@@ -4,7 +4,7 @@ import { ClipboardCheck, CheckCircle, Printer, UserX } from "lucide-react";
 import { toast } from "sonner";
 import { Panel, StatusChip, Tone } from "./shared";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
-import { approveClearanceStep, completeClearance, printClearanceForm } from "./api-client";
+import {  completeClearance, printClearanceForm } from "./api-client";
 
 type ClearanceRecord = {
   id: string;

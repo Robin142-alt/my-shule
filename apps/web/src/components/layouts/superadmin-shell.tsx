@@ -24,7 +24,6 @@ import { useState, type ReactNode } from "react";
 import { TaskQueue } from "../shared/task-queue";
 import { ApprovalInbox } from "../shared/approval-inbox";
 import { NotificationBell } from "../shared/notification-bell";
-import { WorkflowToast } from "../shared/workflow-toast";
 
 /* ─── Nav Config ─────────────────────────────────────────────────── */
 const superadminNav = [

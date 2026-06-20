@@ -10,7 +10,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { MoreHorizontal, Plus, Copy, Upload, Download, Archive, Edit, Settings, Trash2, CalendarDays, Loader2 } from "lucide-react";
+import { MoreHorizontal, Plus, Copy, Upload, Archive, Edit, Settings, Trash2, CalendarDays, Loader2 } from "lucide-react";
 import { useSchoolQuery, useSchoolMutation } from "@/lib/data/school-hooks";
 
 function CreateExamDialog({ children, onSuccess }: { children: React.ReactNode, onSuccess?: () => void }) {

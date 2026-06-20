@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { UserCircle, Search } from "lucide-react";
 import { toast } from "sonner";
-import { Panel, StatusChip, Tone } from "./shared";
+import { Panel, StatusChip } from "./shared";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 import { updateLearnerNote } from "./api-client";
 

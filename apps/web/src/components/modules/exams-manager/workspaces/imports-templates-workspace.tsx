@@ -6,7 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, Download, Upload, CheckCircle, FileSpreadsheet, RotateCcw, AlertTriangle, Eye, Loader2 } from "lucide-react";
+import { MoreHorizontal, Download, Upload, CheckCircle, FileSpreadsheet, RotateCcw, Eye, Loader2 } from "lucide-react";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 
 export function ImportsTemplatesWorkspace({ model }: { model: any }) {

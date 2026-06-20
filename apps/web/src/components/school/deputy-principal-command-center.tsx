@@ -3,38 +3,28 @@
 import { useEffect, useState, useMemo } from "react";
 import {
   Activity,
-  AlertTriangle,
-  Bell,
   BookOpen,
-  BrainCircuit,
-  Bus,
   CalendarClock,
   CheckCircle2,
   ClipboardCheck,
-  Clock,
   FileBarChart2,
   GraduationCap,
   Home,
   MessageSquareText,
-  PackageCheck,
-  RadioTower,
   Search,
   Settings,
   ShieldAlert,
   ShieldCheck,
-  Siren,
   Stethoscope,
   UsersRound,
   UserRoundCheck,
   Layers,
-  LucideIcon,
-  CheckSquare
+  LucideIcon
 } from "lucide-react";
 
 import { ApprovalInbox } from "@/components/shared/approval-inbox";
 import { NotificationBell } from "@/components/shared/notification-bell";
 import { TaskQueue } from "@/components/shared/task-queue";
-import { WorkflowToast } from "@/components/shared/workflow-toast";
 import { buildSchoolSectionHref } from "./school-pages";
 
 import { DeputyOverviewWorkspace } from "./deputy-principal/overview-workspace";

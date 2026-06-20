@@ -2,15 +2,14 @@
 
 import { useEffect, useState, useMemo } from "react";
 import {
-  Activity, Bell, BookOpen, CheckCircle2, ClipboardCheck, GraduationCap, Home,
-  MessageSquareText, Search, Settings, ShieldAlert, ShieldCheck, UsersRound,
-  UserRoundCheck, Layers, LucideIcon, Wallet, BarChart3, Building2, Package, CheckSquare
+  Activity, BookOpen, CheckCircle2, ClipboardCheck, GraduationCap, Home,
+  MessageSquareText, Search, Settings, ShieldAlert, UsersRound,
+  UserRoundCheck, Layers, LucideIcon, Wallet, BarChart3, Building2, CheckSquare
 } from "lucide-react";
 
 import { ApprovalInbox } from "@/components/shared/approval-inbox";
 import { NotificationBell } from "@/components/shared/notification-bell";
 import { TaskQueue } from "@/components/shared/task-queue";
-import { WorkflowToast } from "@/components/shared/workflow-toast";
 
 import { PrincipalOverviewWorkspace } from "./principal-dashboard/overview-workspace";
 import { PrincipalSetupChecklistWorkspace } from "./principal-dashboard/setup-checklist-workspace";

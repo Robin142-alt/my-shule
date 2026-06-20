@@ -5,7 +5,6 @@ import { FeeStructuresWorkspace } from "@/components/school/accountant/fee-struc
 import { InvoicesWorkspace } from "@/components/school/accountant/invoices-workspace";
 import { PaymentsWorkspace } from "@/components/school/accountant/payments-workspace";
 import { MPesaReconciliationWorkspace } from "@/components/school/accountant/m-pesa-reconciliation-workspace";
-import { OverviewWorkspace } from "@/components/school/accountant/overview-workspace";
 import { ExpensesWorkspace } from "@/components/school/accountant/expenses-workspace";
 import { ArrearsWorkspace } from "@/components/school/accountant/arrears-workspace";
 import { ReceiptsWorkspace } from "@/components/school/accountant/receipts-workspace";

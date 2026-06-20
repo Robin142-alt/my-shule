@@ -57,7 +57,6 @@ import {
   advanceAdmissionsStudentAcademicLifecycleLive,
   buildAdmissionDocumentUploads,
   buildAdmissionRegistrationSummary,
-  createAdmissionApplicationLive,
   createManualAdmissionLive,
   createAdmissionsAllocationLive,
   createAdmissionsTransferLive,

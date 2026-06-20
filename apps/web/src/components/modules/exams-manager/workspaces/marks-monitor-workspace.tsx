@@ -6,7 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, PlayCircle, StopCircle, Bell, Download, Lock, Eye, RotateCcw, Loader2 } from "lucide-react";
+import { MoreHorizontal, PlayCircle, Bell, Download, Lock, Eye, RotateCcw, Loader2 } from "lucide-react";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 
 export function MarksMonitorWorkspace({ model }: { model: any }) {

@@ -6,7 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, Plus, Copy, Upload, Download, Edit, Trash2, Settings, Loader2 } from "lucide-react";
+import { MoreHorizontal, Plus, Copy, Upload, Edit, Trash2, Settings, Loader2 } from "lucide-react";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 
 export function PapersComponentsWorkspace({ model }: { model: any }) {

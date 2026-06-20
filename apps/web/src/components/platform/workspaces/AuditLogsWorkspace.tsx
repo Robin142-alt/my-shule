@@ -1,10 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Button } from "@/components/ui/button";
 import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
-import { Modal } from "@/components/ui/modal";
-import { StatusPill } from "@/components/ui/status-pill";
 import { redirectOnExpiredSessionError } from "@/lib/auth/session-expiry-client";
 import { SuperadminPageHeader } from "@/components/platform/superadmin-pages";
 import { fetchPlatformAuditLogs } from "@/lib/platform/school-onboarding-client";

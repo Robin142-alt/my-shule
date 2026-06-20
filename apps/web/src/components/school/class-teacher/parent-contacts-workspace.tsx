@@ -1,8 +1,8 @@
 "use client";
 import { useState } from "react";
-import { Phone, MessageCircle, Mail } from "lucide-react";
+import { Phone, MessageCircle } from "lucide-react";
 import { toast } from "sonner";
-import { Panel, StatusChip, Tone } from "./shared";
+import { Panel } from "./shared";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 import { messageParent } from "./api-client";
 

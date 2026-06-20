@@ -19,15 +19,12 @@ import {
 import { ApprovalInbox } from "@/components/shared/approval-inbox";
 import { NotificationBell } from "@/components/shared/notification-bell";
 import { TaskQueue } from "@/components/shared/task-queue";
-import { WorkflowToast } from "@/components/shared/workflow-toast";
 
 import type { WidgetState } from "@/lib/capability-engine/school-capability-engine";
 import { getCurrentSchoolId, publishSchoolOperationalEvent } from "@/lib/school/school-operational-store";
 import { useLiveTenantSession } from "@/hooks/use-live-tenant-session";
-import { useSchoolQuery, useSchoolMutation } from "@/lib/data/school-hooks";
+import { useSchoolQuery } from "@/lib/data/school-hooks";
 import { usePermissions } from "@/components/providers/permission-context";
-import { Modal } from "@/components/ui/modal";
-import { Button } from "@/components/ui/button";
 import { buildSchoolSectionHref } from "./school-pages";
 import { requestDashboardApi } from "@/lib/dashboard/api-client";
 import { toast } from "sonner";

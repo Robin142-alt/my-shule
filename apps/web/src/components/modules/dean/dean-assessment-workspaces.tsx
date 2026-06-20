@@ -5,7 +5,7 @@ import { Card } from "@/components/ui/card";
 import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
 import { StatusPill } from "@/components/ui/status-pill";
 import { Button } from "@/components/ui/button";
-import type { DeanDataset, ContinuousAssessment, ExamReview, ReportReadiness } from "@/lib/modules/dean-data";
+import type { DeanDataset, ContinuousAssessment, ExamReview } from "@/lib/modules/dean-data";
 
 export function ContinuousAssessmentWorkspace({ dataset }: { dataset: DeanDataset }) {
   const caRows = dataset.continuousAssessments;

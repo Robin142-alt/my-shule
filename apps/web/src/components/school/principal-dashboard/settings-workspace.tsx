@@ -1,7 +1,7 @@
 "use client";
 
 import { Card } from "@/components/ui/card";
-import { AlertCircle, Bell, Lock, Paintbrush, Monitor } from "lucide-react";
+import { AlertCircle, Bell, Lock, Monitor } from "lucide-react";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 
 type PrincipalSettingsData = {

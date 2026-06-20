@@ -5,12 +5,10 @@ import { useState, useEffect, type ReactNode } from "react";
 import {
   AlertTriangle,
   BedDouble,
-  Bell,
   Building,
   Calendar,
   CheckCircle,
   CheckSquare,
-  ChevronDown,
   ClipboardList,
   Clock,
   DoorOpen,
@@ -26,18 +24,16 @@ import {
   Users,
   Utensils,
   Wrench,
-  X,
   type LucideIcon,
 } from "lucide-react";
 
-import { useSchoolQuery, useSchoolMutation } from "@/lib/data/school-hooks";
-import { getCurrentSchoolId, publishSchoolOperationalEvent } from "@/lib/school/school-operational-store";
+import { useSchoolQuery } from "@/lib/data/school-hooks";
+import {  publishSchoolOperationalEvent } from "@/lib/school/school-operational-store";
 import { requestDashboardApi } from "@/lib/dashboard/api-client";
 import { toast } from "sonner";
 import { ApprovalInbox } from "@/components/shared/approval-inbox";
 import { NotificationBell } from "@/components/shared/notification-bell";
 import { TaskQueue } from "@/components/shared/task-queue";
-import { WorkflowToast } from "@/components/shared/workflow-toast";
 import { buildSchoolSectionHref } from "./school-pages";
 
 type RouteMode = "hosted" | "public";

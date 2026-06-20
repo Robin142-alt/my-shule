@@ -4,7 +4,7 @@ import { Calendar, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { Panel, StatusChip, MetricCard, Tone } from "./shared";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
-import { createAcademicYear, createTerm } from "./api-client";
+import { createAcademicYear } from "./api-client";
 
 type TermRecord = { id: string; name: string; start_date: string; end_date: string; status: string };
 type AcademicYearRecord = { id: string; year: string; status: string; terms: TermRecord[] };
