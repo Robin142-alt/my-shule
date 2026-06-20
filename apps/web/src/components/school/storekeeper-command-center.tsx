@@ -22,6 +22,7 @@ import {
   ListChecks,
   LockKeyhole,
   Moon,
+  PackageCheck,
   PackageOpen,
   PackagePlus,
   Radar,
@@ -40,6 +41,7 @@ import {
 import { ApprovalInbox } from "@/components/shared/approval-inbox";
 import { NotificationBell } from "@/components/shared/notification-bell";
 import { TaskQueue } from "@/components/shared/task-queue";
+import { WorkflowToast } from "@/components/shared/workflow-toast";
 import { usePermissions } from "@/components/providers/permission-context";
 import { Modal } from "@/components/ui/modal";
 

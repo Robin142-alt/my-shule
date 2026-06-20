@@ -1,6 +1,6 @@
 "use client";
 
-import { CreditCard, Download, FileText, CheckCircle, AlertTriangle } from "lucide-react";
+import { CreditCard, Download, FileText, CheckCircle, Clock, AlertTriangle } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useSchoolQuery } from "@/lib/data/school-hooks";

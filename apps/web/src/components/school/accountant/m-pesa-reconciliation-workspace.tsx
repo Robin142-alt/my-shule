@@ -6,15 +6,19 @@ import { SchoolPageHeader } from "@/components/school/school-page-header";
 import { MetricGrid } from "@/components/experience/metric-grid";
 import { DataTable } from "@/components/ui/data-table";
 import { Button } from "@/components/ui/button";
+import { Modal } from "@/components/ui/modal";
 import { StatusPill } from "@/components/ui/status-pill";
 import { getMissingFieldError, getApiResponseMessage } from "@/lib/forms/validation";
 import { formatMinorKes, toMinorUnits } from "@/lib/billing/billing-utils";
 import { buildBillingApiPath, buildPaymentsApiPath, unwrapApiData } from "@/lib/data/school-api-config";
-er-picker";
+import { Check, ChevronsUpDown, ArrowRight, Wallet, CheckCircle2, History } from "lucide-react";
+import { LearnerPicker } from "@/components/common/learner-picker";
 import type { SchoolExperienceRole } from "@/lib/experiences/school-data";
 import type { LearnerLookupItem } from "@/lib/students/student-lookup";
-import { mpesaC2bStatusTone, manualReceiptSelectableMethods, manualReceiptMethodLabels, manualReceiptStatusTone, type ManualReceiptResponse, type MpesaC2bPaymentResponse, type ManualReceiptMethod } from "@/components/school/school-pages";
-ction MPesaReconciliationWorkspace({
+import { mpesaC2bStatusTone, manualReceiptSelectableMethods, manualReceiptMethodLabels, manualReceiptStatusTone, type ManualReceiptResponse, type ManualReceiptStatus, type MpesaC2bPaymentResponse, type MpesaC2bStatus, type ManualReceiptMethod } from "@/components/school/school-pages";
+import type { StatusTone, SyncState } from "@/lib/dashboard/types";
+
+export function MPesaReconciliationWorkspace({
   role,
   tenantSlug,
 }: {

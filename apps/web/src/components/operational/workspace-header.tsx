@@ -1,6 +1,6 @@
 "use client";
 
-import { ShieldCheck, ShieldAlert, Lock, AlertTriangle } from "lucide-react";
+import { ShieldCheck, ShieldAlert, Lock, Unlock, AlertTriangle } from "lucide-react";
 import { StatusPill } from "@/components/ui/status-pill";
 
 export type WorkspacePermission = "FULL_ACCESS" | "VIEW_ONLY" | "RESTRICTED" | "APPROVAL_REQUIRED";

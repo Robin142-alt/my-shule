@@ -1,6 +1,6 @@
 "use client";
 
-import { Award, AlertTriangle, TrendingUp, ShieldAlert, CheckCircle } from "lucide-react";
+import { Award, AlertTriangle, TrendingUp, User, ShieldAlert, CheckCircle } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useSchoolQuery } from "@/lib/data/school-hooks";

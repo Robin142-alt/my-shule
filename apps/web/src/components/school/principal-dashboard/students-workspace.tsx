@@ -1,9 +1,10 @@
 "use client";
 
 import { Card } from "@/components/ui/card";
-import { AlertCircle, Users, Plus } from "lucide-react";
+import { AlertCircle, Users, UserPlus, Plus } from "lucide-react";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 import { useDashboardEventBus } from "@/lib/dashboard-communication/dashboard-communication-provider";
+import { useState } from "react";
 import { usePermissions } from "@/components/providers/permission-context";
 import { Button } from "@/components/ui/button";
 

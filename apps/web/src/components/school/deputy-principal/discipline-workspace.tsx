@@ -3,7 +3,7 @@ import { useState } from "react";
 import { ShieldAlert, Search, PlusCircle } from "lucide-react";
 import { Panel, StatusChip, Tone } from "./shared";
 import { Modal } from "@/components/ui/modal";
-import { useSchoolQuery } from "@/lib/data/school-hooks";
+import { useSchoolQuery, useSchoolMutation } from "@/lib/data/school-hooks";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { createDisciplineIncident, escalateDisciplineIncident } from "./api-client";

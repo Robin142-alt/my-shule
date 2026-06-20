@@ -5,7 +5,8 @@ import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-ucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Download, Filter, Search, Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 

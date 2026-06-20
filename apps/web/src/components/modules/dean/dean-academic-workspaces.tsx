@@ -5,7 +5,7 @@ import { Card } from "@/components/ui/card";
 import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
 import { StatusPill } from "@/components/ui/status-pill";
 import { Button } from "@/components/ui/button";
-import { Calendar, BookOpen, Clock } from "lucide-react";
+import { Calendar, BookOpen, GraduationCap, Clock } from "lucide-react";
 import type { DeanDataset } from "@/lib/modules/dean-data";
 
 export function AcademicCalendarWorkspace({ dataset }: { dataset: DeanDataset }) {

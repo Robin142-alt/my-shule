@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { MessageSquareText } from "lucide-react";
-import { Panel, StatusChip } from "./shared";
+import { Panel, StatusChip, Tone } from "./shared";
 import { Modal } from "@/components/ui/modal";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 import { toast } from "sonner";

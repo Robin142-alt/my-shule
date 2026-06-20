@@ -3,6 +3,8 @@ import { DocxOperationalWorkspace } from "@/components/school/docx-operational-w
 
 import { useMemo } from "react";
 import type { DashboardRole, DashboardSnapshot } from "@/lib/dashboard/types";
+import { PageHeader } from "@/components/ui/page-header";
+import { Card } from "@/components/ui/card";
 import { buildSchoolErpModel } from "@/lib/dashboard/erp-model";
 
 import { OverviewWorkspace } from "./workspaces/overview-workspace";

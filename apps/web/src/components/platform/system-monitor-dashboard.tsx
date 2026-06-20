@@ -5,6 +5,7 @@ import { useState, type ReactNode } from "react";
 import {
   Activity,
   AlertTriangle,
+  Bell,
   Building2,
   Database,
   FileText,
@@ -30,6 +31,7 @@ import {
 import { ApprovalInbox } from "@/components/shared/approval-inbox";
 import { NotificationBell } from "@/components/shared/notification-bell";
 import { TaskQueue } from "@/components/shared/task-queue";
+import { WorkflowToast } from "@/components/shared/workflow-toast";
 
 type RouteMode = "hosted" | "public";
 type Tone = "success" | "info" | "warning" | "danger" | "neutral";

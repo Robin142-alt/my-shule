@@ -1,6 +1,6 @@
 import { expect } from '@playwright/test';
 import { test } from '../fixtures/database.fixture';
-import { loginAs, logout } from '../fixtures/auth.fixture';
+import { loginAs, logout, RoleCredentials } from '../fixtures/auth.fixture';
 
 test.describe('Authentication Contract', () => {
   

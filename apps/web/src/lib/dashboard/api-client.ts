@@ -5,7 +5,11 @@ type ApiEnvelope<T> = {
 
 import { getCsrfToken } from "@/lib/auth/csrf-client";
 import type {
-  
+  AlertItem,
+  DashboardRole,
+  DashboardSnapshot,
+  NotificationItem,
+  StatusTone,
   FinanceWidgetData,
   AcademicsWidgetData,
   StudentsWidgetData

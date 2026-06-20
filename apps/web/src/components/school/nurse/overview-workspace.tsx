@@ -1,7 +1,9 @@
 "use client";
+import { useState } from "react";
 import { HeartPulse, Users, BedDouble, Pill, AlertTriangle } from "lucide-react";
 import { Panel, StatusChip, Tone } from "./shared";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
+import { toast } from "sonner";
 
 type RecentVisit = {
   id: string;

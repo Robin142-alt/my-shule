@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { ClipboardList, PlusCircle, Search } from "lucide-react";
-import { Panel } from "./shared";
+import { Panel, StatusChip, Tone } from "./shared";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";

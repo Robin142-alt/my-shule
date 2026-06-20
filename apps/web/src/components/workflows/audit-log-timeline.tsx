@@ -1,5 +1,5 @@
 import React from 'react';
-import { Shield, Clock, User } from 'lucide-react';
+import { Shield, Clock, User, CheckCircle2, AlertTriangle, FileText } from 'lucide-react';
 
 export interface AuditLogEntry {
   id: string;

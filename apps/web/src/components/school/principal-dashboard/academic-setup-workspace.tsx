@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Card } from "@/components/ui/card";
-import { AlertCircle, GraduationCap, Calendar, Settings, Plus, Loader2 } from "lucide-react";
+import { AlertCircle, GraduationCap, Calendar, Settings, Plus, Loader2, FileText, CheckSquare } from "lucide-react";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";

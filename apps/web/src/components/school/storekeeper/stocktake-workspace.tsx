@@ -5,7 +5,7 @@ import { ClipboardList, Plus, CheckCircle } from "lucide-react";
 import { toast } from "sonner";
 import { Panel, StatusChip, Tone } from "./shared";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
-import { startStocktake, finalizeStocktake } from "./api-client";
+import { startStocktake, submitStocktakeCount, finalizeStocktake } from "./api-client";
 
 type StocktakeRecord = {
   id: string;

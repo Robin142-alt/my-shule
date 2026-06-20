@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { HeartPulse, Stethoscope } from "lucide-react";
+import { HeartPulse, Stethoscope, CheckCircle2, AlertCircle } from "lucide-react";
+import { useSchoolQuery } from "@/lib/data/school-hooks";
 import { usePermissions } from "@/components/providers/permission-context";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";

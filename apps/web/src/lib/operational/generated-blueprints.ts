@@ -1,4 +1,4 @@
-import { type ExtremeErpBlueprint } from "./extreme-erp-blueprints";
+import { type ExtremeErpBlueprint, type OperationalState, type OperationalQueue, type OperationalFormBlueprint, type OperationalTableBlueprint } from "./extreme-erp-blueprints";
 
 export const generatedBlueprintRegistry: ExtremeErpBlueprint[] = [
   {

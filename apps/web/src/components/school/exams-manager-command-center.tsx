@@ -21,12 +21,14 @@ import {
 import type { WidgetState } from "@/lib/capability-engine/school-capability-engine";
 import { getCurrentSchoolId, publishSchoolOperationalEvent } from "@/lib/school/school-operational-store";
 import { useQueryClient } from "@tanstack/react-query";
+import { useLiveTenantSession } from "@/hooks/use-live-tenant-session";
 import { useSchoolQuery, useSchoolMutation } from "@/lib/data/school-hooks";
 import { downloadCsvFile, openPrintDocument } from "@/lib/dashboard/export";
 import { ApprovalInbox } from "@/components/shared/approval-inbox";
 import { NotificationBell } from "@/components/shared/notification-bell";
 import { buildSchoolSectionHref } from "./school-pages";
 import { TaskQueue } from "@/components/shared/task-queue";
+import { WorkflowToast } from "@/components/shared/workflow-toast";
 import { usePermissions } from "@/components/providers/permission-context";
 import { toast } from "sonner";
 import { requestDashboardApi } from "@/lib/dashboard/api-client";

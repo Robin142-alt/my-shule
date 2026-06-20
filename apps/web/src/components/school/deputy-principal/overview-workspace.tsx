@@ -1,9 +1,13 @@
 "use client";
-import { useState } from "react";
-import { LayoutDashboard, UserX, UserCheck, AlertTriangle, ShieldAlert } from "lucide-react";
+import { useState, useEffect } from "react";
+import { LayoutDashboard, Users, UserX, UserCheck, AlertTriangle, ShieldAlert } from "lucide-react";
 import { toast } from "sonner";
 import { Panel, StatusChip, Tone } from "./shared";
-pe DeputyOverviewData = {
+import { readSchoolData, subscribeToSchoolDataUpdates, updateSchoolRecord, createNotification } from "@/lib/school/school-operational-store";
+
+import { useSchoolQuery } from "@/lib/data/school-hooks";
+
+type DeputyOverviewData = {
   incident_summary: {
     reported_incidents: number;
     escalated_incidents: number;

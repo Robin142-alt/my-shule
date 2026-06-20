@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
-import {  GraduationCap } from "lucide-react";
+import { Users, UserCheck, UserX, GraduationCap } from "lucide-react";
+import { toast } from "sonner";
 import { Panel, StatusChip, Tone } from "./shared";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 

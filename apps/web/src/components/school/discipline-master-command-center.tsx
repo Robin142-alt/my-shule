@@ -5,7 +5,7 @@ import {
   Home, Inbox, FilePlus, List, Activity, UserCircle, 
   FileSearch, ShieldAlert, MessageSquare, HeartHandshake, 
   AlertTriangle, Calendar, BarChart3, Download, FileCog, 
-  History, Settings, Menu, X, HelpCircle
+  History, Settings, Menu, X, Bell, HelpCircle
 } from "lucide-react";
 
 import { OverviewWorkspace } from "./discipline-master/overview-workspace";
@@ -30,6 +30,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { ApprovalInbox } from "@/components/shared/approval-inbox";
 import { NotificationBell } from "@/components/shared/notification-bell";
 import { TaskQueue } from "@/components/shared/task-queue";
+import { WorkflowToast } from "@/components/shared/workflow-toast";
 import { buildSchoolSectionHref } from "./school-pages";
 
 const SIDEBAR_ITEMS = [

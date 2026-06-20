@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { LayoutList, Plus, X } from "lucide-react";
+import { LayoutList, Loader2, Plus, X } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Panel, RecordTable } from "./shared-components";
 import { useLiveTenantSession } from "@/hooks/use-live-tenant-session";

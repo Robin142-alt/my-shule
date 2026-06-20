@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   AlertTriangle,
+  ArrowRight,
   ExternalLink,
   LogOut,
   MailCheck,
@@ -13,11 +14,15 @@ import {
   ShieldBan,
   Trash2,
   UserRoundCog,
+  Database,
+  Code,
+  Blocks,
 } from "lucide-react";
 
 import { ActivityListCard, SimpleListCard } from "@/components/experience/activity-list-card";
 import { ChartCard } from "@/components/experience/chart-card";
 import { MetricGrid } from "@/components/experience/metric-grid";
+import { QuickActionBar } from "@/components/experience/quick-action-bar";
 import { PlatformShell } from "@/components/platform/platform-shell";
 import { PlatformSupportWorkspace } from "@/components/support/platform-support-workspace";
 import { Button } from "@/components/ui/button";
@@ -27,21 +32,33 @@ import { Modal } from "@/components/ui/modal";
 import { StatusPill } from "@/components/ui/status-pill";
 import { getCsrfToken } from "@/lib/auth/csrf-client";
 import { redirectOnExpiredSessionError } from "@/lib/auth/session-expiry-client";
-eNotificationItem } from "@/lib/experiences/types";
+import {
+  fetchApiObservabilityAlerts,
+  fetchApiObservabilityHealth,
+  fetchApiReadiness,
+  isDashboardApiConfigured,
+} from "@/lib/dashboard/api-client";
+import { downloadCsvFile } from "@/lib/dashboard/export";
+import type { ExperienceNotificationItem } from "@/lib/experiences/types";
 import {
   callbackFailures,
   infrastructureEvents,
   infrastructureMetrics,
+  mapObservabilityAlertsToInfrastructureEvents,
+  mapReadinessToInfrastructureMetrics,
   mpesaMonitoringRows,
+  platformUsersRows,
   revenuePoints,
   subscriptionRows,
   supportActivity,
   superadminKpis,
   superadminNav,
   superadminProfile,
+  superadminQuickActions,
   systemAlerts,
   tenantGrowthPoints,
   tenantRows,
+  auditRows,
 } from "@/lib/experiences/superadmin-data";
 import {
   createPlatformSchool,
@@ -2044,9 +2061,6 @@ export function SuperadminPages({
       {normalizedSection === "security" ? <SecurityPoliciesWorkspace /> : null}
       {normalizedSection === "reports" ? <PlatformReportsWorkspace /> : null}
       {normalizedSection === "settings" ? <SettingsWorkspace /> : null}
-      {normalizedSection === "revenue" ? <RevenuePage /> : null}
-      {normalizedSection === "subscriptions" ? <SubscriptionsPage /> : null}
-      {normalizedSection === "mpesa" ? <MpesaMonitoringPage /> : null}
     </PlatformShell>
   );
 }

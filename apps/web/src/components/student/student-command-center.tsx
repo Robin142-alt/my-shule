@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { 
-  LayoutDashboard, BookOpen, CalendarCheck, Bell 
+  LayoutDashboard, BookOpen, CalendarCheck, Clock, Download, 
+  FileText, ShieldAlert, HeartPulse, Library, Bell, Settings 
 } from "lucide-react";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 

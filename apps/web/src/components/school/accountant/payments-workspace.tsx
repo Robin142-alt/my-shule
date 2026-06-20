@@ -3,13 +3,16 @@ import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
 import { Modal } from "@/components/ui/modal";
 import { StatusPill } from "@/components/ui/status-pill";
+import { Tabs } from "@/components/ui/tabs";
 import { getMonthStartInputValue, getTodayInputValue } from "@/lib/date-utils";
 import {
-  
+  downloadCsvFile,
   downloadTextFile,
+  openPrintDocument,
   type CsvReportArtifactResponse,
 } from "@/lib/dashboard/export";
 import { getCsrfToken } from "@/lib/auth/csrf-client";
+import { redirectOnExpiredSessionResponse } from "@/lib/auth/session-expiry-client";
 import { getSchoolWorkspace, type SchoolExperienceRole } from "@/lib/experiences/school-data";
 import { buildBillingApiPath, toMinorUnits, formatMinorKes, formatActivityDate } from "@/lib/billing/billing-utils";
 import type { LearnerLookupItem } from "@/lib/students/student-lookup";

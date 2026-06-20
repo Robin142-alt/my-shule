@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Card } from "@/components/ui/card";
-import { AlertCircle, BookOpen, Plus, Loader2, Users2 } from "lucide-react";
+import { AlertCircle, BookOpen, Layers, Plus, Loader2, Users2 } from "lucide-react";
 import { toast } from "sonner";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 import { Modal } from "@/components/ui/modal";

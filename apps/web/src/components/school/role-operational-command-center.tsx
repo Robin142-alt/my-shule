@@ -60,6 +60,7 @@ import {
 import {
   addSchoolRecord,
   getCurrentSchoolId,
+  mergeSchoolRecordsById,
   publishSchoolOperationalEvent,
   readSchoolData,
   subscribeToSchoolDataUpdates,

@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { CheckCircle, XCircle, Inbox } from 'lucide-react';
 import { useApprovals } from '../../hooks/useApprovals';
- // Assuming context exposes userId
+import { useRolePermissions } from '../../hooks/useRolePermissions'; // Assuming context exposes userId
+import { ErrorState } from './error-state';
 
 export const ApprovalInbox: React.FC<{ currentUserId: string }> = ({ currentUserId }) => {
   const { approvals, isLoading, approve, reject } = useApprovals();

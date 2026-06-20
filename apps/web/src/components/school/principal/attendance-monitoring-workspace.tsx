@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { UserCheck, UserX, Clock, Bell } from "lucide-react";
+import { UserCheck, UserX, Clock, AlertTriangle, Bell } from "lucide-react";
 import { toast } from "sonner";
 import { Panel, StatusChip, MetricCard, Tone } from "./shared";
 import { useSchoolQuery } from "@/lib/data/school-hooks";

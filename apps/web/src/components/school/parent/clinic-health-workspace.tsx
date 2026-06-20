@@ -1,6 +1,6 @@
 "use client";
 
-import { Activity, Stethoscope, Pill, AlertTriangle, Download } from "lucide-react";
+import { Activity, Stethoscope, Pill, AlertTriangle, FileText, Download } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useSchoolQuery } from "@/lib/data/school-hooks";

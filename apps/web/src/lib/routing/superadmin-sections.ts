@@ -34,9 +34,6 @@ export const SUPERADMIN_PUBLIC_SECTIONS = [
   "security",
   "reports",
   "settings",
-  "revenue",
-  "subscriptions",
-  "mpesa",
 ] as const;
 
 export type SuperadminPublicSection = (typeof SUPERADMIN_PUBLIC_SECTIONS)[number];

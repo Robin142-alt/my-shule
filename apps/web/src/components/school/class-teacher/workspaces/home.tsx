@@ -1,4 +1,4 @@
-import {  Home } from "lucide-react";
+import { AlertTriangle, Home } from "lucide-react";
 import { Panel } from "../shared";
 import { useQuery } from "@tanstack/react-query";
 import { fetchClassTeacherOverviewLive } from "@/lib/modules/teacher-live";

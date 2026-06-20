@@ -12,7 +12,8 @@ import {
 import { ApprovalInbox } from "@/components/shared/approval-inbox";
 import { NotificationBell } from "@/components/shared/notification-bell";
 import { TaskQueue } from "@/components/shared/task-queue";
-import { type TeacherView, cn } from "./class-teacher/shared";
+import { WorkflowToast } from "@/components/shared/workflow-toast";
+import { type TeacherView, StatusChip, cn } from "./class-teacher/shared";
 import { buildSchoolSectionHref } from "./school-pages";
 import { OverviewWorkspace } from "./class-teacher/workspaces/home";
 import { ClassRegisterWorkspace } from "./class-teacher/workspaces/register";

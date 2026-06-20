@@ -2,7 +2,9 @@
 
 import { useState } from "react";
 import { 
-  LayoutDashboard, Banknote, GraduationCap, MessageSquare 
+  LayoutDashboard, Users, Banknote, CalendarCheck, GraduationCap, 
+  FileText, ShieldAlert, HeartPulse, Library, Bus, BedDouble, 
+  Megaphone, MessageSquare, FileSignature, Download, Bell, Settings, Search 
 } from "lucide-react";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 

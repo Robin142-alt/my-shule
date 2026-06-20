@@ -1,7 +1,7 @@
 // GENERATED COUNSELLOR COMMAND CENTER
 "use client";
 
-import { useState, useEffect, type ReactNode } from "react";
+import { useState, useEffect, type FormEvent, type ReactNode } from "react";
 import {
   LayoutDashboard,
   Inbox,
@@ -20,6 +20,8 @@ import {
   FolderOpen,
   Settings,
   Search,
+  Bell,
+  X,
   Plus,
   AlertTriangle,
   LockKeyhole
@@ -30,6 +32,7 @@ import { useSchoolQuery } from "@/lib/data/school-hooks";
 import { ApprovalInbox } from "@/components/shared/approval-inbox";
 import { NotificationBell } from "@/components/shared/notification-bell";
 import { TaskQueue } from "@/components/shared/task-queue";
+import { WorkflowToast } from "@/components/shared/workflow-toast";
 
 type RouteMode = "hosted" | "public";
 type Tone = "success" | "info" | "warning" | "danger" | "neutral";

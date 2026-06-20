@@ -3,7 +3,7 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Check, Clock, FileText } from "lucide-react";
+import { Plus, Check, Clock, AlertTriangle, FileText } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useSchoolQuery, useSchoolMutation } from "@/lib/data/school-hooks";

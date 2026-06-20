@@ -2,6 +2,7 @@
 
 import {
   BarChart3,
+  Bell,
   BookOpen,
   ChevronDown,
   GraduationCap,

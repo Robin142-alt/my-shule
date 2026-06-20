@@ -34,9 +34,6 @@ export const SUPERADMIN_SECTIONS = [
   "security",
   "reports",
   "settings",
-  "revenue",
-  "subscriptions",
-  "mpesa",
 ] as const;
 
 export const SCHOOL_SECTIONS = [

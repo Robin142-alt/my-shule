@@ -1,7 +1,7 @@
 "use client";
 
 import { Card } from "@/components/ui/card";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, Activity, Users, FileText } from "lucide-react";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 import { useDashboardEventBus } from "@/lib/dashboard-communication/dashboard-communication-provider";
 import { useEffect } from "react";

@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, CheckCircle, Search, ArrowRight } from "lucide-react";
+import { AlertTriangle, CheckCircle, Search, Settings2, Users, FileText, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
