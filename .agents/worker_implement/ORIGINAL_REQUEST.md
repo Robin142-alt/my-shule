@@ -66,3 +66,29 @@ Test restoration requirement:
 Verification requirements:
 - Ensure 'npm run build' inside apps/api succeeds without any TypeScript errors.
 - Run the exams test file to verify all tests pass: 'node --test apps/api/src/modules/exams/exams.test.ts' (or run the appropriate workspace test runner).
+
+## 2026-06-20T23:30:38Z
+You are a Specialist Worker under the Project Orchestrator.
+Your task is to fix the compilation errors and complete the prompt replacement work item.
+
+Work items:
+1. In `apps/api/src/modules/events/events.types.ts`, modify the `DomainEvent` interface to make the audit fields optional:
+   - `school_id?: string;`
+   - `actor_user_id?: string | null;`
+   - `actor_role?: string | null;`
+   - `source_dashboard?: string | null;`
+   - `correlation_id?: string | null;`
+2. In `apps/api/src/modules/exams/exams.service.ts`:
+   - Add optional chaining `?.` to `this.eventPublisher.publishReportCardPublished` at line 390.
+   - Add optional chaining `?.` to `this.eventPublisher.publishExamSubmitted` at line 887.
+3. In `apps/api/src/modules/hr/hr.service.ts`:
+   - Replace calls to `this.getActorUserId()` passed to eventPublisher methods with `this.getActorUserId() ?? 'system'`.
+   - Replace `dto.job_title_id` in `this.eventPublisher.publishStaffRoleUpdated` with `dto.job_title_id ?? 'unknown'`.
+4. In `apps/web/src/components/school/storekeeper/reports-workspace.tsx`:
+   - Remove raw browser `prompt()` calls in `handleGenerate`.
+   - Import `Modal` from `@/components/ui/modal` and introduce state for open/close, selected report type, and period.
+   - Present a Modal/dialog for the user to select the report type from a `<select>` or buttons and enter/choose the period, with a submit button.
+5. Run the build command `npm run build` in workspace root and ensure the project compiles cleanly with zero compilation or TypeScript errors.
+6. Verify layout and conformance to AGENTS.md.
+7. Return a structured handoff.md in your working directory and report status to the orchestrator.
+

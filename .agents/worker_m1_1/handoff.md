@@ -1,36 +1,82 @@
 # Handoff Report
 
 ## 1. Observation
-- Observed duplicate `globalSearch` methods in `apps/api/src/modules/admin-command/admin-command.service.ts`:
-  - Line 232: `async globalSearch(query: string) { return { results: [] }; }` (stub)
-  - Line 1635: `async globalSearch(query: string) { ... }` (real implementation)
-- Observed mismatched database schema property names in `generateInvoice` and `recordPayment` methods:
-  - The compiler complained about mismatch on `Invoice` and `Payment` fields because they didn't match the definitions in `prisma/schema.prisma`.
-  - Verbatim schema for `Invoice` defines `amountDue`, `amountPaid`, `balance`, `studentId`, `academicYearId`, `termId` (lines 1932–1952).
-  - Verbatim schema for `Payment` defines `studentId`, `paymentReference`, `amount`, `paymentDate`, `receivedByUserId` (lines 1976–1994).
-- Observed compilation error on build:
-  - `apps/api/src/modules/admin-command/admin-command.service.ts(731,46): error TS2304: Cannot find name 'InvoiceStatus'.`
+- Observed that in `prisma/schema.prisma` (lines 3817–3820):
+  ```prisma
+  completed_at        DateTime?
+  completion_notes    String?
+  approved_by_user_id String?   @db.Uuid
+  approved_at         DateTime?
+  ```
+  These fields are already present in the `LegacyDisciplineAction` model.
+- Observed that in `prisma/schema.prisma` (lines 1054–1055):
+  ```prisma
+  schoolId                String                   @map("tenant_id")
+  school                  School                   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  ```
+  And in the `School` model (line 995):
+  ```prisma
+  permissions                Permission[]
+  ```
+  These fields and relations are already present in `Permission` and `School` respectively, mapping `schoolId` to `tenant_id`.
+- Observed that in `prisma/schema.prisma` (lines 2123–2132):
+  ```prisma
+  ruleId               String         @map("rule_id")
+  rule                 ApprovalRule   @relation(fields: [ruleId], references: [id])
+  ...
+  requestedByUserId    String         @map("requested_by_user_id")
+  requestedByUser      User           @relation("RequestedApprovalRequests", fields: [requestedByUserId], references: [id])
+  assignedApproverId   String?        @map("assigned_approver_id")
+  assignedApprover     User?          @relation("AssignedApprovalRequests", fields: [assignedApproverId], references: [id])
+  ```
+  And in `ApprovalRule` (line 1156):
+  ```prisma
+  approvalRequests     ApprovalRequest[]
+  ```
+  And in `User` (lines 831–832):
+  ```prisma
+  requestedApprovalRequests ApprovalRequest[] @relation("RequestedApprovalRequests")
+  assignedApprovalRequests  ApprovalRequest[] @relation("AssignedApprovalRequests")
+  ```
+  These fields and relations are already present in `ApprovalRequest`, `ApprovalRule`, and `User`.
+- Observed terminal output of `npx prisma validate`:
+  ```
+  Loaded Prisma config from prisma.config.ts.
+  Prisma schema loaded from prisma\schema.prisma.
+  The schema at prisma\schema.prisma is valid 🚀
+  ```
+- Observed terminal output of `npx prisma generate`:
+  ```
+  ✔ Generated Prisma Client (v7.8.0) to .\node_modules\@prisma\client in 31.64s
+  ```
+- Observed terminal output of `npm run build`:
+  ```
+  The command completed successfully.
+  ```
 
 ## 2. Logic Chain
-- Removing the duplicate stub of `globalSearch` at line 232 leaves only the real implementation, thus resolving the duplicate method compiler error.
-- Aligning `generateInvoice` to use `amountDue`, `amountPaid`, `balance`, `studentId`, `termId`, and `academicYearId` matches the Prisma schema requirements and ensures proper relations are set up.
-- Aligning `recordPayment` to use `studentId`, `paymentReference`, `amount`, `paymentDate`, and `receivedByUserId` matches the `Payment` model properties and corrects the logic to update the associated `Invoice` balance and status accurately.
-- Importing `InvoiceStatus` from `@prisma/client` resolves the unresolved namespace name `InvoiceStatus` (TS2304) error.
-- Re-running the API build and executing the tests in `admin-command.test.ts` validates that the compilation passes and the existing test suite passes without regressions.
+- The schema definitions in `prisma/schema.prisma` were inspected directly. They match the required field additions and bidirectional relations perfectly.
+- Running `npx prisma validate` confirms there are no syntax or schema definition issues.
+- Running `npx prisma generate` compiles the schema changes and builds the Prisma client code without warnings or errors.
+- Running `npm run build` verifies that there are no TypeScript compiler errors or other build issues in the codebase due to these model configurations.
 
 ## 3. Caveats
-- No caveats. The database schema has been verified directly, and all relationships are strictly tenant-isolated using the retrieved `tenantId` (linked as `schoolId`).
+- No caveats. The database schema is fully aligned and validated.
 
 ## 4. Conclusion
-- The `admin-command` business logic has been successfully aligned with the database schema and compiles cleanly. All 10 existing unit tests pass without any regressions or linting failures.
+- All schema drift corrections requested in Milestone 1.1 are verified to be fully implemented, validated, and successfully compiled. The project builds cleanly.
 
 ## 5. Verification Method
-- Execute the build command in `apps/api/`:
+- Validate the Prisma schema:
+  ```bash
+  npx prisma validate
+  ```
+- Generate the Prisma Client:
+  ```bash
+  npx prisma generate
+  ```
+- Compile the project:
   ```bash
   npm run build
   ```
-- Run the test suite:
-  ```bash
-  node --test dist/apps/api/src/modules/admin-command/admin-command.test.js
-  ```
-  Both of the above commands must complete with exit code 0.
+  All three commands must run and exit successfully.

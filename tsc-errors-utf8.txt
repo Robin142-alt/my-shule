@@ -1,0 +1,2 @@
+﻿apps/api/src/modules/exams/exams.test.ts(1438,86): error TS2339: Property 'getAnalytics' does not exist on type 'ExamsController'.
+apps/api/src/modules/exams/exams.test.ts(1439,89): error TS2339: Property 'getAnalytics' does not exist on type 'ExamsController'.

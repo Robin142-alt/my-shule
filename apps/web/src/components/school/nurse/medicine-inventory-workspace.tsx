@@ -6,6 +6,8 @@ import { useSchoolQuery } from "@/lib/data/school-hooks";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { addMedicineStock, adjustMedicineStock } from "./api-client";
+import { Modal } from "@/components/ui/modal";
+import { useForm } from "react-hook-form";
 
 type MedicineItem = {
   id: string;
@@ -23,6 +25,11 @@ type MedicineData = {
   medicines: MedicineItem[];
 };
 
+type AdjustStockFormData = {
+  adjustment: number;
+  reason: string;
+};
+
 export function MedicineInventoryWorkspace() {
   const queryClient = useQueryClient();
   const { data, isLoading } = useSchoolQuery<MedicineData>('/admin-command/nurse/medicine-inventory');
@@ -30,6 +37,13 @@ export function MedicineInventoryWorkspace() {
   const [showForm, setShowForm] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [form, setForm] = useState({ name: "", category: "", quantity: "", unit: "tablets", reorder_level: "", expiry_date: "" });
+
+  const [isAdjustOpen, setIsAdjustOpen] = useState(false);
+  const [selectedMed, setSelectedMed] = useState<{ id: string; name: string } | null>(null);
+
+  const adjustForm = useForm<AdjustStockFormData>({
+    defaultValues: { adjustment: 0, reason: "Manual adjustment" },
+  });
 
   const medicines = (data?.medicines || []).filter(m =>
     m.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -57,14 +71,28 @@ export function MedicineInventoryWorkspace() {
     finally { setIsSubmitting(false); }
   };
 
-  const handleAdjust = async (id: string, name: string) => {
-    const adjustment = prompt(`Enter stock adjustment for ${name} (use negative for reduction):`);
-    if (!adjustment) return;
+  const handleAdjustClick = (id: string, name: string) => {
+    setSelectedMed({ id, name });
+    adjustForm.reset({ adjustment: 0, reason: "Manual adjustment" });
+    setIsAdjustOpen(true);
+  };
+
+  const onSubmitAdjust = async (formData: AdjustStockFormData) => {
+    if (!selectedMed) return;
     try {
-      await adjustMedicineStock(id, { adjustment: Number(adjustment), reason: "Manual adjustment" });
+      await adjustMedicineStock(selectedMed.id, {
+        adjustment: Number(formData.adjustment),
+        reason: formData.reason
+      });
       queryClient.invalidateQueries({ queryKey: ["school", "session", "/admin-command/nurse/medicine-inventory"] });
-      toast.success(`Stock adjusted for ${name}.`);
-    } catch (e: any) { toast.error(e.message || "Failed to adjust stock."); }
+      toast.success(`Stock adjusted for ${selectedMed.name}.`);
+      setIsAdjustOpen(false);
+      adjustForm.reset();
+    } catch (e: any) {
+      toast.error(e.message || "Failed to adjust stock.");
+    } finally {
+      setSelectedMed(null);
+    }
   };
 
   return (
@@ -163,7 +191,7 @@ export function MedicineInventoryWorkspace() {
                   <td className="px-4 py-3 text-[#64748B]">{m.expiry_date || "—"}</td>
                   <td className="px-4 py-3"><StatusChip label={m.status} tone={getStatusTone(m.status)} /></td>
                   <td className="px-4 py-3 text-right">
-                    <button onClick={() => handleAdjust(m.id, m.name)} className="text-blue-600 hover:underline font-semibold text-xs">Adjust Stock</button>
+                    <button onClick={() => handleAdjustClick(m.id, m.name)} className="text-blue-600 hover:underline font-semibold text-xs">Adjust Stock</button>
                   </td>
                 </tr>
               ))
@@ -171,6 +199,66 @@ export function MedicineInventoryWorkspace() {
           </tbody>
         </table>
       </div>
+
+      <Modal
+        open={isAdjustOpen}
+        onClose={() => {
+          setIsAdjustOpen(false);
+          setSelectedMed(null);
+        }}
+        title={`Adjust Medicine Stock: ${selectedMed?.name || ""}`}
+      >
+        <form onSubmit={adjustForm.handleSubmit(onSubmitAdjust)} className="space-y-4 py-4">
+          <div className="space-y-1">
+            <label className="text-sm font-medium">Stock Adjustment Quantity</label>
+            <input
+              type="number"
+              {...adjustForm.register("adjustment", {
+                required: "Adjustment quantity is required",
+                validate: value => value !== 0 || "Adjustment cannot be zero",
+                valueAsNumber: true,
+              })}
+              className="w-full rounded border border-slate-300 p-2 text-sm text-[#071D49]"
+              placeholder="e.g. 50 or -20"
+            />
+            {adjustForm.formState.errors.adjustment && (
+              <span className="text-xs text-red-500">{adjustForm.formState.errors.adjustment.message}</span>
+            )}
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-sm font-medium">Adjustment Reason</label>
+            <input
+              type="text"
+              {...adjustForm.register("reason", { required: "Reason is required" })}
+              className="w-full rounded border border-slate-300 p-2 text-sm text-[#071D49]"
+              placeholder="e.g. Manual count reconciliation"
+            />
+            {adjustForm.formState.errors.reason && (
+              <span className="text-xs text-red-500">{adjustForm.formState.errors.reason.message}</span>
+            )}
+          </div>
+
+          <div className="flex justify-end space-x-3 pt-4 border-t border-slate-100">
+            <button
+              type="button"
+              onClick={() => {
+                setIsAdjustOpen(false);
+                setSelectedMed(null);
+              }}
+              className="px-4 py-2 border rounded text-sm font-medium hover:bg-slate-50 text-[#071D49]"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="px-4 py-2 bg-[#071D49] text-white rounded text-sm font-medium hover:bg-blue-900"
+            >
+              Adjust Stock
+            </button>
+          </div>
+        </form>
+      </Modal>
     </Panel>
   );
 }

@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Optional,
   UnauthorizedException,
 } from '@nestjs/common';
 
@@ -16,12 +17,14 @@ import {
   RecordProcurementApprovalDto,
 } from './dto/procurement.dto';
 import { ProcurementRepository } from './repositories/procurement.repository';
+import { EventPublisherService } from '../events/event-publisher.service';
 
 @Injectable()
 export class ProcurementService {
   constructor(
     private readonly requestContext: RequestContextService,
     private readonly repository: ProcurementRepository,
+    @Optional() private readonly eventPublisher?: EventPublisherService,
   ) {}
 
   getDashboard() {

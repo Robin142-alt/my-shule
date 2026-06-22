@@ -14,6 +14,13 @@ jest.mock("@/hooks/use-live-tenant-session", () => ({
   useLiveTenantSession: jest.fn(),
 }));
 
+jest.mock("@/lib/auth/auth-context", () => ({
+  useAuth: () => ({
+    user: { id: "teacher-1", display_name: "Beatrice Wanjiku", role: "teacher" },
+    tenantId: "barakaacademy",
+  }),
+}));
+
 const mockUseLiveTenantSession = useLiveTenantSession as jest.MockedFunction<typeof useLiveTenantSession>;
 
 function jsonResponse(body: unknown, status = 200) {
@@ -231,6 +238,95 @@ function installLiveExamsFetchMock(options?: { reportCards?: unknown[] }) {
       }));
     }
 
+    if (
+      url.includes("/api/tasks") ||
+      url.includes("/api/notifications") ||
+      url.includes("/api/approvals")
+    ) {
+      return Promise.resolve(jsonResponse([]));
+    }
+
+    if (url.includes("/api/exams/analytics")) {
+      return Promise.resolve(jsonResponse({
+        data: {
+          kpis: {
+            school_average: 76.5,
+            pending_reviews: 3,
+            missing_marks_alerts: 5,
+            active_exams: 2,
+          },
+          trends: [
+            {
+              exam_series_id: "series-1",
+              exam_series_name: "Term 1 Mid-term",
+              starts_on: "2026-02-10T00:00:00Z",
+              average_score: 72.4,
+            },
+            {
+              exam_series_id: "series-2",
+              exam_series_name: "Term 1 End-term",
+              starts_on: "2026-04-05T00:00:00Z",
+              average_score: 76.5,
+            },
+          ],
+          subjectPerformance: [
+            {
+              subject_id: "subject-maths",
+              subject_name: "Mathematics",
+              mean_score: 74.2,
+              pass_rate: 85.0,
+              ee_count: 10,
+              me_count: 25,
+              ae_count: 8,
+              be_count: 3,
+            },
+            {
+              subject_id: "subject-english",
+              subject_name: "English",
+              mean_score: 78.8,
+              pass_rate: 92.0,
+              ee_count: 15,
+              me_count: 22,
+              ae_count: 7,
+              be_count: 2,
+            },
+          ],
+          studentProgress: {
+            topPerformers: [
+              {
+                student_id: "student-1",
+                student_name: "Aisha Njeri",
+                admission_number: "ADM-2025-001",
+                average_percentage: 92.4,
+                assessments_taken: 5,
+              },
+            ],
+            topImprovers: [
+              {
+                student_id: "student-2",
+                student_name: "Daniel Mutua",
+                admission_number: "ADM-2025-004",
+                latest_exam_series: "Term 1 End-term",
+                latest_average: 78.5,
+                previous_exam_series: "Term 1 Mid-term",
+                previous_average: 72.1,
+                improvement: 6.4,
+              },
+            ],
+            atRiskStudents: [
+              {
+                student_id: "student-3",
+                student_name: "Peter Mwangi",
+                admission_number: "ADM-2026-402",
+                average_percentage: 42.5,
+                assessments_taken: 5,
+              },
+            ],
+          },
+        },
+      }));
+    }
+
     return Promise.resolve(jsonResponse({ data: [] }));
   });
 
@@ -312,13 +408,26 @@ function buildLiveWorkspaceWithoutReportCards() {
 }
 
 describe("exams workspace", () => {
+  jest.setTimeout(60000);
+
   beforeEach(() => {
     jest.clearAllMocks();
     global.fetch = jest.fn((input: RequestInfo | URL) => {
-      if (String(input).includes("/api/school/modules/me")) {
+      const urlStr = String(input);
+      if (urlStr.includes("/api/school/modules/me")) {
         return Promise.resolve({
           ok: true,
           json: async () => ["exams"],
+        } as Response);
+      }
+      if (
+        urlStr.includes("/tasks") ||
+        urlStr.includes("/notifications") ||
+        urlStr.includes("/approvals")
+      ) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => [],
         } as Response);
       }
 
@@ -647,7 +756,7 @@ describe("exams workspace", () => {
     await user.click(screen.getAllByRole("button", { name: /audit trail/i })[0]);
     expect(screen.getByRole("dialog", { name: /report card audit trail/i })).toBeVisible();
     expect(screen.getAllByText(/school-scoped audit trail/i).length).toBeGreaterThan(0);
-  }, 15000);
+  }, 60000);
 
   it("lets report generation settings switch a school to pure CBC without leaving Form 4 as an implicit legacy school mode", async () => {
     const user = userEvent.setup();

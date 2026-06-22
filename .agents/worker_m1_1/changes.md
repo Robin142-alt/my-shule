@@ -1,19 +1,32 @@
 # Changes
 
-This document details the changes applied to compile and verify the business logic in the `admin-command` module:
+This document details the verification and validation performed to resolve schema drift for Milestone 1.1:
 
-1. **Removed Duplicate `globalSearch` Method**:
-   - File: `apps/api/src/modules/admin-command/admin-command.service.ts`
-   - Action: Removed the redundant stub implementation at line 232 to fix the duplicate method definition compiler error. The real implementation remains at the bottom of the file.
+1. **Schema Alignment Verification**:
+   - File: `prisma/schema.prisma`
+   - Verified that the `LegacyDisciplineAction` model has the following fields defined:
+     - `completed_at` DateTime?
+     - `completion_notes` String?
+     - `approved_by_user_id` String? @db.Uuid
+     - `approved_at` DateTime?
+   - Verified that the `Permission` model has the relation:
+     - `schoolId` String @map("tenant_id")
+     - `school` School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+   - Verified that the `School` model has:
+     - `permissions Permission[]`
+   - Verified that the `ApprovalRequest` model has the mapped relationships:
+     - `rule` ApprovalRule @relation(fields: [ruleId], references: [id])
+     - `requestedByUser` User @relation("RequestedApprovalRequests", fields: [requestedByUserId], references: [id])
+     - `assignedApprover` User? @relation("AssignedApprovalRequests", fields: [assignedApproverId], references: [id])
+   - Verified that the `ApprovalRule` model has:
+     - `approvalRequests ApprovalRequest[]`
+   - Verified that the `User` model has:
+     - `requestedApprovalRequests ApprovalRequest[] @relation("RequestedApprovalRequests")`
+     - `assignedApprovalRequests ApprovalRequest[] @relation("AssignedApprovalRequests")`
 
-2. **Aligned `generateInvoice` with Prisma Schema**:
-   - File: `apps/api/src/modules/admin-command/admin-command.service.ts`
-   - Action: Updated the database query model properties to match `schema.prisma`. Replaced `studentFeeAccountId` with `studentId`, replaced `totalAmountMinor`/`amountPaidMinor` (minor/cents formats) with float fields `amountDue`, `amountPaid`, and `balance` in compliance with the db schema. Added database-backed lookups to default `termId` and `academicYearId` to active ones if not explicitly specified.
+2. **Validation and Code Generation**:
+   - Ran `npx prisma validate` which confirmed that the schema is completely valid.
+   - Ran `npx prisma generate` which generated the Prisma client (v7.8.0) successfully.
 
-3. **Aligned `recordPayment` with Prisma Schema**:
-   - File: `apps/api/src/modules/admin-command/admin-command.service.ts`
-   - Action: Replaced non-existent database properties (e.g. `paymentNumber`, `amountMinor`, `paymentStatus`, `paidAt`) with schema-compliant properties (`studentId`, `paymentReference`, `amount` as Float, `paymentDate`, `status`, `receivedByUserId`). Corrected the logic to query the corresponding student fee invoice to update its paid amount, balance, and status correctly.
-
-4. **Added `InvoiceStatus` to Imports**:
-   - File: `apps/api/src/modules/admin-command/admin-command.service.ts`
-   - Action: Imported `InvoiceStatus` from `@prisma/client` to resolve type definition reference errors.
+3. **Build Compilation Verification**:
+   - Ran `npm run build` which compiled the entire project successfully with no errors.

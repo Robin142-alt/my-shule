@@ -1,0 +1,39 @@
+diff --git a/apps/web/src/lib/offline/sync-queue.ts b/apps/web/src/lib/offline/sync-queue.ts
+index c6b92a2..6d42df2 100644
+--- a/apps/web/src/lib/offline/sync-queue.ts
++++ b/apps/web/src/lib/offline/sync-queue.ts
+@@ -52,14 +52,22 @@ class SyncQueueService {
+     }
+     if (!this.dbPromise) {
+       this.dbPromise = openDB<ShuleOfflineDB>('myshule-offline-db', 2, {
+-        upgrade(db) {
+-          if (db.objectStoreNames.contains('sync_queue')) {
+-            db.deleteObjectStore('sync_queue');
+-          }
+-          const store = db.createObjectStore('sync_queue', { keyPath: 'id' });
+-          store.createIndex('by-school', 'schoolId');
+-          store.createIndex('by-status', 'status');
+-          store.createIndex('by-module', 'module');
+-          store.createIndex('by-school-status', ['schoolId', 'status']);
++        upgrade(db, oldVersion, newVersion, transaction) {
++          let store;
++          if (!db.objectStoreNames.contains('sync_queue')) {
++            store = db.createObjectStore('sync_queue', { keyPath: 'id' });
++          } else {
++            store = transaction.objectStore('sync_queue');
++          }
++          if (!store.indexNames.contains('by-school')) {
++            store.createIndex('by-school', 'schoolId');
++          }
++          if (!store.indexNames.contains('by-status')) {
++            store.createIndex('by-status', 'status');
++          }
++          if (!store.indexNames.contains('by-module')) {
++            store.createIndex('by-module', 'module');
++          }
++          if (!store.indexNames.contains('by-school-status')) {
++            store.createIndex('by-school-status', ['schoolId', 'status']);
++          }
+         },
+       });
+     }

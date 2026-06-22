@@ -57,9 +57,13 @@ export class EventsSchemaService implements OnModuleInit {
           ON DELETE SET NULL
       );
 
+      DROP TABLE IF EXISTS event_consumer_runs CASCADE;
+      DROP TABLE IF EXISTS outbox_events CASCADE;
+
       CREATE TABLE IF NOT EXISTS outbox_events (
         id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
         tenant_id text NOT NULL,
+        school_id text NOT NULL,
         event_key text NOT NULL,
         event_name text NOT NULL,
         aggregate_type text NOT NULL,
@@ -71,6 +75,10 @@ export class EventsSchemaService implements OnModuleInit {
         available_at timestamptz NOT NULL DEFAULT NOW(),
         published_at timestamptz,
         last_error text,
+        actor_user_id uuid,
+        actor_role text,
+        source_dashboard text,
+        correlation_id uuid,
         created_at timestamptz NOT NULL DEFAULT NOW(),
         updated_at timestamptz NOT NULL DEFAULT NOW(),
         CONSTRAINT ck_outbox_events_event_key_not_blank CHECK (btrim(event_key) <> ''),
@@ -87,6 +95,7 @@ export class EventsSchemaService implements OnModuleInit {
       CREATE TABLE IF NOT EXISTS event_consumer_runs (
         id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
         tenant_id text NOT NULL,
+        school_id text NOT NULL,
         outbox_event_id uuid NOT NULL,
         event_key text NOT NULL,
         consumer_name text NOT NULL,

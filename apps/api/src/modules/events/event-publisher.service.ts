@@ -15,6 +15,15 @@ import {
   AdmissionsClearedPayload,
   StaffUpdatedPayload,
   ReportCardPublishedPayload,
+  StaffInvitedPayload,
+  StaffActivatedPayload,
+  StaffRoleUpdatedPayload,
+  CounsellingSessionCreatedPayload,
+  CounsellingReferralAcceptedPayload,
+  CounsellingReferralDeclinedPayload,
+  CounsellingNoteCreatedPayload,
+  CounsellingPlanCreatedPayload,
+  ProcurementRequestSubmittedPayload,
 } from './events.types';
 import { OutboxEventsRepository } from './repositories/outbox-events.repository';
 
@@ -26,20 +35,35 @@ export class EventPublisherService {
   ) {}
 
   async publish<TName extends SupportedDomainEventName>(
-    input: Omit<PublishDomainEventInput<TName>, 'tenant_id' | 'headers'> & {
+    input: Omit<PublishDomainEventInput<TName>, 'tenant_id' | 'school_id' | 'headers'> & {
       tenant_id?: string;
+      school_id?: string;
       headers?: Record<string, unknown>;
+      actor_user_id?: string | null;
+      actor_role?: string | null;
+      source_dashboard?: string | null;
+      correlation_id?: string | null;
     },
   ): Promise<DomainEvent<TName>> {
     const requestContext = this.requestContext.requireStore();
-    const tenantId = input.tenant_id ?? requestContext.tenant_id;
+    const schoolId = input.school_id ?? input.tenant_id ?? requestContext.tenant_id;
 
-    if (!tenantId) {
+    if (!schoolId) {
       throw new BadRequestException('Tenant context is required for domain event publishing');
     }
 
+    const actorUserId = input.actor_user_id ?? (
+      requestContext.user_id && requestContext.user_id !== AUTH_ANONYMOUS_USER_ID
+        ? requestContext.user_id
+        : null
+    );
+    const actorRole = input.actor_role ?? requestContext.role ?? null;
+    const sourceDashboard = input.source_dashboard ?? requestContext.role ?? 'system';
+    const correlationId = input.correlation_id ?? requestContext.trace_id ?? null;
+
     return this.outboxEventsRepository.createEvent({
-      tenant_id: tenantId,
+      tenant_id: schoolId,
+      school_id: schoolId,
       event_key: this.requireNonEmptyText(input.event_key, 'event_key'),
       event_name: input.event_name,
       aggregate_type: this.requireNonEmptyText(input.aggregate_type, 'aggregate_type'),
@@ -50,15 +74,16 @@ export class EventPublisherService {
         trace_id: requestContext.trace_id,
         span_id: requestContext.span_id,
         parent_span_id: requestContext.parent_span_id,
-        user_id:
-          requestContext.user_id && requestContext.user_id !== AUTH_ANONYMOUS_USER_ID
-            ? requestContext.user_id
-            : null,
-        role: requestContext.role,
+        user_id: actorUserId,
+        role: actorRole,
         session_id: requestContext.session_id,
         ...input.headers,
       },
       available_at: input.available_at,
+      actor_user_id: actorUserId,
+      actor_role: actorRole,
+      source_dashboard: sourceDashboard,
+      correlation_id: correlationId,
     }) as Promise<DomainEvent<TName>>;
   }
 
@@ -210,6 +235,114 @@ export class EventPublisherService {
       event_name: 'staff.updated',
       aggregate_type: 'staff',
       aggregate_id: payload.staff_id,
+      payload,
+    });
+  }
+
+  async publishStaffInvited(
+    payload: StaffInvitedPayload,
+  ): Promise<DomainEvent<'staff.invited'>> {
+    return this.publish({
+      event_key: `staff.invited:${payload.staff_id}`,
+      event_name: 'staff.invited',
+      aggregate_type: 'staff',
+      aggregate_id: payload.staff_id,
+      payload,
+    });
+  }
+
+  async publishStaffActivated(
+    payload: StaffActivatedPayload,
+  ): Promise<DomainEvent<'staff.activated'>> {
+    return this.publish({
+      event_key: `staff.activated:${payload.staff_id}`,
+      event_name: 'staff.activated',
+      aggregate_type: 'staff',
+      aggregate_id: payload.staff_id,
+      payload,
+    });
+  }
+
+  async publishStaffRoleUpdated(
+    payload: StaffRoleUpdatedPayload,
+  ): Promise<DomainEvent<'staff.role_updated'>> {
+    return this.publish({
+      event_key: `staff.role_updated:${payload.staff_id}`,
+      event_name: 'staff.role_updated',
+      aggregate_type: 'staff',
+      aggregate_id: payload.staff_id,
+      payload,
+    });
+  }
+
+  async publishCounsellingSessionCreated(
+    payload: CounsellingSessionCreatedPayload,
+  ): Promise<DomainEvent<'counselling.session.created'>> {
+    return this.publish({
+      event_key: `counselling.session.created:${payload.session_id}`,
+      event_name: 'counselling.session.created',
+      aggregate_type: 'counselling_session',
+      aggregate_id: payload.session_id,
+      payload,
+    });
+  }
+
+  async publishCounsellingReferralAccepted(
+    payload: CounsellingReferralAcceptedPayload,
+  ): Promise<DomainEvent<'counselling.referral.accepted'>> {
+    return this.publish({
+      event_key: `counselling.referral.accepted:${payload.referral_id}`,
+      event_name: 'counselling.referral.accepted',
+      aggregate_type: 'counselling_referral',
+      aggregate_id: payload.referral_id,
+      payload,
+    });
+  }
+
+  async publishCounsellingReferralDeclined(
+    payload: CounsellingReferralDeclinedPayload,
+  ): Promise<DomainEvent<'counselling.referral.declined'>> {
+    return this.publish({
+      event_key: `counselling.referral.declined:${payload.referral_id}`,
+      event_name: 'counselling.referral.declined',
+      aggregate_type: 'counselling_referral',
+      aggregate_id: payload.referral_id,
+      payload,
+    });
+  }
+
+  async publishCounsellingNoteCreated(
+    payload: CounsellingNoteCreatedPayload,
+  ): Promise<DomainEvent<'counselling.note.created'>> {
+    return this.publish({
+      event_key: `counselling.note.created:${payload.note_id}`,
+      event_name: 'counselling.note.created',
+      aggregate_type: 'counselling_note',
+      aggregate_id: payload.note_id,
+      payload,
+    });
+  }
+
+  async publishCounsellingPlanCreated(
+    payload: CounsellingPlanCreatedPayload,
+  ): Promise<DomainEvent<'counselling.plan.created'>> {
+    return this.publish({
+      event_key: `counselling.plan.created:${payload.plan_id}`,
+      event_name: 'counselling.plan.created',
+      aggregate_type: 'counselling_plan',
+      aggregate_id: payload.plan_id,
+      payload,
+    });
+  }
+
+  async publishProcurementRequestSubmitted(
+    payload: ProcurementRequestSubmittedPayload,
+  ): Promise<DomainEvent<'procurement.request.submitted'>> {
+    return this.publish({
+      event_key: `procurement.request.submitted:${payload.request_id}`,
+      event_name: 'procurement.request.submitted',
+      aggregate_type: 'procurement_request',
+      aggregate_id: payload.request_id,
       payload,
     });
   }

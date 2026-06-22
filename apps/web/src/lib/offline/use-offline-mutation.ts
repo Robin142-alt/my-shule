@@ -21,11 +21,18 @@ export function useOfflineMutation<TData = unknown, TError = Error, TVariables =
   onError,
   ...options
 }: OfflineMutationOptions<TData, TError, TVariables, TContext>) {
+  if (typeof schoolId !== 'string' || schoolId.trim() === '') {
+    throw new Error('Tenant Isolation Violation: A valid schoolId is required');
+  }
+
   const queryClient = useQueryClient();
   const auth = useAuth();
 
   return useMutation<TData, TError, TVariables, TContext>({
     mutationFn: async (variables: TVariables) => {
+      if (typeof schoolId !== 'string' || schoolId.trim() === '') {
+        throw new Error('Tenant Isolation Violation: A valid schoolId is required');
+      }
       try {
         if (!mutationFn) throw new Error("mutationFn is required");
         // Attempt network first

@@ -151,13 +151,25 @@ export class CounsellingService {
   async createSession(dto: CreateCounsellingSessionDto) {
     this.assertPermission('counselling:write');
     const schoolId = await this.resolveSchoolId();
+    const tenantId = this.requireTenantId();
 
-    return this.counsellingRepository.createSession({
+    const session = await this.counsellingRepository.createSession({
       ...dto,
-      tenant_id: this.requireTenantId(),
+      tenant_id: tenantId,
       school_id: schoolId,
       counsellor_user_id: this.actorUserId(),
     });
+
+    await this.eventPublisher.publishCounsellingSessionCreated({
+      tenant_id: tenantId,
+      session_id: session.id,
+      student_id: dto.student_id,
+      counsellor_user_id: this.actorUserId(),
+      scheduled_for: dto.scheduled_for,
+      status: 'scheduled',
+    });
+
+    return session;
   }
 
   async updateSession(sessionId: string, dto: UpdateCounsellingSessionDto) {
@@ -185,10 +197,11 @@ export class CounsellingService {
     }
 
     const encrypted = this.noteEncryption.encrypt(dto.note);
+    const tenantId = this.requireTenantId();
 
-    return this.counsellingRepository.createNote({
+    const note = await this.counsellingRepository.createNote({
       ...dto,
-      tenant_id: this.requireTenantId(),
+      tenant_id: tenantId,
       school_id: session.school_id,
       student_id: session.student_id,
       counselling_session_id: session.id,
@@ -196,6 +209,17 @@ export class CounsellingService {
       encrypted,
       risk_indicators: dto.risk_indicators ?? [],
     });
+
+    await this.eventPublisher.publishCounsellingNoteCreated({
+      tenant_id: tenantId,
+      note_id: note.id,
+      session_id: session.id,
+      student_id: session.student_id,
+      counsellor_user_id: this.actorUserId(),
+      created_at: new Date().toISOString(),
+    });
+
+    return note;
   }
 
   async listNotes(sessionId: string) {
@@ -222,13 +246,25 @@ export class CounsellingService {
 
   async createImprovementPlan(dto: CreateImprovementPlanDto) {
     this.assertPermission('counselling:write');
+    const schoolId = await this.resolveSchoolId();
+    const tenantId = this.requireTenantId();
 
-    return this.counsellingRepository.createImprovementPlan({
+    const plan = await this.counsellingRepository.createImprovementPlan({
       ...dto,
-      tenant_id: this.requireTenantId(),
-      school_id: await this.resolveSchoolId(),
+      tenant_id: tenantId,
+      school_id: schoolId,
       counsellor_user_id: this.actorUserId(),
     });
+
+    await this.eventPublisher.publishCounsellingPlanCreated({
+      tenant_id: tenantId,
+      plan_id: plan.id,
+      student_id: dto.student_id,
+      counsellor_user_id: this.actorUserId(),
+      created_at: new Date().toISOString(),
+    });
+
+    return plan;
   }
 
   private async updateReferralStatus(
@@ -237,8 +273,9 @@ export class CounsellingService {
     responseNote?: string,
   ) {
     this.assertPermission('counselling:manage');
+    const tenantId = this.requireTenantId();
     const referral = await this.counsellingRepository.updateReferralStatus({
-      tenant_id: this.requireTenantId(),
+      tenant_id: tenantId,
       referral_id: referralId,
       status,
       counsellor_user_id: this.actorUserId(),
@@ -247,6 +284,23 @@ export class CounsellingService {
 
     if (!referral) {
       throw new NotFoundException('Counselling referral was not found');
+    }
+
+    if (status === 'accepted') {
+      await this.eventPublisher.publishCounsellingReferralAccepted({
+        tenant_id: tenantId,
+        referral_id: referral.id,
+        counsellor_user_id: this.actorUserId(),
+        accepted_at: new Date().toISOString(),
+      });
+    } else if (status === 'declined') {
+      await this.eventPublisher.publishCounsellingReferralDeclined({
+        tenant_id: tenantId,
+        referral_id: referral.id,
+        counsellor_user_id: this.actorUserId(),
+        declined_at: new Date().toISOString(),
+        reason: responseNote || null,
+      });
     }
 
     return referral;

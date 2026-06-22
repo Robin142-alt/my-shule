@@ -11,15 +11,15 @@ import { Plus, Download } from "lucide-react";
 
 export function CasesWorkspace() {
   const eventBus = useDashboardEventBus();
-  const { data, isLoading } = useSchoolQuery<any[]>("/discipline/cases");
+  const { data, isLoading } = useSchoolQuery<any[]>("/api/discipline/incidents");
   
   const records = data || [];
 
   const columns: DataTableColumn<any>[] = [
-    { id: "id", header: "ID", render: (row: any) => <span className="font-semibold">{row.id}</span> },
-    { id: "date", header: "Date", render: (row: any) => row.date },
-    { id: "details", header: "Details", render: (row: any) => row.details },
-    { id: "status", header: "Status", render: (row: any) => <StatusPill label={row.status || "Pending"} tone="warning" /> },
+    { id: "id", header: "Incident ID", render: (row: any) => <span className="font-semibold">{row.incident_number || row.id?.slice(-8) || row.id}</span> },
+    { id: "date", header: "Date", render: (row: any) => row.occurred_at ? new Date(row.occurred_at).toLocaleDateString() : (row.date || "—") },
+    { id: "details", header: "Details", render: (row: any) => row.title || row.description || row.details || "—" },
+    { id: "status", header: "Status", render: (row: any) => <StatusPill label={row.status || "Pending"} tone={row.status?.toLowerCase() === 'resolved' || row.status?.toLowerCase() === 'closed' ? 'ok' : 'warning'} /> },
   ];
 
   return (
@@ -38,12 +38,8 @@ export function CasesWorkspace() {
       
       <section className="grid gap-4 md:grid-cols-3">
         <Card className="p-5">
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted">Total Records</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted">Total Cases</p>
           <p className="mt-2 text-3xl font-bold">{records.length}</p>
-        </Card>
-        <Card className="p-5 border-l-4 border-l-warning">
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted">Action Required</p>
-          <p className="mt-2 text-3xl font-bold text-warning">0</p>
         </Card>
       </section>
 

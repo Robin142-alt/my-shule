@@ -828,6 +828,8 @@ model User {
   userRoleAssignments     UserRoleAssignment[]
   userPermissionOverrides UserPermissionOverride[]
   communicationBroadcasts CommunicationBroadcast[]
+  requestedApprovalRequests ApprovalRequest[] @relation("RequestedApprovalRequests")
+  assignedApprovalRequests  ApprovalRequest[] @relation("AssignedApprovalRequests")
 
   @@map("users")
 }
@@ -859,6 +861,7 @@ model School {
   schoolMemberships           SchoolMembership[]
   roles                       Role[]
   userRoleAssignments         UserRoleAssignment[]
+  rolePermissions             RolePermission[]
   schoolSetting               SchoolSetting?
   schoolModules               SchoolModule[]
   setupChecklistItems         SetupChecklistItem[]
@@ -989,6 +992,7 @@ model School {
   markSubmissions            MarkSubmission[]
   hodreviews                 HODReview[]
   examReadinessChecks        ExamReadinessCheck[]
+  permissions                Permission[]
 
   @@map("schools")
 }
@@ -1047,10 +1051,13 @@ model Permission {
   description             String?
   createdAt               DateTime                 @default(now()) @map("created_at")
   updatedAt               DateTime                 @updatedAt @map("updated_at")
+  schoolId                String                   @map("tenant_id")
+  school                  School                   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   rolePermissions         RolePermission[]
   userPermissionOverrides UserPermissionOverride[]
   modulePermissions       ModulePermission[]
 
+  @@index([schoolId])
   @@map("permissions")
 }
 
@@ -1060,11 +1067,14 @@ model RolePermission {
   role         Role       @relation(fields: [roleId], references: [id])
   permissionId String     @map("permission_id")
   permission   Permission @relation(fields: [permissionId], references: [id])
+  schoolId     String     @map("tenant_id")
+  school       School     @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   allowed      Boolean    @default(true)
   createdAt    DateTime   @default(now()) @map("created_at")
   updatedAt    DateTime   @updatedAt @map("updated_at")
 
-  @@unique([roleId, permissionId])
+  @@unique([schoolId, roleId, permissionId])
+  @@index([schoolId])
   @@map("role_permissions")
 }
 
@@ -1143,6 +1153,7 @@ model ApprovalRule {
   createdBy            String?       @map("created_by")
   createdAt            DateTime      @default(now()) @map("created_at")
   updatedAt            DateTime      @updatedAt @map("updated_at")
+  approvalRequests     ApprovalRequest[]
 
   @@index([schoolId])
   @@map("approval_rules")
@@ -2110,12 +2121,15 @@ model ApprovalRequest {
   schoolId             String         @map("school_id")
   school               School         @relation(fields: [schoolId], references: [id])
   ruleId               String         @map("rule_id")
+  rule                 ApprovalRule   @relation(fields: [ruleId], references: [id])
   module               String
   action               String
   targetEntityType     String         @map("target_entity_type")
   targetEntityId       String         @map("target_entity_id")
   requestedByUserId    String         @map("requested_by_user_id")
+  requestedByUser      User           @relation("RequestedApprovalRequests", fields: [requestedByUserId], references: [id])
   assignedApproverId   String?        @map("assigned_approver_id")
+  assignedApprover     User?          @relation("AssignedApprovalRequests", fields: [assignedApproverId], references: [id])
   assignedApproverRole String?        @map("assigned_approver_role")
   status               ApprovalStatus @default(DRAFT)
   reason               String?
@@ -3499,6 +3513,7 @@ model StudentClassAssignment {
   auditLogRef     String?       @map("audit_log_reference") @db.Uuid
 
   @@unique([schoolId, id])
+  @@index([schoolId])
   @@map("student_class_assignments")
 }
 
@@ -3542,6 +3557,7 @@ model StudentNote {
   updatedAt    DateTime  @updatedAt @map("updated_at")
 
   @@unique([schoolId, id])
+  @@index([schoolId])
   @@map("student_notes")
 }
 
@@ -3565,6 +3581,7 @@ model ParentMeeting {
   updatedAt   DateTime @updatedAt @map("updated_at")
 
   @@unique([schoolId, id])
+  @@index([schoolId])
   @@map("parent_meetings")
 }
 
@@ -3584,6 +3601,7 @@ model ClassRequest {
   updatedAt   DateTime @updatedAt @map("updated_at")
 
   @@unique([schoolId, id])
+  @@index([schoolId])
   @@map("class_requests")
 }
 
@@ -3598,6 +3616,7 @@ model AcademicAuditLog {
   metadata    Json     @default("{}")
   createdAt   DateTime @default(now()) @map("created_at")
 
+  @@index([schoolId])
   @@map("academic_audit_logs")
 }
 
@@ -3645,6 +3664,7 @@ model AcademicAssignment {
   createdAt   DateTime  @default(now()) @map("created_at")
   updatedAt   DateTime  @updatedAt @map("updated_at")
 
+  @@index([schoolId])
   @@map("academics_assignments")
 }
 
@@ -3664,6 +3684,7 @@ model AcademicResource {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
+  @@index([schoolId])
   @@map("academics_resources")
 }
 
@@ -3682,6 +3703,7 @@ model LessonLog {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
+  @@index([schoolId])
   @@map("academics_lesson_logs")
 }
 
@@ -3697,6 +3719,7 @@ model ClassTeacherAssignment {
   createdAt      DateTime     @default(now()) @map("created_at")
   updatedAt      DateTime     @updatedAt @map("updated_at")
 
+  @@index([schoolId])
   @@map("academics_class_teachers")
 }
 
@@ -3711,6 +3734,7 @@ model ReportCardSetting {
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
 
+  @@index([schoolId])
   @@map("academics_report_card_settings")
 }
 
@@ -3735,6 +3759,8 @@ model OffenseCategory {
   updated_at               DateTime  @updatedAt
   deleted_at               DateTime?
 
+  @@index([tenant_id])
+  @@index([school_id])
   @@map("offense_categories")
 }
 
@@ -3766,6 +3792,8 @@ model DisciplineIncident {
   updated_at                 DateTime  @updatedAt
   deleted_at                 DateTime?
 
+  @@index([tenant_id])
+  @@index([school_id])
   @@map("discipline_incidents")
 }
 
@@ -3783,11 +3811,17 @@ model LegacyDisciplineAction {
   due_at             DateTime?
   remarks            String?
   metadata           Json      @default("{}")
-  created_by_user_id String    @db.Uuid
-  created_at         DateTime  @default(now())
-  updated_at         DateTime  @updatedAt
-  deleted_at         DateTime?
+  created_by_user_id  String    @db.Uuid
+  created_at          DateTime  @default(now())
+  updated_at          DateTime  @updatedAt
+  completed_at        DateTime?
+  completion_notes    String?
+  approved_by_user_id String?   @db.Uuid
+  approved_at         DateTime?
+  deleted_at          DateTime?
 
+  @@index([tenant_id])
+  @@index([school_id])
   @@map("discipline_actions")
 }
 
@@ -3803,6 +3837,8 @@ model DisciplineComment {
   updated_at     DateTime  @updatedAt
   deleted_at     DateTime?
 
+  @@index([tenant_id])
+  @@index([school_id])
   @@map("discipline_comments")
 }
 
@@ -3824,6 +3860,8 @@ model DisciplineAttachment {
   updated_at          DateTime  @updatedAt
   deleted_at          DateTime?
 
+  @@index([tenant_id])
+  @@index([school_id])
   @@map("discipline_attachments")
 }
 
@@ -3845,6 +3883,8 @@ model BehaviorPoint {
   updated_at         DateTime  @updatedAt
   deleted_at         DateTime?
 
+  @@index([tenant_id])
+  @@index([school_id])
   @@map("behavior_points")
 }
 
@@ -3862,6 +3902,8 @@ model DisciplineNotification {
   metadata          Json     @default("{}")
   created_at        DateTime @default(now())
 
+  @@index([tenant_id])
+  @@index([school_id])
   @@map("discipline_notifications")
 }
 
@@ -3878,6 +3920,8 @@ model ParentAcknowledgement {
   metadata             Json     @default("{}")
   created_at           DateTime @default(now())
 
+  @@index([tenant_id])
+  @@index([school_id])
   @@map("parent_acknowledgements")
 }
 
@@ -3895,6 +3939,8 @@ model DisciplineAuditLog {
   metadata      Json     @default("{}")
   created_at    DateTime @default(now())
 
+  @@index([tenant_id])
+  @@index([school_id])
   @@map("discipline_audit_logs")
 }
 
@@ -3916,6 +3962,8 @@ model CounsellingReferral {
   updated_at          DateTime  @updatedAt
   deleted_at          DateTime?
 
+  @@index([tenant_id])
+  @@index([school_id])
   @@map("counselling_referrals")
 }
 
@@ -3934,6 +3982,8 @@ model LegacyCounsellingSession {
   updated_at         DateTime  @updatedAt
   deleted_at         DateTime?
 
+  @@index([tenant_id])
+  @@index([school_id])
   @@map("counselling_sessions")
 }
 
@@ -3954,6 +4004,8 @@ model CounsellingNote {
   updated_at             DateTime  @updatedAt
   deleted_at             DateTime?
 
+  @@index([tenant_id])
+  @@index([school_id])
   @@map("counselling_notes")
 }
 
@@ -3974,6 +4026,8 @@ model BehaviorImprovementPlan {
   updated_at              DateTime  @updatedAt
   deleted_at              DateTime?
 
+  @@index([tenant_id])
+  @@index([school_id])
   @@map("behavior_improvement_plans")
 }
 
@@ -3988,6 +4042,8 @@ model BehaviorImprovementPlanStep {
   created_at DateTime  @default(now())
   updated_at DateTime  @updatedAt
 
+  @@index([tenant_id])
+  @@index([school_id])
   @@map("behavior_improvement_plan_steps")
 }
 
@@ -4004,6 +4060,7 @@ model ExamSeries {
   tenant_id          String   @db.Uuid
   updated_at         DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("exam_series")
 }
 
@@ -4019,6 +4076,7 @@ model ExamAssessments {
   updated_at         DateTime @updatedAt
   weight             Decimal
 
+  @@index([tenant_id])
   @@map("exam_assessments")
 }
 
@@ -4032,6 +4090,7 @@ model ExamAssessmentComponents {
   created_at    DateTime @default(now())
   updated_at    DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("exam_assessment_components")
 }
 
@@ -4044,6 +4103,7 @@ model ExamSubjectWeightings {
   created_at     DateTime @default(now())
   updated_at     DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("exam_subject_weightings")
 }
 
@@ -4059,6 +4119,7 @@ model ExamMarkEntryWindows {
   created_at       DateTime @default(now())
   updated_at       DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("exam_mark_entry_windows")
 }
 
@@ -4081,6 +4142,7 @@ model ExamMarks {
   reviewed_at        DateTime?
   locked_at          DateTime?
 
+  @@index([tenant_id])
   @@map("exam_marks")
 }
 
@@ -4099,6 +4161,7 @@ model ExamMarkVersions {
   tenant_id               String   @db.Uuid
   updated_at              DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("exam_mark_versions")
 }
 
@@ -4115,6 +4178,7 @@ model StudentReportCards {
   updated_at           DateTime @updatedAt
   verification_code    String
 
+  @@index([tenant_id])
   @@map("student_report_cards")
 }
 
@@ -4132,6 +4196,7 @@ model ReportCardArtifacts {
   updated_at           DateTime @updatedAt
   verification_code    String
 
+  @@index([tenant_id])
   @@map("report_card_artifacts")
 }
 
@@ -4149,6 +4214,7 @@ model ReportCardGenerationBatches {
   total_students       String
   updated_at           DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("report_card_generation_batches")
 }
 
@@ -4168,6 +4234,7 @@ model ExamMarkAuditLogs {
   tenant_id      String   @db.Uuid
   updated_at     DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("exam_mark_audit_logs")
 }
 
@@ -4183,6 +4250,7 @@ model StudentReportCardAuditLogs {
   tenant_id      String   @db.Uuid
   updated_at     DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("student_report_card_audit_logs")
 }
 
@@ -4198,6 +4266,7 @@ model ExamTimetableSlots {
   tenant_id      String   @db.Uuid
   updated_at     DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("exam_timetable_slots")
 }
 
@@ -4210,6 +4279,7 @@ model ExamInvigilators {
   timetable_slot_id String   @db.Uuid
   updated_at        DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("exam_invigilators")
 }
 
@@ -4224,6 +4294,7 @@ model ExamAttendanceRecords {
   timetable_slot_id   String   @db.Uuid
   updated_at          DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("exam_attendance_records")
 }
 
@@ -4238,6 +4309,7 @@ model ExamStudentCases {
   tenant_id           String   @db.Uuid
   updated_at          DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("exam_student_cases")
 }
 
@@ -4252,6 +4324,7 @@ model ExamGradeBoundaries {
   created_at        DateTime @default(now())
   updated_at        DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("exam_grade_boundaries")
 }
 
@@ -4263,6 +4336,7 @@ model ExamGradingPolicies {
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("exam_grading_policies")
 }
 
@@ -4277,6 +4351,7 @@ model EventConsumerRuns {
   tenant_id       String   @db.Uuid
   updated_at      DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("event_consumer_runs")
 }
 
@@ -4292,8 +4367,15 @@ model OutboxEvents {
   payload        Json
   status         String
   tenant_id      String   @db.Uuid
+  school_id      String   @db.Uuid
+  actor_user_id  String?  @db.Uuid
+  actor_role     String?
+  source_dashboard String?
+  correlation_id String?  @db.Uuid
   updated_at     DateTime @updatedAt
 
+  @@index([tenant_id])
+  @@index([school_id])
   @@map("outbox_events")
 }
 
@@ -4313,6 +4395,7 @@ model Tasks {
   title               String
   updated_at          DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("tasks")
 }
 
@@ -4328,6 +4411,7 @@ model PrincipalDashboardSnapshots {
   tenant_id           String   @db.Uuid
   updated_at          DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("principal_dashboard_snapshots")
 }
 
@@ -4342,6 +4426,7 @@ model AdminIncidents {
   title            String
   updated_at       DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("admin_incidents")
 }
 
@@ -4356,6 +4441,7 @@ model Announcements {
   title      String
   updated_at DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("announcements")
 }
 
@@ -4371,6 +4457,7 @@ model MeetingMinutes {
   title        String
   updated_at   DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("meeting_minutes")
 }
 
@@ -4385,6 +4472,8 @@ model AdmissionsApplications {
   tenant_id            String   @db.Uuid
   updated_at           DateTime @updatedAt
 
+  @@index([tenant_id])
+  @@index([school_id])
   @@map("admissions_applications")
 }
 
@@ -4405,6 +4494,7 @@ model BillingNotifications {
   title            String
   updated_at       DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("billing_notifications")
 }
 
@@ -4422,6 +4512,7 @@ model StudentFeePaymentAllocations {
   tenant_id             String   @db.Uuid
   updated_at            DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("student_fee_payment_allocations")
 }
 
@@ -4439,6 +4530,7 @@ model StudentFeeCredits {
   tenant_id              String   @db.Uuid
   updated_at             DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("student_fee_credits")
 }
 
@@ -4467,6 +4559,7 @@ model ManualFeePayments {
   tenant_id                String   @db.Uuid
   updated_at               DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("manual_fee_payments")
 }
 
@@ -4482,6 +4575,7 @@ model ManualFeePaymentAllocations {
   tenant_id         String   @db.Uuid
   updated_at        DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("manual_fee_payment_allocations")
 }
 
@@ -4508,6 +4602,7 @@ model Subscriptions {
   trial_ends_at        DateTime
   updated_at           DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("subscriptions")
 }
 
@@ -4526,6 +4621,7 @@ model UsageRecords {
   unit            String
   updated_at      DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("usage_records")
 }
 
@@ -4539,6 +4635,7 @@ model BiometricDevices {
   type          String
   updated_at    DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("biometric_devices")
 }
 
@@ -4551,6 +4648,7 @@ model BiometricIdentities {
   tenant_id       String   @db.Uuid
   updated_at      DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("biometric_identities")
 }
 
@@ -4567,6 +4665,7 @@ model BiometricEvents {
   tenant_id         String   @db.Uuid
   updated_at        DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("biometric_events")
 }
 
@@ -4576,6 +4675,7 @@ model AttendanceRules {
   tenant_id  String   @db.Uuid
   updated_at DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("attendance_rules")
 }
 
@@ -4596,6 +4696,7 @@ model TeacherAttendanceLogs {
   tenant_id       String   @db.Uuid
   updated_at      DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("teacher_attendance_logs")
 }
 
@@ -4609,6 +4710,8 @@ model BoardingReferrals {
   tenant_id  String   @db.Uuid
   updated_at DateTime @updatedAt
 
+  @@index([tenant_id])
+  @@index([school_id])
   @@map("boarding_referrals")
 }
 
@@ -4623,6 +4726,7 @@ model AcademicsAttendance {
   tenant_id       String   @db.Uuid
   updated_at      DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("academics_attendance")
 }
 
@@ -4650,6 +4754,7 @@ model ClinicMedicines {
   unit_type             String
   updated_at            DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("clinic_medicines")
 }
 
@@ -4673,6 +4778,7 @@ model ClinicMedicineBatches {
   tenant_id                  String   @db.Uuid
   updated_at                 DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("clinic_medicine_batches")
 }
 
@@ -4691,6 +4797,7 @@ model ClinicVisits {
   updated_at          DateTime @updatedAt
   visit_date          String
 
+  @@index([tenant_id])
   @@map("clinic_visits")
 }
 
@@ -4708,6 +4815,7 @@ model ClinicMedicineDispenses {
   updated_at           DateTime @updatedAt
   visit_id             String   @db.Uuid
 
+  @@index([tenant_id])
   @@map("clinic_medicine_dispenses")
 }
 
@@ -4727,6 +4835,7 @@ model ClinicProcurementRecommendations {
   tenant_id                  String   @db.Uuid
   updated_at                 DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("clinic_procurement_recommendations")
 }
 
@@ -4744,6 +4853,7 @@ model ClinicAlerts {
   title            String
   updated_at       DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("clinic_alerts")
 }
 
@@ -4758,6 +4868,7 @@ model ClinicAuditLogs {
   tenant_id     String   @db.Uuid
   updated_at    DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("clinic_audit_logs")
 }
 
@@ -4778,6 +4889,7 @@ model ClinicStockMovements {
   updated_at      DateTime @updatedAt
   visit_id        String   @db.Uuid
 
+  @@index([tenant_id])
   @@map("clinic_stock_movements")
 }
 
@@ -4791,6 +4903,7 @@ model CommunicationSmsOutbox {
   tenant_id       String   @db.Uuid
   updated_at      DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("communication_sms_outbox")
 }
 
@@ -4806,6 +4919,7 @@ model ConsentRecords {
   updated_at     DateTime @updatedAt
   user_id        String   @db.Uuid
 
+  @@index([tenant_id])
   @@map("consent_records")
 }
 
@@ -4822,6 +4936,7 @@ model DataSubjectRequests {
   tenant_id         String   @db.Uuid
   updated_at        DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("data_subject_requests")
 }
 
@@ -4834,6 +4949,7 @@ model TenantFinanceSummary {
   total_collections_minor String
   updated_at              DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("tenant_finance_summary")
 }
 
@@ -4848,6 +4964,7 @@ model FinanceTasks {
   title       String
   updated_at  DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("finance_tasks")
 }
 
@@ -4861,6 +4978,7 @@ model FinanceFeeCategories {
   tenant_id     String   @db.Uuid
   updated_at    DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("finance_fee_categories")
 }
 
@@ -4877,6 +4995,7 @@ model StudentInvoices {
   term             String
   updated_at       DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("student_invoices")
 }
 
@@ -4893,6 +5012,7 @@ model TenantPendingWaivers {
   updated_at    DateTime @updatedAt
   waiver_number String
 
+  @@index([tenant_id])
   @@map("tenant_pending_waivers")
 }
 
@@ -4911,6 +5031,7 @@ model StaffContracts {
   updated_at          DateTime @updatedAt
   workload            String
 
+  @@index([tenant_id])
   @@map("staff_contracts")
 }
 
@@ -4927,6 +5048,7 @@ model StaffLeaveRequests {
   tenant_id           String   @db.Uuid
   updated_at          DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("staff_leave_requests")
 }
 
@@ -4940,6 +5062,7 @@ model StaffAuditLogs {
   tenant_id        String   @db.Uuid
   updated_at       DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("staff_audit_logs")
 }
 
@@ -4961,6 +5084,7 @@ model SchoolIntegrations {
   updated_at                 DateTime @updatedAt
   updated_by_user_id         String   @db.Uuid
 
+  @@index([tenant_id])
   @@map("school_integrations")
 }
 
@@ -4977,6 +5101,7 @@ model IntegrationLogs {
   tenant_id          String   @db.Uuid
   updated_at         DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("integration_logs")
 }
 
@@ -4992,6 +5117,7 @@ model ParentOtpChallenges {
   updated_at  DateTime @updatedAt
   user_id     String   @db.Uuid
 
+  @@index([tenant_id])
   @@map("parent_otp_challenges")
 }
 
@@ -5011,6 +5137,7 @@ model PlatformSmsProviders {
   updated_by_user_id  String   @db.Uuid
   username_ciphertext String
 
+  @@index([tenant_id])
   @@map("platform_sms_providers")
 }
 
@@ -5020,6 +5147,7 @@ model SchoolSmsWallets {
   tenant_id  String   @db.Uuid
   updated_at DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("school_sms_wallets")
 }
 
@@ -5035,6 +5163,7 @@ model SmsWalletTransactions {
   transaction_type   String
   updated_at         DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("sms_wallet_transactions")
 }
 
@@ -5047,6 +5176,7 @@ model SmsPurchaseRequests {
   tenant_id            String   @db.Uuid
   updated_at           DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("sms_purchase_requests")
 }
 
@@ -5064,6 +5194,7 @@ model InventoryRequisitions {
   tenant_id          String   @db.Uuid
   updated_at         DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("inventory_requisitions")
 }
 
@@ -5076,6 +5207,7 @@ model InventoryItemBalances {
   tenant_id        String   @db.Uuid
   updated_at       DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("inventory_item_balances")
 }
 
@@ -5088,6 +5220,7 @@ model InventoryLocations {
   tenant_id  String   @db.Uuid
   updated_at DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("inventory_locations")
 }
 
@@ -5104,6 +5237,7 @@ model InventorySuppliers {
   tenant_id      String   @db.Uuid
   updated_at     DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("inventory_suppliers")
 }
 
@@ -5122,6 +5256,7 @@ model InventoryPurchaseOrders {
   total_amount           Decimal  @db.Decimal(10, 2)
   updated_at             DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("inventory_purchase_orders")
 }
 
@@ -5136,6 +5271,7 @@ model InventoryReservations {
   tenant_id           String   @db.Uuid
   updated_at          DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("inventory_reservations")
 }
 
@@ -5151,6 +5287,7 @@ model InventoryRequestBackorders {
   tenant_id            String   @db.Uuid
   updated_at           DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("inventory_request_backorders")
 }
 
@@ -5167,6 +5304,7 @@ model InventoryTransfers {
   transfer_number String
   updated_at      DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("inventory_transfers")
 }
 
@@ -5185,6 +5323,7 @@ model InventoryIncidents {
   tenant_id              String   @db.Uuid
   updated_at             DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("inventory_incidents")
 }
 
@@ -5202,6 +5341,7 @@ model InventoryStockCountSnapshots {
   updated_at         DateTime @updatedAt
   variance_count     Int
 
+  @@index([tenant_id])
   @@map("inventory_stock_count_snapshots")
 }
 
@@ -5218,6 +5358,7 @@ model IotDevices {
   tenant_id          String   @db.Uuid
   updated_at         DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("iot_devices")
 }
 
@@ -5235,6 +5376,7 @@ model IotTelemetryReadings {
   unit                String
   updated_at          DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("iot_telemetry_readings")
 }
 
@@ -5250,6 +5392,7 @@ model IotAlerts {
   title              String
   updated_at         DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("iot_alerts")
 }
 
@@ -5265,6 +5408,7 @@ model IotDeviceCommands {
   tenant_id            String   @db.Uuid
   updated_at           DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("iot_device_commands")
 }
 
@@ -5280,6 +5424,7 @@ model IotDeviceCredentials {
   tenant_id          String   @db.Uuid
   updated_at         DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("iot_device_credentials")
 }
 
@@ -5295,6 +5440,7 @@ model IotGatewayIngestions {
   tenant_id       String   @db.Uuid
   updated_at      DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("iot_gateway_ingestions")
 }
 
@@ -5309,6 +5455,7 @@ model IotAuditLogs {
   tenant_id     String   @db.Uuid
   updated_at    DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("iot_audit_logs")
 }
 
@@ -5321,6 +5468,7 @@ model LabDepartments {
   type       String
   updated_at DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("lab_departments")
 }
 
@@ -5334,6 +5482,7 @@ model Labs {
   tenant_id     String   @db.Uuid
   updated_at    DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("labs")
 }
 
@@ -5352,6 +5501,7 @@ model LabSessions {
   tenant_id        String   @db.Uuid
   updated_at       DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("lab_sessions")
 }
 
@@ -5365,6 +5515,7 @@ model LabAttendance {
   tenant_id   String   @db.Uuid
   updated_at  DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("lab_attendance")
 }
 
@@ -5382,6 +5533,7 @@ model LabEquipment {
   tenant_id          String   @db.Uuid
   updated_at         DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("lab_equipment")
 }
 
@@ -5401,6 +5553,7 @@ model ChemicalItems {
   unit               String
   updated_at         DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("chemical_items")
 }
 
@@ -5414,6 +5567,7 @@ model LabSessionEquipmentUsage {
   tenant_id           String   @db.Uuid
   updated_at          DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("lab_session_equipment_usage")
 }
 
@@ -5427,6 +5581,7 @@ model LabSessionChemicalUsage {
   tenant_id     String   @db.Uuid
   updated_at    DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("lab_session_chemical_usage")
 }
 
@@ -5439,6 +5594,7 @@ model ChemicalDisposalRequests {
   tenant_id    String   @db.Uuid
   updated_at   DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("chemical_disposal_requests")
 }
 
@@ -5451,6 +5607,7 @@ model LibraryReservations {
   tenant_id       String   @db.Uuid
   updated_at      DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("library_reservations")
 }
 
@@ -5464,6 +5621,7 @@ model LibraryCirculationLedger {
   tenant_id   String   @db.Uuid
   updated_at  DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("library_circulation_ledger")
 }
 
@@ -5478,6 +5636,7 @@ model LmsSubmissions {
   tenant_id            String   @db.Uuid
   updated_at           DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("lms_submissions")
 }
 
@@ -5498,6 +5657,7 @@ model ModuleRegistry {
   tenant_id               String   @db.Uuid
   updated_at              DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("module_registry")
 }
 
@@ -5518,6 +5678,7 @@ model SchoolModuleAccess {
   updated_at        DateTime @updatedAt
   updated_by        String
 
+  @@index([tenant_id])
   @@map("school_module_access")
 }
 
@@ -5532,6 +5693,7 @@ model ModulePackages {
   tenant_id        String   @db.Uuid
   updated_at       DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("module_packages")
 }
 
@@ -5543,6 +5705,7 @@ model ModulePackageItems {
   tenant_id   String   @db.Uuid
   updated_at  DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("module_package_items")
 }
 
@@ -5556,6 +5719,7 @@ model ModuleUsageEvents {
   tenant_id     String   @db.Uuid
   updated_at    DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("module_usage_events")
 }
 
@@ -5569,6 +5733,7 @@ model OperationsEmergencies {
   title       String
   updated_at  DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("operations_emergencies")
 }
 
@@ -5582,6 +5747,7 @@ model OperationsAlerts {
   title       String
   updated_at  DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("operations_alerts")
 }
 
@@ -5594,6 +5760,7 @@ model OperationsReports {
   title       String
   updated_at  DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("operations_reports")
 }
 
@@ -5619,6 +5786,7 @@ model CallbackLogs {
   tenant_id                 String   @db.Uuid
   updated_at                DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("callback_logs")
 }
 
@@ -5646,6 +5814,7 @@ model MpesaC2bPayments {
   transaction_type          String
   updated_at                DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("mpesa_c2b_payments")
 }
 
@@ -5661,6 +5830,7 @@ model MpesaVerificationJobs {
   transaction_status   String
   updated_at           DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("mpesa_verification_jobs")
 }
 
@@ -5689,6 +5859,7 @@ model PaymentIntents {
   updated_at                 DateTime @updatedAt
   user_id                    String   @db.Uuid
 
+  @@index([tenant_id])
   @@map("payment_intents")
 }
 
@@ -5706,6 +5877,7 @@ model MpesaCallbackChannels {
   tenant_id                   String   @db.Uuid
   updated_at                  DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("mpesa_callback_channels")
 }
 
@@ -5722,6 +5894,7 @@ model MpesaPayloadVault {
   tenant_id                 String   @db.Uuid
   updated_at                DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("mpesa_payload_vault")
 }
 
@@ -5737,6 +5910,7 @@ model MpesaPayloadSupportAccessLogs {
   ticket_id                 String   @db.Uuid
   updated_at                DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("mpesa_payload_support_access_logs")
 }
 
@@ -5756,6 +5930,7 @@ model FinanceApprovalRequests {
   tenant_id                     String   @db.Uuid
   updated_at                    DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("finance_approval_requests")
 }
 
@@ -5774,6 +5949,7 @@ model MpesaReconciliationBatches {
   window_ended_at      DateTime
   window_started_at    DateTime
 
+  @@index([tenant_id])
   @@map("mpesa_reconciliation_batches")
 }
 
@@ -5796,6 +5972,7 @@ model MpesaReconciliationDiscrepancies {
   tenant_id               String   @db.Uuid
   updated_at              DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("mpesa_reconciliation_discrepancies")
 }
 
@@ -5810,6 +5987,7 @@ model Tenants {
   tenant_id  String   @db.Uuid
   updated_at DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("tenants")
 }
 
@@ -5824,6 +6002,7 @@ model TenantDomains {
   tenant_id          String   @db.Uuid
   updated_at         DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("tenant_domains")
 }
 
@@ -5839,6 +6018,7 @@ model AuthActionTokens {
   updated_at DateTime @updatedAt
   user_id    String   @db.Uuid
 
+  @@index([tenant_id])
   @@map("auth_action_tokens")
 }
 
@@ -5854,6 +6034,7 @@ model AuthEmailOutbox {
   updated_at      DateTime @updatedAt
   user_id         String   @db.Uuid
 
+  @@index([tenant_id])
   @@map("auth_email_outbox")
 }
 
@@ -5870,6 +6051,7 @@ model ProcurementSuppliers {
   tenant_id          String   @db.Uuid
   updated_at         DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("procurement_suppliers")
 }
 
@@ -5886,6 +6068,7 @@ model ProcurementRequests {
   title                String
   updated_at           DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("procurement_requests")
 }
 
@@ -5900,6 +6083,7 @@ model ProcurementRequestItems {
   tenant_id                 String   @db.Uuid
   updated_at                DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("procurement_request_items")
 }
 
@@ -5913,6 +6097,7 @@ model ProcurementApprovals {
   tenant_id        String   @db.Uuid
   updated_at       DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("procurement_approvals")
 }
 
@@ -5926,6 +6111,7 @@ model PurchaseOrderItems {
   unit_cost_minor   Decimal  @db.Decimal(10, 2)
   updated_at        DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("purchase_order_items")
 }
 
@@ -5939,6 +6125,7 @@ model ProcurementBudgetLinks {
   tenant_id              String   @db.Uuid
   updated_at             DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("procurement_budget_links")
 }
 
@@ -5955,6 +6142,7 @@ model SupplierInvoices {
   tenant_id           String   @db.Uuid
   updated_at          DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("supplier_invoices")
 }
 
@@ -5969,6 +6157,7 @@ model ProcurementAuditLogs {
   tenant_id     String   @db.Uuid
   updated_at    DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("procurement_audit_logs")
 }
 
@@ -5982,6 +6171,7 @@ model SecretaryQueueTickets {
   updated_at         DateTime @updatedAt
   visitor_name       String
 
+  @@index([tenant_id])
   @@map("secretary_queue_tickets")
 }
 
@@ -5996,6 +6186,7 @@ model SecurityIncidents {
   title       String
   updated_at  DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("security_incidents")
 }
 
@@ -6007,6 +6198,7 @@ model SecurityPanicAlerts {
   triggered_by String
   updated_at   DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("security_panic_alerts")
 }
 
@@ -6022,6 +6214,7 @@ model SupportCategories {
   tenant_id              String   @db.Uuid
   updated_at             DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("support_categories")
 }
 
@@ -6037,6 +6230,7 @@ model SupportKbArticles {
   title      String
   updated_at DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("support_kb_articles")
 }
 
@@ -6051,6 +6245,7 @@ model SupportSystemComponents {
   updated_at     DateTime @updatedAt
   uptime_percent String
 
+  @@index([tenant_id])
   @@map("support_system_components")
 }
 
@@ -6075,6 +6270,7 @@ model SupportTickets {
   updated_at            DateTime @updatedAt
   updated_by_user_id    String   @db.Uuid
 
+  @@index([tenant_id])
   @@map("support_tickets")
 }
 
@@ -6089,6 +6285,7 @@ model SupportMessages {
   updated_at     DateTime @updatedAt
   visibility     String
 
+  @@index([tenant_id])
   @@map("support_messages")
 }
 
@@ -6101,6 +6298,7 @@ model SupportInternalNotes {
   ticket_id      String   @db.Uuid
   updated_at     DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("support_internal_notes")
 }
 
@@ -6116,6 +6314,7 @@ model SupportStatusLogs {
   to_status     String
   updated_at    DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("support_status_logs")
 }
 
@@ -6134,6 +6333,7 @@ model SupportAttachments {
   updated_at          DateTime @updatedAt
   uploaded_by_user_id String   @db.Uuid
 
+  @@index([tenant_id])
   @@map("support_attachments")
 }
 
@@ -6150,6 +6350,7 @@ model SupportNotifications {
   title             String
   updated_at        DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("support_notifications")
 }
 
@@ -6167,6 +6368,7 @@ model SupportStatusSubscriptions {
   unsubscribed_at DateTime
   updated_at      DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("support_status_subscriptions")
 }
 
@@ -6179,6 +6381,7 @@ model SupportStatusUnsubscribeTokens {
   token_hash   String
   updated_at   DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("support_status_unsubscribe_tokens")
 }
 
@@ -6194,45 +6397,49 @@ model SupportStatusNotificationAttempts {
   tenant_id       String   @db.Uuid
   updated_at      DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("support_status_notification_attempts")
 }
 
 model SyncCursors {
   created_at   DateTime @default(now())
-  device_id    String   @db.Uuid
+  device_id    String
   entity       String
   id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  last_version String
-  tenant_id    String   @db.Uuid
+  last_version BigInt
+  tenant_id    String
   updated_at   DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("sync_cursors")
 }
 
 model SyncDevices {
   app_version  String
   created_at   DateTime @default(now())
-  device_id    String   @db.Uuid
+  device_id    String
   id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   last_seen_at DateTime
   metadata     Json
   platform     String
-  tenant_id    String   @db.Uuid
+  tenant_id    String
   updated_at   DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("sync_devices")
 }
 
 model SyncOperationLogs {
   created_at DateTime @default(now())
-  device_id  String   @db.Uuid
+  device_id  String
   entity     String
-  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  op_id      String   @db.Uuid
+  op_id      String   @id @db.Uuid
   payload    Json
-  tenant_id  String   @db.Uuid
+  tenant_id  String
   updated_at DateTime @updatedAt
+  version    BigInt   @default(autoincrement())
 
+  @@index([tenant_id])
   @@map("sync_operation_logs")
 }
 
@@ -6246,6 +6453,7 @@ model TenantFinancialAccounts {
   tenant_id                   String   @db.Uuid
   updated_at                  DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("tenant_financial_accounts")
 }
 
@@ -6265,6 +6473,7 @@ model TenantMpesaConfigs {
   till_number     String
   updated_at      DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("tenant_mpesa_configs")
 }
 
@@ -6279,6 +6488,7 @@ model MpesaConfigAuditLogs {
   tenant_id       String   @db.Uuid
   updated_at      DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("mpesa_config_audit_logs")
 }
 
@@ -6293,6 +6503,7 @@ model TenantPaymentChannels {
   tenant_id       String   @db.Uuid
   updated_at      DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("tenant_payment_channels")
 }
 
@@ -6309,6 +6520,7 @@ model TenantBankAccounts {
   tenant_id           String   @db.Uuid
   updated_at          DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("tenant_bank_accounts")
 }
 
@@ -6328,6 +6540,7 @@ model TimetableSlots {
   term_name          String
   updated_at         DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("timetable_slots")
 }
 
@@ -6344,6 +6557,7 @@ model TimetableVersions {
   term_name            String
   updated_at           DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("timetable_versions")
 }
 
@@ -6358,6 +6572,7 @@ model TimetableAuditLogs {
   updated_at    DateTime @updatedAt
   version_id    String   @db.Uuid
 
+  @@index([tenant_id])
   @@map("timetable_audit_logs")
 }
 
@@ -6374,6 +6589,7 @@ model TransportRouteStops {
   tenant_id     String   @db.Uuid
   updated_at    DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("transport_route_stops")
 }
 
@@ -6389,6 +6605,7 @@ model TransportDrivers {
   tenant_id           String   @db.Uuid
   updated_at          DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("transport_drivers")
 }
 
@@ -6403,6 +6620,7 @@ model TransportManifests {
   tenant_id          String   @db.Uuid
   updated_at         DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("transport_manifests")
 }
 
@@ -6415,6 +6633,7 @@ model TransportManifestStudents {
   tenant_id       String   @db.Uuid
   updated_at      DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("transport_manifest_students")
 }
 
@@ -6435,6 +6654,7 @@ model TransportTrips {
   updated_at         DateTime @updatedAt
   vehicle_id         String   @db.Uuid
 
+  @@index([tenant_id])
   @@map("transport_trips")
 }
 
@@ -6453,6 +6673,7 @@ model TransportTripEvents {
   trip_id             String   @db.Uuid
   updated_at          DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("transport_trip_events")
 }
 
@@ -6470,6 +6691,7 @@ model VehicleServiceLogs {
   updated_at          DateTime @updatedAt
   vehicle_id          String   @db.Uuid
 
+  @@index([tenant_id])
   @@map("vehicle_service_logs")
 }
 
@@ -6484,6 +6706,7 @@ model TransportAuditLogs {
   tenant_id     String   @db.Uuid
   updated_at    DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("transport_audit_logs")
 }
 
@@ -6498,6 +6721,7 @@ model VisitorsAppointments {
   updated_at         DateTime @updatedAt
   visitor_name       String
 
+  @@index([tenant_id])
   @@map("visitors_appointments")
 }
 
@@ -6513,6 +6737,7 @@ model VisitorsLogs {
   updated_at        DateTime @updatedAt
   visitor_name      String
 
+  @@index([tenant_id])
   @@map("visitors_logs")
 }
 
@@ -6609,6 +6834,7 @@ model DashboardTasks {
   title       String
   updated_at  DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("dashboard_tasks")
 }
 
@@ -6628,6 +6854,7 @@ model WorkflowEvents {
   title          String
   updated_at     DateTime @updatedAt
 
+  @@index([tenant_id])
   @@map("workflow_events")
 }
 

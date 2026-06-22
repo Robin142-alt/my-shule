@@ -29,7 +29,15 @@ export type SupportedDomainEventName =
   | 'report.card.published'
   | 'communication.sms.queued'
   | 'admissions.cleared'
-  | 'staff.updated';
+  | 'staff.updated'
+  | 'staff.invited'
+  | 'staff.activated'
+  | 'staff.role_updated'
+  | 'counselling.session.created'
+  | 'counselling.referral.accepted'
+  | 'counselling.referral.declined'
+  | 'counselling.note.created'
+  | 'counselling.plan.created';
 
 export type OutboxEventStatus =
   | 'pending'
@@ -369,6 +377,14 @@ export interface DomainEventPayloadMap {
   'communication.sms.queued': CommunicationSmsQueuedPayload;
   'admissions.cleared': AdmissionsClearedPayload;
   'staff.updated': StaffUpdatedPayload;
+  'staff.invited': StaffInvitedPayload;
+  'staff.activated': StaffActivatedPayload;
+  'staff.role_updated': StaffRoleUpdatedPayload;
+  'counselling.session.created': CounsellingSessionCreatedPayload;
+  'counselling.referral.accepted': CounsellingReferralAcceptedPayload;
+  'counselling.referral.declined': CounsellingReferralDeclinedPayload;
+  'counselling.note.created': CounsellingNoteCreatedPayload;
+  'counselling.plan.created': CounsellingPlanCreatedPayload;
 }
 
 export interface DomainEvent<
@@ -376,6 +392,7 @@ export interface DomainEvent<
 > {
   id: string;
   tenant_id: string;
+  school_id?: string;
   event_key: string;
   event_name: TName;
   aggregate_type: string;
@@ -387,6 +404,10 @@ export interface DomainEvent<
   available_at: string;
   published_at: string | null;
   last_error: string | null;
+  actor_user_id?: string | null;
+  actor_role?: string | null;
+  source_dashboard?: string | null;
+  correlation_id?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -405,7 +426,8 @@ export interface ClaimedOutboxEvent {
 export interface PublishDomainEventInput<
   TName extends SupportedDomainEventName = SupportedDomainEventName,
 > {
-  tenant_id: string;
+  tenant_id?: string;
+  school_id?: string;
   event_key: string;
   event_name: TName;
   aggregate_type: string;
@@ -413,6 +435,10 @@ export interface PublishDomainEventInput<
   payload: DomainEventPayloadMap[TName];
   headers?: Record<string, unknown>;
   available_at?: string;
+  actor_user_id?: string | null;
+  actor_role?: string | null;
+  source_dashboard?: string | null;
+  correlation_id?: string | null;
 }
 
 export interface EventConsumerDescriptor<
@@ -515,4 +541,65 @@ export interface StaffUpdatedPayload {
   staff_id: string;
   updated_fields: string[];
   updated_by: string;
+}
+
+export interface StaffInvitedPayload {
+  tenant_id: string;
+  staff_id: string;
+  email: string;
+  invited_by: string;
+}
+
+export interface StaffActivatedPayload {
+  tenant_id: string;
+  staff_id: string;
+  activated_by: string;
+}
+
+export interface StaffRoleUpdatedPayload {
+  tenant_id: string;
+  staff_id: string;
+  role: string;
+  updated_by: string;
+}
+
+export interface CounsellingSessionCreatedPayload {
+  tenant_id: string;
+  session_id: string;
+  student_id: string;
+  counsellor_user_id: string;
+  scheduled_for: string;
+  status: string;
+}
+
+export interface CounsellingReferralAcceptedPayload {
+  tenant_id: string;
+  referral_id: string;
+  counsellor_user_id: string;
+  accepted_at: string;
+}
+
+export interface CounsellingReferralDeclinedPayload {
+  tenant_id: string;
+  referral_id: string;
+  counsellor_user_id: string;
+  declined_at: string;
+  reason?: string | null;
+}
+
+export interface CounsellingNoteCreatedPayload {
+  tenant_id: string;
+  note_id: string;
+  session_id: string;
+  student_id: string;
+  counsellor_user_id: string;
+  created_at: string;
+}
+
+export interface CounsellingPlanCreatedPayload {
+  tenant_id: string;
+  plan_id: string;
+  student_id: string;
+  counsellor_user_id: string;
+  created_at: string;
 }

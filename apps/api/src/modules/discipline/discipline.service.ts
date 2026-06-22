@@ -7,6 +7,7 @@ import {
   Optional,
   UnauthorizedException,
 } from '@nestjs/common';
+import { ApprovalsService } from '../approvals/approvals.service';
 
 import { RequestContextService } from '../../common/request-context/request-context.service';
 import { PrismaService } from '../../database/prisma.service';
@@ -82,6 +83,7 @@ export class DisciplineService {
     @Optional() private readonly attachmentStorage?: DisciplineAttachmentStorageService,
     @Optional() private readonly uploadMalwareScan?: UploadMalwareScanService,
     @Optional() private readonly schoolEvents?: SchoolOperationalEventsService,
+    @Optional() private readonly approvalsService?: ApprovalsService,
   ) {}
 
   async getDashboard() {
@@ -473,6 +475,136 @@ export class DisciplineService {
 
     return action;
   }
+
+  async executeEscalation(incidentId: string, schoolId: string, reason: string, actorUserId: string) {
+    return this.withRequestTransaction(async () => {
+      const incident = await this.disciplineRepository.findIncidentById(schoolId, incidentId);
+      if (!incident) throw new NotFoundException('Incident not found');
+      
+      const next = await this.disciplineRepository.updateIncidentStatus({
+        tenant_id: schoolId,
+        incident_id: incidentId,
+        status: 'escalated',
+      });
+
+      await this.disciplineRepository.createAuditLog({
+        tenant_id: schoolId,
+        school_id: schoolId,
+        actor_user_id: actorUserId,
+        actor_role: 'system',
+        action: 'incident.status_changed',
+        entity_type: 'discipline_incident',
+        entity_id: incidentId,
+        metadata: { from_status: incident.status, to_status: 'escalated', reason },
+      });
+
+      await this.schoolEvents?.recordSchoolOperation({
+        schoolId,
+        event: {
+          id: incidentId,
+          type: 'discipline.incident_escalated',
+          module: 'discipline',
+          actorRole: 'system',
+          title: 'Discipline Incident Escalated',
+          body: `Incident ${incidentId} has been escalated via approvals`,
+          entityId: incidentId,
+          severity: 'high',
+          payload: { student_id: incident.student_id },
+        },
+        notifications: [
+          {
+            id: `discipline-escalate-${incidentId}`,
+            schoolId,
+            title: 'Discipline Incident Escalated',
+            body: `Incident ${incidentId} has been escalated`,
+            audienceRoles: ['deputy-principal', 'principal'],
+            priority: 'urgent',
+            sourceModule: 'discipline',
+            relatedModule: 'discipline',
+            relatedRecordId: incidentId,
+            read: false,
+            createdAt: new Date().toISOString(),
+          }
+        ]
+      });
+      return next;
+    });
+  }
+
+  async executeResolution(incidentId: string, schoolId: string, reason: string, actorUserId: string) {
+    return this.withRequestTransaction(async () => {
+      const incident = await this.disciplineRepository.findIncidentById(schoolId, incidentId);
+      if (!incident) throw new NotFoundException('Incident not found');
+      
+      const next = await this.disciplineRepository.updateIncidentStatus({
+        tenant_id: schoolId,
+        incident_id: incidentId,
+        status: 'resolved',
+      });
+
+      await this.disciplineRepository.createAuditLog({
+        tenant_id: schoolId,
+        school_id: schoolId,
+        actor_user_id: actorUserId,
+        actor_role: 'system',
+        action: 'incident.status_changed',
+        entity_type: 'discipline_incident',
+        entity_id: incidentId,
+        metadata: { from_status: incident.status, to_status: 'resolved', reason },
+      });
+      return next;
+    });
+  }
+
+  async executeClosure(incidentId: string, schoolId: string, reason: string, actorUserId: string) {
+    return this.withRequestTransaction(async () => {
+      const incident = await this.disciplineRepository.findIncidentById(schoolId, incidentId);
+      if (!incident) throw new NotFoundException('Incident not found');
+      
+      const next = await this.disciplineRepository.updateIncidentStatus({
+        tenant_id: schoolId,
+        incident_id: incidentId,
+        status: 'closed',
+      });
+
+      await this.disciplineRepository.createAuditLog({
+        tenant_id: schoolId,
+        school_id: schoolId,
+        actor_user_id: actorUserId,
+        actor_role: 'system',
+        action: 'incident.status_changed',
+        entity_type: 'discipline_incident',
+        entity_id: incidentId,
+        metadata: { from_status: incident.status, to_status: 'closed', reason },
+      });
+      return next;
+    });
+  }
+
+  async executeActionApproval(actionId: string, schoolId: string, actorUserId: string) {
+    return this.withRequestTransaction(async () => {
+      const action = await this.disciplineRepository.approveAction({
+        tenant_id: schoolId,
+        action_id: actionId,
+        approved_by_user_id: actorUserId,
+      });
+
+      if (!action) throw new NotFoundException('Discipline action was not found');
+
+      await this.disciplineRepository.createAuditLog({
+        tenant_id: schoolId,
+        school_id: schoolId,
+        actor_user_id: actorUserId,
+        actor_role: 'system',
+        action: 'discipline_action.approved',
+        entity_type: 'discipline_action',
+        entity_id: action.id,
+        metadata: { action_type: action.action_type },
+      });
+      return action;
+    });
+  }
+
 
   async createComment(incidentId: string, dto: CreateDisciplineCommentDto) {
     const incident = await this.requireIncident(incidentId);

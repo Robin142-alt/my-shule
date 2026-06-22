@@ -12,3 +12,7 @@ Verify:
 
 Write your review report to `C:\Users\user\Desktop\PROJECTS\Shule hub\.agents\reviewer_m1_1\review.md` and deliver your handoff report to `C:\Users\user\Desktop\PROJECTS\Shule hub\.agents\reviewer_m1_1\handoff.md`.
 Report back via send_message to the parent (conversation ID: 1a55cf31-e759-421f-aa18-3c89631aa3eb).
+
+## 2026-06-20T19:51:38Z
+
+Verify correctness and compile-safety of R1 database schema changes in c:\Users\user\Desktop\PROJECTS\Shule hub\prisma\schema.prisma. Check the mapping of RolePermission, the added schoolId indexes on Academics models, and tenant_id/school_id indexes on legacy models. Run validation commands (npx prisma validate, npm run build/typecheck) and report any errors. Save your review handoff report in c:\Users\user\Desktop\PROJECTS\Shule hub\.agents\reviewer_m1_1\handoff.md and notify the orchestrator.

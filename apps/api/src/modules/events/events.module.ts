@@ -1,5 +1,5 @@
 import * as moduleConsumers from './consumers';
-import { Module } from '@nestjs/common';
+import { Global, Module } from '@nestjs/common';
 
 import { OperationalWorkflowCompletedConsumer } from './consumers/operational-workflow-completed.consumer';
 import { OperationalWorkflowDispatchedConsumer } from './consumers/operational-workflow-dispatched.consumer';
@@ -39,6 +39,7 @@ import { OutboxEventsRepository } from './repositories/outbox-events.repository'
 import { SchoolOperationNotificationsRepository } from './repositories/school-operation-notifications.repository';
 import { WorkflowRepository } from './repositories/workflow.repository';
 
+@Global()
 @Module({
   controllers: [
     DashboardRealtimeController,

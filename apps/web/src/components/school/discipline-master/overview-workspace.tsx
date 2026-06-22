@@ -11,15 +11,21 @@ import { Plus, Download } from "lucide-react";
 
 export function OverviewWorkspace() {
   const eventBus = useDashboardEventBus();
-  const { data, isLoading } = useSchoolQuery<any[]>("/discipline/overview");
+  const { data: dashboardData, isLoading: dashboardLoading } = useSchoolQuery<any>("/api/discipline/dashboard");
+  const { data: incidentsData, isLoading: incidentsLoading } = useSchoolQuery<any[]>("/api/discipline/incidents");
   
-  const records = data || [];
+  const openCases = dashboardData?.kpis?.[0]?.value ?? 0;
+  const newToday = dashboardData?.kpis?.[1]?.value ?? 0;
+  const pendingParent = dashboardData?.kpis?.[2]?.value ?? 0;
+  const pendingApproval = dashboardData?.kpis?.[3]?.value ?? 0;
+
+  const records = incidentsData || [];
 
   const columns: DataTableColumn<any>[] = [
-    { id: "id", header: "ID", render: (row: any) => <span className="font-semibold">{row.id}</span> },
-    { id: "date", header: "Date", render: (row: any) => row.date },
-    { id: "details", header: "Details", render: (row: any) => row.details },
-    { id: "status", header: "Status", render: (row: any) => <StatusPill label={row.status || "Pending"} tone="warning" /> },
+    { id: "id", header: "Incident ID", render: (row: any) => <span className="font-semibold">{row.incident_number || row.id?.slice(-8) || row.id}</span> },
+    { id: "date", header: "Date", render: (row: any) => row.occurred_at ? new Date(row.occurred_at).toLocaleDateString() : (row.date || "—") },
+    { id: "details", header: "Details", render: (row: any) => row.title || row.description || row.details || "—" },
+    { id: "status", header: "Status", render: (row: any) => <StatusPill label={row.status || "Pending"} tone={row.status?.toLowerCase() === 'resolved' || row.status?.toLowerCase() === 'closed' ? 'ok' : 'warning'} /> },
   ];
 
   return (
@@ -28,7 +34,7 @@ export function OverviewWorkspace() {
         <PageHeader 
           eyebrow="Discipline & Welfare" 
           title="Overview" 
-          description="Manage Overview records and workflows." 
+          description="Overview of school discipline incidents and actions." 
         />
         <div className="flex flex-wrap gap-2">
           <Button variant="outline"><Download className="mr-2 h-4 w-4" /> Export</Button>
@@ -36,19 +42,27 @@ export function OverviewWorkspace() {
         </div>
       </div>
       
-      <section className="grid gap-4 md:grid-cols-3">
+      <section className="grid gap-4 md:grid-cols-4">
         <Card className="p-5">
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted">Total Records</p>
-          <p className="mt-2 text-3xl font-bold">{records.length}</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted">Open Cases</p>
+          <p className="mt-2 text-3xl font-bold text-rose-600">{dashboardLoading ? "..." : openCases}</p>
         </Card>
-        <Card className="p-5 border-l-4 border-l-warning">
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted">Action Required</p>
-          <p className="mt-2 text-3xl font-bold text-warning">0</p>
+        <Card className="p-5">
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted">New Today</p>
+          <p className="mt-2 text-3xl font-bold text-blue-600">{dashboardLoading ? "..." : newToday}</p>
+        </Card>
+        <Card className="p-5">
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted">Pending Parent</p>
+          <p className="mt-2 text-3xl font-bold text-amber-600">{dashboardLoading ? "..." : pendingParent}</p>
+        </Card>
+        <Card className="p-5">
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted">Pending Approval</p>
+          <p className="mt-2 text-3xl font-bold text-purple-600">{dashboardLoading ? "..." : pendingApproval}</p>
         </Card>
       </section>
 
       <DataTable 
-        title="Recent Overview" 
+        title="Recent Incidents" 
         subtitle="Archive of all related records." 
         columns={columns} 
         rows={records} 

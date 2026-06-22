@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Panel, StatusChip, Tone } from "./shared";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 import { generateStoreReport } from "./api-client";
+import { Modal } from "@/components/ui/modal";
 
 type StoreReport = {
   id: string;
@@ -29,6 +30,9 @@ type ReportsData = {
 export function ReportsWorkspace() {
   const { data, isLoading, refetch } = useSchoolQuery<ReportsData>('/admin-command/storekeeper/reports');
   const [generating, setGenerating] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedReportType, setSelectedReportType] = useState("");
+  const [period, setPeriod] = useState("");
 
   const reports = data?.reports || [];
   const reportTypes = data?.report_types || [
@@ -48,22 +52,22 @@ export function ReportsWorkspace() {
     return "neutral";
   };
 
-  const handleGenerate = async () => {
+  const handleGenerateClick = () => {
+    setSelectedReportType(data?.report_types?.[0] || reportTypes[0] || "Stock Movement Report");
+    setPeriod("");
+    setIsModalOpen(true);
+  };
+
+  const handleConfirmGenerate = async () => {
+    if (!period.trim()) {
+      toast.error("Please enter a period.");
+      return;
+    }
     setGenerating(true);
     try {
-      const type = prompt(`Report type?\n${reportTypes.map((t, i) => `${i + 1}. ${t}`).join("\n")}\nEnter number:`);
-      if (!type) { setGenerating(false); return; }
-      const typeIndex = Number(type) - 1;
-      if (typeIndex < 0 || typeIndex >= reportTypes.length) {
-        toast.error("Invalid report type selected.");
-        setGenerating(false);
-        return;
-      }
-      const period = prompt("Period (e.g. 'Term 2 2026', 'June 2026', 'Q2 2026')?");
-      if (!period) { setGenerating(false); return; }
-
-      await generateStoreReport({ type: reportTypes[typeIndex], period });
+      await generateStoreReport({ type: selectedReportType, period });
       toast.success("Report is being generated. It will appear below when ready.");
+      setIsModalOpen(false);
       refetch();
     } catch {
       toast.error("Failed to generate report.");
@@ -80,7 +84,7 @@ export function ReportsWorkspace() {
       actions={
         <button
           disabled={generating}
-          onClick={handleGenerate}
+          onClick={handleGenerateClick}
           className="inline-flex items-center gap-2 rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white hover:bg-blue-900 transition disabled:opacity-50"
         >
           <FileText className="h-4 w-4" /> {generating ? "Generating..." : "Generate Report"}
@@ -149,6 +153,61 @@ export function ReportsWorkspace() {
           </tbody>
         </table>
       </div>
+
+      <Modal
+        open={isModalOpen}
+        title="Generate Store Report"
+        description="Select a report type and specify the period for which to generate the report."
+        onClose={() => setIsModalOpen(false)}
+        footer={
+          <div className="flex gap-2 justify-end">
+            <button
+              onClick={() => setIsModalOpen(false)}
+              className="rounded-lg border border-[#D8E0EC] px-4 py-2 text-sm font-semibold text-[#64748B] hover:bg-[#F8FAFC] transition"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleConfirmGenerate}
+              disabled={generating || !period.trim()}
+              className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white hover:bg-blue-900 transition disabled:opacity-50"
+            >
+              {generating ? "Generating..." : "Generate"}
+            </button>
+          </div>
+        }
+      >
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-semibold text-[#071D49] mb-1">
+              Report Type
+            </label>
+            <select
+              value={selectedReportType}
+              onChange={(e) => setSelectedReportType(e.target.value)}
+              className="w-full rounded-lg border border-[#D8E0EC] p-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#071D49]"
+            >
+              {reportTypes.map((type) => (
+                <option key={type} value={type}>
+                  {type}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-[#071D49] mb-1">
+              Period (e.g. 'Term 2 2026', 'June 2026', 'Q2 2026')
+            </label>
+            <input
+              type="text"
+              placeholder="Enter period..."
+              value={period}
+              onChange={(e) => setPeriod(e.target.value)}
+              className="w-full rounded-lg border border-[#D8E0EC] p-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#071D49]"
+            />
+          </div>
+        </div>
+      </Modal>
     </Panel>
   );
 }

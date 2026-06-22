@@ -710,6 +710,40 @@ export class ClassTeacherService {
       }
     }
 
+    try {
+      const examWindowRes = await this.executeSql(
+        `SELECT exam_series_id FROM exam_mark_entry_windows WHERE tenant_id = $1 AND id = $2 LIMIT 1`,
+        [tenantId, payload.examId]
+      ).catch(() => ({ rows: [] }));
+      const examSeriesId = examWindowRes.rows[0]?.exam_series_id || payload.examId;
+
+      const examSeriesRes = await this.executeSql(
+        `SELECT name FROM exam_series WHERE tenant_id = $1 AND id = $2::uuid LIMIT 1`,
+        [tenantId, examSeriesId]
+      ).catch(() => ({ rows: [] }));
+      const examName = examSeriesRes.rows[0]?.name || ('Exam Series ' + examSeriesId);
+
+      const classRes = await this.executeSql(
+        `SELECT name FROM class_sections WHERE school_id = $1 AND id = $2::uuid LIMIT 1`,
+        [tenantId, payload.classSectionId]
+      ).catch(() => ({ rows: [] }));
+      const className = classRes.rows[0]?.name || ('Class ' + payload.classSectionId);
+
+      await this.eventPublisherService.publishExamSubmitted({
+        tenant_id: tenantId,
+        exam_id: examSeriesId,
+        exam_name: examName,
+        class_name: className,
+        stream_name: className,
+        submitted_by_user_id: userId,
+        submitted_at: new Date().toISOString(),
+        completion_status: 'SUBMITTED',
+        missing_marks_count: 0,
+      });
+    } catch (e) {
+      this.logger.error(`Failed to publish exam submission event: ${e}`);
+    }
+
     return { success: true };
   }
 

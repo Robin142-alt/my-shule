@@ -8,6 +8,7 @@ import { useSchoolQuery, useSchoolMutation } from "@/lib/data/school-hooks";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { toast } from "sonner";
+import { useForm } from "react-hook-form";
 
 export function StaffRecordsWorkspace() {
   const [activeTab, setActiveTab] = useState<"directory" | "attendance" | "leave" | "structure" | "payroll" | "performance">("directory");
@@ -44,7 +45,45 @@ export function StaffRecordsWorkspace() {
 
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteName, setInviteName] = useState("");
-  
+
+  const [leaveModalState, setLeaveModalState] = useState<{
+    open: boolean;
+    id: string;
+    status: "approved" | "rejected";
+    isOverride: boolean;
+  }>({
+    open: false,
+    id: "",
+    status: "approved",
+    isOverride: false,
+  });
+
+  type LeaveStatusFormData = {
+    reason: string;
+  };
+
+  const leaveStatusForm = useForm<LeaveStatusFormData>({
+    defaultValues: { reason: "" },
+  });
+
+  const [approveModalState, setApproveModalState] = useState<{
+    open: boolean;
+    id: string;
+    defaultStaffNumber: string;
+  }>({
+    open: false,
+    id: "",
+    defaultStaffNumber: "",
+  });
+
+  type ApproveStaffFormData = {
+    staffNumber: string;
+  };
+
+  const approveStaffForm = useForm<ApproveStaffFormData>({
+    defaultValues: { staffNumber: "" },
+  });
+
   const handleInvite = async () => {
     if (!inviteEmail || !inviteName) return;
     await inviteMutation.mutateAsync({ email: inviteEmail, display_name: inviteName });
@@ -53,16 +92,29 @@ export function StaffRecordsWorkspace() {
     refetch();
   };
 
-  const handleApprove = async (id: string) => {
+  const handleApprove = (id: string) => {
     const defaultStaffNumber = `STF-${id.replace(/[^a-zA-Z0-9]/g, "").slice(-4).padStart(4, "0").toUpperCase()}`;
-    const num = prompt("Enter new Staff Number", defaultStaffNumber);
-    if (!num) return;
-    await approveMutation.mutateAsync({
-      staff_profile_id: id,
-      staff_number: num,
-      contract: { role_title: "Teacher", starts_on: new Date().toISOString() }
+    approveStaffForm.reset({ staffNumber: defaultStaffNumber });
+    setApproveModalState({
+      open: true,
+      id,
+      defaultStaffNumber,
     });
-    refetch();
+  };
+
+  const onSubmitApproveStaff = async (formData: ApproveStaffFormData) => {
+    try {
+      await approveMutation.mutateAsync({
+        staff_profile_id: approveModalState.id,
+        staff_number: formData.staffNumber,
+        contract: { role_title: "Teacher", starts_on: new Date().toISOString() }
+      });
+      setApproveModalState({ ...approveModalState, open: false });
+      refetch();
+      toast.success("Staff member approved.");
+    } catch (e: any) {
+      toast.error(e.message || "Failed to approve staff");
+    }
   };
 
   const handleReactivate = async (id: string) => {
@@ -95,22 +147,47 @@ export function StaffRecordsWorkspace() {
   };
 
   const handleUpdateLeaveStatus = async (id: string, status: "approved" | "rejected", isOverride = false) => {
-    let reason = "";
     if (isOverride) {
-      const p = prompt("Enter override reason for approval beyond balance (or leave rejection reason):");
-      if (!p) return;
-      reason = p;
+      leaveStatusForm.reset({ reason: "" });
+      setLeaveModalState({
+        open: true,
+        id,
+        status,
+        isOverride: true,
+      });
+      return;
     }
     try {
-      await updateLeaveStatusMutation.mutateAsync({ id, status, reason });
+      await updateLeaveStatusMutation.mutateAsync({ id, status });
+      refetchLeave();
     } catch (e: any) {
       if (e.message?.includes("override")) {
-        handleUpdateLeaveStatus(id, status, true);
+        leaveStatusForm.reset({ reason: "" });
+        setLeaveModalState({
+          open: true,
+          id,
+          status,
+          isOverride: true,
+        });
         return;
       }
       toast.error(e.message || "An error occurred");
     }
-    refetchLeave();
+  };
+
+  const onSubmitLeaveStatus = async (formData: LeaveStatusFormData) => {
+    try {
+      await updateLeaveStatusMutation.mutateAsync({
+        id: leaveModalState.id,
+        status: leaveModalState.status,
+        reason: formData.reason,
+      });
+      setLeaveModalState({ ...leaveModalState, open: false });
+      refetchLeave();
+      toast.success("Leave status updated.");
+    } catch (e: any) {
+      toast.error(e.message || "An error occurred");
+    }
   };
 
   const [newDeptName, setNewDeptName] = useState("");
@@ -1025,6 +1102,86 @@ export function StaffRecordsWorkspace() {
           </div>
         </div>
       )}
+      {/* Staff Approval Modal */}
+      <Modal
+        open={approveModalState.open}
+        onClose={() => setApproveModalState({ ...approveModalState, open: false })}
+        title="Approve Staff Member"
+      >
+        <form onSubmit={approveStaffForm.handleSubmit(onSubmitApproveStaff)} className="space-y-4 py-4">
+          <div className="space-y-1">
+            <label className="text-sm font-medium">Staff Number</label>
+            <input
+              type="text"
+              {...approveStaffForm.register("staffNumber", { required: "Staff number is required" })}
+              className="w-full rounded border border-slate-300 p-2 text-sm text-[#071D49]"
+              placeholder="e.g. STF-1234"
+            />
+            {approveStaffForm.formState.errors.staffNumber && (
+              <span className="text-xs text-red-500">{approveStaffForm.formState.errors.staffNumber.message}</span>
+            )}
+          </div>
+
+          <div className="flex justify-end space-x-3 pt-4 border-t border-slate-100">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setApproveModalState({ ...approveModalState, open: false })}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+            >
+              Approve
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Leave Status (Override / Rejection Reason) Modal */}
+      <Modal
+        open={leaveModalState.open}
+        onClose={() => setLeaveModalState({ ...leaveModalState, open: false })}
+        title={leaveModalState.status === "rejected" ? "Reject Leave Request" : "Leave Approval Override"}
+      >
+        <form onSubmit={leaveStatusForm.handleSubmit(onSubmitLeaveStatus)} className="space-y-4 py-4">
+          <p className="text-sm text-[#64748B]">
+            {leaveModalState.status === "rejected"
+              ? "Please provide a reason for rejecting this leave request:"
+              : "Approval exceeds remaining balance. Provide a justification / override reason:"}
+          </p>
+
+          <div className="space-y-1">
+            <label className="text-sm font-medium">Reason</label>
+            <textarea
+              {...leaveStatusForm.register("reason", { required: "Reason is required" })}
+              className="w-full rounded border border-slate-300 p-2 text-sm text-[#071D49]"
+              placeholder="Enter reason..."
+              rows={3}
+            />
+            {leaveStatusForm.formState.errors.reason && (
+              <span className="text-xs text-red-500">{leaveStatusForm.formState.errors.reason.message}</span>
+            )}
+          </div>
+
+          <div className="flex justify-end space-x-3 pt-4 border-t border-slate-100">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setLeaveModalState({ ...leaveModalState, open: false })}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              variant={leaveModalState.status === "rejected" ? "danger" : "default"}
+            >
+              Submit
+            </Button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 }

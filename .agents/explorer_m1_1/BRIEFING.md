@@ -1,49 +1,41 @@
-# BRIEFING — 2026-06-19T13:08:12+03:00
+# BRIEFING — 2026-06-20T19:42:00Z
 
 ## Mission
-Analyze admin-command controller and service stubs and map them to database models with tenant-isolation checks.
+Analyze prisma/schema.prisma, identify gaps in RolePermission join table regarding schoolId/tenant_id, and recommend a tenant-filtering fix strategy.
 
 ## 🔒 My Identity
-- Archetype: Explorer M1.1
-- Roles: Teamwork explorer
-- Working directory: C:\Users\user\Desktop\PROJECTS\Shule%20hub\.agents\explorer_m1_1\
-- Original parent: 1a55cf31-e759-421f-aa18-3c89631aa3eb
-- Milestone: Admin Command Endpoint Wiring Analysis
+- Archetype: Explorer
+- Roles: Teamwork explorer, Investigator, Synthesizer
+- Working directory: c:\Users\user\Desktop\PROJECTS\Shule hub\.\agents\explorer_m1_1
+- Original parent: 88eb85f1-507f-4b4b-8e07-e7efec6653af
+- Milestone: M1 (Database Schema Audit)
 
 ## 🔒 Key Constraints
 - Read-only investigation — do NOT implement
-- Analyze all 32 stubs in admin-command.controller.ts
-- Find database tables corresponding to each endpoint in prisma/schema.prisma
-- Identify how they should be wired in admin-command.service.ts
-- Verify tenant isolation on all endpoints
+- Multi-tenant tenant-isolation check (schoolId/tenant_id)
+- Code-only network mode (no external internet access)
 
 ## Current Parent
-- Conversation ID: 1a55cf31-e759-421f-aa18-3c89631aa3eb
-- Updated: 2026-06-19T13:20:00+03:00
+- Conversation ID: 88eb85f1-507f-4b4b-8e07-e7efec6653af
+- Updated: 2026-06-20T19:42:00Z
 
 ## Investigation State
 - **Explored paths**:
-  - `apps/api/src/modules/admin-command/admin-command.controller.ts`
-  - `apps/api/src/modules/admin-command/admin-command.service.ts`
-  - `apps/api/src/modules/admin-command/repositories/admin-command.repository.ts`
-  - `apps/api/src/common/request-context/request-context.service.ts`
-  - `apps/api/src/common/request-context/request-context.types.ts`
-  - `apps/api/src/middleware/request-context.middleware.ts`
-  - `apps/api/src/middleware/tenant.middleware.ts`
-  - `apps/api/src/database/tenant-database-policy.ts`
   - `prisma/schema.prisma`
+  - `apps/api/src/database/schema.sql`
+  - `apps/api/src/auth/repositories/authorization.repository.ts`
+  - `apps/api/src/auth/entities/role-permission.entity.ts`
+  - `apps/api/src/database/entities/base.entity.ts`
 - **Key findings**:
-  - Exactly 32 stubs identified in `admin-command.controller.ts`.
-  - Mapped all 32 stubs to Prisma models and DB tables.
-  - Identified database schema gaps: no tables for report categories, dispatches, or academic interventions.
-  - Identified model duplication/conflict between older camelCase tables using `school_id` and newer snake_case tables using `tenant_id`.
-  - Discovered that multiple queries in the existing `AdminCommandRepository` query non-existent tables/columns (e.g. `class_sections`, `class_streams`, and `subjects` with `tenant_id`) and silently swallow failures via try-catch, resulting in permanent empty-state dashboards.
-- **Unexplored areas**:
-  - Front-end integration code mapping to these 32 endpoints.
+  - `RolePermission` in Prisma currently has a nullable `schoolId` field mapped to database column `school_id`, but the physical database table `role_permissions` uses a non-nullable `tenant_id` column.
+  - The unique constraint `@@unique([roleId, permissionId])` in Prisma prevents tenant-specific overrides of system roles and conflicts with the database's composite unique constraint `uq_role_permissions_tenant_role_permission UNIQUE (tenant_id, role_id, permission_id)`.
+  - NestJS `AuthorizationRepository` uses raw SQL queries expecting `tenant_id` and performing `ON CONFLICT (tenant_id, role_id, permission_id) DO NOTHING`, which will fail if Prisma's constraint mismatch is not resolved.
+  - Some models in Phase 7/Legacy (like `DisciplineIncident` and `LegacyDisciplineAction`) lack indexes on `tenant_id` or `school_id`, causing full-table scans under tenant isolation filters, while others (like `DisciplineComment` and `ClinicVisits`) do have them.
+- **Unexplored areas**: None. The investigation of R1 gaps is complete.
 
 ## Key Decisions Made
-- Deliver detailed findings mapping stubs to Prisma schema and highlighting structural mismatches.
+- Confirmed that the fix requires renaming the mapped column for `schoolId` to `"tenant_id"` on the `RolePermission` model, making it non-nullable to match the DB schema, and changing the uniqueness constraint to `@@unique([schoolId, roleId, permissionId])` to align Prisma with physical SQL constraints and allow tenant-specific overrides of system roles.
 
 ## Artifact Index
-- C:\Users\user\Desktop\PROJECTS\Shule hub\.agents\explorer_m1_1\analysis.md — Detailed analysis and proposed fix strategy
-- C:\Users\user\Desktop\PROJECTS\Shule hub\.agents\explorer_m1_1\handoff.md — Handoff report for parent
+- c:\Users\user\Desktop\PROJECTS\Shule hub\.agents\explorer_m1_1\ORIGINAL_REQUEST.md — Logging of user request
+- c:\Users\user\Desktop\PROJECTS\Shule hub\.agents\explorer_m1_1\progress.md — Heartbeat progress tracking

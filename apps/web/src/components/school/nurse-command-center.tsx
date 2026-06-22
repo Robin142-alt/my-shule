@@ -79,6 +79,15 @@ function ClinicWorkspace() {
   const { hasPermission } = usePermissions();
   const [isModalOpen, setIsModalOpen] = useState(false);
 
+  const { data: overview, isLoading: overviewLoading } = useSchoolQuery<any>('/api/admin-command/nurse/overview');
+  const { data: visits, isLoading: visitsLoading, refetch } = useSchoolQuery<any[]>('/api/admin-command/nurse/visits');
+
+  const todayVisits = overview?.metrics?.todayVisits ?? 0;
+  const waitingQueue = overview?.metrics?.waitingQueue ?? 0;
+  const lowStockMeds = overview?.metrics?.lowStockMeds ?? 0;
+
+  const visitsList = visits || [];
+
   return (
     <div className="space-y-6">
       <section className="rounded-2xl border border-[#D8E0EC] bg-white p-5">
@@ -102,15 +111,15 @@ function ClinicWorkspace() {
         <div className="grid gap-4 md:grid-cols-3 mb-6">
           <div className="rounded-xl border border-[#D8E0EC] p-4 bg-slate-50">
             <p className="text-sm font-bold text-[#64748B]">Today's Visits</p>
-            <p className="text-2xl font-black text-[#071D49] mt-1">12</p>
+            <p className="text-2xl font-black text-[#071D49] mt-1">{overviewLoading ? "..." : todayVisits}</p>
           </div>
           <div className="rounded-xl border border-[#D8E0EC] p-4 bg-rose-50">
-            <p className="text-sm font-bold text-rose-600">Sent Home</p>
-            <p className="text-2xl font-black text-rose-700 mt-1">2</p>
+            <p className="text-sm font-bold text-rose-600">Waiting Queue</p>
+            <p className="text-2xl font-black text-rose-700 mt-1">{overviewLoading ? "..." : waitingQueue}</p>
           </div>
           <div className="rounded-xl border border-[#D8E0EC] p-4 bg-emerald-50">
-            <p className="text-sm font-bold text-emerald-600">Cleared</p>
-            <p className="text-2xl font-black text-emerald-700 mt-1">10</p>
+            <p className="text-sm font-bold text-emerald-600">Low Stock Medicines</p>
+            <p className="text-2xl font-black text-emerald-700 mt-1">{overviewLoading ? "..." : lowStockMeds}</p>
           </div>
         </div>
 
@@ -126,26 +135,29 @@ function ClinicWorkspace() {
               </tr>
             </thead>
             <tbody className="divide-y divide-[#D8E0EC]">
-              <tr className="hover:bg-[#F8FAFC]">
-                <td className="px-4 py-3 text-[#64748B]">09:15 AM</td>
-                <td className="px-4 py-3 font-semibold text-[#071D49]">Brian Otieno</td>
-                <td className="px-4 py-3 text-[#64748B]">Headache</td>
-                <td className="px-4 py-3 text-[#64748B]">Painkillers, Rest</td>
-                <td className="px-4 py-3 font-medium text-emerald-600">Returned to class</td>
-              </tr>
-              <tr className="hover:bg-[#F8FAFC]">
-                <td className="px-4 py-3 text-[#64748B]">10:30 AM</td>
-                <td className="px-4 py-3 font-semibold text-[#071D49]">Mary Kamau</td>
-                <td className="px-4 py-3 text-[#64748B]">Fever</td>
-                <td className="px-4 py-3 text-[#64748B]">Paracetamol</td>
-                <td className="px-4 py-3 font-medium text-rose-600">Sent Home</td>
-              </tr>
+              {visitsLoading ? (
+                <tr><td colSpan={5} className="px-4 py-8 text-center text-[#64748B]">Loading clinic visits...</td></tr>
+              ) : visitsList.length === 0 ? (
+                <tr><td colSpan={5} className="px-4 py-8 text-center text-[#64748B]">No clinic visits recorded.</td></tr>
+              ) : (
+                visitsList.map((visit: any) => (
+                  <tr key={visit.id} className="hover:bg-[#F8FAFC]">
+                    <td className="px-4 py-3 text-[#64748B]">
+                      {visit.visit_date ? new Date(visit.visit_date).toLocaleDateString() : (visit.visitDate || "—")}
+                    </td>
+                    <td className="px-4 py-3 font-semibold text-[#071D49]">{visit.student_name || visit.student || "—"}</td>
+                    <td className="px-4 py-3 text-[#64748B]">{visit.symptoms || "—"}</td>
+                    <td className="px-4 py-3 text-[#64748B]">{visit.treatment || "—"}</td>
+                    <td className="px-4 py-3 font-medium text-emerald-600">{visit.status || "—"}</td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
       </section>
 
-      {isModalOpen && <LogClinicVisitModal onClose={() => setIsModalOpen(false)} />}
+      {isModalOpen && <LogClinicVisitModal onClose={() => { setIsModalOpen(false); refetch(); }} />}
     </div>
   );
 }

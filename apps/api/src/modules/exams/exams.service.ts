@@ -33,6 +33,7 @@ import {
 import { ExamsRepository } from './repositories/exams.repository';
 import { ReportCardGenerationService } from './services/report-card-generation.service';
 import { SchoolOperationalEventsService } from '../events/school-operational-events.service';
+import { EventPublisherService } from '../events/event-publisher.service';
 
 const OFFICER_PERMISSIONS = new Set(['exams:review', 'exams:approve', '*:*']);
 const OFFICER_ROLES = new Set(['owner', 'admin', 'platform_owner', 'superadmin', 'exams_officer']);
@@ -83,6 +84,7 @@ export class ExamsService {
     @Optional() private readonly configService?: ConfigService,
     @Optional() private readonly reportCardGenerationService?: ReportCardGenerationService,
     @Optional() private readonly schoolEvents?: SchoolOperationalEventsService,
+    @Optional() private readonly eventPublisher?: EventPublisherService,
   ) {}
 
   async getDashboard() {
@@ -118,6 +120,11 @@ export class ExamsService {
         createdAt: r.created_at
       }))
     };
+  }
+
+  async getAnalytics() {
+    const tenantId = this.requireTenantId();
+    return this.repository.getAnalytics(tenantId);
   }
 
   createSeries(dto: CreateExamSeriesDto) {
@@ -378,6 +385,18 @@ export class ExamsService {
         report_snapshot_id: dto.report_snapshot_id,
       },
     });
+
+    try {
+      await this.eventPublisher?.publishReportCardPublished({
+        tenant_id: tenantId,
+        report_id: reportCard.id,
+        student_id: dto.student_id,
+        exam_id: dto.exam_series_id,
+        published_by_user_id: actorUserId,
+      });
+    } catch (e) {
+      console.error('Failed to publish report card published event:', e);
+    }
 
     return reportCard;
   }
@@ -851,6 +870,34 @@ export class ExamsService {
         ...extraMetadata,
       },
     });
+
+    try {
+      const examSeriesRes = await this.repository.executeSql(
+        `SELECT name FROM exam_series WHERE tenant_id = $1 AND id = $2::uuid LIMIT 1`,
+        [tenantId, validated.dto.exam_series_id]
+      );
+      const examName = examSeriesRes.rows[0]?.name || ('Exam Series ' + validated.dto.exam_series_id);
+
+      const classRes = await this.repository.executeSql(
+        `SELECT name FROM class_sections WHERE school_id = $1 AND id = $2::uuid LIMIT 1`,
+        [tenantId, validated.dto.class_section_id]
+      ).catch(() => ({ rows: [] }));
+      const className = classRes.rows[0]?.name || ('Class ' + validated.dto.class_section_id);
+
+      await this.eventPublisher?.publishExamSubmitted({
+        tenant_id: tenantId,
+        exam_id: validated.dto.exam_series_id,
+        exam_name: examName,
+        class_name: className,
+        stream_name: className,
+        submitted_by_user_id: actorUserId,
+        submitted_at: new Date().toISOString(),
+        completion_status: 'SUBMITTED',
+        missing_marks_count: 0,
+      });
+    } catch (e) {
+      console.error('Failed to publish exam submission event:', e);
+    }
 
     return mark;
   }

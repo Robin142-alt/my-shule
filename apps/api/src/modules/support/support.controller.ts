@@ -10,6 +10,7 @@ import {
   Req,
   UploadedFile,
   UseInterceptors,
+  BadRequestException,
 } from '@nestjs/common';
 
 import { Public } from '../../auth/decorators/public.decorator';
@@ -301,93 +302,106 @@ export class SupportController {
     if (!tenantId) return { success: false };
 
     const { action } = body;
-    if (action === 'add_case') {
-      const { record } = body;
-      try {
-        let studentId: string | null = null;
-        if (record.student) {
-          const parts = record.student.trim().split(/\s+/);
-          const firstName = parts[0] || '';
-          const lastName = parts[parts.length - 1] || '';
-          const student = await this.prisma.student.findFirst({
+    if (action !== 'add_case' && action !== 'update_case') {
+      return { success: false, error: 'Unknown action' };
+    }
+
+    try {
+      return await this.prisma.withRequestTransaction(async (tx) => {
+        if (action === 'add_case') {
+          const { record } = body;
+          let studentId: string | null = null;
+          if (record.student) {
+            const parts = record.student.trim().split(/\s+/);
+            const firstName = parts[0] || '';
+            const lastName = parts[parts.length - 1] || '';
+            const student = await tx.student.findFirst({
+              where: {
+                schoolId: tenantId,
+                OR: [
+                  { firstName: { contains: firstName, mode: 'insensitive' } },
+                  { lastName: { contains: lastName, mode: 'insensitive' } }
+                ]
+              }
+            });
+            if (student) studentId = student.id;
+          }
+          if (!studentId) {
+            const student = await tx.student.findFirst({ where: { schoolId: tenantId } });
+            if (student) studentId = student.id;
+          }
+
+          let classId: string | null = null;
+          if (record.className) {
+            const classObj = await tx.class.findFirst({
+              where: {
+                schoolId: tenantId,
+                name: { contains: record.className.trim(), mode: 'insensitive' }
+              }
+            });
+            if (classObj) classId = classObj.id;
+          }
+          if (!classId) {
+            const classObj = await tx.class.findFirst({ where: { schoolId: tenantId } });
+            if (classObj) classId = classObj.id;
+          }
+
+          let termId = '00000000-0000-0000-0000-000000000000';
+          const term = await tx.term.findFirst({ where: { schoolId: tenantId } });
+          if (term) termId = term.id;
+
+          let academicYearId = '00000000-0000-0000-0000-000000000000';
+          const academicYear = await tx.academicYear.findFirst({ where: { schoolId: tenantId } });
+          if (academicYear) academicYearId = academicYear.id;
+
+          let staffId = '00000000-0000-0000-0000-000000000000';
+          const staff = await tx.schoolMembership.findFirst({ where: { schoolId: tenantId } });
+          if (staff) staffId = staff.userId;
+
+          const categoryId = 'a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d';
+
+          await tx.disciplineIncident.create({
+            data: {
+              id: record.id || undefined,
+              tenant_id: tenantId,
+              school_id: tenantId,
+              student_id: studentId || '00000000-0000-0000-0000-000000000000',
+              class_id: classId || '00000000-0000-0000-0000-000000000000',
+              academic_term_id: termId,
+              academic_year_id: academicYearId,
+              offense_category_id: categoryId,
+              reporting_staff_id: staffId,
+              incident_number: `INC-${Date.now()}`,
+              title: record.caseType || 'Other offense',
+              severity: (record.severity || 'Minor').toLowerCase(),
+              status: (record.status || 'New').toLowerCase().replace(' ', '_'),
+              occurred_at: new Date(),
+              description: record.notes || '',
+              parent_notification_status: record.parentSmsSent ? 'SENT' : 'NOT_SENT',
+              metadata: {
+                parentSmsSent: record.parentSmsSent || false,
+                counsellorReferred: record.counsellorReferred || false
+              }
+            }
+          });
+        } else if (action === 'update_case') {
+          const { id, updates } = body;
+          const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+          if (!id || !uuidRegex.test(id)) {
+            throw new BadRequestException('Invalid ID format');
+          }
+          const existing = await tx.disciplineIncident.findFirst({
             where: {
-              schoolId: tenantId,
+              id,
               OR: [
-                { firstName: { contains: firstName, mode: 'insensitive' } },
-                { lastName: { contains: lastName, mode: 'insensitive' } }
+                { school_id: tenantId },
+                { tenant_id: tenantId }
               ]
             }
           });
-          if (student) studentId = student.id;
-        }
-        if (!studentId) {
-          const student = await this.prisma.student.findFirst({ where: { schoolId: tenantId } });
-          if (student) studentId = student.id;
-        }
-
-        let classId: string | null = null;
-        if (record.className) {
-          const classObj = await this.prisma.class.findFirst({
-            where: {
-              schoolId: tenantId,
-              name: { contains: record.className.trim(), mode: 'insensitive' }
-            }
-          });
-          if (classObj) classId = classObj.id;
-        }
-        if (!classId) {
-          const classObj = await this.prisma.class.findFirst({ where: { schoolId: tenantId } });
-          if (classObj) classId = classObj.id;
-        }
-
-        let termId = '00000000-0000-0000-0000-000000000000';
-        const term = await this.prisma.term.findFirst({ where: { schoolId: tenantId } });
-        if (term) termId = term.id;
-
-        let academicYearId = '00000000-0000-0000-0000-000000000000';
-        const academicYear = await this.prisma.academicYear.findFirst({ where: { schoolId: tenantId } });
-        if (academicYear) academicYearId = academicYear.id;
-
-        let staffId = '00000000-0000-0000-0000-000000000000';
-        const staff = await this.prisma.schoolMembership.findFirst({ where: { schoolId: tenantId } });
-        if (staff) staffId = staff.userId;
-
-        const categoryId = 'a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d';
-
-        await this.prisma.disciplineIncident.create({
-          data: {
-            id: record.id || undefined,
-            tenant_id: tenantId,
-            school_id: tenantId,
-            student_id: studentId || '00000000-0000-0000-0000-000000000000',
-            class_id: classId || '00000000-0000-0000-0000-000000000000',
-            academic_term_id: termId,
-            academic_year_id: academicYearId,
-            offense_category_id: categoryId,
-            reporting_staff_id: staffId,
-            incident_number: `INC-${Date.now()}`,
-            title: record.caseType || 'Other offense',
-            severity: (record.severity || 'Minor').toLowerCase(),
-            status: (record.status || 'New').toLowerCase().replace(' ', '_'),
-            occurred_at: new Date(),
-            description: record.notes || '',
-            parent_notification_status: record.parentSmsSent ? 'SENT' : 'NOT_SENT',
-            metadata: {
-              parentSmsSent: record.parentSmsSent || false,
-              counsellorReferred: record.counsellorReferred || false
-            }
+          if (!existing) {
+            throw new BadRequestException('Discipline incident not found or access denied');
           }
-        });
-        return { success: true };
-      } catch (err) {
-        console.error('add discipline case error:', err);
-        return { success: false, error: (err as any).message };
-      }
-    } else if (action === 'update_case') {
-      const { id, updates } = body;
-      try {
-        const existing = await this.prisma.disciplineIncident.findUnique({ where: { id } });
-        if (existing) {
           let metaObj = typeof existing.metadata === 'string' ? JSON.parse(existing.metadata) : (existing.metadata || {});
           if (updates.parentSmsSent !== undefined) {
             metaObj.parentSmsSent = updates.parentSmsSent;
@@ -401,7 +415,7 @@ export class SupportController {
             dbStatus = updates.status.toLowerCase().replace(' ', '_');
           }
 
-          await this.prisma.disciplineIncident.update({
+          await tx.disciplineIncident.update({
             where: { id },
             data: {
               status: dbStatus,
@@ -411,13 +425,11 @@ export class SupportController {
           });
         }
         return { success: true };
-      } catch (err) {
-        console.error('update discipline case error:', err);
-        return { success: false, error: (err as any).message };
-      }
+      });
+    } catch (err) {
+      console.error('postDiscipline error:', err);
+      return { success: false, error: (err as any).message };
     }
-
-    return { success: false, error: 'Unknown action' };
   }
 
   @Get('counselling')
@@ -483,79 +495,96 @@ export class SupportController {
     if (!tenantId) return { success: false };
 
     const { action } = body;
-    if (action === 'add_session') {
-      const { session } = body;
-      try {
-        let studentId: string | null = null;
-        if (session.student) {
-          const parts = session.student.trim().split(/\s+/);
-          const firstName = parts[0] || '';
-          const lastName = parts[parts.length - 1] || '';
-          const student = await this.prisma.student.findFirst({
+    try {
+      return await this.prisma.withRequestTransaction(async (tx) => {
+        if (action === 'add_session') {
+          const { session } = body;
+          let studentId: string | null = null;
+          if (session.student) {
+            const parts = session.student.trim().split(/\s+/);
+            const firstName = parts[0] || '';
+            const lastName = parts[parts.length - 1] || '';
+            const student = await tx.student.findFirst({
+              where: {
+                schoolId: tenantId,
+                OR: [
+                  { firstName: { contains: firstName, mode: 'insensitive' } },
+                  { lastName: { contains: lastName, mode: 'insensitive' } }
+                ]
+              }
+            });
+            if (student) studentId = student.id;
+          }
+          if (!studentId) {
+            const student = await tx.student.findFirst({ where: { schoolId: tenantId } });
+            if (student) studentId = student.id;
+          }
+
+          let counsellorUserId: string | null = null;
+          const staff = await tx.schoolMembership.findFirst({ where: { schoolId: tenantId } });
+          if (staff) counsellorUserId = staff.userId;
+          else {
+            const user = await tx.user.findFirst();
+            if (user) counsellorUserId = user.id;
+          }
+
+          if (studentId && counsellorUserId) {
+            await tx.$executeRawUnsafe(
+              `INSERT INTO counselling_sessions (id, tenant_id, school_id, student_id, counsellor_user_id, scheduled_for, location, agenda, status, created_at, updated_at)
+               VALUES ($1::uuid, $2, $3::uuid, $4::uuid, $5::uuid, $6::timestamp, $7, $8, $9, NOW(), NOW())`,
+              session.id || 'a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6e',
+              tenantId,
+              tenantId,
+              studentId,
+              counsellorUserId,
+              new Date(),
+              session.notes || 'Main Office',
+              session.sessionType || 'Welfare Check',
+              session.status === 'Open' ? 'scheduled' : 'completed'
+            );
+          }
+        } else if (action === 'update_session') {
+          const { id, updates } = body;
+          const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+          if (!id || !uuidRegex.test(id)) {
+            throw new BadRequestException('Invalid ID format');
+          }
+          let dbStatus = 'scheduled';
+          if (updates.status) {
+            dbStatus = updates.status === 'Open' ? 'scheduled' : 'completed';
+          }
+          
+          // Verify that the counselling session exists and belongs to the caller's school context
+          const existing = await tx.legacyCounsellingSession.findFirst({
             where: {
-              schoolId: tenantId,
+              id,
               OR: [
-                { firstName: { contains: firstName, mode: 'insensitive' } },
-                { lastName: { contains: lastName, mode: 'insensitive' } }
+                { school_id: tenantId },
+                { tenant_id: tenantId }
               ]
             }
           });
-          if (student) studentId = student.id;
-        }
-        if (!studentId) {
-          const student = await this.prisma.student.findFirst({ where: { schoolId: tenantId } });
-          if (student) studentId = student.id;
-        }
+          if (!existing) {
+            throw new BadRequestException('Counselling session not found or access denied');
+          }
 
-        let counsellorUserId: string | null = null;
-        const staff = await this.prisma.schoolMembership.findFirst({ where: { schoolId: tenantId } });
-        if (staff) counsellorUserId = staff.userId;
-        else {
-          const user = await this.prisma.user.findFirst();
-          if (user) counsellorUserId = user.id;
-        }
-
-        if (studentId && counsellorUserId) {
-          await this.prisma.$executeRawUnsafe(
-            `INSERT INTO counselling_sessions (id, tenant_id, school_id, student_id, counsellor_user_id, scheduled_for, location, agenda, status, created_at, updated_at)
-             VALUES ($1::uuid, $2, $3::uuid, $4::uuid, $5::uuid, $6::timestamp, $7, $8, $9, NOW(), NOW())`,
-            session.id || 'a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6e',
-            tenantId,
-            tenantId,
-            studentId,
-            counsellorUserId,
-            new Date(),
-            session.notes || 'Main Office',
-            session.sessionType || 'Welfare Check',
-            session.status === 'Open' ? 'scheduled' : 'completed'
-          );
+          await tx.legacyCounsellingSession.update({
+            where: { id },
+            data: {
+              status: dbStatus,
+              updated_at: new Date()
+            }
+          });
         }
         return { success: true };
-      } catch (err) {
-        console.error('add counselling session error:', err);
-        return { success: false, error: (err as any).message };
-      }
-    } else if (action === 'update_session') {
-      const { id, updates } = body;
-      try {
-        let dbStatus = 'scheduled';
-        if (updates.status) {
-          dbStatus = updates.status === 'Open' ? 'scheduled' : 'completed';
-        }
-        await this.prisma.$executeRawUnsafe(
-          `UPDATE counselling_sessions SET status = $1, updated_at = NOW() WHERE id = $2::uuid`,
-          dbStatus,
-          id
-        );
-        return { success: true };
-      } catch (err) {
-        console.error('update counselling session error:', err);
-        return { success: false, error: (err as any).message };
-      }
+      });
+    } catch (err) {
+      console.error('postCounselling error:', err);
+      return { success: false, error: (err as any).message };
     }
-
-    return { success: false, error: 'Unknown action' };
   }
+
+
 }
 
 function resolveClientIp(request: { ip?: string; headers?: Record<string, string | string[] | undefined> }): string | null {

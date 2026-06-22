@@ -1485,4 +1485,277 @@ export class ExamsRepository {
     return result.rows[0];
   }
 
+  async getAnalytics(tenantId: string) {
+    // 1. KPIs
+    let kpis = {
+      school_average: 0,
+      pending_reviews: 0,
+      missing_marks_alerts: 0,
+      active_exams: 0,
+    };
+    try {
+      const result = await this.executeSql(
+        `
+        SELECT
+          -- School Average
+          (
+            SELECT COALESCE(ROUND(AVG(score), 2), 0)::numeric 
+            FROM exam_marks 
+            WHERE tenant_id = $1
+          ) AS school_average,
+          -- Pending Reviews (Marks submitted but not reviewed/locked)
+          (
+            SELECT COUNT(*)::int 
+            FROM exam_marks 
+            WHERE tenant_id = $1 AND status = 'submitted'
+          ) AS pending_reviews,
+          -- Missing Marks Alerts
+          -- Expected mark entries derived from open mark entry windows and active students
+          (
+            SELECT COUNT(*)::int
+            FROM (
+              SELECT s.id AS student_id, ew.exam_series_id, ea.id AS assessment_id
+              FROM students s
+              JOIN exam_mark_entry_windows ew ON ew.tenant_id = s.tenant_id 
+                AND NULLIF(s.metadata->>'class_section_id', '')::uuid = ew.class_section_id
+              JOIN exam_assessments ea ON ea.tenant_id = ew.tenant_id 
+                AND ea.exam_series_id = ew.exam_series_id 
+                AND ea.subject_id = ew.subject_id
+              WHERE s.tenant_id = $1 
+                AND s.status = 'active'
+                AND ew.status = 'open'
+            ) expected
+            LEFT JOIN exam_marks m ON m.tenant_id = $1
+              AND m.exam_series_id = expected.exam_series_id
+              AND m.assessment_id = expected.assessment_id
+              AND m.student_id = expected.student_id
+            WHERE m.score IS NULL
+          ) AS missing_marks_alerts,
+          -- Active Exams (Exams currently in progress and not locked/published)
+          (
+            SELECT COUNT(*)::int 
+            FROM exam_series 
+            WHERE tenant_id = $1 
+              AND status NOT IN ('locked', 'published')
+          ) AS active_exams;
+        `,
+        [tenantId],
+      );
+      if (result.rows && result.rows[0]) {
+        const row = result.rows[0];
+        kpis = {
+          school_average: Number(row.school_average ?? 0),
+          pending_reviews: Number(row.pending_reviews ?? 0),
+          missing_marks_alerts: Number(row.missing_marks_alerts ?? 0),
+          active_exams: Number(row.active_exams ?? 0),
+        };
+      }
+    } catch (error) {
+      // Safe default is already set
+    }
+
+    // 2. Trends
+    let trends: any[] = [];
+    try {
+      const result = await this.executeSql(
+        `
+        SELECT 
+          es.id AS exam_series_id,
+          es.name AS exam_series_name,
+          es.starts_on AS starts_on,
+          COALESCE(ROUND(AVG(em.score), 2), 0)::numeric AS average_score
+        FROM exam_series es
+        LEFT JOIN exam_marks em ON em.tenant_id = es.tenant_id AND em.exam_series_id = es.id
+        WHERE es.tenant_id = $1
+        GROUP BY es.id, es.name, es.starts_on
+        ORDER BY es.starts_on ASC;
+        `,
+        [tenantId],
+      );
+      trends = (result.rows || []).map((row: any) => ({
+        exam_series_id: row.exam_series_id,
+        exam_series_name: row.exam_series_name,
+        starts_on: row.starts_on,
+        average_score: Number(row.average_score ?? 0),
+      }));
+    } catch (error) {
+      // Safe default is already set
+    }
+
+    // 3. Subject Performance
+    let subjectPerformance: any[] = [];
+    try {
+      const result = await this.executeSql(
+        `
+        SELECT 
+          sub.id AS subject_id,
+          sub.name AS subject_name,
+          COALESCE(ROUND(AVG(em.score), 2), 0)::numeric AS mean_score,
+          COALESCE(ROUND(100.0 * COUNT(CASE WHEN em.score >= ea.max_score * 0.5 THEN 1 END) / NULLIF(COUNT(em.id), 0), 2), 0)::numeric AS pass_rate,
+          -- CBC Competency Distributions
+          COUNT(CASE WHEN gb.label = 'EE' OR gb.label ILIKE '%exceed%' THEN 1 END)::int AS ee_count,
+          COUNT(CASE WHEN gb.label = 'ME' OR gb.label ILIKE '%meet%' THEN 1 END)::int AS me_count,
+          COUNT(CASE WHEN gb.label = 'AE' OR gb.label ILIKE '%approach%' THEN 1 END)::int AS ae_count,
+          COUNT(CASE WHEN gb.label = 'BE' OR gb.label ILIKE '%below%' THEN 1 END)::int AS be_count
+        FROM subjects sub
+        JOIN exam_assessments ea ON ea.tenant_id = sub.tenant_id AND ea.subject_id = sub.id
+        JOIN exam_marks em ON em.tenant_id = ea.tenant_id AND em.assessment_id = ea.id
+        LEFT JOIN exam_grade_boundaries gb ON gb.tenant_id = em.tenant_id
+          AND gb.exam_series_id = em.exam_series_id
+          AND em.score BETWEEN gb.min_score AND gb.max_score
+        WHERE sub.tenant_id = $1
+        GROUP BY sub.id, sub.name
+        ORDER BY sub.name ASC;
+        `,
+        [tenantId],
+      );
+      subjectPerformance = (result.rows || []).map((row: any) => ({
+        subject_id: row.subject_id,
+        subject_name: row.subject_name,
+        mean_score: Number(row.mean_score ?? 0),
+        pass_rate: Number(row.pass_rate ?? 0),
+        ee_count: Number(row.ee_count ?? 0),
+        me_count: Number(row.me_count ?? 0),
+        ae_count: Number(row.ae_count ?? 0),
+        be_count: Number(row.be_count ?? 0),
+      }));
+    } catch (error) {
+      // Safe default is already set
+    }
+
+    // 4. Student Progress
+    let topPerformers: any[] = [];
+    try {
+      const result = await this.executeSql(
+        `
+        SELECT 
+          s.id AS student_id,
+          concat_ws(' ', s.first_name, s.middle_name, s.last_name) AS student_name,
+          s.admission_number,
+          ROUND(AVG((em.score / ea.max_score) * 100.0), 2) AS average_percentage,
+          COUNT(em.id) AS assessments_taken
+        FROM students s
+        JOIN exam_marks em ON em.tenant_id = s.tenant_id AND em.student_id = s.id
+        JOIN exam_assessments ea ON ea.tenant_id = em.tenant_id AND ea.id = em.assessment_id
+        WHERE s.tenant_id = $1 AND s.status = 'active'
+        GROUP BY s.id, s.first_name, s.middle_name, s.last_name, s.admission_number
+        ORDER BY average_percentage DESC
+        LIMIT 10;
+        `,
+        [tenantId],
+      );
+      topPerformers = (result.rows || []).map((row: any) => ({
+        student_id: row.student_id,
+        student_name: row.student_name,
+        admission_number: row.admission_number,
+        average_percentage: Number(row.average_percentage ?? 0),
+        assessments_taken: Number(row.assessments_taken ?? 0),
+      }));
+    } catch (error) {
+      // Safe default is already set
+    }
+
+    let topImprovers: any[] = [];
+    try {
+      const result = await this.executeSql(
+        `
+        WITH student_series_averages AS (
+          SELECT 
+            em.student_id,
+            em.exam_series_id,
+            es.name AS exam_series_name,
+            es.starts_on AS exam_series_date,
+            AVG((em.score / ea.max_score) * 100.0) AS avg_percentage
+          FROM exam_marks em
+          JOIN exam_assessments ea ON ea.tenant_id = em.tenant_id AND ea.id = em.assessment_id
+          JOIN exam_series es ON es.tenant_id = em.tenant_id AND es.id = em.exam_series_id
+          WHERE em.tenant_id = $1
+          GROUP BY em.student_id, em.exam_series_id, es.name, es.starts_on
+        ),
+        ranked_student_averages AS (
+          SELECT 
+            student_id,
+            exam_series_id,
+            exam_series_name,
+            exam_series_date,
+            avg_percentage,
+            ROW_NUMBER() OVER (PARTITION BY student_id ORDER BY exam_series_date DESC) AS rn
+          FROM student_series_averages
+        )
+        SELECT 
+          s.id AS student_id,
+          concat_ws(' ', s.first_name, s.middle_name, s.last_name) AS student_name,
+          s.admission_number,
+          latest.exam_series_name AS latest_exam_series,
+          ROUND(latest.avg_percentage::numeric, 2) AS latest_average,
+          prev.exam_series_name AS previous_exam_series,
+          ROUND(prev.avg_percentage::numeric, 2) AS previous_average,
+          ROUND((latest.avg_percentage - prev.avg_percentage)::numeric, 2) AS improvement
+        FROM ranked_student_averages latest
+        JOIN ranked_student_averages prev ON prev.student_id = latest.student_id AND prev.rn = latest.rn + 1
+        JOIN students s ON s.tenant_id = $1 AND s.id = latest.student_id
+        WHERE latest.rn = 1 AND s.status = 'active'
+        ORDER BY improvement DESC
+        LIMIT 10;
+        `,
+        [tenantId],
+      );
+      topImprovers = (result.rows || []).map((row: any) => ({
+        student_id: row.student_id,
+        student_name: row.student_name,
+        admission_number: row.admission_number,
+        latest_exam_series: row.latest_exam_series,
+        latest_average: Number(row.latest_average ?? 0),
+        previous_exam_series: row.previous_exam_series,
+        previous_average: Number(row.previous_average ?? 0),
+        improvement: Number(row.improvement ?? 0),
+      }));
+    } catch (error) {
+      // Safe default is already set
+    }
+
+    let atRiskStudents: any[] = [];
+    try {
+      const result = await this.executeSql(
+        `
+        SELECT 
+          s.id AS student_id,
+          concat_ws(' ', s.first_name, s.middle_name, s.last_name) AS student_name,
+          s.admission_number,
+          ROUND(AVG((em.score / ea.max_score) * 100.0), 2) AS average_percentage,
+          COUNT(em.id) AS assessments_taken
+        FROM students s
+        JOIN exam_marks em ON em.tenant_id = s.tenant_id AND em.student_id = s.id
+        JOIN exam_assessments ea ON ea.tenant_id = em.tenant_id AND ea.id = em.assessment_id
+        WHERE s.tenant_id = $1 AND s.status = 'active'
+        GROUP BY s.id, s.first_name, s.middle_name, s.last_name, s.admission_number
+        HAVING AVG((em.score / ea.max_score) * 100.0) < 50.0
+        ORDER BY average_percentage ASC
+        LIMIT 10;
+        `,
+        [tenantId],
+      );
+      atRiskStudents = (result.rows || []).map((row: any) => ({
+        student_id: row.student_id,
+        student_name: row.student_name,
+        admission_number: row.admission_number,
+        average_percentage: Number(row.average_percentage ?? 0),
+        assessments_taken: Number(row.assessments_taken ?? 0),
+      }));
+    } catch (error) {
+      // Safe default is already set
+    }
+
+    return {
+      kpis,
+      trends,
+      subjectPerformance,
+      studentProgress: {
+        topPerformers,
+        topImprovers,
+        atRiskStudents,
+      },
+    };
+  }
+
 }

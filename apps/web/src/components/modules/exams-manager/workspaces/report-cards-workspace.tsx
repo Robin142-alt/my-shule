@@ -88,7 +88,7 @@ export function ReportCardsWorkspace({ model }: { model: any }) {
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem><Eye className="mr-2 h-4 w-4" /> Preview Report</DropdownMenuItem>
                         <DropdownMenuItem><Edit className="mr-2 h-4 w-4" /> Edit Comments</DropdownMenuItem>
-                        <DropdownMenuItem><Download className="mr-2 h-4 w-4" /> Download PDF</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => window.open(`/api/exams/report-cards/${row.id}/download`, '_blank')}><Download className="mr-2 h-4 w-4" /> Download PDF</DropdownMenuItem>
                         <DropdownMenuItem><Send className="mr-2 h-4 w-4" /> Submit for Approval</DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>

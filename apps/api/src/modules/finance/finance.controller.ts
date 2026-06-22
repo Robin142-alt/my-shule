@@ -1,5 +1,5 @@
-import { Body, Controller, Get, Post, Query, Patch, Delete, Param } from '@nestjs/common';
-
+import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query, Res, Delete, StreamableFile } from '@nestjs/common';
+import { PdfService } from '../../common/pdf/pdf.service';
 import { Permissions } from '../../auth/decorators/permissions.decorator';
 import { PrismaService } from '../../database/prisma.service';
 import { RequestContextService } from '../../common/request-context/request-context.service';
@@ -191,6 +191,19 @@ export class FinanceController {
       userId,
       ...dto,
     });
+  }
+
+  @Get('statements/download')
+  @Permissions('portal:read_own_children')
+  async downloadStatement(@Res({ passthrough: true }) res: any) {
+    const pdfService = new PdfService();
+    const stream = pdfService.generatePdfStream("Statement of Account - Coming Soon", { title: 'Fee Statement' });
+    
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `attachment; filename="statement.pdf"`,
+    });
+    return new StreamableFile(stream);
   }
 
   @Get('summary')
@@ -473,7 +486,8 @@ export class FinanceController {
 
   @Post('waivers/:id/approve')
   @Permissions('finance:write')
-  async approveWaiver(@Param('id') id: string, @Body() dto: { approved: boolean }) {
+  async approveWaiver(@Param('id') id: string, @Body() dto: { approved: boolean }, @Res({ passthrough: true }) res: any) {
+    res.setHeader('Warning', '299 - "This endpoint is deprecated. Use the centralized Approvals engine instead."');
     const tenantId = this.requestContext.requireStore().tenant_id;
     const result = await this.db.query(
       `UPDATE tenant_pending_waivers SET status = $1 WHERE id = $2 AND tenant_id = $3 RETURNING *`,

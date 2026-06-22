@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, UseGuards, BadRequestException } from '@nestjs/common';
 import { RequiresModule } from '../module-access/module-access.decorator';
 import { Permissions } from '../../auth/decorators/permissions.decorator';
 import { JwtAuthGuard } from '../../guards/jwt-auth.guard';
@@ -116,55 +116,69 @@ export class SecretaryController {
     const { action, id, visitor: visitorData } = body;
 
     try {
-      if (action === 'register_visitor') {
-        let visitor = await this.prisma.visitor.findFirst({
-          where: {
-            schoolId: tenantId,
-            fullName: visitorData.visitor,
-          }
-        });
-
-        if (!visitor) {
-          visitor = await this.prisma.visitor.create({
-            data: {
+      return await this.prisma.withRequestTransaction(async (tx) => {
+        if (action === 'register_visitor') {
+          let visitor = await tx.visitor.findFirst({
+            where: {
               schoolId: tenantId,
               fullName: visitorData.visitor,
-              phone: visitorData.phoneOrId,
-              idNumber: visitorData.phoneOrId,
+            }
+          });
+
+          if (!visitor) {
+            visitor = await tx.visitor.create({
+              data: {
+                schoolId: tenantId,
+                fullName: visitorData.visitor,
+                phone: visitorData.phoneOrId,
+                idNumber: visitorData.phoneOrId,
+              }
+            });
+          }
+
+          await tx.visitorLog.create({
+            data: {
+              id: visitorData.id || undefined,
+              schoolId: tenantId,
+              visitorId: visitor.id,
+              purpose: visitorData.reason || '',
+              personToSeeUserId: visitorData.visiting || null,
+              timeIn: new Date(),
+              passNumber: visitorData.vehicle || null,
+              recordedByUserId: store.user_id || 'system',
+              status: 'CHECKED_IN',
+            }
+          });
+        } else if (action === 'print_slip') {
+          const log = await tx.visitorLog.findFirst({
+            where: { id, schoolId: tenantId }
+          });
+          if (!log) {
+            throw new BadRequestException('Visitor log not found');
+          }
+          await tx.visitorLog.update({
+            where: { id },
+            data: {
+              updatedAt: new Date()
+            }
+          });
+        } else if (action === 'check_out') {
+          const log = await tx.visitorLog.findFirst({
+            where: { id, schoolId: tenantId }
+          });
+          if (!log) {
+            throw new BadRequestException('Visitor log not found');
+          }
+          await tx.visitorLog.update({
+            where: { id },
+            data: {
+              timeOut: new Date(),
+              status: 'CHECKED_OUT'
             }
           });
         }
-
-        await this.prisma.visitorLog.create({
-          data: {
-            id: visitorData.id || undefined,
-            schoolId: tenantId,
-            visitorId: visitor.id,
-            purpose: visitorData.reason || '',
-            personToSeeUserId: visitorData.visiting || null,
-            timeIn: new Date(),
-            passNumber: visitorData.vehicle || null,
-            recordedByUserId: store.user_id || 'system',
-            status: 'CHECKED_IN',
-          }
-        });
-      } else if (action === 'print_slip') {
-        await this.prisma.visitorLog.update({
-          where: { id },
-          data: {
-            updatedAt: new Date()
-          }
-        });
-      } else if (action === 'check_out') {
-        await this.prisma.visitorLog.update({
-          where: { id },
-          data: {
-            timeOut: new Date(),
-            status: 'CHECKED_OUT'
-          }
-        });
-      }
-      return { success: true };
+        return { success: true };
+      });
     } catch (e) {
       return { success: false, error: (e as any).message };
     }
@@ -218,22 +232,27 @@ export class SecretaryController {
     const { action, id, inquiry } = body;
 
     try {
-      if (action === 'add_inquiry') {
-        await this.prisma.workflowTask.create({
-          data: {
-            id: inquiry.id || undefined,
-            schoolId: tenantId,
-            title: `Inquiry: ${inquiry.parent}`,
-            description: JSON.stringify(inquiry),
-            assignedToUserId: store.user_id || 'system',
-            createdByUserId: store.user_id || 'system',
-            priority: 'NORMAL',
-            status: 'TODO',
+      return await this.prisma.withRequestTransaction(async (tx) => {
+        if (action === 'add_inquiry') {
+          await tx.workflowTask.create({
+            data: {
+              id: inquiry.id || undefined,
+              schoolId: tenantId,
+              title: `Inquiry: ${inquiry.parent}`,
+              description: JSON.stringify(inquiry),
+              assignedToUserId: store.user_id || 'system',
+              createdByUserId: store.user_id || 'system',
+              priority: 'NORMAL',
+              status: 'TODO',
+            }
+          });
+        } else if (action === 'mark_served') {
+          const task = await tx.workflowTask.findFirst({
+            where: { id, schoolId: tenantId }
+          });
+          if (!task) {
+            throw new BadRequestException('Task not found');
           }
-        });
-      } else if (action === 'mark_served') {
-        const task = await this.prisma.workflowTask.findUnique({ where: { id } });
-        if (task) {
           let record: any = {};
           try {
             record = JSON.parse(task.description);
@@ -249,17 +268,20 @@ export class SecretaryController {
             };
           }
           record.status = 'Resolved';
-          await this.prisma.workflowTask.update({
+          await tx.workflowTask.update({
             where: { id },
             data: {
               status: 'DONE',
               description: JSON.stringify(record)
             }
           });
-        }
-      } else if (action === 'send_sms') {
-        const task = await this.prisma.workflowTask.findUnique({ where: { id } });
-        if (task) {
+        } else if (action === 'send_sms') {
+          const task = await tx.workflowTask.findFirst({
+            where: { id, schoolId: tenantId }
+          });
+          if (!task) {
+            throw new BadRequestException('Task not found');
+          }
           let record: any = {};
           try {
             record = JSON.parse(task.description);
@@ -275,16 +297,19 @@ export class SecretaryController {
             };
           }
           record.smsSent = true;
-          await this.prisma.workflowTask.update({
+          await tx.workflowTask.update({
             where: { id },
             data: {
               description: JSON.stringify(record)
             }
           });
-        }
-      } else if (action === 'escalate') {
-        const task = await this.prisma.workflowTask.findUnique({ where: { id } });
-        if (task) {
+        } else if (action === 'escalate') {
+          const task = await tx.workflowTask.findFirst({
+            where: { id, schoolId: tenantId }
+          });
+          if (!task) {
+            throw new BadRequestException('Task not found');
+          }
           let record: any = {};
           try {
             record = JSON.parse(task.description);
@@ -300,7 +325,7 @@ export class SecretaryController {
             };
           }
           record.status = 'Escalated';
-          await this.prisma.workflowTask.update({
+          await tx.workflowTask.update({
             where: { id },
             data: {
               priority: 'HIGH',
@@ -308,8 +333,8 @@ export class SecretaryController {
             }
           });
         }
-      }
-      return { success: true };
+        return { success: true };
+      });
     } catch (e) {
       return { success: false, error: (e as any).message };
     }

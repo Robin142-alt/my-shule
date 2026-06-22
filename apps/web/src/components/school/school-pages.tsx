@@ -4233,7 +4233,7 @@ function SchoolPagesShell({
       return <ExamsManagerCommandCenter routeMode={routeMode} activeSection={section} />;
     }
 
-    if (role === "teacher") {
+    if (role === "teacher" && section !== "exams") {
       // @ts-ignore
       return <TeacherCommandCenter activeSection={section} />;
     }

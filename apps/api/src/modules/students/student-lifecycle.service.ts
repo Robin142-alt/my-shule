@@ -13,16 +13,16 @@ export class StudentLifecycleService {
   ) {}
 
   async enrollStudent(schoolId: string, studentId: string, userId: string) {
-    const student = await this.prisma.student.findUnique({ where: { id: studentId } });
-    if (!student || student.schoolId !== schoolId) {
-      throw new NotFoundException('Student not found');
-    }
+    return this.prisma.executeWithTenant(schoolId, userId, async (tx: any) => {
+      const student = await tx.student.findUnique({ where: { id: studentId } });
+      if (!student || student.schoolId !== schoolId) {
+        throw new NotFoundException('Student not found');
+      }
 
-    if (student.studentStatus !== StudentStatus.ACCEPTED && student.studentStatus !== StudentStatus.APPLICANT) {
-      throw new BadRequestException('Student must be an applicant or accepted to be enrolled');
-    }
+      if (student.studentStatus !== StudentStatus.ACCEPTED && student.studentStatus !== StudentStatus.APPLICANT) {
+        throw new BadRequestException('Student must be an applicant or accepted to be enrolled');
+      }
 
-    const updatedStudent = await this.prisma.$transaction(async (tx: any) => {
       const updated = await tx.student.update({
         where: { id: studentId },
         data: { studentStatus: StudentStatus.ENROLLED },
@@ -39,28 +39,26 @@ export class StudentLifecycleService {
         },
       });
 
+      await this.eventPublisher.publish({
+        event_name: 'student.lifecycle.enrolled',
+        event_key: `student.lifecycle.enrolled:${studentId}`,
+        aggregate_type: 'Student',
+        aggregate_id: studentId,
+        tenant_id: schoolId,
+        payload: { tenant_id: schoolId, student_id: studentId, status: 'ENROLLED' }
+      });
+
       return updated;
     });
-
-    await this.eventPublisher.publish({
-      event_name: 'student.lifecycle.enrolled',
-      event_key: `student.lifecycle.enrolled:${studentId}`,
-      aggregate_type: 'Student',
-      aggregate_id: studentId,
-      tenant_id: schoolId,
-      payload: { tenant_id: schoolId, student_id: studentId, status: 'ENROLLED' }
-    });
-
-    return updatedStudent;
   }
 
   async placeInClass(schoolId: string, studentId: string, classId: string, academicYearId: string, academicLevelId: string, userId: string, streamId?: string) {
-    const student = await this.prisma.student.findUnique({ where: { id: studentId } });
-    if (!student || student.schoolId !== schoolId) {
-      throw new NotFoundException('Student not found');
-    }
+    return this.prisma.executeWithTenant(schoolId, userId, async (tx: any) => {
+      const student = await tx.student.findUnique({ where: { id: studentId } });
+      if (!student || student.schoolId !== schoolId) {
+        throw new NotFoundException('Student not found');
+      }
 
-    const updatedStudent = await this.prisma.$transaction(async (tx: any) => {
       await tx.studentClassAssignment.updateMany({
         where: { schoolId, studentId, status: 'active' },
         data: { status: 'archived' },
@@ -99,19 +97,17 @@ export class StudentLifecycleService {
         },
       });
 
+      await this.eventPublisher.publish({
+        event_name: 'student.lifecycle.class_assigned',
+        event_key: `student.lifecycle.class_assigned:${studentId}`,
+        aggregate_type: 'Student',
+        aggregate_id: studentId,
+        tenant_id: schoolId,
+        payload: { tenant_id: schoolId, student_id: studentId, class_id: classId }
+      });
+
       return updated;
     });
-
-    await this.eventPublisher.publish({
-      event_name: 'student.lifecycle.class_assigned',
-      event_key: `student.lifecycle.class_assigned:${studentId}`,
-      aggregate_type: 'Student',
-      aggregate_id: studentId,
-      tenant_id: schoolId,
-      payload: { tenant_id: schoolId, student_id: studentId, class_id: classId }
-    });
-
-    return updatedStudent;
   }
 
   async promoteStudent(schoolId: string, studentId: string, newClassId: string, academicYearId: string, academicLevelId: string, userId: string, streamId?: string) {
@@ -119,16 +115,16 @@ export class StudentLifecycleService {
   }
 
   async suspendStudent(schoolId: string, studentId: string, userId: string, reason: string) {
-    const student = await this.prisma.student.findUnique({ where: { id: studentId } });
-    if (!student || student.schoolId !== schoolId) {
-      throw new NotFoundException('Student not found');
-    }
+    return this.prisma.executeWithTenant(schoolId, userId, async (tx: any) => {
+      const student = await tx.student.findUnique({ where: { id: studentId } });
+      if (!student || student.schoolId !== schoolId) {
+        throw new NotFoundException('Student not found');
+      }
 
-    if (student.studentStatus !== StudentStatus.ACTIVE) {
-      throw new BadRequestException('Only active students can be suspended');
-    }
+      if (student.studentStatus !== StudentStatus.ACTIVE) {
+        throw new BadRequestException('Only active students can be suspended');
+      }
 
-    const updatedStudent = await this.prisma.$transaction(async (tx: any) => {
       const updated = await tx.student.update({
         where: { id: studentId },
         data: { studentStatus: StudentStatus.SUSPENDED },
@@ -146,36 +142,36 @@ export class StudentLifecycleService {
         },
       });
 
+      await this.eventPublisher.publish({
+        event_name: 'student.lifecycle.suspended',
+        event_key: `student.lifecycle.suspended:${studentId}`,
+        aggregate_type: 'Student',
+        aggregate_id: studentId,
+        tenant_id: schoolId,
+        payload: { tenant_id: schoolId, student_id: studentId, status: 'SUSPENDED', reason }
+      });
+
       return updated;
     });
-
-    await this.eventPublisher.publish({
-      event_name: 'student.lifecycle.suspended',
-      event_key: `student.lifecycle.suspended:${studentId}`,
-      aggregate_type: 'Student',
-      aggregate_id: studentId,
-      tenant_id: schoolId,
-      payload: { tenant_id: schoolId, student_id: studentId, status: 'SUSPENDED', reason }
-    });
-
-    return updatedStudent;
   }
 
   async initiateExitClearance(schoolId: string, studentId: string, userId: string) {
-    const existing = await this.prisma.studentClearance.findFirst({
-      where: { schoolId, studentId, status: 'PENDING' },
-    });
+    return this.prisma.executeWithTenant(schoolId, userId, async (tx: any) => {
+      const existing = await tx.studentClearance.findFirst({
+        where: { schoolId, studentId, status: 'PENDING' },
+      });
 
-    if (existing) {
-      return existing;
-    }
+      if (existing) {
+        return existing;
+      }
 
-    return this.prisma.studentClearance.create({
-      data: {
-        schoolId,
-        studentId,
-        status: 'PENDING',
-      },
+      return tx.studentClearance.create({
+        data: {
+          schoolId,
+          studentId,
+          status: 'PENDING',
+        },
+      });
     });
   }
 
@@ -184,19 +180,19 @@ export class StudentLifecycleService {
       throw new BadRequestException('Invalid exit status');
     }
 
-    const student = await this.prisma.student.findUnique({ where: { id: studentId } });
-    if (!student || student.schoolId !== schoolId) {
-      throw new NotFoundException('Student not found');
-    }
-
-    if (clearanceId) {
-      const clearance = await this.prisma.studentClearance.findUnique({ where: { id: clearanceId } });
-      if (!clearance || clearance.status !== 'CLEARED') {
-        throw new BadRequestException('Student must be fully cleared before exiting');
+    return this.prisma.executeWithTenant(schoolId, userId, async (tx: any) => {
+      const student = await tx.student.findUnique({ where: { id: studentId } });
+      if (!student || student.schoolId !== schoolId) {
+        throw new NotFoundException('Student not found');
       }
-    }
 
-    const updatedStudent = await this.prisma.$transaction(async (tx: any) => {
+      if (clearanceId) {
+        const clearance = await tx.studentClearance.findUnique({ where: { id: clearanceId } });
+        if (!clearance || clearance.schoolId !== schoolId || clearance.studentId !== studentId || clearance.status !== 'CLEARED') {
+          throw new BadRequestException('Student must be fully cleared before exiting');
+        }
+      }
+
       const updated = await tx.student.update({
         where: { id: studentId },
         data: { studentStatus: exitStatus },
@@ -225,34 +221,32 @@ export class StudentLifecycleService {
         },
       });
 
+      await this.eventPublisher.publish({
+        event_name: 'student.lifecycle.exited',
+        event_key: `student.lifecycle.exited:${studentId}`,
+        aggregate_type: 'Student',
+        aggregate_id: studentId,
+        tenant_id: schoolId,
+        payload: { tenant_id: schoolId, student_id: studentId, status: exitStatus, reason: exitReason }
+      });
+
       return updated;
     });
-
-    await this.eventPublisher.publish({
-      event_name: 'student.lifecycle.exited',
-      event_key: `student.lifecycle.exited:${studentId}`,
-      aggregate_type: 'Student',
-      aggregate_id: studentId,
-      tenant_id: schoolId,
-      payload: { tenant_id: schoolId, student_id: studentId, status: exitStatus, reason: exitReason }
-    });
-
-    return updatedStudent;
   }
 
   async archiveStudent(schoolId: string, studentId: string, userId: string) {
-    const student = await this.prisma.student.findUnique({ where: { id: studentId } });
-    if (!student || student.schoolId !== schoolId) {
-      throw new NotFoundException('Student not found');
-    }
+    return this.prisma.executeWithTenant(schoolId, userId, async (tx: any) => {
+      const student = await tx.student.findUnique({ where: { id: studentId } });
+      if (!student || student.schoolId !== schoolId) {
+        throw new NotFoundException('Student not found');
+      }
 
-    if (!['TRANSFERRED_OUT', 'WITHDRAWN', 'GRADUATED'].includes(student.studentStatus)) {
-      throw new BadRequestException('Student must be exited before archiving');
-    }
+      if (!['TRANSFERRED_OUT', 'WITHDRAWN', 'GRADUATED'].includes(student.studentStatus)) {
+        throw new BadRequestException('Student must be exited before archiving');
+      }
 
-    const newStatus = student.studentStatus === StudentStatus.GRADUATED ? StudentStatus.ALUMNI : StudentStatus.ARCHIVED;
+      const newStatus = student.studentStatus === StudentStatus.GRADUATED ? StudentStatus.ALUMNI : StudentStatus.ARCHIVED;
 
-    const updatedStudent = await this.prisma.$transaction(async (tx: any) => {
       const updated = await tx.student.update({
         where: { id: studentId },
         data: { studentStatus: newStatus },
@@ -269,18 +263,16 @@ export class StudentLifecycleService {
         },
       });
 
+      await this.eventPublisher.publish({
+        event_name: 'student.lifecycle.archived',
+        event_key: `student.lifecycle.archived:${studentId}`,
+        aggregate_type: 'Student',
+        aggregate_id: studentId,
+        tenant_id: schoolId,
+        payload: { tenant_id: schoolId, student_id: studentId, status: newStatus }
+      });
+
       return updated;
     });
-
-    await this.eventPublisher.publish({
-      event_name: 'student.lifecycle.archived',
-      event_key: `student.lifecycle.archived:${studentId}`,
-      aggregate_type: 'Student',
-      aggregate_id: studentId,
-      tenant_id: schoolId,
-      payload: { tenant_id: schoolId, student_id: studentId, status: newStatus }
-    });
-
-    return updatedStudent;
   }
 }

@@ -1,7 +1,8 @@
 import { openDB, DBSchema, IDBPDatabase } from 'idb';
 import { v4 as uuidv4 } from 'uuid';
+import { z } from 'zod';
 
-export type SyncStatus = 'Draft' | 'Saved offline' | 'Syncing' | 'Synced' | 'Failed' | 'Needs review';
+export type SyncStatus = 'Draft' | 'Pending' | 'Syncing' | 'Synced' | 'Failed' | 'Needs review';
 
 export interface OfflineSyncRecord {
   id: string;             // Client-side unique ID
@@ -20,6 +21,11 @@ export interface OfflineSyncRecord {
   errorMessage?: string;
   createdAtLocal: string;
   syncedAt?: string;
+
+  // New fields
+  type: 'mutation' | 'workflow' | 'module_specific';
+  workflowBinding?: string;
+  aggregateId?: string;
 }
 
 interface ShuleOfflineDB extends DBSchema {
@@ -30,6 +36,7 @@ interface ShuleOfflineDB extends DBSchema {
       'by-school': string;
       'by-status': string;
       'by-module': string;
+      'by-school-status': [string, string];
     };
   };
 }
@@ -44,13 +51,43 @@ class SyncQueueService {
       return Promise.reject(new Error('IndexedDB is not available on the server'));
     }
     if (!this.dbPromise) {
-      this.dbPromise = openDB<ShuleOfflineDB>('myshule-offline-db', 1, {
-        upgrade(db) {
-          if (!db.objectStoreNames.contains('sync_queue')) {
-            const store = db.createObjectStore('sync_queue', { keyPath: 'id' });
+      this.dbPromise = openDB<ShuleOfflineDB>('myshule-offline-db', 2, {
+        async upgrade(db, oldVersion, newVersion, transaction) {
+          let store;
+          if (db.objectStoreNames.contains('sync_queue')) {
+            store = transaction.objectStore('sync_queue');
+          } else {
+            store = db.createObjectStore('sync_queue', { keyPath: 'id' });
+          }
+
+          if (!store.indexNames.contains('by-school')) {
             store.createIndex('by-school', 'schoolId');
+          }
+          if (!store.indexNames.contains('by-status')) {
             store.createIndex('by-status', 'status');
+          }
+          if (!store.indexNames.contains('by-module')) {
             store.createIndex('by-module', 'module');
+          }
+          if (!store.indexNames.contains('by-school-status')) {
+            store.createIndex('by-school-status', ['schoolId', 'status']);
+          }
+
+          if (oldVersion < 2) {
+            let cursor = await store.openCursor();
+            while (cursor) {
+              const record = cursor.value;
+              const schoolId = record.schoolId;
+              if (typeof schoolId !== 'string' || schoolId.trim() === '') {
+                await cursor.delete();
+              } else {
+                if (record.type === undefined || record.type === null) {
+                  const updatedRecord = { ...record, type: 'mutation' as const };
+                  await cursor.update(updatedRecord);
+                }
+              }
+              cursor = await cursor.continue();
+            }
           }
         },
       });
@@ -58,27 +95,65 @@ class SyncQueueService {
     return this.dbPromise;
   }
 
+  private assertTenantSafety(schoolId: any) {
+    if (typeof schoolId !== 'string' || schoolId.trim() === '') {
+      throw new Error('Tenant Isolation Violation: A valid schoolId is required');
+    }
+  }
+
+  private async putRecord(db: IDBPDatabase<ShuleOfflineDB>, record: OfflineSyncRecord): Promise<void> {
+    this.assertTenantSafety(record.schoolId);
+    await db.put('sync_queue', record);
+  }
+
   /**
    * Adds a new record to the offline queue
    */
   async enqueue(
-    recordData: Omit<OfflineSyncRecord, 'id' | 'operationId' | 'status' | 'retryCount' | 'createdAtLocal'>,
+    recordData: Omit<OfflineSyncRecord, 'id' | 'operationId' | 'status' | 'retryCount' | 'createdAtLocal' | 'type'> & {
+      type?: 'mutation' | 'workflow' | 'module_specific';
+    },
     isDraft = false
   ): Promise<OfflineSyncRecord> {
+    // Strict schoolId check
+    this.assertTenantSafety(recordData.schoolId);
+
+    // Zod parsing/validation
+    const EnqueueInputSchema = z.object({
+      schoolId: z.string().refine(val => val.trim().length > 0, {
+        message: 'Tenant Isolation Violation: A valid schoolId is required',
+      }),
+      academicYearId: z.string().optional(),
+      termId: z.string().optional(),
+      userId: z.string(),
+      roleId: z.string().optional(),
+      deviceId: z.string(),
+      module: z.string(),
+      action: z.string(),
+      payload: z.any(),
+      type: z.enum(['mutation', 'workflow', 'module_specific']).default('mutation'),
+      workflowBinding: z.string().optional(),
+      aggregateId: z.string().optional(),
+    });
+
+    const parsedData = EnqueueInputSchema.parse(recordData);
+
     const db = await this.getDB();
     const id = uuidv4();
     const operationId = uuidv4();
 
     const record: OfflineSyncRecord = {
-      ...recordData,
+      ...parsedData,
       id,
       operationId,
-      status: isDraft ? 'Draft' : 'Saved offline',
+      status: isDraft ? 'Draft' : 'Pending',
       retryCount: 0,
       createdAtLocal: new Date().toISOString(),
+      type: parsedData.type || 'mutation',
     };
 
-    await db.put('sync_queue', record);
+    // Ensure safe write
+    await this.putRecord(db, record);
     return record;
   }
 
@@ -86,15 +161,17 @@ class SyncQueueService {
    * Retrieves records for a specific school and status
    */
   async getRecordsBySchoolAndStatus(schoolId: string, status: SyncStatus): Promise<OfflineSyncRecord[]> {
+    this.assertTenantSafety(schoolId);
     const db = await this.getDB();
-    const allForSchool = await db.getAllFromIndex('sync_queue', 'by-school', schoolId);
-    return allForSchool.filter(r => r.status === status);
+    // Use the compound index 'by-school-status' if available
+    return db.getAllFromIndex('sync_queue', 'by-school-status', [schoolId, status]);
   }
 
   /**
    * Retrieves all records for a given school (to ensure tenant isolation on the client)
    */
   async getAllForSchool(schoolId: string): Promise<OfflineSyncRecord[]> {
+    this.assertTenantSafety(schoolId);
     const db = await this.getDB();
     return db.getAllFromIndex('sync_queue', 'by-school', schoolId);
   }
@@ -106,6 +183,7 @@ class SyncQueueService {
     const db = await this.getDB();
     const record = await db.get('sync_queue', id);
     if (record) {
+      this.assertTenantSafety(record.schoolId);
       record.status = status;
       if (errorMessage) {
         record.errorMessage = errorMessage;
@@ -116,7 +194,7 @@ class SyncQueueService {
       if (status === 'Synced') {
         record.syncedAt = new Date().toISOString();
       }
-      await db.put('sync_queue', record);
+      await this.putRecord(db, record);
     }
   }
 
@@ -125,6 +203,10 @@ class SyncQueueService {
    */
   async removeRecord(id: string): Promise<void> {
     const db = await this.getDB();
+    const record = await db.get('sync_queue', id);
+    if (record) {
+      this.assertTenantSafety(record.schoolId);
+    }
     await db.delete('sync_queue', id);
   }
 
@@ -132,6 +214,7 @@ class SyncQueueService {
    * Clear all synced records
    */
   async clearSyncedRecords(schoolId: string): Promise<void> {
+    this.assertTenantSafety(schoolId);
     const db = await this.getDB();
     const records = await this.getRecordsBySchoolAndStatus(schoolId, 'Synced');
     

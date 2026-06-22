@@ -1,0 +1,2 @@
+## 2026-06-20T19:38:42Z
+Analyze target file c:\Users\user\Desktop\PROJECTS\Shule hub\prisma\schema.prisma. Recommend fix strategy for R1 index gaps in Phase 7 and Legacy Modules (lines 3718 to 6632): find all models containing tenant_id or school_id that lack any @@index or @@unique on those fields. Save handoff report in c:\Users\user\Desktop\PROJECTS\Shule hub\.agents\explorer_m1_3\handoff.md and message orchestrator when done.

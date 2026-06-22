@@ -1,29 +1,60 @@
-# Plan - Operationalizing MyShule Placeholders
+# Project Plan - MyShule Platform Optimization
 
-This plan details the steps required to operationalize the remaining placeholder workspaces rendering `DocxOperationalWorkspace` across the MyShule platform.
+This plan addresses all requirements in `ORIGINAL_REQUEST.md` (R1, R2, R3, R4) by remediating the vulnerabilities and workflow gaps identified in `myshule_optimization_audit.md`.
 
 ## Milestones
 
-### Milestone 1: Exploration and Analysis
-- [ ] Scan `apps/web/src/components/school` recursively to catalog all workspace files rendering `DocxOperationalWorkspace`.
-- [ ] Reconcile the inventory with the system's generated workspace definitions (`generated-workspace-definitions.ts`) and blueprints.
-- [ ] Inspect existing backend endpoints and identify missing NestJS controllers, services, or DB queries for these modules.
-- [ ] Verify permission rules, audit events, and tenant isolation requirements.
-- **Verification**: Complete analysis report saved to `.agents/explorer_analysis/handoff.md`.
+### Milestone 1: Database Schema and Indexing (R1)
+* Add `schoolId` or `tenant_id` to the `RolePermission` model in `prisma/schema.prisma`.
+* Scan the database schema for all tenant-scoped tables that are queried or filtered by `schoolId` or `tenant_id`.
+* Add missing `@@index([schoolId])` and `@@index([tenant_id])` annotations across the schema, especially the Academics module (Phase 5) and the 100+ tables in Phase 7 and legacy modules.
+* Run schema validation and database migrations.
+* **Verification**: `npx prisma validate` passes successfully.
 
-### Milestone 2: Backend API & Service Implementation
-- [ ] Group the missing endpoints by module/domain.
-- [ ] Implement required NestJS controllers, services, DTOs, and DB queries.
-- [ ] Enforce permission guards, audit logging, and tenant isolation filtering on all new routes.
-- **Verification**: NestJS backend compiles without errors; unit tests for new services pass.
+### Milestone 2: Backend Tenant Isolation (R2)
+* Refactor NestJS controllers, services, and consumers to assert that all queries and mutations verify ownership using the context's `school_id`/`tenant_id`.
+* Remediate target endpoints:
+  * Student Exit Clearance validation in `student-lifecycle.service.ts`.
+  * Medicine Dispensing inventory check in `dispense-medicine.consumer.ts`.
+  * Stock Issuing verification in `issue-stock.consumer.ts`.
+  * Payment Posting on foreign invoices verification in `record-payment.consumer.ts`.
+  * Reception ticket manipulation verification in `secretary.controller.ts`.
+  * Discipline incident reports check in `support.controller.ts`.
+  * Counselling sessions raw SQL scope modification in `support.controller.ts`.
+* Ensure that any request using a mismatched/foreign tenant ID fails with a forbidden or unauthorized error.
+* **Verification**: API tests verify mismatched/foreign school_id updates are strictly rejected.
 
-### Milestone 3: Frontend Workspace Implementation
-- [ ] Convert the `DocxOperationalWorkspace` placeholder components in each file to fully operational React components.
-- [ ] Use `DataTable`, `MetricGrid`, `Modal`, `StatusPill`, and form inputs.
-- [ ] Wire them to the NestJS APIs using TanStack Query, ensuring mutations invalidate queries via `queryClient.invalidateQueries`.
-- **Verification**: Frontend builds with `npm run build` in `apps/web` without TypeScript or linting errors.
+### Milestone 3: API Routing Rewrite and Event Outbox (R3)
+* Fix routing path mismatches between Next.js front-end proxy (`apps/web/src/app/api/[...path]/route.ts`) and NestJS backend controllers:
+  * Align `/api/student/dashboard` rewrite target path.
+  * Align `/api/parent/dashboard` rewrite target path.
+  * Correct the academics pluralization `/academics` to `/academic`.
+  * Align front-office paths `/visitor` -> `/visitors`, `/appointment` -> `/appointments`, `/mail` -> `/dispatch` or matching mappings.
+* Align custom outbox event schema fields (`source_dashboard`, `correlation_id` top-level integration).
+* Wire up missing transactional outbox event emissions via `EventPublisherService`:
+  * Marks submission in Exams & Class Teacher services.
+  * Report card publishing in `exams.service.ts`.
+  * Staff invitation/roles actions in `hr.service.ts`.
+  * Counselling referrals actions in `counselling.service.ts`.
+  * CRUD operations inheriting from `SimpleOperationsService` (Boarding, Assets, etc.).
+  * Procurement workflows in `procurement.service.ts`.
+* **Verification**: Next.js proxy routes respond with standard 200/401 codes instead of 404. Event Outbox records are generated for all mutations.
 
-### Milestone 4: E2E Verification & Forensic Audit
-- [ ] Run full E2E verify checks ensuring no 404s on mount and successful mutation persistence.
-- [ ] Perform forensic audit checks via Forensic Auditor (`teamwork_preview_auditor`) to guarantee integrity and strict tenant isolation.
-- **Verification**: 100% clean audit verdict and passing builds.
+### Milestone 4: Frontend UI Completeness and Workflows (R4)
+* Replace raw browser `prompt()` windows with structured custom React modals (using validation logic) in Storekeeper, Admin, Deputy, Exams, and Medicine Inventory workspaces.
+* Wire hardcoded dashboards to live database hook calls:
+  * Nurse Command Center (pull from clinic visit hooks).
+  * Discipline Master workspaces.
+  * Student Command Center (pull from student detail/marks hooks).
+* Wire up dead buttons (Exams calendar setup sync/export/add).
+* Enable live submission for commented out POST requests (Principal exam setup).
+* Add topbar sync/connectivity indicators in Class Teacher command center.
+* Update offline discipline workspace alerts to indicate queued status instead of premature success.
+* Replace fake PDF print overrides and alerts with actual backend PDF Blob file downloads in reports-workspace and exam-module-screen.
+* **Verification**: Code review verifies zero occurrences of `window.prompt()`. PDF download buttons perform actual blob downloads.
+
+### Milestone 5: E2E Verification & Victory Audit
+* Build the application packages successfully.
+* Run full verification tests.
+* Execute Forensic Auditor (`teamwork_preview_auditor`) checks to verify strict tenant isolation and platform integrity.
+* **Verification**: 100% clean audit verdict and passing builds/tests.

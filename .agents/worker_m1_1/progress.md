@@ -1,12 +1,13 @@
 # Progress
 
-Last visited: 2026-06-19T13:30:00+03:00
+Last visited: 2026-06-22T09:31:09+03:00
 
-- [x] Initialized workspace and recorded request.
-- [x] Reviewed Prisma schema for models and database fields.
-- [x] Implemented Prisma-backed business logic for all 32 stubs in `admin-command.service.ts`.
-- [x] Updated `admin-command.controller.ts` to delegate all 32 stubs to `AdminCommandService`.
-- [x] Resolved compilation issues (removed duplicate method, imported `InvoiceStatus`, and matched database schema fields for invoices and payments).
-- [x] Verified build successfully (`npm run build` succeeds).
-- [x] Verified tests successfully (`admin-command.test.ts` passes 10/10).
-- [x] Wrote `changes.md` and `handoff.md`.
+- [x] Initialized workspace and recorded new request.
+- [x] Update `prisma/schema.prisma` with schema drift fixes for:
+  - [x] `LegacyDisciplineAction` fields (already aligned in schema)
+  - [x] `Permission` relation to `School` (already aligned in schema)
+  - [x] `ApprovalRequest` relationship mapping for rule and users (already aligned in schema)
+- [x] Run Prisma validation (`npx prisma validate`)
+- [x] Run Prisma client generation (`npx prisma generate`)
+- [x] Run project build (`npm run build`)
+- [x] Document changes in `changes.md` and `handoff.md`

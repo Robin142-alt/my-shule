@@ -68,6 +68,7 @@ import {
 } from "@/lib/school/school-operational-store";
 import { useQueryClient } from "@tanstack/react-query";
 import { useSchoolMutation, useSchoolQuery } from "@/lib/data/school-hooks";
+import { isExtremeErpWorkspaceId } from "@/lib/operational/extreme-erp-blueprints";
 import {
   getKisumuBoysRoleFeed,
   scoreKisumuBoysHighDemoReadiness,
@@ -8016,7 +8017,7 @@ function GenericRoleOperationalCommandCenter({
                 </div>
                 <OperationalQueue contract={visibleQueueContract} onExecute={(action) => void executeAction(action)} />
               </div>
-            ) : generatedBlueprint ? (
+            ) : (isExtremeErpWorkspaceId(slug(resolvedWorkspace)) && generatedBlueprint) ? (
               <OperationalBlueprintWorkspace blueprint={generatedBlueprint} />
             ) : (
               <div className="grid min-h-0 gap-4">

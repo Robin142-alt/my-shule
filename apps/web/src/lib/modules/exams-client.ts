@@ -353,3 +353,70 @@ export function buildParentReportCardDownloadPath(reportCardId: string) {
 export function createParentReportCardDownloadLive(session: LiveAuthSession, reportCardId: string) {
   return withSession(session, buildParentReportCardDownloadPath(reportCardId));
 }
+
+export interface LiveExamsAnalyticsKPIs {
+  school_average: number;
+  pending_reviews: number;
+  missing_marks_alerts: number;
+  active_exams: number;
+}
+
+export interface LiveExamsAnalyticsTrend {
+  exam_series_id: string;
+  exam_series_name: string;
+  starts_on: string;
+  average_score: number;
+}
+
+export interface LiveExamsAnalyticsSubjectPerformance {
+  subject_id: string;
+  subject_name: string;
+  mean_score: number;
+  pass_rate: number;
+  ee_count: number;
+  me_count: number;
+  ae_count: number;
+  be_count: number;
+}
+
+export interface LiveExamsAnalyticsTopPerformer {
+  student_id: string;
+  student_name: string;
+  admission_number: string;
+  average_percentage: number;
+  assessments_taken: number;
+}
+
+export interface LiveExamsAnalyticsTopImprover {
+  student_id: string;
+  student_name: string;
+  admission_number: string;
+  latest_exam_series: string;
+  latest_average: number;
+  previous_exam_series: string;
+  previous_average: number;
+  improvement: number;
+}
+
+export interface LiveExamsAnalyticsAtRiskStudent {
+  student_id: string;
+  student_name: string;
+  admission_number: string;
+  average_percentage: number;
+  assessments_taken: number;
+}
+
+export interface LiveExamsAnalyticsResponse {
+  kpis: LiveExamsAnalyticsKPIs;
+  trends: LiveExamsAnalyticsTrend[];
+  subjectPerformance: LiveExamsAnalyticsSubjectPerformance[];
+  studentProgress: {
+    topPerformers: LiveExamsAnalyticsTopPerformer[];
+    topImprovers: LiveExamsAnalyticsTopImprover[];
+    atRiskStudents: LiveExamsAnalyticsAtRiskStudent[];
+  };
+}
+
+export function fetchExamsAnalyticsLive(session: LiveAuthSession): Promise<LiveExamsAnalyticsResponse> {
+  return withSession<LiveExamsAnalyticsResponse>(session, "/exams/analytics");
+}

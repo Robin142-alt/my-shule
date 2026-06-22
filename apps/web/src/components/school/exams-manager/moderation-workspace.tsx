@@ -5,6 +5,8 @@ import { toast } from "sonner";
 import { Panel, StatusChip, Tone } from "./shared";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 import { approveModeration, rejectModeration } from "./api-client";
+import { Modal } from "@/components/ui/modal";
+import { useForm } from "react-hook-form";
 
 type ModerationRecord = {
   id: string;
@@ -30,9 +32,20 @@ type ModerationData = {
   submissions: ModerationRecord[];
 };
 
+type RejectModerationFormData = {
+  reason: string;
+};
+
 export function ModerationWorkspace() {
   const { data, isLoading, refetch } = useSchoolQuery<ModerationData>('/admin-command/exams-manager/moderation');
   const [actionId, setActionId] = useState<string | null>(null);
+
+  const [isRejectOpen, setIsRejectOpen] = useState(false);
+  const [selectedSubId, setSelectedSubId] = useState<string | null>(null);
+
+  const rejectForm = useForm<RejectModerationFormData>({
+    defaultValues: { reason: "" },
+  });
 
   const submissions = data?.submissions || [];
 
@@ -58,18 +71,26 @@ export function ModerationWorkspace() {
     }
   };
 
-  const handleReject = async (id: string) => {
-    const reason = prompt("Reason for rejection:");
-    if (!reason) return;
-    setActionId(id);
+  const handleRejectClick = (id: string) => {
+    setSelectedSubId(id);
+    rejectForm.reset({ reason: "" });
+    setIsRejectOpen(true);
+  };
+
+  const onSubmitReject = async (formData: RejectModerationFormData) => {
+    if (!selectedSubId) return;
+    setActionId(selectedSubId);
     try {
-      await rejectModeration(id, reason);
+      await rejectModeration(selectedSubId, formData.reason);
       toast.success("Marks rejected and sent back to teacher.");
+      setIsRejectOpen(false);
+      rejectForm.reset();
       refetch();
     } catch {
       toast.error("Failed to reject marks.");
     } finally {
       setActionId(null);
+      setSelectedSubId(null);
     }
   };
 
@@ -132,7 +153,7 @@ export function ModerationWorkspace() {
                       <button onClick={() => handleApprove(sub.id)} disabled={actionId === sub.id} className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-600 hover:underline disabled:opacity-50">
                         <CheckCircle className="w-3 h-3" /> Approve
                       </button>
-                      <button onClick={() => handleReject(sub.id)} disabled={actionId === sub.id} className="inline-flex items-center gap-1 text-xs font-semibold text-rose-600 hover:underline disabled:opacity-50">
+                      <button onClick={() => handleRejectClick(sub.id)} disabled={actionId === sub.id} className="inline-flex items-center gap-1 text-xs font-semibold text-rose-600 hover:underline disabled:opacity-50">
                         <XCircle className="w-3 h-3" /> Reject
                       </button>
                     </div>
@@ -143,6 +164,50 @@ export function ModerationWorkspace() {
           </tbody>
         </table>
       </div>
+
+      {/* Reject Moderation Modal */}
+      <Modal
+        open={isRejectOpen}
+        onClose={() => {
+          setIsRejectOpen(false);
+          setSelectedSubId(null);
+        }}
+        title="Reject Marks Submission"
+      >
+        <form onSubmit={rejectForm.handleSubmit(onSubmitReject)} className="space-y-4 py-4">
+          <div className="space-y-1">
+            <label className="text-sm font-medium">Rejection Reason</label>
+            <textarea
+              {...rejectForm.register("reason", { required: "Reason is required" })}
+              className="w-full rounded border border-slate-300 p-2 text-sm text-[#071D49]"
+              placeholder="Provide a reason for rejection..."
+              rows={3}
+            />
+            {rejectForm.formState.errors.reason && (
+              <span className="text-xs text-red-500">{rejectForm.formState.errors.reason.message}</span>
+            )}
+          </div>
+
+          <div className="flex justify-end space-x-3 pt-4 border-t border-slate-100">
+            <button
+              type="button"
+              onClick={() => {
+                setIsRejectOpen(false);
+                setSelectedSubId(null);
+              }}
+              className="px-4 py-2 border rounded text-sm font-medium hover:bg-slate-50 text-[#071D49]"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="px-4 py-2 bg-[#071D49] text-white rounded text-sm font-medium hover:bg-blue-900"
+            >
+              Reject Submission
+            </button>
+          </div>
+        </form>
+      </Modal>
     </Panel>
   );
 }

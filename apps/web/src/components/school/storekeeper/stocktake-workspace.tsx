@@ -6,6 +6,8 @@ import { toast } from "sonner";
 import { Panel, StatusChip, Tone } from "./shared";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 import { startStocktake, submitStocktakeCount, finalizeStocktake } from "./api-client";
+import { Modal } from "@/components/ui/modal";
+import { useForm } from "react-hook-form";
 
 type StocktakeRecord = {
   id: string;
@@ -30,10 +32,24 @@ type StocktakeData = {
   stocktakes: StocktakeRecord[];
 };
 
+type StartStocktakeFormData = {
+  title: string;
+  scope: string;
+};
+
 export function StocktakeWorkspace() {
   const { data, isLoading, refetch } = useSchoolQuery<StocktakeData>('/admin-command/storekeeper/stocktake');
   const [isStarting, setIsStarting] = useState(false);
   const [finalizing, setFinalizing] = useState<string | null>(null);
+
+  const [isStartOpen, setIsStartOpen] = useState(false);
+
+  const startForm = useForm<StartStocktakeFormData>({
+    defaultValues: {
+      title: "",
+      scope: "All",
+    }
+  });
 
   const stocktakes = data?.stocktakes || [];
 
@@ -45,16 +61,13 @@ export function StocktakeWorkspace() {
     return "neutral";
   };
 
-  const handleStartStocktake = async () => {
+  const onSubmitStartStocktake = async (formData: StartStocktakeFormData) => {
     setIsStarting(true);
     try {
-      const title = prompt("Stocktake title (e.g. 'Term 2 Full Stocktake')?");
-      if (!title) { setIsStarting(false); return; }
-      const scope = prompt("Category scope (e.g. 'All', 'Stationery', 'Lab Supplies')?");
-      if (!scope) { setIsStarting(false); return; }
-
-      await startStocktake({ title, category_scope: scope });
-      toast.success(`Stocktake "${title}" started.`);
+      await startStocktake({ title: formData.title, category_scope: formData.scope });
+      toast.success(`Stocktake "${formData.title}" started.`);
+      setIsStartOpen(false);
+      startForm.reset();
       refetch();
     } catch {
       toast.error("Failed to start stocktake.");
@@ -84,11 +97,13 @@ export function StocktakeWorkspace() {
       icon={ClipboardList}
       actions={
         <button
-          disabled={isStarting}
-          onClick={handleStartStocktake}
+          onClick={() => {
+            startForm.reset();
+            setIsStartOpen(true);
+          }}
           className="inline-flex items-center gap-2 rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white hover:bg-blue-900 transition disabled:opacity-50"
         >
-          <Plus className="h-4 w-4" /> {isStarting ? "Starting..." : "New Stocktake"}
+          <Plus className="h-4 w-4" /> New Stocktake
         </button>
       }
     >
@@ -167,6 +182,58 @@ export function StocktakeWorkspace() {
           </tbody>
         </table>
       </div>
+
+      {/* Start Stocktake Modal */}
+      <Modal
+        open={isStartOpen}
+        onClose={() => setIsStartOpen(false)}
+        title="Start New Stocktake"
+      >
+        <form onSubmit={startForm.handleSubmit(onSubmitStartStocktake)} className="space-y-4 py-4">
+          <div className="space-y-1">
+            <label className="text-sm font-medium">Stocktake Title</label>
+            <input
+              type="text"
+              {...startForm.register("title", { required: "Title is required" })}
+              className="w-full rounded border border-slate-300 p-2 text-sm text-[#071D49]"
+              placeholder="e.g. Term 2 Full Stocktake"
+            />
+            {startForm.formState.errors.title && (
+              <span className="text-xs text-red-500">{startForm.formState.errors.title.message}</span>
+            )}
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-sm font-medium">Category Scope</label>
+            <input
+              type="text"
+              {...startForm.register("scope", { required: "Scope is required" })}
+              className="w-full rounded border border-slate-300 p-2 text-sm text-[#071D49]"
+              placeholder="e.g. All, Stationery, Lab Supplies"
+            />
+            {startForm.formState.errors.scope && (
+              <span className="text-xs text-red-500">{startForm.formState.errors.scope.message}</span>
+            )}
+          </div>
+
+          <div className="flex justify-end space-x-3 pt-4 border-t border-slate-100">
+            <button
+              type="button"
+              onClick={() => setIsStartOpen(false)}
+              className="px-4 py-2 border rounded text-sm font-medium hover:bg-slate-50 text-[#071D49]"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={isStarting}
+              className="px-4 py-2 bg-[#071D49] text-white rounded text-sm font-medium hover:bg-blue-900 disabled:opacity-50"
+            >
+              {isStarting ? "Starting..." : "Start Stocktake"}
+            </button>
+          </div>
+        </form>
+      </Modal>
     </Panel>
   );
 }

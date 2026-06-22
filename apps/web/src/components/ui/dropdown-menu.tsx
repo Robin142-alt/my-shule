@@ -17,10 +17,13 @@ const DropdownMenuContent = ({ children, align = "left", className = "" }: { chi
   )
 }
 
-const DropdownMenuItem = ({ children, disabled, className = "" }: { children: React.ReactNode, disabled?: boolean, className?: string }) => {
+const DropdownMenuItem = ({ children, disabled, className = "", ...props }: React.HTMLAttributes<HTMLDivElement> & { children: React.ReactNode, disabled?: boolean, className?: string }) => {
   const disabledClass = disabled ? "opacity-50 pointer-events-none" : "";
   return (
-    <div className={`relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors hover:bg-accent hover:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 ${disabledClass} ${className}`}>
+    <div 
+      {...props}
+      className={`relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors hover:bg-accent hover:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 ${disabledClass} ${className}`}
+    >
       {children}
     </div>
   )

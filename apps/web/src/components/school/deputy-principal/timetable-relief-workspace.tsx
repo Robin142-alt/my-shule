@@ -6,6 +6,8 @@ import { useSchoolQuery, useSchoolMutation } from "@/lib/data/school-hooks";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { assignReliefTeacher, autoAssignRelief } from "./api-client";
+import { Modal } from "@/components/ui/modal";
+import { useForm } from "react-hook-form";
 
 export type ReliefLesson = {
   id: string;
@@ -24,10 +26,21 @@ type TimetableData = {
   lessons: ReliefLesson[];
 };
 
+type ReliefAssignFormData = {
+  teacher: string;
+};
+
 export function DeputyTimetableReliefWorkspace() {
   const queryClient = useQueryClient();
   const { data, isLoading, refetch } = useSchoolQuery<TimetableData>('/admin-command/deputy/timetable');
   const [isAutoAssigning, setIsAutoAssigning] = useState(false);
+
+  const [isAssignOpen, setIsAssignOpen] = useState(false);
+  const [selectedLesson, setSelectedLesson] = useState<{ id: string; className: string; time: string } | null>(null);
+
+  const assignForm = useForm<ReliefAssignFormData>({
+    defaultValues: { teacher: "" },
+  });
 
   const assignMutation = useSchoolMutation<
     { id: string; teacherName: string },
@@ -42,16 +55,24 @@ export function DeputyTimetableReliefWorkspace() {
 
   const lessons = data?.lessons || [];
 
-  const handleAssign = async (id: string, className: string, time: string) => {
-    const teacher = prompt("Enter the name of the relief teacher to assign:");
-    if (!teacher) return;
-    
+  const handleAssign = (id: string, className: string, time: string) => {
+    setSelectedLesson({ id, className, time });
+    assignForm.reset({ teacher: "" });
+    setIsAssignOpen(true);
+  };
+
+  const onSubmitAssign = async (formData: ReliefAssignFormData) => {
+    if (!selectedLesson) return;
     try {
-      await assignReliefTeacher(id, teacher);
+      await assignReliefTeacher(selectedLesson.id, formData.teacher);
       queryClient.invalidateQueries({ queryKey: ["school", "session", '/admin-command/deputy/timetable'] });
-      toast.success(`${teacher} has been assigned to cover ${className} at ${time}.`);
+      toast.success(`${formData.teacher} has been assigned to cover ${selectedLesson.className} at ${selectedLesson.time}.`);
+      setIsAssignOpen(false);
+      assignForm.reset();
     } catch (e: any) {
       toast.error(e.message || "Failed to assign relief teacher.");
+    } finally {
+      setSelectedLesson(null);
     }
   };
 
@@ -128,6 +149,54 @@ export function DeputyTimetableReliefWorkspace() {
           </tbody>
         </table>
       </div>
+
+      {/* Assign Relief Teacher Modal */}
+      <Modal
+        open={isAssignOpen}
+        onClose={() => {
+          setIsAssignOpen(false);
+          setSelectedLesson(null);
+        }}
+        title="Assign Relief Teacher"
+      >
+        <form onSubmit={assignForm.handleSubmit(onSubmitAssign)} className="space-y-4 py-4">
+          <p className="text-sm text-[#64748B]">
+            Assign a relief teacher for <strong>{selectedLesson?.className}</strong> ({selectedLesson?.time}):
+          </p>
+
+          <div className="space-y-1">
+            <label className="text-sm font-medium">Teacher Name</label>
+            <input
+              type="text"
+              {...assignForm.register("teacher", { required: "Teacher name is required" })}
+              className="w-full rounded border border-slate-300 p-2 text-sm text-[#071D49]"
+              placeholder="Enter teacher's name..."
+            />
+            {assignForm.formState.errors.teacher && (
+              <span className="text-xs text-red-500">{assignForm.formState.errors.teacher.message}</span>
+            )}
+          </div>
+
+          <div className="flex justify-end space-x-3 pt-4 border-t border-slate-100">
+            <button
+              type="button"
+              onClick={() => {
+                setIsAssignOpen(false);
+                setSelectedLesson(null);
+              }}
+              className="px-4 py-2 border rounded text-sm font-medium hover:bg-slate-50 text-[#071D49]"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="px-4 py-2 bg-[#071D49] text-white rounded text-sm font-medium hover:bg-blue-900"
+            >
+              Assign Teacher
+            </button>
+          </div>
+        </form>
+      </Modal>
     </Panel>
   );
 }

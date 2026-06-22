@@ -221,3 +221,196 @@ Ensure that the `SettingsWorkspace` frontend correctly sends all the new configu
 
 ### Maintenance Mode Enforcement
 - [ ] An agent acting as a judge or programmatic test verifies that when `maintenanceMode` is true, an API request simulating a regular school user (e.g., Teacher, Parent) is blocked, while an API request simulating a Super Admin succeeds.
+
+## Follow-up — 2026-06-20T13:05:59Z
+
+Upgrade the exams and analytics module in the MyShule platform to match and exceed the capabilities of Zeraki Analytics. This includes a full-stack implementation with backend aggregation endpoints and rich frontend charts/dashboards. The agent team will decide the best features to add based on industry standards.
+
+Working directory: c:\Users\user\Desktop\PROJECTS\Shule hub
+Integrity mode: demo
+
+## Requirements
+
+### R1. Full-Stack Analytics Upgrade
+Build backend aggregation endpoints to process exam data and a rich frontend dashboard using pre-built charting libraries to visualize the data.
+
+### R2. Feature Selection
+The agent team should independently select and implement the highest-impact analytics features (e.g., term-over-term trends, grade distributions, subject performance) that will add the most value for teachers and administrators.
+
+### R3. Programmatic Verification
+Write new programmatic tests to verify the accuracy of the backend aggregation logic.
+
+## Acceptance Criteria
+
+### Analytics Implementation
+- [ ] At least two new advanced analytical views (e.g., student progress trends, subject comparisons) are implemented and visible on the frontend dashboard.
+- [ ] The frontend views correctly consume data from the new backend aggregation endpoints.
+
+### Testing and Verification
+- [ ] New automated programmatic tests are written for the backend aggregations.
+- [ ] The programmatic tests pass successfully without errors.
+
+## Follow-up — 2026-06-20T20:00:19+03:00
+
+Audit the entire MyShule platform to identify and document what is remaining to be done to optimize its capabilities and meet production-ready standards as an event-driven, multi-tenant school ERP.
+
+Working directory: c:\Users\user\Desktop\PROJECTS\Shule hub
+Integrity mode: development
+
+## Requirements
+
+### R1. Comprehensive System Audit
+Analyze the codebase (frontend and backend) to identify incomplete workflows, dead buttons, missing tenant scopes, and broken UI states, checking against the MyShule AGENTS.md rules.
+
+### R2. Produce Optimization Report
+Generate a detailed report (`myshule_optimization_audit.md`) listing all identified gaps, including missing validations, missing event emissions, missing audit logs, and any instances of hardcoded or demo data.
+
+## Acceptance Criteria
+
+### Report Verification
+- [ ] A final report named `myshule_optimization_audit.md` is generated in the working directory.
+- [ ] The report includes dedicated sections for Tenant Isolation gaps, Event Architecture gaps, and UI Completeness.
+- [ ] The report lists specific files and line numbers or component names where the gaps were found.
+- [ ] The report references specific rules from AGENTS.md that are being violated or are incomplete.
+
+## Follow-up — 2026-06-20T21:05:34+03:00
+
+Implement comprehensive fixes for all the critical vulnerabilities and workflow gaps identified in the MyShule `myshule_optimization_audit.md` report.
+
+Working directory: c:\Users\user\Desktop\PROJECTS\Shule hub
+Integrity mode: development
+
+## Requirements
+
+### R1. Database Schema and Indexing
+Update `prisma/schema.prisma` to add `school_id` / `tenant_id` to the `RolePermission` join table. Add missing `@@index([schoolId])` and `@@index([tenant_id])` annotations across all tenant-scoped tables identified in the audit.
+
+### R2. Backend Tenant Isolation
+Secure all NestJS controllers, services, and consumers (e.g., `StudentLifecycleService`, `SupportController`, `IssueStockConsumer`) to strictly enforce `school_id` / `tenant_id` checks during queries and mutations, preventing cross-tenant data leaks.
+
+### R3. API Routing and Event Architecture
+Fix the proxy route mismatches between the Next.js API routes and the NestJS backend (e.g., fixing `404` errors for student, parent, and secretary portals). Implement missing event outbox emissions in Exams, HR, Counselling, and operations services using `EventPublisherService`.
+
+### R4. Frontend UI and Workflow Completeness
+Replace all raw browser `prompt()` calls in workspaces with validated React modals. Connect hardcoded dashboards (Nurse, Discipline) to live database queries. Wire up dead buttons, fix deceptive offline sync messages, and replace the fake "Print overlay" downloads with actual backend PDF Blob downloads.
+
+## Acceptance Criteria
+
+### Backend Verification
+- [ ] Running `npx prisma validate` passes successfully without errors.
+- [ ] A programmatic test or independent agent verifies that a request using a foreign `school_id` to modify data (like stock or discipline cases) fails with an authorization error.
+- [ ] Next.js proxy API routes (like `/api/student/dashboard` and `/api/academics`) return valid responses (200 OK or 401 Unauthorized) instead of 404 Not Found.
+
+### Frontend Verification
+- [ ] An independent Agent-as-Judge verifies that `window.prompt` is no longer used in any of the identified workspace files (Storekeeper, Admin, Exams).
+- [ ] An independent Agent-as-Judge verifies that "Download PDF" buttons trigger a backend file download rather than `window.print()`.
+
+## Follow-up — 2026-06-20T21:14:47Z
+
+Build out the four major feature pillars for MyShule: a robust Offline Sync engine, a centralized Approval workflow engine, automated PDF generation for reports, and a comprehensive E2E test suite to safeguard tenant isolation.
+
+Working directory: c:\Users\user\Desktop\PROJECTS\Shule hub
+Integrity mode: development
+
+## Requirements
+
+### R1. Offline Sync Engine
+Implement local-first offline synchronization logic on the frontend (utilizing IndexedDB or service workers). Ensure proper UI indicators display truthful "queued" and "synced" statuses, and that data syncs accurately without duplication when connectivity is restored.
+
+### R2. Core Approval Workflow Engine
+Build a centralized backend approval engine to handle requests, escalations, and status tracking (e.g., PENDING, APPROVED, REJECTED) for sensitive actions like fee waivers and discipline cases.
+
+### R3. Automated PDF Generation
+Replace frontend browser print dialogs by implementing a robust backend PDF generator (e.g., using Puppeteer, PDFKit, or an equivalent tool) capable of producing branded report cards, invoices, and fee receipts dynamically.
+
+### R4. E2E Tenant Security Test Suite
+Write a comprehensive End-to-End (E2E) test suite (e.g., using Cypress or Playwright) that automatically validates the strict tenant isolation boundaries, ensuring a user in School A can never read or modify School B's data.
+
+## Acceptance Criteria
+
+### Verification
+- [ ] Offline actions show a truthful queued UI state, and an independent Agent-as-Judge verifies that records sync successfully on network restore without duplication.
+- [ ] Programmatic API tests confirm that the Approval Engine correctly handles state transitions (PENDING -> APPROVED/REJECTED) and logs the approver's details.
+- [ ] Clicking "Download PDF" for a Report Card or Receipt triggers a backend API call that returns a valid `application/pdf` Blob.
+- [ ] The new E2E test suite executes successfully via a standard `package.json` script (e.g., `npm run test:e2e`) with zero failures.
+
+## Follow-up — 2026-06-22T11:51:37Z
+
+Build out the four major feature pillars for MyShule: a robust Offline Sync engine, a centralized Approval workflow engine, automated PDF generation for reports, and a comprehensive E2E test suite to safeguard tenant isolation.
+
+Working directory: c:\Users\user\Desktop\PROJECTS\Shule hub
+Integrity mode: development
+
+**Reference Material**:
+- **Implementation Plan**: See [implementation_plan.md](file:///C:/Users/user/.gemini/antigravity/brain/081b63ef-f2b1-4a59-938e-f555304c7e8a/implementation_plan.md) for concrete file modifications and architecture details. Follow this plan exactly.
+
+## Requirements
+
+### R1. Offline Sync Engine
+Implement local-first offline synchronization logic on the frontend (utilizing IndexedDB or service workers). Ensure proper UI indicators display truthful "queued" and "synced" statuses, and that data syncs accurately without duplication when connectivity is restored. Add the backend sync flush endpoint.
+
+### R2. Core Approval Workflow Engine
+Integrate sensitive discipline actions into the centralized backend approval engine to handle requests, escalations, and status tracking (e.g., PENDING, APPROVED, REJECTED) instead of executing them directly.
+
+### R3. Automated PDF Generation
+Replace frontend browser print dialogs (`window.print()`) by implementing a robust backend PDF streaming endpoint that connects to the existing PDF generation logic, capable of producing branded report cards dynamically.
+
+### R4. E2E Tenant Security Test Suite
+Write a comprehensive End-to-End (E2E) test suite using Playwright that automatically validates the strict tenant isolation boundaries, ensuring a user in School A can never read or modify School B's data.
+
+## Acceptance Criteria
+
+### Verification
+- [ ] Offline actions show a truthful queued UI state, and an independent Agent-as-Judge verifies that records sync successfully on network restore without duplication via the new flush endpoint.
+- [ ] Programmatic API tests confirm that the Discipline controller routes sensitive actions through the Approval Engine correctly, handling state transitions.
+- [ ] Clicking "Download PDF" for a Report Card triggers a backend API call that streams a valid `application/pdf` Blob instead of opening the print dialog.
+- [ ] The new Playwright E2E test suite executes successfully via a standard `package.json` script (e.g., `npm run test:e2e`) with zero failures.
+
+
+
+
+## Follow-up — 2026-06-22T12:29:01Z
+
+# Teamwork Project Prompt — Draft
+
+Complete the four remaining feature pillars identified in the codebase audit for MyShule, closing all gaps between what exists and what's needed for production readiness.
+
+Working directory: c:\Users\user\Desktop\PROJECTS\Shule hub
+Integrity mode: development
+
+## Requirements
+
+### R1. Centralized Approval Workflow
+Wire the Discipline cases to use the centralized `ApprovalsService` instead of manual bypasses. Deprecate manual bypass endpoints for Fee Waivers and Discipline actions to ensure all approvals strictly route through the centralized validation engine.
+
+### R2. Automated PDF Generation
+Implement a centralized NestJS PDF Service returning proper PDF stream responses for existing report endpoints. Connect the frontend buttons in the Report Cards, Exams Module, Parent Portal, and Parent Fees workspaces to trigger and download real PDF blobs.
+
+### R3. Offline Sync
+Implement the missing Service Worker in the frontend to support offline sync capabilities. Resolve the database schema drift between the Prisma schema and dynamically initialized SQL tables for offline sync operations to ensure Prisma Client safety.
+
+### R4. E2E Tenant Security Test
+Implement Playwright E2E security tests to verify multi-tenant isolation on the frontend, ensuring users cannot access or view another tenant's data.
+
+## Acceptance Criteria
+
+### Centralized Approval Workflow
+- [ ] Discipline actions are routed through the `ApprovalsService` centralized engine.
+- [ ] Direct calls to manual bypass endpoints (e.g., `waivers/:id/approve` or `actions/:actionId/approve`) either gracefully route to the centralized engine or are removed/disabled.
+
+### Automated PDF Generation
+- [ ] A centralized backend PDF service is registered and implemented.
+- [ ] API endpoints for reports return `Content-Type: application/pdf`.
+- [ ] Clicking "Download PDF" on the frontend workspaces triggers a real `.pdf` file download.
+
+### Offline Sync
+- [ ] A Service Worker is successfully registered in the frontend application.
+- [ ] Prisma schema and raw SQL tables are synchronized, resolving type drifts (e.g., UUID vs text, op_id vs id).
+
+### E2E Tenant Security Test
+- [ ] At least one Playwright test explicitly validates cross-tenant isolation and security boundaries.
+- [ ] The Playwright isolation test passes when run locally.
+
+## Follow-up — 2026-06-22T15:52:00+03:00
+
+Coordinate implementation of the four major Phase 5 feature pillars (Offline Sync Engine, Core Approval Workflow Engine, Automated PDF Generation, E2E Tenant Security Test Suite) in the MyShule codebase, resuming from the workspace c:\Users\user\Desktop\PROJECTS\Shule hub\.agents\orchestrator_pillars_m5_gen1. Read c:\Users\user\Desktop\PROJECTS\Shule hub\.agents\orchestrator_pillars_m5_gen1\BRIEFING.md to restore state, set up direct iteration loop workers to implement features, and report progress.

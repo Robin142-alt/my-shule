@@ -743,8 +743,8 @@ export function InvoicesWorkspace({
     }
   }
 
-  async function loadBillableStudentsForSelectedFeeStructure() {
-    const selectedFeeStructureId = bulkDraft.fee_structure_id.trim();
+  async function loadBillableStudentsForSelectedFeeStructure(overrideStructureId?: string) {
+    const selectedFeeStructureId = overrideStructureId !== undefined ? overrideStructureId.trim() : bulkDraft.fee_structure_id.trim();
 
     if (!selectedFeeStructureId) {
       setBulkError("Select a fee structure before loading roster students.");
@@ -1347,19 +1347,120 @@ export function InvoicesWorkspace({
       </Modal>
       <Modal
         open={showBulkModal}
-        title="Bulk invoicing"
-        description="Configuration status"
+        title="Bulk Invoicing"
+        description="Select a fee structure and check the roster students to invoice."
         onClose={() => setShowBulkModal(false)}
         footer={
-          <Button variant="secondary" onClick={() => setShowBulkModal(false)}>
-            Close
-          </Button>
+          <div className="flex justify-end gap-2 w-full">
+            <Button variant="secondary" onClick={() => setShowBulkModal(false)}>
+              Cancel
+            </Button>
+            <Button
+              disabled={!canGenerateBulkInvoices}
+              onClick={async () => {
+                await generateBulkFeeInvoices();
+                setShowBulkModal(false);
+              }}
+            >
+              Generate Invoices
+            </Button>
+          </div>
         }
       >
         <div className="space-y-4 py-2">
-          <p className="text-sm text-foreground">
-            Bulk invoicing is not yet configured for direct execution. Please configure fee structures first.
-          </p>
+          <label className="space-y-2 text-sm text-foreground block">
+            <span className="font-medium block">Fee Structure</span>
+            <select
+              aria-label="Fee Structure"
+              value={bulkDraft.fee_structure_id}
+              onChange={async (event) => {
+                const val = event.target.value;
+                setBulkDraft((current) => ({ ...current, fee_structure_id: val }));
+                setBulkError(null);
+                await loadBillableStudentsForSelectedFeeStructure(val);
+              }}
+              className="input-base w-full"
+            >
+              <option value="">Select fee structure</option>
+              {feeStructures.map((structure) => (
+                <option key={structure.id} value={structure.id}>
+                  {structure.name} ({formatMinorKes(structure.total_amount_minor)})
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="space-y-2 text-sm text-foreground block">
+            <span className="font-medium block">Due Date</span>
+            <input
+              aria-label="Due date"
+              type="date"
+              value={bulkDraft.due_at}
+              onChange={(event) => {
+                setBulkDraft((current) => ({ ...current, due_at: event.target.value }));
+                setBulkError(null);
+              }}
+              className="input-base w-full"
+            />
+          </label>
+
+          <label className="space-y-2 text-sm text-foreground block">
+            <span className="font-medium block">Idempotency Key (Optional)</span>
+            <input
+              aria-label="Idempotency key"
+              value={bulkDraft.idempotency_key}
+              onChange={(event) => {
+                setBulkDraft((current) => ({ ...current, idempotency_key: event.target.value }));
+                setBulkError(null);
+              }}
+              className="input-base w-full"
+              placeholder="Unique transaction key"
+            />
+          </label>
+
+          {billableStudentsLoading ? (
+            <div className="text-sm text-muted-foreground">Loading roster students...</div>
+          ) : billableStudents.length > 0 ? (
+            <div className="space-y-2">
+              <div className="flex justify-between items-center text-sm font-medium">
+                <span>Roster: {selectedBulkStudentIds.size} / {billableStudents.length} selected</span>
+                <div className="flex gap-2">
+                  <Button variant="ghost" size="sm" className="h-7 text-xs px-2" onClick={selectAllVisibleBulkRosterStudents}>
+                    Select All
+                  </Button>
+                  <Button variant="ghost" size="sm" className="h-7 text-xs px-2" onClick={clearBulkRosterSelection}>
+                    Clear
+                  </Button>
+                </div>
+              </div>
+              <div className="max-h-48 overflow-y-auto border border-input rounded-md p-2 space-y-1 bg-muted/10">
+                {billableStudents.map((student) => {
+                  const isSelected = selectedBulkStudentIds.has(student.student_id);
+                  return (
+                    <label key={student.student_id} className="flex items-center gap-2 text-sm p-1 hover:bg-muted/20 rounded cursor-pointer block">
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => toggleBulkRosterStudent(student)}
+                        className="rounded border-input text-primary focus:ring-primary h-4 w-4"
+                      />
+                      <span className="truncate">{student.student_name} ({student.admission_number || "No admission #"})</span>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+          ) : bulkDraft.fee_structure_id ? (
+            <div className="text-sm text-muted-foreground bg-muted/10 p-3 rounded">
+              No roster students matched this fee structure.
+            </div>
+          ) : null}
+
+          {bulkError && (
+            <div className="text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded p-2">
+              {bulkError}
+            </div>
+          )}
         </div>
       </Modal>
     </div>

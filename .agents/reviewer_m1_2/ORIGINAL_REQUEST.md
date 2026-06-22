@@ -1,0 +1,2 @@
+## 2026-06-20T19:51:41Z
+Review c:\Users\user\Desktop\PROJECTS\Shule hub\prisma\schema.prisma for the R1 changes. Verify relations (like RolePermission to School) and mapping definitions (like tenant_id). Verify that all index annotations conform to the required layout in PROJECT.md. Save your review handoff report in c:\Users\user\Desktop\PROJECTS\Shule hub\.agents\reviewer_m1_2\handoff.md and notify the orchestrator.

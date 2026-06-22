@@ -24,26 +24,38 @@ export class IssueStockConsumer implements EventConsumerDescriptor<'workflow.act
     this.logger.log(`Issuing stock for item ${data.inventoryItemId} in tenant ${tenant_id}`);
 
     try {
-      await this.prisma.$transaction(async (tx: any) => {
-        const item = await tx.inventoryItem.findUnique({ where: { id: data.inventoryItemId } });
-        if (item) {
-          await tx.inventoryStockMovement.create({
-            data: {
-              schoolId: tenant_id,
-              inventoryItemId: data.inventoryItemId,
-              movementType: 'OUT',
-              quantity: data.quantity,
-              fromLocation: item.storageLocation,
-              toLocation: data.toLocation || 'ISSUED',
-              issuedToDepartmentId: data.issuedToDepartmentId || undefined,
-            }
-          });
-
-          await tx.inventoryItem.update({
-            where: { id: data.inventoryItemId },
-            data: { quantityAvailable: item.quantityAvailable - data.quantity }
-          });
+      await this.prisma.executeWithTenant(tenant_id, 'system', async (tx: any) => {
+        const item = await tx.inventoryItem.findFirst({
+          where: { id: data.inventoryItemId, schoolId: tenant_id }
+        });
+        if (!item) {
+          throw new Error('Inventory item not found or access denied');
         }
+
+        if (data.issuedToDepartmentId) {
+          const dept = await tx.department.findFirst({
+            where: { id: data.issuedToDepartmentId, schoolId: tenant_id }
+          });
+          if (!dept) {
+            throw new Error('Department not found or access denied');
+          }
+        }
+        await tx.inventoryStockMovement.create({
+          data: {
+            schoolId: tenant_id,
+            inventoryItemId: data.inventoryItemId,
+            movementType: 'OUT',
+            quantity: data.quantity,
+            fromLocation: item.storageLocation,
+            toLocation: data.toLocation || 'ISSUED',
+            issuedToDepartmentId: data.issuedToDepartmentId || undefined,
+          }
+        });
+
+        await tx.inventoryItem.update({
+          where: { id: data.inventoryItemId },
+          data: { quantityAvailable: item.quantityAvailable - data.quantity }
+        });
       });
       this.logger.log(`Successfully issued stock for item ${data.inventoryItemId}`);
     } catch (error: any) {

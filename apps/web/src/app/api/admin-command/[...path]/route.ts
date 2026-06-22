@@ -8,22 +8,45 @@ type RouteContext = {
 
 export const dynamic = "force-dynamic";
 
+async function getRouteContext(request: NextRequest, context: RouteContext): Promise<RouteContext> {
+  const resolvedParams = await context.params;
+  const path = [...(resolvedParams.path ?? [])];
+  if (request.method === "POST") {
+    const joinedPath = path.join("/");
+    if (joinedPath === "frontoffice/visitors") {
+      path[1] = "visitor";
+    } else if (joinedPath === "frontoffice/appointments") {
+      path[1] = "appointment";
+    } else if (joinedPath === "frontoffice/mail") {
+      path[1] = "dispatch";
+    }
+  }
+  return {
+    params: { path }
+  };
+}
+
 export async function GET(request: NextRequest, context: RouteContext) {
-  return proxySchoolApiRequest(request, context, "/admin-command");
+  const ctx = await getRouteContext(request, context);
+  return proxySchoolApiRequest(request, ctx, "/admin-command");
 }
 
 export async function POST(request: NextRequest, context: RouteContext) {
-  return proxySchoolApiRequest(request, context, "/admin-command");
+  const ctx = await getRouteContext(request, context);
+  return proxySchoolApiRequest(request, ctx, "/admin-command");
 }
 
 export async function PATCH(request: NextRequest, context: RouteContext) {
-  return proxySchoolApiRequest(request, context, "/admin-command");
+  const ctx = await getRouteContext(request, context);
+  return proxySchoolApiRequest(request, ctx, "/admin-command");
 }
 
 export async function DELETE(request: NextRequest, context: RouteContext) {
-  return proxySchoolApiRequest(request, context, "/admin-command");
+  const ctx = await getRouteContext(request, context);
+  return proxySchoolApiRequest(request, ctx, "/admin-command");
 }
 
 export async function PUT(request: NextRequest, context: RouteContext) {
-  return proxySchoolApiRequest(request, context, "/admin-command");
+  const ctx = await getRouteContext(request, context);
+  return proxySchoolApiRequest(request, ctx, "/admin-command");
 }

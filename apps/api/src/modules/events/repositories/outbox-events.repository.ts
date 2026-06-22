@@ -11,6 +11,7 @@ import {
 interface OutboxEventRow {
   id: string;
   tenant_id: string;
+  school_id: string;
   event_key: string;
   event_name: DomainEvent['event_name'];
   aggregate_type: string;
@@ -22,6 +23,10 @@ interface OutboxEventRow {
   available_at: Date;
   published_at: Date | null;
   last_error: string | null;
+  actor_user_id: string | null;
+  actor_role: string | null;
+  source_dashboard: string | null;
+  correlation_id: string | null;
   created_at: Date;
   updated_at: Date;
 }
@@ -78,6 +83,7 @@ export class OutboxEventsRepository {
       `
         INSERT INTO outbox_events (
           tenant_id,
+          school_id,
           event_key,
           event_name,
           aggregate_type,
@@ -85,15 +91,24 @@ export class OutboxEventsRepository {
           payload,
           headers,
           status,
-          available_at
+          available_at,
+          actor_user_id,
+          actor_role,
+          source_dashboard,
+          correlation_id
         )
-        VALUES ($1, $2, $3, $4, $5::uuid, $6::jsonb, $7::jsonb, 'pending', COALESCE($8::timestamptz, NOW()))
+        VALUES ($1, $2, $3, $4, $5, $6::uuid, $7::jsonb, $8::jsonb, 'pending', COALESCE($9::timestamptz, NOW()), $10::uuid, $11, $12, $13::uuid)
         ON CONFLICT (tenant_id, event_key)
         DO UPDATE SET
-          headers = COALESCE(outbox_events.headers, '{}'::jsonb) || EXCLUDED.headers
+          headers = COALESCE(outbox_events.headers, '{}'::jsonb) || EXCLUDED.headers,
+          actor_user_id = EXCLUDED.actor_user_id,
+          actor_role = EXCLUDED.actor_role,
+          source_dashboard = EXCLUDED.source_dashboard,
+          correlation_id = EXCLUDED.correlation_id
         RETURNING
           id,
           tenant_id,
+          school_id,
           event_key,
           event_name,
           aggregate_type,
@@ -105,11 +120,16 @@ export class OutboxEventsRepository {
           available_at,
           published_at,
           last_error,
+          actor_user_id,
+          actor_role,
+          source_dashboard,
+          correlation_id,
           created_at,
           updated_at
       `,
       [
         input.tenant_id,
+        input.school_id,
         input.event_key,
         input.event_name,
         input.aggregate_type,
@@ -117,6 +137,10 @@ export class OutboxEventsRepository {
         JSON.stringify(input.payload),
         JSON.stringify(input.headers ?? {}),
         input.available_at ?? null,
+        input.actor_user_id ?? null,
+        input.actor_role ?? null,
+        input.source_dashboard ?? null,
+        input.correlation_id ?? null,
       ],
     );
 
@@ -161,6 +185,7 @@ export class OutboxEventsRepository {
         SELECT
           id,
           tenant_id,
+          school_id,
           event_key,
           event_name,
           aggregate_type,
@@ -172,6 +197,10 @@ export class OutboxEventsRepository {
           available_at,
           published_at,
           last_error,
+          actor_user_id,
+          actor_role,
+          source_dashboard,
+          correlation_id,
           created_at,
           updated_at
         FROM outbox_events
@@ -197,6 +226,7 @@ export class OutboxEventsRepository {
         SELECT
           id,
           tenant_id,
+          school_id,
           event_key,
           event_name,
           aggregate_type,
@@ -208,6 +238,10 @@ export class OutboxEventsRepository {
           available_at,
           published_at,
           last_error,
+          actor_user_id,
+          actor_role,
+          source_dashboard,
+          correlation_id,
           created_at,
           updated_at
         FROM outbox_events
@@ -275,6 +309,7 @@ export class OutboxEventsRepository {
     return {
       id: row.id,
       tenant_id: row.tenant_id,
+      school_id: row.school_id,
       event_key: row.event_key,
       event_name: row.event_name,
       aggregate_type: row.aggregate_type,
@@ -286,6 +321,10 @@ export class OutboxEventsRepository {
       available_at: row.available_at.toISOString(),
       published_at: row.published_at?.toISOString() ?? null,
       last_error: row.last_error,
+      actor_user_id: row.actor_user_id,
+      actor_role: row.actor_role,
+      source_dashboard: row.source_dashboard,
+      correlation_id: row.correlation_id,
       created_at: row.created_at.toISOString(),
       updated_at: row.updated_at.toISOString(),
     };

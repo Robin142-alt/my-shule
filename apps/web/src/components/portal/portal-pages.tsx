@@ -522,28 +522,26 @@ function PortalAcademicsPage({ viewer }: { viewer: PortalViewer }) {
     );
   }
 
-  function downloadReportCard(report = visibleReports[0]) {
+  async function downloadReportCard(report = visibleReports[0]) {
     if (!report) {
       setStatusMessage("No published report card is available to download.");
       return;
     }
 
-    const filename = `${report.childName.toLowerCase().replace(/\s+/g, "-")}-${report.id}.txt`;
-
-    downloadTextFile({
-      filename,
-      content: [
-        report.reportType,
-        `${report.childName} - ${report.gradeForm}`,
-        `${report.exam}, ${report.term} ${report.year}`,
-        `Published: ${report.publishedDate}`,
-        "",
-        report.summary,
-        "",
-        ...visibleResults.map((row) => `${row.subject}: ${row.performance} (${row.grade}) - ${row.teacherComment}`),
-      ].join("\n"),
-    });
-    setStatusMessage(`Report download created for ${report.childName}: ${filename}.`);
+    try {
+      setStatusMessage("Preparing report card download...");
+      const res = await fetch(`/api/exams/report-cards/${report.id}/parent-download`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
+        }
+      });
+      if (!res.ok) throw new Error("Failed to get download token");
+      const { token } = await res.json();
+      window.open(`/api/exams/report-cards/download/${token}`, '_blank');
+      setStatusMessage(`Downloading report card for ${report.childName}...`);
+    } catch (e: any) {
+      setStatusMessage(`Download failed: ${e.message}`);
+    }
   }
 
   function acknowledgeReport(reportId: string) {

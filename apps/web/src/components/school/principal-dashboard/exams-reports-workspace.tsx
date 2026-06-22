@@ -3,6 +3,7 @@
 import { Card } from "@/components/ui/card";
 import { AlertCircle, FileText, CheckCircle2 } from "lucide-react";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
+import { requestDashboardApi } from "@/lib/dashboard/api-client";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
@@ -35,15 +36,15 @@ export function PrincipalExamsReportsWorkspace() {
     const formData = new FormData(e.currentTarget);
     
     try {
-      // await requestDashboardApi('/admin-command/exams/cycles', {
-      //   method: "POST",
-      //   body: {
-      //     name: formData.get("name"),
-      //     academicYearId: formData.get("academicYearId"),
-      //     termId: formData.get("termId"),
-      //     examType: formData.get("examType"),
-      //   }
-      // });
+      await requestDashboardApi('/admin-command/exams/cycles', {
+        method: "POST",
+        body: {
+          name: formData.get("name"),
+          academicYearId: formData.get("academicYearId"),
+          termId: formData.get("termId"),
+          examType: formData.get("examType"),
+        }
+      });
       setIsExamModalOpen(false);
       refetch();
     } catch (err: any) {

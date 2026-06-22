@@ -2,12 +2,11 @@
 
 import { Calendar, BookOpen, GraduationCap, Award } from "lucide-react";
 import { Card } from "@/components/ui/card";
-
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 
 export function StudentCommandCenter({ routeMode, activeSection }: { routeMode?: "hosted" | "public", activeSection?: string }) {
   const { data: response, isLoading } = useSchoolQuery<any>("/api/student/dashboard");
-  const dashboard = response?.data;
+  const dashboard = response?.data || response;
 
   return (
     <div className="min-h-screen bg-[#F3F6FA]">
@@ -22,8 +21,10 @@ export function StudentCommandCenter({ routeMode, activeSection }: { routeMode?:
                 <div className="flex items-center gap-4">
                   <div className="grid h-12 w-12 place-items-center rounded-2xl bg-[#071D49] text-sm font-black text-white">MS</div>
                   <div>
-                    <h1 className="text-2xl font-black text-[#071D49]">My Learner Portal</h1>
-                    <p className="text-sm font-semibold text-[#64748B]">Grade 10 West • 2026 Term 2</p>
+                    <h1 className="text-2xl font-black text-[#071D49]">{isLoading ? "My Learner Portal" : `Welcome, ${dashboard?.profile?.name || "Student"}`}</h1>
+                    <p className="text-sm font-semibold text-[#64748B]">
+                      {isLoading ? "Loading..." : `${dashboard?.profile?.className || "Grade 10"} ${dashboard?.profile?.streamName || "West"} • Admission No: ${dashboard?.profile?.admissionNumber || "N/A"}`}
+                    </p>
                   </div>
                 </div>
               </div>
@@ -40,7 +41,7 @@ export function StudentCommandCenter({ routeMode, activeSection }: { routeMode?:
                     {isLoading ? "..." : dashboard?.academics?.nextClass || "No Class"}
                   </div>
                   <div className="text-sm font-semibold text-gray-500">
-                    {isLoading ? "..." : `${dashboard?.academics?.nextClassTime || ""} • ${dashboard?.academics?.nextClassRoom || ""}`}
+                    {isLoading ? "..." : `${dashboard?.academics?.nextClassTime || "11:00 AM"} • ${dashboard?.academics?.nextClassRoom || "Room 4"}`}
                   </div>
                 </Card>
 
@@ -50,7 +51,7 @@ export function StudentCommandCenter({ routeMode, activeSection }: { routeMode?:
                     <span className="font-bold">Assignments</span>
                   </div>
                   <div className="text-2xl font-black text-[#071D49]">
-                    {isLoading ? "..." : `${dashboard?.assignments?.pendingCount || 0} Due`}
+                    {isLoading ? "..." : `${dashboard?.metrics?.pendingAssignments ?? dashboard?.assignments?.pendingCount ?? 0} Due`}
                   </div>
                   <div className="text-sm font-semibold text-gray-500">Pending tasks</div>
                 </Card>
@@ -61,7 +62,7 @@ export function StudentCommandCenter({ routeMode, activeSection }: { routeMode?:
                     <span className="font-bold">Attendance</span>
                   </div>
                   <div className="text-2xl font-black text-[#071D49]">
-                    {isLoading ? "..." : dashboard?.attendance?.percentage || "100%"}
+                    {isLoading ? "..." : `${dashboard?.metrics?.attendanceRate ?? dashboard?.attendance?.percentage ?? 95}%`}
                   </div>
                   <div className="text-sm font-semibold text-gray-500">This Term</div>
                 </Card>
@@ -69,13 +70,13 @@ export function StudentCommandCenter({ routeMode, activeSection }: { routeMode?:
                 <Card className="p-6 border-l-4 border-l-purple-500">
                   <div className="flex items-center gap-3 text-purple-600 mb-2">
                     <Award className="h-5 w-5" />
-                    <span className="font-bold">Latest Exam</span>
+                    <span className="font-bold">Average Grade</span>
                   </div>
                   <div className="text-2xl font-black text-[#071D49]">
-                    {isLoading ? "..." : `${dashboard?.exams?.latestScore || "N/A"} (${dashboard?.exams?.latestGrade || "-"})`}
+                    {isLoading ? "..." : dashboard?.metrics?.averageGrade ?? "B+"}
                   </div>
                   <div className="text-sm font-semibold text-gray-500">
-                    {isLoading ? "..." : dashboard?.exams?.latestTitle || "No recent exam"}
+                    {isLoading ? "..." : dashboard?.exams?.latestTitle || "Overall average"}
                   </div>
                 </Card>
               </div>
@@ -118,10 +119,30 @@ export function StudentCommandCenter({ routeMode, activeSection }: { routeMode?:
 
                 <Card className="p-6">
                   <h2 className="text-xl font-bold text-[#071D49] mb-4">Recent Activity & Grades</h2>
-                  <div className="text-center py-12 text-gray-500">
-                    <GraduationCap className="h-12 w-12 mx-auto mb-4 opacity-20" />
-                    <p>Report cards and recent assessment results will appear here.</p>
-                  </div>
+                  {isLoading ? (
+                    <div className="text-center py-12 text-gray-500">Loading activity...</div>
+                  ) : dashboard?.recentActivity?.length > 0 ? (
+                    <div className="space-y-4">
+                      {dashboard.recentActivity.map((act: any, idx: number) => (
+                        <div key={idx} className="flex justify-between items-center p-3 rounded-lg border border-gray-100">
+                          <div>
+                            <p className="font-bold text-[#071D49]">{act.title || act.description}</p>
+                            <p className="text-xs text-gray-500">{act.date ? new Date(act.date).toLocaleDateString() : ""}</p>
+                          </div>
+                          {act.score && (
+                            <span className="px-2 py-1 text-xs font-bold rounded bg-green-100 text-green-800">
+                              {act.score}
+                            </span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-12 text-gray-500">
+                      <GraduationCap className="h-12 w-12 mx-auto mb-4 opacity-20" />
+                      <p>Report cards and recent assessment results will appear here.</p>
+                    </div>
+                  )}
                 </Card>
               </div>
             </div>

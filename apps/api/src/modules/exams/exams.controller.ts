@@ -1,4 +1,5 @@
-import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query, Res, StreamableFile } from '@nestjs/common';
+import { PdfService } from '../../common/pdf/pdf.service';
 
 import { Permissions } from '../../auth/decorators/permissions.decorator';
 import { RequiresModule } from '../module-access/module-access.decorator';
@@ -108,6 +109,12 @@ export class ExamsController {
     return this.examsService.publishReportCard(dto);
   }
 
+  @Get('analytics')
+  @Permissions('exams:read')
+  getAnalytics() {
+    return this.examsService.getAnalytics();
+  }
+
   @Post('report-cards/generate')
   @Permissions('exams:approve')
   generateReportCard(@Body() dto: GenerateReportCardDto) {
@@ -152,8 +159,16 @@ export class ExamsController {
 
   @Get('report-cards/download/:token')
   @Permissions('portal:read_own_children')
-  downloadParentReportCard(@Param('token') token: string) {
-    return this.examsService.readParentReportCardDownloadToken(token);
+  async downloadParentReportCard(@Param('token') token: string, @Res({ passthrough: true }) res: any) {
+    const data = await this.examsService.readParentReportCardDownloadToken(token);
+    const pdfService = new PdfService();
+    const stream = pdfService.generatePdfStream(JSON.stringify(data, null, 2), { title: 'Report Card' });
+    
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `attachment; filename="report_card_${token}.pdf"`,
+    });
+    return new StreamableFile(stream);
   }
 
   @Get('mark-sheets')

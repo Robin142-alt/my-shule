@@ -63,6 +63,19 @@ export class HrService {
           metadata: { email: dto.email, display_name: dto.display_name },
         });
 
+        if (this.eventPublisher) {
+          try {
+            await this.eventPublisher.publishStaffInvited({
+              tenant_id: tenantId,
+              staff_id: profile.id,
+              email: dto.email,
+              invited_by: this.getActorUserId() ?? 'system',
+            });
+          } catch (e) {
+            console.error('Failed to publish staff invited event:', e);
+          }
+        }
+
         return profile;
       },
     });
@@ -145,6 +158,18 @@ export class HrService {
           metadata: { staff_number: dto.staff_number },
         });
 
+        if (this.eventPublisher) {
+          try {
+            await this.eventPublisher.publishStaffActivated({
+              tenant_id: tenantId,
+              staff_id: dto.staff_profile_id,
+              activated_by: this.getActorUserId() ?? 'system',
+            });
+          } catch (e) {
+            console.error('Failed to publish staff activated event:', e);
+          }
+        }
+
         return profile;
       },
     });
@@ -166,6 +191,18 @@ export class HrService {
       action: 'staff.reactivated',
       metadata: { reason: dto.reason },
     });
+
+    if (this.eventPublisher) {
+      try {
+        await this.eventPublisher.publishStaffActivated({
+          tenant_id: tenantId,
+          staff_id: dto.staff_profile_id,
+          activated_by: this.getActorUserId() ?? 'system',
+        });
+      } catch (e) {
+        console.error('Failed to publish staff activated event:', e);
+      }
+    }
 
     return profile;
   }
@@ -505,6 +542,20 @@ export class HrService {
       action: 'staff.role.assigned',
       metadata: { department_id: dto.department_id, job_title_id: dto.job_title_id },
     });
+
+    if (this.eventPublisher) {
+      try {
+        await this.eventPublisher.publishStaffRoleUpdated({
+          tenant_id: tenantId,
+          staff_id: dto.staff_profile_id,
+          role: dto.job_title_id ?? 'unknown',
+          updated_by: this.getActorUserId() ?? 'system',
+        });
+      } catch (e) {
+        console.error('Failed to publish staff role updated event:', e);
+      }
+    }
+
     return updated;
   }
 

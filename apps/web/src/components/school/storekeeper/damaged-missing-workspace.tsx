@@ -6,6 +6,8 @@ import { toast } from "sonner";
 import { Panel, StatusChip, Tone } from "./shared";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 import { reportDamagedItem, writeOffItem } from "./api-client";
+import { Modal } from "@/components/ui/modal";
+import { useForm } from "react-hook-form";
 
 type DamagedRecord = {
   id: string;
@@ -31,10 +33,40 @@ type DamagedMissingData = {
   records: DamagedRecord[];
 };
 
+type ReportFormData = {
+  itemName: string;
+  type: string;
+  quantity: number;
+  reason: string;
+};
+
+type WriteOffFormData = {
+  notes: string;
+};
+
 export function DamagedMissingWorkspace() {
   const { data, isLoading, refetch } = useSchoolQuery<DamagedMissingData>('/admin-command/storekeeper/damaged-missing');
   const [isReporting, setIsReporting] = useState(false);
   const [writingOff, setWritingOff] = useState<string | null>(null);
+
+  const [isReportOpen, setIsReportOpen] = useState(false);
+  const [isWriteOffOpen, setIsWriteOffOpen] = useState(false);
+  const [selectedRecord, setSelectedRecord] = useState<DamagedRecord | null>(null);
+
+  const reportForm = useForm<ReportFormData>({
+    defaultValues: {
+      itemName: "",
+      type: "Damaged",
+      quantity: 1,
+      reason: "",
+    }
+  });
+
+  const writeOffForm = useForm<WriteOffFormData>({
+    defaultValues: {
+      notes: "",
+    }
+  });
 
   const records = data?.records || [];
 
@@ -54,20 +86,18 @@ export function DamagedMissingWorkspace() {
     return "neutral";
   };
 
-  const handleReport = async () => {
+  const onSubmitReport = async (formData: ReportFormData) => {
     setIsReporting(true);
     try {
-      const itemName = prompt("Item name?");
-      if (!itemName) { setIsReporting(false); return; }
-      const type = prompt("Type: Damaged, Missing, or Expired?");
-      if (!type) { setIsReporting(false); return; }
-      const quantity = prompt("Quantity affected?");
-      if (!quantity) { setIsReporting(false); return; }
-      const reason = prompt("Reason / description of incident?");
-      if (!reason) { setIsReporting(false); return; }
-
-      await reportDamagedItem({ item_name: itemName, type, quantity: Number(quantity), reason });
+      await reportDamagedItem({
+        item_name: formData.itemName,
+        type: formData.type,
+        quantity: Number(formData.quantity),
+        reason: formData.reason
+      });
       toast.success("Incident reported successfully.");
+      setIsReportOpen(false);
+      reportForm.reset();
       refetch();
     } catch {
       toast.error("Failed to report incident.");
@@ -76,18 +106,20 @@ export function DamagedMissingWorkspace() {
     }
   };
 
-  const handleWriteOff = async (record: DamagedRecord) => {
-    const notes = prompt(`Confirm write-off of ${record.quantity} ${record.unit}(s) of "${record.item_name}"? Enter notes:`);
-    if (!notes) return;
-    setWritingOff(record.id);
+  const onSubmitWriteOff = async (formData: WriteOffFormData) => {
+    if (!selectedRecord) return;
+    setWritingOff(selectedRecord.id);
     try {
-      await writeOffItem(record.id, { notes });
+      await writeOffItem(selectedRecord.id, { notes: formData.notes });
       toast.success(`Write-off submitted for approval.`);
+      setIsWriteOffOpen(false);
+      writeOffForm.reset();
       refetch();
     } catch {
       toast.error("Failed to submit write-off.");
     } finally {
       setWritingOff(null);
+      setSelectedRecord(null);
     }
   };
 
@@ -98,11 +130,13 @@ export function DamagedMissingWorkspace() {
       icon={ShieldAlert}
       actions={
         <button
-          disabled={isReporting}
-          onClick={handleReport}
+          onClick={() => {
+            reportForm.reset();
+            setIsReportOpen(true);
+          }}
           className="inline-flex items-center gap-2 rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white hover:bg-blue-900 transition disabled:opacity-50"
         >
-          <Plus className="h-4 w-4" /> {isReporting ? "Reporting..." : "Report Incident"}
+          <Plus className="h-4 w-4" /> Report Incident
         </button>
       }
     >
@@ -162,7 +196,11 @@ export function DamagedMissingWorkspace() {
                     {r.status !== "Written Off" && r.status !== "Recovered" ? (
                       <button
                         disabled={writingOff === r.id}
-                        onClick={() => handleWriteOff(r)}
+                        onClick={() => {
+                          setSelectedRecord(r);
+                          writeOffForm.reset({ notes: "" });
+                          setIsWriteOffOpen(true);
+                        }}
                         className="text-rose-600 hover:underline font-semibold text-xs disabled:opacity-50"
                       >
                         {writingOff === r.id ? "Submitting..." : "Write Off"}
@@ -177,6 +215,139 @@ export function DamagedMissingWorkspace() {
           </tbody>
         </table>
       </div>
+
+      {/* Report Incident Modal */}
+      <Modal
+        open={isReportOpen}
+        onClose={() => setIsReportOpen(false)}
+        title="Report Incident"
+      >
+        <form onSubmit={reportForm.handleSubmit(onSubmitReport)} className="space-y-4 py-4">
+          <div className="space-y-1">
+            <label className="text-sm font-medium">Item Name</label>
+            <input
+              type="text"
+              {...reportForm.register("itemName", { required: "Item name is required" })}
+              className="w-full rounded border border-slate-300 p-2 text-sm text-[#071D49]"
+              placeholder="e.g. Science Beakers"
+            />
+            {reportForm.formState.errors.itemName && (
+              <span className="text-xs text-red-500">{reportForm.formState.errors.itemName.message}</span>
+            )}
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-sm font-medium">Type</label>
+            <select
+              {...reportForm.register("type", { required: "Type is required" })}
+              className="w-full rounded border border-slate-300 p-2 text-sm text-[#071D49]"
+            >
+              <option value="Damaged">Damaged</option>
+              <option value="Missing">Missing</option>
+              <option value="Expired">Expired</option>
+            </select>
+            {reportForm.formState.errors.type && (
+              <span className="text-xs text-red-500">{reportForm.formState.errors.type.message}</span>
+            )}
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-sm font-medium">Quantity Affected</label>
+            <input
+              type="number"
+              {...reportForm.register("quantity", {
+                required: "Quantity is required",
+                min: { value: 1, message: "Quantity must be at least 1" },
+                valueAsNumber: true,
+              })}
+              className="w-full rounded border border-slate-300 p-2 text-sm text-[#071D49]"
+              placeholder="1"
+            />
+            {reportForm.formState.errors.quantity && (
+              <span className="text-xs text-red-500">{reportForm.formState.errors.quantity.message}</span>
+            )}
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-sm font-medium">Reason / Description</label>
+            <textarea
+              {...reportForm.register("reason", { required: "Reason is required" })}
+              className="w-full rounded border border-slate-300 p-2 text-sm text-[#071D49]"
+              placeholder="Describe the incident"
+              rows={3}
+            />
+            {reportForm.formState.errors.reason && (
+              <span className="text-xs text-red-500">{reportForm.formState.errors.reason.message}</span>
+            )}
+          </div>
+
+          <div className="flex justify-end space-x-3 pt-4 border-t border-slate-100">
+            <button
+              type="button"
+              onClick={() => setIsReportOpen(false)}
+              className="px-4 py-2 border rounded text-sm font-medium hover:bg-slate-50 text-[#071D49]"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={isReporting}
+              className="px-4 py-2 bg-[#071D49] text-white rounded text-sm font-medium hover:bg-blue-900 disabled:opacity-50"
+            >
+              {isReporting ? "Reporting..." : "Report Incident"}
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Write Off Modal */}
+      <Modal
+        open={isWriteOffOpen}
+        onClose={() => {
+          setIsWriteOffOpen(false);
+          setSelectedRecord(null);
+        }}
+        title={`Write Off: ${selectedRecord?.item_name || ""}`}
+      >
+        <form onSubmit={writeOffForm.handleSubmit(onSubmitWriteOff)} className="space-y-4 py-4">
+          <p className="text-sm text-[#64748B]">
+            Confirm write-off of {selectedRecord?.quantity} {selectedRecord?.unit}(s) of &quot;{selectedRecord?.item_name}&quot;?
+          </p>
+
+          <div className="space-y-1">
+            <label className="text-sm font-medium">Notes / Justification</label>
+            <textarea
+              {...writeOffForm.register("notes", { required: "Notes are required" })}
+              className="w-full rounded border border-slate-300 p-2 text-sm text-[#071D49]"
+              placeholder="Enter reasons for write-off"
+              rows={3}
+            />
+            {writeOffForm.formState.errors.notes && (
+              <span className="text-xs text-red-500">{writeOffForm.formState.errors.notes.message}</span>
+            )}
+          </div>
+
+          <div className="flex justify-end space-x-3 pt-4 border-t border-slate-100">
+            <button
+              type="button"
+              onClick={() => {
+                setIsWriteOffOpen(false);
+                setSelectedRecord(null);
+              }}
+              className="px-4 py-2 border rounded text-sm font-medium hover:bg-slate-50 text-[#071D49]"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={!!writingOff}
+              className="px-4 py-2 bg-rose-600 text-white rounded text-sm font-medium hover:bg-rose-700 disabled:opacity-50"
+            >
+              {writingOff ? "Submitting..." : "Confirm Write Off"}
+            </button>
+          </div>
+        </form>
+      </Modal>
     </Panel>
   );
 }

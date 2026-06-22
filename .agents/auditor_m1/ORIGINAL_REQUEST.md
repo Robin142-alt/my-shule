@@ -1,0 +1,2 @@
+## 2026-06-20T22:51:58+03:00
+Conduct an integrity audit on the database schema changes in c:\Users\user\Desktop\PROJECTS\Shule hub\prisma\schema.prisma. Verify that RolePermission and other models are not using facade code, and that the schema change is genuine, standard Prisma definitions, without hardcoded bypasses. Save your audit report in c:\Users\user\Desktop\PROJECTS\Shule hub\.agents\auditor_m1\handoff.md and notify the orchestrator.

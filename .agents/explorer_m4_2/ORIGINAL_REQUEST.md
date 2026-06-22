@@ -1,0 +1,2 @@
+## 2026-06-21T21:00:21Z
+Investigate API request intercepting and mocking or direct verification of direct API isolation in Playwright. For example, how can we assert that calling backend APIs (e.g., /api/students, /api/attendance, /api/finance) fails with 401, 403, or 404 when the tenant context is swapped or missing. Recommend a detailed strategy for writing the API protection assertions in c:\Users\user\Desktop\PROJECTS\Shule hub\apps\web\tests\e2e\tenant-isolation.spec.ts. Write your findings to c:\Users\user\Desktop\PROJECTS\Shule hub\.agents\explorer_m4_2\handoff.md.

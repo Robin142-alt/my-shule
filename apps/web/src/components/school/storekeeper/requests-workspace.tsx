@@ -6,6 +6,8 @@ import { toast } from "sonner";
 import { Panel, StatusChip, Tone } from "./shared";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 import { approveRequest, rejectRequest, fulfillRequest } from "./api-client";
+import { Modal } from "@/components/ui/modal";
+import { useForm } from "react-hook-form";
 
 type StoreRequest = {
   id: string;
@@ -31,9 +33,22 @@ type RequestsData = {
   requests: StoreRequest[];
 };
 
+type RejectFormData = {
+  reason: string;
+};
+
 export function RequestsWorkspace() {
   const { data, isLoading, refetch } = useSchoolQuery<RequestsData>('/admin-command/storekeeper/requests');
   const [processing, setProcessing] = useState<string | null>(null);
+
+  const [isRejectOpen, setIsRejectOpen] = useState(false);
+  const [selectedRequestForReject, setSelectedRequestForReject] = useState<StoreRequest | null>(null);
+
+  const rejectForm = useForm<RejectFormData>({
+    defaultValues: {
+      reason: "",
+    }
+  });
 
   const requests = data?.requests || [];
 
@@ -66,18 +81,20 @@ export function RequestsWorkspace() {
     }
   };
 
-  const handleReject = async (req: StoreRequest) => {
-    const reason = prompt(`Reason for rejecting ${req.requester_name}'s request for "${req.item_name}"?`);
-    if (!reason) return;
-    setProcessing(req.id);
+  const onSubmitReject = async (formData: RejectFormData) => {
+    if (!selectedRequestForReject) return;
+    setProcessing(selectedRequestForReject.id);
     try {
-      await rejectRequest(req.id, reason);
+      await rejectRequest(selectedRequestForReject.id, formData.reason);
       toast.success(`Request rejected.`);
+      setIsRejectOpen(false);
+      rejectForm.reset();
       refetch();
     } catch {
       toast.error("Failed to reject request.");
     } finally {
       setProcessing(null);
+      setSelectedRequestForReject(null);
     }
   };
 
@@ -164,7 +181,15 @@ export function RequestsWorkspace() {
                           <button disabled={processing === req.id} onClick={() => handleApprove(req)} className="inline-flex items-center gap-1 text-emerald-600 hover:underline font-semibold text-xs disabled:opacity-50">
                             <CheckCircle className="h-3 w-3" /> Approve
                           </button>
-                          <button disabled={processing === req.id} onClick={() => handleReject(req)} className="inline-flex items-center gap-1 text-rose-600 hover:underline font-semibold text-xs disabled:opacity-50">
+                          <button
+                            disabled={processing === req.id}
+                            onClick={() => {
+                              setSelectedRequestForReject(req);
+                              rejectForm.reset({ reason: "" });
+                              setIsRejectOpen(true);
+                            }}
+                            className="inline-flex items-center gap-1 text-rose-600 hover:underline font-semibold text-xs disabled:opacity-50"
+                          >
                             <XCircle className="h-3 w-3" /> Reject
                           </button>
                         </>
@@ -185,6 +210,54 @@ export function RequestsWorkspace() {
           </tbody>
         </table>
       </div>
+
+      {/* Reject Request Modal */}
+      <Modal
+        open={isRejectOpen}
+        onClose={() => {
+          setIsRejectOpen(false);
+          setSelectedRequestForReject(null);
+        }}
+        title={`Reject Request: ${selectedRequestForReject?.item_name || ""}`}
+      >
+        <form onSubmit={rejectForm.handleSubmit(onSubmitReject)} className="space-y-4 py-4">
+          <p className="text-sm text-[#64748B]">
+            Reason for rejecting {selectedRequestForReject?.requester_name}&apos;s request for &quot;{selectedRequestForReject?.item_name}&quot;:
+          </p>
+
+          <div className="space-y-1">
+            <label className="text-sm font-medium">Rejection Reason</label>
+            <textarea
+              {...rejectForm.register("reason", { required: "Reason is required" })}
+              className="w-full rounded border border-slate-300 p-2 text-sm text-[#071D49]"
+              placeholder="Provide a reason for rejection..."
+              rows={3}
+            />
+            {rejectForm.formState.errors.reason && (
+              <span className="text-xs text-red-500">{rejectForm.formState.errors.reason.message}</span>
+            )}
+          </div>
+
+          <div className="flex justify-end space-x-3 pt-4 border-t border-slate-100">
+            <button
+              type="button"
+              onClick={() => {
+                setIsRejectOpen(false);
+                setSelectedRequestForReject(null);
+              }}
+              className="px-4 py-2 border rounded text-sm font-medium hover:bg-slate-50 text-[#071D49]"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="px-4 py-2 bg-rose-600 text-white rounded text-sm font-medium hover:bg-rose-700"
+            >
+              Reject Request
+            </button>
+          </div>
+        </form>
+      </Modal>
     </Panel>
   );
 }

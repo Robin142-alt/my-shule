@@ -2,10 +2,13 @@ import {
   BadRequestException,
   ForbiddenException,
   UnauthorizedException,
+  Inject,
+  Optional,
 } from '@nestjs/common';
 
 import { RequestContextService } from '../../common/request-context/request-context.service';
 import { PrismaService } from '../../database/prisma.service';
+import { EventPublisherService } from '../events/event-publisher.service';
 
 export interface SimpleOperationsRecordDto {
   title: string;
@@ -236,6 +239,10 @@ export class SimpleOperationsRepository {
 }
 
 export class SimpleOperationsService {
+  @Inject(EventPublisherService)
+  @Optional()
+  protected readonly eventPublisher?: EventPublisherService;
+
   constructor(
     private readonly requestContext: RequestContextService,
     private readonly repository: SimpleOperationsRepository,
@@ -267,6 +274,40 @@ export class SimpleOperationsService {
       title: dto.title,
       category: dto.category ?? null,
     });
+
+    if (this.config.permissionPrefix === 'boarding') {
+      await this.eventPublisher?.publish({
+        event_key: `boarding.request.submitted:${record.id}`,
+        event_name: 'boarding.request.submitted',
+        aggregate_type: 'boarding',
+        aggregate_id: record.id,
+        payload: {
+          tenant_id: record.tenant_id,
+          request_id: record.id,
+          student_id: record.metadata?.student_id || record.owner_name || 'unknown',
+          requested_by_user_id: record.created_by_user_id || this.requireUserId(),
+          requested_at: record.created_at || new Date().toISOString(),
+          reason: record.notes || record.title,
+          status: record.status,
+        },
+      }).catch(() => undefined);
+    } else if (this.config.permissionPrefix === 'assets') {
+      await this.eventPublisher?.publish({
+        event_key: `asset.request.submitted:${record.id}`,
+        event_name: 'asset.request.submitted',
+        aggregate_type: 'asset',
+        aggregate_id: record.id,
+        payload: {
+          tenant_id: record.tenant_id,
+          request_id: record.id,
+          requested_by_user_id: record.created_by_user_id || this.requireUserId(),
+          requested_at: record.created_at || new Date().toISOString(),
+          asset_type: record.category || record.title,
+          reason: record.notes || record.title,
+          status: record.status,
+        },
+      }).catch(() => undefined);
+    }
 
     return record;
   }

@@ -17,6 +17,8 @@ import {
   UseInterceptors,
   InternalServerErrorException,
   NotImplementedException,
+  UnauthorizedException,
+  Res,
 } from '@nestjs/common';
 
 import { Permissions } from '../../auth/decorators/permissions.decorator';
@@ -40,6 +42,7 @@ import {
 } from './dto/discipline.dto';
 import { DisciplineService } from './discipline.service';
 import type { UploadedDisciplineFile } from './storage/discipline-attachment-storage.service';
+import { ApprovalsService } from '../approvals/approvals.service';
 
 @Controller('discipline')
 @RequiresModule('discipline')
@@ -76,6 +79,9 @@ export class DisciplineController {
 
   @Inject(SchoolOperationalEventsService)
   private readonly events!: SchoolOperationalEventsService;
+
+  @Inject(ApprovalsService)
+  private readonly approvals!: ApprovalsService;
 
   constructor(private readonly prisma: PrismaService, private readonly disciplineService: DisciplineService) {}
 
@@ -150,29 +156,107 @@ export class DisciplineController {
 
   @Post('incidents/:incidentId/escalate')
   @Permissions('discipline:manage')
-  escalateIncident(
+  async escalateIncident(
     @Param('incidentId', new ParseUUIDPipe()) incidentId: string,
     @Body() dto: { reason?: string },
   ) {
-    return this.disciplineService.escalateIncident(incidentId, dto.reason);
+    const store = this.requestContext.requireStore();
+    const tenantId = store.tenant_id;
+    if (!tenantId) throw new UnauthorizedException('Tenant context is required');
+
+    const approvalResult = await this.approvals.enforceApprovalRule({
+      schoolId: tenantId,
+      userId: store.user_id,
+      userRole: store.role || 'staff',
+      module: 'DISCIPLINE',
+      action: 'ESCALATE_INCIDENT',
+      targetEntityType: 'DISCIPLINE_INCIDENT',
+      targetEntityId: incidentId,
+      newValue: { reason: dto.reason },
+      reason: dto.reason,
+    });
+
+    if (approvalResult.mode === 'CREATE_APPROVAL_REQUEST') {
+      return {
+        success: true,
+        status: 'PENDING_APPROVAL',
+        message: 'Escalation request submitted for approval.',
+        request: approvalResult.request,
+      };
+    }
+
+    const result = await this.disciplineService.executeEscalation(incidentId, tenantId, dto.reason || '', store.user_id);
+    return { success: true, status: 'APPROVED', data: result };
   }
 
   @Post('incidents/:incidentId/resolve')
   @Permissions('discipline:manage')
-  resolveIncident(
+  async resolveIncident(
     @Param('incidentId', new ParseUUIDPipe()) incidentId: string,
     @Body() dto: { reason?: string },
   ) {
-    return this.disciplineService.resolveIncident(incidentId, dto.reason);
+    const store = this.requestContext.requireStore();
+    const tenantId = store.tenant_id;
+    if (!tenantId) throw new UnauthorizedException('Tenant context is required');
+
+    const approvalResult = await this.approvals.enforceApprovalRule({
+      schoolId: tenantId,
+      userId: store.user_id,
+      userRole: store.role || 'staff',
+      module: 'DISCIPLINE',
+      action: 'RESOLVE_INCIDENT',
+      targetEntityType: 'DISCIPLINE_INCIDENT',
+      targetEntityId: incidentId,
+      newValue: { reason: dto.reason },
+      reason: dto.reason,
+    });
+
+    if (approvalResult.mode === 'CREATE_APPROVAL_REQUEST') {
+      return {
+        success: true,
+        status: 'PENDING_APPROVAL',
+        message: 'Resolution request submitted for approval.',
+        request: approvalResult.request,
+      };
+    }
+
+    const result = await this.disciplineService.executeResolution(incidentId, tenantId, dto.reason || '', store.user_id);
+    return { success: true, status: 'APPROVED', data: result };
   }
 
   @Post('incidents/:incidentId/close')
   @Permissions('discipline:manage')
-  closeIncident(
+  async closeIncident(
     @Param('incidentId', new ParseUUIDPipe()) incidentId: string,
     @Body() dto: { reason?: string },
   ) {
-    return this.disciplineService.closeIncident(incidentId, dto.reason);
+    const store = this.requestContext.requireStore();
+    const tenantId = store.tenant_id;
+    if (!tenantId) throw new UnauthorizedException('Tenant context is required');
+
+    const approvalResult = await this.approvals.enforceApprovalRule({
+      schoolId: tenantId,
+      userId: store.user_id,
+      userRole: store.role || 'staff',
+      module: 'DISCIPLINE',
+      action: 'CLOSE_INCIDENT',
+      targetEntityType: 'DISCIPLINE_INCIDENT',
+      targetEntityId: incidentId,
+      newValue: { reason: dto.reason },
+      reason: dto.reason,
+    });
+
+    if (approvalResult.mode === 'CREATE_APPROVAL_REQUEST') {
+      return {
+        success: true,
+        status: 'PENDING_APPROVAL',
+        message: 'Closure request submitted for approval.',
+        request: approvalResult.request,
+      };
+    }
+
+    const result = await this.disciplineService.executeClosure(incidentId, tenantId, dto.reason || '', store.user_id);
+    return { success: true, status: 'APPROVED', data: result };
   }
 
   @Post('incidents/:incidentId/actions')
@@ -195,7 +279,8 @@ export class DisciplineController {
 
   @Post('actions/:actionId/approve')
   @Permissions('discipline:approve')
-  approveAction(@Param('actionId', new ParseUUIDPipe()) actionId: string) {
+  async approveAction(@Param('actionId', new ParseUUIDPipe()) actionId: string, @Res({ passthrough: true }) res: any) {
+    res.setHeader('Warning', '299 - "This endpoint is deprecated. Use processApprovalAction via /api/approvals/:id/action instead."');
     return this.disciplineService.approveAction(actionId);
   }
 

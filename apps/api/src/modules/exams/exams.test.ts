@@ -1433,3 +1433,75 @@ test('ExamsService handles HOD Review workflow for returning submitted marks', a
   });
 });
 
+test('ExamsController and ExamsService support live exams analytics with isolation', async () => {
+  // Verify controller route metadata
+  const analyticsPath = Reflect.getMetadata(PATH_METADATA, ExamsController.prototype.getAnalytics);
+  const analyticsPerms = Reflect.getMetadata(PERMISSIONS_KEY, ExamsController.prototype.getAnalytics);
+  
+  assert.equal(analyticsPath, 'analytics');
+  assert.deepEqual(analyticsPerms, ['exams:read']);
+
+  // Verify ExamsService calls repository with requireTenantId
+  let passedTenantId = '';
+  const service = new ExamsService(
+    { getStore: () => ({ tenant_id: 'tenant-abc', user_id: 'officer-1', role: 'admin', permissions: ['exams:read'] }) } as never,
+    {
+      getAnalytics: async (tenantId: string) => {
+        passedTenantId = tenantId;
+        return {
+          kpis: { school_average: 75.5, pending_reviews: 0, missing_marks_alerts: 0, active_exams: 1 },
+          trends: [],
+          subjectPerformance: [],
+          studentProgress: { topPerformers: [], topImprovers: [], atRiskStudents: [] }
+        };
+      }
+    } as never
+  );
+
+  const res = await service.getAnalytics();
+  assert.equal(passedTenantId, 'tenant-abc');
+  assert.equal(res.kpis.school_average, 75.5);
+});
+
+test('ExamsRepository correctly aggregates exam analytics data', async () => {
+  const queries: string[] = [];
+  const paramsList: any[][] = [];
+  
+  const repository = new ExamsRepository({
+    executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          queries.push(sql);
+          paramsList.push(params);
+          
+          if (sql.includes('school_average')) {
+            return [{ school_average: 78.5, pending_reviews: 2, missing_marks_alerts: 5, active_exams: 1 }];
+          }
+          if (sql.includes('exam_series_id')) { // Trends query
+            return [
+              { exam_series_id: 'series-1', exam_series_name: 'Term 1', starts_on: new Date('2026-01-01'), average_score: 65.2 },
+              { exam_series_id: 'series-2', exam_series_name: 'Term 2', starts_on: new Date('2026-05-01'), average_score: 72.8 }
+            ];
+          }
+          if (sql.includes('subject_performance')) { // Since the query has "FROM subjects sub"
+            // We just return empty to satisfy the mock and focus on what we already returned, wait let's just make it generic
+            return [];
+          }
+          return [];
+        }
+      });
+    }
+  } as never);
+
+  const analytics = await repository.getAnalytics('tenant-xyz');
+  
+  assert.equal(analytics.kpis.school_average, 78.5);
+  assert.equal(analytics.trends.length, 2);
+  assert.equal(analytics.trends[1].average_score, 72.8);
+  assert.equal(analytics.trends[1].exam_series_name, 'Term 2');
+  
+  // Verify tenant isolation
+  assert.equal(paramsList[0][0], 'tenant-xyz');
+  assert.equal(paramsList[1][0], 'tenant-xyz');
+});
+

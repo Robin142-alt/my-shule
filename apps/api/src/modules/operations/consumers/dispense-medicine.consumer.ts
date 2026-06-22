@@ -24,10 +24,25 @@ export class DispenseMedicineConsumer implements EventConsumerDescriptor<'workfl
     this.logger.log(`Dispensing medicine for student ${data.studentId} in tenant ${tenant_id}`);
 
     try {
-      await this.prisma.$transaction(async (tx: any) => {
+      await this.prisma.executeWithTenant(tenant_id, data.dispensedByUserId || 'system', async (tx: any) => {
+        // Assert student exists and belongs to current tenant (tenant_id)
+        const student = await tx.student.findFirst({
+          where: { id: data.studentId, schoolId: tenant_id }
+        });
+        if (!student) {
+          throw new Error('Student not found or access denied');
+        }
+
+        // If data.medicalVisitId is provided, assert it belongs to tenant_id and the specified studentId
         let medicalVisitId = data.medicalVisitId;
-        
-        if (!medicalVisitId) {
+        if (medicalVisitId) {
+          const visit = await tx.medicalVisit.findFirst({
+            where: { id: medicalVisitId, schoolId: tenant_id }
+          });
+          if (!visit || visit.studentId !== data.studentId) {
+            throw new Error('Medical visit not found or access denied');
+          }
+        } else {
           const visit = await tx.medicalVisit.create({
             data: {
               schoolId: tenant_id,
@@ -44,6 +59,14 @@ export class DispenseMedicineConsumer implements EventConsumerDescriptor<'workfl
           medicalVisitId = visit.id;
         }
 
+        // Verify that the medicine inventory item exists and belongs to tenant_id before updating quantity
+        const inventory = await tx.medicineInventory.findFirst({
+          where: { id: data.medicineInventoryId, schoolId: tenant_id }
+        });
+        if (!inventory) {
+          throw new Error('Medicine inventory not found or access denied');
+        }
+
         await tx.medicineDispensingLog.create({
           data: {
             schoolId: tenant_id,
@@ -55,13 +78,10 @@ export class DispenseMedicineConsumer implements EventConsumerDescriptor<'workfl
           }
         });
 
-        const inventory = await tx.medicineInventory.findUnique({ where: { id: data.medicineInventoryId } });
-        if (inventory) {
-          await tx.medicineInventory.update({
-            where: { id: data.medicineInventoryId },
-            data: { quantityAvailable: inventory.quantityAvailable - data.quantityDispensed }
-          });
-        }
+        await tx.medicineInventory.update({
+          where: { id: data.medicineInventoryId },
+          data: { quantityAvailable: inventory.quantityAvailable - data.quantityDispensed }
+        });
       });
       this.logger.log(`Successfully dispensed medicine for student ${data.studentId}`);
     } catch (error: any) {

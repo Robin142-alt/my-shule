@@ -6,6 +6,8 @@ import { toast } from "sonner";
 import { Panel, StatusChip, Tone } from "./shared";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 import { createItem, receiveStock, issueStock } from "./api-client";
+import { Modal } from "@/components/ui/modal";
+import { useForm } from "react-hook-form";
 
 type StockItem = {
   id: string;
@@ -29,11 +31,58 @@ type ItemsData = {
   items: StockItem[];
 };
 
+type IssueFormData = {
+  quantity: number;
+  issuedTo: string;
+};
+
+type ReceiveFormData = {
+  quantity: number;
+  supplier: string;
+};
+
+type AddItemFormData = {
+  name: string;
+  category: string;
+  unit: string;
+  reorderLevel: number;
+  unitCost: number;
+};
+
 export function ItemsWorkspace() {
   const { data, isLoading, refetch } = useSchoolQuery<ItemsData>('/admin-command/storekeeper/items');
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("All");
   const [isAdding, setIsAdding] = useState(false);
+
+  const [isAddItemOpen, setIsAddItemOpen] = useState(false);
+  const [isIssueOpen, setIsIssueOpen] = useState(false);
+  const [isReceiveOpen, setIsReceiveOpen] = useState(false);
+  const [selectedItem, setSelectedItem] = useState<StockItem | null>(null);
+
+  const addItemForm = useForm<AddItemFormData>({
+    defaultValues: {
+      name: "",
+      category: "",
+      unit: "",
+      reorderLevel: 10,
+      unitCost: 0,
+    }
+  });
+
+  const issueForm = useForm<IssueFormData>({
+    defaultValues: {
+      quantity: 1,
+      issuedTo: "",
+    }
+  });
+
+  const receiveForm = useForm<ReceiveFormData>({
+    defaultValues: {
+      quantity: 1,
+      supplier: "",
+    }
+  });
 
   const items = data?.items || [];
   const categories = data?.categories || [];
@@ -56,59 +105,62 @@ export function ItemsWorkspace() {
     return "In Stock";
   };
 
-  const handleQuickIssue = async (item: StockItem) => {
-    const qty = prompt(`Issue how many ${item.unit}(s) of "${item.name}"?`);
-    if (!qty || isNaN(Number(qty)) || Number(qty) <= 0) return;
-    const recipient = prompt("Issue to (department/person)?");
-    if (!recipient) return;
-    try {
-      await issueStock({ item_id: item.id, quantity: Number(qty), issued_to: recipient });
-      toast.success(`Issued ${qty} ${item.unit}(s) of ${item.name}.`);
-      refetch();
-    } catch {
-      toast.error("Failed to issue stock.");
-    }
-  };
-
-  const handleQuickReceive = async (item: StockItem) => {
-    const qty = prompt(`Receive how many ${item.unit}(s) of "${item.name}"?`);
-    if (!qty || isNaN(Number(qty)) || Number(qty) <= 0) return;
-    const supplier = prompt("Supplier name?");
-    if (!supplier) return;
-    try {
-      await receiveStock({ item_id: item.id, quantity: Number(qty), supplier });
-      toast.success(`Received ${qty} ${item.unit}(s) of ${item.name}.`);
-      refetch();
-    } catch {
-      toast.error("Failed to receive stock.");
-    }
-  };
-
-  const handleAddItem = async () => {
+  const onSubmitAddItem = async (formData: AddItemFormData) => {
     setIsAdding(true);
     try {
-      const name = prompt("Item name?");
-      if (!name) { setIsAdding(false); return; }
-      const category = prompt("Category (e.g. Stationery, Cleaning, Lab Supplies)?");
-      if (!category) { setIsAdding(false); return; }
-      const unit = prompt("Unit of measure (e.g. pieces, reams, kg, litres)?");
-      if (!unit) { setIsAdding(false); return; }
-      const reorderLevel = prompt("Reorder level (minimum stock)?");
-      const unitCost = prompt("Unit cost (KES)?");
-
       await createItem({
-        name,
-        category,
-        unit,
-        reorder_level: Number(reorderLevel) || 10,
-        unit_cost: Number(unitCost) || 0,
+        name: formData.name,
+        category: formData.category,
+        unit: formData.unit,
+        reorder_level: Number(formData.reorderLevel) || 10,
+        unit_cost: Number(formData.unitCost) || 0,
       });
-      toast.success(`Item "${name}" added to catalogue.`);
+      toast.success(`Item "${formData.name}" added to catalogue.`);
+      setIsAddItemOpen(false);
+      addItemForm.reset();
       refetch();
     } catch {
       toast.error("Failed to add item.");
     } finally {
       setIsAdding(false);
+    }
+  };
+
+  const onSubmitIssue = async (formData: IssueFormData) => {
+    if (!selectedItem) return;
+    try {
+      await issueStock({
+        item_id: selectedItem.id,
+        quantity: Number(formData.quantity),
+        issued_to: formData.issuedTo
+      });
+      toast.success(`Issued ${formData.quantity} ${selectedItem.unit}(s) of ${selectedItem.name}.`);
+      setIsIssueOpen(false);
+      issueForm.reset();
+      refetch();
+    } catch {
+      toast.error("Failed to issue stock.");
+    } finally {
+      setSelectedItem(null);
+    }
+  };
+
+  const onSubmitReceive = async (formData: ReceiveFormData) => {
+    if (!selectedItem) return;
+    try {
+      await receiveStock({
+        item_id: selectedItem.id,
+        quantity: Number(formData.quantity),
+        supplier: formData.supplier
+      });
+      toast.success(`Received ${formData.quantity} ${selectedItem.unit}(s) of ${selectedItem.name}.`);
+      setIsReceiveOpen(false);
+      receiveForm.reset();
+      refetch();
+    } catch {
+      toast.error("Failed to receive stock.");
+    } finally {
+      setSelectedItem(null);
     }
   };
 
@@ -119,11 +171,13 @@ export function ItemsWorkspace() {
       icon={Package}
       actions={
         <button
-          disabled={isAdding}
-          onClick={handleAddItem}
+          onClick={() => {
+            addItemForm.reset();
+            setIsAddItemOpen(true);
+          }}
           className="inline-flex items-center gap-2 rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white hover:bg-blue-900 transition disabled:opacity-50"
         >
-          <Plus className="h-4 w-4" /> {isAdding ? "Adding..." : "Add Item"}
+          <Plus className="h-4 w-4" /> Add Item
         </button>
       }
     >
@@ -158,7 +212,7 @@ export function ItemsWorkspace() {
         <select
           value={categoryFilter}
           onChange={(e) => setCategoryFilter(e.target.value)}
-          className="rounded-xl border border-[#D8E0EC] py-2 px-3 text-sm outline-none focus:border-[#071D49]"
+          className="rounded-xl border border-[#D8E0EC] py-2 px-3 text-sm outline-none focus:border-[#071D49] text-[#071D49]"
         >
           <option value="All">All Categories</option>
           {categories.map((cat) => (
@@ -199,8 +253,26 @@ export function ItemsWorkspace() {
                   <td className="px-4 py-3"><StatusChip label={getStockLabel(item)} tone={getStockTone(item)} /></td>
                   <td className="px-4 py-3 text-right">
                     <div className="inline-flex gap-2">
-                      <button onClick={() => handleQuickReceive(item)} className="text-emerald-600 hover:underline font-semibold text-xs">Receive</button>
-                      <button onClick={() => handleQuickIssue(item)} className="text-blue-600 hover:underline font-semibold text-xs">Issue</button>
+                      <button
+                        onClick={() => {
+                          setSelectedItem(item);
+                          receiveForm.reset({ quantity: 1, supplier: "" });
+                          setIsReceiveOpen(true);
+                        }}
+                        className="text-emerald-600 hover:underline font-semibold text-xs"
+                      >
+                        Receive
+                      </button>
+                      <button
+                        onClick={() => {
+                          setSelectedItem(item);
+                          issueForm.reset({ quantity: 1, issuedTo: "" });
+                          setIsIssueOpen(true);
+                        }}
+                        className="text-blue-600 hover:underline font-semibold text-xs"
+                      >
+                        Issue
+                      </button>
                     </div>
                   </td>
                 </tr>
@@ -209,6 +281,228 @@ export function ItemsWorkspace() {
           </tbody>
         </table>
       </div>
+
+      {/* Add Item Modal */}
+      <Modal
+        open={isAddItemOpen}
+        onClose={() => setIsAddItemOpen(false)}
+        title="Add Item"
+      >
+        <form onSubmit={addItemForm.handleSubmit(onSubmitAddItem)} className="space-y-4 py-4">
+          <div className="space-y-1">
+            <label className="text-sm font-medium">Item Name</label>
+            <input
+              type="text"
+              {...addItemForm.register("name", { required: "Item name is required" })}
+              className="w-full rounded border border-slate-300 p-2 text-sm text-[#071D49]"
+              placeholder="e.g. Science Beakers"
+            />
+            {addItemForm.formState.errors.name && (
+              <span className="text-xs text-red-500">{addItemForm.formState.errors.name.message}</span>
+            )}
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-sm font-medium">Category</label>
+            <input
+              type="text"
+              {...addItemForm.register("category", { required: "Category is required" })}
+              className="w-full rounded border border-slate-300 p-2 text-sm text-[#071D49]"
+              placeholder="e.g. Lab Supplies"
+            />
+            {addItemForm.formState.errors.category && (
+              <span className="text-xs text-red-500">{addItemForm.formState.errors.category.message}</span>
+            )}
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-sm font-medium">Unit of Measure</label>
+            <input
+              type="text"
+              {...addItemForm.register("unit", { required: "Unit is required" })}
+              className="w-full rounded border border-slate-300 p-2 text-sm text-[#071D49]"
+              placeholder="e.g. pieces"
+            />
+            {addItemForm.formState.errors.unit && (
+              <span className="text-xs text-red-500">{addItemForm.formState.errors.unit.message}</span>
+            )}
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-sm font-medium">Reorder Level</label>
+            <input
+              type="number"
+              {...addItemForm.register("reorderLevel", {
+                required: "Reorder level is required",
+                min: { value: 0, message: "Cannot be negative" },
+                valueAsNumber: true,
+              })}
+              className="w-full rounded border border-slate-300 p-2 text-sm text-[#071D49]"
+              placeholder="10"
+            />
+            {addItemForm.formState.errors.reorderLevel && (
+              <span className="text-xs text-red-500">{addItemForm.formState.errors.reorderLevel.message}</span>
+            )}
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-sm font-medium">Unit Cost (KES)</label>
+            <input
+              type="number"
+              {...addItemForm.register("unitCost", {
+                required: "Unit cost is required",
+                min: { value: 0, message: "Cannot be negative" },
+                valueAsNumber: true,
+              })}
+              className="w-full rounded border border-slate-300 p-2 text-sm text-[#071D49]"
+              placeholder="0"
+            />
+            {addItemForm.formState.errors.unitCost && (
+              <span className="text-xs text-red-500">{addItemForm.formState.errors.unitCost.message}</span>
+            )}
+          </div>
+
+          <div className="flex justify-end space-x-3 pt-4 border-t border-slate-100">
+            <button
+              type="button"
+              onClick={() => setIsAddItemOpen(false)}
+              className="px-4 py-2 border rounded text-sm font-medium hover:bg-slate-50 text-[#071D49]"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={isAdding}
+              className="px-4 py-2 bg-[#071D49] text-white rounded text-sm font-medium hover:bg-blue-900 disabled:opacity-50"
+            >
+              {isAdding ? "Adding..." : "Add Item"}
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Receive Stock Modal */}
+      <Modal
+        open={isReceiveOpen}
+        onClose={() => {
+          setIsReceiveOpen(false);
+          setSelectedItem(null);
+        }}
+        title={`Receive Stock: ${selectedItem?.name || ""}`}
+      >
+        <form onSubmit={receiveForm.handleSubmit(onSubmitReceive)} className="space-y-4 py-4">
+          <div className="space-y-1">
+            <label className="text-sm font-medium">Quantity to Receive ({selectedItem?.unit})</label>
+            <input
+              type="number"
+              {...receiveForm.register("quantity", {
+                required: "Quantity is required",
+                min: { value: 1, message: "Must be at least 1" },
+                valueAsNumber: true,
+              })}
+              className="w-full rounded border border-slate-300 p-2 text-sm text-[#071D49]"
+              placeholder="1"
+            />
+            {receiveForm.formState.errors.quantity && (
+              <span className="text-xs text-red-500">{receiveForm.formState.errors.quantity.message}</span>
+            )}
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-sm font-medium">Supplier Name</label>
+            <input
+              type="text"
+              {...receiveForm.register("supplier", { required: "Supplier name is required" })}
+              className="w-full rounded border border-slate-300 p-2 text-sm text-[#071D49]"
+              placeholder="Enter supplier name"
+            />
+            {receiveForm.formState.errors.supplier && (
+              <span className="text-xs text-red-500">{receiveForm.formState.errors.supplier.message}</span>
+            )}
+          </div>
+
+          <div className="flex justify-end space-x-3 pt-4 border-t border-slate-100">
+            <button
+              type="button"
+              onClick={() => {
+                setIsReceiveOpen(false);
+                setSelectedItem(null);
+              }}
+              className="px-4 py-2 border rounded text-sm font-medium hover:bg-slate-50 text-[#071D49]"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="px-4 py-2 bg-emerald-600 text-white rounded text-sm font-medium hover:bg-emerald-700"
+            >
+              Receive Stock
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Issue Stock Modal */}
+      <Modal
+        open={isIssueOpen}
+        onClose={() => {
+          setIsIssueOpen(false);
+          setSelectedItem(null);
+        }}
+        title={`Issue Stock: ${selectedItem?.name || ""}`}
+      >
+        <form onSubmit={issueForm.handleSubmit(onSubmitIssue)} className="space-y-4 py-4">
+          <div className="space-y-1">
+            <label className="text-sm font-medium">Quantity to Issue ({selectedItem?.unit})</label>
+            <input
+              type="number"
+              {...issueForm.register("quantity", {
+                required: "Quantity is required",
+                min: { value: 1, message: "Must be at least 1" },
+                max: selectedItem ? { value: selectedItem.quantity_in_stock, message: `Only ${selectedItem.quantity_in_stock} available` } : undefined,
+                valueAsNumber: true,
+              })}
+              className="w-full rounded border border-slate-300 p-2 text-sm text-[#071D49]"
+              placeholder="1"
+            />
+            {issueForm.formState.errors.quantity && (
+              <span className="text-xs text-red-500">{issueForm.formState.errors.quantity.message}</span>
+            )}
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-sm font-medium">Issue to (Department/Person)</label>
+            <input
+              type="text"
+              {...issueForm.register("issuedTo", { required: "Recipient is required" })}
+              className="w-full rounded border border-slate-300 p-2 text-sm text-[#071D49]"
+              placeholder="e.g. Science Department"
+            />
+            {issueForm.formState.errors.issuedTo && (
+              <span className="text-xs text-red-500">{issueForm.formState.errors.issuedTo.message}</span>
+            )}
+          </div>
+
+          <div className="flex justify-end space-x-3 pt-4 border-t border-slate-100">
+            <button
+              type="button"
+              onClick={() => {
+                setIsIssueOpen(false);
+                setSelectedItem(null);
+              }}
+              className="px-4 py-2 border rounded text-sm font-medium hover:bg-slate-50 text-[#071D49]"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="px-4 py-2 bg-blue-600 text-white rounded text-sm font-medium hover:bg-blue-700"
+            >
+              Issue Stock
+            </button>
+          </div>
+        </form>
+      </Modal>
     </Panel>
   );
 }
