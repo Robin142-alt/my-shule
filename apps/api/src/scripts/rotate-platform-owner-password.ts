@@ -3,6 +3,7 @@ import { Client } from 'pg';
 
 const databaseUrl = process.env.DATABASE_URL;
 const ownerEmail = process.env.SYSTEM_OWNER_EMAIL?.trim().toLowerCase();
+const ownerDisplayName = process.env.SYSTEM_OWNER_DISPLAY_NAME?.trim() || 'System Owner';
 const ownerPassword = resolveOwnerPassword();
 
 function resolveOwnerPassword(): string {
@@ -57,37 +58,16 @@ async function main(): Promise<void> {
       CREATE UNIQUE INDEX IF NOT EXISTS ux_users_email ON users (lower(email));
     `);
 
-    const result = await client.query<{ id: string }>(
+    const columnsResult = await client.query<{ column_name: string }>(
       `
-        INSERT INTO users (
-          tenant_id,
-          email,
-          password_hash,
-          display_name,
-          user_type,
-          status,
-          email_verified_at,
-          mfa_enabled,
-          password_changed_at
-        )
-        VALUES ('global', $1, $2, 'System Owner', 'platform_owner', 'active', NOW(), FALSE, NOW())
-        ON CONFLICT ((lower(email)))
-        DO UPDATE SET
-          tenant_id = 'global',
-          password_hash = EXCLUDED.password_hash,
-          user_type = 'platform_owner',
-          status = 'active',
-          email_verified_at = COALESCE(users.email_verified_at, NOW()),
-          password_changed_at = NOW(),
-          updated_at = NOW()
-        RETURNING id::text
+        SELECT column_name
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'users'
+          AND column_name IN ('full_name')
       `,
-      [ownerEmail, passwordHash],
     );
-
-    if (!result.rows[0]) {
-      throw new Error('Owner account was not updated.');
-    }
+    const hasFullName = columnsResult.rows.some((row) => row.column_name === 'full_name');
 
     await client.query(
       `
@@ -98,6 +78,43 @@ async function main(): Promise<void> {
       `,
       [ownerEmail],
     );
+
+    const result = await client.query<{ id: string }>(
+      `
+        INSERT INTO users (
+          tenant_id,
+          email,
+          password_hash,
+          display_name,
+          ${hasFullName ? 'full_name,' : ''}
+          user_type,
+          status,
+          email_verified_at,
+          mfa_enabled,
+          password_changed_at,
+          created_at,
+          updated_at
+        )
+        VALUES ('global', $1, $2, $3, ${hasFullName ? '$3,' : ''} 'platform_owner', 'active', NOW(), FALSE, NOW(), NOW(), NOW())
+        ON CONFLICT ((lower(email)))
+        DO UPDATE SET
+          tenant_id = 'global',
+          password_hash = EXCLUDED.password_hash,
+          display_name = EXCLUDED.display_name,
+          ${hasFullName ? 'full_name = EXCLUDED.full_name,' : ''}
+          user_type = 'platform_owner',
+          status = 'active',
+          email_verified_at = COALESCE(users.email_verified_at, NOW()),
+          password_changed_at = NOW(),
+          updated_at = NOW()
+        RETURNING id::text
+      `,
+      [ownerEmail, passwordHash, ownerDisplayName],
+    );
+
+    if (!result.rows[0]) {
+      throw new Error('Owner account was not updated.');
+    }
 
     await client.query('COMMIT');
   } catch (error) {

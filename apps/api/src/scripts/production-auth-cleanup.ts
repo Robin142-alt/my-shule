@@ -61,6 +61,17 @@ async function main(): Promise<void> {
       CREATE UNIQUE INDEX IF NOT EXISTS ux_users_email ON users (lower(email));
     `);
 
+    const columnsResult = await client.query<{ column_name: string }>(
+      `
+        SELECT column_name
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'users'
+          AND column_name IN ('full_name')
+      `,
+    );
+    const hasFullName = columnsResult.rows.some((row) => row.column_name === 'full_name');
+
     const tablesResult = await client.query<{ qualified_name: string }>(`
       SELECT format('%I.%I', schemaname, tablename) AS qualified_name
       FROM pg_tables
@@ -87,19 +98,23 @@ async function main(): Promise<void> {
           email,
           password_hash,
           display_name,
+          ${hasFullName ? 'full_name,' : ''}
           user_type,
           status,
           email_verified_at,
           recovery_email,
           mfa_enabled,
-          password_changed_at
+          password_changed_at,
+          created_at,
+          updated_at
         )
-        VALUES ('global', $1, $2, $3, 'platform_owner', 'active', NOW(), $4, FALSE, NOW())
+        VALUES ('global', $1, $2, $3, ${hasFullName ? '$3,' : ''} 'platform_owner', 'active', NOW(), $4, FALSE, NOW(), NOW(), NOW())
         ON CONFLICT ((lower(email)))
         DO UPDATE SET
           tenant_id = 'global',
           password_hash = EXCLUDED.password_hash,
           display_name = EXCLUDED.display_name,
+          ${hasFullName ? 'full_name = EXCLUDED.full_name,' : ''}
           user_type = 'platform_owner',
           status = 'active',
           email_verified_at = COALESCE(users.email_verified_at, NOW()),
